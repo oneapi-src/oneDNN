@@ -369,7 +369,7 @@ void sycl_get_started_tutorial(engine::kind ekind) {
                 // memory allocation
                 data_buffers.push_back({});
                 data_buffers.back().reset(
-                        ::sycl::malloc_device(
+                        ::sycl::malloc_shared(
                                 mem_size, q.get_device(), q.get_context()), sycl_deletor {q.get_context()});
                 outputs_ts.push_back(tensor {out, eng, data_buffers.back().get()});
                 global_outputs_ts_map[out.get_id()] = outputs_ts.back();

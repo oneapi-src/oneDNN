@@ -19,9 +19,11 @@
 #include <vector>
 #include <gtest/gtest.h>
 
+#ifndef DNNL_GRAPH_CPU_SYCL
 TEST(APIStream, SimpleCreate) {
     using namespace dnnl::graph;
     engine e {engine::kind::cpu, 0};
     stream s {e};
     ASSERT_EQ(e.get_kind(), engine::kind::cpu);
 }
+#endif

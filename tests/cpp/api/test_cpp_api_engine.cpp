@@ -19,6 +19,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#ifndef DNNL_GRAPH_CPU_SYCL
 TEST(APIEngine, SimpleCreate) {
     using namespace dnnl::graph;
     allocator alloc {};
@@ -26,3 +27,4 @@ TEST(APIEngine, SimpleCreate) {
 
     ASSERT_EQ(e.get_kind(), engine::kind::cpu);
 }
+#endif

@@ -29,7 +29,7 @@
 using namespace dnnl::graph;
 namespace sycl = cl::sycl;
 
-#ifdef DNNL_GRAPH_GPU_SYCL
+#ifdef DNNL_GRAPH_WITH_SYCL
 TEST(ApiExecute, ConvReLU) {
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
@@ -37,7 +37,11 @@ TEST(ApiExecute, ConvReLU) {
     std::vector<int64_t> conv0_input_dims {1, 3, 227, 227};
     std::vector<int64_t> conv0_weight_dims {16, 3, 11, 11};
 
-    engine::kind ekind = engine::kind::gpu;
+    engine::kind ekind = static_cast<engine::kind>(api_test_engine_kind);
+#ifndef DNNL_GRAPH_CPU_SYCL
+    SKIP_IF(api_test_engine_kind == dnnl_graph_cpu,
+            "skip sycl api test for native cpu runtime.");
+#endif
     graph g(ekind);
     logical_tensor conv0_src_desc {
             0, data_type::f32, conv0_input_dims, layout_type::strided};
@@ -119,7 +123,11 @@ TEST(SyclApiExecute, ConvReLU) {
     std::vector<int64_t> conv0_input_dims {1, 3, 227, 227};
     std::vector<int64_t> conv0_weight_dims {16, 3, 11, 11};
 
-    engine::kind ekind = engine::kind::gpu;
+    engine::kind ekind = static_cast<engine::kind>(api_test_engine_kind);
+#ifndef DNNL_GRAPH_CPU_SYCL
+    SKIP_IF(api_test_engine_kind == dnnl_graph_cpu,
+            "skip sycl api test for native cpu runtime.");
+#endif
     graph g(ekind);
     logical_tensor conv0_src_desc {
             0, data_type::f32, conv0_input_dims, layout_type::strided};

@@ -42,7 +42,7 @@ void deallocate(void *ptr) {
 #ifdef DNNL_GRAPH_WITH_SYCL
 /// Below functions aim to simulate what integration layer does
 /// before creating dnnl::graph::allocator. We expect integration will
-/// wrap the real SYCL malloc_device/free functions like below, then
+/// wrap the real SYCL malloc_shared/free functions like below, then
 /// dnnl_graph_allocator will be created with correct allocation/deallocation
 /// function pointers.
 void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
@@ -60,7 +60,7 @@ void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
         // temporary memory
     }
 
-    return malloc_device(n, *static_cast<const ::sycl::device *>(dev),
+    return malloc_shared(n, *static_cast<const ::sycl::device *>(dev),
             *static_cast<const ::sycl::context *>(ctx));
 }
 

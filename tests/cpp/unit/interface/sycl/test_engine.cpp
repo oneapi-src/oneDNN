@@ -16,6 +16,8 @@
 
 #include <gtest/gtest.h>
 
+#include "cpp/unit/unit_test_common.hpp"
+#include "cpp/unit/utils.hpp"
 #include "interface/engine.hpp"
 
 #include <CL/sycl.hpp>
@@ -23,48 +25,27 @@
 namespace impl = dnnl::graph::impl;
 namespace sycl = cl::sycl;
 
-struct test_engine_params {
-    impl::engine_kind_t eng_kind_;
-};
+TEST(TestEngine, CreateWithDefaultAllocator) {
+    impl::engine_kind_t kind = get_test_engine_kind();
+#ifndef DNNL_GRAPH_CPU_SYCL
+    SKIP_IF(kind == impl::engine_kind::cpu,
+            "skip sycl api test for native cpu runtime.");
+#endif
+    sycl::device dev = (kind == impl::engine_kind::gpu)
+            ? sycl::device {sycl::gpu_selector()}
+            : sycl::device {sycl::cpu_selector()};
+    sycl::context ctx {dev};
 
-class TestEngine : public ::testing::TestWithParam<test_engine_params> {
-public:
-    void sycl_engine() {
-        auto param = ::testing::TestWithParam<test_engine_params>::GetParam();
+    impl::engine_t eng(kind, dev, ctx);
 
-        impl::engine_kind_t kind = param.eng_kind_;
+    impl::allocator_t::attribute_t attr {impl::allocator_lifetime::temp, 128};
+    ASSERT_EQ(attr.data.type, impl::allocator_lifetime::temp);
+    ASSERT_EQ(attr.data.alignment, 128);
 
-        sycl::device dev = (kind == impl::engine_kind::gpu)
-                ? sycl::device {sycl::gpu_selector()}
-                : sycl::device {sycl::cpu_selector()};
-        sycl::context ctx {dev};
-
-        impl::engine_t eng(kind, dev, ctx);
-
-        impl::allocator_t::attribute_t attr {
-                impl::allocator_lifetime::temp, 128};
-        ASSERT_EQ(attr.data.type, impl::allocator_lifetime::temp);
-        ASSERT_EQ(attr.data.alignment, 128);
-
-        auto *mem_ptr = eng.get_allocator()->allocate(
-                16, eng.sycl_device(), eng.sycl_context(), attr);
-        ASSERT_NE(mem_ptr, nullptr);
-        sycl::event e;
-        eng.get_allocator()->deallocate(
-                mem_ptr, eng.sycl_device(), eng.sycl_context(), e);
-    }
-};
-
-TEST_P(TestEngine, CreateWithDefaultAllocator) {
-    sycl_engine();
+    auto *mem_ptr = eng.get_allocator()->allocate(
+            16, eng.sycl_device(), eng.sycl_context(), attr);
+    ASSERT_NE(mem_ptr, nullptr);
+    sycl::event e;
+    eng.get_allocator()->deallocate(
+            mem_ptr, eng.sycl_device(), eng.sycl_context(), e);
 }
-
-#ifdef DNNL_GRAPH_GPU_SYCL
-INSTANTIATE_TEST_SUITE_P(SyclEngineGpu, TestEngine,
-        ::testing::Values(test_engine_params {impl::engine_kind::gpu}));
-#endif
-
-#ifdef DNNL_GRAPH_CPU_SYCL
-INSTANTIATE_TEST_SUITE_P(SyclEngineCpu, TestEngine,
-        ::testing::Values(test_engine_params {impl::engine_kind::cpu}));
-#endif

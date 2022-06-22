@@ -21,6 +21,7 @@
 
 #include <vector>
 
+#ifndef DNNL_GRAPH_CPU_SYCL
 TEST(APITensor, CreateWithShape) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using data_type = logical_tensor::data_type;
@@ -128,3 +129,4 @@ TEST(APITensor, CreateWithLogicalTensorS8) {
     ASSERT_EQ(t.get_data_handle<float>(), nullptr);
     ASSERT_EQ(t.get_engine().get_kind(), engine::kind::cpu);
 }
+#endif

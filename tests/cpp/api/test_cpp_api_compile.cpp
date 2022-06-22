@@ -19,6 +19,7 @@
 #include "test_api_common.hpp"
 #include "gtest/gtest.h"
 
+#ifndef DNNL_GRAPH_CPU_SYCL
 struct dnnl_graph_test_conv_params_t {
     std::vector<int64_t> input_dims;
     std::vector<int64_t> ref_dst_dims;
@@ -1172,3 +1173,4 @@ TEST_P(test_bn_compile_t, Test_BatchNorm_Compile) {
 INSTANTIATE_TEST_SUITE_P(Test_BatchNorm_Compile, test_bn_compile_t,
         ::testing::Values(
                 dnnl_graph_test_bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));
+#endif

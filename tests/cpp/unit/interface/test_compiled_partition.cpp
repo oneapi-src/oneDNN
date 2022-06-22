@@ -33,6 +33,7 @@ namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl {
 namespace graph {
 
+#ifndef DNNL_GRAPH_CPU_SYCL
 TEST(CompiledPartitionCache, SingleOpCase) {
     const size_t max_batch = 4;
 
@@ -130,6 +131,7 @@ TEST(CompiledPartitionCache, SingleOpCase) {
     ASSERT_EQ(get_compiled_partition_cache_size(), new_capacity);
 #endif
 }
+#endif
 
 } // namespace graph
 } // namespace dnnl

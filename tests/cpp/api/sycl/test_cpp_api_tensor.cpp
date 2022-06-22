@@ -20,6 +20,7 @@
 
 #include <CL/sycl.hpp>
 
+#include "cpp/api/test_api_common.hpp"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
@@ -28,6 +29,8 @@ namespace sycl = cl::sycl;
 
 #ifdef DNNL_GRAPH_GPU_SYCL
 TEST(tensor_test, gpu_engine) {
+    SKIP_IF(api_test_engine_kind == dnnl_graph_cpu,
+            "skip sycl test for cpu engine.");
     sycl::device dev {sycl::gpu_selector {}};
     sycl::context ctx {dev};
 

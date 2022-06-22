@@ -263,6 +263,7 @@ TEST(APIPartition, SingleConvPartition) {
     ASSERT_TRUE(part.is_supported());
 }
 
+#ifndef DNNL_GRAPH_CPU_SYCL
 TEST(APIPartition, CompileWildcardPartition) {
     using namespace dnnl::graph;
     std::vector<int64_t> data_dims {8, 256, 56, 56};
@@ -289,3 +290,4 @@ TEST(APIPartition, CompileWildcardPartition) {
     engine eng(engine::kind::cpu, 0);
     EXPECT_THROW(part.compile({lt1}, {lt2}, eng), error);
 }
+#endif

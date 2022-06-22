@@ -1502,10 +1502,12 @@ struct const_memory_filler_t : public op_executable_t {
         const memory src_mem
                 = make_dnnl_memory(dst_mem.get_desc(), src_eng, data_handle);
         auto prim = dnnl::reorder(src_mem, dst_mem);
-        return dnnl::sycl_interop::execute(prim, stream,
+        auto e = dnnl::sycl_interop::execute(prim, stream,
                 {{DNNL_ARG_FROM, const_cast<memory &>(src_mem)},
                         {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
                 deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1571,7 +1573,9 @@ struct conv_fwd_executable_t : public op_executable_t {
                 sycl_deps = {e};
             }
         }
-        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1625,7 +1629,9 @@ struct deconv_fwd_executable_t : public op_executable_t {
                 sycl_deps = {e};
             }
         }
-        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1654,7 +1660,9 @@ struct deconv_bwd_data_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1682,7 +1690,9 @@ struct deconv_bwd_weights_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1752,7 +1762,9 @@ struct matmul_executable_t : public op_executable_t {
                 sycl_deps = {e};
             }
         }
-        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1781,7 +1793,9 @@ struct eltwise_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1809,7 +1823,9 @@ struct eltwise_bwd_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1868,7 +1884,9 @@ struct binary_executable_t : public op_executable_t {
                 sycl_deps = {e};
             }
         }
-        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1896,7 +1914,9 @@ struct concat_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1924,7 +1944,9 @@ struct shuffle_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1950,7 +1972,9 @@ struct pool_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -1976,7 +2000,9 @@ struct pool_bwd_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2004,7 +2030,9 @@ struct prelu_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2032,7 +2060,9 @@ struct prelu_bwd_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2081,7 +2111,9 @@ struct reorder_executable_t : public op_executable_t {
                 sycl_deps = {e};
             }
         }
-        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2290,7 +2322,6 @@ struct bn_folding_t : public op_executable_t {
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
         UNUSED(args);
-        auto sycl_deps = deps;
 
         auto weights = args.find(DNNL_ARG_WEIGHTS)->second;
         auto bias = with_bias_ ? args.find(DNNL_ARG_BIAS)->second : memory();
@@ -2321,19 +2352,16 @@ struct bn_folding_t : public op_executable_t {
                 epsilon_desc_, scratchpad.get_engine(), (void *)buf_start);
 
         // 1. sqrt_variance = sqrt(variance + epsilon)
-        engine cpu_eng(engine::kind::cpu, 0);
-        memory cpu_mem
-                = make_dnnl_memory(epsilon_desc_, cpu_eng, (void *)&epsilon_);
-        auto prim = dnnl::reorder(cpu_mem, epsilon_mem);
-        auto sycl_deps2 = dnnl::sycl_interop::execute(prim, stream,
-                {{DNNL_ARG_FROM, const_cast<memory &>(cpu_mem)},
-                        {DNNL_ARG_TO, const_cast<memory &>(epsilon_mem)}},
-                sycl_deps);
+        auto sycl_queue = dnnl::sycl_interop::get_queue(stream);
+        sycl_queue
+                .memcpy(epsilon_mem.get_data_handle(), &epsilon_,
+                        epsilon_mem.get_desc().get_size())
+                .wait();
 
-        auto sycl_deps3 = dnnl::sycl_interop::execute(add_prim_, stream,
+        auto sycl_deps = dnnl::sycl_interop::execute(add_prim_, stream,
                 {{DNNL_ARG_SRC_0, variance}, {DNNL_ARG_SRC_1, epsilon_mem},
                         {DNNL_ARG_DST, sqrt_variance}},
-                {sycl_deps2});
+                deps);
 
         // 2. updated_weight = weights * scale / sqrt_variance
         memory new_scale(
@@ -2341,27 +2369,23 @@ struct bn_folding_t : public op_executable_t {
         memory new_sqrt_variance(new_variance_desc_, sqrt_variance.get_engine(),
                 sqrt_variance.get_data_handle());
 
-        auto sycl_deps4 = dnnl::sycl_interop::execute(mul_prim_, stream,
+        auto sycl_deps2 = dnnl::sycl_interop::execute(mul_prim_, stream,
                 {{DNNL_ARG_SRC_0, weights}, {DNNL_ARG_SRC_1, new_scale},
                         {DNNL_ARG_DST, updated_weights},
                         {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
                                 new_sqrt_variance}},
-                {sycl_deps3});
+                {sycl_deps});
 
         // 3. updated_bias = (bias - mean) * scale / sqrt_variance + shift
         if (bias.get(true) == nullptr || bias.get_data_handle() == nullptr) {
             // initialize the bias with zero value
             std::vector<float> zero(
                     impl::utils::prod(variance.get_desc().dims()), 0.0f);
-            engine cpu_eng(engine::kind::cpu, 0);
-            memory cpu_mem = make_dnnl_memory(
-                    variance.get_desc(), cpu_eng, zero.data());
-            auto prim = dnnl::reorder(cpu_mem, valid_bias);
-            auto sycl_deps5 = dnnl::sycl_interop::execute(prim, stream,
-                    {{DNNL_ARG_FROM, const_cast<memory &>(cpu_mem)},
-                            {DNNL_ARG_TO, const_cast<memory &>(valid_bias)}},
-                    {sycl_deps4});
-            return dnnl::sycl_interop::execute(sub_prim_, stream,
+            sycl_queue
+                    .memcpy(valid_bias.get_data_handle(), zero.data(),
+                            valid_bias.get_desc().get_size())
+                    .wait();
+            auto sycl_deps3 = dnnl::sycl_interop::execute(sub_prim_, stream,
                     {{DNNL_ARG_SRC_0, valid_bias}, {DNNL_ARG_SRC_1, mean},
                             {DNNL_ARG_DST, updated_bias},
                             {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
@@ -2370,10 +2394,13 @@ struct bn_folding_t : public op_executable_t {
                                     sqrt_variance},
                             {DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1,
                                     shift}},
-                    {sycl_deps5});
+                    {sycl_deps2});
+            if (stream.get_engine().get_kind() == engine::kind::cpu)
+                sycl_deps3.wait();
+            return sycl_deps3;
         }
 
-        return dnnl::sycl_interop::execute(sub_prim_, stream,
+        auto sycl_deps3 = dnnl::sycl_interop::execute(sub_prim_, stream,
                 {{DNNL_ARG_SRC_0, valid_bias}, {DNNL_ARG_SRC_1, mean},
                         {DNNL_ARG_DST, updated_bias},
                         {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
@@ -2382,7 +2409,10 @@ struct bn_folding_t : public op_executable_t {
                                 sqrt_variance},
                         {DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1,
                                 shift}},
-                {sycl_deps4});
+                {sycl_deps2});
+        if (stream.get_engine().get_kind() == engine::kind::cpu)
+            sycl_deps3.wait();
+        return sycl_deps3;
     }
 #endif
 
@@ -2423,7 +2453,9 @@ struct conv_bwd_data_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2451,7 +2483,9 @@ struct conv_bwd_weights_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2525,7 +2559,9 @@ struct batchnorm_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
         if (!is_training_) {
-            return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+            auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+            if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+            return e;
         }
 
         std::unordered_map<int, memory> exe_args = args;
@@ -2569,11 +2605,13 @@ struct batchnorm_executable_t : public op_executable_t {
         auto sum_prim_1 = dnnl::sum({scales_,
                 {old_running_variance.get_desc(), batch_variance.get_desc()},
                 p_engine});
-        return dnnl::sycl_interop::execute(sum_prim_0, stream,
+        auto e2 = dnnl::sycl_interop::execute(sum_prim_0, stream,
                 {{DNNL_ARG_MULTIPLE_SRC, old_running_variance},
                         {DNNL_ARG_MULTIPLE_SRC + 1, batch_variance},
                         {DNNL_ARG_DST, new_running_variance}},
                 {e1});
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e2.wait();
+        return e2;
     }
 #endif
 
@@ -2603,7 +2641,9 @@ struct batchnorm_bwd_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2655,7 +2695,9 @@ struct resampling_executable_t : public op_executable_t {
                 sycl_deps = {e};
             }
         }
-        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2684,7 +2726,9 @@ struct resampling_bwd_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2712,7 +2756,9 @@ struct layernorm_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2740,7 +2786,9 @@ struct layernorm_bwd_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2767,7 +2815,9 @@ struct sum_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2797,7 +2847,9 @@ struct softmax_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2827,7 +2879,9 @@ struct softmax_bwd_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2857,7 +2911,9 @@ struct logsoftmax_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2887,7 +2943,9 @@ struct logsoftmax_bwd_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 
@@ -2942,7 +3000,9 @@ struct reduction_executable_t : public op_executable_t {
             }
         }
 
-        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
     }
 #endif
 

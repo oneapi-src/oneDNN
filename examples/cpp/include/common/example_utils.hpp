@@ -131,7 +131,7 @@ void fill_buffer(
 
 void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
         dnnl::graph::allocator::attribute attr) {
-    return malloc_device(n, *static_cast<const ::sycl::device *>(dev),
+    return malloc_shared(n, *static_cast<const ::sycl::device *>(dev),
             *static_cast<const ::sycl::context *>(ctx));
 }
 

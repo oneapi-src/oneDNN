@@ -43,7 +43,7 @@ using dims_t = std::vector<dim_t>;
     do { \
         if (cond) { \
             std::cout << "[  SKIPPED ] " << (msg) << std::endl; \
-            return; \
+            GTEST_SKIP(); \
         } \
     } while (0)
 

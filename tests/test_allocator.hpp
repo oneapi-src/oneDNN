@@ -48,7 +48,7 @@ public:
     ~simple_sycl_allocator() {};
 
     void *malloc(size_t num_bytes, const ::sycl::device *dev) {
-        return malloc_device(num_bytes, *dev, *ctx_);
+        return malloc_shared(num_bytes, *dev, *ctx_);
     }
 
     void release(void *ptr, ::sycl::event e) { free_list_[e] = ptr; }
