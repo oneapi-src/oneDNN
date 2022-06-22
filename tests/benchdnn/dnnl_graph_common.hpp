@@ -719,9 +719,10 @@ struct graph_t {
         if (lt.get_layout_type()
                 == dnnl::graph::logical_tensor::layout_type::opaque)
             create_lt(aid, lt.get_data_type(), lt.get_dims(),
-                    lt.get_layout_type());
+                    lt.get_layout_id(), lt.get_property_type());
         else
-            create_lt(aid, lt.get_data_type(), lt.get_dims(), lt.get_strides());
+            create_lt(aid, lt.get_data_type(), lt.get_dims(), lt.get_strides(),
+                    lt.get_property_type());
     }
 
     void create_lt(size_t aid, dt dtype, const dims_t &adims,
