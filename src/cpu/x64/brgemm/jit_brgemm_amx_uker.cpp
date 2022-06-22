@@ -1444,15 +1444,6 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
         ils_vecs_per_store_ = (calc_ops) ? div_up(ils_store_ops_, calc_ops) : 0;
         pfo_vecs_per_store_ = ils_vecs_per_store_;
 
-        size_t l_c_offset = (is_ld_tail) ? ldb_C_offset(1, true)
-                                         : ldb_C_offset(ld_block2);
-        l_c_offset *= l_ldb;
-        l_c_offset += c_offset;
-        size_t l_d_offset = (is_ld_tail) ? ldb_D_offset(1, true)
-                                         : ldb_D_offset(ld_block2);
-        l_d_offset *= l_ldb;
-        l_d_offset += d_offset;
-
         const auto l_ldb_ind = l_ldb * (is_ld_tail ? brg.ldb_tail : ld_block2);
 
         load_accumulators(
