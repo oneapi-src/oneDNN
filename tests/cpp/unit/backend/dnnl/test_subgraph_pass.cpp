@@ -914,7 +914,7 @@ INSTANTIATE_TEST_SUITE_P(SubgraphPass, TestMatmulPassesWithDiffInputs,
                 ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
                         true, false, 6, 7},
                 ut_matmul_params {{4, 64, 3}, {3, 64}, {3}, {4, 3, 3}, true,
-                        true, false, 6, 7}));
+                        true, false, 6, 8}));
 
 TEST(SubgraphPass, ExecutionArgsSet) {
     ///////////////////////////
