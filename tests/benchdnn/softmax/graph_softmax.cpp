@@ -23,7 +23,7 @@
 namespace benchdnnext {
 namespace softmax {
 
-void check_known_skipped_case_graph(
+static void check_known_skipped_case_graph(
         const ::softmax::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
@@ -32,64 +32,54 @@ void check_known_skipped_case_graph(
 
     check_known_skipped_case_graph_common(
             {prb->sdt}, normalize_tag(prb->stag, prb->ndims), prb->dir, res);
-    if (res->state == SKIPPED) return;
 }
 
-fill_status_t softmax_graph_prb_t::handle_main_op_(
-        const ::softmax::prb_t *prb) {
-    using logical_tensor = dnnl::graph::logical_tensor;
-    using op = dnnl::graph::op;
+fill_status_t append_graph_with_block(const ::softmax::prb_t *prb) {
+    graph_t &graph = graph_t::get();
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
-    const std::string DST {TENSOR_ID + "_DST"};
+    const auto connect_to_previous_block = graph.has_blocks();
 
-    const auto softmax_dt = convert_dt(prb->sdt);
-    dnnl::graph::op::kind op_kind;
-    switch (prb->alg) {
-        case ::softmax::SOFTMAX:
-            op_kind = prb->dir & FLAG_FWD
-                    ? dnnl::graph::op::kind::SoftMax
-                    : dnnl::graph::op::kind::SoftMaxBackprop;
-            break;
-        case ::softmax::LOGSOFTMAX:
-            op_kind = prb->dir & FLAG_FWD
-                    ? dnnl::graph::op::kind::LogSoftmax
-                    : dnnl::graph::op::kind::LogSoftmaxBackprop;
-            break;
-        default: op_kind = dnnl::graph::op::kind::LastSymbol;
-    }
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::SOFTMAX);
+    const auto src_lt_kind
+            = prb->dir & FLAG_FWD ? lt_kind::SRC : lt_kind::DIFF_SRC;
+    const auto dst_lt_kind
+            = prb->dir & FLAG_FWD ? lt_kind::DST : lt_kind::DIFF_DST;
+    const auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, src_lt_kind);
+    const auto dst_id = graph.generate_id_for(op_id, dst_lt_kind);
 
-    tensor_descs_.emplace(DST, softmax_dt, prb->dims, prb->stag);
+    const auto common_dt = convert_dt(prb->sdt);
 
-    std::string name;
-    std::vector<logical_tensor> inputs;
-    std::vector<logical_tensor> outputs;
+    graph.create_lt(src_id, common_dt, prb->dims, prb->stag);
+    graph.create_lt(dst_id, common_dt, prb->dims, prb->stag);
+
+    std::vector<size_t> src_ids {};
+    std::vector<size_t> dst_ids {};
+    dnnl::graph::op::kind softmax_kind;
     if (prb->dir & FLAG_FWD) {
-        name = op_kind == op::kind::SoftMax ? "SoftMax" : "LogSoftmax";
-        const std::string SRC {TENSOR_ID + "_SRC"};
-
-        tensor_descs_.emplace(SRC, softmax_dt, prb->dims, prb->stag);
-        inputs = {tensor_descs_[SRC]};
-        outputs = {tensor_descs_[DST]};
+        src_ids.push_back(src_id);
+        dst_ids.push_back(dst_id);
+        softmax_kind = prb->alg == ::softmax::SOFTMAX
+                ? dnnl::graph::op::kind::SoftMax
+                : dnnl::graph::op::kind::LogSoftmax;
     } else {
-        name = op_kind == op::kind::SoftMaxBackprop ? "SoftMaxBackprop"
-                                                    : "LogSoftmaxBackprop";
-        const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
-        const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
-
-        tensor_descs_.emplace(DIFF_SRC, softmax_dt, prb->dims, prb->stag);
-        tensor_descs_.emplace(DIFF_DST, softmax_dt, prb->dims, prb->stag);
-        inputs = {tensor_descs_[DIFF_DST], tensor_descs_[DST]};
-        outputs = {tensor_descs_[DIFF_SRC]};
+        const auto fwd_dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+        graph.create_lt(fwd_dst_id, common_dt, prb->dims, prb->stag);
+        src_ids = {dst_id, fwd_dst_id};
+        dst_ids.push_back(src_id);
+        softmax_kind = prb->alg == ::softmax::SOFTMAX
+                ? dnnl::graph::op::kind::SoftMaxBackprop
+                : dnnl::graph::op::kind::LogSoftmaxBackprop;
     }
 
-    op softmax_op(new_op_id, op_kind, inputs, outputs, name);
+    dnnl::graph::op softmax_op(op_id, softmax_kind, graph.stringify_id(op_id));
     softmax_op.set_attr("axis", static_cast<int64_t>(prb->axis));
 
-    ops_.emplace_back(softmax_op);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, softmax_op, src_ids, dst_ids);
+
+    graph.close_block();
 
     return fill_status::DONE;
 }
@@ -101,20 +91,27 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    softmax_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    // Filter partitions
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -185,6 +182,8 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
+
+    cleanup();
 
     return OK;
 }
