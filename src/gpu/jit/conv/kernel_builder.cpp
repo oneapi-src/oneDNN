@@ -5413,7 +5413,7 @@ private:
     public:
         src_zp_mask_info_t() = delete;
         src_zp_mask_info_t(load_multiply_builder_t &lmb, int m_blk, int desc_m,
-                int desc_n, int ic, int a_stride, bool is_mad,
+                int desc_n, int channels, int a_stride, bool is_mad,
                 const view_t &a_view)
             : lmb_(lmb), is_const_(true), is_simd_(true), is_scalar_(false) {
             const auto tile
@@ -5427,8 +5427,11 @@ private:
             const auto &cfg = lmb_.cfg_;
             const auto dims = tile.dims()[3] * tile.dims()[4] * tile.dims()[5];
             const auto is_scalar = !is_mad && (dims <= 1);
-            size_ = ((cfg.kd * cfg.kh * cfg.kw > 1)
-                            || ((cfg.pd + 1) * (cfg.ph + 1) * (cfg.pw + 1) > 1))
+
+            const auto has_pad = (cfg.pd + 1) * (cfg.ph + 1) * (cfg.pw + 1) > 1;
+            const auto has_stride_bd
+                    = cfg.is_bwd_d && (cfg.sd * cfg.sh * cfg.sw > 1);
+            size_ = ((cfg.kd * cfg.kh * cfg.kw > 1) || has_pad || has_stride_bd)
                     * ((!is_scalar) ? desc_n * desc_m / m_blk : 1);
             if (size_ == 0) return;
 
@@ -5436,13 +5439,13 @@ private:
             auto mask_tensor = a_thr_view.create_mask_tensor(lmb_.cset_);
 
             // 2. Collect the masks, transforming the dimensions as needed
-            const auto chnl = std::min(ic, m_blk);
+            const auto c_blk = std::min(channels, m_blk);
             std::vector<dim_t> a_dims(a_thr_view.vvars().size(), 1);
             mask_tensor_t masks(
                     layout_t(type_t::_bool(), 0, std::vector<dim_t> {size_}));
             if (!is_mad) {
                 std::vector<dim_t> c_dims(lmb_.c_sub_tile_layout_.ndims(), 1);
-                a_dims[ic_dim] = c_dims[ic_dim] = chnl;
+                a_dims[ic_dim] = c_dims[ic_dim] = c_blk;
 
                 std::vector<int> c_to_a(a_dims.size());
                 for (size_t i = 0; i < c_to_a.size(); i++) {
@@ -5465,12 +5468,12 @@ private:
                                         return (i) ? start[i - 1] : 0;
                                     });
                             auto m = mask_tensor.map(tensor_t(a_dims, a_start));
-                            masks.set_mask(off, m.to_expr(chnl));
+                            masks.set_mask(off, m.to_expr(c_blk));
                         });
             } else {
                 a_dims[ic_dim] = m_blk;
                 std::vector<dim_t> a_dims_crop(a_dims.size(), 1);
-                a_dims_crop[ic_dim] = chnl;
+                a_dims_crop[ic_dim] = c_blk;
                 a_thr_view.for_each_tile(
                         tensor_t(a_dims), [&](const std::vector<dim_t> &start) {
                             std::vector<expr_t> a_st(
@@ -5480,7 +5483,8 @@ private:
                             if (off / m_blk / a_stride >= size_) return;
                             auto m = mask_tensor.map(tensor_t(a_dims, start));
                             masks.set_mask(off / m_blk / a_stride,
-                                    m.map(tensor_t(a_dims_crop)).to_expr(chnl));
+                                    m.map(tensor_t(a_dims_crop))
+                                            .to_expr(c_blk));
                         });
             }
 
@@ -5489,7 +5493,7 @@ private:
                 auto *sh = masks.mask(n).as_ptr<shuffle_t>();
                 is_simd_ &= !sh || sh->is_broadcast();
                 is_const_ &= !!sh;
-                for (int v = (sh) ? 0 : chnl; v < chnl; v++)
+                for (int v = (sh) ? 0 : c_blk; v < c_blk; v++)
                     is_const_ &= sh->vec[sh->idx[v]].is<bool_imm_t>();
             }
 
@@ -5497,12 +5501,12 @@ private:
             for (int n = 0; n < size_; n++)
                 if (is_simd_) {
                     object_map_t<expr_t, std::vector<expr_t>> vars;
-                    expr_scalarizer_t sc(chnl, 0, vars);
+                    expr_scalarizer_t sc(c_blk, 0, vars);
                     masks.set_mask(n, sc.mutate(masks.mask(n)));
                 } else if (is_const_) {
                     uint16_t mask = 0;
                     auto &sh = masks.mask(n).as<shuffle_t>();
-                    for (int v = chnl; v; v--)
+                    for (int v = c_blk; v; v--)
                         mask = mask * 2
                                 + sh.vec[sh.idx[v - 1]].as<bool_imm_t>().value;
                     masks.set_mask(n, mask);
@@ -5695,12 +5699,13 @@ private:
     };
 
     stmt_t maybe_add_src_zps(const view_t &a_view, const view_t &b_view,
-            const multiply_builder_t &mul_builder) {
+            const multiply_builder_t &mul_builder, int i_buf, int j_buf) {
         if (!cfg_.zp_cfg.do_src_compensation) return mul_builder.stmt();
         const bool is_runtime = cfg_.zp_cfg.is_runtime_src_zero_points;
         const bool is_scalar = cfg_.zp_cfg.is_common_src_zero_point;
         const bool is_mad = (cfg_.fma_kind == fma_kind_t::mad);
-        const int ic = utils::rnd_up_pow2((!is_mad) ? cfg_.ic : cfg_.g);
+        const int channels = utils::rnd_up_pow2(
+                (!is_mad) ? (cfg_.is_fwd) ? cfg_.ic : cfg_.oc : cfg_.g);
         const int m_blk = cfg_.simd_size();
 
         const type_t s_type = a_view.type();
@@ -5735,15 +5740,15 @@ private:
             desc_n = a_view.tlayout().size() / m_blk / a_stride;
             desc_m = m_blk;
         }
-        src_zp_mask_info_t masks(
-                *this, m_blk, desc_m, desc_n, ic, a_stride, is_mad, a_view);
+        src_zp_mask_info_t masks(*this, m_blk, desc_m, desc_n, channels,
+                a_stride, is_mad, a_view);
         stmt_t data = masks.stmt();
 
-        const int simd_per_ic
-                = utils::div_up(std::min((!is_scalar) ? ic : 1, 32), m_blk);
+        const int simd_per_ic = utils::div_up(
+                std::min((!is_scalar) ? channels : 1, 32), m_blk);
         const std::vector<dim_t> dims
                 = {m_blk * std::min((is_mad) ? 1 : 2, simd_per_ic)};
-        const bool sc_ic = is_scalar || (ic <= 32);
+        const bool sc_ic = is_scalar || (channels <= 32);
         expr_t offs = (!sc_ic) ? masks.ic_start() * d_type.size() : 0;
 
         if (is_runtime && !sc_ic && !cfg_.do_pipeline_unroll
@@ -5760,7 +5765,8 @@ private:
         };
         const int vd_size = get_vd_size(is_scalar, is_runtime, is_mad);
         auto src_zp = ir_ctx_.create_tmp_var(type_t::byte_ptr());
-        register_buffer(src_zp, vd_size * d_type.size(), alloc_kind_t::grf);
+        if (vd_size)
+            register_buffer(src_zp, vd_size * d_type.size(), alloc_kind_t::grf);
 
         for (int i = (is_runtime) ? 0 : std::numeric_limits<int>::max();
                 i < m_blk * simd_per_ic; i += dims[0]) {
@@ -5786,7 +5792,8 @@ private:
                 type_t sv_type(s_type.kind(), m_blk);
                 type_t b_type(s_type.kind(), (!is_scalar) ? m_blk : 1);
                 auto a = load_t::make(sv_type, a_buf_, a_off, a_stride);
-                auto b_off = (!is_scalar && (ic > m_blk)) ? iter * m_blk : 0;
+                auto b_off
+                        = (!is_scalar && (channels > m_blk)) ? iter * m_blk : 0;
                 auto b = (is_runtime) // '4'-s mean '(|i32| / |i16|) * |i16|'
                         ? load_t::make(b_type, src_zp, b_off * 4, 4)
                         : cfg_.zp_cfg.common_src_zero_point;
@@ -5812,7 +5819,7 @@ private:
                                     load_t::make(s_type, src_zp, 0), 4));
             data = data.append(store_t::make(src_zp, 0, expr));
         } else {
-            auto ic_s = std::to_string(std::min(32, ic)) + "a";
+            auto ic_s = std::to_string(std::min(32, channels)) + "a";
             data = data.append(
                     create_reorder_stmt(layout_t(s_type, 0, ic_s + "4b"),
                             layout_t(s_type, 0, "4b" + ic_s), src_zp, src_zp));
@@ -5826,14 +5833,16 @@ private:
                 src_zp[(vd_size - m_blk * 1) * d_type.size()]};
         for (int i_m = 0; i_m < desc_m; i_m += m_blk) {
             const int i_acc = (i_m / m_blk) % 2;
-            for (int i_k = 0; i_k < ((ic > 4) ? 32 / 4 : cfg_.kw); i_k++) {
+            for (int i_k = 0; i_k < ((channels > 4) ? 32 / 4 : cfg_.kw); i_k++)
                 parts.emplace_back(dp4a(acc[i_acc], (i_k) ? acc[i_acc] : 0,
                         b_buf_ + (i_m * (32 / 4) + i_k * m_blk) * d_type.size(),
                         src_zp[(!is_scalar) ? i_k * d_type.size() : 0]));
-            }
+
             for (int i_n = 0; i_n < desc_n; i_n++) {
                 const int off_n = i_m / m_blk * desc_n + i_n;
-                auto dst = c_buf_ + off_n * m_blk * d_type.size();
+                const int ij_buf = i_buf * cfg_.b_sub_tiles + j_buf;
+                auto dst = c_buf_ + off_n * m_blk * d_type.size()
+                        + ij_buf * mul_builder.c_layout().size();
                 type_t vd(i_type.kind(), m_blk);
                 auto a = load_t::make(vd, dst, 0);
                 auto b = load_t::make(vd, acc[i_acc], 0);
@@ -5902,7 +5911,8 @@ private:
                 a_i_view, b_j_view, a_buf_, b_buf_, c_buf_[c_buf_off_]);
         c_sub_tile_layout_ = mul_builder.c_layout();
 
-        auto mul_total = maybe_add_src_zps(a_i_view, b_j_view, mul_builder);
+        auto mul_total
+                = maybe_add_src_zps(a_i_view, b_j_view, mul_builder, i, j);
 
         c_buf_off_ += c_sub_tile_layout_.size();
         ir_trace() << "Multiply (" << i << ", " << j << "):\n"

@@ -352,6 +352,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     kernel_grid_dim[2] = mb_grid_dim;
 
     set_allow_grf_reorder();
+    CHECK(init_zero_points_config(conv_pd));
 
     // Do not perform full unrolling when there are too many inner
     // iterations.

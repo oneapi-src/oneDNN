@@ -107,13 +107,14 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             conv_pd_ = *(++it);
-            return status::success;
+            return (conv_pd_) ? status::success : status::unimplemented;
         }
 
         status_t init(engine_t *engine) {
             using namespace format_tag;
+            using sm = primitive_attr_t::skip_mask_t;
 
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
+            const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime;
 
             bool ok = is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct
@@ -203,6 +204,11 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                                 | DNNL_ARG_WEIGHTS);
             }
         }
+        const auto z_src = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC;
+        const auto z_dst = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST;
+        if (args.find(z_src) != args.end()) conv_args[z_src] = args.at(z_src);
+        if (args.find(z_dst) != args.end()) conv_args[z_dst] = args.at(z_dst);
+
         exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 
         nested_scratchpad_t ns(ctx, key_nested, conv_p_);

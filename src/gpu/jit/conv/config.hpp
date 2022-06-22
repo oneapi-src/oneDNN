@@ -384,10 +384,12 @@ public:
 
         // TODO: implement the rest of the cases and remove this 'if'
         bool ic_kdhw = (ic <= 8) && (kd * kh * kw > 1) && !is_dw;
-        if (!attr->zero_points_.has_default_values() && ic_kdhw) return false;
+        if (!attr->zero_points_.has_default_values(DNNL_ARG_SRC) && ic_kdhw)
+            return false;
 
         using namespace data_type;
-        const auto src_type = pd->invariant_src_md()->data_type;
+        const auto src_type = (is_fwd) ? pd->invariant_src_md()->data_type
+                                       : pd->invariant_dst_md()->data_type;
         int mask_src = 0, mask_dst = 0;
         attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
         attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
@@ -406,12 +408,9 @@ public:
         if (is_f64_conv() && !attr->has_default_values()) return false;
 
         if (is_fwd || is_bwd_d) {
-            auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops
-                    | primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::sum_dt;
-            if (is_fwd)
-                attr_skip_mask
-                        |= primitive_attr_t::skip_mask_t::zero_points_runtime;
+            using sm = primitive_attr_t::skip_mask_t;
+            auto attr_skip_mask = sm::post_ops | sm::oscale_runtime | sm::sum_dt
+                    | sm::zero_points_runtime;
             if (!attr->has_default_values(attr_skip_mask)) return false;
         } else {
             if (!attr->has_default_values()) return false;
