@@ -6830,8 +6830,9 @@ void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
         if (dim == 1) dim = dims[dim_idx];
         return (int)utils::max_div(dim, max_block);
     };
-
-    dim_t max_total_block = 512;
+    bool f64_reorder
+            = src.type() == type_t::f64() || dst.type() == type_t::f64();
+    dim_t max_total_block = f64_reorder ? 256 : 512;
     dim_t total_block = 1;
     bool tg_block_found = false;
     tile_blocks.resize(ndims, 1);
