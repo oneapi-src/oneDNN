@@ -42,9 +42,13 @@ bool is_data_supported(cpu_isa_t isa, data_type_t data_type) {
         case data_type::s32:
         case data_type::s8:
         case data_type::u8: return true;
-        case data_type::bf16: return is_superset(isa, avx512_core);
-        case data_type::f16: return is_superset(isa, avx512_core_fp16);
-        default: return false;
+        case data_type::bf16:
+            return is_superset(isa, avx512_core)
+                    || is_superset(isa, avx2_vnni_2);
+        case data_type::f16:
+            return is_superset(isa, avx512_core_fp16)
+                    || is_superset(isa, avx2_vnni_2);
+        default: return true;
     }
 }
 
@@ -1616,13 +1620,23 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_no_tail(
             execute_broadcast_s8u8_no_tail(data_type, tmp_vmm, rhs_addr);
             break;
         case data_type::f16:
-            host_->vcvtph2psx(tmp_vmm, host_->ptr_b[rhs_addr.getRegExp()]);
+            if (is_avx512_core_fp16_)
+                host_->vcvtph2psx(tmp_vmm, host_->ptr_b[rhs_addr.getRegExp()]);
+            else if (isa == avx2_vnni_2)
+                host_->vbcstnesh2ps(tmp_vmm, rhs_addr);
+            else
+                assert(!"unsupported ISA for given data type");
             break;
         case data_type::bf16:
-            host_->vpbroadcastw(tmp_vmm, rhs_addr);
-            host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
+            if (is_avx512_) {
+                host_->vpbroadcastw(tmp_vmm, rhs_addr);
+                host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
+            } else if (isa == avx2_vnni_2) {
+                host_->vbcstnebf162ps(tmp_vmm, rhs_addr);
+            } else
+                assert(!"unsupported ISA for given data type");
             break;
-        default: return;
+        default: assert(!"unsupported data type");
     }
 }
 
@@ -1753,8 +1767,11 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_opmask(
             break;
         }
         case data_type::f16:
-            host_->vcvtph2psx(tmp_vmm | tail_opmask | host_->T_z,
-                    host_->ptr_b[rhs_addr.getRegExp()]);
+            if (is_avx512_core_fp16_)
+                host_->vcvtph2psx(tmp_vmm | tail_opmask | host_->T_z,
+                        host_->ptr_b[rhs_addr.getRegExp()]);
+            else
+                assert(!"unsupported masked tail processing");
             break;
         case data_type::bf16:
             host_->vpbroadcastw(tmp_vmm, rhs_addr);
@@ -1882,6 +1899,29 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_statically(
 }
 
 template <>
+void jit_uni_binary_injector_t<avx2_vnni_2,
+        Xbyak::Ymm>::execute_broadcast_tail_statically(const data_type_t
+                                                               &data_type,
+        const Xbyak::Ymm &tmp_vmm, const Xbyak::Address &rhs_addr,
+        const std::size_t tail_size) const {
+    if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
+        const auto tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
+        host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
+        for (std::size_t i = 0; i < tail_size; i++)
+            host_->vpinsrw(tmp_xmm, tmp_xmm, rhs_addr, i);
+        if (data_type == data_type::bf16) {
+            host_->vpmovzxwd(tmp_vmm, tmp_xmm);
+            host_->vpslld(tmp_vmm, tmp_vmm, 16);
+        } else // f16
+            host_->vcvtph2ps(tmp_vmm, tmp_xmm);
+    } else {
+        helper_bcast_tail_t<avx2,
+                Xbyak::Ymm>::execute_broadcast_tail_statically(host_, tail_size,
+                data_type, tmp_vmm, rhs_addr);
+    }
+}
+
+template <>
 void jit_uni_binary_injector_t<avx2,
         Xbyak::Ymm>::execute_broadcast_tail_statically(const data_type_t
                                                                &data_type,
@@ -2004,6 +2044,7 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_gpr(
         const data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
+
     const Xbyak::Reg64 &reg_tmp = rhs_arg_static_params_.rhs_helper_reg;
     const Xbyak::Reg64 &reg_tail_size = rhs_arg_static_params_.reg_tail_size;
 
@@ -2026,12 +2067,21 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_no_tail(
         case data_type::u8:
             load_rhs_i8_no_tail(data_type, tmp_vmm, rhs_addr);
             break;
-        case data_type::f16: host_->vcvtph2psx(tmp_vmm, rhs_addr); break;
-        case data_type::bf16:
-            host_->vpmovzxwd(tmp_vmm, rhs_addr);
-            host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
+        case data_type::f16:
+            if (is_avx512_core_fp16_)
+                host_->vcvtph2psx(tmp_vmm, rhs_addr);
+            else if (isa == avx2_vnni_2)
+                host_->vcvtph2ps(tmp_vmm, rhs_addr);
+            else
+                assert(!"unsupported ISA for given data type");
             break;
-        default: return;
+        case data_type::bf16:
+            if (is_avx512_ || isa == avx2_vnni_2) {
+                host_->vpmovzxwd(tmp_vmm, rhs_addr);
+                host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
+                break;
+            }
+        default: assert(!"unsupported data type");
     }
 }
 
@@ -2094,7 +2144,10 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically_with_opmask(
             host_->vpmovzxbd(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
             break;
         case data_type::f16:
-            host_->vcvtph2psx(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
+            if (is_avx512_core_fp16_)
+                host_->vcvtph2psx(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
+            else
+                assert(!"unsupported masked tail processing");
             break;
         case data_type::bf16:
             host_->vpmovzxwd(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
@@ -2107,6 +2160,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically_with_opmask(
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically_with_gpr(
         const data_type_t &data_type, const Vmm &tmp_vmm) const {
+
     const bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
     const Xbyak::Reg64 &reg_addr = rhs_arg_static_params_.rhs_addr_reg;
     const Xbyak::Reg64 &reg_tmp = rhs_arg_static_params_.rhs_helper_reg;
@@ -2140,6 +2194,7 @@ struct helper_load_tail_t<avx2, Vmm> {
             const size_t tail_size, const Xbyak::Reg64 &rhs_addr_reg,
             const data_type_t &data_type, const Vmm &tmp_vmm,
             const Xbyak::Address &rhs_addr) {
+
         if (!utils::one_of(data_type, data_type::f32, data_type::s32,
                     data_type::s8, data_type::u8))
             assert(!"unsupported data type");
@@ -2169,6 +2224,29 @@ void jit_uni_binary_injector_t<avx2, Xbyak::Xmm>::load_rhs_tail_statically(
     const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
     helper_load_tail_t<avx2, Xbyak::Xmm>::load_rhs_tail_statically(
             host_, tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
+}
+
+template <>
+void jit_uni_binary_injector_t<avx2_vnni_2,
+        Xbyak::Ymm>::load_rhs_tail_statically(const data_type_t &data_type,
+        const Xbyak::Ymm &tmp_vmm, const Xbyak::Address &rhs_addr) const {
+
+    const auto &tail_size = rhs_arg_static_params_.tail_size;
+    const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
+    const Xbyak::Xmm tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
+
+    if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
+        host_->load_bytes(
+                tmp_xmm, rhs_addr_reg, 0, tail_size * sizeof(bfloat16_t));
+        if (data_type == data_type::bf16) {
+            host_->vpmovzxwd(tmp_vmm, tmp_xmm);
+            host_->vpslld(tmp_vmm, tmp_vmm, 16);
+        } else //f16
+            host_->vcvtph2ps(tmp_vmm, tmp_xmm);
+    } else {
+        helper_load_tail_t<avx2, Xbyak::Ymm>::load_rhs_tail_statically(
+                host_, tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
+    }
 }
 
 template <>
@@ -2425,6 +2503,7 @@ template class jit_uni_binary_injector_t<avx512_core_bf16>;
 template class jit_uni_binary_injector_t<avx512_core>;
 template class jit_uni_binary_injector_t<avx512_core, Xbyak::Ymm>;
 template class jit_uni_binary_injector_t<avx512_core, Xbyak::Xmm>;
+template class jit_uni_binary_injector_t<avx2_vnni_2>;
 template class jit_uni_binary_injector_t<avx2, Xbyak::Ymm>;
 template class jit_uni_binary_injector_t<avx2, Xbyak::Xmm>;
 template class jit_uni_binary_injector_t<avx, Xbyak::Ymm>;

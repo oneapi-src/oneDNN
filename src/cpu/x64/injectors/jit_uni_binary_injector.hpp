@@ -530,6 +530,7 @@ private:
     const Xbyak::Reg64 param1_;
     const bcast_set_t supported_strategy_set_;
     const bool is_avx512_ = is_superset(isa, avx512_core);
+    const bool is_avx512_core_fp16_ = is_superset(isa, avx512_core_fp16);
 
     static constexpr int sizeof_reg64 = 8;
     /*

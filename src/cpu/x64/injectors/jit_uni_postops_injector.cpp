@@ -250,6 +250,7 @@ template class jit_uni_postops_injector_t<avx512_core_bf16>;
 template class jit_uni_postops_injector_t<avx512_core>;
 template class jit_uni_postops_injector_t<avx512_core, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx512_core, Xbyak::Xmm>;
+template class jit_uni_postops_injector_t<avx2_vnni_2>;
 template class jit_uni_postops_injector_t<avx2>;
 template class jit_uni_postops_injector_t<avx2, Xbyak::Xmm>;
 template class jit_uni_postops_injector_t<avx>;
