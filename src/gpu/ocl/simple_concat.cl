@@ -135,7 +135,7 @@
 __attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
 __kernel void
-simple_concat(__global DATA_T *dst, SRC_PTRS) {
+simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
     DATA8_T A0, A1, A2, A3;
     DATA_T B;
     DATA2_T C;
@@ -176,7 +176,7 @@ simple_concat(__global DATA_T *dst, SRC_PTRS) {
 #elif BLOCK >= 32 * SIMD
     A3 = BLOCK_READ8(&src[24 * SIMD]);
 #endif
-    dst += get_global_id(1) * DST_EXT_OFFSET + x;
+    dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
 #if BLOCK == 1
     dst[0] = B;
 #elif BLOCK == SIMD

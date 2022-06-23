@@ -129,6 +129,7 @@ static status_t init_conf_common(
         conf.src_extern_dim_sizes[i] = src_extern_dim_size * data_type_size;
     }
 
+    conf.dst_offset0 = dst_mdw.offset0();
     conf.dst_extern_dim_size
             = (is_first) ? nelems : blk.strides[pre_concat_dim];
 
@@ -186,9 +187,8 @@ static status_t init_conf_common(
     };
 
     if (conf.inner_axis % 16 || conf.inner_axis < 32) {
-        if (compute_engine->device_info()->gpu_arch()
-                        == compute::gpu_arch_t::xe_hp
-                && data_type_size > 1) {
+        // TODO: fix implementation so this check isn't necessary
+        if (data_type_size > 1) {
             conf.simd = 1;
             conf.block = 1;
             set_gws_d();
@@ -242,9 +242,10 @@ status_t simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, dst);
+    arg_list.set(1, conf.dst_offset0);
     for (int i = 0; i < pd()->n_inputs(); ++i) {
         auto &src = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + i);
-        arg_list.set(i + 1, src);
+        arg_list.set(i + 2, src);
     }
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);

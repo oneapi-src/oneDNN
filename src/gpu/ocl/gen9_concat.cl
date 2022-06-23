@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@
             || dim4 >= DD(4) || dim5 >= DD(5)
 
 KERNEL_ATTR
-__kernel void gen9_concat(__global DST_DATA_T *dst,
+__kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
         __global const SRC_DATA_T *src0, __global const SRC_DATA_T *src1,
         __global const SRC_DATA_T *src2, __global const SRC_DATA_T *src3,
         __global const SRC_DATA_T *src4, __global const SRC_DATA_T *src5,
@@ -46,6 +46,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst,
         __global const SRC_DATA_T *src10, __global const SRC_DATA_T *src11,
         __global const SRC_DATA_T *src12, __global const SRC_DATA_T *src13,
         __global const SRC_DATA_T *src14, __global const SRC_DATA_T *src15) {
+    dst += dst_offset0;
     int dst_dims[6], src_dims[6];
     src_dims[0] = dst_dims[0] = GWS_GET_D0();
     src_dims[1] = dst_dims[1] = GWS_GET_D1();
