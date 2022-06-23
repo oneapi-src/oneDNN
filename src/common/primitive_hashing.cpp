@@ -257,7 +257,11 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
                 break;
             case primitive_kind::convolution:
                 seed = hash_combine(
+                        seed, static_cast<size_t>(entry.depthwise_conv.kernel));
+                seed = hash_combine(
                         seed, static_cast<size_t>(entry.depthwise_conv.stride));
+                seed = hash_combine(seed,
+                        static_cast<size_t>(entry.depthwise_conv.padding));
                 seed = hash_combine(
                         seed, static_cast<size_t>(entry.depthwise_conv.wei_dt));
                 seed = hash_combine(seed,

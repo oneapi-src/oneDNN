@@ -349,7 +349,9 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         };
 
         struct depthwise_conv_t {
-            int stride;
+            dnnl::impl::dim_t kernel;
+            dnnl::impl::dim_t stride;
+            dnnl::impl::dim_t padding;
             dnnl::impl::data_type_t wei_dt;
             dnnl::impl::data_type_t bias_dt;
             dnnl::impl::data_type_t dst_dt;
@@ -443,7 +445,11 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                     break;
                 case primitive_kind::convolution:
                     // Depthwise Only
-                    ret = depthwise_conv.stride == rhs.depthwise_conv.stride
+                    ret = depthwise_conv.kernel == rhs.depthwise_conv.kernel
+                            && depthwise_conv.stride
+                                    == rhs.depthwise_conv.stride
+                            && depthwise_conv.padding
+                                    == rhs.depthwise_conv.padding
                             && depthwise_conv.wei_dt
                                     == rhs.depthwise_conv.wei_dt
                             && depthwise_conv.bias_dt
@@ -514,12 +520,11 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::data_type_t dt = dnnl_data_type_undef);
     dnnl::impl::status_t append_eltwise(
             float scale, dnnl::impl::alg_kind_t alg, float alpha, float beta);
-    dnnl::impl::status_t append_dw_k3s1p1(dnnl::impl::data_type_t wei_dt,
+    dnnl::impl::status_t append_dw(dnnl::impl::data_type_t wei_dt,
             dnnl::impl::data_type_t bias_dt, dnnl::impl::data_type_t dst_dt,
-            dnnl::impl::dim_t count, int mask, const float *scales);
-    dnnl::impl::status_t append_dw_k3s2p1(dnnl::impl::data_type_t wei_dt,
-            dnnl::impl::data_type_t bias_dt, dnnl::impl::data_type_t dst_dt,
-            dnnl::impl::dim_t count, int mask, const float *scales);
+            dnnl::impl::dim_t kernel_size, dnnl::impl::dim_t stride_size,
+            dnnl::impl::dim_t padding_l_size, dnnl::impl::dim_t count, int mask,
+            const float *scales);
     dnnl::impl::status_t append_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc);
     dnnl::impl::status_t append_prelu(int mask);

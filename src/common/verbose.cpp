@@ -467,7 +467,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                 case primitive_kind::convolution: {
                     using namespace data_type;
                     const auto &c = e.depthwise_conv;
-                    ss << delim << "dw_k3s" << c.stride << "p1";
+                    ss << delim << "dw:k" << c.kernel << "s" << c.stride << "p"
+                       << c.padding;
                     if (c.wei_dt == s8 || c.dst_dt != f32)
                         ss << ":" << c.dst_dt;
                     if (c.count > 0 && c.wei_dt == s8) {

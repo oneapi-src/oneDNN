@@ -134,7 +134,6 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
             scratchpad, memory_tracking::names::prefix_fusion);
     dst_data_t *pbuf;
     size_t row_offset;
-    const int jcp_dw_kh = 3;
     const int nb_buffer = jcp.nb_load_blocking;
     std::vector<dst_data_t *> addrs;
     // End
@@ -191,8 +190,9 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
                 : g * nb_oc + ocb;
         const size_t dst_off = data_blk_off(dst_d, n, oc_off_idx, od, oh, ow);
 
-        p.output_data = jcp.with_dw_conv ? pbuf + (oh % jcp_dw_kh) * row_offset
-                                         : &dst[dst_off];
+        p.output_data = jcp.with_dw_conv
+                ? pbuf + (oh % pd()->dw_conv_pd_->jcp_.kh) * row_offset
+                : &dst[dst_off];
         p.bias_data = bias
                 ? &bias[oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block)]
                 : nullptr;

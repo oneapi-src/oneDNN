@@ -182,7 +182,9 @@ void serialize_attr(
                 sstream.write(&entry.sum.dt);
                 break;
             case primitive_kind::convolution:
+                sstream.write(&entry.depthwise_conv.kernel);
                 sstream.write(&entry.depthwise_conv.stride);
+                sstream.write(&entry.depthwise_conv.padding);
                 sstream.write(&entry.depthwise_conv.wei_dt);
                 sstream.write(&entry.depthwise_conv.bias_dt);
                 sstream.write(&entry.depthwise_conv.dst_dt);

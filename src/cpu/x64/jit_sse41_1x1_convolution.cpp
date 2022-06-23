@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -103,7 +103,6 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     data_t *pbuf {nullptr};
     size_t row_offset {};
     const int nb_buffer = jcp.nb_load_blocking;
-    const int jcp_dw_kh = 3;
     std::vector<data_t *> addrs;
 
     auto step = [](int default_step, int remaining, int tail_step) {
@@ -147,7 +146,7 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const int oc_off_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * _ocb;
 
         par_conv.output_data = jcp.with_dw_conv
-                ? pbuf + (oh % jcp_dw_kh) * row_offset
+                ? pbuf + (oh % pd()->dw_conv_pd_->jcp_.kh) * row_offset
                 : &dst[data_blk_off(dst_d, n, oc_off_idx, oh, ow)];
 
         par_conv.bias_data = &bias[_ocb * jcp.oc_block];
