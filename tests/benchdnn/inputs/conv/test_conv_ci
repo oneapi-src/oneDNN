@@ -89,7 +89,7 @@
 --batch=shapes_basic
 # BF32
 --reset
---dir=FWD_D
+--dir=FWD_D,BWD_D
 --cfg=f32
 --stag=any
 --dtag=any
