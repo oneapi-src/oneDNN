@@ -22,7 +22,7 @@ namespace gpu {
 namespace ocl {
 
 static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
-        const pooling_pd_t *pd, engine_t *engine) {
+        const pooling_pd_t *pd, engine_t *engine, const bool is_bwd) {
     using namespace dnnl::impl::format_tag;
 
     const memory_desc_wrapper src_mdw(pd->invariant_src_md());
@@ -39,6 +39,16 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
             conf.is_backward ? src_mdw.md_ : dst_mdw.md_);
     conf.dispatch.define_dim("MB", 0, conf.mb_padded);
     conf.dispatch.define_dim("OC", 1, conf.c_padded);
+    int ndims = conf.ndims;
+    if (is_bwd) {
+        conf.dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
+        conf.dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
+        conf.dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
+    } else {
+        conf.dispatch.define_dim("OD", nstl::max(1, ndims - 3), conf.od);
+        conf.dispatch.define_dim("OH", nstl::max(1, ndims - 2), conf.oh);
+        conf.dispatch.define_dim("OW", nstl::max(1, ndims - 1), conf.ow);
+    }
     conf.dispatch.generate();
 
     conf.attr_info = attr_info_t::create(pd->attr());
@@ -97,7 +107,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 }
 
 status_t ref_pooling_fwd_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    return init_conf_common(conf, off, this, engine, false);
 }
 
 status_t ref_pooling_fwd_t::pd_t::init_kernel_ctx(
@@ -122,7 +132,7 @@ status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_pooling_bwd_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    return init_conf_common(conf, off, this, engine, true);
 }
 
 status_t ref_pooling_bwd_t::pd_t::init_kernel_ctx(
