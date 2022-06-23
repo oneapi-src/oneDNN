@@ -164,12 +164,14 @@ convolution.
 The @ref dnnl::primitive::kind of this post-op
 is #dnnl::primitive::kind::convolution.
 
-There are two variants of this post-op: `dw_k3s1p1` and `dw_k3s2p1` for stride-1
-and stride-2 respectively.
+Three variants of depthwise post-op are supported:
+* `dw_k3s1p1` for the case of stride 1, kernel size 3, and left padding of 1.
+* `dw_k3s2p1` for the case of stride 2, kernel size 3, and left padding of 1.
+* `dw` for a general case.
 
 API:
-- C: @ref dnnl_post_ops_append_dw_k3s1p1 , @ref dnnl_post_ops_append_dw_k3s2p1
-- C++: @ref dnnl::post_ops::append_dw_k3s1p1 , @ref dnnl::post_ops::append_dw_k3s2p1
+- C: @ref dnnl_post_ops_append_dw , @ref dnnl_post_ops_append_dw_k3s1p1 , @ref dnnl_post_ops_append_dw_k3s2p1
+- C++: @ref dnnl::post_ops::append_dw , @ref dnnl::post_ops::append_dw_k3s1p1 , @ref dnnl::post_ops::append_dw_k3s2p1
 
 For better readability, below we assume a 2D convolution and use the following
 notations:

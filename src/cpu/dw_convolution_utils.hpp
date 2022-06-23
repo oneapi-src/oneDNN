@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,16 +63,25 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     const auto g = src_dw_d.dims()[1];
     const auto ih = src_dw_d.dims()[ndims - 2];
     const auto iw = src_dw_d.dims()[ndims - 1];
+    const auto kernel = dw_po.kernel;
     const auto stride = dw_po.stride;
+    const auto padding = dw_po.padding;
 
-    const dims_t weights_tz = {g, 1, 1, 3, 3};
+    const dims_t weights_tz = {g, 1, 1, kernel, kernel};
 
-    const dims_t dst_tz
-            = {n, oc, utils::div_up(ih, stride), utils::div_up(iw, stride)};
+    // Not following standard convolution formula for output shapes since
+    // right/top padding might be greated than left/top one.
+    const dim_t oh = utils::div_up(ih, stride);
+    const dim_t ow = utils::div_up(iw, stride);
+    const dims_t dst_tz = {n, oc, oh, ow};
 
     const dims_t bias_tz = {oc};
-    const dims_t pad_tz = {1, 1};
+    const dims_t pad_tz = {padding, padding};
     const dims_t stride_tz = {stride, stride};
+
+    const dim_t pad_h_r = (oh - 1) * stride - ih + kernel - padding;
+    const dim_t pad_w_r = (ow - 1) * stride - iw + kernel - padding;
+    const dims_t pad_r_tz = {pad_h_r, pad_w_r};
 
     memory_desc_t src_md, weights_md, bias_md, dst_md;
 
@@ -97,7 +106,7 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     CHECK(conv_desc_init(&cd_dw, prop_kind::forward_inference,
             alg_kind::convolution_auto, &src_md, &weights_md,
             with_bias ? &bias_md : nullptr, &dst_md, stride_tz, nullptr, pad_tz,
-            pad_tz));
+            pad_r_tz));
 
     return status::success;
 }

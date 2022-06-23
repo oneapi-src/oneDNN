@@ -3081,6 +3081,101 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
     }
 
+    /// Appends a depthwise post-op convolution.
+    ///
+    /// This post-op can only be fused with a 2D 1x1 convolution (convolution
+    /// with weights spatial dimension equal to 1 i.e., kh=kw=1).
+    ///
+    /// The kind of this post-op is #dnnl_convolution.
+    ///
+    /// The number of outputs for primitive remain same as before. The output
+    /// spatial size can be derived as below:
+    ///
+    /// output_height = ceil(output_height_1x1_convolution, stride)
+    /// output_width = ceil(output_width_1x1_convolution, stride)
+    ///
+    /// See @ref dev_guide_attributes_post_ops_depthwise and
+    /// @ref dev_guide_attributes_post_ops_depthwise_fusion for more info.
+    ///
+    /// @param weights_data_type Weights data type of depthwise post-op
+    /// @param bias_data_type Bias data type of depthwise post-op
+    /// @param dst_data_type Output data type of depthwise post-op
+    /// @param kernel_size Size of kernel of depthwise post-op
+    /// @param stride_size Size of stride of depthwise post-op
+    /// @param padding_l_size Size of left and top paddings of depthwise post-op
+    /// @param mask Output scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the
+    ///     @p scales array. The set i-th bit indicates that a dedicated output
+    ///     scaling factor is used for each index along that dimension. The mask
+    ///     value of 0 implies a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Output pointer to a constant array of float scaling
+    ///     factors.
+    void append_dw(memory::data_type weights_data_type,
+            memory::data_type bias_data_type, memory::data_type dst_data_type,
+            memory::dim kernel_size, memory::dim stride_size,
+            memory::dim padding_l_size, int mask,
+            const std::vector<float> &scales) {
+
+        error::wrap_c_api(dnnl_post_ops_append_dw(get(),
+                                  memory::convert_to_c(weights_data_type),
+                                  memory::convert_to_c(bias_data_type),
+                                  memory::convert_to_c(dst_data_type),
+                                  kernel_size, stride_size, padding_l_size,
+                                  scales.size(), mask, scales.data()),
+                "could not append depthwise post-op");
+    }
+
+    /// Returns the parameters of an depthwise post-op with stride 1.
+    ///
+    /// @param index Index of the elementwise post-op.
+    /// @param weights_data_type Weights data type of depthwise post-op
+    /// @param bias_data_type Bias data type of depthwise post-op
+    /// @param dst_data_type Output data type of depthwise post-op
+    /// @param mask Output scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the
+    ///     @p scales array. The set i-th bit indicates that a dedicated output
+    ///     scaling factor is used for each index along that dimension. The mask
+    ///     value of 0 implies a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Output pointer to a constant array of float scaling
+    ///     factors.
+    void get_params_dw(int index, memory::data_type &weights_data_type,
+            memory::data_type &bias_data_type, memory::data_type &dst_data_type,
+            memory::dim &kernel_size, memory::dim &stride_size,
+            memory::dim &padding_l_size, int &mask,
+            std::vector<float> &scales) const {
+
+        dnnl_data_type_t c_weights_data_type;
+        dnnl_data_type_t c_bias_data_type;
+        dnnl_data_type_t c_dst_data_type;
+        dnnl_dim_t c_kernel_size;
+        dnnl_dim_t c_stride_size;
+        dnnl_dim_t c_padding_l_size;
+        dnnl_dim_t count;
+        int c_mask;
+        const float *c_scales;
+        error::wrap_c_api(
+                dnnl_post_ops_get_params_dw(get(), index, &c_weights_data_type,
+                        &c_bias_data_type, &c_dst_data_type, &c_kernel_size,
+                        &c_stride_size, &c_padding_l_size, &count, &c_mask,
+                        &c_scales),
+                "could not get parameters of depthwise post-op");
+
+        weights_data_type = static_cast<memory::data_type>(c_weights_data_type);
+        bias_data_type = static_cast<memory::data_type>(c_bias_data_type);
+        dst_data_type = static_cast<memory::data_type>(c_dst_data_type);
+        kernel_size = c_kernel_size;
+        stride_size = c_stride_size;
+        padding_l_size = c_padding_l_size;
+        scales.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; ++c)
+            scales[c] = c_scales[c];
+        return;
+    }
+
     /// Appends a depthwise post-op convolution with stride 1.
     ///
     /// This post-op can only be fused with a 2D 1x1 convolution (convolution
@@ -3113,12 +3208,8 @@ struct post_ops : public handle<dnnl_post_ops_t> {
             memory::data_type bias_data_type, memory::data_type dst_data_type,
             int mask, const std::vector<float> &scales) {
 
-        error::wrap_c_api(dnnl_post_ops_append_dw_k3s1p1(get(),
-                                  memory::convert_to_c(weights_data_type),
-                                  memory::convert_to_c(bias_data_type),
-                                  memory::convert_to_c(dst_data_type),
-                                  scales.size(), mask, scales.data()),
-                "could not append depthwise post-op");
+        append_dw(weights_data_type, bias_data_type, dst_data_type, 3, 1, 1,
+                mask, scales);
     }
 
     /// Returns the parameters of an depthwise post-op with stride 1.
@@ -3139,26 +3230,11 @@ struct post_ops : public handle<dnnl_post_ops_t> {
             memory::data_type &bias_data_type, memory::data_type &dst_data_type,
             int &mask, std::vector<float> &scales) const {
 
-        dnnl_data_type_t c_weights_data_type;
-        dnnl_data_type_t c_bias_data_type;
-        dnnl_data_type_t c_dst_data_type;
-        dnnl_dim_t count;
-        int c_mask;
-        const float *c_scales;
-        error::wrap_c_api(dnnl_post_ops_get_params_dw_k3s1p1(get(), index,
-                                  &c_weights_data_type, &c_bias_data_type,
-                                  &c_dst_data_type, &count, &c_mask, &c_scales),
-                "could not get parameters of depthwise post-op");
-
-        weights_data_type = static_cast<memory::data_type>(c_weights_data_type);
-        bias_data_type = static_cast<memory::data_type>(c_bias_data_type);
-        dst_data_type = static_cast<memory::data_type>(c_dst_data_type);
-        scales.resize(count);
-
-        mask = c_mask;
-        for (dnnl_dim_t c = 0; c < count; ++c)
-            scales[c] = c_scales[c];
-        return;
+        memory::dim kernel_size;
+        memory::dim stride_size;
+        memory::dim padding_l_size;
+        get_params_dw(index, weights_data_type, bias_data_type, dst_data_type,
+                kernel_size, stride_size, padding_l_size, mask, scales);
     }
 
     /// Appends a depthwise post-op convolution with stride 2.
@@ -3197,13 +3273,8 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void append_dw_k3s2p1(memory::data_type weights_data_type,
             memory::data_type bias_data_type, memory::data_type dst_data_type,
             int mask, const std::vector<float> &scales) {
-
-        error::wrap_c_api(dnnl_post_ops_append_dw_k3s2p1(get(),
-                                  memory::convert_to_c(weights_data_type),
-                                  memory::convert_to_c(bias_data_type),
-                                  memory::convert_to_c(dst_data_type),
-                                  scales.size(), mask, scales.data()),
-                "could not append depthwise post-op");
+        append_dw(weights_data_type, bias_data_type, dst_data_type, 3, 2, 1,
+                mask, scales);
     }
 
     /// Returns the parameters of an depthwise post-op with stride 2.
@@ -3224,26 +3295,11 @@ struct post_ops : public handle<dnnl_post_ops_t> {
             memory::data_type &bias_data_type, memory::data_type &dst_data_type,
             int &mask, std::vector<float> &scales) const {
 
-        dnnl_data_type_t c_weights_data_type;
-        dnnl_data_type_t c_bias_data_type;
-        dnnl_data_type_t c_dst_data_type;
-        dnnl_dim_t count;
-        int c_mask;
-        const float *c_scales;
-        error::wrap_c_api(dnnl_post_ops_get_params_dw_k3s2p1(get(), index,
-                                  &c_weights_data_type, &c_bias_data_type,
-                                  &c_dst_data_type, &count, &c_mask, &c_scales),
-                "could not get parameters of depthwise post-op");
-
-        weights_data_type = static_cast<memory::data_type>(c_weights_data_type);
-        bias_data_type = static_cast<memory::data_type>(c_bias_data_type);
-        dst_data_type = static_cast<memory::data_type>(c_dst_data_type);
-        scales.resize(count);
-
-        mask = c_mask;
-        for (dnnl_dim_t c = 0; c < count; ++c)
-            scales[c] = c_scales[c];
-        return;
+        memory::dim kernel_size;
+        memory::dim stride_size;
+        memory::dim padding_l_size;
+        get_params_dw(index, weights_data_type, bias_data_type, dst_data_type,
+                kernel_size, stride_size, padding_l_size, mask, scales);
     }
 
     /// Appends a binary post-op.

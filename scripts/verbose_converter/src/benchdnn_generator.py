@@ -449,7 +449,8 @@ def convert_post_ops(post_ops):
 
     def convert_dw_post_op(post_op):
         policy = convert_scale_policy(post_op['scales']['mask'])
-        po = post_op['alg'] + ':' + post_op['dst_dt'] + ':' + policy
+        po = post_op['alg'] + ':' + post_op['ksp'] + ':' + post_op[
+            'dst_dt'] + ':' + policy
         if post_op['scales']['value'] != None:
             po += ':' + post_op['scales']['value']
         return po

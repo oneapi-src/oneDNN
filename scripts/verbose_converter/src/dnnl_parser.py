@@ -131,6 +131,7 @@ class LogParser:
                     def convert_dw_post_op(value):
                         p_op = {
                             'alg': '',
+                            'ksp': '',
                             'dst_dt': 'f32',
                             'wei_dt': 'f32',
                             'scales': {
@@ -141,13 +142,14 @@ class LogParser:
                         params = value.split(':')
                         len_params = len(params)
                         p_op['alg'] = params[0]
-                        if len_params > 1:
-                            p_op['dst_dt'] = params[1]
+                        p_op['ksp'] = params[1]
                         if len_params > 2:
-                            p_op['wei_dt'] = 's8'
-                            p_op['scales']['mask'] = params[2]
+                            p_op['dst_dt'] = params[2]
                         if len_params > 3:
-                            p_op['scales']['value'] = params[3]
+                            p_op['wei_dt'] = 's8'
+                            p_op['scales']['mask'] = params[3]
+                        if len_params > 4:
+                            p_op['scales']['value'] = params[4]
                         return p_op
 
                     def convert_eltwise_post_op(value):

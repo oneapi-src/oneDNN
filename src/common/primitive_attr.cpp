@@ -221,18 +221,28 @@ dnnl::impl::status_t post_ops_t::entry_t::set_depthwise_scales(
     return dnnl::impl::status::success;
 }
 
-status_t post_ops_t::append_dw_k3s1p1(data_type_t wei_dt, data_type_t bias_dt,
-        data_type_t dst_dt, dim_t count, int mask, const float *scales) {
+status_t post_ops_t::append_dw(data_type_t wei_dt, data_type_t bias_dt,
+        data_type_t dst_dt, dim_t kernel_size, dim_t stride_size,
+        dim_t padding_l_size, dim_t count, int mask, const float *scales) {
     if (len() == post_ops_limit) return out_of_memory;
     bool ok = wei_dt != data_type::undef && dst_dt != data_type::undef
             && IMPLICATION(count > 0, scales) && mask >= 0;
+    if (!ok) return invalid_arguments;
+
+    ok = ok && kernel_size > 0 && stride_size > 0;
+    if (!ok) return invalid_arguments;
+
+    // Avoiding cases when kernel in pad area
+    ok = ok && (padding_l_size + 1) <= kernel_size;
     if (!ok) return invalid_arguments;
 
     entry_.emplace_back();
     auto &e = entry_.back();
     e.kind = primitive_kind::convolution;
     auto &d = e.depthwise_conv;
-    d.stride = 1;
+    d.kernel = kernel_size;
+    d.stride = stride_size;
+    d.padding = padding_l_size;
     d.wei_dt = wei_dt;
     d.bias_dt = bias_dt;
     d.dst_dt = dst_dt;
@@ -241,17 +251,6 @@ status_t post_ops_t::append_dw_k3s1p1(data_type_t wei_dt, data_type_t bias_dt,
     d.scales = nullptr;
 
     return e.set_depthwise_scales(scales);
-}
-
-status_t post_ops_t::append_dw_k3s2p1(data_type_t wei_dt, data_type_t bias_dt,
-        data_type_t dst_dt, dim_t count, int mask, const float *scales) {
-
-    auto status
-            = append_dw_k3s1p1(wei_dt, bias_dt, dst_dt, count, mask, scales);
-    if (status != success) return status;
-    entry_.back().depthwise_conv.stride = 2;
-
-    return success;
 }
 
 status_t post_ops_t::append_binary(
@@ -610,13 +609,45 @@ status_t dnnl_post_ops_get_params_eltwise(const post_ops_t *post_ops, int index,
     return success;
 }
 
+status_t dnnl_post_ops_append_dw(post_ops_t *post_ops, data_type_t wei_dt,
+        data_type_t bias_dt, data_type_t dst_dt, dim_t kernel_size,
+        dim_t stride_size, dim_t padding_l_size, dim_t count, int mask,
+        const float *scales) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_dw(wei_dt, bias_dt, dst_dt, kernel_size,
+            stride_size, padding_l_size, count, mask, scales);
+}
+
+status_t dnnl_post_ops_get_params_dw(const post_ops_t *post_ops, int index,
+        data_type_t *wei_dt, data_type_t *bias_dt, data_type_t *dst_dt,
+        dim_t *kernel, dim_t *stride, dim_t *padding, dim_t *count, int *mask,
+        const float **scales) {
+
+    if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
+        return invalid_arguments;
+
+    const auto &d = post_ops->entry_[index].depthwise_conv;
+    if (wei_dt) *wei_dt = d.wei_dt;
+    if (bias_dt) *bias_dt = d.bias_dt;
+    if (dst_dt) *dst_dt = d.dst_dt;
+    if (kernel) *kernel = d.kernel;
+    if (stride) *stride = d.stride;
+    if (padding) *padding = d.padding;
+    if (count) *count = d.count;
+    if (mask) *mask = d.mask;
+    if (scales) *scales = d.scales;
+
+    return success;
+}
+
 status_t dnnl_post_ops_append_dw_k3s1p1(post_ops_t *post_ops,
         data_type_t wei_dt, data_type_t bias_dt, data_type_t dst_dt,
         dim_t count, int mask, const float *scales) {
     if (post_ops == nullptr) return invalid_arguments;
 
-    return post_ops->append_dw_k3s1p1(
-            wei_dt, bias_dt, dst_dt, count, mask, scales);
+    return post_ops->append_dw(
+            wei_dt, bias_dt, dst_dt, 3, 1, 1, count, mask, scales);
 }
 
 status_t dnnl_post_ops_get_params_dw_k3s1p1(const post_ops_t *post_ops,
@@ -643,8 +674,8 @@ status_t dnnl_post_ops_append_dw_k3s2p1(post_ops_t *post_ops,
         dim_t count, int mask, const float *scales) {
     if (post_ops == nullptr) return invalid_arguments;
 
-    return post_ops->append_dw_k3s2p1(
-            wei_dt, bias_dt, dst_dt, count, mask, scales);
+    return post_ops->append_dw(
+            wei_dt, bias_dt, dst_dt, 3, 2, 1, count, mask, scales);
 }
 
 status_t dnnl_post_ops_get_params_dw_k3s2p1(const post_ops_t *post_ops,

@@ -201,7 +201,9 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
                   << fused_conv_po.dst_dt;
     auto p_dw_cfg = conv::str2cfg(dw_cfg_ss.str().c_str());
 
-    auto stride = fused_conv_po.stride;
+    const auto kernel = fused_conv_po.kernel;
+    const auto stride = fused_conv_po.stride;
+    const auto padding = fused_conv_po.padding;
     bool is_3d = prb->ndims >= 5;
     bool is_2d = prb->ndims >= 4;
 
@@ -213,18 +215,21 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     cd.ih = is_2d ? prb->oh : 1;
     cd.iw = prb->ow;
     cd.oc = prb->oc;
-    cd.od = is_3d ? div_up(cd.id, stride) : 1;
-    cd.oh = is_2d ? div_up(cd.ih, stride) : 1;
-    cd.ow = div_up(cd.iw, stride);
-    cd.kd = is_3d ? 3 : 1;
-    cd.kh = is_2d ? 3 : 1;
-    cd.kw = 3;
+    cd.kd = is_3d ? kernel : 1;
+    cd.kh = is_2d ? kernel : 1;
+    cd.kw = kernel;
     cd.sd = is_3d ? stride : 1;
     cd.sh = is_2d ? stride : 1;
     cd.sw = stride;
-    cd.pd = is_3d;
-    cd.ph = is_2d;
-    cd.pw = 1;
+    cd.pd = is_3d ? padding : 0;
+    cd.ph = is_2d ? padding : 0;
+    cd.pw = padding;
+    // Not following standard convolution formula for output shapes since
+    // right/top padding might be greated than left/top one.
+    cd.od = is_3d ? div_up(cd.id, stride) : 1;
+    cd.oh = is_2d ? div_up(cd.ih, stride) : 1;
+    cd.ow = div_up(cd.iw, stride);
+
     cd.has_groups = true;
     cd.ndims = prb->ndims;
     cd.init_pad_r(false); // is_deconv = false for conv descriptor
