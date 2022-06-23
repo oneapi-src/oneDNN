@@ -1934,12 +1934,17 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
         bp_offset += 64;
 
         i = (n_cap >> 3);
+        // we need to be careful about not going past the end of the B array if n is less than n_cap.
+        // fortunately, we can only go out-of-bounds by accessing elements of b_off[5/6/7], so the others
+        // can just load garbage in the not_used elements of the vtemp vectors.
+        int n_skip = (i != (n >> 3));
         while (i) {
             vw0 = vec_splat_u8((uint8_t)0);
             vw1 = vec_splat_u8((uint8_t)0);
             vw2 = vec_splat_u8((uint8_t)0);
             vw3 = vec_splat_u8((uint8_t)0);
             int *temp0, *temp1, *temp2, *temp3;
+            int zerodata = 0;
             temp0 = (int *)&vw0;
             temp1 = (int *)&vw1;
             temp2 = (int *)&vw2;
@@ -1949,28 +1954,61 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
             memcpy_4(&temp0[2], &b_off[2][0]);
             memcpy_4(&temp0[3], &b_off[3][0]);
             memcpy_4(&temp2[0], &b_off[4][0]);
-            memcpy_4(&temp2[1], &b_off[5][0]);
-            memcpy_4(&temp2[2], &b_off[6][0]);
-            memcpy_4(&temp2[3], &b_off[7][0]);
+            if (j > 1) {
+                memcpy_4(&temp2[1], &b_off[5][0]);
+                memcpy_4(&temp2[2], &b_off[6][0]);
+                memcpy_4(&temp2[3], &b_off[7][0]);
+            } else {
+                memcpy_4(&temp2[1], (const uint8_t *)&zerodata);
+                memcpy_4(&temp2[2], (const uint8_t *)&zerodata);
+                memcpy_4(&temp2[3], (const uint8_t *)&zerodata);
+                if ((!(k_skip)) || (delk < 3))
+                    memcpy_4(&temp2[1], &b_off[5][0]);
+                if ((!(k_skip)) || (delk < 2))
+                    memcpy_4(&temp2[2], &b_off[6][0]);
+                if ((!(k_skip)) || (delk < 1))
+                    memcpy_4(&temp2[3], &b_off[7][0]);
+            }
             if (fastpath) {
                 memcpy_4(&temp1[0], &b_off[0][4]);
                 memcpy_4(&temp1[1], &b_off[1][4]);
                 memcpy_4(&temp1[2], &b_off[2][4]);
                 memcpy_4(&temp1[3], &b_off[3][4]);
                 memcpy_4(&temp3[0], &b_off[4][4]);
-                memcpy_4(&temp3[1], &b_off[5][4]);
-                memcpy_4(&temp3[2], &b_off[6][4]);
-                memcpy_4(&temp3[3], &b_off[7][4]);
+                if (j > 1) {
+                    memcpy_4(&temp3[1], &b_off[5][4]);
+                    memcpy_4(&temp3[2], &b_off[6][4]);
+                    memcpy_4(&temp3[3], &b_off[7][4]);
+                } else {
+                    memcpy_4(&temp3[1], (const uint8_t *)&zerodata);
+                    memcpy_4(&temp3[2], (const uint8_t *)&zerodata);
+                    memcpy_4(&temp3[3], (const uint8_t *)&zerodata);
+                    if (delk < 3) memcpy_4(&temp3[1], &b_off[5][4]);
+                    if (delk < 2) memcpy_4(&temp3[2], &b_off[6][4]);
+                    if (delk < 1) memcpy_4(&temp3[3], &b_off[7][4]);
+                }
             } else {
-                int nbytes = ((i > 1) || (n_cap & 4)) ? 4 : 4 - (n_cap - n);
+                int nbytes = ((i > 1) || (!(n_skip))) ? 4 : 4 - (n_cap - n);
                 memcpy_n(&temp1[0], &b_off[0][4], nbytes);
                 memcpy_n(&temp1[1], &b_off[1][4], nbytes);
                 memcpy_n(&temp1[2], &b_off[2][4], nbytes);
                 memcpy_n(&temp1[3], &b_off[3][4], nbytes);
                 memcpy_n(&temp3[0], &b_off[4][4], nbytes);
-                memcpy_n(&temp3[1], &b_off[5][4], nbytes);
-                memcpy_n(&temp3[2], &b_off[6][4], nbytes);
-                memcpy_n(&temp3[3], &b_off[7][4], nbytes);
+                if (j > 1) {
+                    memcpy_n(&temp3[1], &b_off[5][4], nbytes);
+                    memcpy_n(&temp3[2], &b_off[6][4], nbytes);
+                    memcpy_n(&temp3[3], &b_off[7][4], nbytes);
+                } else {
+                    memcpy_n(&temp3[1], (const uint8_t *)&zerodata, nbytes);
+                    memcpy_n(&temp3[2], (const uint8_t *)&zerodata, nbytes);
+                    memcpy_n(&temp3[3], (const uint8_t *)&zerodata, nbytes);
+                    if ((!(k_skip)) || (delk < 3))
+                        memcpy_n(&temp3[1], &b_off[5][4], nbytes);
+                    if ((!(k_skip)) || (delk < 2))
+                        memcpy_n(&temp3[2], &b_off[6][4], nbytes);
+                    if ((!(k_skip)) || (delk < 1))
+                        memcpy_n(&temp3[3], &b_off[7][4], nbytes);
+                }
             }
             vbp[0] = vec_perm(vw0, vw0, swiz); // 4x4 transpose
             vbp[1] = vec_perm(vw1, vw1, swiz); // 4x4 transpose
@@ -2031,6 +2069,7 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
         bp_offset += 32;
 
         i = (n_cap >> 3);
+        int n_skip = (i != (n >> 3));
         while (i) {
             vw0 = vec_splat_u8((uint8_t)0);
             vw1 = vec_splat_u8((uint8_t)0);
@@ -2047,7 +2086,7 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
                 memcpy_4(&temp1[2], &b_off[2][4]);
                 memcpy_4(&temp1[3], &b_off[3][4]);
             } else {
-                int nbytes = ((i > 1) || (n_cap & 4)) ? 4 : 4 - (n_cap - n);
+                int nbytes = ((i > 1) || (!(n_skip))) ? 4 : 4 - (n_cap - n);
                 if (delk < 3) memcpy_4(&temp0[1], &b_off[1][0]);
                 if (delk < 2) memcpy_4(&temp0[2], &b_off[2][0]);
                 if (delk < 1) memcpy_4(&temp0[3], &b_off[3][0]);
