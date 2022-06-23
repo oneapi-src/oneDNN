@@ -24,7 +24,7 @@
 
 #include "common/nstl.hpp"
 
-#include "sycl_cuda_memory_storage_helper.hpp"
+#include "sycl/sycl_memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {
