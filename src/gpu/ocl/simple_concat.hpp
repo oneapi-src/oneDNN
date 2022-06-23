@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ struct simple_concat_t : public gpu_primitive_t {
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
 
         status_t init(engine_t *engine) {
-            bool ok = n_inputs() <= 30 && attr()->has_default_values()
+            bool ok = n_inputs() <= 64 && attr()->has_default_values()
                     && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
