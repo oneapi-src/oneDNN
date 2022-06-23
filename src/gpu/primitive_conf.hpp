@@ -715,6 +715,7 @@ struct concat_conf_t {
     dim_t src_extern_dim_sizes[64];
     dim_t offset[64];
     dim_t inner_axis;
+    dim_t dst_offset0;
     int block;
     int n;
     int simd;

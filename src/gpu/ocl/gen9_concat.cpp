@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,6 +110,7 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
 
     conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
     conf.dst_type = dst_mdw.data_type();
+    conf.dst_offset0 = dst_mdw.offset0();
     conf.src_type = memory_desc_wrapper(pd->src_md(0)).data_type();
     conf.ndims = dst_mdw.ndims();
     const auto *compute_engine
@@ -190,9 +191,10 @@ status_t gen9_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     const auto &conf = pd()->conf;
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, dst);
+    arg_list.set(1, conf.dst_offset0);
     for (int i = 0; i < 16; ++i) {
         auto &src = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + i);
-        arg_list.set(i + 1, src);
+        arg_list.set(i + 2, src);
     }
 
     auto nd_range = conf.dispatch.nd_range();
