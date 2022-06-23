@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,12 +34,11 @@ using namespace dnnl::impl::status;
 namespace dnnl {
 namespace impl {
 
-status_t concat_primitive_desc_create(primitive_desc_iface_t **concat_pd_iface,
-        const memory_desc_t *dst_md, int n, int concat_dim,
-        const memory_desc_t *src_mds, const primitive_attr_t *attr,
-        engine_t *engine) {
+status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
+        engine_t *engine, const memory_desc_t *dst_md, int n, int concat_dim,
+        const memory_desc_t *src_mds, const primitive_attr_t *attr) {
 
-    bool args_ok = !any_null(concat_pd_iface, src_mds) && n > 0;
+    bool args_ok = !any_null(src_mds) && n > 0;
     if (!args_ok) return invalid_arguments;
 
     if (attr == nullptr) attr = &default_attr();
@@ -87,21 +86,16 @@ status_t concat_primitive_desc_create(primitive_desc_iface_t **concat_pd_iface,
             = {primitive_kind::concat, dst_md, n, concat_dim, src_mds};
     primitive_hashing::key_t key(
             engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {});
-    auto pd = primitive_cache().get_pd(key);
+    pd = primitive_cache().get_pd(key);
 
-    if (pd) {
-        return safe_ptr_assign(
-                *concat_pd_iface, new primitive_desc_iface_t(pd, engine));
-    }
+    if (pd) return success;
 
     concat_pd_t *concat_pd = nullptr;
     for (auto c = engine->get_concat_implementation_list(); *c; ++c) {
         if ((*c)(&concat_pd, engine, attr, dst_md, n, concat_dim, src_mds)
                 == success) {
             pd.reset(concat_pd);
-            CHECK(safe_ptr_assign(
-                    *concat_pd_iface, new primitive_desc_iface_t(pd, engine)));
-            return status::success;
+            return success;
         }
     }
     return unimplemented;
@@ -114,6 +108,11 @@ status_t dnnl_concat_primitive_desc_create(
         primitive_desc_iface_t **concat_pd_iface, const memory_desc_t *dst_md,
         int n, int concat_dim, const memory_desc_t *src_mds,
         const primitive_attr_t *attr, engine_t *engine) {
-    return concat_primitive_desc_create(
-            concat_pd_iface, dst_md, n, concat_dim, src_mds, attr, engine);
+    if (any_null(concat_pd_iface)) return invalid_arguments;
+
+    std::shared_ptr<primitive_desc_t> pd;
+    CHECK(concat_primitive_desc_create(
+            pd, engine, dst_md, n, concat_dim, src_mds, attr));
+    return safe_ptr_assign(
+            *concat_pd_iface, new primitive_desc_iface_t(pd, engine));
 }
