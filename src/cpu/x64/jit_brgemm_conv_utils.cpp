@@ -363,7 +363,7 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         array_in_loop_t dst;
     };
 
-    brg_blocking_t() : jit_brgemm_conv_conf_t() { init(); }
+    brg_blocking_t() { init(); }
     brg_blocking_t(const jit_brgemm_conv_conf_t &jcp)
         : jit_brgemm_conv_conf_t(jcp) {
         init();

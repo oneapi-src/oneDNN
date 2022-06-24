@@ -87,7 +87,7 @@ protected:
     size_t inp_ic_offset(
             const int m_block, const int icb, const int m, const int n) const;
     int compute_ic_step(
-            const int m_max_regs, const int m_block, const int n_block);
+            const int m_max_regs, const int m_block, const int n_block) const;
 
     void store_accumulators(const int m_block, const int n_block);
     void zero_accumulators(const int m_block, const int n_block);

@@ -293,29 +293,30 @@ int extended_dims(const memory_desc_t &md) {
     return mask;
 }
 
-struct pair_filter {
+struct pair_filter_t {
 public:
     using value_type = dim_pair_t;
 
 private:
-    using iterator_t = typename dimensions_t::const_iterator;
+    using const_dim_iterator_t = typename dimensions_t::const_iterator;
     using predicate_t = std::function<bool(const value_type &)>;
 
 public:
-    struct iterator {
-        bool operator==(const iterator &o) const { return it == o.it; }
-        bool operator!=(const iterator &o) const { return it != o.it; }
+    struct iterator_t {
+        bool operator==(const iterator_t &o) const { return it == o.it; }
+        bool operator!=(const iterator_t &o) const { return it != o.it; }
         value_type operator*() const { return {*it, *(it + 1)}; }
-        iterator &operator++() {
+        iterator_t &operator++() {
             advance();
             return *this;
         }
-        iterator operator++(int) {
+        iterator_t operator++(int) {
             auto cpy = *this;
             advance();
             return cpy;
         }
-        iterator(iterator_t it, iterator_t end, predicate_t pred)
+        iterator_t(const_dim_iterator_t it, const_dim_iterator_t end,
+                predicate_t pred)
             : it(it), end(end), pred(std::move(pred)) {
             advance(true);
         }
@@ -326,19 +327,19 @@ public:
             while (++it != end && !pred(operator*())) {}
         }
 
-        iterator_t it, end;
+        const_dim_iterator_t it, end;
         predicate_t pred;
     };
 
-    iterator begin() const { return {begin_, end_ - 1, pred}; }
-    iterator end() const { return {end_ - 1, end_ - 1, pred}; }
+    iterator_t begin() const { return {begin_, end_ - 1, pred}; }
+    iterator_t end() const { return {end_ - 1, end_ - 1, pred}; }
     bool empty() const { return begin() == end(); }
 
-    pair_filter(const dimensions_t &iter, const predicate_t &pred)
+    pair_filter_t(const dimensions_t &iter, const predicate_t &pred)
         : begin_(iter.begin()), end_(iter.end()), pred(pred) {}
 
 private:
-    iterator_t begin_, end_;
+    const_dim_iterator_t begin_, end_;
     predicate_t pred;
 };
 
@@ -355,13 +356,13 @@ int successor(const dimensions_t &a, int idx) {
     };
     // idx is the index of outermost dim; it has no successor
     if (a.back().idx == idx) return NO_IDX;
-    auto filtered = pair_filter(a, match_idx);
+    auto filtered = pair_filter_t(a, match_idx);
     // no dim with index idx appears in block representation; delete it
     if (filtered.empty()) return idx;
     succ = (*filtered.begin())[1].idx;
     // succ is the index of the innermost dim; it has no predecessor
     if (a.front().idx == succ) return NO_IDX;
-    if (!pair_filter(a, match_xor).empty()) return NO_IDX;
+    if (!pair_filter_t(a, match_xor).empty()) return NO_IDX;
     return succ;
 }
 
@@ -374,8 +375,8 @@ int successor(const dimensions_t &a, const dimensions_t &b, int idx) {
     if (succ == NO_IDX || succ != successor(b, idx)) return NO_IDX;
 
     auto pred = [&](const dim_pair_t &p) { return p[0].idx == idx; };
-    pair_filter iter_a(a, pred);
-    pair_filter iter_b(b, pred);
+    pair_filter_t iter_a(a, pred);
+    pair_filter_t iter_b(b, pred);
 
     auto it_a = iter_a.begin();
     auto it_b = iter_b.begin();

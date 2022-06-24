@@ -173,7 +173,7 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::load_params() {
 }
 
 int jit_avx512_core_brgemm_conv_comp_pad_kernel_t::compute_ic_step(
-        const int m_max_regs, const int m_block, const int n_block) {
+        const int m_max_regs, const int m_block, const int n_block) const {
     int best_ic_step = 1;
     float best_block_eff = 0.f;
 

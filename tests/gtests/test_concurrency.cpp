@@ -117,13 +117,13 @@ public:
     void set_reuse_stream(bool value) { reuse_stream_ = value; }
     void set_reuse_primitive(bool value) { reuse_primitive_ = value; }
 
-    engine create_engine() {
+    engine create_engine() const {
         key_t key;
         return create_object<engine>(reuse_engine_, key, engine_mgr_,
                 [&] { return engine(get_test_engine_kind(), 0); });
     }
 
-    stream create_stream(const engine &eng) {
+    stream create_stream(const engine &eng) const {
         key_t key(reinterpret_cast<uint64_t>(eng.get()));
         return create_object<stream>(
                 reuse_stream_, key, stream_mgr_, [&] { return stream(eng); });

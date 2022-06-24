@@ -211,7 +211,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     auto eu_count = compute_engine->device_info()->eu_count();
     auto threads_per_eu
-            = compute_engine->device_info()->threads_per_eu(gpu_arch, false);
+            = compute::device_info_t::threads_per_eu(gpu_arch, false);
     const int max_sp_block_size = get_block_size(conf.is_backward, eu_count,
             conf.nn, utils::rnd_up(conf.ic, 16), conf.sp);
     const int nhwc_sp_block = get_nhwc_sp_block_size(
