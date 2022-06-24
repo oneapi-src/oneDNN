@@ -114,7 +114,8 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             using namespace format_tag;
             using sm = primitive_attr_t::skip_mask_t;
 
-            const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime;
+            const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime
+                    | sm::oscale_runtime;
 
             bool ok = is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct

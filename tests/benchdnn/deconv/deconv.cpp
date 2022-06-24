@@ -437,13 +437,9 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 
     // GPU supports only post ops and all but x8s8bf16 cfg
     if (is_gpu()) {
-        const bool only_non_default_post_ops = prb->attr.oscale.is_def()
-                && prb->attr.scales.is_def() && prb->attr.zero_points.is_def();
         const bool is_x8s8bf16_cfg
                 = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[DST].dt == dnnl_bf16;
-        const bool fwd_ok = !is_x8s8bf16_cfg
-                && IMPLICATION(
-                        (prb->dir & FLAG_FWD), only_non_default_post_ops);
+        const bool fwd_ok = !is_x8s8bf16_cfg;
         if (!fwd_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
