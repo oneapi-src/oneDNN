@@ -987,6 +987,9 @@ bool conv_config_t::can_use_2d_send(const layout_t &l, bool is_a) const {
         if (has_mb_block && has_sp_block) return false;
     }
 
+    // 2D messages does not support vnni format with 4 byte elements
+    if (type_t(b_data_type).size() >= 4) return false;
+
     auto is_plain_ok = [&]() {
         if (is_a || is_bwd_w) return matches_tag(l, "axb");
         if (is_b && l.is_empty()) return true;
