@@ -1673,9 +1673,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (is_depthwise) return status::unimplemented;
 
     // TODO: optimize grouped convolutions with small ic
-    const bool is_grouped_small_ic
-            = jcp.prop_kind != prop_kind::backward_weights && with_groups
-            && jcp.ngroups > 1 && jcp.ic <= 16
+    const bool is_grouped_small_ic = with_groups && jcp.ngroups > 1
+            && jcp.ic <= 16
             && IMPLICATION(is_amx(jcp.isa),
                     jcp.ic < 16
                             && jcp.oc < 16
