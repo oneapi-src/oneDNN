@@ -25,6 +25,7 @@
 
 #include "interface/c_types_map.hpp"
 
+#include "utils/allocator.hpp"
 #include "utils/id.hpp"
 #include "utils/rw_mutex.hpp"
 #include "utils/utils.hpp"
