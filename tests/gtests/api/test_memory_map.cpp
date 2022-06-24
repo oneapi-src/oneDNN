@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -148,6 +148,13 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp_t, Map) {
+
+#ifdef DNNL_SYCL_HIP
+    SKIP_IF(true,
+            "memory_map_test_cpp_t.Mapgpu is skipped for HIP because of "
+            "unimplemented Reorder");
+#endif
+
     auto engine_kind = static_cast<engine::kind>(GetParam());
 
     SKIP_IF(engine::get_count(engine_kind) == 0,

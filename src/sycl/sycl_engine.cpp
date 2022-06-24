@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,6 +73,11 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
                 engine, engine_kind_, dev, ctx, index);
 #endif
 
+#ifdef DNNL_SYCL_HIP
+    if (gpu::amd::is_amd_gpu(dev))
+        return gpu::amd::hip_engine_create(
+                engine, engine_kind_, dev, ctx, index);
+#endif
     if (engine_kind_ == engine_kind::cpu && !dev.is_cpu() && !dev.is_host())
         return status::invalid_arguments;
     if (engine_kind_ == engine_kind::gpu && !dev.is_gpu())

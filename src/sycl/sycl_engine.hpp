@@ -51,6 +51,20 @@ status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
 } // namespace gpu
 #endif
 
+#ifdef DNNL_SYCL_HIP
+// XXX: forward declarations to avoid cuda dependencies on sycl level.
+namespace gpu {
+namespace amd {
+
+bool is_amd_gpu(const ::sycl::device &dev);
+
+status_t hip_engine_create(engine_t **engine, engine_kind_t engine_kind,
+        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index);
+
+} // namespace amd
+} // namespace gpu
+#endif
+
 namespace sycl {
 
 inline std::vector<::sycl::device> get_sycl_devices(
@@ -60,6 +74,10 @@ inline std::vector<::sycl::device> get_sycl_devices(
 #ifdef DNNL_SYCL_CUDA
     const uint32_t vendor_id
             = ((dev_type == ::sycl::info::device_type::gpu) ? 0x10DE
+                                                            : intel_vendor_id);
+#elif defined(DNNL_SYCL_HIP)
+    const uint32_t vendor_id
+            = ((dev_type == ::sycl::info::device_type::gpu) ? 0x1002
                                                             : intel_vendor_id);
 #else
     const uint32_t vendor_id = intel_vendor_id;

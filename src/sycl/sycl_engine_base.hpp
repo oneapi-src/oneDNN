@@ -55,7 +55,7 @@ public:
     status_t init() override {
         backend_ = get_sycl_backend(device_);
         if (!utils::one_of(backend_, backend_t::host, backend_t::opencl,
-                    backend_t::level0, backend_t::nvidia))
+                    backend_t::level0, backend_t::nvidia, backend_t::amd))
             return status::invalid_arguments;
 
         CHECK(check_device(kind(), device_, context_));

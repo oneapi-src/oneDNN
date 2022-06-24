@@ -66,7 +66,7 @@ inline ::sycl::nd_range<3> to_sycl_nd_range(
     return ::sycl::nd_range<3>(sycl_global_range, sycl_local_range);
 }
 
-enum class backend_t { unknown, host, level0, opencl, nvidia };
+enum class backend_t { unknown, host, level0, opencl, nvidia, amd };
 
 inline std::string to_string(backend_t backend) {
     switch (backend) {
@@ -74,6 +74,7 @@ inline std::string to_string(backend_t backend) {
         case backend_t::level0: return "Level Zero";
         case backend_t::opencl: return "OpenCL";
         case backend_t::nvidia: return "Nvidia";
+        case backend_t::amd: return "AMD";
         default: return "Unknown";
     }
 }
@@ -87,7 +88,7 @@ inline backend_t get_sycl_backend(const ::sycl::device &dev) {
     std::string plat_name = plat.get_info<::sycl::info::platform::name>();
     if (plat_name.find("OpenCL") != std::string::npos) return backend_t::opencl;
     if (plat_name.find("NVIDIA") != std::string::npos) return backend_t::nvidia;
-
+    if (plat_name.find("AMD") != std::string::npos) return backend_t::amd;
     if (plat_name.find("Level-Zero") != std::string::npos)
         return backend_t::level0;
 
