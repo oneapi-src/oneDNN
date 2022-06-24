@@ -94,6 +94,25 @@ public:
     using Callback = std::function<void(
             int, int)>; // void callback(int arg1, int arg2);
 
+    struct Item {
+        Requirements req;
+        ActionFunc action;
+
+        Item(Requirements req_, ActionFunc action_)
+            : req(req_), action(action_) {}
+    };
+
+    struct CheckedItem : public Item {
+        ActionCheckFunc check;
+
+        CheckedItem(
+                Requirements req_, ActionFunc action_, ActionCheckFunc check_)
+            : Item(req_, action_), check(check_) {}
+        CheckedItem(
+                Item item_, ActionCheckFunc check_ = ActionCheckFunc(nullptr))
+            : Item(item_), check(check_) {}
+    };
+
     enum class CallbackType {
         OffsetCounter, // Add offset to loop counter.                                  (arg1 = offset)
         LoopStart, // Mark top of loop. Jump to bottom if counter <= 0.            (arg1 = unroll)
@@ -131,12 +150,10 @@ public:
     };
 
     void schedule(Requirements reqs, ActionFunc action);
-    void schedule(std::vector<std::tuple<Requirements, ActionFunc>> list);
+    void schedule(std::vector<Item> list);
     void schedule_if(
             Requirements reqs, ActionFunc action, ActionCheckFunc check);
-    void schedule_if(
-            std::vector<std::tuple<Requirements, ActionFunc, ActionCheckFunc>>
-                    list);
+    void schedule_if(std::vector<CheckedItem> list);
     void analyze();
     void materialize(int maxLoops = -1);
 
@@ -149,7 +166,7 @@ public:
 
 protected:
     struct Action {
-        std::vector<std::tuple<Requirements, ActionFunc, ActionCheckFunc>> list;
+        std::vector<CheckedItem> list;
         int nextTrigger;
     };
 
@@ -169,9 +186,7 @@ protected:
 
     bool analyzed = false;
 
-    void validate(
-            std::vector<std::tuple<Requirements, ActionFunc, ActionCheckFunc>>
-                    &list);
+    void validate(std::vector<CheckedItem> &list);
     void callback(CallbackType type, int arg1, int arg2 = 0);
     void run(int l, int guaranteedMin, int guaranteedMax = -1);
     void closeChecks();

@@ -35,16 +35,13 @@ void LoopSequencer::schedule(Requirements reqs, ActionFunc action) {
     schedule({{reqs, action}});
 }
 
-void LoopSequencer::schedule(
-        std::vector<std::tuple<Requirements, ActionFunc>> list) {
+void LoopSequencer::schedule(std::vector<Item> list) {
     if (!list.empty()) {
-        std::vector<std::tuple<Requirements, ActionFunc, ActionCheckFunc>>
-                xlist;
+        std::vector<CheckedItem> xlist;
         xlist.reserve(list.size());
 
         for (auto &entry : list)
-            xlist.push_back(std::tuple_cat(
-                    entry, std::make_tuple(ActionCheckFunc(nullptr))));
+            xlist.push_back(CheckedItem(entry));
 
         schedule_if(xlist);
     }
@@ -55,9 +52,7 @@ void LoopSequencer::schedule_if(
     schedule_if({{reqs, action, check}});
 }
 
-void LoopSequencer::schedule_if(
-        std::vector<std::tuple<Requirements, ActionFunc, ActionCheckFunc>>
-                list) {
+void LoopSequencer::schedule_if(std::vector<CheckedItem> list) {
     if (!list.empty()) {
         validate(list);
         actions.push_back({list, NeverScheduled});
@@ -77,18 +72,16 @@ void LoopSequencer::callback(CallbackType type, int arg1, int arg2) {
     if (cb) cb(arg1, arg2);
 }
 
-void LoopSequencer::validate(
-        std::vector<std::tuple<Requirements, ActionFunc, ActionCheckFunc>>
-                &list) {
+void LoopSequencer::validate(std::vector<CheckedItem> &list) {
     if (list.empty()) throw std::runtime_error("No actions specified.");
 
     int variants = 1;
     int headPeriod = 0;
 
-    auto &headReq = std::get<0>(list[0]);
+    auto &headReq = list[0].req;
 
     for (auto &action : list) {
-        auto &req = std::get<0>(action);
+        auto &req = action.req;
         if (req.period <= 0) throw std::runtime_error("Invalid action period.");
         if (req.phase < 0 || req.phase >= req.period)
             throw std::runtime_error("Invalid action phase.");
@@ -107,7 +100,7 @@ void LoopSequencer::validate(
     }
 
     for (auto &action : list)
-        std::get<0>(action).variants = variants;
+        action.req.variants = variants;
 }
 
 void LoopSequencer::checkAnalyzed() const {
@@ -143,7 +136,7 @@ void LoopSequencer::analyze() {
     maxLookahead = 0;
     minCooldown = 0;
     for (const auto &action : actions) {
-        const auto &headReq = std::get<0>(action.list[0]);
+        const auto &headReq = action.list[0].req;
 
         unroll = lcm(unroll, headReq.period * headReq.variants);
         maxLookahead = std::max(maxLookahead, headReq.lookahead);
@@ -290,9 +283,9 @@ void LoopSequencer::run(int l, int guaranteedMin, int guaranteedMax) {
         // Find the first item in the list that matches trigger criteria (if any) and run it.
         for (size_t i = 0; i < list.size(); i++) {
             const auto &item = list[i];
-            const auto &req = std::get<0>(item);
-            const auto &execute = std::get<1>(item);
-            const auto &check = std::get<2>(item);
+            const auto &req = item.req;
+            const auto &execute = item.action;
+            const auto &check = item.check;
             int lTrigger = l + req.lookahead;
             int minLoops = lTrigger + req.duration;
             bool lastResort = (i + 1 == list.size());
