@@ -31,12 +31,12 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 
 #ifndef DNNL_GRAPH_CPU_SYCL
-const size_t DNNL_CPU_MEMALIGNMENT = 4096;
+const size_t DNNL_CPU_MEMALIGNMENT = 64;
 #endif
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include "dnnl_sycl.hpp"
-const size_t DNNL_SYCL_MEMALIGNMENT = 16;
+const size_t DNNL_SYCL_MEMALIGNMENT = 64;
 #endif
 
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL

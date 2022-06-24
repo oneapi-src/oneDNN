@@ -160,7 +160,7 @@ inline size_t lcm(size_t a, size_t b) {
 /// we need to manually free the buffer allocated by this allocator
 class cpu_allocator_t {
 public:
-    constexpr static size_t DEFAULT_ALIGNMENT = 4096;
+    constexpr static size_t DEFAULT_ALIGNMENT = 64;
 
     static void *malloc(size_t size, allocator_attr_t attr) {
         void *ptr;
@@ -190,7 +190,7 @@ public:
 /// we need to manually free the buffer allocated by this allocator.
 class sycl_allocator_t {
 public:
-    constexpr static size_t DEFAULT_ALIGNMENT = 16;
+    constexpr static size_t DEFAULT_ALIGNMENT = 64;
 
     static void *malloc(size_t size, const void *dev, const void *ctx,
             allocator_attr_t attr) {
