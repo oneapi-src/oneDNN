@@ -92,6 +92,7 @@ static status_t init_conf_common(
     }
     int offset = 0;
     bool has_padding = false;
+    const auto dst_dim_order = get_ordered_dim_idxs(dst_mdw);
     for (int i = 0; i < pd->n_inputs(); ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
 
@@ -110,10 +111,8 @@ static status_t init_conf_common(
         if (!types::blocking_desc_is_equal(*pd->dst_md(), *pd->src_md(i), true))
             return status::unimplemented;
 
-        const auto dst_dim_order = get_ordered_dim_idxs(dst_mdw);
-        if (!is_same_axis_order(dst_dim_order, src_mdw)) {
+        if (!is_same_axis_order(dst_dim_order, src_mdw))
             return status::unimplemented;
-        }
 
         if (!src_mdw.is_dense()) return status::unimplemented;
 
