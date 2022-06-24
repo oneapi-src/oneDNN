@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,15 +60,21 @@ protected:
         SKIP_IF_CUDA(
                 !cuda_check_data_types_combination(src0_dt, src1_dt, dst_dt),
                 "Engine does not support this data type combination.");
+        SKIP_IF_HIP(!hip_check_data_types_combination(src0_dt, src1_dt, dst_dt),
+                "Engine does not support this data type combination.");
 
         for (auto tag : p.srcs_format) {
             MAYBE_UNUSED(tag);
             SKIP_IF_CUDA(!cuda_check_format_tag(tag),
                     "Unsupported source format tag");
+            SKIP_IF_HIP(!hip_check_format_tag(tag),
+                    "Unsupported source format tag");
         }
         SKIP_IF_CUDA(!cuda_check_format_tag(p.dst_format),
                 "Unsupported destination format tag");
 
+        SKIP_IF_HIP(!hip_check_format_tag(p.dst_format),
+                "Unsupported destination format tag");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -81,10 +87,20 @@ protected:
 
         return inputs_same_dt && correct_input_dt;
     }
+    bool hip_check_data_types_combination(
+            data_type src0_dt, data_type src1_dt, data_type dst_dt) {
+        bool correct_input_dt = src0_dt == dst_dt
+                && (dst_dt == data_type::f32 || dst_dt == data_type::f16
+                        || dst_dt == data_type::s32);
+        bool inputs_same_dt = src0_dt == src1_dt;
+
+        return inputs_same_dt && correct_input_dt;
+    }
 
     bool cuda_check_format_tag(tag atag) {
         return atag == tag::abcd || atag == tag::acdb;
     }
+    bool hip_check_format_tag(tag atag) { return atag == tag::abcd; }
 
     void Test() {
         auto eng = get_test_engine();
@@ -95,9 +111,9 @@ protected:
         using pd_t = binary::primitive_desc;
         allows_attr_t aa {false};
         aa.scales = true;
-        aa.po_sum = !is_nvidia_gpu(eng);
-        aa.po_eltwise = !is_nvidia_gpu(eng);
-        aa.po_binary = !is_nvidia_gpu(eng);
+        aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         std::vector<memory::desc> srcs_md;
         std::vector<memory> srcs;
 
