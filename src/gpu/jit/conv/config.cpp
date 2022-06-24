@@ -734,10 +734,6 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
             if (use_2d_send_nhwc) {
                 wei_hwio = true;
                 user_wei_hwio = true;
-            } else if (is_small_ic() && (is_fwd || is_bwd_w)) {
-                // Use blocked layouts in the main kernel, rely
-                // on internal reorders to/from plain layout.
-                user_wei_hwio = true;
             }
         }
         if (wei_hwio) {
