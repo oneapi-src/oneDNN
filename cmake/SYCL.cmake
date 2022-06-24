@@ -45,6 +45,10 @@ if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT" AND DNNL_SYCL_CUDA)
     message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER options is not supported for NVIDIA.")
 endif()
 
+if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT" AND DNNL_SYCL_HIP)
+    message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER options is not supported for AMD.")
+endif()
+
 if(DNNL_SYCL_CUDA)
     # XXX: Suppress warning coming from SYCL headers:
     #   error: use of function template name with no prior declaration in
@@ -73,6 +77,15 @@ if(DNNL_SYCL_CUDA)
             append(CMAKE_CXX_FLAGS "-idirafter${cuda_include_dir}")
         endforeach()
     endif()
+
+elseif(DNNL_SYCL_HIP)
+    # An ugly workaround to satisfy OpenCL dependency that is coming from
+    # the compute layer. OpenCL is NOT used by HIP backend.
+    list(APPEND EXTRA_SHARED_LIBS OpenCL)
+
+    find_package(HIP REQUIRED)
+    find_package(rocBLAS REQUIRED)
+    find_package(MIOpen REQUIRED)
 else()
     # In order to support large shapes.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sycl-id-queries-fit-in-int")
@@ -111,4 +124,3 @@ endif()
 
 add_definitions_with_host_compiler("-DCL_TARGET_OPENCL_VERSION=300")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
-

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,6 +180,11 @@ TEST_P(sycl_memory_buffer_test, BasicInteropGetSet) {
 TEST_P(sycl_memory_buffer_test, InteropReorder) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+#ifdef DNNL_SYCL_HIP
+    SKIP_IF(true,
+            "Simple/sycl_memory_buffer_test.InteropReorder/gpu is skipped for "
+            "HIP because of unimplemented Reorder");
+#endif
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     SKIP_IF(eng_kind == engine::kind::cpu,
@@ -243,6 +248,12 @@ TEST_P(sycl_memory_buffer_test, InteropReorder) {
 TEST_P(sycl_memory_buffer_test, InteropReorderAndUserKernel) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+#ifdef DNNL_SYCL_HIP
+    SKIP_IF(true,
+            "Simple/sycl_memory_buffer_test.InteropReorderAndUserKernel/gpu is "
+            "skipped for HIP because of unimplemented Reorder");
+#endif
 
 #ifdef DNNL_SYCL_CUDA
     SKIP_IF(eng_kind == engine::kind::gpu,
@@ -319,6 +330,12 @@ TEST_P(sycl_memory_buffer_test, InteropReorderAndUserKernel) {
 TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+#ifdef DNNL_SYCL_HIP
+    SKIP_IF(true,
+            "Simple/sycl_memory_buffer_test.EltwiseWithUserKernel/gpu is "
+            "skipped for HIP because of unimplemented Eltwise");
+#endif
 
 #ifdef DNNL_SYCL_CUDA
     SKIP_IF(eng_kind == engine::kind::gpu,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,6 +52,21 @@
 #else
 #define SKIP_IF_CUDA(cond, message)
 #define SKIP_FOR_LOOP_CUDA(cond, message)
+#endif
+
+#ifdef DNNL_SYCL_HIP
+#define SKIP_IF_HIP(cond, message) \
+    do { \
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && (cond), \
+                (message)); \
+    } while (0)
+
+#define SKIP_FOR_LOOP_HIP(cond, message) \
+    SKIP_FOR_LOOP( \
+            get_test_engine_kind() == engine::kind::gpu && (cond), (message));
+#else
+#define SKIP_IF_HIP(cond, message)
+#define SKIP_FOR_LOOP_HIP(cond, message)
 #endif
 
 #define TEST_F_(test_fixture, test_name) TEST_F(test_fixture, test_name)

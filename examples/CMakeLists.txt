@@ -60,6 +60,11 @@ if(DNNL_SYCL_CUDA)
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/shuffle.cpp)
 endif()
 
+if(DNNL_SYCL_HIP)
+    # There are no yet implemented primitives that are used in the examples.
+    set(sources)
+endif()
+
 # Skip SYCL, GPU and cross-engine examples
 foreach(f ${sources})
     get_filename_component(f_name ${f} NAME)

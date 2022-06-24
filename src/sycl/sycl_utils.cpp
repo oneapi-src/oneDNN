@@ -34,6 +34,19 @@ bool compare_cuda_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
 } // namespace dnnl
 #endif
 
+#ifdef DNNL_SYCL_HIP
+// Do not include sycl_cuda_utils.hpp because it's intended for use in
+// gpu/amd directory only.
+namespace dnnl {
+namespace impl {
+namespace gpu {
+namespace amd {
+bool compare_hip_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
+}
+} // namespace gpu
+} // namespace impl
+} // namespace dnnl
+#endif
 namespace dnnl {
 namespace impl {
 namespace sycl {
@@ -78,6 +91,11 @@ bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs) {
     }
 #endif
 
+#ifdef DNNL_SYCL_HIP
+    if (lhs_be == backend_t::amd) {
+        return gpu::amd::compare_hip_devices(lhs, rhs);
+    }
+#endif
     assert(!"not expected");
     return false;
 }

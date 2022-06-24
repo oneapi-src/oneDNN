@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public:
     status_t init() override {
         backend_ = get_sycl_backend(device_);
         if (!utils::one_of(backend_, backend_t::host, backend_t::opencl,
-                    backend_t::level0, backend_t::nvidia))
+                    backend_t::level0, backend_t::nvidia, backend_t::amd))
             return status::invalid_arguments;
 
         CHECK(gpu::compute::compute_engine_t::init());

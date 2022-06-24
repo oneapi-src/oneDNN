@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,12 @@ protected:
 };
 
 HANDLE_EXCEPTIONS_FOR_TEST_P(engine_test_t, TestMultithreading) {
+#ifdef DNNL_SYCL_HIP
+    SKIP_IF(true,
+            "AllEngineKinds/engine_test_t.TestMultithreading/1 is skipped for "
+            "HIP because of unimplemented Eltwise");
+#endif
+
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
     if (eng_kind == engine::kind::cpu) {
         EXPECT_EQ((int)engine::get_count(eng_kind), 0);
