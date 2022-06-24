@@ -1849,6 +1849,110 @@ struct driver_t : public c_compatible {
         }
     }
 
+    bool thread_balance(bool do_blocking, bool spatial_thr_allowed,
+            bool is_nspc, int ithr, int nthr, dim_t N, dim_t C_blks, dim_t SP,
+            int &C_ithr, int &C_nthr, dim_t &C_blk_s, dim_t &C_blk_e,
+            int &N_ithr, int &N_nthr, dim_t &N_s, dim_t &N_e, int &S_ithr,
+            int &S_nthr, dim_t &S_s, dim_t &S_e) {
+        // NOTE: spatial threading decision made in this function shall be consistent
+        //       with bnorm_utils::is_spatial_thr() behavior.
+        // TODO: consolidate spatial threading logic into a single location.
+        if (((nthr <= C_blks) && IMPLICATION(is_nspc, N == 1))
+                || !dnnl_thr_syncable()) {
+            C_ithr = ithr;
+            C_nthr = nthr;
+            N_ithr = 0;
+            N_nthr = 1;
+            S_ithr = 0;
+            S_nthr = 1;
+            N_s = 0;
+            N_e = N;
+            S_s = 0;
+            S_e = SP;
+            balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
+        } else {
+            if (is_nspc) {
+                if (C_blks <= 8)
+                    C_nthr = 1;
+                else if (nthr >= 8 && C_blks <= 32)
+                    C_nthr = 8;
+                else {
+                    C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
+                    // Unroll by channels in JIT kernel
+                    if ((C_nthr == C_blks) || (C_nthr == nthr)) C_nthr = 1;
+                }
+                N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
+                // heuristic for training on avx512_core_amx
+                // NOTE: since `nthr <= N` this does not affect is_spatial_thr
+                // TODO: test heuristic when global stats flag is set
+                if (!bdesc_->use_global_stats() && 0 < dt_size_ && 0 < simd_w
+                        && 1 < C_nthr && nthr <= N
+                        && mayiuse(avx512_core_amx)) {
+                    const size_t data_size
+                            = dt_size_ * N * SP * C_blks * simd_w;
+                    const size_t C_split_data_size
+                            = utils::div_up(data_size, N_nthr);
+                    const size_t N_split_data_size
+                            = utils::div_up(data_size, nthr);
+                    const size_t l2_size_per_core
+                            = platform::get_per_core_cache_size(2);
+                    const size_t l3_size_per_core
+                            = platform::get_per_core_cache_size(3);
+                    const size_t cache_size_per_core
+                            = l2_size_per_core + l3_size_per_core;
+                    // if current split is too big for cache, better to split by N
+                    const bool condition1
+                            = cache_size_per_core < C_split_data_size;
+                    // if split by N is also too big for cache, bwd is better off as it was
+                    const bool condition2 = bdesc_->is_fwd()
+                            || cache_size_per_core >= N_split_data_size;
+                    if (condition1 && condition2) {
+                        C_nthr = 1;
+                        N_nthr = nthr;
+                    }
+                }
+                S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
+            } else {
+                if (do_blocking) {
+                    N_nthr = (int)nstl::min<dim_t>(N, nthr);
+                    C_nthr = (int)nstl::min<dim_t>(C_blks, nthr / N_nthr);
+                    S_nthr = (int)nstl::min<dim_t>(
+                            SP, nthr / (C_nthr * N_nthr));
+                } else {
+                    C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
+                    N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
+                    S_nthr = (int)nstl::min<dim_t>(
+                            SP, nthr / (C_nthr * N_nthr));
+                }
+            }
+
+            if (!spatial_thr_allowed) S_nthr = 1;
+
+            if (S_nthr < 1) S_nthr = 1;
+            if (ithr < C_nthr * N_nthr * S_nthr) {
+                N_ithr = (ithr / S_nthr) % N_nthr;
+                C_ithr = ithr / (N_nthr * S_nthr);
+                S_ithr = ithr % S_nthr;
+                balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
+                balance211(N, N_nthr, N_ithr, N_s, N_e);
+                balance211(SP, S_nthr, S_ithr, S_s, S_e);
+            } else {
+                S_ithr = N_ithr = C_ithr = -ithr;
+                S_s = S_e = N_s = N_e = C_blk_s = C_blk_e = -1;
+            }
+        }
+
+        // spatial_thr_allowed is meant to help maintain
+        // consistent decisions about spatial threading
+        // between mutiple invocations of this routine.
+        // It is caller's responsibility to check the
+        // return value and pass it as a flag to the
+        // next call if needed.
+        if (S_nthr == 1) spatial_thr_allowed = false;
+
+        return spatial_thr_allowed;
+    }
+
     void exec(int ithr, int nthr, const void *src, void *diff_src, void *dst,
             const void *diff_dst, const acc_data_t *scale,
             acc_data_t *diff_scale, const acc_data_t *shift,
@@ -1893,7 +1997,7 @@ struct driver_t : public c_compatible {
                     working_set_size, C_blks, N, nthr, C_blks_per_iter, iters);
         }
 
-        bool spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking_,
+        bool spatial_thr_allowed = this->thread_balance(do_blocking_,
                 true /* spatial_thr_allowed */, is_nspc_, ithr, nthr, N,
                 do_blocking_ ? C_blks_per_iter : C_blks, SP,
                 /* outputs */ C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr,
@@ -1913,7 +2017,7 @@ struct driver_t : public c_compatible {
         for (int64_t it = 0; it < iters; it++) {
             if (it == iters - 1 && iters > 1) {
                 C_blk_s = C_blk_e = N_s = N_e = 0;
-                spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking_,
+                spatial_thr_allowed = this->thread_balance(do_blocking_,
                         spatial_thr_allowed, is_nspc_, ithr, nthr, N,
                         last_iter_blks, SP, C_ithr, C_nthr, C_blk_s, C_blk_e,
                         N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
