@@ -48,13 +48,14 @@ protected:
             std::shared_ptr<cudnn_batch_normalization_impl_base_t> bnorm_impl,
             engine_t *engine, ::sycl::handler &cgh,
             nvidia::sycl_cuda_stream_t *cuda_stream,
-            sycl_memory_arg_t<::sycl::access::mode::read> arg_src,
-            sycl_memory_arg_t<::sycl::access::mode::write> arg_dst,
-            sycl_memory_arg_t<flt_m> arg_scale_bias,
-            sycl_memory_arg_t<::sycl::access::mode::write> arg_wkspace,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read> arg_src,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::write> arg_dst,
+            impl::sycl::sycl_memory_arg_t<flt_m> arg_scale_bias,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::write>
+                    arg_wkspace,
             bool init_ss, bool init_mv,
-            sycl_memory_arg_t<mean_var_m> arg_mean = {},
-            sycl_memory_arg_t<mean_var_m> arg_var = {}) const {
+            impl::sycl::sycl_memory_arg_t<mean_var_m> arg_mean = {},
+            impl::sycl::sycl_memory_arg_t<mean_var_m> arg_var = {}) const {
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
@@ -97,13 +98,17 @@ protected:
             std::shared_ptr<cudnn_batch_normalization_impl_base_t> bnorm_impl,
             engine_t *engine, ::sycl::handler &cgh,
             nvidia::sycl_cuda_stream_t *cuda_stream,
-            sycl_memory_arg_t<::sycl::access::mode::read> arg_src,
-            sycl_memory_arg_t<::sycl::access::mode::read> arg_diff_dst,
-            sycl_memory_arg_t<::sycl::access::mode::write> arg_diff_src,
-            sycl_memory_arg_t<ss_m> arg_scale_bias,
-            sycl_memory_arg_t<d_ss_m> arg_diff_scale_bias,
-            sycl_memory_arg_t<::sycl::access::mode::read> arg_wkspace,
-            sycl_memory_arg_t<::sycl::access::mode::read_write> arg_temp_relu,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read> arg_src,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read>
+                    arg_diff_dst,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::write>
+                    arg_diff_src,
+            impl::sycl::sycl_memory_arg_t<ss_m> arg_scale_bias,
+            impl::sycl::sycl_memory_arg_t<d_ss_m> arg_diff_scale_bias,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read>
+                    arg_wkspace,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read_write>
+                    arg_temp_relu,
             bool init_ss) const {
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
@@ -149,7 +154,8 @@ protected:
     void init_scaleshift(cuda_sycl_scoped_context_handler_t &sc,
             const compat::interop_handle &ih,
             nvidia::sycl_cuda_stream_t *cuda_stream,
-            sycl_memory_arg_t<::sycl::access::mode::write> arg_scale_bias,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::write>
+                    arg_scale_bias,
             const size_t n) const {
         T scale_val = 1, bias_val = 0;
         cuda_stream->interop_task([&](::sycl::handler &cgh) {
@@ -179,8 +185,8 @@ protected:
     void init_mean_var(cuda_sycl_scoped_context_handler_t &sc,
             const compat::interop_handle &ih,
             nvidia::sycl_cuda_stream_t *cuda_stream,
-            sycl_memory_arg_t<::sycl::access_mode::write> arg_mean,
-            sycl_memory_arg_t<::sycl::access_mode::write> arg_var,
+            impl::sycl::sycl_memory_arg_t<::sycl::access_mode::write> arg_mean,
+            impl::sycl::sycl_memory_arg_t<::sycl::access_mode::write> arg_var,
             const size_t n) const {
         constexpr T mean_var_val = 0;
         cuda_stream->interop_task([&](::sycl::handler &cgh) {
@@ -209,12 +215,12 @@ struct bnorm_exec_fwd_inf_t : public bnorm_exec_base_t {
         return cuda_stream->interop_task([&](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_scale_bias
-                    = sycl_memory_arg_t<::sycl::access::mode::write>(
-                            scale_bias_buff, cgh);
+            auto arg_scale_bias = impl::sycl::sycl_memory_arg_t<
+                    ::sycl::access::mode::write>(scale_bias_buff, cgh);
             auto arg_wkspace = bnorm_impl->is_training()
                     ? CTX_OUT_SYCL_MEMORY(DNNL_ARG_WORKSPACE)
-                    : sycl_memory_arg_t<::sycl::access::mode::write>();
+                    : impl::sycl::sycl_memory_arg_t<
+                            ::sycl::access::mode::write>();
 
             bool init_ss = true, init_mean_var = false;
 
@@ -238,7 +244,8 @@ struct bnorm_exec_fwd_inf_ss_t : public bnorm_exec_base_t {
             auto arg_scale_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_SCALE_SHIFT);
             auto arg_wkspace = bnorm_impl->is_training()
                     ? CTX_OUT_SYCL_MEMORY(DNNL_ARG_WORKSPACE)
-                    : sycl_memory_arg_t<::sycl::access::mode::write>();
+                    : impl::sycl::sycl_memory_arg_t<
+                            ::sycl::access::mode::write>();
 
             bool init_ss = false, init_mean_var = false;
 
@@ -263,12 +270,12 @@ struct bnorm_exec_fwd_inf_stats_t : public bnorm_exec_base_t {
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
             auto arg_mean = CTX_IN_SYCL_MEMORY(DNNL_ARG_MEAN);
             auto arg_var = CTX_IN_SYCL_MEMORY(DNNL_ARG_VARIANCE);
-            auto arg_scale_bias
-                    = sycl_memory_arg_t<::sycl::access::mode::write>(
-                            scale_bias_buff, cgh);
+            auto arg_scale_bias = impl::sycl::sycl_memory_arg_t<
+                    ::sycl::access::mode::write>(scale_bias_buff, cgh);
             auto arg_wkspace = bnorm_impl->is_training()
                     ? CTX_OUT_SYCL_MEMORY(DNNL_ARG_WORKSPACE)
-                    : sycl_memory_arg_t<::sycl::access::mode::write>();
+                    : impl::sycl::sycl_memory_arg_t<
+                            ::sycl::access::mode::write>();
 
             bool init_ss = true, init_mean_var = false;
 
@@ -294,7 +301,8 @@ struct bnorm_exec_fwd_inf_ss_stats_t : public bnorm_exec_base_t {
             auto arg_scale_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_SCALE_SHIFT);
             auto arg_wkspace = bnorm_impl->is_training()
                     ? CTX_OUT_SYCL_MEMORY(DNNL_ARG_WORKSPACE)
-                    : sycl_memory_arg_t<::sycl::access::mode::write>();
+                    : impl::sycl::sycl_memory_arg_t<
+                            ::sycl::access::mode::write>();
 
             bool init_ss = false, init_mean_var = false;
 
@@ -319,12 +327,12 @@ struct bnorm_exec_fwd_t : public bnorm_exec_base_t {
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
             auto arg_mean = CTX_OUT_SYCL_MEMORY(DNNL_ARG_MEAN);
             auto arg_var = CTX_OUT_SYCL_MEMORY(DNNL_ARG_VARIANCE);
-            auto arg_scale_bias
-                    = sycl_memory_arg_t<::sycl::access::mode::write>(
-                            scale_bias_buff, cgh);
+            auto arg_scale_bias = impl::sycl::sycl_memory_arg_t<
+                    ::sycl::access::mode::write>(scale_bias_buff, cgh);
             auto arg_wkspace = bnorm_impl->is_training()
                     ? CTX_OUT_SYCL_MEMORY(DNNL_ARG_WORKSPACE)
-                    : sycl_memory_arg_t<::sycl::access::mode::write>();
+                    : impl::sycl::sycl_memory_arg_t<
+                            ::sycl::access::mode::write>();
 
             bool init_ss = true, init_mean_var = true;
 
@@ -350,7 +358,8 @@ struct bnorm_exec_fwd_ss_t : public bnorm_exec_base_t {
             auto arg_scale_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_SCALE_SHIFT);
             auto arg_wkspace = bnorm_impl->is_training()
                     ? CTX_OUT_SYCL_MEMORY(DNNL_ARG_WORKSPACE)
-                    : sycl_memory_arg_t<::sycl::access::mode::write>();
+                    : impl::sycl::sycl_memory_arg_t<
+                            ::sycl::access::mode::write>();
 
             bool init_ss = false, init_mean_var = true;
 
@@ -377,12 +386,10 @@ struct bnorm_exec_bwd_t : public bnorm_exec_base_t {
             auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
             auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
             auto arg_wkspace = CTX_IN_SYCL_MEMORY(DNNL_ARG_WORKSPACE);
-            auto arg_scale_bias
-                    = sycl_memory_arg_t<::sycl::access::mode::write>(
-                            scale_bias_buff, cgh);
-            auto arg_diff_scale_bias
-                    = sycl_memory_arg_t<::sycl::access::mode::write>(
-                            diff_scale_bias_buff, cgh);
+            auto arg_scale_bias = impl::sycl::sycl_memory_arg_t<
+                    ::sycl::access::mode::write>(scale_bias_buff, cgh);
+            auto arg_diff_scale_bias = impl::sycl::sycl_memory_arg_t<
+                    ::sycl::access::mode::write>(diff_scale_bias_buff, cgh);
 
             auto arg_temp_relu
                     = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
@@ -438,9 +445,8 @@ struct bnorm_exec_bwd_d_ss_t : public bnorm_exec_base_t {
             auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
             auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
             auto arg_scale_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_SCALE_SHIFT);
-            auto arg_diff_scale_bias
-                    = sycl_memory_arg_t<::sycl::access::mode::write>(
-                            diff_scale_bias_buff, cgh);
+            auto arg_diff_scale_bias = impl::sycl::sycl_memory_arg_t<
+                    ::sycl::access::mode::write>(diff_scale_bias_buff, cgh);
             auto arg_wkspace = CTX_IN_SYCL_MEMORY(DNNL_ARG_WORKSPACE);
             auto arg_temp_relu
                     = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);

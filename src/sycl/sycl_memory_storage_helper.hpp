@@ -31,16 +31,18 @@
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
+namespace sycl {
 
 #define CTX_IN_SYCL_MEMORY(arg) \
-    sycl_memory_arg_t<::sycl::access::mode::read>(&CTX_IN_STORAGE(arg), cgh)
+    dnnl::impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read>( \
+            &CTX_IN_STORAGE(arg), cgh)
 
 #define CTX_OUT_SYCL_MEMORY(arg) \
-    sycl_memory_arg_t<::sycl::access::mode::write>(&CTX_OUT_STORAGE(arg), cgh)
+    dnnl::impl::sycl::sycl_memory_arg_t<::sycl::access::mode::write>( \
+            &CTX_OUT_STORAGE(arg), cgh)
 
 #define CTX_SCRATCH_SYCL_MEMORY(arg) \
-    sycl_memory_arg_t<::sycl::access::mode::read_write>( \
+    dnnl::impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read_write>( \
             ctx.get_scratchpad_grantor().get_memory_storage(arg).get(), cgh)
 
 template <::sycl::access_mode mode>
@@ -58,7 +60,8 @@ public:
     sycl_memory_arg_t() = default;
     sycl_memory_arg_t(memory_storage_t *raw_mem, ::sycl::handler &cgh) {
         if (!raw_mem || raw_mem->is_null()) { return; }
-        auto *mem = static_cast<sycl::sycl_memory_storage_base_t *>(raw_mem);
+        auto *mem = static_cast<impl::sycl::sycl_memory_storage_base_t *>(
+                raw_mem);
         switch (mem->memory_kind()) {
             case sycl::memory_kind::buffer: {
                 auto *buffer_storage
@@ -87,10 +90,10 @@ public:
     template <typename T = void>
     T *get_native_pointer(
 #ifdef DNNL_SYCL_CUDA
-            const nvidia::compat::interop_handle
+            const gpu::nvidia::compat::interop_handle
 #endif
 #ifdef DNNL_SYCL_HIP
-            const amd::compat::interop_handle
+            const gpu::amd::compat::interop_handle
 #endif
                     &ih) const {
         void *raw_ptr = nullptr;
@@ -113,7 +116,7 @@ private:
     size_t offset_;
 };
 
-} // namespace gpu
+} // namespace sycl
 } // namespace impl
 } // namespace dnnl
 
