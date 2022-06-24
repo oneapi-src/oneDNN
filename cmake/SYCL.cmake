@@ -57,6 +57,9 @@ if(DNNL_SYCL_CUDA)
 
     find_package(cuBLAS REQUIRED)
     find_package(cuDNN REQUIRED)
+    # An ugly workaround to satisfy OpenCL dependency that is coming from
+    # the compute layer. OpenCL is NOT used by CUDA backend.
+    list(APPEND EXTRA_SHARED_LIBS OpenCL)
 
     if(NOT WIN32)
         # XXX: CUDA contains OpenCL headers that conflict with the OpenCL
