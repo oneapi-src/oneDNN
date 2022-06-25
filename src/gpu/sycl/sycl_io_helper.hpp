@@ -129,7 +129,7 @@ inline void handle_bf16_store(
     }
     vec_u16.store(offset, gptr_u16);
 }
-}
+} // namespace
 
 template <int width>
 inline ::sycl::vec<float, width> load_float_vec(

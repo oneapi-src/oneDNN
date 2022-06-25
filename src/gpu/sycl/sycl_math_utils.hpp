@@ -119,7 +119,7 @@ inline ::sycl::vec<float, width> linear_fwd(
 }
 
 } // namespace math
-} // namespace math
+} // namespace sycl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
