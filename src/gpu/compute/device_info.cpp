@@ -139,7 +139,6 @@ int device_info_t::max_slm_size_per_tg(
 }
 
 status_t device_info_t::init_attributes_common(engine_t *engine) {
-    using namespace impl::sycl;
     // TODO: Fix for discrete GPUs. The code below is written for
     // integrated GPUs assuming that last-level cache for GPU is shared
     // with CPU.
@@ -157,6 +156,7 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     bool ocl_backend = true;
 
 #ifdef DNNL_WITH_SYCL
+    using namespace impl::sycl;
     if (engine->runtime_kind() == runtime_kind::sycl) {
         auto *sycl_engine = utils::downcast<const sycl_engine_base_t *>(engine);
         ocl_backend = (sycl_engine->backend() == backend_t::opencl);
