@@ -98,7 +98,7 @@ miopenHandle_t *sycl_hip_engine_t::get_miopen_handle() {
 }
 
 device_id_t sycl_hip_engine_t::device_id() const {
-    return device_id_t(static_cast<int>(sycl::backend_t::amd),
+    return device_id_t(static_cast<int>(impl::sycl::backend_t::amd),
             static_cast<uint64_t>(compat::get_native<hipDevice_t>(device())),
             static_cast<uint64_t>(0));
 }
