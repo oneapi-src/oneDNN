@@ -6342,7 +6342,9 @@ private:
         }
 
         auto bound_cond = expr_t();
-        if (is_a && !cfg_.fuse_spatial) {
+        if (is_a && !cfg_.fuse_spatial
+                && thr_tile.elems() * load_grid.elems()
+                        != xp_slm_layout.elems()) {
             for (int i = 0; i < x_gmem_view.nvdims(); i++) {
                 if (!x_g2s_view.vstart(i).is_equal(x_gmem_view.vstart(i))) {
                     auto dim_expr
