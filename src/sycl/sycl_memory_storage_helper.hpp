@@ -52,8 +52,8 @@ class sycl_memory_arg_t {
 #elif defined(DNNL_SYCL_HIP)
     static constexpr auto be = ::sycl::backend::ext_oneapi_hip;
 #else
-    static_assert(
-            true, "This file is not expected to be used for Intel GPU vendor.");
+    static_assert(false,
+            "This file is not expected to be used for Intel GPU vendor.");
 #endif
 
 public:
