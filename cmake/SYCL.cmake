@@ -29,8 +29,6 @@ endif()
 include(FindPackageHandleStandardArgs)
 include("cmake/dpcpp_driver_check.cmake")
 
-message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")
-
 # Explicitly link against sycl as Intel oneAPI DPC++ Compiler does not
 # always do it implicitly.
 if(WIN32)
@@ -109,6 +107,7 @@ else()
         set_target_properties(OpenCL::OpenCL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
         list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
     endif()
+    message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")
 endif()
 
 # XXX: Suppress warning coming from SYCL headers:
