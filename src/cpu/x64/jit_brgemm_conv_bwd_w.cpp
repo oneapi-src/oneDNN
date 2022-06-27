@@ -685,28 +685,6 @@ void brgemm_convolution_bwd_weights_t::call_brgemm_kernel(thread_info_t &btc,
             static_cast<void *>(btc.wsp_tile));
 }
 
-void brgemm_convolution_bwd_weights_t::call_brgemm(thread_info_t &btc,
-        const void *ptr_A, const void *ptr_B, void *ptr_C, void *ptr_D,
-        int ohb_l, bool do_init, bool M_tail, bool N_tail) const {
-
-    const auto _pd = pd();
-    const auto &jcp = _pd->jcp_;
-
-    int bs = ohb_l;
-    auto brg_idx = _pd->get_brg_idx(
-            bs, M_tail ? jcp.M_tail : jcp.M, do_init, N_tail, false);
-
-    for (int ohb = 0; ohb < ohb_l; ohb++) {
-        btc.brg_batch[ohb].ptr.A = (char *)ptr_A
-                + ohb * jcp.typesize_in * jcp.tr_iw * jcp.ic_block
-                        * jcp.stride_h;
-        btc.brg_batch[ohb].ptr.B = (char *)ptr_B
-                + ohb * jcp.typesize_in * jcp.tr_ow * jcp.oc_block;
-    }
-
-    call_brgemm_kernel(btc, brg_idx, bs, ptr_C, ptr_D);
-}
-
 void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
         thread_info_t *ti) const {
 
