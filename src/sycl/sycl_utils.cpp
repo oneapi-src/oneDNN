@@ -146,7 +146,7 @@ status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
     if (eng_kind == engine_kind::gpu && !dev.is_gpu())
         return status::invalid_arguments;
 
-#ifndef DNNL_SYCL_CUDA
+#if !defined(DNNL_SYCL_CUDA) && !defined(DNNL_SYCL_HIP)
     // Check that platform is an Intel platform.
     if (!is_intel_platform(dev.get_platform()))
         return status::invalid_arguments;
