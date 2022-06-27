@@ -1320,6 +1320,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     dnnl_memory_desc_init_by_tag(&wei_iter_desc, weights_iter_md->ndims,
             weights_iter_md->dims, data_type::bf16, tag);
 
+#if DNNL_X64
     if (rnn.is_bf32()) {
         if (rnn.is_augru) {
             const auto bf32_augru_attention
@@ -1366,6 +1367,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             weights_iter_md = &wei_iter_desc;
         }
     }
+#endif
 
     (this->*weights_iter_assign_func)(rnn, weights_iter_md,
             rnn.n_parts_weights_iter, rnn.parts_weights_iter, ptr_wei_iter,
