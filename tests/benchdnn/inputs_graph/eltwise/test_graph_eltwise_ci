@@ -61,6 +61,29 @@
 --alg=relu
 64x2048x7x7
 
+# all supported algs - post ops
+--reset
+--inplace=true,false
+--dir=FWD_D
+--dt=f32
+--tag=abx,axb
+
+--alpha=0 --beta=0
+--alg=abs,elu,exp,gelu_erf,hardswish,log,relu,round,sqrt,square,tanh
+--attr-post-ops=add:f32,mul:f32,sub:f32,div:f32
+64x512x28x28
+
+--reset
+--inplace=true,false
+--dir=FWD_D
+--dt=f32
+--tag=abx,axb
+
+--alpha=0 --beta=0
+--alg=abs,elu,exp,gelu_erf,hardswish,relu,round,square,tanh
+--attr-post-ops=max:f32,min:f32
+64x512x28x28
+
 #TODO --alg=sigmoid ???
 #16x1
 

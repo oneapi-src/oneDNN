@@ -207,7 +207,8 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
 
     static const engine_t cpu_engine(dnnl_cpu);
 
-    auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    size_t idx_ins = 0;
+    auto src_fp = make_dnn_mem(ins[idx_ins], dt::f32, tag::abx);
     // we need src_fp for proper comparison, => no in-place reference
     auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
 
@@ -219,34 +220,45 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
         }
     }();
 
-    auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
+    auto src_dt = make_dnn_mem(ins[idx_ins], (prb->tag).c_str());
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
     // eltwise operator supports only relu-add (single binary post-op)
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
+    const std::vector<attr_t::post_ops_t::entry_t> &po_entry
+            = prb->attr.post_ops.entry;
+    const std::vector<size_t> post_bin_indices = get_post_bin_indices(po_entry);
+
     if (!prb->attr.post_ops.entry.empty()) {
-        binary_po_fp.emplace_back(
-                make_dnn_mem(ins.back(), dt::f32, (prb->tag).c_str()));
-        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), (prb->tag).c_str()));
-        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
-        ::binary::fill_mem(po_idx, binary_po_dt.back(), binary_po_fp.back());
-        binary_po_args.push_back(po_idx);
+        for (size_t i = 0; i < post_bin_indices.size(); i++) {
+            binary_po_fp.emplace_back(
+                    make_dnn_mem(ins[++idx_ins], dt::f32, (prb->tag).c_str()));
+            binary_po_dt.emplace_back(
+                    make_dnn_mem(ins[idx_ins], (prb->tag).c_str()));
+            const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                       static_cast<int>(post_bin_indices[i]))
+                    | DNNL_ARG_SRC_1;
+            ::binary::fill_mem(po_idx, binary_po_dt[i], binary_po_fp[i]);
+            binary_po_args.push_back(po_idx);
+        }
     }
 
     SAFE(::eltwise::fill_data(prb, SRC, src_dt, src_fp), WARN);
 
+    idx_ins = 0;
     const dnnl::graph::engine &eng = get_test_engine();
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
     args_t args, ref_args;
-
     if (prb->dir & FLAG_FWD) {
-        tensors_in.emplace_back(
-                dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
+        tensors_in.emplace_back(dnnl::graph::tensor(
+                ins[idx_ins], eng, static_cast<void *>(src_dt)));
         tensors_out.emplace_back(
                 dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
+
         if (!prb->attr.post_ops.entry.empty()) {
-            tensors_in.emplace_back(dnnl::graph::tensor(
-                    ins.back(), eng, static_cast<void *>(binary_po_dt.back())));
+            for (size_t i = 0; i < post_bin_indices.size(); i++)
+                tensors_in.emplace_back(dnnl::graph::tensor(ins[++idx_ins], eng,
+                        static_cast<void *>(binary_po_dt[i])));
         }
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
@@ -266,17 +278,17 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     } else {
         if (prb->use_dst()) {
             tensors_in.emplace_back(dnnl::graph::tensor(
-                    ins[0], eng, static_cast<void *>(dst_dt)));
+                    ins[idx_ins], eng, static_cast<void *>(dst_dt)));
         } else {
             tensors_in.emplace_back(dnnl::graph::tensor(
-                    ins[0], eng, static_cast<void *>(src_dt)));
+                    ins[idx_ins], eng, static_cast<void *>(src_dt)));
         }
 
-        auto d_dst_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
-        auto d_dst_dt = make_dnn_mem(ins[1], (prb->tag).c_str());
+        auto d_dst_fp = make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx);
+        auto d_dst_dt = make_dnn_mem(ins[idx_ins], (prb->tag).c_str());
         SAFE(::eltwise::fill_data(prb, DST, d_dst_dt, d_dst_fp), WARN);
         tensors_in.emplace_back(dnnl::graph::tensor(
-                ins[1], eng, static_cast<void *>(d_dst_dt)));
+                ins[idx_ins], eng, static_cast<void *>(d_dst_dt)));
 
         dnn_mem_t d_src_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
         // dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
