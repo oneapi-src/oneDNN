@@ -17,7 +17,7 @@
 --reset
 --dir=FWD_D,FWD_B
 --cfg=bf16bf16bf16
---attr-post-ops=add:bf16:common,add:bf16:per_oc,sum,relu
+--attr-post-ops=add:bf16:common,add:bf16:per_oc,sum,relu,add:bf16:common+mul:bf16:common+add:bf16:common,add:bf16:per_oc+mul:bf16:per_oc+add:bf16:per_oc,abs+elu+exp,gelu_erf+hardswish+log,relu+round+sqrt,square+tanh
 --batch=shapes_2d
 
 # with groups + post-ops
@@ -27,5 +27,5 @@
 --stag=abcd
 --wtag=acbde
 --dtag=abcd
---attr-post-ops=add:bf16:common,add:bf16:per_oc,sum,relu
+--attr-post-ops=add:bf16:common,add:bf16:per_oc,sum,relu,add:bf16:common+mul:bf16:common+add:bf16:common,add:bf16:per_oc+mul:bf16:per_oc+add:bf16:per_oc,abs+elu+exp,gelu_erf+hardswish+log,relu+round+sqrt,square+tanh
 --batch=shapes_2d_groups
