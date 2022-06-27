@@ -712,7 +712,8 @@ struct jit_bnorm_t : public jit_generator {
                         else
                             uni_vmaxps(vdata, vdata, vzero);
                     } else if (with_relu) { // --flags=R
-                        fwd_process_relu_avx512_common(vdata);
+                        fwd_process_relu_avx512_common(
+                                vdata, idx * vlen_spat_data_);
                     }
 
                     if (stream_store_allowed) {
@@ -722,11 +723,8 @@ struct jit_bnorm_t : public jit_generator {
                         uni_vmovups_spat_data(
                                 vmmword[reg_dst + reg_soff_nspc + offt], vdata);
                     }
-
-                    add(reg_ws, 2);
                 }
                 add(reg_soff_nspc, spat_step);
-                sub(reg_ws, 2 * num_ch_blks);
                 sub(reg_ctr, num_spat_pts);
                 jnz(spatial, T_NEAR);
             }
