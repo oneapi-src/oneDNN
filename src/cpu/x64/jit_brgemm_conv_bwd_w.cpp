@@ -761,7 +761,11 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
 
         void *ptr_C = (jcp.transform_to_vnni)
                 ? diff_wei + wei_offset_int(g, oc_b, ic_b, 0, kh, kw)
-                : diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b, kh, kw);
+                : diff_wei
+                        + (pd()->ndims() == 3 ? wht_blk_off(
+                                   diff_weights_d, g, oc_b, ic_b, kw)
+                                              : wht_blk_off(diff_weights_d, g,
+                                                      oc_b, ic_b, kh, kw));
         void *ptr_D = ptr_C;
         bool M_tail = (icb_end < ic_b + jcp.nb_ic_blocking);
         bool N_tail = (ocb_end < oc_b + jcp.nb_oc_blocking);
