@@ -908,7 +908,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
                         + ohb * jcp.typesize_in * jcp.tr_iw * jcp.ic_block
                                 * jcp.stride_h
                         + odb * jcp.typesize_in * jcp.ih * jcp.tr_iw
-                                * jcp.ic_block * jcp.stride_h;
+                                * jcp.ic_block * jcp.stride_d;
                 ti->brg_batch[odb * bs_h + ohb].ptr.B = (char *)ptr_B
                         + ohb * jcp.typesize_in * jcp.tr_ow * jcp.oc_block
                         + odb * jcp.typesize_in * jcp.oh * jcp.tr_ow
