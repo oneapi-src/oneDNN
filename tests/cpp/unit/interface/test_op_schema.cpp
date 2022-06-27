@@ -2150,6 +2150,104 @@ TEST(OpSchema, InferRoundOutputShape) {
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
+TEST(OpSchema, Select) {
+    const op_kind_t op_kind_ = op_kind::Select;
+    const size_t expected_in_size = 3;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 1;
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferSelectOutputShapeWithoutBroadcast) {
+    const op_kind_t op_kind_ = op_kind::Select;
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
+    op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
+    const std::string no_broadcast_attr_val = "none";
+    op_.set_attr(op_attr::auto_broadcast, no_broadcast_attr_val);
+
+    // positive case
+    logical_tensor_t lt_in0
+            = logical_tensor_init(0, {3, 3, 64, 128}, data_type::boolean);
+    logical_tensor_t lt_in1
+            = logical_tensor_init(1, {3, 3, 64, 128}, data_type::f32);
+    logical_tensor_t lt_in2
+            = logical_tensor_init(2, {3, 3, 64, 128}, data_type::f32);
+    std::vector<logical_tensor_t *> in {&lt_in0, &lt_in1, &lt_in2};
+    logical_tensor_t lt_out = logical_tensor_init(3, data_type::f32);
+    std::vector<logical_tensor_t *> out {&lt_out};
+
+    status_t ret = op_schema_->shape_infer(&op_, in, out);
+    EXPECT_EQ(ret, status::success);
+    const std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper_t(lt_out).vdims();
+    const std::vector<int64_t> expected_out_shape = {3, 3, 64, 128};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    // negative case
+    logical_tensor_t lt_in2_neg
+            = logical_tensor_init(4, {3, 3, 64, 64}, data_type::f32);
+    std::vector<logical_tensor_t *> in_neg {&lt_in0, &lt_in1, &lt_in2_neg};
+    logical_tensor_t lt_out_neg = logical_tensor_init(5, data_type::f32);
+    std::vector<logical_tensor_t *> out_neg {&lt_out_neg};
+    ret = op_schema_->shape_infer(&op_, in_neg, out_neg);
+    EXPECT_EQ(ret, status::invalid_shape);
+}
+
+#define for_ for
+TEST(OpSchema, InferSelectOutputShapeWithBroadcast) {
+    const op_kind_t op_kind_ = op_kind::Select;
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
+    op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
+    const std::vector<std::vector<int64_t>> in0_shapes
+            = {{2, 3, 64, 64}, {1, 64}, {3, 1, 64}, {1}};
+    const std::vector<std::vector<int64_t>> in1_shapes
+            = {{2, 1, 64, 1}, {2, 3, 64, 64}};
+    const std::vector<std::vector<int64_t>> in2_shapes
+            = {{3, 1, 64}, {2, 3, 64, 64}};
+    const std::vector<std::vector<int64_t>> expected_out_shapes
+            = {{2, 3, 64, 64}};
+
+    for_(const auto &in0_shape : in0_shapes)
+    for_(const auto &in1_shape : in1_shapes)
+    for_(const auto &in2_shape : in2_shapes)
+    for (const auto &expected_out_shape : expected_out_shapes) {
+        logical_tensor_t lt_in0
+                = logical_tensor_init(0, in0_shape, data_type::boolean);
+        logical_tensor_t lt_in1
+                = logical_tensor_init(1, in1_shape, data_type::f32);
+        logical_tensor_t lt_in2
+                = logical_tensor_init(2, in2_shape, data_type::f32);
+        std::vector<logical_tensor_t *> in {&lt_in0, &lt_in1, &lt_in2};
+        logical_tensor_t lt_out = logical_tensor_init(3, data_type::f32);
+        std::vector<logical_tensor_t *> out {&lt_out};
+
+        // shape inference without explicitly setting auto_broadcast
+        // should be enabled by default
+        op_schema_->shape_infer(&op_, in, out);
+        const std::vector<int64_t> infered_out_shape
+                = logical_tensor_wrapper_t(lt_out).vdims();
+        EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+        // explicitly setting auto_broadcast
+        const std::string with_broadcast_attr_val = "numpy";
+        op_.set_attr(op_attr::auto_broadcast, with_broadcast_attr_val);
+        logical_tensor_t lt_out_expl = logical_tensor_init(4, data_type::f32);
+        std::vector<logical_tensor_t *> out_expl {&lt_out_expl};
+
+        op_schema_->shape_infer(&op_, in, out_expl);
+        const std::vector<int64_t> infered_out_shape_expl
+                = logical_tensor_wrapper_t(lt_out_expl).vdims();
+        EXPECT_EQ(infered_out_shape_expl, expected_out_shape);
+    }
+}
+#undef for_
+
 TEST(OpSchema, Sigmoid) {
     const op_kind_t op_kind_ = op_kind::Sigmoid;
     const size_t expected_in_size = 1;

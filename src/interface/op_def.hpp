@@ -1280,6 +1280,23 @@ DNNL_GRAPH_OP_SCHEMA(Sigmoid, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(Select, 1,
+        op_schema_t()
+                .set_num_inputs(3)
+                .set_num_outputs(1)
+                .set_input(0, "cond", "cond tensor with selection mask", "T1")
+                .set_input(1, "then", "then tensor", "T2")
+                .set_input(2, "else", "else input tensor", "T2")
+                .set_output(0, "output", "output tensor", "T2")
+                .set_attr(op_attr::auto_broadcast,
+                        "specifies rules used for auto-broadcasting of input "
+                        "tensors",
+                        false, attribute_kind::s, "numpy")
+                .set_type_constraints("T1", {data_type::boolean})
+                .set_type_constraints(
+                        "T2", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_select_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(SigmoidBackprop, 1,
         op_schema_t()
                 .set_num_inputs(2)
