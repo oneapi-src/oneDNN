@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,9 +72,12 @@ protected:
 
 // The cache uses LRU replacement policy
 struct lru_compiled_partition_cache_t : public compiled_partition_cache_t {
-    lru_compiled_partition_cache_t(int capacity) : capacity_(capacity) {}
+    lru_compiled_partition_cache_t(int capacity) : capacity_(capacity) {
+        cache_mapper_ = utils::make_unique<
+                std::unordered_map<key_t, timed_entry_t>>();
+    }
 
-    ~lru_compiled_partition_cache_t() override = default;
+    ~lru_compiled_partition_cache_t() override;
 
     status_t set_capacity(int capacity) override;
     int get_capacity() const override;
@@ -101,11 +104,20 @@ private:
         timed_entry_t(const value_t &value, size_t timestamp)
             : value_(value), timestamp_(timestamp) {}
     };
+
+    std::unordered_map<key_t, timed_entry_t> &cache_mapper() {
+        return *cache_mapper_;
+    }
+
+    const std::unordered_map<key_t, timed_entry_t> &cache_mapper() const {
+        return *cache_mapper_;
+    }
+
     // Each entry in the cache has a corresponding key and timestamp.
     // NOTE: pairs that contain atomics cannot be stored in an unordered_map *as
     // an element*, since it invokes the copy constructor of std::atomic, which
     // is deleted.
-    std::unordered_map<key_t, timed_entry_t> cache_mapper_;
+    std::unique_ptr<std::unordered_map<key_t, timed_entry_t>> cache_mapper_;
 };
 
 compiled_partition_cache_t &compiled_partition_cache();

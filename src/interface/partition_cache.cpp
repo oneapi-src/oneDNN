@@ -25,6 +25,10 @@
 
 #include "utils/rw_mutex.hpp"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -80,9 +84,9 @@ bool is_compiled_partition_in_cache(const compiled_partition_t *cp) {
 status_t lru_compiled_partition_cache_t::set_capacity(int capacity) {
     utils::lock_write_t lock_w(rw_mutex());
     capacity_ = static_cast<size_t>(capacity);
-    if (cache_mapper_.size() > capacity_) {
+    if (cache_mapper().size() > capacity_) {
         // Evict excess entries
-        size_t n_excess_entries = cache_mapper_.size() - capacity_;
+        size_t n_excess_entries = cache_mapper().size() - capacity_;
         evict(n_excess_entries);
     }
     return status::success;
@@ -95,7 +99,7 @@ int lru_compiled_partition_cache_t::get_capacity() const {
 
 int lru_compiled_partition_cache_t::get_size() const {
     utils::lock_read_t lock_r(rw_mutex());
-    return static_cast<int>(cache_mapper_.size());
+    return static_cast<int>(cache_mapper().size());
 }
 
 lru_compiled_partition_cache_t::value_t
@@ -144,14 +148,14 @@ void lru_compiled_partition_cache_t::add(
         const key_t &key, const value_t &value) {
     // std::list::size() method has linear complexity. Check the primitive cache
     // size using std::unordered_map::size();
-    if (cache_mapper_.size() == capacity_) {
+    if (cache_mapper().size() == capacity_) {
         // Evict the least recently used entry
         evict(1);
     }
 
     size_t timestamp = get_timestamp();
 
-    auto res = cache_mapper_.emplace(std::piecewise_construct,
+    auto res = cache_mapper().emplace(std::piecewise_construct,
             std::forward_as_tuple(key),
             std::forward_as_tuple(value, timestamp));
     UNUSED(res);
@@ -160,8 +164,8 @@ void lru_compiled_partition_cache_t::add(
 
 lru_compiled_partition_cache_t::value_t lru_compiled_partition_cache_t::get(
         const key_t &key) {
-    auto it = cache_mapper_.find(key);
-    if (it == cache_mapper_.end()) return value_t();
+    auto it = cache_mapper().find(key);
+    if (it == cache_mapper().end()) return value_t();
 
     size_t timestamp = get_timestamp();
     it->second.timestamp_.store(timestamp);
@@ -181,8 +185,8 @@ const partition_t *lru_compiled_partition_cache_t::get_partition(
 
 void lru_compiled_partition_cache_t::remove_if_invalidated(const key_t &key) {
     lock_write();
-    auto it = cache_mapper_.find(key);
-    if (it == cache_mapper_.end()) {
+    auto it = cache_mapper().find(key);
+    if (it == cache_mapper().end()) {
         // The entry has been already evicted at this point
         unlock_write();
         return;
@@ -196,7 +200,7 @@ void lru_compiled_partition_cache_t::remove_if_invalidated(const key_t &key) {
     }
 
     // Remove the invalidated entry
-    cache_mapper_.erase(it);
+    cache_mapper().erase(it);
     unlock_write();
 }
 
@@ -205,17 +209,17 @@ void lru_compiled_partition_cache_t::update_entry(const key_t &key,
         const std::vector<const logical_tensor_t *> &ins,
         const std::vector<const logical_tensor_t *> &outs) {
     utils::lock_write_t lock_w(rw_mutex());
-    auto it = cache_mapper_.find(key);
+    auto it = cache_mapper().find(key);
 
     // There is nothing to do in two cases:
     // 1. The requested entry is not in the cache because it has been evicted
     //    by another thread
     // 2. After the requested entry had been evicted it was inserted again
     //    by another thread
-    if (it == cache_mapper_.end() || it->first.thread_id() != key.thread_id())
+    if (it == cache_mapper().end() || it->first.thread_id() != key.thread_id())
         return;
 
-    // Update key in cache_mapper_
+    // Update key in cache_mapper()
     it->first.partition_id_ = static_cast<size_t>(partition->id());
     it->first.ops_ = partition_hashing::get_raw_ptrs(partition->get_ops());
     it->first.ins_.clear();
@@ -231,8 +235,10 @@ void lru_compiled_partition_cache_t::update_entry(const key_t &key,
 }
 
 void lru_compiled_partition_cache_t::evict(size_t n) {
+    using v_t = std::unordered_map<key_t, timed_entry_t>::value_type;
+
     if (n == capacity_) {
-        cache_mapper_.clear();
+        cache_mapper().clear();
         return;
     }
 
@@ -240,9 +246,8 @@ void lru_compiled_partition_cache_t::evict(size_t n) {
         // Find the smallest timestamp
         // TODO(zixuanwe): revisit the eviction algorithm due to O(n)
         // complexity, E.g. maybe evict multiple entries at once.
-        auto it = std::min_element(cache_mapper_.begin(), cache_mapper_.end(),
-                [&](const decltype(cache_mapper_)::value_type &left,
-                        const decltype(cache_mapper_)::value_type &right) {
+        auto it = std::min_element(cache_mapper().begin(), cache_mapper().end(),
+                [&](const v_t &left, const v_t &right) {
                     // By default, load() and operator T use sequentially
                     // consistent memory ordering, which enforces writing the
                     // timestamps into registers in the same exact order they
@@ -255,10 +260,75 @@ void lru_compiled_partition_cache_t::evict(size_t n) {
                             < right.second.timestamp_.load(
                                     std::memory_order::memory_order_relaxed);
                 });
-        auto res = cache_mapper_.erase(it->first);
+        auto res = cache_mapper().erase(it->first);
         UNUSED(res);
         assert(res);
     }
+}
+
+lru_compiled_partition_cache_t::~lru_compiled_partition_cache_t() {
+    if (cache_mapper().empty()) return;
+
+#if defined(_WIN32) && defined(DNNL_GRAPH_WITH_SYCL)
+    // The library unloading issue affects only DPCPP runtimes on Windows when
+    // DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE is ON. The ntdll.dll library
+    // is located in system32 therefore setting additional environment is not
+    // required.
+    HMODULE handle = LoadLibraryExA(
+            "ntdll.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (!handle) {
+        cache_mapper_.release();
+        return;
+    }
+
+    // RtlDllShutdownInProgress returns TRUE if the whole process terminates and
+    // FALSE if DLL is being unloaded dynamically or if it’s called from an
+    // executable.
+    auto f = reinterpret_cast<BOOLEAN (*)(void)>(
+            GetProcAddress(handle, "RtlDllShutdownInProgress"));
+    if (!f) {
+        auto ret = FreeLibrary(handle);
+        assert(ret);
+        MAYBE_UNUSED(ret);
+        cache_mapper_.release();
+        return;
+    }
+
+    bool is_process_termination_in_progress = f();
+
+    auto ret = FreeLibrary(handle);
+    assert(ret);
+    MAYBE_UNUSED(ret);
+
+    if (is_process_termination_in_progress) {
+        // The whole process is being terminated hence destroying content of the
+        // primitive cache cannot be done safely. Theoretically, we can check
+        // all entries and remove those that are not affected e.g. native CPU.
+        // We can do this after switching to use dnnl engine.
+        for (auto it = cache_mapper().begin(); it != cache_mapper().end();) {
+#ifdef DNNL_GRAPH_WITH_SYCL
+            ++it;
+#else
+            it = cache_mapper().erase(it);
+#endif
+        }
+        cache_mapper_.release();
+    } else {
+        // Three scenarios possible:
+        // 1. oneDNN Graph is being dynamically unloaded
+        // 2. Another dynamic library that contains statically linked oneDNN
+        //    Graph is dynamically unloaded
+        // 3. oneDNN Graph is statically linked in an executable which is done
+        //    and now the process terminates In all these scenarios content of
+        //    the primitive cache can be safely destroyed.
+        cache_mapper_.reset();
+    }
+#else
+    // Always destroy the content of the primitive cache for non-Windows OSes,
+    // and non-sycl and non-ocl runtimes because there is no a problem with
+    // library unloading order in such cases.
+    cache_mapper_.reset();
+#endif
 }
 
 } // namespace impl
