@@ -2704,8 +2704,7 @@ status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
     }
 
     if (jcp.with_bias
-            && ((jcp.oc_without_padding % jcp.oc_block != 0)
-                    && jcp.bia_dt == data_type::f32)) {
+            && ((jcp.oc % jcp.oc_block != 0) && jcp.bia_dt == data_type::f32)) {
         scratchpad.book(key_conv_padded_bias,
                 jcp.ngroups * jcp.nb_oc * jcp.oc_block, jcp.bia_dsz);
     }
