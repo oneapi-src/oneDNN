@@ -29,7 +29,7 @@ steps:
   - export DEBIAN_FRONTEND=noninteractive
   - apt-get update && apt-get install -y git build-essential cmake scons gcc-10 g++-10
   - update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 1 && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 1
-  - .github/automation/build_acl.sh  --version 22.02 --arch arm64-v8a --root-dir $(pwd)/ComputeLibrary
+  - .github/automation/build_acl.sh  --version 22.05 --arch armv8a --multi_isa --root-dir $(pwd)/ComputeLibrary
   - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build --acl-dir $(pwd)/ComputeLibrary
   - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
 
@@ -83,7 +83,7 @@ steps:
   - .github/automation/env/clang.sh
   - export CC=clang
   - export CXX=clang++
-  - .github/automation/build_acl.sh  --version 22.02 --arch arm64-v8a --root-dir $(pwd)/ComputeLibrary
+  - .github/automation/build_acl.sh  --version 22.05 --arch armv8a --root-dir $(pwd)/ComputeLibrary
   - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build --acl-dir $(pwd)/ComputeLibrary
   - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
 
@@ -114,7 +114,7 @@ steps:
   image: ubuntu:18.04
   commands:
   - apt-get update && apt-get install -y git build-essential cmake scons
-  - .github/automation/build_acl.sh  --version 22.02 --arch arm64-v8a --root-dir $(pwd)/ComputeLibrary
+  - .github/automation/build_acl.sh  --version 22.05 --arch armv8a --root-dir $(pwd)/ComputeLibrary
   - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build --acl-dir $(pwd)/ComputeLibrary
   - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
 

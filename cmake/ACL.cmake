@@ -31,7 +31,7 @@ endif()
 
 find_package(ACL REQUIRED)
 
-set(ACL_MINIMUM_VERSION "22.02")
+set(ACL_MINIMUM_VERSION "22.05")
 
 if(ACL_FOUND)
     file(GLOB_RECURSE ACL_VERSION_FILE $ENV{ACL_ROOT_DIR}/*/arm_compute_version.embed)
