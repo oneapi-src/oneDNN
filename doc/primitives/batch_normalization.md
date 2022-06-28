@@ -43,9 +43,13 @@ variance are computed at runtime, the following formulas are used:
 
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
-In training mode, the primitive also optionally supports fusion with ReLU
-activation with zero negative slope applied to the result
-(see #dnnl_fuse_norm_relu flag).
+In training mode, the primitive also optionally supports:
+
+* fusion with ReLU activation with zero negative slope applied to the result
+  (see #dnnl_fuse_norm_relu flag).
+
+* fusion with binary addition and ReLU activation with zero negative slope
+  applied to the result (see #dnnl_fuse_norm_add_relu flag).
 
 @note
 * The batch normalization primitive computes population mean and variance and
@@ -67,8 +71,8 @@ activation with zero negative slope applied to the result
    #dnnl_forward_inference.
 
  * If batch normalization is created with ReLU fusion (i.e.,
-   #dnnl_fuse_norm_relu is set), for the propagation kind
-   #dnnl_forward_training the primitive would produce a `workspace`
+   #dnnl_fuse_norm_relu or #dnnl_fuse_norm_add_relu are set), for the propagation
+   kind #dnnl_forward_training the primitive would produce a `workspace`
    memory as one extra output. This memory is required to compute the backward
    propagation. When the primitive is executed with propagation kind
    #dnnl_forward_inference, the workspace is not produced. Behavior would
@@ -94,15 +98,16 @@ Depending on the [flags](@ref dnnl_normalization_flags_t) and
 [propagation kind](@ref dnnl_prop_kind_t), the batch normalization primitive
 requires different inputs and outputs.  For clarity, a summary is shown below.
 
-| Flags                                          | #dnnl_forward_inference                                                                       | #dnnl_forward_training                                                                                                                        | #dnnl_backward                                                                                                                                 | #dnnl_backward_data                                                                                |
-| :--                                            | :--                                                                                           | :--                                                                                                                                           | :--                                                                                                                                            | :--                                                                                                |
-| #dnnl_normalization_flags_none                 | *Inputs*: \src <br><br> *Outputs*: \dst                                                       | *Inputs*: \src <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                               | Same as for #dnnl_backward                                                                         |
-| #dnnl_use_global_stats                         | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                                                                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                               | Same as for #dnnl_backward                                                                         |
-| #dnnl_use_scaleshift                           | *Inputs*: \src, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \src, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                 | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$, \f$\diffbeta\f$ | Not supported                                                                                      |
-| #dnnl_use_scale                                | *Inputs*: \src, \f$\gamma\f$  <br><br> *Outputs*: \dst                                        | *Inputs*: \src, \f$\gamma\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                              | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$                               | Not supported                                                                                      |
-| #dnnl_use_shift                                | *Inputs*: \src, \f$\beta\f$ <br><br> *Outputs*: \dst                                          | *Inputs*: \src, \f$\beta\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                               | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffbeta\f$                                 | Not supported                                                                                      |
-| #dnnl_use_global_stats \| #dnnl_use_scaleshift | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                                                 | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$, \f$\diffbeta\f$ | Not supported                                                                                      |
-| `flags` \| #dnnl_fuse_norm_relu                | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`                       | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags`  | Same as for #dnnl_backward if `flags` do not contain #dnnl_use_scaleshift; not supported otherwise |
+| Flags                                          | #dnnl_forward_inference                                                                                            | #dnnl_forward_training                                                                                                                                                                   | #dnnl_backward                                                                                                                                                                               | #dnnl_backward_data                                                                                |
+| :--                                            | :--                                                                                                                | :--                                                                                                                                                                                      | :--                                                                                                                                                                                          | :--                                                                                                |
+| #dnnl_normalization_flags_none                 | *Inputs*: \src <br><br> *Outputs*: \dst                                                                            | *Inputs*: \src <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                                                                       | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                                                                             | Same as for #dnnl_backward                                                                         |
+| #dnnl_use_global_stats                         | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                                                 | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                                                                                                                       | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                                                                             | Same as for #dnnl_backward                                                                         |
+| #dnnl_use_scaleshift                           | *Inputs*: \src, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                                                 | *Inputs*: \src, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$, \f$\diffbeta\f$                                               | Not supported                                                                                      |
+| #dnnl_use_scale                                | *Inputs*: \src, \f$\gamma\f$  <br><br> *Outputs*: \dst                                                             | *Inputs*: \src, \f$\gamma\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                                                         | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$                                                                             | Not supported                                                                                      |
+| #dnnl_use_shift                                | *Inputs*: \src, \f$\beta\f$ <br><br> *Outputs*: \dst                                                               | *Inputs*: \src, \f$\beta\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                                                          | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffbeta\f$                                                                               | Not supported                                                                                      |
+| #dnnl_use_global_stats \| #dnnl_use_scaleshift | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                      | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                                                                                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$, \f$\diffbeta\f$                                               | Not supported                                                                                      |
+| `flags` \| #dnnl_fuse_norm_relu                | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`                                            | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace)                                            | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags`                                                | Same as for #dnnl_backward if `flags` do not contain #dnnl_use_scaleshift; not supported otherwise |
+| `flags` \| #dnnl_fuse_norm_add_relu            | *Inputs*: same as with `flags` and \f$\src_1\f$ for fused binary addition <br><br> *Outputs*: same as with `flags` | *Inputs*: same as with `flags` and \f$\src_1\f$ for fused binary addition <br><br> *Outputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags` and \f$\diffsrc_1\f$ for fused binary addition | Same as for #dnnl_backward if `flags` do not contain #dnnl_use_scaleshift; not supported otherwise |
 
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
@@ -110,6 +115,7 @@ argument index as specified by the following table.
 | Primitive Input/Output      | Execution Argument Index  |
 | ---                         | ---                       |
 | \src                        | DNNL_ARG_SRC              |
+| \f$\src_1\f$                | DNNL_ARG_SRC_1            |
 | \f$\gamma, \beta\f$         | DNNL_ARG_SCALE_SHIFT      |
 | \f$\gamma\f$                | DNNL_ARG_SCALE            |
 | \f$\beta\f$                 | DNNL_ARG_SHIFT            |
@@ -119,6 +125,7 @@ argument index as specified by the following table.
 | workspace                   | DNNL_ARG_WORKSPACE        |
 | \diffdst                    | DNNL_ARG_DIFF_DST         |
 | \diffsrc                    | DNNL_ARG_DIFF_SRC         |
+| \f$\diffsrc_1\f$            | DNNL_ARG_DIFF_SRC_1       |
 | \f$\diffgamma, \diffbeta\f$ | DNNL_ARG_DIFF_SCALE_SHIFT |
 | \f$\diffgamma\f$            | DNNL_ARG_DIFF_SCALE       |
 | \f$\diffbeta\f$             | DNNL_ARG_DIFF_SHIFT       |
@@ -153,7 +160,18 @@ argument index as specified by the following table.
    forward propagation should not be performed in-place.
 
 5. As mentioned above, the batch normalization primitive can be fused with
-   ReLU activation even in the training mode. In this case, on the forward
+   binary addition and ReLU activation (#dnnl_fuse_norm_add_relu).
+   In this case:
+   - on the forward propagation the primitive has one additional input,
+     `src_1`, that should have memory descriptor equal to primitive `data_desc`
+     memory descriptor.
+   - on the backward propagation the primitive has one additional output,
+     `diffsrc_1`, that should have memory descriptor equal to primitive
+     `diff_data_desc` memory descriptor.
+
+6. As mentioned above, the batch normalization primitive can be fused with
+   ReLU activation (#dnnl_fuse_norm_relu) or binary addition and ReLU activation
+   (#dnnl_fuse_norm_add_relu) even in the training mode. In this case, on the forward
    propagation the primitive has one additional output, `workspace`, that
    should be passed during the backward propagation.
 
@@ -223,8 +241,8 @@ normalization primitives:
 @note As mentioned in @ref dev_guide_attributes, the post-ops should be used
 for inference only. For instance, using ReLU as a post-op would not produce the
 additional output `workspace` that is required to compute backward propagation
-correctly. Hence, in case of training one should use the #dnnl_fuse_norm_relu
-directly.
+correctly. Hence, in case of training one should use the #dnnl_fuse_norm_relu or
+#dnnl_fuse_norm_add_relu directly.
 
 @anchor dg_bnorm_impl_limits
 ## Implementation Limitations
