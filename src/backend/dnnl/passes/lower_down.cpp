@@ -3041,11 +3041,8 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             fused_op->set_attr<bool>(op_attr::change_layout, change_layout);
             if (axis != -1) fused_op->set_attr<int64_t>(op_attr::axis, axis);
 
-            if (std::find_if(fused_scales.begin(), fused_scales.end(),
-                        [](const float &s) {
-                            return std::fabs(s - 1.f) > 1e-6;
-                        })
-                    != fused_scales.end()) {
+            if (!std::all_of(fused_scales.begin(), fused_scales.end(),
+                        [](const float &s) { return s == 1.f; })) {
                 fused_op->set_attr<std::vector<float>>(
                         op_attr::scales, fused_scales);
             }

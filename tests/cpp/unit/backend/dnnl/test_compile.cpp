@@ -990,19 +990,13 @@ TEST(Compile, BatchNormBackpropFp32) {
             {diff_src_ts, diff_scale_ts, diff_shift_ts});
     strm.wait();
     for (size_t i = 0; i < diff_src_data.size(); ++i) {
-        auto absolute_error
-                = std::fabs(diff_src_data[i] - ref_diff_src_data[i]);
-        ASSERT_TRUE(absolute_error < 0.001);
+        ASSERT_NEAR(diff_src_data[i], ref_diff_src_data[i], 1e-3);
     }
     for (size_t i = 0; i < diff_scale_data.size(); ++i) {
-        auto absolute_error
-                = std::fabs(diff_scale_data[i] - ref_diff_scale_data[i]);
-        ASSERT_TRUE(absolute_error < 0.001);
+        ASSERT_NEAR(diff_scale_data[i], ref_diff_scale_data[i], 1e-3);
     }
     for (size_t i = 0; i < diff_shift_data.size(); ++i) {
-        auto absolute_error
-                = std::fabs(diff_shift_data[i] - ref_diff_shift_data[i]);
-        ASSERT_TRUE(absolute_error < 0.001);
+        ASSERT_NEAR(diff_shift_data[i], ref_diff_shift_data[i], 1e-3);
     }
 }
 
@@ -7849,7 +7843,7 @@ void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
     if (op_kind == impl::op_kind::Log || op_kind == impl::op_kind::GELU
             || op_kind == impl::op_kind::SoftPlus) {
         for (size_t i = 0; i < src.size(); ++i) {
-            ASSERT_TRUE(std::fabs(dst[i] - ref_dst[i]) < 0.00001);
+            ASSERT_NEAR(dst[i], ref_dst[i], 1e-5);
         }
     } else {
         for (size_t i = 0; i < src.size(); ++i) {
@@ -7927,7 +7921,7 @@ void test_eltwise_bwd_common(
     strm.wait();
 
     for (size_t i = 0; i < diff_src_data.size(); ++i) {
-        ASSERT_TRUE(std::fabs(diff_src_data[i] - ref_diff_src[i]) < 0.00001);
+        ASSERT_NEAR(diff_src_data[i], ref_diff_src[i], 1e-5);
     }
 }
 
