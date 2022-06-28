@@ -23,7 +23,7 @@ namespace gpu {
 namespace amd {
 
 // HIP context and functions that work with it have been deprecated.
-// However, DPC++ compiler still uses HIP context underneath SYCL context
+// However, oneAPI DPC++ Compiler still uses HIP context underneath SYCL context
 // therefore we have to use it as well.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
