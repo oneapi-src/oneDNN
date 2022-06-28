@@ -27,6 +27,7 @@
 
 #include "common.hpp"
 #include "dnnl_common.hpp"
+#include "utils/cfg.hpp"
 #include "utils/perf_report.hpp"
 #include "utils/settings.hpp"
 
@@ -210,6 +211,22 @@ private:
     std::string wtag_, dtag_;
 };
 
+struct cfg_t : public base_cfg_t {
+    cfg_t(const prb_t *prb, std::vector<data_kind_t> kinds) {
+        for (const auto kind : kinds) {
+            auto orig_data_type = prb->get_dt(kind);
+            auto data_type
+                    = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
+            cfg_entry_.push_back(cfg_entry_t(
+                    kind, orig_data_type, data_type, get_cfg_map(kind)));
+        }
+    }
+
+    const cfg_entry_t::cfg_map_t &get_cfg_map(data_kind_t kind) const;
+
+    float get_density(const density_args_t &density_args) const override;
+};
+
 inline int64_t src_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t k) {
     return (mb * prb->m + m) * prb->k + k;
 }
@@ -221,97 +238,6 @@ inline int64_t wei_off_f(const prb_t *prb, int64_t mb, int64_t k, int64_t n) {
 inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t n) {
     return (mb * prb->m + m) * prb->n + n;
 }
-
-struct cfg_entry_t {
-    // `cfg_key_t` participates solely in finding a proper entry in the map.
-    struct cfg_key_t {
-        cfg_key_t(data_kind_t dk, dnnl_data_type_t dt)
-            : data_kind_(dk), data_type_(dt) {}
-
-        bool operator<(const cfg_key_t &rhs) const {
-            return value() < rhs.value();
-        }
-
-    private:
-        data_kind_t data_kind_;
-        dnnl_data_type_t data_type_;
-
-        enum { MAX_DT_NUM = 10 };
-        size_t value() const {
-            return (size_t)data_kind_ * MAX_DT_NUM + (size_t)data_type_;
-        }
-    };
-
-    // Entry of the map. Supplies min and max ranges for filling for a given dt.
-    struct cfg_range_t {
-        int range_min;
-        int range_max;
-    };
-
-    using cfg_map_t = std::map<cfg_key_t, cfg_range_t>;
-
-    cfg_entry_t() = default;
-
-    cfg_entry_t(data_kind_t dk, dnnl_data_type_t orig_dt, dnnl_data_type_t dt)
-        : data_kind_(dk), orig_data_type_(orig_dt), data_type_(dt) {}
-
-    int get_range_min() const { return get_cfg_range().range_min; }
-    int get_range_max() const { return get_cfg_range().range_max; }
-    int get_range_abs_max() const {
-        return std::max(abs(get_range_min()), abs(get_range_max()));
-    }
-
-    dnnl_data_type_t get_orig_dt() const { return orig_data_type_; }
-    dnnl_data_type_t get_dt() const { return data_type_; }
-    data_kind_t get_dk() const { return data_kind_; }
-
-private:
-    data_kind_t data_kind_;
-    dnnl_data_type_t orig_data_type_;
-    dnnl_data_type_t data_type_;
-
-    const cfg_map_t &get_cfg_map() const;
-    const cfg_range_t &get_cfg_range() const;
-};
-
-struct cfg_t {
-    cfg_t(const prb_t *prb, std::vector<data_kind_t> kinds) {
-        for (const auto kind : kinds) {
-            auto orig_data_type_ = prb->get_dt(kind);
-            auto data_type_
-                    = deduce_cfg_data_type(orig_data_type_, prb->attr, kind);
-            cfg_entry.push_back(cfg_entry_t(kind, orig_data_type_, data_type_));
-        }
-    }
-
-    int get_range_min(data_kind_t dk) const {
-        return cfg_entry[dk].get_range_min();
-    }
-    int get_range_max(data_kind_t dk) const {
-        return cfg_entry[dk].get_range_max();
-    }
-
-    dnnl_data_type_t get_orig_dt(data_kind_t dk) const {
-        return cfg_entry[dk].get_orig_dt();
-    }
-    dnnl_data_type_t get_dt(data_kind_t dk) const {
-        return cfg_entry[dk].get_dt();
-    }
-
-    float get_density(data_kind_t dk, int64_t n_acc) const;
-
-private:
-    std::vector<cfg_entry_t> cfg_entry;
-
-    const cfg_entry_t &operator[](data_kind_t kind) {
-        for (const auto &e : cfg_entry) {
-            if (e.get_dk() == kind) return e;
-        }
-        assert(!"unexpected");
-        static cfg_entry_t dummy;
-        return dummy;
-    }
-};
 
 void handle_legacy_cfg(
         std::vector<dnnl_data_type_t> &dt, const std::string &cfg);
