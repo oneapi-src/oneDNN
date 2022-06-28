@@ -224,6 +224,54 @@ private:
     const bool is_fused_layer_iter_brgemm_;
 };
 
+template <typename src_t, typename weights_t, typename scratch_t,
+        typename gemm_acc_t>
+class brgemm_merged_layer_t {
+public:
+    using ref_rnn_brgemm_t = rnn_brgemm_utils::rnn_brgemm_t<prop_kind::forward>;
+    brgemm_merged_layer_t(const ref_rnn_brgemm_t &rnn_brgemm_,
+            const rnn_utils::rnn_conf_t &rnn,
+            rnn_utils::cell_position_t cell_position, const src_t *src_layer,
+            weights_t *w_layer, scratch_t *scratch_gates,
+            gemm_acc_t *amx_scratchpad,
+            x64::brgemm_batch_element_t *addr_batch_global);
+    void execute() const;
+
+private:
+    void kernel(const int ithr, const int nthr) const;
+
+    const ref_rnn_brgemm_t &rnn_brgemm_;
+    const rnn_utils::rnn_conf_t &rnn_;
+    const dim_t layer_desc_idx_;
+    const src_t *const Al_;
+    const weights_t *const Bl_;
+    scratch_t *const C_;
+    const dim_t LDAl_;
+    const dim_t max_nthr_;
+    const dim_t n_blocking_;
+    const dim_t m_blocking_;
+    const int work_amount_;
+    const dim_t Bl_n_offset_;
+    const dim_t Bl_g_offset_;
+    const dim_t Al_k_tail_offset_;
+    const dim_t Bl_kb_offset_;
+    const dim_t Bl_k_tail_offset_;
+    const dim_t n_gates_;
+
+    const brgemm_kernel_t *const brgemm_kernel_layer_main_;
+    const brgemm_kernel_t *const brgemm_kernel_layer_n_tail_;
+    const brgemm_kernel_t *const brgemm_kernel_layer_k_tail_;
+    const brgemm_kernel_t *const brgemm_kernel_layer_nk_tail_;
+
+    const char *pallete_buff_layer_main_;
+    const char *pallete_buff_layer_n_tail_;
+    const char *pallete_buff_layer_k_tail_;
+    const char *pallete_buff_layer_nk_tail_;
+
+    gemm_acc_t *const amx_scratchpad_;
+    brgemm_batch_element_t *const addr_batch_global_;
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

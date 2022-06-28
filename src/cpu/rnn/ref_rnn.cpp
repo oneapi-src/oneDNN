@@ -1446,6 +1446,8 @@ rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template <>
 rnn_merged_layer_execution_sig(ref_rnn_fwd_f32_t::merged_layer_execution_ref);
 template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_f32_t::merged_layer_brgemm_fwd);
+template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_brgemm_fwd);
@@ -1457,6 +1459,8 @@ template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
 template <>
 rnn_merged_layer_execution_sig(ref_rnn_bwd_f32_t::merged_layer_execution_ref);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_bwd_f32_t::merged_layer_brgemm_fwd);
 
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_ref);
@@ -1471,6 +1475,8 @@ rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
 template <>
 rnn_merged_layer_execution_sig(ref_rnn_fwd_bf16_t::merged_layer_execution_ref);
 template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_bf16_t::merged_layer_brgemm_fwd);
+template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_brgemm_fwd);
@@ -1482,6 +1488,8 @@ template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
 template <>
 rnn_merged_layer_execution_sig(ref_rnn_bwd_bf16_t::merged_layer_execution_ref);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_bwd_bf16_t::merged_layer_brgemm_fwd);
 
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_ref);
@@ -1495,6 +1503,8 @@ template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
 template <>
 rnn_merged_layer_execution_sig(ref_rnn_fwd_u8s8_t::merged_layer_execution_ref);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_u8s8_t::merged_layer_brgemm_fwd);
 
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_ref);
@@ -1508,6 +1518,8 @@ template <>
 rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_gru_lbr);
 template <>
 rnn_merged_layer_execution_sig(ref_rnn_fwd_s8s8_t::merged_layer_execution_ref);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_s8s8_t::merged_layer_brgemm_fwd);
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32,
         data_type::f32, data_type::f32>;

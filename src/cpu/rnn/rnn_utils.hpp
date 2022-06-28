@@ -593,6 +593,10 @@ struct rnn_conf_t {
     bool unfused_post_gemm;
     brgemm_rnn_execute_loop_order_t loop_order
             = brgemm_rnn_execute_loop_order_t::undefined;
+
+    // for merged layer computation in brgemm
+    dim_t Mlayermerged;
+    dim_t mlayermerged_block, Mlayermerged_blocks;
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);
@@ -1016,7 +1020,10 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     assert(sizeof(typename T::src_layer_t) == sizeof(typename T::dst_layer_t));
     assert(sizeof(typename T::src_iter_t) == sizeof(typename T::dst_iter_t));
+}
 
+template <typename T>
+void set_workspace_sizes(rnn_conf_t &rnn, const rnn_desc_t &rd) {
     rnn.use_workspace = rnn.is_training;
     // TODO: for inference, we can make ws_states_* smaller, but
     // dependant of the grid execution though

@@ -243,6 +243,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION),
                     this->diff_weights_md(0), this->diff_weights_md(1),
                     this->arg_md(DNNL_ARG_DIFF_WEIGHTS_PROJECTION));
+            set_workspace_sizes<class_name>(rnn_, *this->desc());
             return status::success;
         }
 
@@ -365,6 +366,9 @@ struct _ref_rnn_common_t : public primitive_t {
             CHECK(ref_rnn_brgemm_t::configure_brgemm(rnn_,
                     this->desc()->cell_kind, sizeof(src_layer_t),
                     sizeof(scratch_t)));
+
+            // must be called after configure_brgemm()
+            set_workspace_sizes<class_name>(rnn_, *this->desc());
 
             // Only AMX LSTM supports s8s8 now
             if (rnn_.is_signed_int8_conf() && !rnn_.is_cell_int8_amx())
@@ -597,7 +601,10 @@ struct _ref_rnn_common_t : public primitive_t {
             default: break;
         }
 
-        merged_layer_func = &class_name::merged_layer_execution_ref;
+        merged_layer_func = pd()->rnn_.is_brgemm && pd()->rnn_.merge_gemm_layer
+                        && aprop == prop_kind::forward
+                ? &class_name::merged_layer_brgemm_fwd
+                : &class_name::merged_layer_execution_ref;
         grid_computation = &class_name::linear_execution;
 
         size_t scratchpad_size, workspace_size;
@@ -644,6 +651,7 @@ private:
     rnn_cell_execution_sig(cell_execution_ref);
     rnn_merged_layer_execution_sig(merged_layer_execution_ref);
     rnn_cell_execution_sig(cell_execution_brgemm_fwd);
+    rnn_merged_layer_execution_sig(merged_layer_brgemm_fwd);
     rnn_cell_execution_sig(cell_execution_brgemm_bwd);
 
     rnn_cell_execution_sig(cell_execution_gru);

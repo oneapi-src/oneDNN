@@ -65,13 +65,10 @@ brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
     , Bl_k_tail_offset_(rnn_.KB1_blocks * rnn_.k1_block * rnn_.n_block)
     , Bi_k_tail_offset_(rnn_.KB2_blocks * rnn_.k2_block * rnn_.n_block)
     , n_gates_(rnn.unfused_post_gemm ? 1 : rnn.n_gates)
-    , brgemm_kernel_iter_main_(need_gemm_layer_
-                      ? rnn_brgemm_.kernel_iter_b1_[iter_desc_idx_].get()
-                      : rnn_brgemm_.kernel_iter_b0_[iter_desc_idx_].get())
-    , brgemm_kernel_iter_n_tail_(need_gemm_layer_
-                      ? rnn_brgemm_.kernel_iter_N_tail_b1_[iter_desc_idx_].get()
-                      : rnn_brgemm_.kernel_iter_N_tail_b0_[iter_desc_idx_]
-                                .get())
+    , brgemm_kernel_iter_main_(
+              rnn_brgemm_.kernel_iter_b1_[iter_desc_idx_].get())
+    , brgemm_kernel_iter_n_tail_(
+              rnn_brgemm_.kernel_iter_N_tail_b1_[iter_desc_idx_].get())
     , brgemm_kernel_iter_k_tail_(
               rnn_brgemm_.kernel_iter_K2_tail_b1_[iter_desc_idx_].get())
     , brgemm_kernel_iter_nk_tail_(
@@ -84,16 +81,16 @@ brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
               rnn_brgemm_.kernel_layer_K1_tail_b1_[layer_desc_idx_].get())
     , brgemm_kernel_layer_nk_tail_(
               rnn_brgemm_.kernel_layer_NK1_tail_b1_[layer_desc_idx_].get())
-    , pallete_buff_iter_main_(rnn.k1_block == rnn.k2_block
+    , pallete_buff_iter_main_(rnn.k1_block == rnn.k2_block && need_gemm_layer_
                       ? rnn_brgemm_.pallete_buff_layer_
                       : rnn_brgemm_.pallete_buff_iter_)
-    , pallete_buff_iter_n_tail_(rnn.k1_block == rnn.k2_block
+    , pallete_buff_iter_n_tail_(rnn.k1_block == rnn.k2_block && need_gemm_layer_
                       ? rnn_brgemm_.pallete_buff_layer_n_tail_
                       : rnn_brgemm_.pallete_buff_iter_n_tail_)
-    , pallete_buff_iter_k_tail_(rnn.k1_tail == rnn.k2_tail
+    , pallete_buff_iter_k_tail_(rnn.k1_tail == rnn.k2_tail && need_gemm_layer_
                       ? rnn_brgemm_.pallete_buff_k1_tail_
                       : rnn_brgemm_.pallete_buff_k2_tail_)
-    , pallete_buff_iter_nk_tail_(rnn.k1_tail == rnn.k2_tail
+    , pallete_buff_iter_nk_tail_(rnn.k1_tail == rnn.k2_tail && need_gemm_layer_
                       ? rnn_brgemm_.pallete_buff_nk1_tail_
                       : rnn_brgemm_.pallete_buff_nk2_tail_)
     , pallete_buff_layer_main_(rnn_brgemm_.pallete_buff_layer_)
@@ -103,7 +100,8 @@ brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
     , amx_scratchpad_(amx_scratchpad)
     , addr_batch_global_(addr_batch_global)
     , fused_postgemm_(fused_postgemm)
-    , is_fused_layer_iter_brgemm_(rnn_.sic == rnn_.slc && LDAi_ == LDAl_) {}
+    , is_fused_layer_iter_brgemm_(
+              rnn_.sic == rnn_.slc && LDAi_ == LDAl_ && need_gemm_layer_) {}
 
 template <typename src_t, typename weights_t, typename scratch_t,
         typename gemm_acc_t>
@@ -882,6 +880,167 @@ void brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     }
 }
 
+template <typename src_t, typename weights_t, typename scratch_t,
+        typename gemm_acc_t>
+brgemm_merged_layer_t<src_t, weights_t, scratch_t,
+        gemm_acc_t>::brgemm_merged_layer_t(const ref_rnn_brgemm_t &rnn_brgemm,
+        const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position, const src_t *src_layer,
+        weights_t *w_layer, scratch_t *scratch_gates,
+        gemm_acc_t *amx_scratchpad,
+        x64::brgemm_batch_element_t *addr_batch_global)
+    : rnn_brgemm_(rnn_brgemm)
+    , rnn_(rnn)
+    , layer_desc_idx_(rnn_.layer_brgemm_desc(cell_position))
+    , Al_(src_layer)
+    , Bl_(w_layer)
+    , C_(scratch_gates)
+    , LDAl_(rnn_.src_layer_ld(cell_position))
+    , max_nthr_(rnn_.nthr)
+    , n_blocking_((rnn_.unfused_post_gemm) ? rnn_.N_blocks * rnn_.n_gates
+                                           : rnn_.N_blocks)
+    , m_blocking_(rnn_.M_blocks)
+    , work_amount_(n_blocking_ * m_blocking_)
+    , Bl_n_offset_(rnn_.K1padded * rnn_.n_block)
+    , Bl_g_offset_(rnn_.N_blocks * Bl_n_offset_)
+    , Al_k_tail_offset_(rnn_.KB1_blocks * rnn_.k1_block)
+    , Bl_kb_offset_(rnn_.k1_block * rnn_.n_block)
+    , Bl_k_tail_offset_(rnn_.KB1_blocks * rnn_.k1_block * rnn_.n_block)
+    , n_gates_(rnn.unfused_post_gemm ? 1 : rnn.n_gates)
+    , brgemm_kernel_layer_main_(
+              rnn_brgemm_.kernel_layermerged_b0_[layer_desc_idx_].get())
+    , brgemm_kernel_layer_n_tail_(
+              rnn_brgemm_.kernel_layermerged_N_tail_b0_[layer_desc_idx_].get())
+    , brgemm_kernel_layer_k_tail_(
+              rnn_brgemm_.kernel_layermerged_K1_tail_b1_[layer_desc_idx_].get())
+    , brgemm_kernel_layer_nk_tail_(
+              rnn_brgemm_.kernel_layermerged_NK1_tail_b1_[layer_desc_idx_]
+                      .get())
+    , pallete_buff_layer_main_(rnn_brgemm_.pallete_buff_layermerged_)
+    , pallete_buff_layer_n_tail_(rnn_brgemm_.pallete_buff_layermerged_n_tail_)
+    , pallete_buff_layer_k_tail_(rnn_brgemm_.pallete_buff_layermerged_k1_tail_)
+    , pallete_buff_layer_nk_tail_(
+              rnn_brgemm_.pallete_buff_layermerged_nk1_tail_)
+    , amx_scratchpad_(amx_scratchpad)
+    , addr_batch_global_(addr_batch_global) {}
+
+template <typename src_t, typename weights_t, typename scratch_t,
+        typename gemm_acc_t>
+void brgemm_merged_layer_t<src_t, weights_t, scratch_t, gemm_acc_t>::execute()
+        const {
+    parallel(max_nthr_, [this](const int ithr, const int nthr) {
+        this->kernel(ithr, nthr);
+    });
+}
+
+template <typename src_t, typename weights_t, typename scratch_t,
+        typename gemm_acc_t>
+void brgemm_merged_layer_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
+        const int ithr, const int nthr) const {
+    using namespace cpu::rnn_utils;
+
+    int start = 0, end = 0;
+    balance211(work_amount_, nthr, ithr, start, end);
+
+    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
+    const auto m_block = rnn_.mlayermerged_block;
+    gemm_acc_t *const amx_buffer = is_amx
+            ? amx_scratchpad_ + m_block * rnn_.n_block * ithr
+            : nullptr;
+    const int max_K_Block = rnn_.KB1_blocks + 1;
+    brgemm_batch_element_t *const addr_batch
+            = addr_batch_global_ + ithr * max_K_Block;
+
+    const char *pallete_buff_layer = nullptr;
+    const char *pallete_buff_layer_k_tail = nullptr;
+
+    dim_t nb_i = 0, mb = 0;
+    switch (rnn_.loop_order) {
+        case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+            nd_iterator_init(start, mb, m_blocking_, nb_i, n_blocking_);
+            break;
+        case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+            nd_iterator_init(start, nb_i, n_blocking_, mb, m_blocking_);
+            break;
+        default: assert(!"unsupported loop order");
+    }
+
+    amx_tile_configuration_loader_t load_cfg_if_needed;
+
+    while (start < end) {
+        const auto m = mb * m_block;
+        const auto nb = (rnn_.unfused_post_gemm) ? nb_i / rnn_.n_gates : nb_i;
+        const auto n = nb * rnn_.n_block;
+        const auto g_unfused
+                = (rnn_.unfused_post_gemm) ? nb_i % rnn_.n_gates : 0;
+
+        const auto *const Al_m = Al_ + m * LDAl_;
+        const auto *const Bl_n = Bl_ + nb * Bl_n_offset_;
+        auto *const C_n = C_ + m * rnn_.LDC + n;
+
+        const brgemm_kernel_t *brgemm_kernel_layer_b0
+                = brgemm_kernel_layer_main_;
+        const brgemm_kernel_t *brgemm_kernel_layer_k_tail
+                = brgemm_kernel_layer_k_tail_;
+
+        if (is_amx) {
+            pallete_buff_layer = pallete_buff_layer_main_;
+            pallete_buff_layer_k_tail = pallete_buff_layer_k_tail_;
+        }
+
+        const bool do_n_tail = (n + rnn_.n_block) > rnn_.N;
+        if (do_n_tail) {
+            brgemm_kernel_layer_b0 = brgemm_kernel_layer_n_tail_;
+            brgemm_kernel_layer_k_tail = brgemm_kernel_layer_nk_tail_;
+
+            if (is_amx) {
+                pallete_buff_layer = pallete_buff_layer_n_tail_;
+                pallete_buff_layer_k_tail = pallete_buff_layer_nk_tail_;
+            }
+        }
+
+        for (int g = 0; g < n_gates_; g++) {
+            const int lg = g + g_unfused;
+            const auto *const Bl_g = Bl_n + lg * Bl_g_offset_;
+            auto *const C_g = C_n + lg * rnn_.N;
+
+            if (is_amx) load_cfg_if_needed(pallete_buff_layer);
+            for (int i = 0; i < rnn_.KB1_blocks; i++) {
+                addr_batch[i].ptr.A = Al_m + i * rnn_.k1_block;
+                addr_batch[i].ptr.B = Bl_g + i * Bl_kb_offset_;
+            }
+            brgemm_kernel_execute(brgemm_kernel_layer_b0, rnn_.KB1_blocks,
+                    addr_batch, reinterpret_cast<void *>(C_g), amx_buffer);
+        }
+
+        if (rnn_.k1_tail) {
+            if (is_amx) load_cfg_if_needed(pallete_buff_layer_k_tail);
+
+            for (int g = 0; g < n_gates_; g++) {
+                const int lg = g + g_unfused;
+                const auto *const Bl_g = Bl_n + lg * Bl_g_offset_;
+                auto *const C_g = C_n + lg * rnn_.N;
+
+                addr_batch[0].ptr.A = Al_m + Al_k_tail_offset_;
+                addr_batch[0].ptr.B = Bl_g + Bl_k_tail_offset_;
+                brgemm_kernel_execute(brgemm_kernel_layer_k_tail, 1, addr_batch,
+                        reinterpret_cast<void *>(C_g), amx_buffer);
+            }
+        }
+
+        ++start;
+        switch (rnn_.loop_order) {
+            case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+                nd_iterator_step(mb, m_blocking_, nb_i, n_blocking_);
+                break;
+            case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+                nd_iterator_step(nb_i, n_blocking_, mb, m_blocking_);
+                break;
+            default: assert(!"unsupported loop order");
+        }
+    }
+}
+
 template class brgemm_dst_layer_iter_t<uint8_t, int8_t, int32_t, int32_t>;
 template class brgemm_dst_layer_iter_t<int8_t, int8_t, int32_t, int32_t>;
 template class brgemm_dst_layer_iter_t<float, float, float, float>;
@@ -896,6 +1055,11 @@ template class brgemm_gru_t<uint8_t, int8_t, int32_t, int32_t>;
 template class brgemm_gru_t<int8_t, int8_t, int32_t, int32_t>;
 template class brgemm_gru_t<float, float, float, float>;
 template class brgemm_gru_t<bfloat16_t, bfloat16_t, float, float>;
+
+template class brgemm_merged_layer_t<uint8_t, int8_t, int32_t, int32_t>;
+template class brgemm_merged_layer_t<int8_t, int8_t, int32_t, int32_t>;
+template class brgemm_merged_layer_t<float, float, float, float>;
+template class brgemm_merged_layer_t<bfloat16_t, bfloat16_t, float, float>;
 
 } // namespace x64
 } // namespace cpu

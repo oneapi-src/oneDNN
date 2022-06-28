@@ -42,6 +42,43 @@ using namespace dnnl::impl::cpu::x64;
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
+rnn_merged_layer_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::merged_layer_brgemm_fwd)) {
+#if DNNL_X64
+    using brgemm_merged_layer_t = x64::brgemm_merged_layer_t<src_iter_t,
+            weights_t, scratch_t, gemm_acc_t>;
+    const brgemm_merged_layer_t layer_calc(rnn_brgemm_, rnn, cell_position,
+            src_layer_, w_layer_[0], scratch_gates_, amx_scratchpad,
+            addr_batch_global);
+
+    layer_calc.execute();
+#endif
+    return dnnl_success;
+}
+
+template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_f32_t::merged_layer_brgemm_fwd);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_bf16_t::merged_layer_brgemm_fwd);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_u8s8_t::merged_layer_brgemm_fwd);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_s8s8_t::merged_layer_brgemm_fwd);
+
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_bwd_f32_t::merged_layer_brgemm_fwd) {
+    assert(!"unimplemented");
+    return dnnl_success;
+}
+
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_bwd_bf16_t::merged_layer_brgemm_fwd) {
+    assert(!"unimplemented");
+    return dnnl_success;
+}
+
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
 rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::cell_execution_brgemm_fwd)) {
 #if DNNL_X64

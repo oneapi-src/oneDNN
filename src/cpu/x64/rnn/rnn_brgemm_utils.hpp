@@ -80,6 +80,11 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     brgemm_t desc_iter_K2_tail_b1_[num_base_kernels_];
     brgemm_t desc_iter_NK2_tail_b1_[num_base_kernels_];
 
+    brgemm_t desc_layermerged_b0_[num_base_kernels_];
+    brgemm_t desc_layermerged_N_tail_b0_[num_base_kernels_];
+    brgemm_t desc_layermerged_K1_tail_b1_[num_base_kernels_];
+    brgemm_t desc_layermerged_NK1_tail_b1_[num_base_kernels_];
+
     brgemm_t desc_proj_b0_[num_proj_kernels_];
     brgemm_t desc_proj_N_tail_b0_[num_proj_kernels_];
     brgemm_t desc_proj_N_tail_b1_[num_proj_kernels_];
@@ -106,6 +111,13 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     brgemm_ker_ptr_t kernel_layer_NK1_tail_b1_[num_base_kernels_];
     brgemm_ker_ptr_t kernel_iter_K2_tail_b1_[num_base_kernels_];
     brgemm_ker_ptr_t kernel_iter_NK2_tail_b1_[num_base_kernels_];
+
+    brgemm_ker_ptr_t kernel_layermerged_b0_[num_base_kernels_];
+    brgemm_ker_ptr_t kernel_layermerged_b1_[num_base_kernels_];
+    brgemm_ker_ptr_t kernel_layermerged_N_tail_b0_[num_base_kernels_];
+    brgemm_ker_ptr_t kernel_layermerged_N_tail_b1_[num_base_kernels_];
+    brgemm_ker_ptr_t kernel_layermerged_K1_tail_b1_[num_base_kernels_];
+    brgemm_ker_ptr_t kernel_layermerged_NK1_tail_b1_[num_base_kernels_];
 
     brgemm_ker_ptr_t kernel_proj_b0_[num_proj_kernels_];
     brgemm_ker_ptr_t kernel_proj_N_tail_b0_[num_proj_kernels_];
@@ -135,6 +147,11 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     brgemm_pallete_t pallete_buff_nproj_tail_;
     brgemm_pallete_t pallete_buff_kproj_tail_;
     brgemm_pallete_t pallete_buff_nkproj_tail_;
+
+    brgemm_pallete_t pallete_buff_layermerged_;
+    brgemm_pallete_t pallete_buff_layermerged_n_tail_;
+    brgemm_pallete_t pallete_buff_layermerged_k1_tail_;
+    brgemm_pallete_t pallete_buff_layermerged_nk1_tail_;
 
 private:
     status_t brgemm_rnn_init_tiles(brgemm_t *desc, brgemm_pallete_t pallete);

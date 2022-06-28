@@ -276,7 +276,10 @@ void rnn_brgemm_base_t::init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
     using namespace memory_tracking::names;
 
     if (rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx()) {
-        size_t n_elements = rnn.m_block * rnn.n_block;
+        const auto m_block = rnn.merge_gemm_layer
+                ? nstl::max(rnn.m_block, rnn.mlayermerged_block)
+                : rnn.m_block;
+        size_t n_elements = m_block * rnn.n_block;
         scratchpad.book(key_brgemm_primitive_buffer, rnn.nthr * n_elements,
                 gemm_acc_type_size, gemm_acc_align);
     }
@@ -393,8 +396,6 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.LDA2_2[2] = rnn.ws_states_layer_ld;
     rnn.LDA2_2[3] = rnn.ws_states_iter_ld;
 
-    rnn.brgemm_fwd_iter_layer_fuse_possible = rnn.slc == rnn.sic;
-
     rnn.LDB1 = rnn.n_block;
     rnn.LDB2 = rnn.n_block;
     rnn.LDC = rnn.scratch_gates_ld;
@@ -475,6 +476,46 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
             return status::unimplemented;
     }
 
+    // enable merged across n_iter dimension layer part of the cell computation
+    // TODO: extend coverage for other problem types
+    const bool mlc_problem_dt_ok = is_int8;
+    const bool mlc_cell_type_ok = cell_kind == alg_kind::vanilla_lstm
+            && !rnn.is_lstm_projection && !rnn.is_lstm_peephole;
+    const int mlc_mb_max_threshold = 1;
+    const int mlc_n_iter_min_threshold = 2;
+    const int mlc_n_layer_max_threshold = 1;
+    const bool mlc_problem_shape_ok = rnn.mb <= mlc_mb_max_threshold
+            && rnn.n_iter >= mlc_n_iter_min_threshold
+            && rnn.n_layer <= mlc_n_layer_max_threshold;
+    // if rnn.skip_dst_iter_copy() == false we might need to reduce number of
+    // merged cells by 1 (rnn.n_iter - 1)
+    // but if in addition rnn.skip_src_layer_copy() == true then on cell
+    // position 'first_layer' we still should merge for all the n_iter cells
+    // so current support is limited by the case when layer computation is
+    // merged for all rnn.n_iter cells
+    const bool mlc_m_dim_adjustment_not_required
+            = IMPLICATION(rnn.skip_dst_iter_copy(),
+                    rnn.skip_src_layer_copy() && rnn.n_layer == 1);
+    const bool merged_layer_compute_applicable = mlc_problem_dt_ok
+            && mlc_cell_type_ok && mlc_problem_shape_ok
+            && mlc_m_dim_adjustment_not_required;
+    if (merged_layer_compute_applicable) {
+        rnn.merge_gemm_layer = true;
+
+        // required adjustment if mlc_m_dim_adjustment_not_required = false
+        const int n_iters_to_merge = rnn.n_iter;
+        rnn.Mlayermerged = rnn.mb * n_iters_to_merge;
+        rnn.mlayermerged_block = brgemm_calc_m_block(cell_kind,
+                prop_kind::forward, rnn.nthr, rnn.Mlayermerged, rnn.N_blocks,
+                rnn.is_cell_dt_f32(), rnn.is_cell_int8_amx(),
+                rnn.is_cell_bf16_amx(), work_by_N, As, Bs, Cs, l2_cache_size);
+
+        rnn.Mlayermerged_blocks = rnn.Mlayermerged / rnn.mlayermerged_block;
+    }
+
+    rnn.brgemm_fwd_iter_layer_fuse_possible
+            = rnn.slc == rnn.sic && !rnn.merge_gemm_layer;
+
     if (!rnn.is_orig_gru) {
         rnn.loop_order = rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx()
                 ? brgemm_rnn_execute_loop_order_t::mblk_nblk
@@ -553,9 +594,16 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
     const int max_bs_factor = rnn.brgemm_fwd_iter_layer_fuse_possible ? 2 : 1;
 
     for (int i = 0; i < num_base_kernels_; i++) {
-        init_brgemm(&desc_layer_b0_[i], rnn.brgemm_isa, kernel_layer_b0_[i],
-                rnn.m_block, brgemm_n, rnn.k1_block, rnn.LDA1[i], rnn.LDB1,
-                rnn.LDC, 0.0, max_bs_factor * rnn.KB1_blocks);
+        if (rnn.merge_gemm_layer) {
+            init_brgemm(&desc_layermerged_b0_[i], rnn.brgemm_isa,
+                    kernel_layermerged_b0_[i], rnn.mlayermerged_block, brgemm_n,
+                    rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
+                    rnn.KB1_blocks);
+        } else {
+            init_brgemm(&desc_layer_b0_[i], rnn.brgemm_isa, kernel_layer_b0_[i],
+                    rnn.m_block, brgemm_n, rnn.k1_block, rnn.LDA1[i], rnn.LDB1,
+                    rnn.LDC, 0.0, max_bs_factor * rnn.KB1_blocks);
+        }
 
         init_brgemm(&desc_iter_b0_[i], rnn.brgemm_isa, kernel_iter_b0_[i],
                 rnn.m_block, brgemm_n, rnn.k2_block, rnn.LDA2[i], rnn.LDB2,
@@ -564,10 +612,17 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
                 rnn.m_block, brgemm_n, rnn.k2_block, rnn.LDA2[i], rnn.LDB2,
                 rnn.LDC, 1.0, rnn.KB2_blocks);
         if (rnn.n_tail) {
-            init_brgemm(&desc_layer_N_tail_b0_[i], rnn.brgemm_isa,
-                    kernel_layer_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
-                    rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
-                    max_bs_factor * rnn.KB1_blocks);
+            if (rnn.merge_gemm_layer) {
+                init_brgemm(&desc_layermerged_N_tail_b0_[i], rnn.brgemm_isa,
+                        kernel_layermerged_N_tail_b0_[i],
+                        rnn.mlayermerged_block, brgemm_n_tail, rnn.k1_block,
+                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0, rnn.KB1_blocks);
+            } else {
+                init_brgemm(&desc_layer_N_tail_b0_[i], rnn.brgemm_isa,
+                        kernel_layer_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
+                        rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
+                        max_bs_factor * rnn.KB1_blocks);
+            }
 
             init_brgemm(&desc_iter_N_tail_b0_[i], rnn.brgemm_isa,
                     kernel_iter_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
@@ -578,20 +633,36 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
                     rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0,
                     rnn.KB2_blocks);
         }
-        if (rnn.k1_tail)
-            init_brgemm(&desc_layer_K1_tail_b1_[i], rnn.brgemm_isa,
-                    kernel_layer_K1_tail_b1_[i], rnn.m_block, brgemm_n,
-                    rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0,
-                    max_bs_factor * 1);
+        if (rnn.k1_tail) {
+            if (rnn.merge_gemm_layer) {
+                init_brgemm(&desc_layermerged_K1_tail_b1_[i], rnn.brgemm_isa,
+                        kernel_layermerged_K1_tail_b1_[i],
+                        rnn.mlayermerged_block, brgemm_n, rnn.k1_tail,
+                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0, 1);
+            } else {
+                init_brgemm(&desc_layer_K1_tail_b1_[i], rnn.brgemm_isa,
+                        kernel_layer_K1_tail_b1_[i], rnn.m_block, brgemm_n,
+                        rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0,
+                        max_bs_factor * 1);
+            }
+        }
         if (rnn.k2_tail)
             init_brgemm(&desc_iter_K2_tail_b1_[i], rnn.brgemm_isa,
                     kernel_iter_K2_tail_b1_[i], rnn.m_block, brgemm_n,
                     rnn.k2_tail, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0, 1);
-        if (rnn.k1_tail && rnn.n_tail)
-            init_brgemm(&desc_layer_NK1_tail_b1_[i], rnn.brgemm_isa,
-                    kernel_layer_NK1_tail_b1_[i], rnn.m_block, brgemm_n_tail,
-                    rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0,
-                    max_bs_factor * 1);
+        if (rnn.k1_tail && rnn.n_tail) {
+            if (rnn.merge_gemm_layer) {
+                init_brgemm(&desc_layermerged_NK1_tail_b1_[i], rnn.brgemm_isa,
+                        kernel_layermerged_NK1_tail_b1_[i],
+                        rnn.mlayermerged_block, brgemm_n_tail, rnn.k1_tail,
+                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0, 1);
+            } else {
+                init_brgemm(&desc_layer_NK1_tail_b1_[i], rnn.brgemm_isa,
+                        kernel_layer_NK1_tail_b1_[i], rnn.m_block,
+                        brgemm_n_tail, rnn.k1_tail, rnn.LDA1[i], rnn.LDB1,
+                        rnn.LDC, 1.0, max_bs_factor * 1);
+            }
+        }
         if (rnn.k2_tail && rnn.n_tail)
             init_brgemm(&desc_iter_NK2_tail_b1_[i], rnn.brgemm_isa,
                     kernel_iter_NK2_tail_b1_[i], rnn.m_block, brgemm_n_tail,
@@ -652,25 +723,44 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
             }
         }
     }
+
     if (rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx()) {
-        CHECK(brgemm_rnn_init_tiles(desc_layer_b0_, pallete_buff_layer_));
+        if (rnn.merge_gemm_layer)
+            CHECK(brgemm_rnn_init_tiles(
+                    desc_layermerged_b0_, pallete_buff_layermerged_));
+        else
+            CHECK(brgemm_rnn_init_tiles(desc_layer_b0_, pallete_buff_layer_));
         CHECK(brgemm_rnn_init_tiles(desc_iter_b0_, pallete_buff_iter_));
 
         if (rnn.n_tail) {
-            CHECK(brgemm_rnn_init_tiles(
-                    desc_layer_N_tail_b0_, pallete_buff_layer_n_tail_));
+            if (rnn.merge_gemm_layer)
+                CHECK(brgemm_rnn_init_tiles(desc_layermerged_N_tail_b0_,
+                        pallete_buff_layermerged_n_tail_));
+            else
+                CHECK(brgemm_rnn_init_tiles(
+                        desc_layer_N_tail_b0_, pallete_buff_layer_n_tail_));
             CHECK(brgemm_rnn_init_tiles(
                     desc_iter_N_tail_b0_, pallete_buff_iter_n_tail_));
         }
-        if (rnn.k1_tail)
-            CHECK(brgemm_rnn_init_tiles(
-                    desc_layer_K1_tail_b1_, pallete_buff_k1_tail_));
+        if (rnn.k1_tail) {
+            if (rnn.merge_gemm_layer)
+                CHECK(brgemm_rnn_init_tiles(desc_layermerged_K1_tail_b1_,
+                        pallete_buff_layermerged_k1_tail_));
+            else
+                CHECK(brgemm_rnn_init_tiles(
+                        desc_layer_K1_tail_b1_, pallete_buff_k1_tail_));
+        }
         if (rnn.k2_tail)
             CHECK(brgemm_rnn_init_tiles(
                     desc_iter_K2_tail_b1_, pallete_buff_k2_tail_));
-        if (rnn.k1_tail && rnn.n_tail)
-            CHECK(brgemm_rnn_init_tiles(
-                    desc_layer_NK1_tail_b1_, pallete_buff_nk1_tail_));
+        if (rnn.k1_tail && rnn.n_tail) {
+            if (rnn.merge_gemm_layer)
+                CHECK(brgemm_rnn_init_tiles(desc_layermerged_NK1_tail_b1_,
+                        pallete_buff_layermerged_nk1_tail_));
+            else
+                CHECK(brgemm_rnn_init_tiles(
+                        desc_layer_NK1_tail_b1_, pallete_buff_nk1_tail_));
+        }
         if (rnn.k2_tail && rnn.n_tail)
             CHECK(brgemm_rnn_init_tiles(
                     desc_iter_NK2_tail_b1_, pallete_buff_nk2_tail_));
