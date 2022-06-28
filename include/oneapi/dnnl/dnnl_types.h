@@ -1656,9 +1656,9 @@ typedef enum {
     ///
     /// If specified:
     ///
-    ///  - on forward propagation apply elementwise binary Add operation to
+    ///  - on forward propagation apply element-wise binary Add operation to
     ///    to the normalization results with an additional input tensor and then
-    ///    implies negative slope being 0.
+    ///    apply ReLU with negative slope being 0.
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass).
     ///  - on backward propagation save the result of backward ReLU operation
