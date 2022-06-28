@@ -89,6 +89,13 @@ fill_status_t append_graph_with_block(const ::reduction::prb_t *prb) {
     return fill_status::DONE;
 }
 
+bool is_norm_alg(const ::reduction::alg_t alg) {
+    return alg == ::reduction::alg_t::norm_lp_max
+            || alg == ::reduction::alg_t::norm_lp_sum
+            || alg == ::reduction::alg_t::norm_lp_power_p_max
+            || alg == ::reduction::alg_t::norm_lp_power_p_sum;
+}
+
 int doit(const ::reduction::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
@@ -138,6 +145,9 @@ int doit(const ::reduction::prb_t *prb, res_t *res) {
             = get_post_bin_indices(prb->attr.post_ops.entry);
 
     size_t idx_ins = 0;
+
+    // norm relative algorithm should initialize data with positive data.
+    const bool binary_po_only_positive_vals = is_norm_alg(prb->alg);
     for (size_t i = 0; i < post_bin_indices.size(); ++i) {
         binary_po_fp.emplace_back(
                 make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx));
@@ -145,7 +155,8 @@ int doit(const ::reduction::prb_t *prb, res_t *res) {
         const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(
                                    static_cast<int>(post_bin_indices[i]))
                 | DNNL_ARG_SRC_1;
-        ::binary::fill_mem(po_idx, binary_po_dt[i], binary_po_fp[i]);
+        ::binary::fill_mem(po_idx, binary_po_dt[i], binary_po_fp[i],
+                binary_po_only_positive_vals);
         binary_po_args.push_back(po_idx);
     }
 
