@@ -3945,7 +3945,8 @@ private:
 
 class overflow_fixer_t : public ir_mutator_t {
 public:
-    overflow_fixer_t(const constraint_set_t &cset) {
+    overflow_fixer_t(const constraint_set_t &cset, ir_context_t &ir_ctx)
+        : ir_ctx_(ir_ctx) {
         for (auto &kv : cset.relations()) {
             int64_t lo = bound_finder_base_t::unlimited_bound(true);
             int64_t hi = bound_finder_base_t::unlimited_bound(false);
@@ -4007,7 +4008,17 @@ public:
                 vec_vars_[obj.var].push_back(var_i);
             }
         }
-        return ir_mutator_t::_mutate(obj);
+        expr_t var = obj.var;
+        expr_t value = mutate(obj.value);
+        stmt_t body = mutate(obj.body);
+        if (value.is_same(obj.value) && body.is_same(obj.body)) return obj;
+        if (!value.is_empty() && value.type() != obj.value.type()) {
+            auto old_var = var;
+            var = ir_ctx_.create_tmp_var(
+                    value.type(), old_var.as<var_t>().name);
+            body = substitute(body, old_var, var);
+        }
+        return let_t::make(var, value, body);
     }
 
     object_t _mutate(const unary_op_t &obj) override {
@@ -4078,6 +4089,7 @@ private:
         return e;
     }
 
+    ir_context_t &ir_ctx_;
     overflow_bound_finder_t bound_finder_;
     object_map_t<expr_t, std::vector<expr_t>> vec_vars_;
     object_set_t<expr_t> vars_with_load_;
@@ -4088,9 +4100,10 @@ private:
 //     c.u64 = u64(c_ptr) + a.s32 * b.s32
 // After:
 //     c.u64 = u64(c_ptr) + s64(a.s32) * b.s32
-stmt_t fix_int32_overflow(const stmt_t &s, const constraint_set_t &cset) {
+stmt_t fix_int32_overflow(
+        const stmt_t &s, const constraint_set_t &cset, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = overflow_fixer_t(cset).mutate(s);
+    auto ret = overflow_fixer_t(cset, ir_ctx).mutate(s);
     trace_pass("fix_int32_overflow", ret);
     return ret;
 }
@@ -6585,7 +6598,8 @@ void init_kernel_grid(const std::array<int, 3> &kernel_grid_dims,
     for (int i = 0; i < grid_ndims; i++) {
         auto value = local_id[i];
         if (i == 0) value /= simd_size;
-        init_stmts.push_back(let_t::make(tg_grid.idx(i), value));
+        auto &type = tg_grid.idx(i).type();
+        init_stmts.push_back(let_t::make(tg_grid.idx(i), cast(value, type)));
     }
 }
 
@@ -6713,7 +6727,7 @@ void kernel_builder_t::build() {
     if (cfg_.hoist_masks_from_compute_loop) {
         stmt_ = remove_spurious_send_mask_cast(stmt_);
     }
-    stmt_ = fix_int32_overflow(stmt_, init_cset);
+    stmt_ = fix_int32_overflow(stmt_, init_cset, ir_ctx);
     stmt_ = optimize_peephole(stmt_);
     stmt_ = optimize_barrier(stmt_);
     if (cfg_.fma_kind == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_);
