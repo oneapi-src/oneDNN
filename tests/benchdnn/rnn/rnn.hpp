@@ -213,7 +213,7 @@ struct dt_conf_t {
     }
     bool is_s8() const { return operator[](SRC_LAYER).dt == dnnl_s8; }
 
-    static const dt_conf_t &create(const std::string &str);
+    static const dt_conf_t &create(const std::string &str, const attr_t &attr);
 
     std::string str_;
 };

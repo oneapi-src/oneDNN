@@ -111,6 +111,9 @@ dnnl_primitive_attr_t create_dnnl_rnn_attr(const prb_t &prb) {
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
             dnnl_attr, prb.attr.scratchpad_mode));
 
+    DNN_SAFE_V(dnnl_primitive_attr_set_fpmath_mode(
+            dnnl_attr, prb.attr.fpmath_mode));
+
     return dnnl_attr;
 }
 

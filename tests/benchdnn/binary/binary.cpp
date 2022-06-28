@@ -201,7 +201,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t dst_fp(dst_md, fp, tag, ref_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
-    if (prb->attr.post_ops.find(alg_t::SUM) >= 0)
+    if (prb->attr.post_ops.find(alg_t::SUM) >= 0 || is_amd_gpu())
         SAFE(fill_mem(2, dst_dt, dst_fp), WARN);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);

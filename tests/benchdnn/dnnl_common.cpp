@@ -692,9 +692,22 @@ bool is_nvidia_gpu(const dnnl_engine_t &engine) {
     return false;
 }
 
+bool is_amd_gpu(const dnnl_engine_t &engine) {
+#ifdef DNNL_WITH_SYCL
+    if (!is_gpu(engine)) return false;
+    constexpr int amd_vendor_id = 0x1002;
+    auto eng = dnnl::engine(engine, true);
+    auto device = dnnl::sycl_interop::get_device(eng);
+    const auto eng_vendor_id
+            = device.get_info<::sycl::info::device::vendor_id>();
+    return eng_vendor_id == amd_vendor_id;
+#endif
+    return false;
+}
+
 bool is_f64_supported(const dnnl_engine_t &engine) {
     if (!is_gpu(engine)) return false;
-    if (is_nvidia_gpu(engine)) return false;
+    if (is_nvidia_gpu(engine) || is_amd_gpu()) return false;
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
     if (is_sycl_engine(engine)) {
         auto eng = dnnl::engine(engine, true);

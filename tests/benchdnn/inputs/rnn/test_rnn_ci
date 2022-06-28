@@ -27,3 +27,26 @@
 --activation=LOGISTIC
 --direction=sum
 --batch=shapes_small
+
+
+--trivial-strides=true,false
+--prop=FWD_I
+--cfg=f32
+--attr-fpmath=bf16
+# Run all activations with left2right...
+--activation=RELU,TANH,LOGISTIC
+--direction=left2right
+--batch=shapes_small
+
+# ... but a single activation for other directions
+--activation=RELU
+--direction=right2left
+--batch=shapes_small
+
+--activation=TANH
+--direction=concat
+--batch=shapes_small
+
+--activation=LOGISTIC
+--direction=sum
+--batch=shapes_small

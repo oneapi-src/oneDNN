@@ -244,11 +244,10 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 
     if (is_gpu()) {
-        // GPU does not support run-time dims/oscale, zero-points.
+        // GPU does not support run-time dims/oscale.
         // Reorders w/ compensation are not supported by design: zp_comp is done
         // in kernels directly, but s8s8 instructions are available in HW.
-        if (prb->runtime_dim_mask != 0 || !prb->attr.zero_points.is_def()
-                || prb->attr.oscale.runtime
+        if (prb->runtime_dim_mask != 0 || prb->attr.oscale.runtime
                 || prb->is_reorder_with_compensation(FLAG_ANY)) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;

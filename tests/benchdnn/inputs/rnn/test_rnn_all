@@ -3,3 +3,5 @@
 --batch=harness_rnn_f32
 
 --batch=test_rnn_bfloat16
+
+--batch=test_rnn_bf32_bfloat16
