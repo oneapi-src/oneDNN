@@ -48,6 +48,14 @@
             const
 
 #if DNNL_X64
+#define rnn_merged_layer_execution_sig(f) \
+    dnnl_status_t f(const exec_ctx_t &ctx, const rnn_utils::rnn_conf_t &rnn, \
+            rnn_utils::cell_position_t cell_position, weights_t **w_layer_, \
+            const src_layer_t *src_layer_, scratch_t *scratch_gates_, \
+            gemm_acc_t *diff_src_layer_, gemm_acc_t *diff_w_layer_, \
+            gemm_acc_t *amx_scratchpad, \
+            x64::brgemm_batch_element_t *addr_batch_global) const
+
 #define rnn_cell_execution_sig(f) \
     dnnl_status_t f(const exec_ctx_t &ctx, const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
@@ -92,6 +100,12 @@
             float *diff_bias_, gemm_acc_t *amx_scratchpad, \
             x64::brgemm_batch_element_t *addr_batch_global) const
 #else
+#define rnn_merged_layer_execution_sig(f) \
+    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+            rnn_utils::cell_position_t cell_position, weights_t **w_layer_, \
+            const src_layer_t *src_layer_, scratch_t *scratch_gates_, \
+            gemm_acc_t *diff_src_layer_, gemm_acc_t *diff_w_layer_) const
+
 #define rnn_cell_execution_sig(f) \
     dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \

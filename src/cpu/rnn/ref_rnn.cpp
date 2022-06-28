@@ -205,268 +205,243 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     const auto src_iter_c_mdw = memory_desc_wrapper(pd()->src_md(2));
     const auto dst_iter_c_mdw = memory_desc_wrapper(pd()->dst_md(2));
 
-    // We run the grid of computation
-    for (int dir = 0; dir < rnn.n_dir; dir++) {
-        for (int j = 0; j < rnn.n_layer; j++) {
-            const int lay
-                    = (aprop == prop_kind::forward) ? j : rnn.n_layer - j - 1;
-
-            if ((aprop == prop_kind::forward) && rnn.merge_gemm_layer) {
-                const src_layer_t *src_layer
-                        = &(ws_states_layer(lay, dir, 1, 0));
-                auto src_layer_ld = rnn.ws_states_layer_ld;
-                // If we avoid copying the last iteration, the corresponding
-                // input states appear in `dst_iter_` instead of `ws_states_layer`,
-                // hence we cannot merge all iterations.
-                // This is not applicable for the first layer though, since
-                // all the states come from user's `src_layer_`.
-                int n_iter = rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
-
-                if ((lay == 0) && rnn.skip_src_layer_copy()) {
-                    src_layer = src_layer_;
-                    src_layer_ld = rnn.src_layer_ld_;
-                    n_iter = rnn.n_iter;
-                }
-
-                CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
-                        rnn.mb * n_iter, rnn.slc, 1.0,
-                        weights_layer(lay, dir, 0), rnn.weights_layer_ld,
-                        src_layer, src_layer_ld, 0.0,
-                        (gemm_acc_t *)scratch_gates_, rnn.scratch_gates_ld));
-            }
-
-            // TODO: enable merging projection gemm in bwd lstm projection
-
-            for (int i = 0; i < rnn.n_iter; i++) {
-                const int iter = (aprop == prop_kind::forward)
-                        ? i
-                        : rnn.n_iter - i - 1;
-
-                // We set parameters to the cell execution call
-
-                // dst_layer is equal to dst_iter. To avoid
-                // duplication of memory access we hence use only
-                // dst_layer and set dst_iter to nullptr, unless we
-                // cannot for one of the following condition:
-                // - in the last layer and last iteration, we need to
-                //   copy ht in two tensors (dst_layer and dst_iter)
-                dst_layer_t *cell_dst_layer
-                        = &(ws_states_layer(lay + 1, dir, iter + 1, 0));
-                dst_iter_t *cell_dst_iter = nullptr;
-                const src_layer_t *cell_src_layer
-                        = &(ws_states_layer(lay, dir, iter + 1, 0));
-                const src_iter_t *cell_src_iter
-                        = &(ws_states_iter(lay + 1, dir, iter, 0));
-
-                void *cell_dst_iter_c = const_cast<void *>(
-                        ws_states_iter_c(lay + 1, dir, iter + 1, 0));
-                const void *cell_src_iter_c
-                        = ws_states_iter_c(lay + 1, dir, iter, 0);
-
-                // the cell_position is used only when skip_data_copy is
-                // supported currently supported only for forward
-                cell_position_t cell_position = middle_cell;
-                if (iter == 0) cell_position |= first_iter;
-                if (lay == 0) cell_position |= first_layer;
-                if (iter == rnn.n_iter - 1) cell_position |= last_iter;
-                if (lay == rnn.n_layer - 1) cell_position |= last_layer;
-
-                // The dst_* paths should be before the src_* paths as
-                // the later will override cell_src_layer and
-                // cell_src_iter appropriately for 1st layer and 1st
-                // iter.
-                const bool last_iter_skip_copy = rnn.skip_dst_iter_copy()
-                        && (cell_position & last_iter);
-                if (last_iter_skip_copy) {
-                    cell_dst_layer
-                            = dst_iter_ + dst_iter_mdw.off(lay, dir, 0, 0);
-                    cell_src_layer
-                            = dst_iter_ + dst_iter_mdw.off(lay - 1, dir, 0, 0);
-                }
-
-                if (rnn.skip_dst_layer_copy() && (cell_position & last_layer)) {
-                    // Note: for last layer and last iter, the output is in dst_layer
-                    // and still need to be copied to dst_iter
-                    cell_dst_layer = dst_layer_ + dst_layer_mdw.off(iter, 0, 0);
-                    cell_dst_iter = last_iter_skip_copy
-                            ? dst_iter_ + dst_iter_mdw.off(lay, dir, 0, 0)
-                            : nullptr;
-                    cell_src_iter = (iter != 0)
-                            ? dst_layer_ + dst_layer_mdw.off(iter - 1, 0, 0)
-                            : cell_src_iter;
-                }
-                if (rnn.skip_src_iter_copy() && (cell_position & first_iter))
-                    cell_src_iter
-                            = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
-
-                if (rnn.skip_src_layer_copy() && (cell_position & first_layer))
-                    cell_src_layer = src_layer_ + src_layer_mdw.off(iter, 0, 0);
-
-                // because the c state is always f32 and require no
-                // conversion, we can always skip to copy for the 1st
-                // and last iteration
-                if (iter == 0 && src_iter_c_) {
-                    cell_src_iter_c = inc_ptr(src_iter_c_, rnn.src_iter_c_dt,
-                            src_iter_c_mdw.off(lay, dir, 0, 0));
-                    cell_position |= c_state_first_iter;
-                }
-                if (iter == rnn.n_iter - 1 && dst_iter_c_) {
-                    cell_dst_iter_c = inc_ptr(dst_iter_c_, rnn.dst_iter_c_dt,
-                            dst_iter_c_mdw.off(lay, dir, 0, 0));
-                    cell_position |= c_state_last_iter;
-                }
-
-                const auto cell_scratch_gates = rnn.n_iter_scratch_gates == 1
-                        ? scratch_gates_
-                        : scratch_gates_
-                                + iter * rnn.scratch_gates_nld
-                                        * rnn.scratch_gates_ld;
-
-                dst_iter_t *proj_ht = nullptr;
-                if (rnn.is_lstm_projection) {
-                    if (rnn.is_training)
-                        proj_ht = &(ws_ht(lay, dir, iter, 0));
-                    else
-                        proj_ht = scratch_ht_;
-                }
-
 // Since the function FN(...) returns by reference so an extra exception
 // has to be made for nullptr argument
 #define SAFE_PTR(FN, ...) CONCAT2(FN, _) ? &(FN(__VA_ARGS__)) : nullptr
+    const auto compute_merged_layer_part_if_applicable
+            = [&](prop_kind_t target_prop, int dir, int lay) {
+                  if (IMPLICATION(rnn.merge_gemm_layer, aprop != target_prop))
+                      return dnnl_success;
+
+                  cell_position_t cell_position = middle_cell;
+                  if (lay == 0) cell_position |= first_layer;
+
+                  const src_layer_t *src_layer
+                          = lay == 0 && rnn.skip_src_layer_copy()
+                          ? src_layer_
+                          : SAFE_PTR(ws_states_layer, lay, dir, 1, 0);
 #if DNNL_X64
-                CHECK((this->*cell_func)(ctx, rnn, cell_position,
-                        cell_dst_layer, cell_dst_iter_c,
-                        SAFE_PTR(ws_diff_states_layer, lay, dir, iter, 0),
-                        SAFE_PTR(diff_augru_attention, iter, 0, 0),
-                        SAFE_PTR(ws_diff_states_iter, lay, dir, iter, 0),
-                        SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter, 0),
-                        SAFE_PTR(weights_layer, lay, dir, 0),
-                        SAFE_PTR(weights_iter, lay, dir, 0),
-                        SAFE_PTR(weights_projection, lay, dir),
-                        SAFE_PTR(weights_peephole, lay, dir, 0),
-                        w_proj_comp
-                                ? w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic
-                                : nullptr,
-                        bias(lay, dir), cell_src_layer,
-                        SAFE_PTR(augru_attention, iter, 0, 0), cell_src_iter,
-                        cell_src_iter_c,
-                        SAFE_PTR(ws_diff_states_layer, lay + 1, dir, iter, 0),
-                        SAFE_PTR(ws_diff_states_iter, lay, dir, iter + 1, 0),
-                        SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter + 1, 0),
-                        SAFE_PTR(diff_weights_layer, lay, dir, 0),
-                        SAFE_PTR(diff_weights_iter, lay, dir, 0),
-                        SAFE_PTR(diff_weights_projection, lay, dir, 0),
-                        SAFE_PTR(diff_weights_peephole, lay, dir, 0),
-                        SAFE_PTR(diff_bias, lay, dir, 0),
-                        SAFE_PTR(ws_gates, lay, dir, iter, 0),
-                        cell_scratch_gates, proj_ht, scratch_diff_ht_,
-                        SAFE_PTR(ws_grid, lay, dir, iter, 0), scratch_cell_,
-                        scratch_gates_blocked_, scratch_src_layer_,
-                        scratch_src_iter_, cell_dst_iter, amx_scratchpad,
-                        addr_batch_global));
+                  CHECK((this->*merged_layer_func)(ctx, rnn, cell_position,
+                          SAFE_PTR(weights_layer, lay, dir, 0), src_layer,
+                          scratch_gates_,
+                          SAFE_PTR(ws_diff_states_layer, lay, dir, 0, 0),
+                          SAFE_PTR(diff_weights_layer, lay, dir, 0),
+                          amx_scratchpad, addr_batch_global));
 #else
-                CHECK((this->*cell_func)(rnn, cell_position, cell_dst_layer,
-                        cell_dst_iter_c,
-                        SAFE_PTR(ws_diff_states_layer, lay, dir, iter, 0),
-                        SAFE_PTR(diff_augru_attention, iter, 0, 0),
-                        SAFE_PTR(ws_diff_states_iter, lay, dir, iter, 0),
-                        SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter, 0),
-                        SAFE_PTR(weights_layer, lay, dir, 0),
-                        SAFE_PTR(weights_iter, lay, dir, 0),
-                        SAFE_PTR(weights_projection, lay, dir),
-                        SAFE_PTR(weights_peephole, lay, dir, 0),
-                        w_proj_comp
-                                ? w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic
-                                : nullptr,
-                        bias(lay, dir), cell_src_layer,
-                        SAFE_PTR(augru_attention, iter, 0, 0), cell_src_iter,
-                        cell_src_iter_c,
-                        SAFE_PTR(ws_diff_states_layer, lay + 1, dir, iter, 0),
-                        SAFE_PTR(ws_diff_states_iter, lay, dir, iter + 1, 0),
-                        SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter + 1, 0),
-                        SAFE_PTR(diff_weights_layer, lay, dir, 0),
-                        SAFE_PTR(diff_weights_iter, lay, dir, 0),
-                        SAFE_PTR(diff_weights_projection, lay, dir, 0),
-                        SAFE_PTR(diff_weights_peephole, lay, dir, 0),
-                        SAFE_PTR(diff_bias, lay, dir, 0),
-                        SAFE_PTR(ws_gates, lay, dir, iter, 0),
-                        cell_scratch_gates, proj_ht, scratch_diff_ht_,
-                        SAFE_PTR(ws_grid, lay, dir, iter, 0), scratch_cell_,
-                        cell_dst_iter, amx_scratchpad));
+                  CHECK((this->*merged_layer_func)(rnn, cell_position,
+                          SAFE_PTR(weights_layer, lay, dir, 0), src_layer,
+                          scratch_gates_,
+                          SAFE_PTR(ws_diff_states_layer, lay, dir, 0, 0),
+                          SAFE_PTR(diff_weights_layer, lay, dir, 0)));
 #endif
+                  return dnnl_success;
+              };
+
+    // We run the grid of computation
+    for_(int dir = 0; dir < rnn.n_dir; dir++)
+    for (int j = 0; j < rnn.n_layer; j++) {
+        const int lay = (aprop == prop_kind::forward) ? j : rnn.n_layer - j - 1;
+
+        CHECK(compute_merged_layer_part_if_applicable(
+                prop_kind::forward, dir, lay));
+
+        // TODO: enable merging projection gemm in bwd lstm projection
+
+        for (int i = 0; i < rnn.n_iter; i++) {
+            const int iter
+                    = (aprop == prop_kind::forward) ? i : rnn.n_iter - i - 1;
+
+            // We set parameters to the cell execution call
+
+            // dst_layer is equal to dst_iter. To avoid
+            // duplication of memory access we hence use only
+            // dst_layer and set dst_iter to nullptr, unless we
+            // cannot for one of the following condition:
+            // - in the last layer and last iteration, we need to
+            //   copy ht in two tensors (dst_layer and dst_iter)
+            dst_layer_t *cell_dst_layer
+                    = &(ws_states_layer(lay + 1, dir, iter + 1, 0));
+            dst_iter_t *cell_dst_iter = nullptr;
+            const src_layer_t *cell_src_layer
+                    = &(ws_states_layer(lay, dir, iter + 1, 0));
+            const src_iter_t *cell_src_iter
+                    = &(ws_states_iter(lay + 1, dir, iter, 0));
+
+            void *cell_dst_iter_c = const_cast<void *>(
+                    ws_states_iter_c(lay + 1, dir, iter + 1, 0));
+            const void *cell_src_iter_c
+                    = ws_states_iter_c(lay + 1, dir, iter, 0);
+
+            // the cell_position is used only when skip_data_copy is
+            // supported currently supported only for forward
+            cell_position_t cell_position = middle_cell;
+            if (iter == 0) cell_position |= first_iter;
+            if (lay == 0) cell_position |= first_layer;
+            if (iter == rnn.n_iter - 1) cell_position |= last_iter;
+            if (lay == rnn.n_layer - 1) cell_position |= last_layer;
+
+            // The dst_* paths should be before the src_* paths as
+            // the later will override cell_src_layer and
+            // cell_src_iter appropriately for 1st layer and 1st
+            // iter.
+            const bool last_iter_skip_copy
+                    = rnn.skip_dst_iter_copy() && (cell_position & last_iter);
+            if (last_iter_skip_copy) {
+                cell_dst_layer = dst_iter_ + dst_iter_mdw.off(lay, dir, 0, 0);
+                cell_src_layer
+                        = dst_iter_ + dst_iter_mdw.off(lay - 1, dir, 0, 0);
+            }
+
+            if (rnn.skip_dst_layer_copy() && (cell_position & last_layer)) {
+                // Note: for last layer and last iter, the output is in dst_layer
+                // and still need to be copied to dst_iter
+                cell_dst_layer = dst_layer_ + dst_layer_mdw.off(iter, 0, 0);
+                cell_dst_iter = last_iter_skip_copy
+                        ? dst_iter_ + dst_iter_mdw.off(lay, dir, 0, 0)
+                        : nullptr;
+                cell_src_iter = (iter != 0)
+                        ? dst_layer_ + dst_layer_mdw.off(iter - 1, 0, 0)
+                        : cell_src_iter;
+            }
+            if (rnn.skip_src_iter_copy() && (cell_position & first_iter))
+                cell_src_iter = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
+
+            if (rnn.skip_src_layer_copy() && (cell_position & first_layer))
+                cell_src_layer = src_layer_ + src_layer_mdw.off(iter, 0, 0);
+
+            // because the c state is always f32 and require no
+            // conversion, we can always skip to copy for the 1st
+            // and last iteration
+            if (iter == 0 && src_iter_c_) {
+                cell_src_iter_c = inc_ptr(src_iter_c_, rnn.src_iter_c_dt,
+                        src_iter_c_mdw.off(lay, dir, 0, 0));
+                cell_position |= c_state_first_iter;
+            }
+            if (iter == rnn.n_iter - 1 && dst_iter_c_) {
+                cell_dst_iter_c = inc_ptr(dst_iter_c_, rnn.dst_iter_c_dt,
+                        dst_iter_c_mdw.off(lay, dir, 0, 0));
+                cell_position |= c_state_last_iter;
+            }
+
+            const auto cell_scratch_gates = rnn.n_iter_scratch_gates == 1
+                    ? scratch_gates_
+                    : scratch_gates_
+                            + iter * rnn.scratch_gates_nld
+                                    * rnn.scratch_gates_ld;
+
+            dst_iter_t *proj_ht = nullptr;
+            if (rnn.is_lstm_projection) {
+                if (rnn.is_training)
+                    proj_ht = &(ws_ht(lay, dir, iter, 0));
+                else
+                    proj_ht = scratch_ht_;
+            }
+
+#if DNNL_X64
+            CHECK((this->*cell_func)(ctx, rnn, cell_position, cell_dst_layer,
+                    cell_dst_iter_c,
+                    SAFE_PTR(ws_diff_states_layer, lay, dir, iter, 0),
+                    SAFE_PTR(diff_augru_attention, iter, 0, 0),
+                    SAFE_PTR(ws_diff_states_iter, lay, dir, iter, 0),
+                    SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter, 0),
+                    SAFE_PTR(weights_layer, lay, dir, 0),
+                    SAFE_PTR(weights_iter, lay, dir, 0),
+                    SAFE_PTR(weights_projection, lay, dir),
+                    SAFE_PTR(weights_peephole, lay, dir, 0),
+                    w_proj_comp ? w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic
+                                : nullptr,
+                    bias(lay, dir), cell_src_layer,
+                    SAFE_PTR(augru_attention, iter, 0, 0), cell_src_iter,
+                    cell_src_iter_c,
+                    SAFE_PTR(ws_diff_states_layer, lay + 1, dir, iter, 0),
+                    SAFE_PTR(ws_diff_states_iter, lay, dir, iter + 1, 0),
+                    SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter + 1, 0),
+                    SAFE_PTR(diff_weights_layer, lay, dir, 0),
+                    SAFE_PTR(diff_weights_iter, lay, dir, 0),
+                    SAFE_PTR(diff_weights_projection, lay, dir, 0),
+                    SAFE_PTR(diff_weights_peephole, lay, dir, 0),
+                    SAFE_PTR(diff_bias, lay, dir, 0),
+                    SAFE_PTR(ws_gates, lay, dir, iter, 0), cell_scratch_gates,
+                    proj_ht, scratch_diff_ht_,
+                    SAFE_PTR(ws_grid, lay, dir, iter, 0), scratch_cell_,
+                    scratch_gates_blocked_, scratch_src_layer_,
+                    scratch_src_iter_, cell_dst_iter, amx_scratchpad,
+                    addr_batch_global));
+#else
+            CHECK((this->*cell_func)(rnn, cell_position, cell_dst_layer,
+                    cell_dst_iter_c,
+                    SAFE_PTR(ws_diff_states_layer, lay, dir, iter, 0),
+                    SAFE_PTR(diff_augru_attention, iter, 0, 0),
+                    SAFE_PTR(ws_diff_states_iter, lay, dir, iter, 0),
+                    SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter, 0),
+                    SAFE_PTR(weights_layer, lay, dir, 0),
+                    SAFE_PTR(weights_iter, lay, dir, 0),
+                    SAFE_PTR(weights_projection, lay, dir),
+                    SAFE_PTR(weights_peephole, lay, dir, 0),
+                    w_proj_comp ? w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic
+                                : nullptr,
+                    bias(lay, dir), cell_src_layer,
+                    SAFE_PTR(augru_attention, iter, 0, 0), cell_src_iter,
+                    cell_src_iter_c,
+                    SAFE_PTR(ws_diff_states_layer, lay + 1, dir, iter, 0),
+                    SAFE_PTR(ws_diff_states_iter, lay, dir, iter + 1, 0),
+                    SAFE_PTR(ws_diff_states_iter_c, lay, dir, iter + 1, 0),
+                    SAFE_PTR(diff_weights_layer, lay, dir, 0),
+                    SAFE_PTR(diff_weights_iter, lay, dir, 0),
+                    SAFE_PTR(diff_weights_projection, lay, dir, 0),
+                    SAFE_PTR(diff_weights_peephole, lay, dir, 0),
+                    SAFE_PTR(diff_bias, lay, dir, 0),
+                    SAFE_PTR(ws_gates, lay, dir, iter, 0), cell_scratch_gates,
+                    proj_ht, scratch_diff_ht_,
+                    SAFE_PTR(ws_grid, lay, dir, iter, 0), scratch_cell_,
+                    cell_dst_iter, amx_scratchpad));
+#endif
+        }
+
+        CHECK(compute_merged_layer_part_if_applicable(
+                prop_kind::backward, dir, lay));
 #undef SAFE_PTR
+
+        if ((aprop == prop_kind::backward) && rnn.merge_gemm_iter) {
+            // This is split in 3 pieces if we skip copies.
+            // last iter in user mem, middle iters in ws, first iter in user mem
+            // Note 1: here we assume no change in datatypes for src_iter, ws_iter and dst_iter
+
+            const dst_iter_t *states_iter = nullptr;
+            int states_iter_ld = 0;
+            int niter_merge_gemm_iter = 0;
+
+            states_iter = &(
+                    ws_states_iter(lay + 1, dir, rnn.skip_src_iter_copy(), 0));
+            states_iter_ld = rnn.ws_states_iter_ld;
+            if (rnn.skip_dst_layer_copy()
+                    && (lay == rnn.n_layer - 1)) { // last layer
+                states_iter = dst_layer_;
+                states_iter_ld = rnn.dst_layer_ld_;
+            }
+            niter_merge_gemm_iter = rnn.n_iter - rnn.skip_src_iter_copy();
+            if (niter_merge_gemm_iter > 0) {
+                CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
+                        rnn.mb * niter_merge_gemm_iter, 1.0,
+                        (weights_t *)scratch_gates_
+                                + rnn.skip_src_iter_copy()
+                                        * rnn.scratch_gates_nld
+                                        * rnn.scratch_gates_ld,
+                        rnn.scratch_gates_ld, states_iter, states_iter_ld, 1.0,
+                        &(diff_weights_iter(lay, dir, 0)),
+                        rnn.diff_weights_iter_ld));
             }
 
-            if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
-                const src_layer_t *src_layer
-                        = &(ws_states_layer(lay, dir, 1, 0));
-                auto src_layer_ld = rnn.ws_states_layer_ld;
-                // If we avoid copying the last iteration, the corresponding
-                // input states appear in `dst_iter_` instead of `ws_states_layer`,
-                // hence we cannot merge all iterations.
-                // This is not applicable for the first layer though, since
-                // all the states come from user's `src_layer_`.
-                int n_iter = rnn.n_iter - rnn.skip_dst_iter_copy();
-
-                if ((lay == 0) && rnn.skip_src_layer_copy()) {
-                    src_layer = src_layer_;
-                    src_layer_ld = rnn.src_layer_ld_;
-                    n_iter = rnn.n_iter;
-                }
-
-                CHECK((this->*gemm_layer_func)('N', 'N', rnn.slc,
-                        rnn.mb * rnn.n_iter, rnn.n_gates * rnn.dhc, 1.0,
-                        weights_layer(lay, dir, 0), rnn.weights_layer_ld,
-                        (gates_t *)scratch_gates_, rnn.scratch_gates_ld, 0.0,
-                        &(ws_diff_states_layer(lay, dir, 0, 0)),
-                        rnn.ws_diff_states_layer_ld));
-                CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc,
-                        rnn.mb * n_iter, 1.0, (weights_t *)scratch_gates_,
-                        rnn.scratch_gates_ld, src_layer, src_layer_ld, 1.0,
-                        &(diff_weights_layer(lay, dir, 0)),
-                        rnn.diff_weights_layer_ld));
-            }
-            if ((aprop == prop_kind::backward) && rnn.merge_gemm_iter) {
-                // This is split in 3 pieces if we skip copies.
-                // last iter in user mem, middle iters in ws, first iter in user mem
-                // Note 1: here we assume no change in datatypes for src_iter, ws_iter and dst_iter
-
-                const dst_iter_t *states_iter = nullptr;
-                int states_iter_ld = 0;
-                int niter_merge_gemm_iter = 0;
-
-                states_iter = &(ws_states_iter(
-                        lay + 1, dir, rnn.skip_src_iter_copy(), 0));
-                states_iter_ld = rnn.ws_states_iter_ld;
-                if (rnn.skip_dst_layer_copy()
-                        && (lay == rnn.n_layer - 1)) { // last layer
-                    states_iter = dst_layer_;
-                    states_iter_ld = rnn.dst_layer_ld_;
-                }
-                niter_merge_gemm_iter = rnn.n_iter - rnn.skip_src_iter_copy();
-                if (niter_merge_gemm_iter > 0) {
-                    CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
-                            rnn.mb * niter_merge_gemm_iter, 1.0,
-                            (weights_t *)scratch_gates_
-                                    + rnn.skip_src_iter_copy()
-                                            * rnn.scratch_gates_nld
-                                            * rnn.scratch_gates_ld,
-                            rnn.scratch_gates_ld, states_iter, states_iter_ld,
-                            1.0, &(diff_weights_iter(lay, dir, 0)),
-                            rnn.diff_weights_iter_ld));
-                }
-
-                if (rnn.skip_src_iter_copy()) {
-                    states_iter = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
-                    states_iter_ld = rnn.src_iter_ld_;
-                    niter_merge_gemm_iter = 1;
-                    CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
-                            rnn.mb * niter_merge_gemm_iter, 1.0,
-                            (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
-                            states_iter, states_iter_ld, 1.0,
-                            &(diff_weights_iter(lay, dir, 0)),
-                            rnn.diff_weights_iter_ld));
-                }
+            if (rnn.skip_src_iter_copy()) {
+                states_iter = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
+                states_iter_ld = rnn.src_iter_ld_;
+                niter_merge_gemm_iter = 1;
+                CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
+                        rnn.mb * niter_merge_gemm_iter, 1.0,
+                        (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
+                        states_iter, states_iter_ld, 1.0,
+                        &(diff_weights_iter(lay, dir, 0)),
+                        rnn.diff_weights_iter_ld));
             }
         }
     }
@@ -1469,6 +1444,8 @@ rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_f32_t::merged_layer_execution_ref);
+template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_brgemm_fwd);
@@ -1478,6 +1455,8 @@ template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_bwd_f32_t::merged_layer_execution_ref);
 
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_ref);
@@ -1490,6 +1469,8 @@ rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
 template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_bf16_t::merged_layer_execution_ref);
+template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_brgemm_fwd);
@@ -1499,6 +1480,8 @@ template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_bwd_bf16_t::merged_layer_execution_ref);
 
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_ref);
@@ -1510,6 +1493,8 @@ template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_u8s8_t::merged_layer_execution_ref);
 
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_ref);
@@ -1521,6 +1506,8 @@ template <>
 rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_s8s8_t::cell_execution_gru_lbr);
+template <>
+rnn_merged_layer_execution_sig(ref_rnn_fwd_s8s8_t::merged_layer_execution_ref);
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32,
         data_type::f32, data_type::f32>;

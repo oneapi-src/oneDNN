@@ -97,6 +97,8 @@ struct _ref_rnn_common_t : public primitive_t {
 
     typedef rnn_cell_execution_sig((class_name::*cell_execution_f));
     typedef rnn_grid_execution_sig((class_name::*grid_execution_f));
+    typedef rnn_merged_layer_execution_sig(
+            (class_name::*merged_layer_execution_f));
 
     typedef rnn_gemm_sig((class_name::*gemm_t));
     typedef rnn_bias_prepare_sig((class_name::*bias_prepare_t));
@@ -595,6 +597,7 @@ struct _ref_rnn_common_t : public primitive_t {
             default: break;
         }
 
+        merged_layer_func = &class_name::merged_layer_execution_ref;
         grid_computation = &class_name::linear_execution;
 
         size_t scratchpad_size, workspace_size;
@@ -639,6 +642,7 @@ private:
 
     rnn_grid_execution_sig(linear_execution);
     rnn_cell_execution_sig(cell_execution_ref);
+    rnn_merged_layer_execution_sig(merged_layer_execution_ref);
     rnn_cell_execution_sig(cell_execution_brgemm_fwd);
     rnn_cell_execution_sig(cell_execution_brgemm_bwd);
 
@@ -702,6 +706,7 @@ private:
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
+    merged_layer_execution_f merged_layer_func;
 
     bias_prepare_t bias_preparation_func;
     bias_finalize_t bias_finalization_func;

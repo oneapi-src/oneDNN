@@ -316,6 +316,55 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref) {
             proj_ht_, scratch_diff_ht_, ws_grid_, scratch_cell_, dst_iter_);
 }
 
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_merged_layer_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::merged_layer_execution_ref)) {
+    const auto src_layer_ld = rnn.src_layer_ld(cell_position);
+    // If we avoid copying the last iteration, the corresponding
+    // input states appear in `dst_iter_` instead of `ws_states_layer`,
+    // hence we cannot merge all iterations.
+    // This is not applicable for the first layer though, since
+    // all the states come from user's `src_layer_`.
+    const int n_iter
+            = (cell_position & first_layer) && rnn.skip_src_layer_copy()
+            ? rnn.n_iter
+            : rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
+
+    if (aprop == prop_kind::forward) {
+        CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
+                rnn.mb * n_iter, rnn.slc, 1.0, w_layer_[0],
+                rnn.weights_layer_ld, src_layer_, src_layer_ld, 0.0,
+                (gemm_acc_t *)scratch_gates_, rnn.scratch_gates_ld));
+    } else if (aprop == prop_kind::backward) {
+        CHECK((this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
+                rnn.n_gates * rnn.dhc, 1.0, w_layer_[0], rnn.weights_layer_ld,
+                (gates_t *)scratch_gates_, rnn.scratch_gates_ld, 0.0,
+                diff_src_layer_, rnn.ws_diff_states_layer_ld));
+        CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb * n_iter,
+                1.0, (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
+                src_layer_, src_layer_ld, 1.0, diff_w_layer_,
+                rnn.diff_weights_layer_ld));
+    } else {
+        assert(!"unimplemented");
+    }
+
+    return dnnl_success;
+}
+
+template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_f32_t::merged_layer_execution_ref);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_bf16_t::merged_layer_execution_ref);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_u8s8_t::merged_layer_execution_ref);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_fwd_s8s8_t::merged_layer_execution_ref);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_bwd_f32_t::merged_layer_execution_ref);
+template rnn_merged_layer_execution_sig(
+        ref_rnn_bwd_bf16_t::merged_layer_execution_ref);
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
