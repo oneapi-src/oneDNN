@@ -13,10 +13,6 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-// Temporary W/A for Compiler issue with using thogether bf16 cvt functions
-// and intel_sub_group_block_write()
-#undef cl_future_bf16_cvt
-
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
