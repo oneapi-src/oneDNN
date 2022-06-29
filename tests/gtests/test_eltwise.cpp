@@ -409,12 +409,10 @@ protected:
                 && tag != memory::format_tag::aBcde8b
                 && tag != memory::format_tag::aBcde16b);
     }
+
     bool hip_check_format_tag(memory::format_tag tag) {
-        // Blocking is not supported by MIOpen
-        return (tag != memory::format_tag::aBcd8b
-                && tag != memory::format_tag::aBcd16b
-                && tag != memory::format_tag::aBcde8b
-                && tag != memory::format_tag::aBcde16b);
+        // HIP has the same limitations for `tag` as CUDA.
+        return cuda_check_format_tag(tag);
     }
 
     void Test() {

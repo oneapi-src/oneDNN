@@ -15,8 +15,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_AMD_SYCL_HIP_ELTWISE_IMPL_HPP
-#define GPU_AMD_SYCL_HIP_ELTWISE_IMPL_HPP
+#ifndef GPU_AMD_MIOPEN_ELTWISE_IMPL_HPP
+#define GPU_AMD_MIOPEN_ELTWISE_IMPL_HPP
 
 #include <CL/sycl.hpp>
 #include <gpu/amd/sycl_hip_engine.hpp>
