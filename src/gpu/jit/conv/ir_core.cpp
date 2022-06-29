@@ -131,6 +131,8 @@ std::string to_string(op_kind_t kind) {
         case op_kind_t::_mad: return "mad";
         case op_kind_t::_prelu: return "prelu";
 
+        case op_kind_t::_dp4a: return "dp4a";
+
         default: ir_error_not_expected() << "Unknown op_kind_t value.";
     }
     return "";
@@ -300,7 +302,7 @@ void normalize_ptr(const type_t &type, expr_t &base_expr, expr_t &off) {
         base_expr = base;
         off = const_fold_non_recursive(base_off + off);
     }
-    ir_assert(to_cpp<int64_t>(off) % type.size() == 0)
+    ir_assert(to_cpp<int64_t>(off) % type.scalar().size() == 0)
             << "Incompatible offset: " << off;
 }
 
@@ -591,7 +593,7 @@ object_t ir_mutator_t::_mutate(const store_t &obj) {
             && mask.is_same(obj.mask))
         return obj;
 
-    return store_t::make(buf, off, value, obj.stride, mask);
+    return store_t::make(buf, off, value, obj.stride, mask, obj.fill_mask0);
 }
 
 void ir_visitor_t::_visit(const store_t &obj) {

@@ -793,7 +793,11 @@ public:
             return;
         }
         if (src1.is_reg_data()) {
-            emul(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
+            if (ngen_is_dw(src1.type()) && ngen_is_w(src0.type())) {
+                emul(mod, dst.reg_data(), src1.reg_data(), src0.reg_data());
+            } else {
+                emul(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
+            }
         } else {
             auto &src1_imm = src1.immediate();
             if (ngen_is_qw(dst.type()) || ngen_is_w(src1_imm.getType())) {
@@ -816,6 +820,22 @@ public:
                 return;
             }
             emul(mod, dst.reg_data(), src0.reg_data(), src1.immediate());
+        }
+    }
+
+    void edp4a(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
+            const ngen_operand_t &src0, const ngen_operand_t &src1,
+            const ngen_operand_t &src2) {
+        ir_assert(!src0.is_immediate() || !src2.is_immediate());
+        if (src0.is_immediate()) {
+            dp4a(mod, dst.reg_data(), src0.immediate(), src1.reg_data(),
+                    src2.reg_data());
+        } else if (src2.is_immediate()) {
+            dp4a(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
+                    src2.immediate());
+        } else {
+            dp4a(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
+                    src2.reg_data());
         }
     }
 
@@ -1272,20 +1292,35 @@ public:
     // If `dst_operand` is not empty, use its pre-allocated location for the
     // result.
     ngen_operand_t eval(const expr_t &e,
-            const ngen_operand_t &dst_operand = ngen_operand_t()) {
+            const ngen_operand_t &dst_operand = ngen_operand_t(),
+            bool fill_mask0 = false) {
         if (!dst_operand.is_invalid()) {
             ir_assert(dst_operand.mod().getExecSize() != 0);
         }
         if (expr_binding_.is_bound(e)) {
             if (!dst_operand.is_invalid()) {
-                host_->emov(
-                        dst_operand.mod(), dst_operand, expr_binding_.get(e));
+                auto bind = expr_binding_.get(e);
+                if (fill_mask0) {
+                    ir_assert(!bind.is_immediate());
+                    host_->sel(dst_operand.mod(), dst_operand.reg_data(),
+                            bind.reg_data(), 0);
+                } else {
+                    host_->emov(dst_operand.mod(), dst_operand, bind);
+                }
                 return dst_operand;
             }
         } else {
-            if (!dst_operand.is_invalid())
+            if (dst_operand.is_invalid()) {
+                visit(e);
+            } else if (!fill_mask0) {
                 expr_binding_.bind_dst(e, dst_operand);
-            visit(e);
+                visit(e);
+            } else {
+                auto op = eval(e);
+                ir_assert(!op.is_immediate());
+                host_->sel(dst_operand.mod(), dst_operand.reg_data(),
+                        op.reg_data(), 0);
+            }
         }
 
         return expr_binding_.get(e, /*allow_empty=*/true);
@@ -1482,6 +1517,100 @@ public:
             }
         }
 
+        do {
+            auto diff = [](const ngen::RegData &rd0, const ngen::RegData &rd1) {
+                return ((rd1.getByteOffset() - rd0.getByteOffset())
+                        + (rd1.getBase() - rd0.getBase()) * 32);
+            };
+            bool ok_scalar = (elems % 2) == 0;
+            bool ok_vector = (elems % 2) == 0;
+            for (int i = 0; (ok_scalar || ok_vector) && (i < elems / 2); i++) {
+                ok_scalar &= (obj.idx[i] == 0) && (obj.idx[i + elems / 2] == 1);
+                ok_vector &= (i == 0) || (obj.idx[i] == obj.idx[i - 1] + 1);
+                ok_vector &= (obj.idx[i] == obj.idx[i + elems / 2]);
+            }
+            auto scalar1 = eval(obj.vec[1]);
+            auto scalar0 = eval(obj.vec[0]);
+            if (!scalar1.is_reg_buf_data() || !scalar0.is_reg_buf_data()
+                    || (!ok_scalar && !ok_vector))
+                break;
+            auto &rd1 = scalar1.reg_buf_data().reg_data();
+            auto &rd0 = scalar0.reg_buf_data().reg_data();
+            auto vd = diff(rd0, rd1) / rd1.getBytes();
+            if (ok_scalar) {
+                if ((rd1.getBytes() == rd0.getBytes()) && (vd * 2 == elems)) {
+                    const_cast<ngen::RegData &>(rd0).setRegion(vd, vd, 0);
+                    bind(obj, scalar0);
+                    return;
+                }
+            } else if (ok_vector) {
+                for (int i = 2; ok_vector && (i < elems / 2); i++) {
+                    auto scalar1 = eval(obj.vec[i]);
+                    auto scalar0 = eval(obj.vec[i - 1]);
+                    auto &rd1 = scalar1.reg_buf_data().reg_data();
+                    auto &rd0 = scalar0.reg_buf_data().reg_data();
+                    ok_vector &= (rd1.getBytes() == rd0.getBytes())
+                            && (diff(rd0, rd1) / rd1.getBytes() == vd);
+                }
+                if (ok_vector && (rd1.getBytes() == rd0.getBytes())
+                        && (elems * vd * rd1.getBytes() <= 64)) {
+                    const_cast<ngen::RegData &>(rd0).setRegion(
+                            0, elems / 2, vd);
+                    bind(obj, scalar0);
+                    return;
+                }
+            }
+        } while (false);
+
+        auto is_int_imm = [](const shuffle_t &s) {
+            bool retn = true;
+            for (const auto &v : s.vec)
+                retn &= v.is<int_imm_t>();
+            return retn;
+        };
+        if (((obj.elems() == 8) || (obj.elems() == 16)) && obj.type.is_x32()
+                && !is_const_broadcast(obj) && is_int_imm(obj)) {
+            std::vector<int> vec(obj.vec.size(), to_cpp<int>(obj.vec[0]));
+            int imin = vec[0], imax = vec[0];
+            for (int i = 1; i < int(vec.size()); i++) {
+                vec[i] = to_cpp<int>(obj.vec[i]);
+                imin = std::min(imin, vec[i]);
+                imax = std::max(imax, vec[i]);
+            }
+            int mul = utils::div_up(imax - imin, 16);
+            for (int i = 1; mul && (i < int(vec.size())); i++)
+                if ((vec[i - 1] - vec[i]) % mul != 0) mul = 0;
+            if (mul) {
+                for (auto &v : vec)
+                    v = (v - imin) / mul;
+                auto dst = alloc_dst_op(obj);
+                const auto off = obj.elems() * dst.reg_data().getHS() * 4 - 32;
+                for (int i = 0; i < obj.elems(); i += 8) {
+                    auto fmt = dst.reg_buf_data().format(
+                            off + i * 2, ngen::DataType::w, 8, 1);
+                    auto chunk = ngen_operand_t(fmt, 8);
+                    host_->emov(chunk.mod(), chunk,
+                            ngen::Immediate::uv(vec[obj.idx[i + 0]],
+                                    vec[obj.idx[i + 1]], vec[obj.idx[i + 2]],
+                                    vec[obj.idx[i + 3]], vec[obj.idx[i + 4]],
+                                    vec[obj.idx[i + 5]], vec[obj.idx[i + 6]],
+                                    vec[obj.idx[i + 7]]));
+                }
+                auto fmt = dst.reg_buf_data().format(
+                        off, ngen::DataType::w, obj.elems(), 1);
+                auto src = ngen_operand_t(fmt, obj.elems());
+                if (mul > 1) {
+                    host_->emul(dst.mod(), dst.reg_data(), src.reg_data(), mul);
+                    src = dst;
+                }
+                if ((mul == 1) || (imin != 0))
+                    host_->eadd(
+                            dst.mod(), dst.reg_data(), src.reg_data(), imin);
+                bind(obj, dst);
+                return;
+            }
+        }
+
         auto dst_op = alloc_dst_op(obj);
         for (auto &chunk : chunks) {
             int off = std::get<0>(chunk);
@@ -1501,6 +1630,7 @@ public:
 
     void _visit(const ternary_op_t &obj) override {
         switch (obj.op_kind) {
+            case op_kind_t::_dp4a:
             case op_kind_t::_add3:
             case op_kind_t::_mad: {
                 auto dst_op = alloc_dst_op(obj);
@@ -1508,7 +1638,9 @@ public:
                 auto src0_op = eval(obj.a);
                 auto src1_op = eval(obj.b);
                 auto src2_op = eval(obj.c);
-                if (obj.op_kind == op_kind_t::_add3) {
+                if (obj.op_kind == op_kind_t::_dp4a) {
+                    host_->edp4a(mod, dst_op, src0_op, src1_op, src2_op);
+                } else if (obj.op_kind == op_kind_t::_add3) {
                     host_->eadd3(mod, dst_op, src0_op, src1_op, src2_op);
                 } else {
                     host_->emad(mod, dst_op, src0_op, src1_op, src2_op);
@@ -3541,7 +3673,7 @@ public:
         auto dst_rbd = buf_op.reg_buf_data().format(
                 off, to_ngen(type.scalar()), type.elems(), stride);
         ngen_operand_t dst(dst_rbd, mod);
-        eval(obj.value, scope, dst);
+        eval(obj.value, scope, dst, obj.fill_mask0 && !mask_op.is_invalid());
     }
 
 private:
@@ -3940,9 +4072,10 @@ private:
     }
 
     ngen_operand_t eval(const expr_t &e, ngen_register_scope_t &scope,
-            const ngen_operand_t &dst_operand = ngen_operand_t()) {
+            const ngen_operand_t &dst_operand = ngen_operand_t(),
+            bool fill_mask0 = false) {
         expr_evaluator_t<hw> expr_evaluator(host_, expr_binding_, scope);
-        return expr_evaluator.eval(e, dst_operand);
+        return expr_evaluator.eval(e, dst_operand, fill_mask0);
     }
 
     std::vector<ngen_operand_t> eval(

@@ -3584,9 +3584,7 @@ private:
         }
 
         if (it.is_first_mul() && fuse_zero_out_with_fma_) {
-            for (auto &m : mul) {
-                m = sub_fma_acc_with_zero(m);
-            }
+            mul = sub_fma_acc_with_zero(mul);
         }
 
         if (it.is_last_g2s_store())
@@ -3695,41 +3693,106 @@ private:
         return ret;
     }
 
-    static stmt_t sub_fma_acc_with_zero(const stmt_t &stmt) {
-        auto stmt_vec = flatten_statements(stmt);
-
-        object_eq_set_t<expr_t> seen_dst;
-        stmt_t ret = stmt;
-        for (auto &s : stmt_vec) {
-            if (is_func_call<dpas_t>(s) && !dpas_t::is_dp4a_call(s)) {
-                auto &call = s.as<func_call_t>();
-
-                auto &dst = dpas_t::arg_dst(s);
-                auto src0 = expr_t(0); // Will be translated to null register.
-                auto &src1 = dpas_t::arg_src1(s);
-                auto &src2 = dpas_t::arg_src2(s);
-
-                if (!seen_dst.insert(dst).second) continue;
-
-                auto new_call = func_call_t::make(
-                        call.func, {dst, src0, src1, src2}, call.attr);
-                ret = substitute(ret, s, new_call, 1);
-            } else if (is_func_call<mad_t>(s)) {
-                auto &call = s.as<func_call_t>();
-
-                auto &dst = mad_t::arg_dst(s);
-                auto src0 = expr_t(0); // Will be translated to null register.
-                auto &src1 = mad_t::arg_src1(s);
-                auto &src2 = mad_t::arg_src2(s);
-
-                if (!seen_dst.insert(dst).second) continue;
-
-                auto new_call = func_call_t::make(
-                        call.func, {dst, src0, src1, src2}, call.attr);
-                ret = substitute(ret, s, new_call, 1);
+    static std::vector<stmt_t> sub_fma_acc_with_zero(
+            const std::vector<stmt_t> &stmt) {
+        auto is_from_block = [](const stmt_t &curr,
+                                     const std::vector<stmt_t> &vec, int bgn) {
+            if (is_func_call<mad_t>(curr)) {
+                return (mad_t::arg_dst(curr).is_equal(mad_t::arg_src0(curr)))
+                        && (!bgn || is_func_call<mad_t>(vec[bgn - 1]));
+            } else if (const auto *s = curr.as_ptr<store_t>()) {
+                const auto *bs
+                        = (bgn) ? vec[bgn - 1].as_ptr<store_t>() : nullptr;
+                if (const auto *t = s->value.as_ptr<ternary_op_t>()) {
+                    const auto *a = t->a.as_ptr<load_t>();
+                    return (t->op_kind == op_kind_t::_mad) && a
+                            && (a->buf[a->off].is_equal(s->buf[s->off]))
+                            && (!bgn || (bs && bs->value.is<ternary_op_t>()));
+                } else if (const auto *b = s->value.as_ptr<binary_op_t>()) {
+                    const auto *a = b->a.as_ptr<load_t>();
+                    return (b->op_kind == op_kind_t::_sub) && a
+                            && (a->buf[a->off].is_equal(s->buf[s->off]))
+                            && (!bgn || (bs && bs->value.is<binary_op_t>()));
+                }
             }
+            return false;
+        };
+        auto process_block = [](stmt_t &root, object_eq_set_t<expr_t> &seen,
+                                     std::vector<stmt_t> &vec, int bgn,
+                                     int end) {
+            bool never_seen = (bgn > 0);
+            for (int i = bgn - 1; never_seen && (i < end); i++) {
+                if (is_func_call<mad_t>(vec[i])) {
+                    never_seen &= seen.insert(mad_t::arg_dst(vec[i])).second;
+                } else if (const auto *s = vec[i].as_ptr<store_t>()) {
+                    never_seen &= seen.insert(s->buf[s->off]).second;
+                }
+            }
+            for (int i = bgn - 1; never_seen && (i < end); i++) {
+                if (is_func_call<mad_t>(vec[i])) {
+                    auto &call = vec[i].as<func_call_t>();
+                    auto *m = call.attr.as_ptr<instruction_modifier_attr_t>();
+                    ir_assert(m && !m->mod.is_atomic && m->mod.sbid.is_empty());
+                    auto &dst = mad_t::arg_dst(vec[i]);
+                    auto mul = binary_op_t::make(op_kind_t::_mul,
+                            mad_t::arg_src1(vec[i]), mad_t::arg_src2(vec[i]),
+                            dst.type());
+                    root = substitute(
+                            root, vec[i], store_t::make(dst, 0, mul), 1);
+                } else if (const auto *s = vec[i].as_ptr<store_t>()) {
+                    if (const auto *t = s->value.as_ptr<ternary_op_t>()) {
+                        ir_assert(s->mask.is_empty());
+                        auto mul = binary_op_t::make(
+                                op_kind_t::_mul, t->b, t->c, t->type);
+                        root = substitute(root, vec[i],
+                                store_t::make(s->buf, s->off, mul), 1);
+                    } else if (const auto *b = s->value.as_ptr<binary_op_t>()) {
+                        auto store = store_t::make(s->buf, s->off, -b->b,
+                                s->stride, s->mask, true);
+                        root = substitute(root, vec[i], store, 1);
+                    } else {
+                        ir_error_not_expected();
+                    }
+                } else {
+                    ir_error_not_expected();
+                }
+            }
+            return 0;
+        };
+        std::vector<stmt_t> retn;
+
+        for (const auto &s : stmt) {
+            ir_assert(s.is<stmt_group_t>());
+            const auto &group = s.as<stmt_group_t>();
+            auto body = group.body;
+            auto stmt_vec = flatten_statements(body);
+            object_eq_set_t<expr_t> seen_dst;
+
+            int bgn = 0;
+            for (int i = 0; i < int(stmt_vec.size()); i++) {
+                stmt_t curr = stmt_vec[i];
+                const bool ifb = is_from_block(curr, stmt_vec, bgn);
+                bgn = (ifb) ? (!bgn) ? i + 1 : bgn
+                            : process_block(body, seen_dst, stmt_vec, bgn, i);
+                if (is_func_call<dpas_t>(curr) && !dpas_t::is_dp4a_call(curr)) {
+                    auto &call = curr.as<func_call_t>();
+
+                    auto &dst = dpas_t::arg_dst(curr);
+                    auto src0 = expr_t(0); // Will be translated to null reg
+                    auto &src1 = dpas_t::arg_src1(curr);
+                    auto &src2 = dpas_t::arg_src2(curr);
+
+                    if (seen_dst.insert(dst).second)
+                        body = substitute(body, curr,
+                                func_call_t::make(call.func,
+                                        {dst, src0, src1, src2}, call.attr),
+                                1);
+                }
+            }
+            process_block(body, seen_dst, stmt_vec, bgn, stmt_vec.size());
+            retn.emplace_back(stmt_group_t::make(group.label, body));
         }
-        return ret;
+        return retn;
     }
 
     // Returns memory buffers if is_mem is true and register buffers otherwise.
@@ -5557,7 +5620,7 @@ private:
             zp_mask_ = lmb_.ir_ctx_.create_tmp_var(
                     type_t::byte_ptr(), "zp_mask");
             var_mask_ = lmb_.ir_ctx_.create_tmp_var(
-                    (is_simd_) ? type_t::s16() : type_t::_bool(16));
+                    (!is_bool()) ? type_t::s16() : type_t::_bool(16));
 
             // 7. Vectorize everything for easier computation and emit the IR
             if (!is_scalar) {
@@ -5568,19 +5631,22 @@ private:
                 // - C has exactly one N block like 4c16f8c (where f is ow)
                 // - The innermost block is by M and it matches the SIMD size
 
-                for (int n = 0; n < size_; n += m_blk) {
-                    std::vector<expr_t> e;
+                const auto blk
+                        = (size_ > m_blk) ? std::min(m_blk * 2, 16) : m_blk;
+                for (int n = 0; n < size_; n += blk) {
+                    std::vector<expr_t> e(blk);
                     int ntrue = 0, nfalse = 0;
-                    for (int m = 0; m < m_blk; m++) {
-                        e.emplace_back(masks.mask((n + m) % size_));
-                        if (e[m].is<bool_imm_t>())
-                            ((e[m].as<bool_imm_t>().value) ? ntrue : nfalse)++;
+                    for (int m = 0; m < blk; m++) {
+                        const auto r = ((m & 1) ? m + blk : m) / 2;
+                        e[r] = masks.mask((n + m) % size_);
+                        if (e[r].is<bool_imm_t>())
+                            ((e[r].as<bool_imm_t>().value) ? ntrue : nfalse)++;
                     }
-                    ir_assert((ntrue == 0) || (ntrue + nfalse == m_blk));
-                    if ((ntrue == 0) && (nfalse > 0) && (nfalse < m_blk)) {
+                    ir_assert((ntrue == 0) || (ntrue + nfalse == blk));
+                    if ((ntrue == 0) && (nfalse > 0) && (nfalse < blk)) {
                         auto nb = *std::find_if(e.begin(), e.end(),
                                 [](expr_t &x) { return !x.is<bool_imm_t>(); });
-                        for (int m = 0; m < m_blk; m++) {
+                        for (int m = 0; m < blk; m++) {
                             e[m] = (e[m].is<bool_imm_t>())
                                     ? (nb & expr_t(false))
                                     : (e[m] & expr_t(true));
@@ -5588,20 +5654,20 @@ private:
                     }
                     exprs.emplace_back(vector2expr(e, vars));
                 }
-                for (size_ = utils::div_up(size_, m_blk) * m_blk;
-                        (size_ % m_blk == 0) && (size_ >= m_blk * 2);
-                        size_ /= 2) {
+                for (size_ = utils::div_up(size_, blk) * blk;
+                        (size_ % blk == 0) && (size_ >= blk * 2); size_ /= 2) {
                     auto e = [](expr_t &a, expr_t &b) { return a.is_equal(b); };
-                    auto half = exprs.begin() + size_ / m_blk / 2;
+                    auto half = exprs.begin() + size_ / blk / 2;
                     if (!std::equal(exprs.begin(), half, half, e)) break;
                 }
 
-                const int sz = type_t::s16().size();
-                lmb_.register_buffer(zp_mask_, size_ * sz, alloc_kind_t::grf);
-                for (int i = 0; i < size_ / m_blk; i++) {
-                    auto expr = cast_t::make(type_t::s16(m_blk), exprs[i]);
-                    stmt_ = stmt_.append(store_t::make(zp_mask_, i * m_blk * sz,
-                            (is_simd_) ? -expr : expr));
+                lmb_.register_buffer(
+                        zp_mask_, size_ * w_stride(), alloc_kind_t::grf);
+                for (int i = 0; i < size_ / blk; i++) {
+                    auto expr = cast_t::make(type_t::s16(blk), exprs[i]);
+                    stmt_ = stmt_.append(store_t::make(zp_mask_,
+                            i * blk * type_t::s16().size(),
+                            (is_simd_) ? -expr : expr, w_stride()));
                 }
                 for (auto &v : vars)
                     stmt_ = let_t::make(v.second, v.first, stmt_);
@@ -5615,26 +5681,34 @@ private:
         }
 
         const stmt_t &stmt() const { return stmt_; }
-        expr_t ic_start() const { return ic_start_; };
+        expr_t ic_start() const { return ic_start_; }
+        bool is_scalar() const { return is_scalar_; }
         bool is_simd() const { return is_simd_; }
-        bool is_const_bool() const { return is_const_; }
+        bool is_const() const { return is_const_; }
+        bool is_bool() const { return !size_ || !is_simd() || is_scalar(); }
 
         expr_t gen_mask(int base) const {
-            auto null_mask = (!is_simd_) ? expr_t() : expr_t(-1);
+            auto null_mask = (is_bool()) ? expr_t() : expr_t(-1);
             if (!size_ || is_scalar_) return (size_) ? var_mask_ : null_mask;
-            return word2bool((base % size_) * 2, !is_simd_);
+            return word2bool(base % size_);
         }
 
         expr_t maybe_gen_mask_let(const stmt_t &loop) const {
             return (size_ && is_scalar_)
-                    ? let_t::make(var_mask_, word2bool(0, !is_simd_), loop)
+                    ? let_t::make(var_mask_, word2bool(0), loop)
                     : loop;
         }
 
     private:
-        expr_t word2bool(int off, bool as_bool) const {
-            return cast_t::make((as_bool) ? type_t::_bool(16) : type_t::s16(),
-                    load_t::make(type_t::s16(), zp_mask_, off));
+        int w_stride() const {
+            return type_t::s16().size() * ((size_ > 8) ? 1 : 2);
+        }
+
+        expr_t word2bool(int off) const {
+            auto type = (is_bool()) ? type_t::u16() : type_t::s16();
+            auto m_off = (off / 2) * w_stride() + (off & 1) * 8 * type.size();
+            auto load = load_t::make(type, zp_mask_, m_off);
+            return (is_bool()) ? cast_t::make(type_t::_bool(16), load) : load;
         }
 
         expr_t vector2expr(const std::vector<expr_t> &expr,
@@ -5685,10 +5759,12 @@ private:
                     if ((a_bin->op_kind == op_kind_t::_add) && is_var(a_bin->b)
                             && is_cmp_op(k_raw) && is_shuffle_const(b_new))
                         for (auto &v : vars)
-                            if (v.second.is_equal(a_bin->b))
+                            if (v.second.is_equal(a_bin->b)) {
+                                auto fold = const_fold_non_recursive(
+                                        b_new - v.first);
                                 return binary_op_t::make(negate_cmp_op(k_raw),
-                                        fetch_var(simplify(b_new - v.first)),
-                                        a_bin->a);
+                                        fetch_var(fold), a_bin->a);
+                            }
                 return binary_op_t::make(k_raw, a_new, b_new);
             }
 
@@ -5786,14 +5862,17 @@ private:
             offs = load_t::make(type_t::u32(), buf, 0);
         }
 
-        auto get_vd_size = [m_blk](bool scalar, bool runtime, bool mad) {
-            if (scalar) return (!mad) ? m_blk * 3 : ((runtime) ? m_blk : 0);
-            return (!mad) ? std::max(m_blk * 3, 32) : 32;
+        auto get_src_zp_size = [](bool scalar, bool runtime, bool mad, int b) {
+            if (scalar) return (!mad) ? b * 2 : ((runtime) ? b : 0);
+            return (!mad) ? std::max(b * 2, 32) : 32;
         };
-        const int vd_size = get_vd_size(is_scalar, is_runtime, is_mad);
+        const int m_blk_x2 = std::min(m_blk * 2, 16);
+        const int src_zp_size
+                = get_src_zp_size(is_scalar, is_runtime, is_mad, m_blk_x2);
         auto src_zp = ir_ctx_.create_tmp_var(type_t::byte_ptr());
-        if (vd_size)
-            register_buffer(src_zp, vd_size * d_type.size(), alloc_kind_t::grf);
+        if (src_zp_size)
+            register_buffer(
+                    src_zp, src_zp_size * d_type.size(), alloc_kind_t::grf);
 
         for (int i = (is_runtime) ? 0 : std::numeric_limits<int>::max();
                 i < m_blk * simd_per_ic; i += dims[0]) {
@@ -5825,12 +5904,12 @@ private:
                         ? load_t::make(b_type, src_zp, b_off * 4, 4)
                         : cfg_.zp_cfg.common_src_zero_point;
                 auto mask = masks.gen_mask(a_off / m_blk / a_stride);
-                auto mad = (is_minus_one(mask))
+                auto mad = (masks.is_bool())
                         ? binary_op_t::make(op_kind_t::_sub, a, b, sv_type)
                         : ternary_op_t::make(
                                 op_kind_t::_mad, a, mask, b, sv_type);
-                loop[iter] = loop[iter].append(
-                        store_t::make(a_buf_, a_off, mad, a_stride));
+                loop[iter] = loop[iter].append(store_t::make(a_buf_, a_off, mad,
+                        a_stride, (masks.is_bool()) ? mask : expr_t()));
             }
             for (size_t i = 1; i < loop.size(); i++)
                 loop[0] = loop[0].append(loop[i]);
@@ -5846,42 +5925,81 @@ private:
                                     load_t::make(s_type, src_zp, 0), 4));
             data = data.append(store_t::make(src_zp, 0, expr));
         } else {
-            auto ic_s = std::to_string(std::min(32, channels)) + "a";
-            data = data.append(
-                    create_reorder_stmt(layout_t(s_type, 0, ic_s + "4b"),
-                            layout_t(s_type, 0, "4b" + ic_s), src_zp, src_zp));
+            data = data.append(store_t::make(src_zp, 0,
+                    load_t::make(type_t::u8(m_blk_x2), src_zp, 0, 4)));
+            if (channels > 16)
+                data = data.append(store_t::make(src_zp, 16,
+                        load_t::make(type_t::u8(m_blk_x2), src_zp, 64, 4)));
+            if (m_blk_x2 != m_blk)
+                data = data.append(store_t::make(src_zp, 32,
+                        load_t::make(type_t::u32(4), src_zp, 4, 8), 8));
         }
-        auto _dp4a = dpas_t::make(
-                /*is_dpasw=*/false, m_blk, 1, 1, i_type, i_type, d_type);
-        auto &dp4a = _dp4a.as<dpas_t>();
         std::vector<stmt_t> parts;
 
-        expr_t acc[] = {src_zp[(vd_size - m_blk * 2) * d_type.size()],
-                src_zp[(vd_size - m_blk * 1) * d_type.size()]};
+        auto wide_scalar = [m_blk](const expr_t &a, const expr_t &b, int blk) {
+            if (blk == m_blk) return shuffle_t::make_broadcast(a, m_blk);
+            std::vector<int> index(blk, 1);
+            for (int i = 0; i < m_blk; i++)
+                index[i] = 0;
+            return shuffle_t::make(std::vector<expr_t> {a, b}, index);
+        };
+        auto wide_vector = [m_blk, i_type](const expr_t &a, int blk) {
+            if (blk == m_blk)
+                return load_t::make(type_t(i_type.kind(), m_blk), a, 0);
+            std::vector<expr_t> vec(m_blk);
+            std::vector<int> index(blk);
+            for (int i = 0; i < m_blk; i++) {
+                vec[i] = load_t::make(i_type, a, i * i_type.size());
+                index[i + m_blk] = index[i] = i;
+            }
+            return shuffle_t::make(vec, index);
+        };
+        const expr_t acc[] = {src_zp[(src_zp_size - m_blk) * d_type.size()],
+                src_zp[(src_zp_size - m_blk_x2) * d_type.size()]};
         for (int i_m = 0; i_m < desc_m; i_m += m_blk) {
-            const int i_acc = (i_m / m_blk) % 2;
-            for (int i_k = 0; i_k < ((channels > 4) ? 32 / 4 : cfg_.kw); i_k++)
-                parts.emplace_back(dp4a(acc[i_acc], (i_k) ? acc[i_acc] : 0,
-                        b_buf_ + (i_m * (32 / 4) + i_k * m_blk) * d_type.size(),
-                        src_zp[(!is_scalar) ? i_k * d_type.size() : 0]));
-
-            for (int i_n = 0; i_n < desc_n; i_n++) {
+            for (int i_k = 0; i_k < ((channels > 4) ? 32 / 4 : cfg_.kw);
+                    i_k += m_blk_x2 / m_blk) {
+                type_t vi(i_type.kind(), m_blk_x2);
+                const int szp_off = (is_scalar) ? 0 : (i_k * d_type.size());
+                auto b0 = load_t::make(d_type, src_zp, szp_off);
+                auto b1 = load_t::make(
+                        d_type, src_zp, szp_off + m_blk * d_type.size());
+                auto b = (is_scalar) ? b0 : wide_scalar(b0, b1, m_blk_x2);
+                auto c = load_t::make(vi, b_buf_,
+                        (i_m * (32 / 4) + i_k * m_blk) * d_type.size());
+                if (is_scalar) std::swap(b, c);
+                auto a = (i_k) ? load_t::make(vi, acc[1], 0) : expr_t(0);
+                parts.emplace_back(store_t::make(acc[1], 0,
+                        ternary_op_t::make(op_kind_t::_dp4a, a, b, c, vi)));
+            }
+            const int blk
+                    = (masks.is_simd() || masks.is_scalar()) ? m_blk_x2 : m_blk;
+            if (m_blk_x2 != m_blk) {
+                type_t vi(i_type.kind(), m_blk);
+                auto a = load_t::make(vi, acc[1], 0);
+                auto b = load_t::make(vi, acc[0], 0);
+                parts.emplace_back(store_t::make(acc[1], 0, a + b));
+                if (!masks.is_bool() && (blk != m_blk))
+                    parts.emplace_back(store_t::make(acc[0], 0, a));
+            }
+            for (int i_n = 0; i_n < desc_n; i_n += blk / m_blk) {
                 const int off_n = i_m / m_blk * desc_n + i_n;
                 const int ij_buf = i_buf * cfg_.b_sub_tiles + j_buf;
                 auto dst = c_buf_ + off_n * m_blk * d_type.size()
                         + ij_buf * mul_builder.c_layout().size();
-                type_t vd(i_type.kind(), m_blk);
-                auto a = load_t::make(vd, dst, 0);
-                auto b = load_t::make(vd, acc[i_acc], 0);
+                type_t vi(i_type.kind(), blk);
+                auto a = load_t::make(vi, dst, 0);
                 auto mask = masks.gen_mask(off_n);
-                if (!masks.is_simd()) {
+                if (!masks.is_bool()) {
+                    auto b = load_t::make(vi, acc[1], 0);
+                    mask = wide_scalar(mask, masks.gen_mask(off_n + 1), blk);
+                    auto mad = ternary_op_t::make(op_kind_t::_mad, a, mask, b);
+                    parts.emplace_back(store_t::make(dst, 0, mad));
+                } else {
+                    auto b = wide_vector(acc[1], blk);
                     auto sub = binary_op_t::make(op_kind_t::_sub, a, b);
                     parts.emplace_back(store_t::make(
                             dst, 0, sub, store_t::default_stride, mask));
-                } else {
-                    auto mad = ternary_op_t::make(op_kind_t::_mad, a, b,
-                            shuffle_t::make_broadcast(mask, m_blk));
-                    parts.emplace_back(store_t::make(dst, 0, mad));
                 }
             }
         }
@@ -5901,10 +6019,11 @@ private:
             }
         }
         ir_assert(parts.size() % dpas.size() == 0);
-        int loop_size = parts.size() / dpas.size();
+        const int loop_size = parts.size() / dpas.size();
         for (int i = 0; i < int(dpas.size()); i++) {
             full = full.append(dpas[i]);
-            for (int j = i * loop_size; j < (i + 1) * loop_size; j++)
+            const auto k = (i + int(dpas.size()) / 2) % int(dpas.size());
+            for (int j = k * loop_size; j < (k + 1) * loop_size; j++)
                 full = full.append(parts[j]);
         }
         return data.append(masks.maybe_gen_mask_let(full));

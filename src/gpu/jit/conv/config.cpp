@@ -245,7 +245,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
 
     CHECK(init_zero_points_config(conv_pd));
 
-    const int max_unroll = (zp_cfg.do_src_compensation) ? 3 : 9;
+    const int max_unroll = 9;
     if (kd * kh * kw > max_unroll) do_pipeline_unroll = false;
     if (is_small_ic()) {
         reuse_headers = true;

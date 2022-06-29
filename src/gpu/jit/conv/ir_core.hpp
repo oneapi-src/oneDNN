@@ -944,6 +944,7 @@ enum class op_kind_t {
     _prelu, // binary relu(a, b)
     _add3, // a + b + c
     _mad, // a + b * c
+    _dp4a, // dpas.1x1
 };
 
 std::string to_string(op_kind_t kind);
@@ -1886,7 +1887,7 @@ public:
     // elements).
     static stmt_t make(const expr_t &buf, const expr_t &off,
             const expr_t &value, int stride = default_stride,
-            const expr_t &_mask = expr_t()) {
+            const expr_t &_mask = expr_t(), bool fill_mask0 = false) {
         auto mask = _mask;
         if (!mask.is_empty()) {
             if (all_of(mask, expr_t(true))) {
@@ -1896,7 +1897,7 @@ public:
                 return stmt_t();
             }
         }
-        return stmt_t(new store_t(buf, off, value, stride, mask));
+        return stmt_t(new store_t(buf, off, value, stride, mask, fill_mask0));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -1904,12 +1905,12 @@ public:
         auto &other = obj.as<self_type>();
 
         return buf.is_equal(other.buf) && off.is_equal(other.off)
-                && value.is_equal(other.value) && (stride == other.stride)
-                && mask.is_equal(other.mask);
+                && value.is_equal(other.value) && mask.is_equal(other.mask)
+                && (stride == other.stride) && (fill_mask0 == other.fill_mask0);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(buf, off, value, stride, mask);
+        return ir_utils::get_hash(buf, off, value, stride, mask, fill_mask0);
     }
 
     bool has_default_stride() const { return stride == default_stride; }
@@ -1923,11 +1924,17 @@ public:
     expr_t value;
     int stride;
     expr_t mask;
+    bool fill_mask0;
 
 private:
     store_t(const expr_t &_buf, const expr_t &_off, const expr_t &_value,
-            int _stride, const expr_t &_mask)
-        : buf(_buf), off(_off), value(_value), stride(_stride), mask(_mask) {
+            int _stride, const expr_t &_mask, bool _fill_mask0)
+        : buf(_buf)
+        , off(_off)
+        , value(_value)
+        , stride(_stride)
+        , mask(_mask)
+        , fill_mask0(_fill_mask0) {
         normalize_ptr(value.type(), buf, off);
         ir_assert(is_var(buf)) << buf;
         ir_assert(buf.type().is_ptr()) << buf;

@@ -183,7 +183,10 @@ public:
         print_indent();
         out_ << load_t::make(obj.value.type(), obj.buf, obj.off, obj.stride);
         out_ << " = " << obj.value;
-        if (!obj.mask.is_empty()) out_ << ", mask = " << obj.mask.str();
+        if (!obj.mask.is_empty()) {
+            out_ << ", mask = " << obj.mask.str();
+            if (obj.fill_mask0) out_ << " [FILL]";
+        }
         out_ << "\n";
     }
 
