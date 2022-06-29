@@ -396,18 +396,22 @@ inline U gelu_erf_bwd(T dd, T s) {
             * (1.f + ::erff(v) + v * two_over_sqrt_pi * ::expf(-v * v)));
 }
 
-template <typename T, typename U = typename utils::remove_reference<T>::type>
-inline U hardsigmoid_fwd(T s) {
-    return (1.f / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U hardsigmoid_fwd(T s, A alpha, A beta) {
+    float v = alpha * s + beta;
+    return v <= 0.f ? 0.f : v >= 1.f ? 1.f : v;
 }
-template <typename T, typename U = typename utils::remove_reference<T>::type>
-inline U hardsigmoid_bwd(T dd, T s) {
-    return (s < 3.f && s > -3.f ? dd / 6.f : 0);
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U hardsigmoid_bwd(T dd, T s, A alpha, A beta) {
+    float v = alpha * s + beta;
+    return v <= 0.f ? 0.f : v >= 1.f ? 0.f : dd * alpha;
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U hardswish_fwd(T s) {
-    return s * hardsigmoid_fwd(s);
+    return (s / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U hardswish_bwd(T dd, T s) {

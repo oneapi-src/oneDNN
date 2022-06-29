@@ -47,7 +47,6 @@ void check_correctness(const settings_t &s) {
             case alg_t::EXP_DST:
             case alg_t::GELU_ERF:
             case alg_t::GELU_TANH:
-            case alg_t::HARDSIGMOID:
             case alg_t::HARDSWISH:
             case alg_t::LOG:
             case alg_t::LOGISTIC:

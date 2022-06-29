@@ -234,15 +234,17 @@ float round_fwd(float s) {
     return (float)rint((float)s);
 }
 
-float hardsigmoid_fwd(float s) {
-    return (1.f / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
+float hardsigmoid_fwd(float s, float alpha, float beta) {
+    float v = alpha * s + beta;
+    return v <= 0.f ? 0.f : v >= 1.f ? 1.f : v;
 }
-float hardsigmoid_bwd(float dd, float s) {
-    return (s < 3.f && s > -3.f ? dd / 6.f : 0);
+float hardsigmoid_bwd(float dd, float s, float alpha, float beta) {
+    float v = alpha * s + beta;
+    return v <= 0.f ? 0.f : v >= 1.f ? 0.f : dd * alpha;
 }
 
 float hardswish_fwd(float s) {
-    return s * hardsigmoid_fwd(s);
+    return (s / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
 }
 float hardswish_bwd(float dd, float s) {
     return (s < 3.f && s > -3.f ? dd * (2 * s + 3.f) / 6.f
@@ -275,7 +277,9 @@ float fwd_eltwise_common(
         case GELU_ERF: return scale_ * gelu_erf_fwd(x); break;
         case ROUND: return scale_ * round_fwd(x); break;
         case HARDSWISH: return scale_ * hardswish_fwd(x); break;
-        case HARDSIGMOID: return scale_ * hardsigmoid_fwd(x); break;
+        case HARDSIGMOID:
+            return scale_ * hardsigmoid_fwd(x, alpha_, beta_);
+            break;
 
         case RELU_DST: return scale_ * relu_fwd(x, alpha_); break;
         case LOGISTIC_DST: return scale_ * logistic_fwd(x); break;
@@ -321,7 +325,7 @@ float bwd_eltwise(float x, float y, float alpha_, float beta_) {
         case POW: return pow_bwd(x, y, alpha_, beta_); break;
         case GELU_ERF: return gelu_erf_bwd(x, y); break;
         case HARDSWISH: return hardswish_bwd(x, y); break;
-        case HARDSIGMOID: return hardsigmoid_bwd(x, y); break;
+        case HARDSIGMOID: return hardsigmoid_bwd(x, y, alpha_, beta_); break;
 
         case RELU_DST: return relu_bwd_use_dst(x, y, alpha_); break;
         case LOGISTIC_DST: return logistic_bwd_use_dst(x, y); break;

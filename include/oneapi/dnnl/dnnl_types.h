@@ -2035,10 +2035,10 @@ typedef struct {
     ///  - #dnnl_eltwise_pow: @p alpha -- scale, @p beta -- exponent
     ///  - #dnnl_eltwise_gelu_erf: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_round: @p alpha and @p beta ignored
-    ///  - #dnnl_eltwise_logsigmoid @p alpha and @p beta ignored
-    ///  - #dnnl_eltwise_mish @p alpha and @p beta ignored
-    ///  - #dnnl_eltwise_hardswish @p alpha and @p beta ignored
-    ///  - #dnnl_eltwise_hardsigmoid @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_logsigmoid: @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_mish: @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_hardswish: @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_hardsigmoid: @p alpha -- scale, @p beta -- shift
     float alpha, beta;
 } dnnl_eltwise_desc_t;
 

@@ -152,8 +152,7 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
             case eltwise_exp:
             case eltwise_exp_use_dst_for_bwd: return 2;
             case eltwise_gelu_erf: return 25;
-            case eltwise_hardsigmoid:
-                return phase_count(alg_kind::eltwise_clip) + 2;
+            case eltwise_hardsigmoid: return 4;
             case eltwise_hardswish: return 3;
             case eltwise_log: return 2;
             case eltwise_logsigmoid:
@@ -535,12 +534,13 @@ void jit_eltwise_injector_f32<hw>::gelu_erf_compute_fwd(
 template <gpu_gen_t hw>
 void jit_eltwise_injector_f32<hw>::hardsigmoid_compute_fwd(
         int simd, const ngen::GRF &r, int phase, int off) {
-    const int clip_phases = phase_count(alg_kind::eltwise_clip);
-    if (phase == 0) h->add(simd, r, r, 3.f);
-    if (phase > 0 && phase < clip_phases + 1)
-        clip_compute_fwd(simd, r, phase - 1, 0, 6.f);
-    if (phase == clip_phases + 1) h->mul(simd, r, r, 1.f / 6.f);
-    if (phase >= clip_phases + 2) assert(!"invalid phase");
+    switch (phase) {
+        case 0: h->mul(simd, r, r, alpha_); break;
+        case 1: h->add(simd, r, r, beta_); break;
+        case 2: h->min_(simd, r, r, 1.f); break;
+        case 3: h->max_(simd, r, r, 0.f); break;
+        default: assert(!"invalid phase");
+    }
 }
 
 template <gpu_gen_t hw>
