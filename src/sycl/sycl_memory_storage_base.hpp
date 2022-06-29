@@ -37,6 +37,13 @@ public:
             stream_t *stream, cl::sycl::handler &cgh) const = 0;
     virtual gpu::sycl::sycl_inout_memory_arg_t get_inout_memory_arg(
             stream_t *stream, cl::sycl::handler &cgh) const = 0;
+
+    static gpu::sycl::sycl_in_memory_arg_t empty_in_memory_arg(
+            stream_t *stream, ::sycl::handler &cgh);
+    static gpu::sycl::sycl_out_memory_arg_t empty_out_memory_arg(
+            stream_t *stream, ::sycl::handler &cgh);
+    static gpu::sycl::sycl_inout_memory_arg_t empty_inout_memory_arg(
+            stream_t *stream, ::sycl::handler &cgh);
 };
 
 } // namespace sycl

@@ -42,14 +42,23 @@ namespace sycl {
 template <::sycl::access_mode mode>
 struct sycl_memory_arg_t {
     using acc_t = ::sycl::accessor<uint8_t, 1, mode>;
+    static sycl_memory_arg_t<mode> create_empty(const acc_t &dummy_acc) {
+        sycl_memory_arg_t<mode> arg(nullptr, dummy_acc);
+        arg.empty_ = true;
+        return arg;
+    }
 
     sycl_memory_arg_t(void *usm, const acc_t &dummy_acc)
-        : usm_(usm), acc_(dummy_acc) {}
-    sycl_memory_arg_t(const acc_t &acc) : usm_(nullptr), acc_(acc) {}
+        : empty_(false), usm_(usm), acc_(dummy_acc) {}
+    sycl_memory_arg_t(const acc_t &acc)
+        : empty_(false), usm_(nullptr), acc_(acc) {}
     // This method must be called only from inside a kernel.
     void *get_pointer() const { return usm_ ? usm_ : acc_.get_pointer().get(); }
 
+    bool empty() const { return empty_; }
+
 private:
+    bool empty_;
     void *usm_;
     acc_t acc_;
 };
