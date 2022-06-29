@@ -181,6 +181,10 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         const int large_sp_threshold = is_ge_xe_hpc() ? 128 : 256;
         if (!is_dw && osp > large_sp_threshold) bh->set_pref_tg_block("oc");
         bh->reorder({"mb", osp_name});
+        auto spatial_dim = fuse_spatial ? osp : ow;
+        if (!use_2d_send() && mb >= 128
+                && (spatial_dim % 4 != 0 || spatial_dim < 64))
+            bh->allow_split({"mb"});
     }
 
     if (is_dp_fma()) { bh->set_base_iter_block("oc", 32); }
