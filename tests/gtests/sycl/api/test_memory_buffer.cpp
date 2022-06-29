@@ -332,9 +332,8 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
 #ifdef DNNL_SYCL_HIP
-    SKIP_IF(true,
-            "Simple/sycl_memory_buffer_test.EltwiseWithUserKernel/gpu is "
-            "skipped for HIP because of unimplemented Eltwise");
+    SKIP_IF(eng_kind == engine::kind::gpu,
+            "OpenCL features are not supported on HIP backend");
 #endif
 
 #ifdef DNNL_SYCL_CUDA
