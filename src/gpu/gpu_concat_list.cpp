@@ -19,7 +19,6 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/ocl/gen9_concat.hpp"
-#include "gpu/ocl/multi_concat.hpp"
 #include "gpu/ocl/ref_concat.hpp"
 #include "gpu/ocl/simple_concat.hpp"
 
@@ -36,7 +35,6 @@ namespace {
 constexpr impl_list_item_t concat_impl_list[] = REG_CONCAT_P({
         CONCAT_INSTANCE(ocl::simple_concat_t)
         CONCAT_INSTANCE(ocl::gen9_concat_t)
-        CONCAT_INSTANCE(ocl::multi_concat_t)
         CONCAT_INSTANCE(ocl::ref_concat_t)
         nullptr,
 });

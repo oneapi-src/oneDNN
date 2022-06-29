@@ -53,89 +53,108 @@
 #define BLOCK_READ8 intel_sub_group_block_read_uc8
 #define BLOCK_WRITE8 intel_sub_group_block_write_uc8
 #endif
-
-#define REDUCE_STAGE_1(cat, f) f(0)
-#define REDUCE_STAGE_2(cat, f) cat(REDUCE_STAGE_1(cat, f), f(1))
-#define REDUCE_STAGE_3(cat, f) cat(REDUCE_STAGE_2(cat, f), f(2))
-#define REDUCE_STAGE_4(cat, f) cat(REDUCE_STAGE_3(cat, f), f(3))
-#define REDUCE_STAGE_5(cat, f) cat(REDUCE_STAGE_4(cat, f), f(4))
-#define REDUCE_STAGE_6(cat, f) cat(REDUCE_STAGE_5(cat, f), f(5))
-#define REDUCE_STAGE_7(cat, f) cat(REDUCE_STAGE_6(cat, f), f(6))
-#define REDUCE_STAGE_8(cat, f) cat(REDUCE_STAGE_7(cat, f), f(7))
-#define REDUCE_STAGE_9(cat, f) cat(REDUCE_STAGE_8(cat, f), f(8))
-#define REDUCE_STAGE_10(cat, f) cat(REDUCE_STAGE_9(cat, f), f(9))
-#define REDUCE_STAGE_11(cat, f) cat(REDUCE_STAGE_10(cat, f), f(10))
-#define REDUCE_STAGE_12(cat, f) cat(REDUCE_STAGE_11(cat, f), f(11))
-#define REDUCE_STAGE_13(cat, f) cat(REDUCE_STAGE_12(cat, f), f(12))
-#define REDUCE_STAGE_14(cat, f) cat(REDUCE_STAGE_13(cat, f), f(13))
-#define REDUCE_STAGE_15(cat, f) cat(REDUCE_STAGE_14(cat, f), f(14))
-#define REDUCE_STAGE_16(cat, f) cat(REDUCE_STAGE_15(cat, f), f(15))
-#define REDUCE_STAGE_17(cat, f) cat(REDUCE_STAGE_16(cat, f), f(16))
-#define REDUCE_STAGE_18(cat, f) cat(REDUCE_STAGE_17(cat, f), f(17))
-#define REDUCE_STAGE_19(cat, f) cat(REDUCE_STAGE_18(cat, f), f(18))
-#define REDUCE_STAGE_20(cat, f) cat(REDUCE_STAGE_19(cat, f), f(19))
-#define REDUCE_STAGE_21(cat, f) cat(REDUCE_STAGE_20(cat, f), f(20))
-#define REDUCE_STAGE_22(cat, f) cat(REDUCE_STAGE_21(cat, f), f(21))
-#define REDUCE_STAGE_23(cat, f) cat(REDUCE_STAGE_22(cat, f), f(22))
-#define REDUCE_STAGE_24(cat, f) cat(REDUCE_STAGE_23(cat, f), f(23))
-#define REDUCE_STAGE_25(cat, f) cat(REDUCE_STAGE_24(cat, f), f(24))
-#define REDUCE_STAGE_26(cat, f) cat(REDUCE_STAGE_25(cat, f), f(25))
-#define REDUCE_STAGE_27(cat, f) cat(REDUCE_STAGE_26(cat, f), f(26))
-#define REDUCE_STAGE_28(cat, f) cat(REDUCE_STAGE_27(cat, f), f(27))
-#define REDUCE_STAGE_29(cat, f) cat(REDUCE_STAGE_28(cat, f), f(28))
-#define REDUCE_STAGE_30(cat, f) cat(REDUCE_STAGE_29(cat, f), f(29))
-#define REDUCE_STAGE_31(cat, f) cat(REDUCE_STAGE_30(cat, f), f(30))
-#define REDUCE_STAGE_32(cat, f) cat(REDUCE_STAGE_31(cat, f), f(31))
-#define REDUCE_STAGE_33(cat, f) cat(REDUCE_STAGE_32(cat, f), f(32))
-#define REDUCE_STAGE_34(cat, f) cat(REDUCE_STAGE_33(cat, f), f(33))
-#define REDUCE_STAGE_35(cat, f) cat(REDUCE_STAGE_34(cat, f), f(34))
-#define REDUCE_STAGE_36(cat, f) cat(REDUCE_STAGE_35(cat, f), f(35))
-#define REDUCE_STAGE_37(cat, f) cat(REDUCE_STAGE_36(cat, f), f(36))
-#define REDUCE_STAGE_38(cat, f) cat(REDUCE_STAGE_37(cat, f), f(37))
-#define REDUCE_STAGE_39(cat, f) cat(REDUCE_STAGE_38(cat, f), f(38))
-#define REDUCE_STAGE_40(cat, f) cat(REDUCE_STAGE_39(cat, f), f(39))
-#define REDUCE_STAGE_41(cat, f) cat(REDUCE_STAGE_40(cat, f), f(40))
-#define REDUCE_STAGE_42(cat, f) cat(REDUCE_STAGE_41(cat, f), f(41))
-#define REDUCE_STAGE_43(cat, f) cat(REDUCE_STAGE_42(cat, f), f(42))
-#define REDUCE_STAGE_44(cat, f) cat(REDUCE_STAGE_43(cat, f), f(43))
-#define REDUCE_STAGE_45(cat, f) cat(REDUCE_STAGE_44(cat, f), f(44))
-#define REDUCE_STAGE_46(cat, f) cat(REDUCE_STAGE_45(cat, f), f(45))
-#define REDUCE_STAGE_47(cat, f) cat(REDUCE_STAGE_46(cat, f), f(46))
-#define REDUCE_STAGE_48(cat, f) cat(REDUCE_STAGE_47(cat, f), f(47))
-#define REDUCE_STAGE_49(cat, f) cat(REDUCE_STAGE_48(cat, f), f(48))
-#define REDUCE_STAGE_50(cat, f) cat(REDUCE_STAGE_49(cat, f), f(49))
-#define REDUCE_STAGE_51(cat, f) cat(REDUCE_STAGE_50(cat, f), f(50))
-#define REDUCE_STAGE_52(cat, f) cat(REDUCE_STAGE_51(cat, f), f(51))
-#define REDUCE_STAGE_53(cat, f) cat(REDUCE_STAGE_52(cat, f), f(52))
-#define REDUCE_STAGE_54(cat, f) cat(REDUCE_STAGE_53(cat, f), f(53))
-#define REDUCE_STAGE_55(cat, f) cat(REDUCE_STAGE_54(cat, f), f(54))
-#define REDUCE_STAGE_56(cat, f) cat(REDUCE_STAGE_55(cat, f), f(55))
-#define REDUCE_STAGE_57(cat, f) cat(REDUCE_STAGE_56(cat, f), f(56))
-#define REDUCE_STAGE_58(cat, f) cat(REDUCE_STAGE_57(cat, f), f(57))
-#define REDUCE_STAGE_59(cat, f) cat(REDUCE_STAGE_58(cat, f), f(58))
-#define REDUCE_STAGE_60(cat, f) cat(REDUCE_STAGE_59(cat, f), f(59))
-#define REDUCE_STAGE_61(cat, f) cat(REDUCE_STAGE_60(cat, f), f(60))
-#define REDUCE_STAGE_62(cat, f) cat(REDUCE_STAGE_61(cat, f), f(61))
-#define REDUCE_STAGE_63(cat, f) cat(REDUCE_STAGE_62(cat, f), f(62))
-#define REDUCE_STAGE_64(cat, f) cat(REDUCE_STAGE_63(cat, f), f(63))
-#define REDUCE2(n, cat, f) REDUCE_STAGE_##n(cat, f)
-#define REDUCE(n, cat, f) REDUCE2(n, cat, f)
-
-#define JOIN_COMMA(x, y) x, y
-#define SRC_PTR(n) __global const DATA_T *src##n
-#define SRC_PTRS REDUCE(N_INPUTS, JOIN_COMMA, SRC_PTR)
-#define JOIN_ELSE(x, y) y else x
-#define CHECK_AND_GET(n) \
-    if (get_global_id(2) >= OFFSET##n) \
-        src = src##n + get_global_id(1) * SRC##n##_EXT_OFFSET + x \
-                - OFFSET##n * INNER_OFFSET;
-#define SET_SRC REDUCE(N_INPUTS, JOIN_ELSE, CHECK_AND_GET)
+#define CHECK_AND_GET(N, M) \
+    if (get_global_id(2) >= OFFSET##N \
+            && (M == N_INPUTS || get_global_id(2) < OFFSET##M)) { \
+        src = src##N + get_global_id(1) * SRC##N##_EXT_OFFSET + x \
+                - OFFSET##N * INNER_OFFSET; \
+    }
 
 #if BLOCK != 1
 __attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
+// clang-format off
 __kernel void
-simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
+simple_concat(__global DATA_T *dst, __global const DATA_T *src0
+#if N_INPUTS > 1
+        , __global const DATA_T *src1
+#endif
+#if N_INPUTS > 2
+        , __global const DATA_T *src2
+#endif
+#if N_INPUTS > 3
+        , __global const DATA_T *src3
+#endif
+#if N_INPUTS > 4
+        , __global const DATA_T *src4
+#endif
+#if N_INPUTS > 5
+        , __global const DATA_T *src5
+#endif
+#if N_INPUTS > 6
+        , __global const DATA_T *src6
+#endif
+#if N_INPUTS > 7
+        , __global const DATA_T *src7
+#endif
+#if N_INPUTS > 8
+        , __global const DATA_T *src8
+#endif
+#if N_INPUTS > 9
+        , __global const DATA_T *src9
+#endif
+#if N_INPUTS > 10
+        , __global const DATA_T *src10
+#endif
+#if N_INPUTS > 11
+        , __global const DATA_T *src11
+#endif
+#if N_INPUTS > 12
+        , __global const DATA_T *src12
+#endif
+#if N_INPUTS > 13
+        , __global const DATA_T *src13
+#endif
+#if N_INPUTS > 14
+        , __global const DATA_T *src14
+#endif
+#if N_INPUTS > 15
+        , __global const DATA_T *src15
+#endif
+#if N_INPUTS > 16
+        , __global const DATA_T *src16
+#endif
+#if N_INPUTS > 17
+        , __global const DATA_T *src17
+#endif
+#if N_INPUTS > 18
+        , __global const DATA_T *src18
+#endif
+#if N_INPUTS > 19
+        , __global const DATA_T *src19
+#endif
+#if N_INPUTS > 20
+        , __global const DATA_T *src20
+#endif
+#if N_INPUTS > 21
+        , __global const DATA_T *src21
+#endif
+#if N_INPUTS > 22
+        , __global const DATA_T *src22
+#endif
+#if N_INPUTS > 23
+        , __global const DATA_T *src23
+#endif
+#if N_INPUTS > 24
+        , __global const DATA_T *src24
+#endif
+#if N_INPUTS > 25
+        , __global const DATA_T *src25
+#endif
+#if N_INPUTS > 26
+        , __global const DATA_T *src26
+#endif
+#if N_INPUTS > 27
+        , __global const DATA_T *src27
+#endif
+#if N_INPUTS > 28
+        , __global const DATA_T *src28
+#endif
+#if N_INPUTS > 29
+        , __global const DATA_T *src29
+#endif
+) {
+    // clang-format on
     DATA8_T A0, A1, A2, A3;
     DATA_T B;
     DATA2_T C;
@@ -144,7 +163,94 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
             + get_global_id(2) * INNER_OFFSET;
     __global const DATA_T *src;
 
-    SET_SRC;
+    CHECK_AND_GET(0, 1)
+#if N_INPUTS > 1
+    CHECK_AND_GET(1, 2)
+#endif
+#if N_INPUTS > 2
+    CHECK_AND_GET(2, 3)
+#endif
+#if N_INPUTS > 3
+    CHECK_AND_GET(3, 4)
+#endif
+#if N_INPUTS > 4
+    CHECK_AND_GET(4, 5)
+#endif
+#if N_INPUTS > 5
+    CHECK_AND_GET(5, 6)
+#endif
+#if N_INPUTS > 6
+    CHECK_AND_GET(6, 7)
+#endif
+#if N_INPUTS > 7
+    CHECK_AND_GET(7, 8)
+#endif
+#if N_INPUTS > 8
+    CHECK_AND_GET(8, 9)
+#endif
+#if N_INPUTS > 9
+    CHECK_AND_GET(9, 10)
+#endif
+#if N_INPUTS > 10
+    CHECK_AND_GET(10, 11)
+#endif
+#if N_INPUTS > 11
+    CHECK_AND_GET(11, 12)
+#endif
+#if N_INPUTS > 12
+    CHECK_AND_GET(12, 13)
+#endif
+#if N_INPUTS > 13
+    CHECK_AND_GET(13, 14)
+#endif
+#if N_INPUTS > 14
+    CHECK_AND_GET(14, 15)
+#endif
+#if N_INPUTS > 15
+    CHECK_AND_GET(15, 16)
+#endif
+#if N_INPUTS > 16
+    CHECK_AND_GET(16, 17)
+#endif
+#if N_INPUTS > 17
+    CHECK_AND_GET(17, 18)
+#endif
+#if N_INPUTS > 18
+    CHECK_AND_GET(18, 19)
+#endif
+#if N_INPUTS > 19
+    CHECK_AND_GET(19, 20)
+#endif
+#if N_INPUTS > 20
+    CHECK_AND_GET(20, 21)
+#endif
+#if N_INPUTS > 21
+    CHECK_AND_GET(21, 22)
+#endif
+#if N_INPUTS > 22
+    CHECK_AND_GET(22, 23)
+#endif
+#if N_INPUTS > 23
+    CHECK_AND_GET(23, 24)
+#endif
+#if N_INPUTS > 24
+    CHECK_AND_GET(24, 25)
+#endif
+#if N_INPUTS > 25
+    CHECK_AND_GET(25, 26)
+#endif
+#if N_INPUTS > 26
+    CHECK_AND_GET(26, 27)
+#endif
+#if N_INPUTS > 27
+    CHECK_AND_GET(27, 28)
+#endif
+#if N_INPUTS > 28
+    CHECK_AND_GET(28, 29)
+#endif
+#if N_INPUTS > 29
+    CHECK_AND_GET(29, 30)
+#endif
 
 #if BLOCK == 1
     B = src[0];
@@ -176,7 +282,7 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
 #elif BLOCK >= 32 * SIMD
     A3 = BLOCK_READ8(&src[24 * SIMD]);
 #endif
-    dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
+    dst += get_global_id(1) * DST_EXT_OFFSET + x;
 #if BLOCK == 1
     dst[0] = B;
 #elif BLOCK == SIMD
