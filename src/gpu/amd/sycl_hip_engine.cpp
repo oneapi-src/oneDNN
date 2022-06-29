@@ -23,6 +23,7 @@
 #include "sycl/sycl_utils.hpp"
 
 #include "gpu/amd/miopen_binary.hpp"
+#include "gpu/amd/miopen_eltwise.hpp"
 #include "gpu/amd/sycl_hip_compat.hpp"
 #include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
@@ -123,6 +124,9 @@ using namespace dnnl::impl::data_type;
 constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
         // Binary
         INSTANCE(miopen_binary_t)
+        // Elementwise
+        INSTANCE(miopen_eltwise_fwd_t)
+        INSTANCE(miopen_eltwise_bwd_t)
         nullptr,
 };
 // clang-format on

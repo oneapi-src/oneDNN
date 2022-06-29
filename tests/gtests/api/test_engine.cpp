@@ -30,11 +30,6 @@ protected:
 };
 
 HANDLE_EXCEPTIONS_FOR_TEST_P(engine_test_t, TestMultithreading) {
-#ifdef DNNL_SYCL_HIP
-    SKIP_IF(true,
-            "AllEngineKinds/engine_test_t.TestMultithreading/1 is skipped for "
-            "HIP because of unimplemented Eltwise");
-#endif
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
     if (eng_kind == engine::kind::cpu) {
