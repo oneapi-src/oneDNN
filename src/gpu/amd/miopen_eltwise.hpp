@@ -82,9 +82,7 @@ struct miopen_eltwise_bwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
                             eltwise_bounded_relu, eltwise_soft_relu)
                     // Supported data types
-                    && (desc()->data_desc.data_type == data_type::f32
-                            || desc()->data_desc.data_type == data_type::f16)
-
+                    && desc()->data_desc.data_type == data_type::f32
                     && set_default_formats_common()
                     // Eltwise does not support blocking
                     && src_md()->format_desc.blocking.inner_nblks == 0
