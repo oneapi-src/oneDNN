@@ -72,14 +72,11 @@ status_t ref_binary_t::init(engine_t *engine) {
 }
 
 status_t ref_binary_t::execute(const exec_ctx_t &ctx) const {
-    const auto *src0 = CTX_IN_SYCL_STORAGE(DNNL_ARG_SRC_0);
-    const auto *src1 = CTX_IN_SYCL_STORAGE(DNNL_ARG_SRC_1);
-    auto *dst = CTX_OUT_SYCL_STORAGE(DNNL_ARG_DST);
-
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto src0_mem_arg = src0->get_in_memory_arg(ctx.stream(), cgh);
-        auto src1_mem_arg = src1->get_in_memory_arg(ctx.stream(), cgh);
-        auto dst_mem_arg = dst->get_out_memory_arg(ctx.stream(), cgh);
+        auto src0_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0);
+        auto src1_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_1);
+        auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
+
         auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
 
         binary_kernel_vec_t binary_kernel(

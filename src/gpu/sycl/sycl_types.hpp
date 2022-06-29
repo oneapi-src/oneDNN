@@ -29,12 +29,23 @@ namespace impl {
 namespace gpu {
 namespace sycl {
 
-#define CTX_IN_SYCL_STORAGE(arg) \
-    utils::downcast<const impl::sycl::sycl_memory_storage_base_t *>( \
-            &CTX_IN_STORAGE(arg))
-#define CTX_OUT_SYCL_STORAGE(arg) \
-    utils::downcast<impl::sycl::sycl_memory_storage_base_t *>( \
-            &CTX_OUT_STORAGE(arg))
+// The macros are expected to be called within a command group function object
+// that is passed to `parallel_for`.
+#define CTX_IN_SYCL_KERNEL_MEMORY(arg) \
+    CTX_IN_STORAGE(arg).is_null() \
+            ? sycl_memory_storage_base_t::empty_in_memory_arg( \
+                    ctx.stream(), cgh) \
+            : utils::downcast<const impl::sycl::sycl_memory_storage_base_t *>( \
+                    &CTX_IN_STORAGE(arg)) \
+                      ->get_in_memory_arg(ctx.stream(), cgh)
+
+#define CTX_OUT_SYCL_KERNEL_MEMORY(arg) \
+    CTX_OUT_STORAGE(arg).is_null() \
+            ? sycl_memory_storage_base_t::empty_out_memory_arg( \
+                    ctx.stream(), cgh) \
+            : utils::downcast<const impl::sycl::sycl_memory_storage_base_t *>( \
+                    &CTX_OUT_STORAGE(arg)) \
+                      ->get_out_memory_arg(ctx.stream(), cgh)
 
 #define CHECK_SYCL_KERNEL_ARG_TYPE(type) \
     static_assert(::sycl::is_device_copyable_v<type>)
