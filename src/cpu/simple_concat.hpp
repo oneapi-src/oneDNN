@@ -40,6 +40,7 @@ struct simple_concat_t : public primitive_t {
         status_t init(engine_t *engine) {
             const memory_desc_wrapper dst_d(dst_md());
             bool ok = platform::has_data_type_support(data_type)
+                    && attr()->has_default_values()
                     && cpu_concat_pd_t::init() == status::success
                     && dst_d.ndims() <= 6;
             if (!ok) return status::unimplemented;

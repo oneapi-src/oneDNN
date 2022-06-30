@@ -45,6 +45,7 @@ struct ref_concat_t : public gpu_primitive_t {
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
         status_t init(engine_t *engine) {
+            if (!attr()->has_default_values()) return status::unimplemented;
             status_t status = gpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);

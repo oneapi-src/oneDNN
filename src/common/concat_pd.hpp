@@ -114,7 +114,7 @@ protected:
      *
      * @warning The call may fail. */
     status_t init(const memory_desc_t *force_dst_md = nullptr) {
-        bool ok = attr()->has_default_values();
+        bool ok = true;
         if (force_dst_md == nullptr)
             ok = ok && set_default_params() == status::success;
         if (!ok) return status::unimplemented;
