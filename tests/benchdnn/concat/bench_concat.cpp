@@ -33,6 +33,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag_ : s.stag)
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_axis : s.axis)
+    for_(const auto &i_scales : s.scales)
     for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
         // if dst is omitted by dtag = tag::undef, omit ddt as well
         auto ddt = i_dtag == tag::undef ? dnnl_data_type_undef : i_ddt;
@@ -48,7 +49,7 @@ void check_correctness(const settings_t &s) {
         if (s.prb_vdims.n_inputs() != static_cast<int>(i_stag.size()))
             SAFE_V(FAIL);
 
-        auto attr = settings_t::get_attr(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_scales, i_scratchpad_mode);
 
         const prb_t prb(s.prb_vdims, i_sdt, ddt, i_stag, i_dtag, i_axis, attr);
         std::stringstream ss;
@@ -85,6 +86,7 @@ int bench(int argc, char **argv) {
                 || parse_multi_tag(s.stag, def.stag, argv[0])
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_axis(s.axis, def.axis, argv[0])
+                || parse_attr_scales(s.scales, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
