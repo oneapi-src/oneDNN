@@ -102,6 +102,8 @@ public:
         _op_mxcsr = 4u,
     };
 
+    const uint64_t cpu_sveLen = get_sve_length();
+
     const Xbyak_aarch64::WReg W_TMP_0 = w23;
     const Xbyak_aarch64::WReg W_TMP_1 = w24;
     const Xbyak_aarch64::WReg W_TMP_2 = w25;
@@ -226,24 +228,11 @@ public:
 
     template <typename PRegBHSD, typename T>
     void set_preg(const PRegBHSD &p, T tail_size,
-            Xbyak_aarch64::ZReg z_tmp = Xbyak_aarch64::ZReg(DUMMY_IDX)) {
+            const Xbyak_aarch64::XReg x_tmp0 = Xbyak_aarch64::XReg(DUMMY_IDX),
+            const Xbyak_aarch64::XReg x_tmp1 = Xbyak_aarch64::XReg(DUMMY_IDX)) {
         using namespace Xbyak_aarch64;
 
-        const int elem_bit = p.getBit();
-        const int elem_num = cpu().getSveLen() * 8 / elem_bit;
-        Xbyak_aarch64::PReg p_(p.getIdx());
-        bool need_restore = false;
-
         assert(tail_size <= 64); // Implemented only for "SVE size <=  512"
-
-        if (tail_size == 0) {
-            pfalse(PRegB(p.getIdx()));
-            return;
-        }
-        if ((signed)tail_size == elem_num - (elem_num % 3)) {
-            ptrue(p, MUL3);
-            return;
-        }
 
         switch (tail_size) {
             case 0: pfalse(PRegB(p.getIdx())); return;
@@ -260,43 +249,10 @@ public:
             case 64: ptrue(p, VL64); return;
         }
 
-        if (z_tmp.getIdx() == DUMMY_IDX) {
-            str(z31, Xbyak_aarch64::ptr(X_SP, -1, MUL_VL));
-            z_tmp = z31;
-            need_restore = true;
-        }
-
-        if (tail_size < 32) {
-#define POS_CASE(lane) \
-    index(z_tmp.lane, 0, 1); \
-    cmplt(p_.lane, P_ALL_ONE / Xbyak_aarch64::T_z, z_tmp.lane, tail_size);
-#define NEG_CASE(lane) \
-    index(z_tmp.lane, 0, 1); \
-    cmplt(p_.lane, P_ALL_ONE / Xbyak_aarch64::T_z, z_tmp.lane, \
-            elem_num - tail_size); \
-    rev(p_.lane, p_.lane); \
-    not_(p_.b, P_ALL_ONE / Xbyak_aarch64::T_z, p_.b);
-
-            switch (elem_bit) {
-                case 8: POS_CASE(b); break;
-                case 16: POS_CASE(h); break;
-                case 32: POS_CASE(s); break;
-                case 64: POS_CASE(d); break;
-                default: assert(!"Unreachable");
-            }
-        } else { /* 32 <= tail_size < 64 */
-            switch (elem_bit) {
-                case 8: NEG_CASE(b); break;
-                case 16: NEG_CASE(h); break;
-                case 32: NEG_CASE(s); break;
-                case 64: NEG_CASE(d); break;
-                default: assert(!"Unreachable");
-            }
-        }
-#undef POS_CASE
-#undef NEG_CASE
-
-        if (need_restore) ldr(z31, Xbyak_aarch64::ptr(X_SP, -1, MUL_VL));
+        assert(x_tmp0.getIdx() != DUMMY_IDX && x_tmp1.getIdx() != DUMMY_IDX);
+        mov_imm(x_tmp0, 0);
+        mov_imm(x_tmp1, tail_size);
+        whilelt(p, x_tmp0, x_tmp1);
     }
 
     template <typename T>
@@ -316,9 +272,35 @@ public:
                 Xbyak_aarch64::ZRegS(op.getIdx()));
     }
 
+    template <typename T>
+    void udiv_mod(const T &q, const T &r, const T &divend, const T &divisor) {
+        assert(q.getIdx() != divisor.getIdx());
+        assert(q.getIdx() != divend.getIdx());
+        assert(r.getIdx() != divend.getIdx());
+
+        udiv(q, divend, divisor);
+        mul(r, q, divisor);
+        sub(r, divend, r);
+    }
+
+    template <typename T>
+    void umod(const T &r, const T &divend, const T &divisor) {
+        assert(r.getIdx() != divend.getIdx());
+        assert(r.getIdx() != divisor.getIdx());
+
+        udiv(r, divend, divisor);
+        mul(r, r, divisor);
+        sub(r, divend, r);
+    }
+
     void uni_clear(const Xbyak_aarch64::VReg &dst) { eor(dst.b, dst.b, dst.b); }
 
     void uni_clear(const Xbyak_aarch64::ZReg &dst) { eor(dst.d, dst.d, dst.d); }
+
+    template <typename T>
+    void uni_fadd(const T &dst, const T &src, const T &src2) {
+        fadd(dst, src, src2);
+    }
 
     void uni_fcvtzs(
             const Xbyak_aarch64::VReg4S &d, const Xbyak_aarch64::VReg4S &s) {
@@ -328,19 +310,6 @@ public:
     void uni_fcvtzs(
             const Xbyak_aarch64::ZRegS &d, const Xbyak_aarch64::ZRegS &s) {
         fcvtzs(d, P_ALL_ONE / Xbyak_aarch64::T_z, s);
-    }
-
-    template <typename TReg>
-    void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2) {
-        fdiv(dst, src, src2);
-    }
-
-    void uni_fdiv(const Xbyak_aarch64::VReg4S &dst,
-            const Xbyak_aarch64::VReg4S &src, const Xbyak_aarch64::VReg4S &src2,
-            const Xbyak_aarch64::VReg4S &tmp, const Xbyak_aarch64::PReg &pred) {
-        UNUSED(tmp);
-        UNUSED(pred);
-        fdiv(dst, src, src2);
     }
 
     template <typename TReg>
@@ -365,6 +334,42 @@ public:
         }
     }
 
+    template <typename TReg>
+    void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2) {
+        fdiv(dst, src, src2);
+    }
+
+    void uni_fdiv(const Xbyak_aarch64::VReg4S &dst,
+            const Xbyak_aarch64::VReg4S &src, const Xbyak_aarch64::VReg4S &src2,
+            const Xbyak_aarch64::VReg4S &tmp, const Xbyak_aarch64::PReg &pred) {
+        UNUSED(tmp);
+        UNUSED(pred);
+        fdiv(dst, src, src2);
+    }
+
+    template <typename T>
+    void uni_fmax(const T &dst, const T &src, const T &src2) {
+        uint32_t dstIdx = dst.getIdx();
+        uint32_t srcIdx = src.getIdx();
+        if (dstIdx != srcIdx)
+            mov(Xbyak_aarch64::ZRegD(dstIdx), Xbyak_aarch64::ZRegD(srcIdx));
+        fmax(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src2);
+    }
+
+    template <typename T>
+    void uni_fmin(const T &dst, const T &src, const T &src2) {
+        uint32_t dstIdx = dst.getIdx();
+        uint32_t srcIdx = src.getIdx();
+        if (dstIdx != srcIdx)
+            mov(Xbyak_aarch64::ZRegD(dstIdx), Xbyak_aarch64::ZRegD(srcIdx));
+        fmin(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src2);
+    }
+
+    template <typename T>
+    void uni_fmul(const T &dst, const T &src, const T &src2) {
+        fmul(dst, src, src2);
+    }
+
     void uni_frinti(
             const Xbyak_aarch64::VReg4S &d, const Xbyak_aarch64::VReg4S &s) {
         frinti(d, s);
@@ -378,6 +383,11 @@ public:
     void uni_fsub(const Xbyak_aarch64::VReg4S &v1,
             const Xbyak_aarch64::VReg4S &v2, const Xbyak_aarch64::VReg4S &v3) {
         fsub(v1, v2, v3);
+    }
+
+    template <typename T>
+    void uni_fsub(const T &dst, const T &src, const T &src2) {
+        fsub(dst, src, src2);
     }
 
     void uni_fsub(const Xbyak_aarch64::ZRegS &z1,
@@ -603,7 +613,6 @@ private:
 protected:
     virtual void generate() = 0;
     const uint8_t *jit_ker_ = nullptr;
-    const uint64_t cpu_sveLen = get_sve_length();
 };
 
 } // namespace aarch64
