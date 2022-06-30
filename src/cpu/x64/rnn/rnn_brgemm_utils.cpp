@@ -338,6 +338,9 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.brgemm_isa = brgemm_calc_isa(rnn.K1, rnn.K2, is_int8, is_bf16);
     const bool is_bf32 = is_bf16 && rnn.brgemm_isa == avx512_core_bf16_amx_bf16
             && rnn.dt_conf == all_f32
+            // workspace data type and layouts can differ between fwd and bwd
+            // implementations during training.
+            && !rnn.is_training
             // bf16 lstm_projection is not supported, so neither is bf32.
             && !rnn.is_lstm_projection;
     if (!IMPLICATION(rnn.is_cell_dt_bf16(), rnn.is_bf16_conf() || is_bf32))
