@@ -141,6 +141,13 @@ static int str2arg(const std::string &str) {
     return BENCHDNN_DNNL_ARG_UNDEF;
 }
 
+const std::string arg2str(int arg) {
+    if (supported_args.find(arg) != supported_args.end())
+        return std::string(supported_args.at(arg)[0]);
+    assert(!"unknown argument");
+    return "unknown argument";
+}
+
 policy_t attr_t::str2policy(const std::string &str) {
     std::string s(str);
     // s.compare is lexicographical, case matters
@@ -603,8 +610,8 @@ std::ostream &operator<<(
     const char *delim = "";
     for (const auto &point : zero_points.points) {
         s << delim;
-        s << supported_args.at(point.first)[0] << ":" << point.second.policy
-          << ":" << point.second.value;
+        s << arg2str(point.first) << ":" << point.second.policy << ":"
+          << point.second.value;
         if (point.second.runtime) s << '*';
         delim = "+";
     }
@@ -617,7 +624,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
     for (const auto &v : scales.scales) {
         if (!v.second.is_def()) {
             s << delim;
-            s << supported_args.at(v.first)[0] << ":" << v.second;
+            s << arg2str(v.first) << ":" << v.second;
             delim = "+";
         }
     }
@@ -887,12 +894,12 @@ dnnl_primitive_attr_t create_dnnl_attr(
         DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(
                 dnnl_attr, count, mask, scales));
     } else if (!attr.scales.is_def()) {
-        for (const auto &arg : supported_args) {
-            const auto arg_name = arg.first;
-            const auto &as = attr.scales;
+        const auto &as = attr.scales;
+        for (const auto &arg : as.scales) {
+            const int arg_name = arg.first;
             if (as.is_def(arg_name)) continue;
 
-            const auto &e = as.get(arg_name);
+            const auto &e = arg.second;
             // Only common policy is supported in the library at this point
             int64_t count = 1;
             int mask = attr_t::get_default_mask(e.policy);
@@ -904,12 +911,12 @@ dnnl_primitive_attr_t create_dnnl_attr(
     }
 
     if (!attr.zero_points.is_def()) {
-        for (const auto &arg : supported_args) {
+        const auto &zp = attr.zero_points;
+        for (const auto &arg : zp.points) {
             const auto arg_name = arg.first;
-            const auto &zp = attr.zero_points;
             if (zp.is_def(arg_name)) continue;
 
-            const auto &e = zp.get(arg_name);
+            const auto &e = arg.second;
             // Only common policy/single RT value are supported in the library
             // at this point
             int64_t count = 1;
