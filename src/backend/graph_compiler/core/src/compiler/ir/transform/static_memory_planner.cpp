@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,12 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <string>
 #include <utility>
 #include <util/utils.hpp>
+
+SC_MODULE(pass.mem_plan)
+
 namespace sc {
 namespace memory_optim {
 
@@ -59,10 +63,11 @@ struct memory_chunk_t {
     }
     virtual ~memory_chunk_t() = default;
 
+    virtual size_t get_start_offset_impl() = 0;
+
 protected:
     static constexpr size_t UNINITIALIZED = std::numeric_limits<size_t>::max();
     size_t cached_start_offset = UNINITIALIZED;
-    virtual size_t get_start_offset_impl() = 0;
 };
 
 // the memory chunk that is directly allocated from the large buffer
@@ -249,8 +254,10 @@ struct memory_state {
         int64_t size_diff = static_cast<int64_t>(chk->size_)
                 - static_cast<int64_t>(alloc_size);
         float size_max = static_cast<float>(std::max(alloc_size, chk->size_));
-        float size_score = 1 - std::abs(size_diff) / size_max;
-        // size_score and tick_score are normalized in [0,1]. We set a weight
+        float size_score = -std::abs(size_diff) / size_max;
+        // if we don't need to extend the buffer, add a bounus score for it
+        if (alloc_size <= chk->size_) { size_score += 1; }
+        // size_score and tick_score are normalized in [-1,1]. We set a weight
         // for these two scores: 1:1
         return 1 * size_score + 1 * tick_score;
     }
@@ -353,6 +360,18 @@ struct memory_state {
         }
         // else, no chunks are merged, do nothing
     }
+
+    std::string to_string() const {
+        std::stringstream ss;
+        ss << "total size " << current_alloc_size_ << " ";
+        size_t cur_offset = 0;
+        for (auto buf : cur_chunks_) {
+            ss << "| " << cur_offset << ',' << buf->size_ << ',' << buf->free_
+               << " ";
+            cur_offset += buf->size_;
+        }
+        return ss.str();
+    }
 };
 
 size_t schedule_memory_allocations(
@@ -360,14 +379,20 @@ size_t schedule_memory_allocations(
         bool hot_first, std::unordered_map<uintptr_t, size_t> &out_schedule) {
     memory_state planner {alignment, hot_first};
     std::unordered_map<uintptr_t, memory_chunk_t *> allocations;
+    SC_MODULE_INFO << "Start of a function";
     for (auto &trace : traces) {
         if (trace.size_ > 0) {
             allocations[trace.buffer_id_] = planner.alloc(trace.size_);
+            SC_MODULE_INFO << "Alloc " << trace.buffer_id_
+                           << ", sz=" << trace.size_;
+            SC_MODULE_INFO << planner.to_string();
         } else {
             auto itr = allocations.find(trace.buffer_id_);
             COMPILE_ASSERT(itr != allocations.end(),
                     "Cannot find buffer id in allocations");
             planner.dealloc(itr->second);
+            SC_MODULE_INFO << "Dealloc " << trace.buffer_id_;
+            SC_MODULE_INFO << planner.to_string();
         }
     }
     for (auto &kv : allocations) {
