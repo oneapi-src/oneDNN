@@ -60,7 +60,9 @@ meaning associated with any logical dimensions.
 
 ### Post-Ops and Attributes
 
-The concat primitive does not support any post-ops or attributes.
+| Type      | Operation                                       | Description                                                                    | Restrictions
+| :--       | :--                                             | :--                                                                            | :--
+| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales) | Scales the corresponding input tensor by the given scale factor(s).            | Only one scale per tensor is supported. Input tensors only. |
 
 ## Implementation Limitations
 
