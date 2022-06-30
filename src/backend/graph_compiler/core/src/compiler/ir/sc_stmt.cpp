@@ -217,13 +217,14 @@ void for_loop_node_t::to_string(ostream &os, int indent) const {
     }
     os << "for " << var_ << " in (" << iter_begin_ << ", " << iter_end_ << ", "
        << step_ << ") " << type;
+    if (num_threads_ > 0) { os << '(' << num_threads_ << ')'; }
     body_->to_string(os, indent);
 }
 
 stmt for_loop_node_t::remake() const {
     return copy_attr(*this,
             make_stmt<for_loop_node_t>(var_, iter_begin_, iter_end_, step_,
-                    body_, incremental_, kind_));
+                    body_, incremental_, kind_, num_threads_));
 }
 
 #define CAST_OR_RETURN(v) \
@@ -236,7 +237,8 @@ stmt for_loop_node_t::remake() const {
 bool for_loop_node_t::equals(stmt_c v, ir_comparer &ctx) const {
     CAST_OR_RETURN(v);
     return ctx.set_result(node_ptr_from_this(), v,
-                   incremental_ == other->incremental_ && kind_ == other->kind_)
+                   incremental_ == other->incremental_ && kind_ == other->kind_
+                           && num_threads_ == other->num_threads_)
             && var_->equals(other->var_, ctx)
             && iter_begin_->equals(other->iter_begin_, ctx)
             && iter_end_->equals(other->iter_end_, ctx)

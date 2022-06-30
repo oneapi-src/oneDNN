@@ -331,6 +331,12 @@ func_t get_thread_id_func();
 // gets the IR func for is_in_parallel. @see thread_pool_table::is_in_parallel
 func_t get_is_in_parallel_func();
 
+// gets the IR func for sc::runtime::enter_barrier
+func_t get_barrier_arrive_func();
+
+// gets the IR func for sc::runtime::init_barrier
+func_t get_init_barrier_func();
+
 } // namespace builtin
 } // namespace sc
 

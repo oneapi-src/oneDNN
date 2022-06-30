@@ -144,20 +144,21 @@ public:
 
     /**
      * Makes and pushes a for_loop
-     * @param var_ the iterate variable. The loop-var is expected to
+     * @param var the iterate variable. The loop-var is expected to
      *  be used only within the scope of the loop. Should be an integer var
-     * @param iter_begin_ the initial value of var_
-     * @param iter_end_ the max bound of the loop-var var_. Can never be reached
-     * @param step_ the step of var_ in each iteration.
-     * @param body_ the body of the loop
-     * @param incremental_ if the loop-var var_ is incremental. Not currently
+     * @param iter_begin the initial value of var_
+     * @param iter_end the max bound of the loop-var var_. Can never be reached
+     * @param step the step of var_ in each iteration.
+     * @param body the body of the loop
+     * @param incremental if the loop-var var_ is incremental. Not currently
      *  used.
-     * @param kind_ the kind of the loop. @see for_type
+     * @param kind the kind of the loop. @see for_type
+     * @param num_threads the number of threads in parallel-for
      * @return the pushed node
      * */
-    stmt push_for_loop(const expr &var_, const expr &iter_begin_,
-            const expr &iter_end_, const expr &step_, const stmt &body_,
-            bool incremental_, for_type kind_);
+    stmt push_for_loop(const expr &var, const expr &iter_begin,
+            const expr &iter_end, const expr &step, const stmt &body,
+            bool incremental, for_type kind, int num_threads = 0);
 
     /**
      * Makes and pushes blank stmts as an anchor
@@ -835,11 +836,14 @@ stmt make_var_tensor_def_unattached(const expr_c &var,
  * @param incremental if the loop-var var_ is incremental. Not currently
  *  used.
  * @param kind the kind of the loop. @see for_type
+ * @param num_threads the number of threads to use in parallel-for. 0 for using
+ * all avaliable threads in current thread group. If the loop is not parallel,
+ * it must be 0.
  * @return the pushed node
  * */
 stmt make_for_loop_unattached(const expr_c &var, const expr_c &iter_begin,
         const expr_c &iter_end, const expr_c &step, const stmt_c &body,
-        bool incremental, for_type kind);
+        bool incremental, for_type kind, int num_threads = 0);
 
 // makes a new intrin_call with type_ and intrin_attrs_ copied
 intrin_call remake_intrin_call(

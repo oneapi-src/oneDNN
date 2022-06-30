@@ -284,7 +284,7 @@ class if_loop_simplify_impl_t : public ir_consistent_visitor_t {
                     make_stmt<for_loop_node_t>(var.remove_const(),
                             begin.remove_const(), end.remove_const(),
                             step.remove_const(), body.remove_const(),
-                            v->incremental_, v->kind_))
+                            v->incremental_, v->kind_, v->num_threads_))
                                 .checked_as<for_loop>();
             if (is_loop_merge) loop->attr()[stmt_attr_key::merge_loop] = true;
             is_loop_merge = cached_loop_merge;

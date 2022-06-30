@@ -452,5 +452,18 @@ func_t get_is_in_parallel_func() {
     return func;
 }
 
+func_t get_barrier_arrive_func() {
+    static func_t func = _decl_func("sc_arrive_at_barrier", datatypes::void_t,
+            {_arg_("b", datatypes::pointer)});
+    return func;
+}
+
+func_t get_init_barrier_func() {
+    static func_t func = _decl_func("sc_init_barrier", datatypes::void_t,
+            {_arg_("b", datatypes::pointer), _arg_("num", datatypes::s32),
+                    _arg_("thread_cnt", datatypes::index)});
+    return func;
+}
+
 } // namespace builtin
 } // namespace sc

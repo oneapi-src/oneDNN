@@ -286,6 +286,9 @@ std::ostream &operator<<(std::ostream &os, for_type val);
  * @param body_ the body of the loop
  * @param incremental_ if the loop-var var_ is incremental. Not currently used.
  * @param kind_ the kind of the loop. @see for_type
+ * @param num_threads_ the number of threads to use when it is a parallel-for. 0
+ * for using all avaiable threads in thread group. If the for-loop is not
+ * parallelled, it should be 0
  * */
 class for_loop_node_t : public stmt_base_t,
                         public visitable_t<for_loop_node_t, stmt_base_t> {
@@ -300,6 +303,7 @@ public:
     stmt body_;
     bool incremental_;
     for_type kind_;
+    int num_threads_;
 
     /**
      * A for-loop node will become
@@ -521,7 +525,7 @@ public:
     bool equals(stmt_c other, ir_comparer &ctx) const override;
 
     for_loop_node_t(expr var, expr iter_begin, expr iter_end, expr step,
-            stmt body, bool incremental, for_type kind)
+            stmt body, bool incremental, for_type kind, int num_threads = 0)
         : stmt_base_t(sc_stmt_type::for_loop)
         , var_(std::move(var))
         , iter_begin_(std::move(iter_begin))
@@ -529,7 +533,8 @@ public:
         , step_(std::move(step))
         , body_(std::move(body))
         , incremental_(incremental)
-        , kind_(kind) {}
+        , kind_(kind)
+        , num_threads_(num_threads) {}
 };
 using for_loop = node_ptr<for_loop_node_t, stmt_base_t>;
 using for_loop_c = node_ptr<const for_loop_node_t, stmt_base_t>;

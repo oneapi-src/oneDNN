@@ -201,7 +201,7 @@ void ir_copier_impl_t::view(define_c v) {
 void ir_copier_impl_t::view(for_loop_c v) {
     returned_stmt_ = make_stmt<for_loop_node_t>(copy(v->var_),
             copy(v->iter_begin_), copy(v->iter_end_), copy(v->step_),
-            copy(v->body_), v->incremental_, v->kind_);
+            copy(v->body_), v->incremental_, v->kind_, v->num_threads_);
 }
 
 func_c ir_copier_impl_t::dispatch(func_c v) {

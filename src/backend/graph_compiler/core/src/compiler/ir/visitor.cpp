@@ -435,7 +435,7 @@ stmt ir_visitor_base_impl_t<is_inplace>::visit_impl(for_loop v) {
             return copy_attr(*v,
                     make_stmt<for_loop_node_t>(std::move(var), std::move(begin),
                             std::move(end), std::move(step), std::move(body),
-                            v->incremental_, v->kind_));
+                            v->incremental_, v->kind_, v->num_threads_));
         }
         return std::move(v);
     }

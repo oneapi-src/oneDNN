@@ -352,7 +352,7 @@ public:
         }
         return copy_attr(*v,
                 builder::make_for_loop_unattached(thevar, begin, end, step,
-                        body, v->incremental_, v->kind_));
+                        body, v->incremental_, v->kind_, v->num_threads_));
     }
 
     stmt_c visit(if_else_c v) override {

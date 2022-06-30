@@ -631,6 +631,11 @@ void validate_impl_t::view(for_loop_c v) {
             "step of for_loop node expects an "
                     << v->var_->dtype_ << " as the itervar, got "
                     << v->step_->dtype_ << " expr = " << v);
+    if (v->kind_ == for_type::NORMAL) {
+        COMPILE_ASSERT(v->num_threads_ == 0,
+                "Expecting non-parallel for-loop's num threads = 0");
+    }
+    COMPILE_ASSERT(v->num_threads_ == 0, "Nested parallel-for is not enabled");
     for_loop_levels_--;
 }
 

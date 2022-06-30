@@ -21,28 +21,31 @@
 namespace sc {
 namespace builder {
 for_range_simulator_t range(const std::string &name, for_loop &out, expr min,
-        expr extent, expr step, for_type type) {
+        expr extent, expr step, for_type type, int num_threads) {
     return for_range_simulator_t(builder::get_current_builder(), &out, name,
-            std::move(min), std::move(extent), std::move(step), type);
+            std::move(min), std::move(extent), std::move(step), type,
+            num_threads);
 }
 
 for_range_simulator_t range_nobind(const std::string &name, expr min,
-        expr extent, expr step, for_type type) {
+        expr extent, expr step, for_type type, int num_threads) {
     return for_range_simulator_t(builder::get_current_builder(), nullptr, name,
-            std::move(min), std::move(extent), std::move(step), type);
+            std::move(min), std::move(extent), std::move(step), type,
+            num_threads);
+}
+
+for_range_simulator_t range(for_loop &out, expr min, expr extent, expr step,
+        for_type type, int num_threads) {
+    return for_range_simulator_t(builder::get_current_builder(), &out,
+            "!!!unamed", std::move(min), std::move(extent), std::move(step),
+            type, num_threads);
 }
 
 for_range_simulator_t range(
-        for_loop &out, expr min, expr extent, expr step, for_type type) {
-    return for_range_simulator_t(builder::get_current_builder(), &out,
-            "!!!unamed", std::move(min), std::move(extent), std::move(step),
-            type);
-}
-
-for_range_simulator_t range(expr min, expr extent, expr step, for_type type) {
+        expr min, expr extent, expr step, for_type type, int num_threads) {
     return for_range_simulator_t(builder::get_current_builder(), nullptr,
             "!!!unamed", std::move(min), std::move(extent), std::move(step),
-            type);
+            type, num_threads);
 }
 
 func_simulator_t _make_func_simulator(const std::string &name, func_t *outfunc,

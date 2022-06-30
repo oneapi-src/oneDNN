@@ -157,8 +157,11 @@ public:
         bool changed = !(var.ptr_same(v->var_) && begin.ptr_same(v->iter_begin_)
                 && end.ptr_same(v->iter_end_) && step.ptr_same(v->step_)
                 && body.ptr_same(v->body_));
-        total_wkld = total_wkld
-                + (get_expr_as_int(end) - get_expr_as_int(begin)) * body_wkld;
+        if (begin.isa<constant>() && end.isa<constant>()) {
+            total_wkld = total_wkld
+                    + (get_expr_as_int(end) - get_expr_as_int(begin))
+                            * body_wkld;
+        }
         cur_workload = total_wkld;
         changed |= (body_wkld > 0UL);
         if (changed) {
@@ -166,7 +169,7 @@ public:
                     && step.isa<constant>());
             stmt_c newv = copy_attr(*v,
                     builder::make_for_loop_unattached(var, begin, end, step,
-                            body, v->incremental_, v->kind_));
+                            body, v->incremental_, v->kind_, v->num_threads_));
             if (v->kind_ == for_type::PARALLEL) {
                 // copy whole for loop as split is inplace
                 std::unordered_map<expr_c, expr> rmap;

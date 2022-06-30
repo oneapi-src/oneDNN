@@ -573,10 +573,11 @@ stmt make_var_tensor_def_unattached(
 
 stmt make_for_loop_unattached(const expr_c &var, const expr_c &iter_begin,
         const expr_c &iter_end, const expr_c &step, const stmt_c &body,
-        bool incremental, for_type kind) {
+        bool incremental, for_type kind, int num_threads) {
     return make_stmt<for_loop_node_t>(var.remove_const(),
             iter_begin.remove_const(), iter_end.remove_const(),
-            step.remove_const(), body.remove_const(), incremental, kind);
+            step.remove_const(), body.remove_const(), incremental, kind,
+            num_threads);
 }
 
 stmt builder_impl_t::push_assign(const expr &var, const expr &value) {
@@ -615,9 +616,9 @@ stmt builder_impl_t::push_var_tensor_def(
 
 stmt builder_impl_t::push_for_loop(const expr &var_, const expr &iter_begin_,
         const expr &iter_end_, const expr &step_, const stmt &body_,
-        bool incremental_, for_type kind) {
-    auto ret = make_stmt<for_loop_node_t>(
-            var_, iter_begin_, iter_end_, step_, body_, incremental_, kind);
+        bool incremental_, for_type kind, int num_threads) {
+    auto ret = make_stmt<for_loop_node_t>(var_, iter_begin_, iter_end_, step_,
+            body_, incremental_, kind, num_threads);
     add_parent_node(body_, ret);
     emit(ret);
     return ret;

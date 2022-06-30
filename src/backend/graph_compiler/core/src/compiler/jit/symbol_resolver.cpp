@@ -20,6 +20,7 @@
 #ifdef SC_ENABLE_L0_BACKEND
 #include <runtime/l0_runtime.hpp>
 #endif
+#include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
 #include <runtime/memorypool.hpp>
 #include <runtime/parallel.hpp>
@@ -67,6 +68,8 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_get_thread_id",
                     (void *)runtime_config_t::get()
                             .thread_pool_table_->get_thread_id},
+            {"sc_arrive_at_barrier", (void *)sc_arrive_at_barrier},
+            {"sc_init_barrier", (void *)sc_init_barrier},
     };
     return table;
 }

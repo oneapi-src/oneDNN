@@ -78,6 +78,7 @@ struct for_range_simulator_t {
     expr step_;
     for_type type_;
     for_loop *out_;
+    int num_threads_;
     struct for_range_iterator_t {
         expr var_;
         bool consumed_;
@@ -105,14 +106,15 @@ struct for_range_simulator_t {
 
     for_range_simulator_t(builder::builder_impl_t *ctx, for_loop *out,
             const std::string &name, expr min, expr extent, expr step,
-            for_type type)
+            for_type type, int num_threads)
         : var_(builder::make_var(datatypes::index, name))
         , ctx_(ctx)
         , min_(std::move(min))
         , extent_(std::move(extent))
         , step_(std::move(step))
         , type_(type)
-        , out_(out) {
+        , out_(out)
+        , num_threads_(num_threads) {
         ctx->push_scope();
     }
 
@@ -124,25 +126,29 @@ struct for_range_simulator_t {
         , extent_(std::move(other.extent_))
         , step_(std::move(other.step_))
         , type_(other.type_)
-        , out_(other.out_) {}
+        , out_(other.out_)
+        , num_threads_(other.num_threads_) {}
 
     ~for_range_simulator_t() {
         if (!var_.defined()) return;
         auto bb = ctx_->pop_scope();
         auto st = ctx_->push_for_loop(
-                var_, min_, extent_, step_, bb, true, type_);
+                var_, min_, extent_, step_, bb, true, type_, num_threads_);
         if (out_) { *out_ = st.checked_as<for_loop>(); }
     }
 };
 
 for_range_simulator_t range(const std::string &name, for_loop &out, expr min,
-        expr extent, expr step = expr(1), for_type type = for_type::NORMAL);
+        expr extent, expr step = expr(1), for_type type = for_type::NORMAL,
+        int num_threads = 0);
 for_range_simulator_t range_nobind(const std::string &name, expr min,
-        expr extent, expr step = expr(1), for_type type = for_type::NORMAL);
+        expr extent, expr step = expr(1), for_type type = for_type::NORMAL,
+        int num_threads = 0);
 for_range_simulator_t range(for_loop &out, expr min, expr extent,
-        expr step = expr(1), for_type type = for_type::NORMAL);
+        expr step = expr(1), for_type type = for_type::NORMAL,
+        int num_threads = 0);
 for_range_simulator_t range(expr min, expr extent, expr step = expr(1),
-        for_type type = for_type::NORMAL);
+        for_type type = for_type::NORMAL, int num_threads = 0);
 
 /**
  * Builds a for-loop. Takes arguments:

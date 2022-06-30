@@ -75,7 +75,7 @@ public:
         if (changed) {
             return copy_attr(*v,
                     builder::make_for_loop_unattached(var, begin, end, step,
-                            body, v->incremental_, v->kind_));
+                            body, v->incremental_, v->kind_, v->num_threads_));
         } else {
             return std::move(v);
         }
