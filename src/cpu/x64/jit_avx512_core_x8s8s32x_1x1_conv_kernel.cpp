@@ -33,6 +33,8 @@
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 
+#define FORCE_BIT_EXACT 1
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -341,7 +343,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
                 auto r = vreg_accum(load_loop_blk, i_load, i_ur);
                 vpxord(r, r, r);
             }
-        if (jcp.signed_input) {
+        if (jcp.apply_compensation) {
             mov(reg_scratch, -128);
             vpbroadcastb(vmm_shift, reg_scratch.cvt8());
         }
@@ -371,7 +373,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             if (p_sum_scale_val != 1.f)
                 mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
         }
-        if (jcp.signed_input && (!jcp.has_vnni)) {
+        if (jcp.apply_scale_adjust) {
             mov(reg_scratch, float2int(jcp.wei_adj_scale));
             vmovq(xmm_bias_alpha(), reg_scratch);
             vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
@@ -387,14 +389,14 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             auto vmm_bias = vmm_tmp;
             auto vmm_comp = vmm_bcast;
             if (jcp.with_bias) {
-                if (jcp.signed_input)
+                if (jcp.apply_compensation)
                     mov(reg_bias_data,
                             EVEX_compress_addr(rsp, reg_bias_data_off));
                 cvt2ps(jcp.bia_dt, vmm_bias, bias_ptr(i_load), mask_flag);
-                if (jcp.signed_input && (!jcp.has_vnni))
+                if (jcp.apply_scale_adjust)
                     vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
             }
-            if (jcp.signed_input) {
+            if (jcp.apply_compensation) {
                 mov(reg_comp_data, EVEX_compress_addr(rsp, reg_comp_data_off));
                 cvt2ps(data_type::s32, vmm_comp, comp_ptr(i_load), mask_flag);
             }
@@ -414,7 +416,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(load_loop_blk, i_load, i_ur);
                 vcvtdq2ps(r, r);
-                if (jcp.signed_input) vaddps(r, r, vmm_comp);
+                if (jcp.apply_compensation) vaddps(r, r, vmm_comp);
                 if (jcp.src_zero_point) vaddps(r, r, vmm_zp);
                 if (jcp.with_bias) vaddps(r, r, vmm_bias);
 
@@ -547,10 +549,50 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
                 } else {
                     vpbroadcastd(vmm_bcast, bcast_ptr(i_reduce, i_ur, false));
                 }
-                if (jcp.signed_input) vpsubb(vmm_bcast, vmm_bcast, vmm_shift);
+                if (jcp.apply_compensation) vpsubb(vmm_bcast, vmm_bcast, vmm_shift);
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                     compute(vreg_accum(load_loop_blk, i_load, i_ur),
                             vreg_load(i_load), vmm_bcast);
+                }
+            }
+        }
+    };
+
+    auto ymm_load = [=](int i_load) { return Ymm(ur * load_loop_blk + i_load); };
+
+    auto fma_block_force_be = [=](bool last_block) {
+        assert(!jcp.apply_compensation);
+        int reduce_step = 2;
+        int ic_tail_size = jcp.ic_without_padding % reduce_step;
+        int loop_unroll = last_block && jcp.ic != jcp.ic_without_padding
+                ? rnd_up(jcp.ic_without_padding % jcp.ic_block, reduce_step)
+                : jcp.reduce_loop_unroll;
+        for (int i_reduce = 0; i_reduce < loop_unroll;
+                i_reduce += reduce_step) {
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                vmovups(ymm_load(i_load), load_ptr(i_reduce, i_load));
+            }
+            for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                if (last_block && ic_tail_size != 0
+                        && i_reduce == loop_unroll - reduce_step) {
+                    Xmm xmm_bcast = Xmm(vmm_bcast.getIdx());
+                    load_bytes(xmm_bcast, aux_reg_bcast_data,
+                            jcp.ic_without_padding * i_ur + i_reduce,
+                            ic_tail_size);
+                    vpbroadcastw(ymm_bcast, xmm_bcast);
+                } else {
+                    vpbroadcastw(ymm_bcast, bcast_ptr(i_reduce, i_ur, false));
+                }
+                for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                    Vmm vreg_acc = vreg_accum(load_loop_blk, i_load, i_ur);
+                    vpmovsxbw(zmm_wei_i16, ymm_load(i_load));
+                    if (jcp.signed_input) {
+                        vpmovsxbw(zmm_src_i16, ymm_bcast);
+                    } else {
+                        vpmovzxbw(zmm_src_i16, ymm_bcast);
+                    }
+                    vpmaddwd(vmm_tmp, zmm_src_i16, zmm_wei_i16);
+                    vpaddd(vreg_acc, vreg_acc, vmm_tmp);
                 }
             }
         }
@@ -570,7 +612,10 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
 
     L(reduce_loop);
     {
-        fma_block(false);
+        if (jcp.force_be)
+            fma_block_force_be(false);
+        else
+            fma_block(false);
         add(aux_reg_bcast_data, jcp.reduce_loop_bcast_step);
         add(aux_reg_load_data, jcp.reduce_loop_load_step);
         sub(reduce_loop_iter, jcp.reduce_loop_unroll);
@@ -579,9 +624,15 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
 
     L(reduce_loop_tail);
     if (jcp.ic != jcp.ic_without_padding) {
-        fma_block(true);
+        if (jcp.force_be)
+            fma_block_force_be(true);
+        else
+            fma_block(true);
     } else {
-        fma_block(false);
+        if (jcp.force_be)
+            fma_block_force_be(false);
+        else
+            fma_block(false);
     }
 
     if (jcp.oc_without_padding != jcp.oc) {
@@ -631,7 +682,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
     }
 
     if (jcp.with_bias) mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
-    if (jcp.signed_input) {
+    if (jcp.apply_compensation) {
         mov(EVEX_compress_addr(rsp, reg_bias_data_off), reg_bias_data);
         mov(reg_comp_data, ptr[param1 + GET_OFF(compensation)]);
         mov(EVEX_compress_addr(rsp, reg_comp_data_off), reg_comp_data);
@@ -715,11 +766,11 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
         bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
         if (jcp.with_bias) {
-            if (jcp.signed_input)
+            if (jcp.apply_compensation)
                 mov(reg_bias_data, EVEX_compress_addr(rsp, reg_bias_data_off));
             add(reg_bias_data,
                     load_loop_blk * jcp.load_block * jcp.typesize_bia);
-            if (jcp.signed_input)
+            if (jcp.apply_compensation)
                 mov(EVEX_compress_addr(rsp, reg_bias_data_off), reg_bias_data);
         }
         if (jcp.with_binary) {
@@ -729,7 +780,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
             mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off),
                     reg_scratch);
         }
-        if (jcp.signed_input) {
+        if (jcp.apply_compensation) {
             mov(reg_comp_data, EVEX_compress_addr(rsp, reg_comp_data_off));
             add(reg_comp_data,
                     load_loop_blk * jcp.load_block * sizeof(int32_t));
@@ -921,6 +972,14 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     if ((jcp.dst_zero_point || jcp.src_zero_point) && jcp.with_dw_conv)
         return status::unimplemented;
 
+    jcp.force_be = FORCE_BIT_EXACT && !jcp.has_vnni; // force bit exact (slower)
+    const bool force_be_supported = (ndims == 4) && (jcp.ngroups == 1) && (!jcp.src_zero_point);
+    if (jcp.force_be && (!force_be_supported))
+        return status::unimplemented;
+
+    jcp.apply_compensation = jcp.signed_input && !jcp.force_be; // apply compensation for signed input
+    jcp.apply_scale_adjust = jcp.signed_input && !jcp.has_vnni && !jcp.force_be;
+
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
@@ -950,7 +1009,14 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     auto set_or_check_wei_format = [&]() -> bool {
         using namespace format_tag;
         using namespace memory_extra_flags;
-        const format_tag_t wei_tags[3][2][3]
+        const int simd_idx = simd_w == 16 ? 0 : simd_w == 8 ? 1 : 2;
+        format_tag_t wei_tag;
+        if (jcp.force_be)
+        {
+            assert((simd_w == 16) && (!with_groups) && (ndims == 4));
+            wei_tag = OIhw8i16o2i;
+        } else {
+            const format_tag_t wei_tags[3][2][3]
                 = {{{OIw4i16o4i, OIhw4i16o4i, OIdhw4i16o4i},
                            {gOIw4i16o4i, gOIhw4i16o4i, gOIdhw4i16o4i}},
                         {{OIw2i8o4i, OIhw2i8o4i, OIdhw2i8o4i},
@@ -958,16 +1024,23 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
                         {{OIw4o4i, OIhw4o4i, OIdhw4o4i},
                                 {gOIw4o4i, gOIhw4o4i, gOIdhw4o4i}}};
 
-        const int simd_idx = simd_w == 16 ? 0 : simd_w == 8 ? 1 : 2;
-        const auto wei_tag = wei_tags[simd_idx][with_groups][ndims - 3];
+            wei_tag = wei_tags[simd_idx][with_groups][ndims - 3];
+        }
+
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
-        if (jcp.signed_input) {
-            want_wei_md.extra.flags = 0 | compensation_conv_s8s8 | scale_adjust;
-            want_wei_md.extra.compensation_mask
-                    = (1 << 0) + (with_groups ? (1 << 1) : 0);
-            want_wei_md.extra.scale_adjust
-                    = mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+        if (jcp.apply_compensation)
+        {
+            assert(jcp.signed_input);
+            want_wei_md.extra.flags = 0 | compensation_conv_s8s8;
+            want_wei_md.extra.compensation_mask = (1 << 0)
+                    + (with_groups ? (1 << 1) : 0);
+        }
+        if (jcp.apply_scale_adjust)
+        {
+            assert(jcp.signed_input && !jcp.has_vnni);
+            want_wei_md.extra.flags |= scale_adjust;
+            want_wei_md.extra.scale_adjust = 0.5f;
         }
         if (jcp.src_zero_point) {
             want_wei_md.extra.flags |= compensation_conv_asymmetric_src;
@@ -1218,7 +1291,7 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
         const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     using namespace dnnl::impl::memory_tracking::names;
 
-    if (jcp.signed_input && (!jcp.has_vnni)) {
+    if (jcp.apply_scale_adjust) {
         dim_t count = nstl::max<dim_t>(
                 attr.output_scales_.count_, (dim_t)jcp.ic_block);
         scratchpad.book<float>(key_conv_adjusted_scales, count);

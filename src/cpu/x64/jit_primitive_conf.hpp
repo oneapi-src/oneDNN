@@ -251,6 +251,11 @@ struct jit_conv_conf_t {
     int max_width;
 
     bool transform_to_vnni;
+
+    // force bit exactness
+    bool force_be; // force bit exact (has_vnni must be false)
+    bool apply_compensation;
+    bool apply_scale_adjust;
 };
 
 // calculates filter size taking into account dilation
@@ -599,6 +604,11 @@ struct jit_1x1_conv_conf_t {
 
     cpu_isa_t isa;
     bool uses_permw_transposition;
+
+    // force bit exactness
+    bool force_be; // force bit exact (has_vnni must be false)
+    bool apply_compensation;
+    bool apply_scale_adjust;
 };
 
 struct jit_1x1_conv_call_s {

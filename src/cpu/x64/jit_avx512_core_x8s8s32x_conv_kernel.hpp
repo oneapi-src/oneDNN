@@ -48,7 +48,7 @@ private:
     using Vmm_down_t =
             typename utils::conditional<std::is_same<Vmm, Xbyak::Zmm>::value,
                     Xbyak::Ymm, Xbyak::Xmm>::type;
-    const int ic_sub_step = 4;
+    const int ic_sub_step;
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
             postops_injector_;
 
@@ -123,7 +123,13 @@ private:
     /* used in compute_ker (but only for pre-VNNI machines) */
     const Vmm vmm_tmp = Vmm(28); // not used for depthwise
     const Vmm vmm_one
-            = Vmm(29); // set at start of kernel, not used for depthwise.
+            = Vmm(29); // set at start of kernel, not used for depthwise or force_be.
+
+    /* force bit exact */
+    const Xbyak::Ymm ymm_wei = Xbyak::Ymm(31);
+    const Xbyak::Zmm zmm_src_i16 = Xbyak::Zmm(29);
+    const Xbyak::Zmm zmm_wei_i16 = Xbyak::Zmm(30);
+
     /* zero-point */
     const Vmm vmm_zp = Vmm(25);
     const Vmm vmm_zp_one = Vmm(26);
@@ -169,6 +175,11 @@ private:
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
         return Vmm(idx);
+    }
+    Xbyak::Ymm ymm_inp(int i_ic, int nb_x_blocking) {
+        int idx = i_ic + nb_x_blocking * jcp.ur_w;
+        assert(idx < 31);
+        return Xbyak::Ymm(idx);
     }
     Xbyak::Zmm zmm_inp(int i_ic, int nb_x_blocking) {
         const int idx = i_ic + nb_x_blocking * jcp.ur_w;
@@ -235,6 +246,8 @@ private:
     void store_output(int ur_w, bool last_oc_block_flag);
     void compute_ker_dw(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded);
+    void compute_ker_force_be(int ur_w, int pad_l, int pad_r,
+            ic_block_t last_ic_block_flag);
     void compute_ker(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded = false);
     void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);

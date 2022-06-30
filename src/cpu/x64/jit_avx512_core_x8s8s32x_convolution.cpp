@@ -65,7 +65,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_1d(
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && (!jcp.has_vnni)) {
+    if (jcp.apply_scale_adjust) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -84,7 +84,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_1d(
     size_t ch_offset = jcp.is_depthwise ? jcp.nb_ch * jcp.ch_block
                                         : jcp.ngroups * jcp.oc;
     auto w = const_cast<char *>(weights);
-    int32_t *compensation = (jcp.signed_input)
+    int32_t *compensation = (jcp.apply_compensation)
             ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
             : nullptr;
     int32_t *zp_compensation = jcp.src_zero_point
@@ -134,7 +134,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_1d(
 
             p.bias = bias ? bias + (bias_d.blk_off(g_oc) * bia_dt_size)
                           : nullptr;
-            p.compensation = (jcp.signed_input) ? compensation + g_oc : nullptr;
+            p.compensation = (jcp.apply_compensation) ? compensation + g_oc : nullptr;
             p.zp_compensation
                     = jcp.src_zero_point ? zp_compensation + g_oc : nullptr;
             p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
@@ -207,7 +207,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d(
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && (!jcp.has_vnni)) {
+    if (jcp.apply_scale_adjust) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -223,7 +223,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d(
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<char *>(weights);
-    int32_t *compensation = (jcp.signed_input)
+    int32_t *compensation = (jcp.apply_compensation)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
     int32_t *zp_compensation = jcp.src_zero_point
@@ -280,7 +280,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d(
                 auto bias_w = bias ? bias + (bias_d.blk_off(g_oc) * bia_dt_size)
                                    : nullptr;
                 int32_t *compensation_w
-                        = (jcp.signed_input) ? compensation + g_oc : nullptr;
+                        = (jcp.apply_compensation) ? compensation + g_oc : nullptr;
 
                 auto dst_w = dst
                         + dst_dt_size * dst_d.blk_off(n, g_oc, oh_s, ow_s);
@@ -302,7 +302,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d(
                     int kh_padding = nstl::max(
                             0, jcp.kh - i_t_overflow - i_b_overflow);
 
-                    size_t wei_stride = (jcp.signed_input || jcp.src_zero_point)
+                    size_t wei_stride = (jcp.apply_compensation || jcp.src_zero_point)
                             ? 0
                             : i_t_overflow * wht_h_stride;
                     p.src = src_w + i_t_overflow * dilate_h * src_h_stride;
@@ -385,7 +385,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d_dw(
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && (!jcp.has_vnni)) {
+    if (jcp.apply_scale_adjust) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -401,7 +401,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d_dw(
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<char *>(weights);
-    int32_t *compensation = (jcp.signed_input)
+    int32_t *compensation = (jcp.apply_compensation)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
     int32_t *zp_compensation = jcp.src_zero_point
@@ -428,7 +428,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d_dw(
                 auto bias_w = bias ? bias + (bias_d.blk_off(g) * bia_dt_size)
                                    : nullptr;
                 int32_t *compensation_w
-                        = jcp.signed_input ? compensation + g : nullptr;
+                        = jcp.apply_compensation ? compensation + g : nullptr;
 
                 auto dst_w
                         = dst + dst_dt_size * dst_d.blk_off(n, g, oh_s, ow_s);
@@ -448,7 +448,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d_dw(
                 int kh_padding
                         = nstl::max(0, jcp.kh - i_t_overflow - i_b_overflow);
 
-                size_t wei_stride = (jcp.signed_input || jcp.src_zero_point)
+                size_t wei_stride = (jcp.apply_compensation || jcp.src_zero_point)
                         ? 0
                         : i_t_overflow * wht_h_stride;
                 p.src = src_w + i_t_overflow * dilate_h * src_h_stride;
@@ -507,7 +507,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_3d(
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
-    if (jcp.signed_input && (!jcp.has_vnni)) {
+    if (jcp.apply_scale_adjust) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
@@ -523,7 +523,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_3d(
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<char *>(weights);
-    int32_t *compensation = (jcp.signed_input)
+    int32_t *compensation = (jcp.apply_compensation)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
     int32_t *zp_compensation = jcp.src_zero_point
@@ -594,7 +594,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_3d(
                 auto bias_w = bias ? bias + (bias_d.blk_off(g_oc) * bia_dt_size)
                                    : nullptr;
                 int32_t *compensation_w
-                        = (jcp.signed_input) ? compensation + g_oc : nullptr;
+                        = (jcp.apply_compensation) ? compensation + g_oc : nullptr;
 
                 auto dst_w = dst
                         + dst_dt_size
@@ -602,7 +602,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_3d(
                 auto src_w = src + src_d.blk_off(n, g_ic, id_s, ih_s, iw_s)
                         + d_f_overflow * dilate_d * src_d_stride;
                 auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0)
-                        + ((jcp.signed_input || jcp.src_zero_point)
+                        + ((jcp.apply_compensation || jcp.src_zero_point)
                                           ? 0
                                           : d_f_overflow)
                                 * wht_d_stride;
@@ -622,7 +622,7 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_3d(
                     int kh_padding = nstl::max(
                             0, jcp.kh - i_t_overflow - i_b_overflow);
 
-                    size_t wei_stride = (jcp.signed_input || jcp.src_zero_point)
+                    size_t wei_stride = (jcp.apply_compensation || jcp.src_zero_point)
                             ? 0
                             : wht_h_stride * i_t_overflow;
                     p.src = src_w + i_t_overflow * dilate_h * src_h_stride;
