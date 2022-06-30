@@ -279,6 +279,11 @@ sc_dims logical_tensor_t::compute_dense_stride(const sc_dims &dims) {
     return strides;
 }
 
+void logical_tensor_t::to_string(std::ostream &os) {
+    os << '[' << dtype_ << ' ' << utils::print_vector(get_blocking_dims())
+       << " @ " << format_ << ']';
+}
+
 void graph_tensor::attach_use(sc_op_ptr op, int index) {
     uses_.emplace_back(std::make_pair(index, std::move(op)));
 }

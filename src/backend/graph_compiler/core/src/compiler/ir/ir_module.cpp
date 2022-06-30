@@ -147,11 +147,12 @@ tensor ir_module_t::make_global_tensor(sc_data_type_t dtype,
 
 tensor ir_module_t::make_global_stensor(sc_data_type_t dtype,
         const std::string &name, const std::vector<expr> &dims,
-        const std::vector<expr> &strides, linkage linkage) {
+        const std::vector<expr> &strides, linkage linkage, stmt *out_def_node) {
     tensor ret = builder::make_stensor(name, dims, strides, dtype)
                          .static_as<tensor>();
     auto def = builder::make_var_tensor_def_unattached(ret, linkage)
                        .static_as<define>();
+    if (out_def_node) { *out_def_node = def; }
     add_global_var(std::move(def));
     return ret;
 }

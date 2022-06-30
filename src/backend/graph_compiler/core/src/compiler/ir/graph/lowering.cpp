@@ -372,6 +372,12 @@ std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
 }
 } // namespace graph
 
+static void add_def_comments(const stmt &def_node, graph_tensor *t) {
+    std::stringstream ss;
+    t->details_.to_string(ss);
+    def_node->attr()["comments"] = std::vector<std::string> {ss.str()};
+}
+
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args) {
     auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
@@ -436,7 +442,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 tensor_name, dims, strides, t->details_.dtype_);
         tensor_counter++;
         ltsr_rtsr.insert(std::make_pair(t, tsr));
-
+        stmt def_node;
         if (!is_arg) {
             if (const_type != const_kind::not_const) {
                 if (const_type == const_kind::global_const) {
@@ -445,7 +451,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                             "folded_const_"
                                     + std::to_string(global_tensor_counter++),
                             tsr.checked_as<tensor>()->dims_,
-                            tsr.checked_as<tensor>()->strides_);
+                            tsr.checked_as<tensor>()->strides_,
+                            linkage::private_global, &def_node);
                     if (auto const_node
                             = t->producer_owner_->dyn_cast<constant_op_t>()) {
                         auto const_value = const_node->get_constant_values();
@@ -453,14 +460,15 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     }
                     ltsr_rtsr[t] = tsr;
                 } else {
-                    init_body->seq_.emplace_back(
-                            builder::make_var_tensor_def_unattached(tsr));
+                    def_node = builder::make_var_tensor_def_unattached(tsr);
+                    init_body->seq_.emplace_back(def_node);
                 }
             } else {
-                func_body->seq_.emplace_back(
-                        builder::make_var_tensor_def_unattached(tsr));
+                def_node = builder::make_var_tensor_def_unattached(tsr);
+                func_body->seq_.emplace_back(def_node);
             }
         }
+        if (def_node.defined()) { add_def_comments(def_node, t.get()); }
         return tsr;
     };
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {

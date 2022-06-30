@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include "../ir/viewer.hpp"
 #include "codegen_c_internal.hpp"
@@ -141,6 +142,19 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
 
 codegen_c_vis::codegen_c_vis(ostream *os, bool prototype_only, bool is_static)
     : os(os), prototype_only(prototype_only), is_static(is_static) {}
+
+stmt_c codegen_c_vis::dispatch(stmt_c v) {
+    if (v->attr_) {
+        if (auto comments
+                = v->attr_->get_or_null<std::vector<std::string>>("comments")) {
+            for (auto &str : *comments) {
+                *os << "// " << str << "\n";
+                print_indents(*os, indents);
+            }
+        }
+    }
+    return ir_visitor_t::dispatch(std::move(v));
+}
 
 func_c codegen_c_vis::dispatch(func_c v) {
     bool is_symbol_in_runtime = default_external_symbol_resolve(v->name_);

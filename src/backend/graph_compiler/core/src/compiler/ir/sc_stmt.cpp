@@ -166,6 +166,15 @@ bool returns_node_t::equals(stmt_c v, ir_comparer &ctx) const {
 }
 
 void define_node_t::to_string(ostream &os, int indent) const {
+    if (attr_) {
+        if (auto comments
+                = attr_->get_or_null<std::vector<std::string>>("comments")) {
+            for (auto &str : *comments) {
+                os << "// " << str << "\n";
+                print_indents(os, indent);
+            }
+        }
+    }
     auto v = var_.as<var>();
     switch (linkage_) {
         case linkage::local: break;

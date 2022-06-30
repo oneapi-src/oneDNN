@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ public:
     using ir_viewer_t::view;
     codegen_c_vis(ostream *os, bool prototype_only, bool is_static = false);
     func_c dispatch(func_c v) override;
+    stmt_c dispatch(stmt_c v) override;
     void view(constant_c v) override;
     void view(var_c v) override;
     void view(cast_c v) override;

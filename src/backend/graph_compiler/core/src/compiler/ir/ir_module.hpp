@@ -98,7 +98,8 @@ public:
     // make a global tensor with strides
     tensor make_global_stensor(sc_data_type_t dtype, const std::string &name,
             const std::vector<expr> &dims, const std::vector<expr> &strides,
-            linkage linkage = linkage::private_global);
+            linkage linkage = linkage::private_global,
+            stmt *out_def_node = nullptr);
     // adds a global var def, handles renaming
     void add_global_var(define def);
 

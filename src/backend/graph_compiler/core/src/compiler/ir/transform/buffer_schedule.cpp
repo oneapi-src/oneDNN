@@ -967,10 +967,11 @@ public:
                     return builder::make_stmts_unattached({});
                 }
                 assert(base_list_[cur_scope].defined());
-                return builder::make_var_tensor_def_unattached(v->var_,
-                        v->linkage_,
-                        builder::tensor_ptr(
-                                base_list_[cur_scope], {itr->second.second}));
+                return copy_attr(*v,
+                        builder::make_var_tensor_def_unattached(v->var_,
+                                v->linkage_,
+                                builder::tensor_ptr(base_list_[cur_scope],
+                                        {itr->second.second})));
             }
             return std::move(v);
         } else {

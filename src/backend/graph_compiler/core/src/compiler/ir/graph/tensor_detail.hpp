@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <functional>
 
+#include <iosfwd>
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/sc_data_type.hpp>
 #include <util/assert.hpp>
@@ -78,6 +79,8 @@ public:
     size_t size() const;
     // judge whether the current logical tensor is dense
     bool is_dense();
+    // print the tensor detail to string
+    void to_string(std::ostream &os);
     // used to compute dense stride based on dims
     static sc_dims compute_dense_stride(const sc_dims &dims);
 
