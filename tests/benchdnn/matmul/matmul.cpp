@@ -48,9 +48,9 @@ dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
     return runtime_dims;
 }
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &mpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+
     const auto &src_rt_dims
             = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
     const auto &weights_rt_dims = get_runtime_dims(
@@ -89,7 +89,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&mpd, &op_d, dnnl_attr, engine, nullptr);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &op_d, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 int init_prim_ref(
@@ -109,9 +110,11 @@ int init_prim_ref(
             {vdims_t(STRIDES_SIZE)}, cpu_bia_dt, cpu_bia_mask, {0, 0, 0},
             cpu_attr};
 
-    dnnl_primitive_desc_t pd_ref_ {};
-    init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, prb->dir, nullptr);
-    auto pd_ref = make_benchdnn_dnnl_wrapper(pd_ref_);
+    init_pd_args_t<prb_t> init_pd_args(
+            /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
+            /* hint = */ nullptr);
+    init_pd(init_pd_args);
+    auto pd_ref = make_benchdnn_dnnl_wrapper(init_pd_args.pd);
 
     dnnl_primitive_t prim_ref_ {};
     if (pd_ref) {

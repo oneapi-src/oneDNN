@@ -62,9 +62,9 @@ int fill_dst(
     return fill_dat(prb, DST, mem_dt, mem_fp, res);
 }
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+
     std::string src_tag = (prb->dir & FLAG_FWD) ? prb->tag : tag::any;
     std::string dst_tag = (prb->dir & FLAG_BWD) ? prb->tag : tag::any;
 
@@ -92,7 +92,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, hint);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &rd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

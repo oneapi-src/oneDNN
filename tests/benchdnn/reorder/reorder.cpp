@@ -154,9 +154,9 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
     return res->state == FAILED ? FAIL : OK;
 }
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+
     auto dims = prb->dims;
     for (int d = 0; d < prb->ndims; ++d)
         if (prb->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
@@ -171,7 +171,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     fill_memory_extra(prb, dst_md_extra);
     dst_d.extra = dst_md_extra;
 
-    dnnl_engine_t src_engine = engine, dst_engine = engine;
+    auto src_engine = init_pd_args.engine;
+    auto dst_engine = init_pd_args.engine;
     if (is_gpu()) {
         switch (prb->cross_engine) {
             case CPU2GPU: src_engine = get_cpu_engine(); break;
@@ -186,8 +187,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_reorder_primitive_desc_create(
-            &rpd, &src_d, src_engine, &dst_d, dst_engine, dnnl_attr);
+    return dnnl_reorder_primitive_desc_create(&init_pd_args.pd, &src_d,
+            src_engine, &dst_d, dst_engine, dnnl_attr);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

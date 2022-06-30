@@ -85,9 +85,9 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
     return OK;
 }
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &bpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+
     dnnl_binary_desc_t bd;
     std::vector<dnnl_memory_desc_t> src_d(prb->n_inputs());
 
@@ -110,7 +110,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, nullptr);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &bd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

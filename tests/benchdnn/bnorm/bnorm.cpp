@@ -286,9 +286,10 @@ int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
     return res->state == FAILED ? FAIL : OK;
 }
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &bpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+    const dir_t dir = init_pd_args.dir;
+
     dnnl_batch_normalization_desc_t bd;
 
     auto data_d = dnn_mem_t::init_md(
@@ -312,7 +313,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    return dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, hint);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &bd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

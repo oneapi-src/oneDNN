@@ -381,6 +381,23 @@ benchdnn_dnnl_wrapper_t<T> make_benchdnn_dnnl_wrapper(T t) {
     return benchdnn_dnnl_wrapper_t<T>(t);
 }
 
+template <typename prb_t>
+struct init_pd_args_t {
+    init_pd_args_t(res_t *res, dnnl_engine_t engine, const prb_t *prb,
+            dir_t dir, const_dnnl_primitive_desc_t hint)
+        : pd(pd), res(res), engine(engine), prb(prb), dir(dir), hint(hint) {}
+
+    // Output members
+    dnnl_primitive_desc_t pd;
+
+    // Input members
+    res_t *res;
+    dnnl_engine_t engine;
+    const prb_t *prb;
+    dir_t dir;
+    const_dnnl_primitive_desc_t hint;
+};
+
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
@@ -463,12 +480,11 @@ int check_skip_impl(const prb_t *prb,
 
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
-        const func_t &init_pd_func, prb_t *prb, res_t *res,
+        const func_t &init_pd_func, const prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
     dnnl_status_t status = dnnl_success;
-    dnnl_primitive_desc_t pd_ {};
     dnnl_primitive_t prim_ {};
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
 
     skip_start(res);
@@ -476,9 +492,11 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     skip_invalid_prb(prb, res);
     if (res->state == SKIPPED) return OK;
 
+    init_pd_args_t<prb_t> init_pd_args(res, nullptr, prb, dir, hint);
+
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
-        // The first primitive creation using a temporary engine.
+    // The first primitive creation using a temporary engine.
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice using different
     // engines but the same device and context in the case of OpenCL and DPCPP.
@@ -501,38 +519,40 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     engine_t engine(engine_tgt_kind);
 #endif
 
-    status = init_pd_func(engine, prb, pd_, res, dir, hint);
-    pd.reset(pd_);
+    init_pd_args.engine = engine;
+    status = init_pd_func(init_pd_args);
+    pdw.reset(init_pd_args.pd);
     SAFE(check_dnnl_status(status, prb, res), WARN);
 
-    SAFE(check_skip_impl(prb, pd, res), WARN);
+    SAFE(check_skip_impl(prb, pdw, res), WARN);
     if (res->state == SKIPPED) return OK;
 
-    // Skip prim creation for empty `pd_` to keep logic in a single place below.
-    if (pd_) DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
+    if (init_pd_args.pd)
+        DNN_SAFE(dnnl_primitive_create(&prim_, init_pd_args.pd), WARN);
     prim.reset(prim_);
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
-    status = init_pd_func(get_test_engine(), prb, pd_, res, dir, hint);
-    pd.reset(pd_);
+    init_pd_args.engine = get_test_engine();
+    status = init_pd_func(init_pd_args);
+    pdw.reset(init_pd_args.pd);
     SAFE(check_dnnl_status(status, prb, res), WARN);
 
-    SAFE(check_skip_impl(prb, pd, res), WARN);
+    SAFE(check_skip_impl(prb, pdw, res), WARN);
     if (res->state == SKIPPED) return OK;
 
     // This primitive is expected to come from the cache.
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
+    DNN_SAFE(dnnl_primitive_create(&prim_, pdw), WARN);
     prim.reset(prim_);
 
     // Check primitive descriptor is picked up from the cache, if applicable.
-    SAFE(check_pd_cache(pd), WARN);
+    SAFE(check_pd_cache(pdw), WARN);
     // Check primitive is picked up from the cache, if applicable.
     SAFE(check_primitive_cache(prim), WARN);
     // Collect memory footprint for a given primitive descriptor.
-    SAFE(get_memory_footprint(pd, res), WARN);
+    SAFE(get_memory_footprint(pdw, res), WARN);
 
-    SAFE(test_persistent_cache_api(prim, pd, res), WARN);
+    SAFE(test_persistent_cache_api(prim, pdw, res), WARN);
 
     user_prim.reset(prim.release());
     return OK;

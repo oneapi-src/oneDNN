@@ -553,10 +553,10 @@ void compute_ref(
         compute_ref_bwd(prb_, args);
 }
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
-        dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
-    const auto &prb = *p_ptr;
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t &prb = *init_pd_args.prb;
+    const dir_t dir = init_pd_args.dir;
+
     dnnl_rnn_desc_t rd;
     dnnl_prop_kind_t fwd_prop = dnnl_prop_kind_undef;
     switch (prb.prop) {
@@ -713,7 +713,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
     }
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(create_dnnl_rnn_attr(prb));
-    return dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &rd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
