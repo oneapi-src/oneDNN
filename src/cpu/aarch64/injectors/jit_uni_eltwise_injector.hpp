@@ -19,6 +19,7 @@
 #define CPU_AARCH64_JIT_UNI_ELTWISE_INJECTOR_HPP
 
 #include <assert.h>
+#include <type_traits>
 
 #include "common/c_types_map.hpp"
 #include "common/primitive_attr.hpp"
@@ -59,9 +60,10 @@ struct static_params_t {
     bool use_dst;
 };
 
-/* Checks if isa is supported by eltwise injector.
+/*
+ * Checks if isa is supported by eltwise injector.
  */
-bool is_isa_supported();
+bool is_isa_supported(cpu_isa_t isa);
 
 /*
  * Checks if eltwise algorithm is supported by eltwise injector.
@@ -71,7 +73,7 @@ bool is_alg_supported(alg_kind_t alg);
 /*
  * Checks if eltwise injection for given args is supported.
  */
-bool is_supported(alg_kind_t alg);
+bool is_supported(cpu_isa_t isa, alg_kind_t alg);
 
 } // namespace eltwise_injector
 
@@ -98,7 +100,8 @@ struct jit_uni_eltwise_injector_f32 {
             Xbyak_aarch64::PReg p_mask = Xbyak_aarch64::PReg(1),
             Xbyak_aarch64::PReg p_tmp0 = Xbyak_aarch64::PReg(4),
             Xbyak_aarch64::PReg p_all = Xbyak_aarch64::PReg(7),
-            bool is_fwd = true, bool use_dst = false)
+            bool is_fwd = true, bool use_dst = false, bool preserve_vmm = true,
+            bool preserve_p_table = true)
         : alg_(alg)
         , alpha_(alpha)
         , beta_(beta)
@@ -110,11 +113,11 @@ struct jit_uni_eltwise_injector_f32 {
         , p_tmp0(p_tmp0)
         , p_all(p_all)
         , is_fwd_(is_fwd)
-        , use_dst_(use_dst)
+        , use_dst_(use_dst) {
+        assert(eltwise_injector::is_supported(isa, alg_));
 
-    {
         using namespace alg_kind;
-        assert(utils::one_of(isa, sve_512));
+        assert(is_superset(isa, sve_128));
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
@@ -134,10 +137,12 @@ struct jit_uni_eltwise_injector_f32 {
             Xbyak_aarch64::PReg p_mask = Xbyak_aarch64::PReg(1),
             Xbyak_aarch64::PReg p_tmp0 = Xbyak_aarch64::PReg(4),
             Xbyak_aarch64::PReg p_all = Xbyak_aarch64::PReg(7),
-            bool is_fwd = true, bool use_dst = false)
+            bool is_fwd = true, bool use_dst = false, bool preserve_vmm = true,
+            bool preserve_p_table = true)
         : jit_uni_eltwise_injector_f32(host, eltwise.alg, eltwise.alpha,
                 eltwise.beta, eltwise.scale, save_state, x_table, p_mask,
-                p_tmp0, p_all, is_fwd, use_dst) {}
+                p_tmp0, p_all, is_fwd, use_dst, preserve_vmm,
+                preserve_p_table) {}
 
     void compute_vector_range(size_t start_idx, size_t end_idx);
     void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs);
