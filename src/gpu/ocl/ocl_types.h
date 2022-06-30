@@ -146,7 +146,7 @@
 #define DEF_ACC_DATA2_T half2
 #define DEF_ACC_DATA4_T half4
 #define DEF_ACC_DATA8_T half8
-#define POST_OP_DATA_T half
+#define POST_OP_DATA_T float
 #define TO_DATA_T(v) (half)(v)
 #define TO_DEF_ACC_DATA_T(v) (half)(v)
 #define DATA_TO_REF convert_half
