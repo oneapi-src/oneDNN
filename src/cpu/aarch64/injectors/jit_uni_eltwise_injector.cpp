@@ -494,14 +494,10 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector_fwd(
         const TRegS &vmm_src) {
-    /* Negative values are multiplied by alpha.
-     Positive values are not modified. */
     h->mov(ZRegD(vmm_aux0.getIdx()), ZRegD(vmm_src.getIdx()));
-    h->fminnm(vmm_src, p_all, 0.f);
-    h->fmaxnm(vmm_aux0, p_all, 0.f);
-    /* alpha is set to z_tmp in set_coef_to_regs(). */
+    h->fcmgt(p_mask.s, p_all, vmm_src, 0.0);
     h->fmul(vmm_src, vmm_src, z_tmp);
-    h->fadd(vmm_src, vmm_src, vmm_aux0);
+    h->sel(vmm_src, p_mask, vmm_aux0, vmm_src);
 }
 
 template <cpu_isa_t isa>
@@ -1440,7 +1436,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
         }
         if (scale_ != 1.f) {
             h->fmul(ZRegS(IDX(TRegS(idx))), ZRegS(IDX(TRegS(idx))),
-                    ZRegS(IDX(table_val(scale, z_tmp))));
+                    ZRegS(IDX(table_val(scale, vmm_mask))));
         }
     });
 }
