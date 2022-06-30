@@ -129,9 +129,9 @@ void fill_buffer(
      }).wait();
 }
 
-void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr) {
-    return malloc_shared(n, *static_cast<const ::sycl::device *>(dev),
+void *sycl_malloc_wrapper(
+        size_t size, size_t alignment, const void *dev, const void *ctx) {
+    return malloc_shared(size, *static_cast<const ::sycl::device *>(dev),
             *static_cast<const ::sycl::context *>(ctx));
 }
 

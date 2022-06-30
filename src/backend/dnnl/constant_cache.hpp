@@ -41,7 +41,7 @@ struct constant_buffer_t {
             const impl::allocator_t *alc)
         : size_(size), p_engine_(p_engine), alc_(alc) {
         data_ = dnnl_allocator_t::malloc(
-                size, p_engine, alc, impl::allocator_lifetime::persistent);
+                size, p_engine, alc, impl::allocator_t::mem_type_t::persistent);
         const_cast<impl::allocator_t *>(alc)->retain();
     }
 

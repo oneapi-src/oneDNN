@@ -49,7 +49,7 @@ public:
     temporary_scratchpad_t(size_t size, const dnnl::engine &eng,
             const impl::allocator_t &alloc) {
         buffer_ = reinterpret_cast<char *>(dnnl_allocator_t::malloc(
-                size, eng, &alloc, impl::allocator_lifetime::temp));
+                size, eng, &alloc, impl::allocator_t::mem_type_t::temp));
         if (!buffer_) { size_ = 0; }
         eng_ = &eng;
         alloc_ = &alloc;

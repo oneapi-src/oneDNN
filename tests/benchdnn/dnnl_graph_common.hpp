@@ -182,8 +182,8 @@ const dnnl::graph::engine &get_test_engine();
 const dnnl::graph::stream &get_test_stream();
 
 #if DNNL_GRAPH_WITH_SYCL
-void *sycl_alloc(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr);
+void *sycl_alloc(
+        size_t size, size_t alignment, const void *dev, const void *ctx);
 void sycl_free(void *ptr, const void *ctx);
 dnnl::graph::engine &get_engine();
 #endif // DNNL_GRAPH_WITH_SYCL

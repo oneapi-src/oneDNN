@@ -57,7 +57,7 @@ using exec_args = std::unordered_map<int, memory>;
 
 struct dnnl_allocator_t {
     static void *malloc(size_t size, const dnnl::engine &p_engine,
-            const impl::allocator_t *alc, allocator_lifetime_t lifetime);
+            const impl::allocator_t *alc, impl::allocator_t::mem_type_t type);
 
     static void free(void *p, const dnnl::engine &p_engine,
             const impl::allocator_t *alc);

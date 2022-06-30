@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,16 +17,13 @@
 #include <stdlib.h>
 #include "oneapi/dnnl/dnnl_graph_types.h"
 
-#define MEM_ALIGNMENT (4096)
-
-void *allocate(size_t mem_size, dnnl_graph_allocator_attr_t attr) {
-    (void)attr;
+void *allocate(size_t mem_size, size_t alignment) {
     void *ptr;
 #ifdef _WIN32
-    ptr = _aligned_malloc(mem_size, MEM_ALIGNMENT);
+    ptr = _aligned_malloc(mem_size, alignment);
     int ret = ((ptr) ? 0 : errno);
 #else
-    int ret = posix_memalign(&ptr, MEM_ALIGNMENT, mem_size);
+    int ret = posix_memalign(&ptr, alignment, mem_size);
 #endif /* _WIN32 */
     return (ret == 0) ? ptr : NULL;
 }

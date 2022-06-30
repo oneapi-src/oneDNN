@@ -33,15 +33,14 @@ class cpu_allocator_t {
 public:
     constexpr static size_t DEFAULT_ALIGNMENT = 64;
 
-    static void *malloc(size_t size, allocator_attr_t attr) {
+    static void *malloc(size_t size, size_t alignment) {
         void *ptr = nullptr;
-        size_t alignment
-                = attr.alignment == 0 ? DEFAULT_ALIGNMENT : attr.alignment;
+        const size_t align = alignment == 0 ? DEFAULT_ALIGNMENT : alignment;
 #ifdef _WIN32
-        ptr = _aligned_malloc(size, alignment);
+        ptr = _aligned_malloc(size, align);
         int rc = ((ptr) ? 0 : errno);
 #else
-        int rc = ::posix_memalign(&ptr, alignment, size);
+        int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
         return (rc == 0) ? ptr : nullptr;
     }
@@ -61,11 +60,10 @@ class sycl_allocator_t {
 public:
     constexpr static size_t DEFAULT_ALIGNMENT = 64;
 
-    static void *malloc(size_t size, const void *dev, const void *ctx,
-            allocator_attr_t attr) {
-        size_t alignment
-                = attr.alignment == 0 ? DEFAULT_ALIGNMENT : attr.alignment;
-        return ::sycl::aligned_alloc_shared(alignment, size,
+    static void *malloc(
+            size_t size, size_t alignment, const void *dev, const void *ctx) {
+        const size_t align = alignment == 0 ? DEFAULT_ALIGNMENT : alignment;
+        return ::sycl::aligned_alloc_shared(align, size,
                 *static_cast<const ::sycl::device *>(dev),
                 *static_cast<const ::sycl::context *>(ctx));
     }

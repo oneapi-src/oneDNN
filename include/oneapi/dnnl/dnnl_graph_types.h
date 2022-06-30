@@ -366,31 +366,16 @@ typedef enum {
 /// @addtogroup dnnl_graph_api_allocator
 /// @{
 
-/// An enumeration to express the lifetime management of the allocator
-typedef enum {
-    /// Memory allocation with persistent lifetime, need to be freed manually
-    dnnl_graph_allocator_persistent = 0,
-    /// Memory allocation for output tensor
-    dnnl_graph_allocator_output = 1,
-    /// Memory allocation with temporary lifetime
-    dnnl_graph_allocator_temp = 2,
-} dnnl_graph_allocator_lifetime_t;
-
-/// An attribute struct associated with allocator.
-typedef struct {
-    /// lifetime enumeration
-    dnnl_graph_allocator_lifetime_t type;
-    /// alignment value
-    size_t alignment;
-} dnnl_graph_allocator_attr_t;
-
 /// Allocation call-back function interface for CPU
-typedef void *(*dnnl_graph_cpu_allocate_f)(size_t, dnnl_graph_allocator_attr_t);
+typedef void *(*dnnl_graph_host_allocate_f)(size_t size, size_t alignment);
+
 /// Deallocation call-back function interface for CPU
-typedef void (*dnnl_graph_cpu_deallocate_f)(void *);
+typedef void (*dnnl_graph_host_deallocate_f)(void *);
+
 /// Allocation call-back function interface for SYCL device
-typedef void *(*dnnl_graph_sycl_allocate_f)(size_t size, const void *dev,
-        const void *context, dnnl_graph_allocator_attr_t attr);
+typedef void *(*dnnl_graph_sycl_allocate_f)(
+        size_t size, size_t alignment, const void *dev, const void *context);
+
 /// brief Deallocation call-back function interface for SYCL device
 typedef void (*dnnl_graph_sycl_deallocate_f)(
         void *buf, const void *dev, const void *context, void *event);

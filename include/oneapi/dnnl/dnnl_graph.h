@@ -41,8 +41,9 @@ extern "C" {
 /// @returns #dnnl_graph_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
-        dnnl_graph_allocator_t *allocator, dnnl_graph_cpu_allocate_f cpu_malloc,
-        dnnl_graph_cpu_deallocate_f cpu_free);
+        dnnl_graph_allocator_t *allocator,
+        dnnl_graph_host_allocate_f host_malloc,
+        dnnl_graph_host_deallocate_f host_free);
 
 /// Destroys the created allocator
 ///

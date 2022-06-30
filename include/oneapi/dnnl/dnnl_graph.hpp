@@ -242,26 +242,16 @@ class allocator : public detail::allocator_handle {
 public:
     using detail::allocator_handle::handle;
 
-    /// An allocator attribute
-    using attribute = dnnl_graph_allocator_attr_t;
-
-    /// allocation lifetime enumeration
-    enum class lifetime {
-        persistent = dnnl_graph_allocator_persistent,
-        output = dnnl_graph_allocator_output,
-        temp = dnnl_graph_allocator_temp,
-    };
-
     /// Constructs an allocator according to given function pointers
     ///
     /// @param cpu_malloc A pointer to malloc function for CPU
     /// @param cpu_free A pointer to free function for CPU
-    allocator(dnnl_graph_cpu_allocate_f cpu_malloc,
-            dnnl_graph_cpu_deallocate_f cpu_free) {
+    allocator(dnnl_graph_host_allocate_f host_malloc,
+            dnnl_graph_host_deallocate_f host_free) {
         dnnl_graph_allocator_t a = nullptr;
         error::check_succeed(
-                dnnl_graph_allocator_create(&a, cpu_malloc, cpu_free),
-                "could not create allocator for cpu");
+                dnnl_graph_allocator_create(&a, host_malloc, host_free),
+                "could not create allocator for host");
         reset(a);
     }
 
@@ -271,10 +261,6 @@ public:
         error::check_succeed(dnnl_graph_allocator_create(&a, nullptr, nullptr),
                 "could not create allocator");
         reset(a);
-    }
-
-    static dnnl_graph_allocator_lifetime_t convert_to_c(lifetime type) {
-        return static_cast<dnnl_graph_allocator_lifetime_t>(type);
     }
 };
 

@@ -30,9 +30,9 @@ namespace dnnl {
 namespace graph {
 namespace testing {
 
-void *allocate(size_t n, dnnl::graph::allocator::attribute attr) {
-    (void)attr;
-    return malloc(n);
+void *allocate(size_t size, size_t alignment) {
+    (void)alignment;
+    return malloc(size);
 }
 
 void deallocate(void *ptr) {
@@ -45,22 +45,10 @@ void deallocate(void *ptr) {
 /// wrap the real SYCL malloc_shared/free functions like below, then
 /// dnnl_graph_allocator will be created with correct allocation/deallocation
 /// function pointers.
-void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr) {
-    namespace api = dnnl::graph;
-    // need to handle different allocation types according to attr.type
-    if (attr.type
-            == api::allocator::convert_to_c(
-                    api::allocator::lifetime::persistent)) {
-        // persistent memory
-    } else if (attr.type
-            == api::allocator::convert_to_c(api::allocator::lifetime::output)) {
-        // output tensor memory
-    } else {
-        // temporary memory
-    }
-
-    return malloc_shared(n, *static_cast<const ::sycl::device *>(dev),
+void *sycl_malloc_wrapper(
+        size_t size, size_t alignment, const void *dev, const void *ctx) {
+    (void)alignment;
+    return malloc_shared(size, *static_cast<const ::sycl::device *>(dev),
             *static_cast<const ::sycl::context *>(ctx));
 }
 
@@ -83,11 +71,11 @@ simple_sycl_allocator *get_allocator(const ::sycl::context *ctx) {
     return &aallocator;
 }
 
-void *sycl_allocator_malloc(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr) {
+void *sycl_allocator_malloc(
+        size_t size, size_t alignment, const void *dev, const void *ctx) {
     simple_sycl_allocator *aallocator
             = get_allocator(static_cast<const ::sycl::context *>(ctx));
-    return aallocator->malloc(n, static_cast<const ::sycl::device *>(dev));
+    return aallocator->malloc(size, static_cast<const ::sycl::device *>(dev));
 }
 
 void sycl_allocator_free(

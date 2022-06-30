@@ -305,13 +305,6 @@ const property_type_t variable = dnnl_graph_tensor_property_variable;
 const property_type_t constant = dnnl_graph_tensor_property_constant;
 } // namespace property_type
 
-using allocator_lifetime_t = dnnl_graph_allocator_lifetime_t;
-namespace allocator_lifetime {
-const allocator_lifetime_t persistent = dnnl_graph_allocator_persistent;
-const allocator_lifetime_t output = dnnl_graph_allocator_output;
-const allocator_lifetime_t temp = dnnl_graph_allocator_temp;
-} // namespace allocator_lifetime
-
 using attribute_kind_t = size_t;
 namespace attribute_kind {
 const attribute_kind_t f = 0;
@@ -322,10 +315,9 @@ const attribute_kind_t s = 4;
 const attribute_kind_t b = 5;
 } // namespace attribute_kind
 
-using allocator_attr_t = dnnl_graph_allocator_attr_t;
 using allocator_t = dnnl_graph_allocator;
-using cpu_allocate_f = dnnl_graph_cpu_allocate_f;
-using cpu_deallocate_f = dnnl_graph_cpu_deallocate_f;
+using host_allocate_f = dnnl_graph_host_allocate_f;
+using host_deallocate_f = dnnl_graph_host_deallocate_f;
 using sycl_allocate_f = dnnl_graph_sycl_allocate_f;
 using sycl_deallocate_f = dnnl_graph_sycl_deallocate_f;
 using inplace_pair_t = dnnl_graph_inplace_pair_t;

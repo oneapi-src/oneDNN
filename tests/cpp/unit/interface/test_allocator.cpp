@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,8 +28,6 @@ TEST(Allocator, DefaultCpuAllocator) {
     dnnl::graph::impl::allocator_t *alloc
             = dnnl::graph::impl::allocator_t::create();
 
-    dnnl::graph::impl::allocator_t::attribute_t attr {
-            dnnl::graph::impl::allocator_lifetime::persistent, 4096};
     void *mem_ptr = alloc->allocate(static_cast<size_t>(16));
     if (mem_ptr == nullptr) {
         alloc->release();
@@ -38,14 +36,6 @@ TEST(Allocator, DefaultCpuAllocator) {
         alloc->deallocate(mem_ptr);
         alloc->release();
     }
-}
-
-TEST(Allocator, CreateWithAttr) {
-    dnnl::graph::impl::allocator_t::attribute_t attr {
-            dnnl::graph::impl::allocator_lifetime::output, 1024};
-
-    ASSERT_EQ(attr.data.alignment, 1024);
-    ASSERT_EQ(attr.data.type, dnnl::graph::impl::allocator_lifetime::output);
 }
 
 #ifndef NDEBUG
@@ -60,17 +50,16 @@ TEST(Allocator, Monitor) {
 
     auto callee = [&]() {
         // allocate persistent buffer
-        void *p_buf = alloc->allocate(persist_size,
-                allocator_t::attribute_t {
-                        allocator_lifetime::persistent, 4096});
+        void *p_buf = alloc->allocate(
+                persist_size, {allocator_t::mem_type_t::persistent, 4096});
         {
             std::lock_guard<std::mutex> lock(m);
             persist_bufs.emplace_back(p_buf);
         }
 
         // allocate temporary buffer
-        void *t_buf = alloc->allocate(temp_size,
-                allocator_t::attribute_t {allocator_lifetime::temp, 4096});
+        void *t_buf = alloc->allocate(
+                temp_size, {allocator_t::mem_type_t::temp, 4096});
         for (size_t i = 0; i < temp_size; i++) {
             char *ptr = (char *)t_buf + i;
             *ptr = *ptr + 2;

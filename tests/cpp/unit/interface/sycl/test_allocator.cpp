@@ -42,8 +42,8 @@ TEST(TestAllocator, DefaultSyclAllocator) {
             : sycl::queue {
                     sycl::cpu_selector {}, sycl::property::queue::in_order {}};
 
-    impl::allocator_t::attribute_t attr {
-            impl::allocator_lifetime::persistent, 4096};
+    impl::allocator_t::mem_attr_t attr {
+            impl::allocator_t::mem_type_t::persistent, 4096};
     void *mem_ptr = alloc.allocate(
             static_cast<size_t>(16), q.get_device(), q.get_context(), attr);
     ASSERT_NE(mem_ptr, nullptr);
@@ -59,12 +59,11 @@ TEST(TestAllocator, SyclAllocator) {
             "skip sycl api test for native cpu runtime.");
 #endif
     namespace sycl = cl::sycl;
-    dnnl::graph::impl::allocator_t::attribute_t alloc_attr {
-            dnnl::graph::impl::allocator_lifetime::persistent, 1024};
-    ASSERT_EQ(alloc_attr.data.type,
-            dnnl::graph::impl::allocator_lifetime::persistent);
-    ASSERT_EQ(alloc_attr.data.alignment, 1024);
-    dnnl::graph::impl::allocator_t &sycl_alloc = *impl::allocator_t::create(
+    impl::allocator_t::mem_attr_t alloc_attr {
+            impl::allocator_t::mem_type_t::persistent, 1024};
+    ASSERT_EQ(alloc_attr.type_, impl::allocator_t::mem_type_t::persistent);
+    ASSERT_EQ(alloc_attr.alignment_, 1024);
+    impl::allocator_t &sycl_alloc = *impl::allocator_t::create(
             dnnl::graph::testing::sycl_malloc_wrapper,
             dnnl::graph::testing::sycl_free_wrapper);
     sycl::device sycl_dev = (kind == impl::engine_kind::gpu)

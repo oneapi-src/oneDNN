@@ -29,13 +29,13 @@ namespace dnnl {
 namespace graph {
 namespace testing {
 
-void *allocate(size_t n, dnnl::graph::allocator::attribute attr);
+void *allocate(size_t size, size_t alignment);
 
 void deallocate(void *ptr);
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr);
+void *sycl_malloc_wrapper(
+        size_t size, size_t alignment, const void *dev, const void *ctx);
 
 void sycl_free_wrapper(
         void *ptr, const void *device, const void *context, void *event);
@@ -72,8 +72,8 @@ private:
 
 simple_sycl_allocator *get_allocator(const ::sycl::context *ctx);
 
-void *sycl_allocator_malloc(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr);
+void *sycl_allocator_malloc(
+        size_t size, size_t alignment, const void *dev, const void *ctx);
 
 void sycl_allocator_free(
         void *ptr, const void *device, const void *context, void *event);

@@ -26,17 +26,17 @@
 using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_allocator_create(allocator_t **allocator,
-        cpu_allocate_f cpu_malloc, cpu_deallocate_f cpu_free) {
+        host_allocate_f host_malloc, host_deallocate_f host_free) {
 #ifdef DNNL_GRAPH_CPU_SYCL
     UNUSED(allocator);
-    UNUSED(cpu_malloc);
-    UNUSED(cpu_free);
+    UNUSED(host_malloc);
+    UNUSED(host_free);
     return status::invalid_arguments;
 #else
-    if (utils::any_null(cpu_malloc, cpu_free)) {
+    if (utils::any_null(host_malloc, host_free)) {
         *allocator = allocator_t::create();
     } else {
-        *allocator = allocator_t::create(cpu_malloc, cpu_free);
+        *allocator = allocator_t::create(host_malloc, host_free);
     }
     return status::success;
 #endif
@@ -88,18 +88,18 @@ utils::rw_mutex_t dnnl_graph_allocator::monitor_t::rw_mutex_;
 
 void dnnl_graph_allocator::monitor_t::record_allocate(
         const dnnl_graph_allocator *alloc, const void *buf, size_t size,
-        const dnnl_graph_allocator::attribute_t &attr) {
-    if (attr.data.type == allocator_lifetime::persistent) {
+        dnnl_graph_allocator::mem_type_t type) {
+    const auto persistent = dnnl_graph_allocator::mem_type_t::persistent;
+    const auto temp = dnnl_graph_allocator::mem_type_t::temp;
+    if (type == persistent) {
         persist_mem_[alloc] += size;
-        persist_mem_infos_[alloc].emplace(
-                buf, mem_info_t {size, allocator_lifetime::persistent});
-    } else if (attr.data.type == allocator_lifetime::temp) {
+        persist_mem_infos_[alloc].emplace(buf, mem_info_t {size, persistent});
+    } else if (type == temp) {
         auto tid = std::this_thread::get_id();
         temp_mem_[tid][alloc] += size;
         if (peak_temp_mem_[tid][alloc] < temp_mem_[tid][alloc])
             peak_temp_mem_[tid][alloc] = temp_mem_[tid][alloc];
-        temp_mem_infos_[tid][alloc].emplace(
-                buf, mem_info_t {size, allocator_lifetime::temp});
+        temp_mem_infos_[tid][alloc].emplace(buf, mem_info_t {size, temp});
     } else {
         // we didn't use output type buffer now.
         assertm(0, "we didn't use output type buffer now");

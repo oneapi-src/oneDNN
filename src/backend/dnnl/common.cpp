@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "interface/allocator.hpp"
 #include "interface/backend.hpp"
 #include "interface/shape_infer.hpp"
 
@@ -49,20 +50,20 @@ namespace impl {
 namespace dnnl_impl {
 
 void *dnnl_allocator_t::malloc(size_t size, const dnnl::engine &p_engine,
-        const impl::allocator_t *alc, allocator_lifetime_t lifetime) {
+        const impl::allocator_t *alc, allocator_t::mem_type_t type) {
     if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
         return alc->allocate(size, dnnl::sycl_interop::get_device(p_engine),
                 dnnl::sycl_interop::get_context(p_engine),
-                {lifetime, DNNL_SYCL_MEMALIGNMENT});
+                {type, DNNL_SYCL_MEMALIGNMENT});
 #else
-        return alc->allocate(size, {lifetime, DNNL_CPU_MEMALIGNMENT});
+        return alc->allocate(size, {type, DNNL_CPU_MEMALIGNMENT});
 #endif
     } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
         return alc->allocate(size, dnnl::sycl_interop::get_device(p_engine),
                 dnnl::sycl_interop::get_context(p_engine),
-                {lifetime, DNNL_SYCL_MEMALIGNMENT});
+                {type, DNNL_SYCL_MEMALIGNMENT});
 #else
         return nullptr;
 #endif

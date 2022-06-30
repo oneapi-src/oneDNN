@@ -38,9 +38,10 @@ TEST(TestEngine, CreateWithDefaultAllocator) {
 
     impl::engine_t eng(kind, dev, ctx);
 
-    impl::allocator_t::attribute_t attr {impl::allocator_lifetime::temp, 128};
-    ASSERT_EQ(attr.data.type, impl::allocator_lifetime::temp);
-    ASSERT_EQ(attr.data.alignment, 128);
+    impl::allocator_t::mem_attr_t attr {
+            impl::allocator_t::mem_type_t::temp, 128};
+    ASSERT_EQ(attr.type_, impl::allocator_t::mem_type_t::temp);
+    ASSERT_EQ(attr.alignment_, 128);
 
     auto *mem_ptr = eng.get_allocator()->allocate(
             16, eng.sycl_device(), eng.sycl_context(), attr);

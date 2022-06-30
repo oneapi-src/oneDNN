@@ -30,8 +30,7 @@ using sc_engine_t = ::sc::runtime::engine_t;
 
 static void *compiler_graph_global_alloc(sc_engine_t *eng, size_t sz) {
     return static_cast<compiler_graph_engine_t *>(eng)->allocator_->allocate(sz,
-            {dnnl::graph::impl::allocator_lifetime::persistent,
-                    ALLOCATOR_ALIGNMENT});
+            {impl::allocator_t::mem_type_t::persistent, ALLOCATOR_ALIGNMENT});
 }
 
 static void compiler_graph_global_free(sc_engine_t *eng, void *p) {
@@ -41,7 +40,7 @@ static void compiler_graph_global_free(sc_engine_t *eng, void *p) {
 #if 0
 static void *compiler_graph_temp_alloc(sc_engine_t *eng, size_t sz) {
     return static_cast<compiler_graph_engine_t *>(eng)->allocator_->allocate(sz,
-            {dnnl::graph::impl::allocator_lifetime::temp, ALLOCATOR_ALIGNMENT});
+            {impl::allocator_t::mem_type_t::temp, ALLOCATOR_ALIGNMENT});
 }
 
 static void compiler_graph_temp_free(sc_engine_t *eng, void *p) {
