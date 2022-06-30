@@ -138,12 +138,23 @@ static int str2arg(const std::string &str) {
     for (const auto &arg : supported_args)
         for (const auto &s : arg.second)
             if (str.compare(s) == 0) return arg.first;
+    // multiple srcs
+    if (str.compare(0, 3, "msrc")) {
+        const auto &str_index = str.substr(4);
+        const auto index = stoul(str_index);
+        return DNNL_ARG_MULTIPLE_SRC + index;
+    }
     return BENCHDNN_DNNL_ARG_UNDEF;
 }
 
 const std::string arg2str(int arg) {
     if (supported_args.find(arg) != supported_args.end())
         return std::string(supported_args.at(arg)[0]);
+    if (arg & DNNL_ARG_MULTIPLE_SRC) {
+        std::string msrc("msrc");
+        const int index = arg - DNNL_ARG_MULTIPLE_SRC;
+        return msrc + std::to_string(index);
+    }
     assert(!"unknown argument");
     return "unknown argument";
 }
