@@ -19,12 +19,24 @@
 
 #include "cpu/cpu_eltwise_pd.hpp"
 
-#include "cpu/aarch64/acl_eltwise_utils.hpp"
+#include "cpu/aarch64/acl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
+
+struct acl_eltwise_obj_t {
+    arm_compute::NEActivationLayer act;
+    arm_compute::Tensor src_tensor;
+    arm_compute::Tensor dst_tensor;
+};
+
+struct acl_eltwise_conf_t {
+    arm_compute::ActivationLayerInfo act_info;
+    // src and dst have the same info
+    arm_compute::TensorInfo data_info;
+};
 
 struct acl_eltwise_resource_t : public resource_t {
     acl_eltwise_resource_t()
@@ -34,15 +46,11 @@ struct acl_eltwise_resource_t : public resource_t {
         if (!acl_eltwise_obj_) return status::out_of_memory;
 
         // Init Compute Library tensors based on info from descriptor
-        acl_eltwise_obj_->src_tensor.allocator()->init(aep.src_info);
-        acl_eltwise_obj_->dst_tensor.allocator()->init(aep.dst_info);
+        acl_eltwise_obj_->src_tensor.allocator()->init(aep.data_info);
+        acl_eltwise_obj_->dst_tensor.allocator()->init(aep.data_info);
 
-        // clang-format off
-        acl_eltwise_obj_->act.configure(
-            &acl_eltwise_obj_->src_tensor,
-            &acl_eltwise_obj_->dst_tensor,
-            aep.act_info);
-        // clang-format on
+        acl_eltwise_obj_->act.configure(&acl_eltwise_obj_->src_tensor,
+                &acl_eltwise_obj_->dst_tensor, aep.act_info);
 
         return status::success;
     }
@@ -55,38 +63,60 @@ private:
     std::unique_ptr<acl_eltwise_obj_t> acl_eltwise_obj_;
 }; // acl_eltwise_resource_t
 
-template <data_type_t data_type>
 struct acl_eltwise_fwd_t : public primitive_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
         pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
                 const eltwise_fwd_pd_t *hint_fwd_pd)
-            : cpu_eltwise_fwd_pd_t(adesc, attr, hint_fwd_pd), aep_() {}
+            : cpu_eltwise_fwd_pd_t(adesc, attr, hint_fwd_pd), aep() {}
 
-        DECLARE_COMMON_PD_T("eltwise:acl", acl_eltwise_fwd_t);
+        DECLARE_COMMON_PD_T("acl", acl_eltwise_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace utils;
-            const auto &po = attr()->post_ops_;
+            using namespace data_type;
+            const memory_desc_wrapper data_d(data_md());
 
-            bool ok = is_fwd() && data_type == desc()->data_desc.data_type
+            bool ok = is_fwd() && one_of(data_d.data_type(), f32, s32, s8)
                     && !has_zero_dim_memory() && attr()->has_default_values()
-                    && po.len() == 0;
+                    && data_d.is_dense();
             if (!ok) return status::unimplemented;
 
-            auto conf_status = acl_eltwise_utils::init_conf_eltwise(
-                    aep_, data_md_, *desc(), *attr());
-            if (conf_status != status::success) return status::unimplemented;
+            auto acl_data_t = acl_utils::get_acl_data_t(data_d.data_type());
+
+            // Operator acts elementwise, so we only require that the product of
+            // all the dimensions equals the total number of elements. We are
+            // free to swap/combine dimensions. ACL performs SIMD parallelism
+            // over the first dimension and thread parallelism over the second.
+            // We pick a single dimension to thread over (taking the max of 2 to
+            // reduce the chance of it being 1), with the remaining dimensions
+            // to SIMD over.
+            dim_t thread_dim = std::max(W(), ndims() >= 2 ? C() : 1);
+            auto shape = arm_compute::TensorShape(
+                    data_d.nelems() / thread_dim, thread_dim);
+            aep.data_info = arm_compute::TensorInfo(shape, 1, acl_data_t);
+
+            const bool is_int8 = one_of(data_d.data_type(), s8, u8);
+            if (is_int8) {
+                aep.data_info.set_quantization_info(
+                        arm_compute::QuantizationInfo(1, 0));
+            }
+
+            if (!acl_utils::acl_act_ok(desc()->alg_kind))
+                return status::unimplemented;
+
+            aep.act_info = acl_utils::get_acl_act(*desc());
+
+            ACL_CHECK_VALID(arm_compute::NEActivationLayer::validate(
+                    &aep.data_info, &aep.data_info, aep.act_info));
 
             return status::success;
         }
 
-        acl_eltwise_conf_t aep_;
+        acl_eltwise_conf_t aep;
     };
 
     acl_eltwise_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
-    using data_t = typename prec_traits<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -100,10 +130,10 @@ struct acl_eltwise_fwd_t : public primitive_t {
         if (!r) return status::out_of_memory;
 
         // Configure the resource based on information from primitive descriptor
-        auto st = r->configure(pd()->aep_);
-        if (st == status::success) { mapper.add(this, std::move(r)); }
+        CHECK(r->configure(pd()->aep));
+        mapper.add(this, std::move(r));
 
-        return st;
+        return status::success;
     }
 
 private:
