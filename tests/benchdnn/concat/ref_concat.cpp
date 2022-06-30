@@ -46,9 +46,14 @@ void compute_ref(
             int64_t i_axis_size = prb->vdims[i_input][prb->axis];
             int64_t off_src = ou * i_axis_size * inner_size;
 
+            float scale_i
+                    = prb->attr.scales.get(DNNL_ARG_MULTIPLE_SRC + i_input)
+                              .scale;
+
             for (int64_t as = 0; as < i_axis_size; ++as) {
                 int64_t idx = as * inner_size + in;
-                dst_ptr[off_dst + idx] = src_i.get_elem(off_src + idx);
+                dst_ptr[off_dst + idx]
+                        = src_i.get_elem(off_src + idx) * scale_i;
             }
             // the next input start point
             off_dst += i_axis_size * inner_size;
