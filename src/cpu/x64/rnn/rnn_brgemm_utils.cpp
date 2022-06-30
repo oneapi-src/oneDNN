@@ -481,7 +481,6 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
 
     // enable merged across n_iter dimension layer part of the cell computation
     // TODO: extend coverage for other problem types
-    const bool mlc_problem_dt_ok = is_int8;
     const bool mlc_cell_type_ok = cell_kind == alg_kind::vanilla_lstm
             && !rnn.is_lstm_projection && !rnn.is_lstm_peephole;
     const int mlc_mb_max_threshold = 1;
@@ -499,7 +498,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     const bool mlc_m_dim_adjustment_not_required
             = IMPLICATION(rnn.skip_dst_iter_copy(),
                     rnn.skip_src_layer_copy() && rnn.n_layer == 1);
-    const bool merged_layer_compute_applicable = mlc_problem_dt_ok
+    const bool merged_layer_compute_applicable = rnn.src_layer_is_trivial_stride
             && mlc_cell_type_ok && mlc_problem_shape_ok
             && mlc_m_dim_adjustment_not_required;
     if (merged_layer_compute_applicable) {
