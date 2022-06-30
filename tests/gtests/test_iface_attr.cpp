@@ -207,7 +207,8 @@ TEST_F(attr_test_t, TestZeroPointsExpectFailure) {
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
     dnnl::primitive_attr attr;
 
-    const std::vector<int> supported_args = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
+    const std::vector<int> supported_args = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1,
+            DNNL_ARG_MULTIPLE_SRC, DNNL_ARG_MULTIPLE_SRC + 42};
     const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
             DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
     int scales_mask = INT_MAX;
