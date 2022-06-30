@@ -45,7 +45,9 @@ struct ref_concat_t : public gpu_primitive_t {
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
         status_t init(engine_t *engine) {
-            if (!attr()->has_default_values()) return status::unimplemented;
+            using sm = primitive_attr_t::skip_mask_t;
+            if (!attr()->has_default_values(sm::scales))
+                return status::unimplemented;
             status_t status = gpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);
@@ -58,10 +60,22 @@ struct ref_concat_t : public gpu_primitive_t {
                 if (status != status::success) return status::unimplemented;
             }
 
+            const auto &sc = attr()->scales_;
             reorder_pds_.resize(n_ + use_tent_dst());
             for (int i = 0; i < n_; ++i) {
-                CHECK(reorder_primitive_desc_create(
-                        reorder_pds_[i], engine, src_md(i), src_image_md(i)));
+                primitive_attr_t r_attr;
+                if (!sc.has_default_values()) {
+                    dim_t count = 0;
+                    int mask = 0;
+                    const float *value = nullptr;
+                    CHECK(sc.get(
+                            DNNL_ARG_MULTIPLE_SRC + i, &count, &mask, &value));
+                    if (mask != 0) return status::unimplemented;
+                    if (value == nullptr) return status::runtime_error;
+                    r_attr.output_scales_.set(value[0]);
+                }
+                CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
+                        src_md(i), src_image_md(i), &r_attr));
             }
 
             if (use_tent_dst()) {
