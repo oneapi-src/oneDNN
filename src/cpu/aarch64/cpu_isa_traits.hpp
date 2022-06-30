@@ -183,13 +183,13 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     switch (cpu_isa) {
         case asimd: return cpu().has(Cpu::tADVSIMD);
         case sve_128:
-            return cpu().has(Cpu::tSVE) && cpu().getSveLen() == SVE_128;
+            return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_128;
         case sve_256:
-            return cpu().has(Cpu::tSVE) && cpu().getSveLen() == SVE_256;
+            return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_256;
         case sve_384:
-            return cpu().has(Cpu::tSVE) && cpu().getSveLen() == SVE_384;
+            return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_384;
         case sve_512:
-            return cpu().has(Cpu::tSVE) && cpu().getSveLen() == SVE_512;
+            return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_512;
         case isa_any: return true;
         case isa_all: return false;
     }
