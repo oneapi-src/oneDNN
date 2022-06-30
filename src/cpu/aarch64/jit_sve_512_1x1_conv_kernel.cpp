@@ -611,7 +611,8 @@ bool jit_sve_512_1x1_conv_kernel::post_ops_ok(
 
     auto is_eltwise = [&](int idx) {
         return p.entry_[idx].is_eltwise()
-                && eltwise_injector::is_supported(p.entry_[idx].eltwise.alg);
+                && eltwise_injector::is_supported(
+                        sve_512, p.entry_[idx].eltwise.alg);
     };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
     auto is_convolution

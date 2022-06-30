@@ -31,8 +31,8 @@ namespace aarch64 {
 
 namespace eltwise_injector {
 
-bool is_isa_supported() {
-    return mayiuse(sve_512);
+bool is_isa_supported(cpu_isa_t isa) {
+    return is_superset(isa, sve_128);
 }
 
 bool is_alg_supported(alg_kind_t alg) {
@@ -50,11 +50,12 @@ bool is_alg_supported(alg_kind_t alg) {
             eltwise_exp_use_dst_for_bwd /*, eltwise_clip_v2_use_dst_for_bwd*/);
 }
 
-bool is_supported(alg_kind_t alg) {
-    return is_isa_supported() && is_alg_supported(alg);
+bool is_supported(cpu_isa_t isa, alg_kind_t alg) {
+    return is_isa_supported(isa) && is_alg_supported(alg);
 }
 
 } // namespace eltwise_injector
+
 using namespace Xbyak_aarch64;
 
 template <cpu_isa_t isa>
