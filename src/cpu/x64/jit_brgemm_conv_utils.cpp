@@ -363,7 +363,16 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         array_in_loop_t dst;
     };
 
-    brg_blocking_t() { init(); }
+    brg_blocking_t() {
+        // TODO: This is a broken form of initialization for a base class.
+        // Either set default values in a base class, or provide a proper
+        // default ctor, or take a `jit_brgemm_conv_conf_t` object to initialize
+        // a base class object.
+        jit_brgemm_conv_conf_t *base
+                = static_cast<jit_brgemm_conv_conf_t *>(this);
+        *base = jit_brgemm_conv_conf_t();
+        init();
+    }
     brg_blocking_t(const jit_brgemm_conv_conf_t &jcp)
         : jit_brgemm_conv_conf_t(jcp) {
         init();
