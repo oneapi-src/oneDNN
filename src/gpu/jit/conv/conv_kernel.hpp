@@ -1577,7 +1577,7 @@ public:
                 imin = std::min(imin, vec[i]);
                 imax = std::max(imax, vec[i]);
             }
-            int mul = utils::div_up(imax - imin, 16);
+            int mul = utils::div_up(imax - imin + 1, 16);
             for (int i = 1; mul && (i < int(vec.size())); i++)
                 if ((vec[i - 1] - vec[i]) % mul != 0) mul = 0;
             if (mul) {
