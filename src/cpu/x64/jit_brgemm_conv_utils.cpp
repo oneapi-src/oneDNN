@@ -2307,6 +2307,82 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
 
 void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
 
+    const auto os_chunks = jcp.nthr_mb_work;
+    const auto oc_chunks = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
+    const auto ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
+
+    auto calc_mem_cost = [=](int nthr_mb, int nthr_g, int nthr_oc_b,
+                                 int nthr_ic_b) {
+        /* calculate per thread memory cost (read/write). high level
+            * optimizer tries to minimize memory consumption. few notes:
+            *  (n1) if weights tensor size is less than source and destination
+            *       tensors we apply the ratio of the source and destination
+            *       tensor sizes to weights one as compensation coefficient to
+            *       avoid parallelization across batch size only, otherwise we
+            *       apply additional coefficient to source component based on
+            *       performance measurements
+            *  (n2) use scales based on output vs input channels ratio for
+            *       source and destination components to improve threading
+            *       balance across input and output channels */
+
+        const dim_t src_type_size = 2;
+        const dim_t wei_type_size = 4;
+        const dim_t acc_type_size = wei_type_size;
+
+        const auto wei_ks = jcp.kh * jcp.kw * jcp.kd;
+
+        dim_t src_size = (dim_t)jcp.mb * jcp.ic * jcp.id * jcp.ih * jcp.tr_iw
+                * src_type_size;
+        dim_t dst_size = (dim_t)jcp.mb * jcp.oc * jcp.od * jcp.oh * jcp.tr_ow
+                * src_type_size;
+        dim_t wei_size = (dim_t)jcp.oc * jcp.ic * wei_ks * wei_type_size;
+
+        float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
+        float oi_channels_ratio = (float)(oc_chunks) / ic_chunks;
+
+        auto get_src_coef = [=]() {
+            float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
+            if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
+            return src_coef;
+        };
+
+        auto get_dst_coef
+                = [=]() { return nstl::max(oi_channels_ratio, 1.0f); };
+
+        auto get_wei_coef
+                = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
+
+        const float src_coef = get_src_coef();
+        const float dst_coef = get_dst_coef();
+        const float wei_coef = get_wei_coef();
+
+        const auto thr_mb = div_up(os_chunks, nthr_mb);
+        const auto nb_oc_job = jcp.oc_block * jcp.nb_oc_blocking;
+        const auto nb_ic_job = jcp.ic_block * jcp.nb_ic_blocking;
+
+        const auto src_chunk = jcp.mb * jcp.id * jcp.ih * jcp.tr_iw / os_chunks;
+        const auto dst_chunk = jcp.mb * jcp.od * jcp.oh * jcp.tr_ow / os_chunks;
+
+        const auto thr_g = div_up(jcp.ngroups, nthr_g);
+        const auto thr_ic_b = div_up(ic_chunks, nthr_ic_b);
+        const auto thr_src_sp = thr_mb * src_chunk / jcp.stride_d / jcp.stride_h
+                / jcp.stride_w;
+        const auto thr_dst_sp = thr_mb * dst_chunk;
+        const auto thr_ic_amount = thr_ic_b * nb_ic_job;
+
+        const auto thr_oc_b = div_up(oc_chunks, nb_oc_job * nthr_oc_b);
+
+        const auto thr_oc_amount = thr_oc_b * nb_oc_job;
+        float src_v
+                = src_type_size * src_coef * thr_g * thr_ic_amount * thr_src_sp;
+        float dst_v
+                = src_type_size * dst_coef * thr_g * thr_oc_amount * thr_dst_sp;
+        float wei_v = acc_type_size * wei_coef * thr_g * thr_oc_amount
+                * thr_ic_amount * wei_ks;
+
+        return src_v + dst_v + wei_v;
+    };
+
     auto balance = [=](int &nthr_, int &nthr_mb_, int &nthr_g_, int &nthr_oc_b_,
                            int &nthr_ic_b_) {
         nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
@@ -2320,74 +2396,8 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
         nthr_g_ = jcp.ngroups;
         const int nthr = jcp.nthr / nthr_g_;
 
-        auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
-            /* calculate per thread memory cost (read/write). high level
-            * optimizer tries to minimize memory consumption. few notes:
-            *  (n1) if weights tensor size is less than source and destination
-            *       tensors we apply the ratio of the source and destination
-            *       tensor sizes to weights one as compensation coefficient to
-            *       avoid parallelization across batch size only, otherwise we
-            *       apply additional coefficient to source component based on
-            *       performance measurements
-            *  (n2) use scales based on output vs input channels ratio for
-            *       source and destination components to improve threading
-            *       balance across input and output channels */
-
-            const dim_t src_type_size = 2;
-            const dim_t wei_type_size = 4;
-
-            dim_t src_size = (dim_t)jcp.mb * jcp.ic * jcp.id * jcp.ih
-                    * jcp.tr_iw * src_type_size;
-            dim_t dst_size = (dim_t)jcp.mb * jcp.oc * jcp.od * jcp.oh
-                    * jcp.tr_ow * src_type_size;
-            dim_t wei_size = (dim_t)jcp.oc * jcp.ic * jcp.kd * jcp.kh * jcp.kw
-                    * wei_type_size;
-
-            float wei_compensation_scale
-                    = 0.5f * (dst_size + src_size) / wei_size;
-            float oi_channels_ratio = (float)(jcp.nb_oc / jcp.nb_oc_blocking)
-                    / (jcp.nb_ic / jcp.nb_ic_blocking);
-            auto get_src_coef = [=]() {
-                float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
-                if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
-
-                return src_coef;
-            };
-
-            auto get_dst_coef
-                    = [=]() { return nstl::max(oi_channels_ratio, 1.0f); };
-
-            auto get_wei_coef
-                    = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
-
-            const float src_coef = get_src_coef();
-            const float dst_coef = get_dst_coef();
-            const float wei_coef = get_wei_coef();
-
-            float src_v = src_coef * div_up(jcp.nthr_mb_work, nthr_mb)
-                    * div_up(jcp.ngroups, nthr_g_)
-                    * div_up((jcp.nb_ic / jcp.nb_ic_blocking), nthr_ic_b)
-                    * jcp.mb * (jcp.ic_block * jcp.nb_ic_blocking) * jcp.id
-                    * jcp.ih * jcp.tr_iw / jcp.nthr_mb_work / jcp.stride_d
-                    / jcp.stride_h / jcp.stride_w;
-            float wei_v = wei_coef * div_up(jcp.ngroups, nthr_g_)
-                    * div_up((jcp.nb_oc / jcp.nb_oc_blocking),
-                            (jcp.oc_block * jcp.nb_oc_blocking) * nthr_oc_b)
-                    * div_up((jcp.nb_ic / jcp.nb_ic_blocking), nthr_ic_b)
-                    * jcp.kh * jcp.kw * jcp.kd
-                    * (jcp.ic_block * jcp.nb_ic_blocking)
-                    * (jcp.oc_block * jcp.nb_oc_blocking);
-            float dst_v = dst_coef * div_up(jcp.nthr_mb_work, nthr_mb)
-                    * div_up(jcp.ngroups, nthr_g_)
-                    * div_up((jcp.nb_oc / jcp.nb_oc_blocking),
-                            (jcp.oc_block * jcp.nb_oc_blocking) * nthr_oc_b)
-                    * jcp.mb * (jcp.oc_block * jcp.nb_oc_blocking) * jcp.od
-                    * jcp.oh * jcp.tr_ow / jcp.nthr_mb_work;
-
-            return src_v + dst_v + wei_v;
-        };
-
-        float best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+        float best_mem_cost
+                = calc_mem_cost(nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_);
 
         /* find the best thread distribution with lowest memory cost */
 
@@ -2395,12 +2405,13 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
         for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
             const int nthr_par = nthr / nthr_mb;
             const int nthr_oc_b_max = nstl::min(nthr_par,
-                    (jcp.nb_oc / jcp.nb_oc_blocking)); // Amount of nb_oc_blocks
+                    oc_chunks); // Amount of nb_oc_blocks
             for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
                 int nthr_ic_b = nstl::min(
                         nthr_par / nthr_oc_b, (jcp.nb_ic / jcp.nb_ic_blocking));
 
-                float mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+                float mem_cost
+                        = calc_mem_cost(nthr_mb, nthr_g_, nthr_oc_b, nthr_ic_b);
                 if (mem_cost <= best_mem_cost) {
                     best_mem_cost = mem_cost;
                     nthr_mb_ = nthr_mb;
@@ -2416,8 +2427,33 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
 
         assert(nthr_ <= jcp.nthr);
     };
+
     int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
     balance(nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b);
+
+    // empiric balancing for some shapes
+    bool neat_1x1 = (jcp.id == 1 && jcp.kh == 1 && jcp.kw == 1
+            && jcp.ngroups == 1 && jcp.stride_h == 1);
+    if (neat_1x1 && jcp.nthr >= 56) {
+        const bool more_oc = (jcp.ic < jcp.oc);
+        if (jcp.ih * jcp.iw >= 56 * 56 && jcp.ic >= 64 && jcp.oc >= 64) {
+            nthr_mb = 56;
+            nthr_oc_b = 1;
+        } else if (jcp.ih * jcp.iw >= 28 * 28 && jcp.ic >= 128
+                && jcp.oc >= 128) {
+            nthr_mb = 14;
+            nthr_oc_b = more_oc ? 4 : 1;
+        } else if (jcp.ih * jcp.iw >= 14 * 14 && jcp.ic >= 256
+                && jcp.oc >= 256) {
+            nthr_mb = 7;
+            nthr_oc_b = more_oc ? 8 : 1;
+        } else if (jcp.ih * jcp.iw >= 7 * 7 && jcp.ic >= 512 && jcp.oc >= 512) {
+            nthr_mb = 4;
+            nthr_oc_b = more_oc ? 14 : 1;
+        }
+        nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
+    }
+
     jcp.nthr = nthr;
     jcp.nthr_mb = nthr_mb;
     jcp.nthr_g = nthr_g;
