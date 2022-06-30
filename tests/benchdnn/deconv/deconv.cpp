@@ -444,6 +444,10 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+    } else if (is_cpu()) {
+        if (prb->attr.oscale.runtime) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        }
     }
 }
 
@@ -538,6 +542,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t src_zero_points_m;
     dnn_mem_t dst_zero_points_m;
+    dnn_mem_t scales;
 
     /* fill memory + reorders <-> */
     if (need_dst_init(prb)) SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
@@ -555,6 +560,8 @@ int doit(const prb_t *prb, res_t *res) {
                 DNNL_ARG_SRC, prb->ic, prb->src_zp);
         maybe_prepare_runtime_zero_points(dst_zero_points_m, prb->attr,
                 DNNL_ARG_DST, prb->oc, prb->dst_zp);
+        maybe_prepare_runtime_scales(
+                scales, prb->attr.oscale, prb->oc, prb->scales);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -565,6 +572,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(prelu_po_args, prelu_po_dt);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 

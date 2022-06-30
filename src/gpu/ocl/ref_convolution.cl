@@ -126,7 +126,9 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
 KERNEL_ATTR
 __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         const __global WEI_DATA_T *wei, const __global DST_DATA_T *diff_dst,
-        const __global BIA_DATA_T *bias POST_OP_ARGS) {
+        const __global BIA_DATA_T *bias POST_OP_ARGS, float common_scale,
+        const __global float *scales, const __global int *src_zpoints,
+        const __global int *dst_zpoints) {
     const int n = GWS_GET_MB();
     const int ic = GWS_GET_IC();
     const int g = GWS_GET_G();
@@ -155,6 +157,12 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
             const uint dst_off = DST_OFF(n, g * OC + oc, od, oh, ow);
             const uint wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
             d += DST_TO_REF(diff_dst[dst_off]) * WEI_TO_REF(wei[wei_off]);
+#if WITH_SRC_ZPOINTS
+            const int src_zp = SRC_ZPOINT_COMMON != 0
+                    ? SRC_ZPOINT_COMMON
+                    : src_zpoints[WITH_SRC_ZPOINTS_PER_IC ? g * OC + oc : 0];
+            d -= src_zp * WEI_TO_REF(wei[wei_off]);
+#endif // WITH_SRC_ZPOINTS
         }
     }
 
@@ -165,6 +173,19 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
 #endif
 
     float accumulator = convert_float(d);
+
+#if DST_DT_S8 == 1 || DST_DT_U8 == 1
+#if SCALES_PER_OC
+    accumulator *= scales[g * IC + ic];
+#elif SCALES_COMMON
+#if WITH_RUNTIME_SCALES
+    accumulator *= scales[0];
+#else
+    accumulator *= common_scale;
+#endif
+#endif
+#endif
+
 #if NDIMS == 3
     const unsigned po_d2 = iw;
     const unsigned po_d3 = 0;
@@ -184,6 +205,13 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
 #endif
     APPLY_POST_OPS_SERIAL(accumulator, float, sum_src, float, n, 1, g *IC + ic,
             1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
+
+#if WITH_DST_ZPOINTS
+    const int dst_zp = DST_ZPOINT_COMMON != 0
+            ? DST_ZPOINT_COMMON
+            : dst_zpoints[WITH_DST_ZPOINTS_PER_OC ? g * IC + ic : 0];
+    accumulator += dst_zp;
+#endif // WITH_DST_ZPOINTS
 
     diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(accumulator);
 }

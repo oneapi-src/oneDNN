@@ -209,6 +209,8 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         const auto z_dst = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST;
         if (args.find(z_src) != args.end()) conv_args[z_src] = args.at(z_src);
         if (args.find(z_dst) != args.end()) conv_args[z_dst] = args.at(z_dst);
+        const auto osc = DNNL_ARG_ATTR_OUTPUT_SCALES;
+        if (args.find(osc) != args.end()) conv_args[osc] = args.at(osc);
 
         exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 

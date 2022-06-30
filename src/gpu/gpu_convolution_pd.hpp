@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@ struct gpu_convolution_fwd_pd_t : public convolution_fwd_pd_t {
     using convolution_fwd_pd_t::convolution_fwd_pd_t;
 
 protected:
+    // TODO: consider either moving this method to primitive_conf.hpp or making
+    //       it static, or removing the 'attr' argument accessible via attr()
     bool zero_points_ok(const primitive_attr_t *attr) const {
         using namespace data_type;
         const auto src_type = invariant_src_md()->data_type;
@@ -51,6 +53,24 @@ struct gpu_convolution_bwd_data_pd_t : public convolution_bwd_data_pd_t {
     using convolution_bwd_data_pd_t::convolution_bwd_data_pd_t;
 
 protected:
+    // TODO: consider either moving this method to primitive_conf.hpp or making
+    //       it static, or removing the 'attr' argument accessible via attr()
+    bool zero_points_ok(const primitive_attr_t *attr) const {
+        using namespace data_type;
+        const auto dst_type = invariant_dst_md()->data_type;
+        int mask_src = 0, mask_dst = 0;
+        attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+        attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+
+        return IMPLICATION(!utils::one_of(dst_type, s8, u8),
+                       attr->zero_points_.has_default_values())
+                && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                && (mask_src == 0 || mask_src == 1 << 1)
+                && (mask_dst == 0 || mask_dst == 1 << 1);
+    }
+
+    // TODO: consider either moving this method to primitive_conf.hpp or making
+    //       it static, or removing the 'attr' argument accessible via attr()
     bool post_ops_ok(const primitive_attr_t *attr) const {
         const auto &p = attr->post_ops_;
 
