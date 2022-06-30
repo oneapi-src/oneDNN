@@ -68,6 +68,13 @@ layouts, resulting in a 16x48x16x16 tensor:
                16x16x16x16:16x32x16x16
 ```
 
+Run a specific concat problem with input argument scales:
+``` sh
+    ./benchdnn --concat --sdt=f32 --ddt=f32 --stag=nchw:nchw --dtag=nchw \
+               --attr-scales=msrc0:common:1.5+msrc1:common:2.5 \
+               16x16x16x16:16x32x16x16
+```
+
 More examples with different driver options can be found at
 inputs/concat/test_\*. Examples with different benchdnn common options can be
 found at driver_conv.md.
