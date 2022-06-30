@@ -55,9 +55,9 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+
     dnnl_shuffle_desc_t sd;
 
     auto data_d = dnn_mem_t::init_md(
@@ -79,7 +79,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    return dnnl_primitive_desc_create(&spd, &sd, dnnl_attr, engine, hint);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &sd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

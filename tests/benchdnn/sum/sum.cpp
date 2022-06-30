@@ -32,9 +32,9 @@
 
 namespace sum {
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+
     std::vector<dnnl_memory_desc_t> src_d(prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input)
@@ -50,9 +50,10 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    return dnnl_sum_primitive_desc_create(&spd,
+    return dnnl_sum_primitive_desc_create(&init_pd_args.pd,
             prb->dtag != tag::undef ? &dst_d : nullptr, prb->n_inputs(),
-            prb->input_scales.data(), src_d.data(), dnnl_attr, engine);
+            prb->input_scales.data(), src_d.data(), dnnl_attr,
+            init_pd_args.engine);
 }
 
 int fill_src(

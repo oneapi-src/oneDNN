@@ -29,9 +29,9 @@
 
 namespace reduction {
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+
     dnnl_reduction_desc_t rd;
 
     auto src_desc = dnn_mem_t::init_md(
@@ -47,7 +47,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &rd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 bool is_norm_alg(const alg_t alg) {

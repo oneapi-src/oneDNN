@@ -31,9 +31,9 @@
 
 namespace conv_dw_fusion {
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
+    const prb_t *prb = init_pd_args.prb;
+
     dnnl_convolution_desc_t cd;
 
     auto src_d = dnn_mem_t::init_md(
@@ -92,7 +92,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &cd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
