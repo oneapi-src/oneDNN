@@ -248,12 +248,25 @@ public:
         }
 #endif
 
+        // Save the descriptors to reinitialize them at each new iteration.
+        const auto src_md = *conv_pd->invariant_src_md();
+        const auto wei_md = *conv_pd->invariant_wei_md();
+        const auto dst_md = *conv_pd->invariant_dst_md();
+        const auto bia_md = *conv_pd->invariant_bia_md();
+
         // Use fixed iterations to avoid infinite loop.
         int max_iters = 10;
         bool ok = false;
         for (int i = 0; i < max_iters; i++) {
-            if (i > 0) *this = conv_config_t();
-
+            // Reinitialize to cancel the previous iteration that didn`t work.
+            if (i > 0) {
+                *this = conv_config_t();
+                *conv_pd->invariant_src_md() = src_md;
+                *conv_pd->invariant_wei_md() = wei_md;
+                *conv_pd->invariant_dst_md() = dst_md;
+                *conv_pd->invariant_bia_md() = bia_md;
+            }
+            // TODO: refactor init_with_hw_config to accept 'const &conv_pd'
             auto status = init_with_hw_config(conv_pd, attr, try_hw_cfg);
 
             // Reduce thread group size if SLM size is too large.
