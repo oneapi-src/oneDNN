@@ -562,6 +562,15 @@ void skip_unimplemented_sum_po(
     }
 }
 
+void skip_unimplemented_arg_scale(const attr_t &attr, res_t *res) {
+    for (const auto &arg_s : attr.scales.scales) {
+        if (arg_s.second.policy != policy_t::COMMON) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+}
+
 void skip_invalid_inplace(res_t *res, dnnl_data_type_t sdt,
         dnnl_data_type_t ddt, const std::string &stag,
         const std::string &dtag) {
