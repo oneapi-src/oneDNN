@@ -106,12 +106,13 @@ protected:
         // softmax_v2 specific types and values
         using op_desc_t = softmax_v2_forward::desc;
         using pd_t = softmax_v2_forward::primitive_desc;
-        allows_attr_t aa {true};
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
         prop_kind pk = !is_fwd(p.aprop_kind) ? prop_kind::forward_training
                                              : p.aprop_kind;
+        auto aa = is_nvidia_gpu(eng) ? allows_attr_t {false}
+                                     : allows_attr_t {true};
 
         // To validate backward on valid tag::any settings reuse dst tag.
         const bool src_bwd_any = !is_fwd(p.aprop_kind) && p.src_tag == tag::any;
