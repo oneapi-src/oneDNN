@@ -29,11 +29,11 @@ static void do_inline_graph(
         sc_graph_t &full_graph, sc_op_ptr &cur_node, sc_graph_t &sub_graph) {
     std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> *tunable_op_map;
     sc_op_ptr corresponding_node;
-    bool need_tuning = full_graph.attrs_.has_key("op_map");
+    bool need_tuning = full_graph.attrs_.has_key("temp.op_map");
     if (need_tuning) {
         tunable_op_map = full_graph.attrs_.get_or_null<
                 std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>>>(
-                "op_map");
+                "temp.op_map");
         if (tunable_op_map->find(cur_node) != tunable_op_map->end()) {
             corresponding_node = (*tunable_op_map)[cur_node][0];
             (*tunable_op_map)[corresponding_node].clear();

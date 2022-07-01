@@ -22,6 +22,7 @@
 #include "tunable_op.hpp"
 #include "util/utils.hpp"
 #include "visitor.hpp"
+#include <unordered_map>
 #include <util/reflection.hpp>
 
 namespace sc {

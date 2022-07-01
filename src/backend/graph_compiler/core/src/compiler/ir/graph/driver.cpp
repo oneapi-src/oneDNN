@@ -210,7 +210,7 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
     // save origin graph(tuning) / load config(no tune)
     if (need_tuning) {
         graph_cpy = copy_graph(graph);
-        graph.attrs_["op_map"] = create_op_map(graph, graph_cpy);
+        graph.attrs_["temp.op_map"] = create_op_map(graph, graph_cpy);
     } else if (in_cfg != nullptr && !in_cfg->op_cfgs_.empty()) {
         SC_MODULE_INFO << "Setting user-provided config";
         graph::set_graph_config(graph, *in_cfg);
