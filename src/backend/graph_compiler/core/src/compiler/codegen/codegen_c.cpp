@@ -79,7 +79,7 @@ ostream &codegen_c_vis::print_cpp_var_def(const var &v) {
 
 ostream &codegen_c_vis::print_tensor_def(const tensor &v) {
     print_type(v->elem_dtype_);
-    *os << "* " << v->name_;
+    *os << "* __restrict__ " << v->name_;
     return *os;
 }
 
@@ -169,13 +169,34 @@ func_c codegen_c_vis::dispatch(func_c v) {
     }
     if (!v->params_.empty()) {
         for (size_t i = 0; i < v->params_.size() - 1; i++) {
-            expr e = v->params_.at(i);
+            expr e = v->params_[i];
             print_param(e);
             *os << ", ";
         }
         print_param(v->params_.back());
     }
-    *os << ")";
+    *os << ") noexcept";
+    if (prototype_only) {
+        if (v->attr_) {
+            if (v->attr_->get_or_else(function_attrs::pure, false)) {
+                *os << " __attribute__((const))";
+            }
+            if (v->attr_->get_or_else(function_attrs::no_alias, false)) {
+                *os << " __attribute__((returns_nonnull))  /*__attribute__"
+                       "((malloc))*/";
+            }
+        }
+        std::string tensor_idx = " __attribute__((nonnull (";
+        bool has_tensor = false;
+        for (size_t i = 0; i < v->params_.size(); i++) {
+            if (v->params_[i].isa<tensor>()) {
+                if (has_tensor) { tensor_idx += ','; }
+                has_tensor = true;
+                tensor_idx += std::to_string(i + 1);
+            }
+        }
+        if (has_tensor) { *os << tensor_idx << ")))"; }
+    }
     if (!prototype_only && v->body_.defined()) {
         dispatch(v->body_);
     } else {
