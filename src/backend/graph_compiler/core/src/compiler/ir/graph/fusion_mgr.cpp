@@ -297,9 +297,9 @@ std::vector<sc_op_ptr> fusion_manager::dispatch_fusion_anchor(
                     = stat_map.get_ops_by_status(infer_status_code::FAIL);
             assert(!failes_ops.empty());
             SC_MODULE_INFO << "Dispatch fusion anchor failed. Anchor id: "
-                           << anchor_id
-                           << ", Op Name: " << failes_ops[0]->op_name_;
-            return failes_ops;
+                           << anchor_id << ", Op Name: "
+                           << failes_ops.begin()->get()->op_name_;
+            return infer_status_map_t::stat_map_to_vector(failes_ops);
         }
         // set anchor
         for (auto &cur : stat_map.get_ops_by_status(infer_status_code::OK)) {
@@ -315,9 +315,10 @@ std::vector<sc_op_ptr> fusion_manager::dispatch_fusion_anchor(
     auto &retry_ops = stat_map.get_ops_by_status(infer_status_code::RETRY);
     assert(!retry_ops.empty());
     SC_MODULE_INFO << "Could not find suitable anchor for "
-                   << retry_ops[0]->op_name_ << " to commit in total "
-                   << fanchor_list_.size() << " anchors";
-    return retry_ops;
+                   << retry_ops.begin()->get()->op_name_
+                   << " to commit in total " << fanchor_list_.size()
+                   << " anchors";
+    return infer_status_map_t::stat_map_to_vector(retry_ops);
 }
 
 void fusion_manager::do_infer_slice_ranges(
@@ -349,9 +350,41 @@ void fusion_manager::do_infer_slice_ranges(
         if (stat_map.is_retry()) {
             auto &retry_list
                     = stat_map.get_ops_by_status(infer_status_code::RETRY);
-            if (retry_list.end()
-                    != std::find(retry_list.begin(), retry_list.end(), cur)) {
-                continue;
+            if (retry_list.end() != retry_list.find(cur)) { continue; }
+        }
+        if (stat_map.is_unknown()) {
+            auto &unknown_list
+                    = stat_map.get_ops_by_status(infer_status_code::UNKNOWN);
+            if (unknown_list.end() != unknown_list.find(cur)) { continue; }
+        }
+        stat_map.append_ops_by_status(cur.get(), infer_status_code::OK);
+    }
+
+    auto first_round_unknown_list
+            = stat_map.get_ops_by_status(infer_status_code::UNKNOWN);
+    for (auto &cur : first_round_unknown_list) {
+        // infer slice ranges for those UNKNOWN status fusible ops, which use
+        // search_known_slice_ranges() in their infer_slice_ranges() functions
+        // (currently only reshape_op_t do not use search_known_slice_ranges).
+        auto fusible_cur = cur->dyn_cast<fusible_op_t>();
+        COMPILE_ASSERT(!fusible_cur->isa<reshape_op_t>(),
+                "Op with unknown status shall not be a reshape op.");
+        // remove the inferred status of the current op to avoid redundancy
+        stat_map.remove_ops_by_status(cur.get(), infer_status_code::UNKNOWN);
+        fusible_cur->infer_slice_ranges(fsmap, stat_map);
+        if (stat_map.is_fail()) return;
+        if (stat_map.is_retry()) {
+            auto &retry_list
+                    = stat_map.get_ops_by_status(infer_status_code::RETRY);
+            if (retry_list.end() != retry_list.find(cur)) { continue; }
+        }
+        if (stat_map.is_unknown()) {
+            auto &unknown_list
+                    = stat_map.get_ops_by_status(infer_status_code::UNKNOWN);
+            if (unknown_list.end() != unknown_list.find(cur)) {
+                COMPILE_ASSERT(0,
+                        "Op with unknown status still get unknown slice status "
+                        "in second round infer.");
             }
         }
         stat_map.append_ops_by_status(cur.get(), infer_status_code::OK);
@@ -402,7 +435,7 @@ struct buffer_reuse_identity {
 // reset first access of buffer reuse hint for special cases like the input of
 // tunable op and connection tensors between two anchors.
 void reset_buffer_reuse_first_access_hint(
-        const expr &tsr, int64_t reset_tick = -1) {
+        const expr &tsr, int64_t reset_tick = special_ticks::HINT_IN_LOOP) {
     if (tsr.defined()
             && tsr->attr().has_key(attr_keys::hint_first_access_tick)) {
         tsr->attr().set(attr_keys::hint_first_access_tick, reset_tick);
@@ -416,9 +449,9 @@ void reset_buffer_reuse_first_access_hint(
 // hint_last_access_tick]. first_access of a tensor is defined as tick of tensor
 // create. last_access of a tensor is defined as maximum tick of its uses.
 // access_has_updated is a boolean, used when tensor_slice_list.size() > 1
-void set_buffer_reuse_hint(buffer_identity_count &buf_cnt_map,
-        int64_t &hint_tick, fdata_map &fdmap, const sc_op_ptr &node,
-        const expr &tsr, bool access_has_updated = false) {
+void set_buffer_reuse_hint(int64_t &hint_tick, fdata_map &fdmap,
+        const sc_op_ptr &node, const expr &tsr,
+        bool access_has_updated = false) {
     // tick self add, if node is input op, last access == 1
     if (!access_has_updated) { hint_tick++; }
     // update inp tsrs' last access to maximum last access
@@ -451,16 +484,6 @@ void set_buffer_reuse_hint(buffer_identity_count &buf_cnt_map,
         // current tsr's first access == last access
         tsr->attr().set(attr_keys::hint_first_access_tick, hint_tick);
         tsr->attr().set(attr_keys::hint_last_access_tick, hint_tick);
-        auto tsr1 = tsr.checked_as<tensor>();
-        sc_data_type_t dtype = tsr1->elem_dtype_;
-        sc_dims shapes = get_expr_to_dims(tsr1->dims_);
-        auto id = buffer_reuse_identity {dtype, shapes};
-        auto it = buf_cnt_map.find(id);
-        if (it != buf_cnt_map.end()) {
-            it->second.push_back(tsr);
-        } else {
-            buf_cnt_map[id] = tsr_reuse_vec {tsr};
-        }
     }
 }
 
@@ -496,14 +519,12 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
 
     std::function<void(const sc_op_ptr &cur_node,
             const std::vector<sc::tensor_slice> &src,
-            const std::vector<sc::tensor_slice> &dst, int64_t &hint_tick,
-            buffer_identity_count &buf_cnt_map)>
+            const std::vector<sc::tensor_slice> &dst, int64_t &hint_tick)>
             alloc_func;
     alloc_func = [&](const sc_op_ptr &cur_node,
                          const std::vector<sc::tensor_slice> &src,
                          const std::vector<sc::tensor_slice> &dst,
-                         int64_t &hint_tick,
-                         buffer_identity_count &buf_cnt_map) {
+                         int64_t &hint_tick) {
         auto cur = cur_node->dyn_cast<fusible_op_t>();
         if (auto input_cur = cur->dyn_cast<input_op>()) {
             // if it is the input node
@@ -533,8 +554,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             } else {
                 auto buf = src[input_idx].get_real_tensor();
                 // may reuse input buffer, e.g. originalout
-                set_buffer_reuse_hint(
-                        buf_cnt_map, hint_tick, fdmap, cur_node, buf);
+                set_buffer_reuse_hint(hint_tick, fdmap, cur_node, buf);
                 reset_buffer_reuse_first_access_hint(buf, 0);
                 fdmap.get(cur->get_outputs()[0]).set_buffer(buf);
             }
@@ -594,8 +614,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 }
             }
             // update tensors' last_access
-            set_buffer_reuse_hint(
-                    buf_cnt_map, hint_tick, fdmap, cur_node, expr());
+            set_buffer_reuse_hint(hint_tick, fdmap, cur_node, expr());
             return;
         } else if (dynamic_cast<tensor_view_op_t *>(cur)) {
             auto &cur_in_detail = fdmap.get(cur->get_inputs()[0]);
@@ -614,7 +633,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                     dims_to_expr(reshape_cur->get_shapes())));
 
             bool access_has_updated = false;
-            set_buffer_reuse_hint(buf_cnt_map, hint_tick, fdmap, cur_node,
+            set_buffer_reuse_hint(hint_tick, fdmap, cur_node,
                     cur_out_detail.need_alloc_ ? cur_out_detail.get_buffer()
                                                : expr(),
                     access_has_updated);
@@ -636,10 +655,10 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                     if (user.second->isa<output_op>()) {
                         // if it is the output node
                         bool access_has_updated = false;
-                        set_buffer_reuse_hint(buf_cnt_map, hint_tick, fdmap,
-                                cur_node, expr(), access_has_updated);
-                        alloc_func(user.second.get_shared(), src, dst,
-                                hint_tick, buf_cnt_map);
+                        set_buffer_reuse_hint(hint_tick, fdmap, cur_node,
+                                expr(), access_has_updated);
+                        alloc_func(
+                                user.second.get_shared(), src, dst, hint_tick);
                         break;
                     }
                 }
@@ -684,7 +703,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 // out_i_detail.tsr_slice_list may be empty when next op is
                 // output op
                 bool access_has_updated = false;
-                set_buffer_reuse_hint(buf_cnt_map, hint_tick, fdmap, cur_node,
+                set_buffer_reuse_hint(hint_tick, fdmap, cur_node,
                         out_i_detail.need_alloc_ ? out_i_detail.get_buffer()
                                                  : expr(),
                         access_has_updated);
@@ -695,12 +714,11 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
     // reset hint_tick before next schedule
     // start hint tick is 0, and when encounter an op, tick increases by 1.
     int64_t hint_tick = 0;
-    buffer_identity_count buf_cnt_map;
     for (auto &cur : sorted_ops_) {
         // allocate tensor stage is not anchor-senstive
         auto src = fanchor_list_[0].anchor_slice_.first;
         auto dst = fanchor_list_[0].anchor_slice_.second;
-        alloc_func(cur, src, dst, hint_tick, buf_cnt_map);
+        alloc_func(cur, src, dst, hint_tick);
     }
     for (auto &op : sorted_ops_) {
         if (dynamic_cast<constant_op_t *>(op.get())) { continue; }
@@ -708,7 +726,6 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             assert(fdmap.get(out).buffer_allocated());
         }
     }
-    reset_buffer_hint_by_count(buf_cnt_map);
 }
 
 // This function can find the parent node in IR, if the node has no parent
@@ -747,9 +764,20 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
     if (graph_.empty()) { return; }
     auto &fdmap = fstate.fdmap_;
     auto &fsmap_list = fstate.fsmap_list_;
+    buffer_identity_count buf_cnt_map;
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
-
+    auto get_or_set_buffer_reuse = [&](const expr &tsr, const sc_dims &shapes) {
+        auto tsr1 = tsr.checked_as<tensor>();
+        sc_data_type_t dtype = tsr1->elem_dtype_;
+        auto id = buffer_reuse_identity {dtype, shapes};
+        auto it = buf_cnt_map.find(id);
+        if (it != buf_cnt_map.end()) {
+            it->second.push_back(tsr);
+        } else {
+            buf_cnt_map[id] = tsr_reuse_vec {tsr};
+        }
+    };
     // declare real tensor in fdata, and put it at the beginning of ss
     auto declare_tensor_ = [&](const graph_tensor_ptr &gt_ptr,
                                    std::vector<stmt> &ss, int anchor_id) {
@@ -796,10 +824,13 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
         auto range_list = fsmap_list[shrink_anchor].get(gt_ptr);
         COMPILE_ASSERT(!range_list.empty(), "empty range list found")
         if (range_list.size() != 1) return;
+        auto shapes_expr = get_slice_shape(range_list[0]);
+        auto shapes = get_expr_to_dims(shapes_expr);
         buf->attr()[tensor_shrinker_attrs::should_shrink]
                 = tensor_shrinker_t::shrink_info_t {
                         /*base*/ get_slice_idx(range_list[0]),
-                        /*shape*/ get_slice_shape(range_list[0]), stmts()};
+                        /*shape*/ shapes_expr, stmts()};
+        if (buf.isa<tensor>()) { get_or_set_buffer_reuse(buf, shapes); }
     };
 
     for (int i = static_cast<int>(sorted_ops_.size()) - 1; i >= 0; i--) {
@@ -852,12 +883,13 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
                 COMPILE_ASSERT(range_list.size() == 1,
                         "Currently only single slice is supported for input op")
                 auto range = range_list[0];
-
+                auto shapes_expr = get_slice_shape(range);
+                auto shapes = get_expr_to_dims(shapes_expr);
                 tsr->attr()[tensor_shrinker_attrs::should_shrink]
                         = tensor_shrinker_t::shrink_info_t {
                                 /*base*/ get_slice_idx(range),
-                                /*shape*/ get_slice_shape(range), stmts()};
-
+                                /*shape*/ shapes_expr, stmts()};
+                if (tsr.isa<tensor>()) { get_or_set_buffer_reuse(tsr, shapes); }
                 // set declare info
                 auto &decl_anchor_stmt
                         = fanchor_list_.at(real_anchor).anchor_position_;
@@ -898,7 +930,7 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
             set_shrink_info_(out, anchor_id);
         }
     }
-
+    reset_buffer_hint_by_count(buf_cnt_map);
     allocated_tensors_.clear();
 }
 
@@ -1452,7 +1484,8 @@ std::vector<sc_op_ptr> fusion_manager::prepare_and_check(
     // Init sorted_ops sequence
     init_sorted_ops();
     // dispatch suitable commit anchor for each fusible op
-    return dispatch_fusion_anchor(fstate.fsmap_list_, ctx);
+    auto retry_ops = dispatch_fusion_anchor(fstate.fsmap_list_, ctx);
+    return retry_ops;
 };
 
 void fusion_manager::commit(const ir_module_ptr &modu, fuse_state_t &fstate,

@@ -87,17 +87,20 @@ void unary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
     in_detail0.use_count_++;
 }
 
-void infer_unary_slice_ranges(fusible_op_t *cur, fslice_map &fsmap) {
+void infer_unary_slice_ranges(
+        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     COMPILE_ASSERT(cur->get_inputs().size() == 1, "unary op is expected");
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(cur, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(cur, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
     // set outputs slice range
     fsmap.get(cur->get_outputs()[0]) = known_ranges_map[0];
 }
 
 void unary_elementwise_op_impl_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
-    infer_unary_slice_ranges(this, fsmap);
+    infer_unary_slice_ranges(this, fsmap, stat_map);
 }
 
 inline void pre_unary_slice_ranges(

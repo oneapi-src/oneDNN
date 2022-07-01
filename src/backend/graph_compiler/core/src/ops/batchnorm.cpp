@@ -255,8 +255,171 @@ void batchnorm_forward_training_op::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {}
 
+batchnorm_training_backprop_op_t::batchnorm_training_backprop_op_t(
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    info_.inputs_ = ins;
+    if (outs.empty()) {
+        info_.outputs_.emplace_back(
+                std::make_shared<graph_tensor>(this, ins[0]->details_));
+        info_.outputs_.emplace_back(
+                std::make_shared<graph_tensor>(this, ins[2]->details_));
+        info_.outputs_.emplace_back(
+                std::make_shared<graph_tensor>(this, ins[2]->details_));
+    } else {
+        info_.outputs_ = outs;
+    }
+    COMPILE_ASSERT(info_.inputs_.size() == 5 && info_.outputs_.size() == 3,
+            "Batchnorm backprop op currently only allows 5-input + 3-output "
+            "schema.");
+    COMPILE_ASSERT(ins[0]->details_.get_plain_dims().size() == 4
+                    || ins[0]->details_.get_plain_dims().size() == 5,
+            "Batchnorm backprop op currently only supports 4D or 5D cases.");
+    COMPILE_ASSERT(ins[0]->details_.dtype_ == ins[1]->details_.dtype_,
+            "src and delta_output must have the same dtype.");
+    COMPILE_ASSERT(ins[2]->details_.dtype_ == ins[3]->details_.dtype_
+                    && ins[2]->details_.dtype_ == ins[4]->details_.dtype_,
+            "gamma, mean and variance must have the same dtype.")
+    attrs_ = attrs;
+    op_name_ = "batchnorm_training_backprop";
+}
+
+std::shared_ptr<sc_graph_t> batchnorm_training_backprop_op_t::get_graph_impl() {
+    auto graph = std::make_shared<sc_graph_t>();
+    // create new input logical tensors
+    std::vector<graph_tensor_ptr> inputs, outputs;
+    inputs = remake_logical_tensors(info_.inputs_);
+    outputs = remake_logical_tensors(info_.outputs_);
+    bool is_3D = (inputs[0]->details_.get_plain_dims().size() == 5);
+    bool is_bf16_src
+            = (inputs[0]->details_.dtype_.is_etype(sc_data_etype::BF16));
+    bool is_bf16_gamma
+            = (inputs[2]->details_.dtype_.is_etype(sc_data_etype::BF16));
+
+    float epsilon = attrs_.get<float>("epsilon");
+    auto data_format = attrs_.get_or_else<std::string>("data_format", "NXC");
+    // input
+    graph->make_input(inputs);
+    // calculating reduce axis
+    std::vector<int> bc_axis, rd_axis;
+    if (data_format == "NXC") {
+        bc_axis = is_3D ? std::vector<int> {4} : std::vector<int> {3};
+        rd_axis = is_3D ? std::vector<int> {0, 1, 2, 3}
+                        : std::vector<int> {0, 1, 2};
+    } else {
+        bc_axis = std::vector<int> {1};
+        rd_axis = is_3D ? std::vector<int> {0, 2, 3, 4}
+                        : std::vector<int> {0, 2, 3};
+    }
+
+    graph_tensor_ptr src = inputs[0], output_delta = inputs[1],
+                     gamma = inputs[2], mean = inputs[3], variance = inputs[4];
+    if (is_bf16_src) {
+        auto cast0 = graph->make(
+                "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
+        src = cast0->get_outputs()[0];
+        auto cast1 = graph->make(
+                "cast", {inputs[1]}, {}, {{"dtype", datatypes::f32}});
+        output_delta = cast1->get_outputs()[0];
+    }
+    if (is_bf16_gamma) {
+        auto cast2 = graph->make(
+                "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
+        gamma = cast2->get_outputs()[0];
+        auto cast3 = graph->make(
+                "cast", {inputs[3]}, {}, {{"dtype", datatypes::f32}});
+        mean = cast3->get_outputs()[0];
+        auto cast4 = graph->make(
+                "cast", {inputs[4]}, {}, {{"dtype", datatypes::f32}});
+        variance = cast4->get_outputs()[0];
+    }
+
+    // gamma * x_hat + beta = y --> beta_delta = reducesum(dy)
+    auto beta_delta = graph->make("reduce", {output_delta}, {},
+            {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
+    // ------ calculate x_hat start ------
+    // eps constant
+    auto const_op = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {epsilon}),
+            datatypes::f32, sc_dims {1});
+    // reduce size constant, cast to float (potential inaccuracy/overflow)
+    float channel_size = 1.0f;
+    for (auto ax : rd_axis) {
+        channel_size *= inputs[0]->details_.get_plain_dims()[ax];
+    }
+    auto rchan_size_op = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(
+                    std::vector<float> {1 / channel_size}),
+            datatypes::f32, sc_dims {1});
+    // var + eps
+    auto var_eps = graph->make(
+            "add", {variance, const_op->get_outputs()[0]}, {}, {});
+    // rsqrt(var + eps)
+    auto rsqrt_var_eps = graph->make("squared_root", var_eps->get_outputs(), {},
+            {{"reciprocal", true}, {op_attr_key::break_post_fuse, true}});
+    // x - mu
+    auto x_mu = graph->make("sub", {src, mean}, {}, {{"bc_axis", bc_axis}});
+    // x_hat = (x - mu) *  rsqrt(var + eps)
+    auto x_hat = graph->make("mul",
+            {x_mu->get_outputs()[0], rsqrt_var_eps->get_outputs()[0]}, {},
+            {{"bc_axis", bc_axis}});
+    // ------ calculate x_hat end ------
+    // gamma_delta = reducesum(dy * x_hat)
+    auto dy_x_hat = graph->make(
+            "mul", {output_delta, x_hat->get_outputs()[0]}, {}, {});
+    auto gamma_delta = graph->make("reduce", dy_x_hat->get_outputs(), {},
+            {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
+    // ------ calculate x_delta start ------
+    // calculate: (x - mu) * rsqrt(var + eps) * gamma_delta <==> x_hat *
+    // gamma_delta
+    auto x_hat_gamma_delta = graph->make("mul",
+            {x_hat->get_outputs()[0], gamma_delta->get_outputs()[0]}, {},
+            {{"bc_axis", bc_axis}});
+    // add beta_delta and x_hat_gamma_delta
+    auto add = graph->make("add",
+            {x_hat_gamma_delta->get_outputs()[0], beta_delta->get_outputs()[0]},
+            {}, {{"bc_axis", bc_axis}});
+    //  * (1 / channel_size)
+    auto rescale = graph->make("mul",
+            {add->get_outputs()[0], rchan_size_op->get_outputs()[0]}, {}, {});
+    // get subtract results
+    auto sub = graph->make(
+            "sub", {output_delta, rescale->get_outputs()[0]}, {}, {});
+    // final mul: x_delta = gamma * rsqrt(var + eps) * sub_result
+    auto mul = graph->make(
+            "mul", {rsqrt_var_eps->get_outputs()[0], gamma}, {}, {});
+    auto x_delta
+            = graph->make("mul", {sub->get_outputs()[0], mul->get_outputs()[0]},
+                    {}, {{"bc_axis", bc_axis}});
+    // ------ calculate x_delta end ------
+    // output
+    graph_tensor_ptr x_delta_out = x_delta->get_outputs()[0],
+                     gamma_delta_out = gamma_delta->get_outputs()[0],
+                     beta_delta_out = beta_delta->get_outputs()[0];
+    if (is_bf16_src) {
+        auto cast_out0 = graph->make(
+                "cast", {x_delta_out}, {}, {{"dtype", datatypes::bf16}});
+        x_delta_out = cast_out0->get_outputs()[0];
+    }
+    if (is_bf16_gamma) {
+        auto cast_out1 = graph->make(
+                "cast", {gamma_delta_out}, {}, {{"dtype", datatypes::bf16}});
+        gamma_delta_out = cast_out1->get_outputs()[0];
+        auto cast_out2 = graph->make(
+                "cast", {beta_delta_out}, {}, {{"dtype", datatypes::bf16}});
+        beta_delta_out = cast_out2->get_outputs()[0];
+    }
+    graph->make_output({x_delta_out, gamma_delta_out, beta_delta_out});
+    return graph;
+}
+
+void batchnorm_training_backprop_op_t::query_format(context_ptr ctx,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {}
+
 } // namespace ops
 
 OP_REGISTER(ops::batchnorm_inference_op, batchnorm_inference)
 OP_REGISTER(ops::batchnorm_forward_training_op, batchnorm_forward_training)
+OP_REGISTER(ops::batchnorm_training_backprop_op_t, batchnorm_training_backprop)
 } // namespace sc

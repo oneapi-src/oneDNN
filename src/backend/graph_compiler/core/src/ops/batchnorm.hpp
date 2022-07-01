@@ -68,6 +68,33 @@ public:
             override;
 };
 
+/**
+ * The batchnorm_training_backprop_op
+ * Inputs:
+ *  - ins[0] - input (src of forward)
+ *  - ins[1] - output_delta
+ *  - ins[2] - gamma
+ *  - ins[3] - mean
+ *  - ins[4] - variance
+ * Outputs:
+ *  - outs[0] - input_delta
+ *  - outs[1] - gamma_delta
+ *  - outs[2] - beta_delta
+ * Attrs:
+ *  - epsilon: float - The value add to variance to increase numeric stability
+ *  - data_format: string - Default: "NXC". Data format of input
+ * */
+class batchnorm_training_backprop_op_t : public graph_op_t,
+                                         public op_traits::auto_copyable_t {
+public:
+    batchnorm_training_backprop_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void query_format(context_ptr ctx,
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
+};
 } // namespace ops
 } // namespace sc
 

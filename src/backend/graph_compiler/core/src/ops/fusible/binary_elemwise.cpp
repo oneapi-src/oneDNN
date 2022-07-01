@@ -106,7 +106,9 @@ void infer_binary_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     COMPILE_ASSERT(cur->get_inputs().size() == 2, "binary op is expected");
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(cur, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(cur, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
     auto &outslice = fsmap.get(cur->get_outputs()[0]);
     // if unkown slice ranges exist.
     if (known_ranges_map.size() < cur->get_inputs().size()) {
@@ -347,7 +349,9 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     COMPILE_ASSERT(get_inputs().size() == 2, "binary op is expected");
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
     auto &outslice = fsmap.get(get_outputs()[0]);
     // if unkown slice ranges exist.
     if (known_ranges_map.size() < get_inputs().size()) {

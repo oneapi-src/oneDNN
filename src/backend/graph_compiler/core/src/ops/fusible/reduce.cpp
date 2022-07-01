@@ -274,7 +274,8 @@ void update_reduce_op_fsmap(sc_op *ths, const graph_tensor_ptr &input,
 void reduce_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
     // set the other unknown slice range by achieved known_ranges_list
     slice_range_list &known_ranges_list = known_ranges_map[0];
     // COMPILE_ASSERT(known_ranges_list.size() == 1,
@@ -740,7 +741,8 @@ bool reduce_compute_op_t::is_partial_reduce() const {
 
 void reduce_compute_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
     // set the other unknown slice range by achieved known_ranges_list
     slice_range_list &known_ranges_list = known_ranges_map[0];
 
@@ -861,7 +863,8 @@ reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
 
 void reduce_collect_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
     // set the other unknown slice range by achieved known_ranges_list
     slice_range_list &known_ranges_list = known_ranges_map[0];
     COMPILE_ASSERT(get_inputs()[0]->producer_owner_->isa<reduce_compute_op_t>(),

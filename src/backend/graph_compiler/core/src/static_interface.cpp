@@ -35,7 +35,8 @@
     F(sigmoid_backprop); \
     F(conv_fwd); \
     F(batchnorm_inference); \
-    F(batchnorm_forward_training);
+    F(batchnorm_forward_training); \
+    F(batchnorm_training_backprop);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;
 

@@ -28,7 +28,8 @@
 namespace sc {
 
 using slice_range_map = std::unordered_map<int, slice_range_list>;
-slice_range_map search_known_slice_ranges(fusible_op_t *cur, fslice_map &fsmap);
+slice_range_map search_known_slice_ranges(
+        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
 void set_unknown_slice_ranges(fusible_op_t *cur,
         const slice_range_map &known_ranges_map, fslice_map &fsmap,
         infer_status_map_t &stat_map);

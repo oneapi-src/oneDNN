@@ -454,7 +454,9 @@ void tensor_view_op_t::infer_slice_ranges(
         return;
     }
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
     slice_range_list known_ranges_list = known_ranges_map[0];
 
     if (fsmap.get(get_outputs()[0]).empty()) {
@@ -713,7 +715,9 @@ void split_op_t::prepare_fusion_data(fdata_map &fdmap) {
 void split_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
     size_t slice_size = known_ranges_map[0].size();
     slice_range_list split_ranges_list = known_ranges_map[0];
     for (size_t i = 0; i < get_outputs().size(); i++) {

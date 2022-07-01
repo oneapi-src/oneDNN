@@ -677,7 +677,9 @@ void reorder_op_t::infer_slice_ranges(
                     << input_format_ << " to output format " << output_format_
                     << ".");
     // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
     auto input_slice_list = known_ranges_map[0];
     slice_range_list reorder_ranges_list;
 
@@ -691,7 +693,7 @@ void reorder_op_t::infer_slice_ranges(
                 user.second->attrs_.set(op_attr_key::fused_mode_hint,
                         op_attr_key::break_pre_fuse);
                 stat_map.get_ops_by_status(infer_status_code::FAIL)
-                        .emplace_back(user.second);
+                        .insert(user.second);
                 return;
             }
         }

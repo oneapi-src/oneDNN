@@ -473,7 +473,7 @@ bool loop_can_be_fused(const for_loop &loop) {
 }
 
 slice_range_map search_known_slice_ranges(
-        fusible_op_t *cur, fslice_map &fsmap) {
+        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     slice_range_map known_ranges_map;
     auto input_size = cur->get_inputs().size();
     COMPILE_ASSERT(input_size > 0,
@@ -484,9 +484,9 @@ slice_range_map search_known_slice_ranges(
             known_ranges_map[i] = fsmap.get(input);
         }
     }
-    COMPILE_ASSERT(!known_ranges_map.empty(),
-            "No original slice of inputs can be searched for op: "
-                    << cur->op_name_ << "\n");
+    if (known_ranges_map.empty()) {
+        stat_map.append_ops_by_status(cur, infer_status_code::UNKNOWN);
+    }
     return known_ranges_map;
 }
 

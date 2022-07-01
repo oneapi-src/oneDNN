@@ -24,6 +24,7 @@
 #include "graph_map.hpp"
 #include <compiler/ir/sc_expr.hpp>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace sc {
 
@@ -35,24 +36,26 @@ enum class infer_status_code : int {
     OK = 0, // Successful
     RETRY, // Need retry another anchor
     FAIL, // Could not infer
+    UNKNOWN, // Unknown
     END,
 };
 
 struct infer_status_map_t {
-    std::vector<std::vector<sc_op_ptr>> inf_stat_map_;
+    std::vector<std::unordered_set<sc_op_ptr>> inf_stat_map_;
 
     infer_status_map_t() {
         inf_stat_map_.resize(static_cast<int>(infer_status_code::END));
     }
 
-    std::vector<sc_op_ptr> &get_ops_by_status(infer_status_code code) {
+    std::unordered_set<sc_op_ptr> &get_ops_by_status(infer_status_code code) {
         COMPILE_ASSERT(code != infer_status_code::END, "END code found");
         return inf_stat_map_[static_cast<int>(code)];
     }
 
     const bool is_ok() {
         return get_ops_by_status(infer_status_code::RETRY).empty()
-                && get_ops_by_status(infer_status_code::FAIL).empty();
+                && get_ops_by_status(infer_status_code::FAIL).empty()
+                && get_ops_by_status(infer_status_code::UNKNOWN).empty();
     }
 
     const bool is_fail() {
@@ -63,15 +66,39 @@ struct infer_status_map_t {
         return !get_ops_by_status(infer_status_code::RETRY).empty();
     }
 
+    const bool is_unknown() {
+        return !get_ops_by_status(infer_status_code::UNKNOWN).empty();
+    }
+
     void append_ops_by_status(sc_op *cur, infer_status_code code) {
         COMPILE_ASSERT(code != infer_status_code::END, "END code found");
-        inf_stat_map_[static_cast<int>(code)].emplace_back(
+        inf_stat_map_[static_cast<int>(code)].insert(cur->shared_from_this());
+    }
+
+    void remove_ops_by_status(sc_op *cur, infer_status_code code) {
+        COMPILE_ASSERT(code == infer_status_code::UNKNOWN,
+                "remove_ops_by_status temporarily only supports remove "
+                "unknown_status to avoid potential misuse.");
+        auto pos = inf_stat_map_[static_cast<int>(code)].find(
                 cur->shared_from_this());
+        COMPILE_ASSERT(pos != inf_stat_map_[static_cast<int>(code)].end(),
+                "Op not found in unknown_status map.");
+        inf_stat_map_[static_cast<int>(code)].erase(pos);
     }
 
     void clear() {
         for (auto &ops : inf_stat_map_)
             ops.clear();
+    }
+
+    static std::vector<sc_op_ptr> stat_map_to_vector(
+            const std::unordered_set<sc_op_ptr> &stat_map) {
+        std::vector<sc_op_ptr> result;
+        result.reserve(stat_map.size());
+        for (auto itr : stat_map) {
+            result.push_back(itr);
+        }
+        return result;
     }
 };
 
