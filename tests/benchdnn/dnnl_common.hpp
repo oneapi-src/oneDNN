@@ -396,6 +396,7 @@ void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
         dnnl_data_type_t dst_dt = dnnl_data_type_undef);
 void skip_invalid_inplace(res_t *res, dnnl_data_type_t sdt,
         dnnl_data_type_t ddt, const std::string &stag, const std::string &dtag);
+void skip_unimplemented_arg_scale(const attr_t &attr, res_t *res);
 
 // `check_dnnl_status` function is called to validate the result of primitive
 // descriptor creation. Based on the status, it prodices additional checks:
