@@ -361,7 +361,18 @@ std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
     return ss;
 }
 
-std::string arg2str(int arg) {
+namespace {
+int get_arg_index(int arg) {
+    if (arg & DNNL_ARG_MULTIPLE_SRC) return arg - DNNL_ARG_MULTIPLE_SRC;
+    switch (arg) {
+        case DNNL_ARG_SRC_0: return 0;
+        case DNNL_ARG_SRC_1: return 1;
+        default: assert(!"unsupported arg");
+    }
+    return -1;
+}
+
+std::string get_arg(int arg) {
     if (arg & DNNL_ARG_MULTIPLE_SRC) return "msrc";
 
     std::string s;
@@ -370,8 +381,16 @@ std::string arg2str(int arg) {
         case DNNL_ARG_SRC_1: s = "src"; break;
         case DNNL_ARG_DST: s = "dst"; break;
         case DNNL_ARG_WEIGHTS: s = "wei"; break;
-        default: assert(!"unsupported arg"); s = "";
+        default: assert(!"unsupported arg"); s = "unsupported arg";
     }
+    return s;
+}
+} // namespace
+
+std::string arg2str(int arg) {
+    std::string s = get_arg(arg);
+    const int idx = get_arg_index(arg);
+    if (idx != -1) s += std::to_string(idx);
     return s;
 }
 
@@ -403,8 +422,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             if (val.has_default_values()) continue;
 
             int arg = map_entry.first;
-            int idx = as.get_index_val(arg);
-            ss << delim << arg2str(arg) << idx << ":" << val;
+            ss << delim << arg2str(arg) << ":" << val;
             delim = attr_delim;
         }
         ss << " ";
