@@ -187,8 +187,6 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
             bh->allow_split({"mb"});
     }
 
-    if (is_dp_fma()) { bh->set_base_iter_block("oc", 32); }
-
     if (mb < 8 && !bh->any_pref_tg_block())
         bh->set_pref_tg_block(ow > oc ? osp_name : "oc");
 
