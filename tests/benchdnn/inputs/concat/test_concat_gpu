@@ -76,6 +76,7 @@
 --reset
 --allow-enum-tags-only=0
 --stag=abcd:acbd:acbd --dtag=abcd --axis=1
+--attr-scales=,msrc0:common:1.5,msrc0:common:1.5+msrc1:common:2.5
 4x1x1x4:4x1x1x4:4x1x1x4_n"simple_concat_ok"
 4x2x1x4:4x2x1x4:4x2x1x4
 4x1x2x4:4x1x2x4:4x1x2x4
