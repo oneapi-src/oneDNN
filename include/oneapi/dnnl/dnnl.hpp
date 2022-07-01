@@ -4569,7 +4569,7 @@ struct primitive_desc : public primitive_desc_base {
                 desc, attr ? attr->get() : nullptr, aengine.get(), hint_fwd_pd);
         if (!allow_empty)
             error::wrap_c_api(
-                    status, "could not create a primitive descriptor iterator");
+                    status, "could not create a primitive descriptor");
         pd_iterator.reset(iterator);
         fetch_impl();
     }
