@@ -1544,14 +1544,20 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                                             base_op->num_inputs()});
                         } else {
                             // use sum post-ops for no-broadcast add
-                            fusion_info.append_post_sum(
-                                    post_op->shared_from_this(), 1.0f, 0);
-                            assertm(!base_op->has_attr(op_attr::with_sum)
-                                            || !base_op->get_attr<bool>(
-                                                    op_attr::with_sum),
-                                    "not support multiple post sum ops "
-                                    "currently.");
-                            base_op->set_attr<bool>(op_attr::with_sum, true);
+                            // map non-first post-sum to post-binary_add
+                            if (base_op->has_attr(op_attr::with_sum)
+                                    && base_op->get_attr<bool>(
+                                            op_attr::with_sum)) {
+                                fusion_info.append_post_binary(
+                                        post_op->shared_from_this(),
+                                        std::vector<size_t> {
+                                                base_op->num_inputs()});
+                            } else {
+                                fusion_info.append_post_sum(
+                                        post_op->shared_from_this(), 1.0f, 0);
+                                base_op->set_attr<bool>(
+                                        op_attr::with_sum, true);
+                            }
                         }
                     } else {
                         // use binary post-ops for broadcast add

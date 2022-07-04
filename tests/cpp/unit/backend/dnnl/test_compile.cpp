@@ -57,6 +57,14 @@ dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     return *find;
 }
 
+void run_all_passes(impl::graph_t &agraph) {
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
+            backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "", impl::partition_policy::fusion);
+}
+
 // This function run the unfused graph op by op. The output tensor of the whole
 // graph should also be strided so that we can read and check the results. The
 // given graph will be deep copied first so that all the changes inside the
@@ -25810,5 +25818,184 @@ TEST(ExecuteSubgraphFp32, Pool3Postops) {
         for (size_t i = 0; i < case1_out_data.size(); ++i) {
             ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
+    }
+}
+
+TEST(Execute, ConvSumSum) {
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src1(1 * 8 * 112 * 112, 1.25);
+    test::vector<float> weight(8 * 8 * 3 * 3, 1.25);
+    test::vector<float> src2(1 * 8 * 110 * 110, 1.3);
+    test::vector<float> src3(1 * 8 * 110 * 110, 1.6);
+    test::vector<float> ref_dst(1 * 8 * 110 * 110, 115.4);
+    test::vector<float> dst(1 * 8 * 110 * 110, 0);
+
+    impl::op_t in_op1(0, impl::op_kind::Wildcard, "Wildcard");
+    impl::op_t in_op2(1, impl::op_kind::Wildcard, "Wildcard");
+    impl::op_t in_op3(2, impl::op_kind::Wildcard, "Wildcard");
+    impl::op_t conv_op(3, impl::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    impl::op_t add_op1(4, impl::op_kind::Add, "Add");
+    add_op1.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
+    impl::op_t add_op2(5, impl::op_kind::Add, "Add");
+    add_op2.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            0, {1, 8, 112, 112}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, {8, 8, 3, 3}, impl::data_type::f32);
+
+    impl::logical_tensor_t conv_lt = utils::logical_tensor_init(
+            2, {1, 8, 110, 110}, impl::data_type::f32);
+    impl::logical_tensor_t src2_lt = utils::logical_tensor_init(
+            3, {1, 8, 110, 110}, impl::data_type::f32);
+
+    impl::logical_tensor_t add1_lt = utils::logical_tensor_init(
+            4, {1, 8, 110, 110}, impl::data_type::f32);
+    impl::logical_tensor_t src3_lt = utils::logical_tensor_init(
+            5, {1, 8, 110, 110}, impl::data_type::f32);
+
+    impl::logical_tensor_t add2_lt = utils::logical_tensor_init(
+            6, {1, 8, 110, 110}, impl::data_type::f32);
+
+    in_op1.add_output(src1_lt);
+    conv_op.add_input(src1_lt);
+    conv_op.add_input(weight_lt);
+    conv_op.add_output(conv_lt);
+
+    add_op1.add_input(conv_lt);
+    add_op1.add_input(src2_lt);
+    add_op1.add_output(add1_lt);
+
+    add_op2.add_input(add1_lt);
+    add_op2.add_input(src3_lt);
+    add_op2.add_output(add2_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&in_op1);
+    g.add_op(&in_op2);
+    g.add_op(&in_op3);
+    g.add_op(&conv_op);
+    g.add_op(&add_op1);
+    g.add_op(&add_op2);
+
+    g.build_graph();
+
+    run_all_passes(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src1_lt, &weight_lt, &src2_lt, &src3_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&add2_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(add2_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t src2_ts(src2_lt, &eng, src2.data());
+    impl::tensor_t src3_ts(src3_lt, &eng, src3.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t add2_ts(add2_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src1_ts, weight_ts, src2_ts, src3_ts}, {add2_ts});
+    strm.wait();
+}
+
+TEST(Execute, MulAddAdd) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> mul_src1(1917, 2.5);
+    test::vector<float> mul_src2(1, 1.5);
+    test::vector<float> add1_src(1917, 1.15);
+    test::vector<float> add2_src(1917, 1.07);
+    test::vector<float> ref_dst(1917, 5.97);
+    test::vector<float> dst(1917, 0.0);
+
+    impl::op_t mul_op(0, impl::op_kind::Multiply, "mul");
+    impl::op_t add1_op(1, impl::op_kind::Add, "add");
+    impl::op_t add2_op(2, impl::op_kind::Add, "add");
+    add1_op.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
+    add2_op.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
+
+    impl::logical_tensor_t mul_src1_lt
+            = utils::logical_tensor_init(0, {1917}, impl::data_type::f32);
+    impl::logical_tensor_t mul_src2_lt
+            = utils::logical_tensor_init(1, {1}, impl::data_type::f32);
+    impl::logical_tensor_t mul_dst_lt
+            = utils::logical_tensor_init(2, {1917}, impl::data_type::f32);
+    impl::logical_tensor_t add1_src_lt
+            = utils::logical_tensor_init(3, {1917}, impl::data_type::f32);
+    impl::logical_tensor_t add1_dst_lt
+            = utils::logical_tensor_init(4, {1917}, impl::data_type::f32);
+    impl::logical_tensor_t add2_src_lt
+            = utils::logical_tensor_init(5, {1917}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(6, {1917}, impl::data_type::f32);
+
+    mul_op.add_input(mul_src1_lt);
+    mul_op.add_input(mul_src2_lt);
+    mul_op.add_output(mul_dst_lt);
+
+    add1_op.add_input(mul_dst_lt);
+    add1_op.add_input(add1_src_lt);
+    add1_op.add_output(add1_dst_lt);
+
+    add2_op.add_input(add1_dst_lt);
+    add2_op.add_input(add2_src_lt);
+    add2_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&mul_op);
+    g.add_op(&add1_op);
+    g.add_op(&add2_op);
+    g.build_graph();
+
+    run_all_passes(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &mul_src1_lt, &mul_src2_lt, &add1_src_lt, &add2_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::tensor_t mul_src1_ts(mul_src1_lt, &eng, mul_src1.data());
+    impl::tensor_t mul_src2_ts(mul_src2_lt, &eng, mul_src2.data());
+    impl::tensor_t add1_src_ts(add1_src_lt, &eng, add1_src.data());
+    impl::tensor_t add2_src_ts(add2_src_lt, &eng, add2_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {mul_src1_ts, mul_src2_ts, add1_src_ts, add2_src_ts},
+            {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
