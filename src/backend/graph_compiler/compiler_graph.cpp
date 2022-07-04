@@ -40,7 +40,7 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::ReLUBackprop, "relu_backprop"},
                 {op_kind::SigmoidBackprop, "sigmoid_backprop"},
                 {op_kind::GELUBackprop, "gelu_backprop"},
-                {op_kind::ReduceSum, "reduce"}};
+                {op_kind::ReduceSum, "reduce"}, {op_kind::BiasAdd, "add"}};
 
 sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<impl::op_attr_t,
@@ -157,6 +157,18 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         } else {
             backend_attrs.set("keep_dims", false);
         }
+    } else if (aop->get_kind() == op_kind::BiasAdd) {
+        std::string data_format = "NXC";
+        if (attrs.find(impl::op_attr::data_format) != attrs.end()) {
+            data_format = attrs[impl::op_attr::data_format].get<std::string>();
+        }
+        if (data_format == "NXC") {
+            backend_attrs.set("bc_axis",
+                    std::vector<int> {static_cast<int>(input_dim) - 1});
+        } else {
+            backend_attrs.set("bc_axis", std::vector<int> {1});
+        }
+
     } else {
         backend_attrs = convert_op_attrs(aop->get_attributes());
     }

@@ -1582,7 +1582,8 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
 inline void add_mlp_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
         int batch_size = 1, int layer = 1,
         std::vector<int> hidden_size = {13, 512},
-        std::vector<impl::op_kind_t> act_type = {impl::op_kind::ReLU}) {
+        std::vector<impl::op_kind_t> act_type = {impl::op_kind::ReLU},
+        bool separate_bias_add = false) {
     size_t lt_idx = 0;
     size_t op_idx = 0;
 
@@ -1599,7 +1600,7 @@ inline void add_mlp_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
         std::vector<impl::dim_t> layer_dst_size {
                 batch_size, hidden_size[i + 1]};
 
-        impl::logical_tensor_t weight, bias, matmul_dst, act_dst;
+        impl::logical_tensor_t weight, bias, matmul_dst, add_dst, act_dst;
 
         weight = utils::logical_tensor_init(lt_idx++, layer_weight_size, dtype);
         weight.property = impl::property_type::constant;
@@ -1607,28 +1608,37 @@ inline void add_mlp_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
         bias.property = impl::property_type::constant;
         matmul_dst
                 = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
+        add_dst = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
         act_dst = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
 
         std::string layer_suffix = "_layer" + std::to_string(i);
         impl::op_t matmul {
                 op_idx++, impl::op_kind::MatMul, "matmul" + layer_suffix};
+        impl::op_t add {op_idx++, impl::op_kind::Add, "add" + layer_suffix};
         impl::op_t activation {
                 op_idx++, act_type[i], "activation" + layer_suffix};
 
         matmul.add_input(input);
         matmul.add_input(weight);
-        matmul.add_input(bias);
         matmul.add_output(matmul_dst);
+        if (separate_bias_add) {
+            add.add_input(matmul_dst);
+            add.add_input(bias);
+            add.add_output(add_dst);
+        } else {
+            matmul.add_input(bias);
+        }
 
         if (act_type[i] == impl::op_kind::Wildcard) {
-            input = matmul_dst;
+            input = separate_bias_add ? add_dst : matmul_dst;
         } else {
-            activation.add_input(matmul_dst);
+            activation.add_input(separate_bias_add ? add_dst : matmul_dst);
             activation.add_output(act_dst);
             input = act_dst;
         }
 
         agraph->add_op(&matmul);
+        if (separate_bias_add) { agraph->add_op(&add); }
         if (act_type[i] != impl::op_kind::Wildcard) {
             agraph->add_op(&activation);
         }

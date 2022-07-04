@@ -344,7 +344,7 @@ TEST(GCPatternTests, FP32DLRMBottom) {
     auto &compiler_backend_ptr
             = compiler_impl::compiler_backend_t::get_singleton();
     pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mlp_pattern");
+            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
@@ -373,7 +373,7 @@ TEST(GCPatternTests, FP32DLRMTop) {
     auto &compiler_backend_ptr
             = compiler_impl::compiler_backend_t::get_singleton();
     pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mlp_pattern");
+            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
@@ -448,7 +448,128 @@ TEST(GCPatternTests, INT8DLRMTop) {
     ASSERT_EQ(partition_outputs.size(), 1);
 }
 
-TEST(GCPatternTests, FP32MLPTraining1) {
+TEST(GCPatternTests, FP32MLPSeparateAdd) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_mlp_subgraph(&agraph, false, 1, 5, {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid},
+            true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+
+    ASSERT_EQ(p.num_ops(), 15);
+
+    ASSERT_EQ(partition_inputs.size(), 11);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, FP32MLPNoActivation) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_mlp_subgraph(&agraph, false, 1, 5, {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::Wildcard, impl::op_kind::Wildcard,
+                    impl::op_kind::Wildcard, impl::op_kind::Wildcard,
+                    impl::op_kind::Wildcard});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+
+    ASSERT_EQ(p.num_ops(), 5);
+
+    ASSERT_EQ(partition_inputs.size(), 11);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_mlp_subgraph(&agraph, false, 1, 5, {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::Wildcard, impl::op_kind::Wildcard,
+                    impl::op_kind::Wildcard, impl::op_kind::Wildcard,
+                    impl::op_kind::Wildcard},
+            true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+
+    ASSERT_EQ(p.num_ops(), 10);
+
+    ASSERT_EQ(partition_inputs.size(), 11);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, INT8MLPNoActivation) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    add_int8_mlp_subgraph(&agraph, 1, 5, {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::Wildcard, impl::op_kind::Wildcard,
+                    impl::op_kind::Wildcard, impl::op_kind::Wildcard,
+                    impl::op_kind::Wildcard});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "int8_mlp_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+
+    ASSERT_EQ(p.num_ops(), 20);
+
+    ASSERT_EQ(partition_inputs.size(), 11);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, FP32MLPTraining) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     add_mlp_training_graph(&agraph, 1, 3, {13, 512, 256, 128},
@@ -459,8 +580,8 @@ TEST(GCPatternTests, FP32MLPTraining1) {
 
     auto &compiler_backend_ptr
             = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass_fwd = get_pass(
-            compiler_backend_ptr, "fp32_mlp_forward_pattern_3layers");
+    pass::pass_base_ptr apass_fwd
+            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
     pass::pass_base_ptr apass_bwd
             = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern");
 
@@ -471,59 +592,6 @@ TEST(GCPatternTests, FP32MLPTraining1) {
     ASSERT_EQ(partitions.size(), 2);
     ASSERT_EQ(partitions[0]->get_ops().size(), 6);
     ASSERT_EQ(partitions[1]->get_ops().size(), 18);
-}
-
-TEST(GCPatternTests, FP32MLPTraining2) {
-    REQUIRE_AVX512();
-    impl::graph_t agraph;
-    add_mlp_training_graph(&agraph, 1, 4, {415, 512, 512, 256, 1},
-            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
-                    impl::op_kind::Sigmoid},
-            {impl::op_kind::SigmoidBackprop, impl::op_kind::ReLUBackprop,
-                    impl::op_kind::ReLUBackprop, impl::op_kind::ReLUBackprop});
-    agraph.build_graph();
-
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass_fwd = get_pass(
-            compiler_backend_ptr, "fp32_mlp_forward_pattern_4layers");
-    pass::pass_base_ptr apass_bwd
-            = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern");
-
-    apass_fwd->run(agraph);
-    apass_bwd->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 8);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 24);
-}
-
-TEST(GCPatternTests, FP32MLPTraining3) {
-    REQUIRE_AVX512();
-    impl::graph_t agraph;
-    add_mlp_training_graph(&agraph, 1, 5, {479, 1024, 1024, 512, 256, 1},
-            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
-                    impl::op_kind::ReLU, impl::op_kind::Sigmoid},
-            {impl::op_kind::SigmoidBackprop, impl::op_kind::ReLUBackprop,
-                    impl::op_kind::ReLUBackprop, impl::op_kind::ReLUBackprop,
-                    impl::op_kind::ReLUBackprop});
-    agraph.build_graph();
-
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass_fwd = get_pass(
-            compiler_backend_ptr, "fp32_mlp_forward_pattern_5layers");
-    pass::pass_base_ptr apass_bwd
-            = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern");
-
-    apass_fwd->run(agraph);
-    apass_bwd->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 10);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 30);
 }
 
 TEST(GCPatternTests, FP32MHATrainingPattern) {
