@@ -24,6 +24,7 @@
 
 #include "gpu/amd/miopen_binary.hpp"
 #include "gpu/amd/miopen_eltwise.hpp"
+#include "gpu/amd/miopen_softmax.hpp"
 #include "gpu/amd/sycl_hip_compat.hpp"
 #include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
@@ -127,6 +128,9 @@ constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
         // Elementwise
         INSTANCE(miopen_eltwise_fwd_t)
         INSTANCE(miopen_eltwise_bwd_t)
+        // Softmax
+        INSTANCE(miopen_softmax_fwd_t)
+        INSTANCE(miopen_softmax_bwd_t)
         nullptr,
 };
 // clang-format on

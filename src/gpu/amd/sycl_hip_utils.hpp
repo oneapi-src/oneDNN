@@ -211,6 +211,15 @@ inline status_t create_and_set_tensor_descriptor(
     return status::success;
 }
 
+static status_t create_and_set_tensor_descriptor_ex(
+        miopenTensorDescriptor_t *tensor_desc, miopenTensorFormat_t format,
+        miopenDataType_t data_type, int ndims, int *dims, int *strides) {
+    CHECK(MIOPEN_EXECUTE_FUNC_S(miopenCreateTensorDescriptor, tensor_desc));
+    CHECK(MIOPEN_EXECUTE_FUNC_S(miopenSetTensorDescriptor, *tensor_desc,
+            data_type, ndims, dims, strides));
+    return status::success;
+}
+
 class miopen_error : virtual public std::runtime_error {
 
 protected:
