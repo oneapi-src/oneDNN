@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,6 +58,26 @@ dnnl_status_t DNNL_API dnnl_threadpool_interop_stream_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_threadpool_interop_stream_get_threadpool(
         dnnl_stream_t astream, void **threadpool);
+
+/// Sets the maximum concurrency assumed by oneDNN when outside a
+/// parallel call.
+///
+/// @param max_concurrency. The maximum concurrency assumed by oneDNN
+/// when outside a parallel call. This is a threadlocal setting.
+/// @returns #dnnl_success on success and a status describing the
+/// error otherwise.
+dnnl_status_t DNNL_API dnnl_threadpool_interop_set_max_concurrency(
+        int max_concurrency);
+
+/// Gets the maximum concurrency assumed by oneDNN when outside a
+/// parallel call.
+///
+/// @param max_concurrency. The maximum concurrency assumed by oneDNN
+/// when outside a parallel call. This is a threadlocal setting.
+/// @returns #dnnl_success on success and a status describing the
+/// error otherwise.
+dnnl_status_t DNNL_API dnnl_threadpool_interop_get_max_concurrency(
+        int *max_concurrency);
 
 /// @copydoc dnnl_sgemm()
 /// @param threadpool A pointer to a threadpool interface (only when built with

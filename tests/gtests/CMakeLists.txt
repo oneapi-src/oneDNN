@@ -114,6 +114,9 @@ if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
         test_convolution_format_any.cpp
         test_global_scratchpad.cpp
         )
+      if(DNNL_CPU_RUNTIME STREQUAL "THREADPOOL")
+        list(APPEND CPU_SPECIFIC_TESTS test_iface_threadpool.cpp)
+      endif()
     foreach(TEST_FILE ${CPU_SPECIFIC_TESTS})
         list(APPEND PRIM_TEST_CASES_SRC "${TEST_FILE}")
     endforeach()

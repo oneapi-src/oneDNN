@@ -130,6 +130,7 @@ namespace threadpool_utils {
 void activate_threadpool(dnnl::threadpool_interop::threadpool_iface *tp);
 void deactivate_threadpool();
 dnnl::threadpool_interop::threadpool_iface *get_active_threadpool();
+int get_max_concurrency();
 } // namespace threadpool_utils
 } // namespace impl
 

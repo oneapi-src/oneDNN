@@ -358,6 +358,13 @@ void deactivate_threadpool() {}
 dnnl::threadpool_interop::threadpool_iface *get_active_threadpool() {
     return testing::get_threadpool();
 }
+
+// here we return 0 so that parallel* calls use the
+// default number of threads in the threadpool.
+int get_max_concurrency() {
+    return 0;
+}
+
 } // namespace testing_threadpool_utils
 
 } // namespace impl
