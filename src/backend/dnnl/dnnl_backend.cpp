@@ -228,10 +228,6 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::int8_avgpool, quantized_pooling);
     DNNL_REGISTER_KERNEL(op_kind::int8_avgpool_add, quantized_pooling);
 
-    // quantized eltwise
-    DNNL_REGISTER_KERNEL(op_kind::int8_relu, quantized_eltwise);
-    DNNL_REGISTER_KERNEL(op_kind::int8_relu_add, quantized_eltwise);
-
     // sum fusion
     DNNL_REGISTER_KERNEL(op_kind::dnnl_sum, sum_t);
 

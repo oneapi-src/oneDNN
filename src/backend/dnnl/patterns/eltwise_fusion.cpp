@@ -98,47 +98,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_fusion)
-        .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    relu->fill_and_connect_input(0, *dequant_data, 0);
-                    quant->fill_and_connect_input(0, *relu, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::int8_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_add_fusion)
-        .set_priority(10.0f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *dequant_data
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *dequant_other
-                            = apattern->create_op(impl::op_kind::Dequantize);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *quant = apattern->create_op(impl::op_kind::Quantize);
-                    relu->fill_and_connect_input(0, *dequant_data, 0);
-                    add->fill_and_connect_input(0, *relu, 0);
-                    add->fill_and_connect_input(1, *dequant_other, 0);
-                    quant->fill_and_connect_input(0, *add, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::int8_relu_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

@@ -65,8 +65,6 @@ namespace op_kind {
     X(int8_quant_wei_matmul_add, INT8_Quant_wei_MatMul_add) \
     X(int8_matmul_bias_add, INT8_MatMul_bias_add) \
     X(int8_quant_wei_matmul_bias_add, INT8_Quant_wei_MatMul_bias_add) \
-    X(int8_relu, INT8_ReLU) \
-    X(int8_relu_add, INT8_ReLU_add) \
     X(x8s8float_matmul_add, X8S8FLOAT_MatMul_add) \
     X(x8s8float_matmul_bias_add, X8S8FLOAT_MatMul_bias_add) \
     X(dnnl_mul_scales, Dnnl_mul_scales) \
