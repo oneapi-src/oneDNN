@@ -116,6 +116,9 @@ void deactivate_threadpool();
 // Returns the active threadpool for the calling thread.
 dnnl::threadpool_interop::threadpool_iface *get_active_threadpool();
 
+// returns the maximum concurrency available in the given global context
+int get_max_concurrency();
+
 } // namespace threadpool_utils
 } // namespace impl
 } // namespace dnnl
@@ -123,24 +126,13 @@ dnnl::threadpool_interop::threadpool_iface *get_active_threadpool();
 inline int dnnl_get_max_threads() {
     using namespace dnnl::impl::threadpool_utils;
     dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
-    // This is the maximum number of threads oneDNN would use
-    static int def_max_threads = 0;
-    // get_max_threads_to_use() will return the number of physical cores in a
-    // socket. If running in a VM, a limited number of cores will be used (e.g.,
-    // 4 or 8) depending on the configuration of the cpuid mask. It is expected
-    // that the number of threads in user's threadpool will not exceed this
-    // value.
-    static std::once_flag initialization_flag_;
-    std::call_once(initialization_flag_, [&] {
-        def_max_threads
-                = (int)dnnl::impl::cpu::platform::get_max_threads_to_use();
-        assert(def_max_threads > 0);
-    });
 
-    // Make user responsible for number of threads provided at execution time.
-    // This relates to the fact that the library may identify `def_max_threads`
-    // incorrectly for a platform.
-    return tp ? std::max(1, tp->get_num_threads()) : def_max_threads;
+    // This is the maximum number of threads oneDNN would use by default
+    int max_concurrency = dnnl::impl::threadpool_utils::get_max_concurrency();
+
+    // Use the default max_concurrency only when no tp is passed by
+    // user (e.g. primitive creation).
+    return tp ? std::max(1, tp->get_num_threads()) : max_concurrency;
 }
 inline int dnnl_in_parallel() {
     using namespace dnnl::impl::threadpool_utils;

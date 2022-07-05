@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,6 +73,7 @@ namespace threadpool_utils {
 void activate_threadpool(dnnl::threadpool_interop::threadpool_iface *tp);
 void deactivate_threadpool();
 dnnl::threadpool_interop::threadpool_iface *get_active_threadpool();
+int get_max_concurrency();
 } // namespace threadpool_utils
 } // namespace impl
 
