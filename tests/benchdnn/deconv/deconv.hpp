@@ -297,6 +297,9 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

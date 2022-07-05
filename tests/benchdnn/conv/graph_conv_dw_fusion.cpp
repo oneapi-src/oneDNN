@@ -22,16 +22,20 @@ namespace conv_dw_fusion {
 
 namespace graph = dnnl::graph;
 
-static void check_known_skipped_case_graph(
+static int check_known_skipped_case_graph(
         const ::conv_dw_fusion::prb_t *prb, res_t *res) noexcept {
-    skip_invalid_and_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return;
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, ::conv_dw_fusion::init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     // We do not support backward pass and bias at the moment
     if (prb->dir != FWD_I && prb->dir != FWD_D) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
+        return OK;
     }
+
+    return OK;
 }
 
 // Current filling doesn't work for fused_wei due to relying on prb values,
@@ -44,8 +48,9 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
+
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     // Fill first convolution
     std::unique_ptr<::conv_dw_fusion::prb_t> p0

@@ -94,13 +94,6 @@ dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str);
 std::vector<size_t> get_post_bin_indices(
         const std::vector<attr_t::post_ops_t::entry_t> &po_entry);
 
-template <typename prb_t>
-void skip_invalid_and_unimplemented_prb(const prb_t *prb, res_t *res) {
-    skip_invalid_prb(prb, res);
-    if (res->state == SKIPPED) return;
-    skip_unimplemented_prb(prb, res);
-}
-
 /**  Get the outer format string without blocking expression.
  *     For example, AcdB16a8b -> acdb
  */

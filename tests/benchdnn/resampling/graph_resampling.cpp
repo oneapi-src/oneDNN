@@ -24,18 +24,18 @@
 namespace benchdnnext {
 namespace resampling {
 
-static void check_known_skipped_case_graph(
+static int check_known_skipped_case_graph(
         const ::resampling::prb_t *prb, res_t *res) noexcept {
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return;
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, ::resampling::init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     //Skip if source and destination datatypes are different.
     if (prb->sdt != prb->ddt) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
-        return;
     }
+    return OK;
 }
 
 static std::vector<int64_t> get_spatial_dims(const std::vector<int64_t> &dims) {
@@ -141,8 +141,9 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
+
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     // TODO: test mode should be fixed
     srand(std::time(NULL));

@@ -23,8 +23,13 @@
 namespace benchdnnext {
 namespace reorder {
 
-static void check_known_skipped_case_graph(
+static int check_known_skipped_case_graph(
         const ::reorder::prb_t *prb, res_t *res) noexcept {
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, ::reorder::init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
     /* reorder op requires source and destination data types to be same.
        four possible cases:
        (1) input datatype == output datatype and different layout
@@ -68,6 +73,7 @@ static void check_known_skipped_case_graph(
     }
 
     check_graph_scales_and_zps_support(prb->attr, res);
+    return OK;
 }
 
 static bool is_quantize(graph_dt src_dt, graph_dt dst_dt) {
@@ -357,12 +363,9 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return OK;
+
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const auto status = append_graph_with_block(prb);
     if (status != fill_status::DONE

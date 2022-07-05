@@ -30,27 +30,28 @@
 namespace benchdnnext {
 namespace bnorm {
 
-static void check_known_skipped_case_graph(
+static int check_known_skipped_case_graph(
         const ::bnorm::prb_t *prb, res_t *res) noexcept {
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return;
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, ::bnorm::init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
     check_known_skipped_case_graph_common(
             {prb->dt}, normalize_tag(prb->tag, prb->ndims), prb->dir, res);
-    if (res->state == SKIPPED) return;
+    if (res->state == SKIPPED) return OK;
 
     for (const auto &po : prb->attr.post_ops.entry) {
         if (po.kind == attr_t::post_ops_t::RELU && prb->dir & FLAG_INF) {
             continue;
         } else {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
+            return OK;
         }
     }
 
     check_graph_eltwise_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return;
+    return OK;
 }
 
 fill_status_t append_graph_with_block(const ::bnorm::prb_t *prb) {
@@ -150,8 +151,9 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
+
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const auto status = append_graph_with_block(prb);
     if (status != fill_status::DONE

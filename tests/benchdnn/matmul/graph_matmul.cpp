@@ -29,17 +29,18 @@
 namespace benchdnnext {
 namespace matmul {
 
-static void check_known_skipped_case_graph(
+static int check_known_skipped_case_graph(
         const ::matmul::prb_t *prb, res_t *res) noexcept {
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return;
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, ::matmul::init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     check_graph_eltwise_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return;
+    if (res->state == SKIPPED) return OK;
 
     check_graph_scales_and_zps_support(prb->attr, res);
+    return OK;
 }
 
 static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
@@ -227,8 +228,9 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
+
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const auto status = append_graph_with_block(prb);
     if (status != fill_status::DONE

@@ -29,12 +29,12 @@
 namespace benchdnnext {
 namespace pool {
 
-static void check_known_skipped_case_graph(
+static int check_known_skipped_case_graph(
         const ::pool::prb_t *prb, res_t *res) noexcept {
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return;
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, ::pool::init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     for (const auto &po : prb->attr.post_ops.entry) {
         if (po.is_binary_kind()) {
@@ -44,7 +44,7 @@ static void check_known_skipped_case_graph(
             const auto policy = po.binary.policy;
             if (!(policy == attr_t::COMMON || policy == attr_t::PER_OC)) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
+                return OK;
             }
 
             // currently, for int8 cases, in the backend we
@@ -55,10 +55,12 @@ static void check_known_skipped_case_graph(
             if (is_low_precision({src_dt, dst_dt})
                     && !is_low_precision({bin_src_dt})) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
+                return OK;
             }
         }
     }
+
+    return OK;
 }
 
 static quant_data_t get_qdata_for(int arg, const ::pool::prb_t *prb) {
@@ -216,8 +218,9 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
+
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const auto status = append_graph_with_block(prb);
     if (status != fill_status::DONE

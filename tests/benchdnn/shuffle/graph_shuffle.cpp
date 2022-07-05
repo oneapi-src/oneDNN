@@ -25,11 +25,12 @@
 namespace benchdnnext {
 namespace shuffle {
 
-static void check_known_skipped_case_graph(
-        const ::shuffle::prb_t *prb, res_t *res) {
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
+static int check_known_skipped_case_graph(
+        const ::shuffle::prb_t *prb, res_t *res) noexcept {
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, ::shuffle::init_pd, prb, res), WARN);
+    return OK;
 }
 
 fill_status_t append_graph_with_block(const ::shuffle::prb_t *prb) {
@@ -142,7 +143,7 @@ int doit(const ::shuffle::prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const auto status = append_graph_with_block(prb);
     if (status != fill_status::DONE

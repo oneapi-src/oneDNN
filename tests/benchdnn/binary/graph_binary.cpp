@@ -46,8 +46,13 @@ static void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
     }
 }
 
-static void check_known_skipped_case_graph(
+static int check_known_skipped_case_graph(
         const ::binary::prb_t *prb, res_t *res) {
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    SAFE(init_prim(prim, ::binary::init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
     using p = attr_t::post_ops_t;
     // Binary ops supports relu, sigmoid, sum and binary post-ops.
     // Other cases are being skipped.
@@ -57,12 +62,12 @@ static void check_known_skipped_case_graph(
             continue;
         } else {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
+            return OK;
         }
     }
 
     check_graph_eltwise_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return;
+    return OK;
 }
 
 fill_status_t append_graph_with_block(const ::binary::prb_t *prb) {
@@ -123,12 +128,9 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return OK;
+
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     check_broadcast_rules(prb, res);
     if (res->state == SKIPPED) return OK;
 
