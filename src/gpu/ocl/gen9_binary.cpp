@@ -146,6 +146,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
                     conf.dispatch.define_dim(dim_str, 1);
                 }
             }
+            if (padded_dims[1] < 256) { return status::unimplemented; }
         } else {
             auto format_fits = [](const memory_desc_t &md) {
                 if (md.format_kind != dnnl_blocked) { return false; }
