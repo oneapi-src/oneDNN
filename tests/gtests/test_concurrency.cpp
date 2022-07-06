@@ -294,7 +294,19 @@ protected:
 };
 
 const int test_concurrency_t::ntasks = 1000;
-const int test_concurrency_t::nthreads = 100;
+const int test_concurrency_t::nthreads = []() {
+    int res = 100;
+#ifdef _OPENMP
+    const int hc = std::thread::hardware_concurrency();
+    // On systems that have many cores this test may not work properly
+    // due to high number of created threads (nthreads * primitive threads).
+    // Only OpenMP runtime is affected (probably only GOMP).
+    // Error message:
+    // libgomp: Thread creation failed: Resource temporarily unavailable
+    res = hc > 100 ? 10 : res;
+#endif
+    return res;
+}();
 
 TEST_F(test_concurrency_t, Basic) {
     if (skipped) return;
