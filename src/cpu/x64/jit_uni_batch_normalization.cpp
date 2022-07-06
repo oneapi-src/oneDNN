@@ -1819,10 +1819,10 @@ struct driver_t : public c_compatible {
         dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
         size_t data_size = dt_size_ * bdesc_->MB() * C_PADDED * bdesc_->D()
                 * bdesc_->H() * bdesc_->W();
-        const size_t l3_size
-                = platform::get_per_core_cache_size(3) * nthr / 2; // XXX
+        const size_t l3_size = platform::get_per_core_cache_size(3) * nthr;
         // TODO: cache balancing for nspc
-        do_blocking_ = is_nspc_ ? false : (data_size >= l3_size / 2);
+        const size_t l3_filling_factor = 4;
+        do_blocking_ = !is_nspc_ && data_size >= l3_size / l3_filling_factor;
     }
 
     ~driver_t() = default;
@@ -1968,14 +1968,14 @@ struct driver_t : public c_compatible {
         dim_t H = bdesc_->H();
         dim_t W = bdesc_->W();
         dim_t SP = D * H * W;
-        dim_t img_size = C_PADDED * D * H * W;
+        dim_t img_size = C_PADDED * SP;
         const int vlen_spat_data = ker_.spat_step;
 
         typename jit_bnorm_t<isa>::call_params_t p;
 
         p.eps = bdesc_->desc()->batch_norm_epsilon;
         p.one = 1.0f;
-        p.spat_size = D * H * W;
+        p.spat_size = SP;
         p.chan_size = 1.0f * N * p.spat_size;
 
         dim_t C_blks = C_PADDED / simd_w;
@@ -2082,9 +2082,9 @@ struct driver_t : public c_compatible {
             p.rbuf2 = p.rbuf1 + C_PADDED * nthr;
             p.is_cblk_tail = (it * C_blks_per_iter + C_blk_e) * simd_w > C;
 
-            size_t iter_bariers
+            size_t iter_barriers
                     = do_blocking_ ? it * global_barriers_per_iter : 0;
-            p.barrier = barriers + C_ithr + iter_bariers;
+            p.barrier = barriers + C_ithr + iter_barriers;
             if (p.soff_max != 0 && p.coff_max != 0) ker_(&p);
         }
     }
