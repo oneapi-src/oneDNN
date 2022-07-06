@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2022 Intel Corporation
-* Copyright 2020 Codeplay Software Limited 
+* Copyright 2020-2022 Codeplay Software Limited 
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ struct miopen_softmax_impl_base_t {
 
     virtual void execute(miopenHandle_t handle, void **x, int size) const = 0;
 
-    // Mapping between dnnl algorithm and cuDNN softmax algorithm
+    // Mapping between dnnl algorithm and MIOpen softmax algorithm
     status_t convert_alg_kind(bool is_log_softmax,
             miopenSoftmaxAlgorithm_t *miopen_alg_kind) const {
         if (is_log_softmax) {
@@ -60,82 +60,18 @@ struct miopen_softmax_impl_base_t {
     }
 
     status_t convert_dims_softmax(const dims_t &orig_dims, int *modified_dims,
-            int axis, int ndims, format_tag_t tag,
-            miopenTensorFormat_t &format) const {
+            int axis, int ndims, format_tag_t tag) const {
 
         // Initialise all dims to 1
         for (int i = 0; i < 4; i++) {
             modified_dims[i] = 1;
         }
-        if (axis == 1) {
-            // Copy dimensions into the new array
-            format = tag == dnnl_nhwc
-                    ? miopenTensorFormat_t::MIOPEN_TENSOR_NHWC
-                    : miopenTensorFormat_t::MIOPEN_TENSOR_NCHW;
-            int num_dims = ndims < 4 ? ndims : 4;
-            for (int i = 0; i < num_dims; i++) {
-                modified_dims[i] = orig_dims[i];
-            }
-            for (int i = 4; i < ndims; i++) {
-                modified_dims[3] *= orig_dims[i];
-            }
-            return status::success;
+        int num_dims = ndims < 4 ? ndims : 4;
+        for (int i = 0; i < num_dims; i++) {
+            modified_dims[i] = orig_dims[i];
         }
-        format = miopenTensorFormat_t::MIOPEN_TENSOR_NCHW;
-        switch (tag) {
-            case dnnl_cn: {
-                modified_dims[0] = orig_dims[1];
-                modified_dims[1] = orig_dims[0];
-                break;
-            }
-            case dnnl_nchw: {
-                switch (axis) {
-                    case 0:
-                        modified_dims[1] = orig_dims[axis];
-                        modified_dims[2] = orig_dims[1];
-                        for (int i = 2; i < ndims; i++) {
-                            modified_dims[3] *= orig_dims[i];
-                        }
-                        break;
-                    default: {
-                        for (int i = 0; i < axis; i++) {
-                            modified_dims[0] *= orig_dims[i];
-                        }
-                        modified_dims[1] = orig_dims[axis];
-                        if (axis == ndims - 1) { return status::success; }
-                        for (int i = axis + 1; i < ndims; i++) {
-                            modified_dims[2] *= orig_dims[i];
-                        }
-                        break;
-                    }
-                }
-                break;
-            }
-            case dnnl_nhwc:
-                switch (axis) {
-                    case 0:
-                        modified_dims[1] = orig_dims[0];
-                        for (int i = 1; i < ndims; i++) {
-                            modified_dims[2] *= orig_dims[i];
-                        }
-                        break;
-                    case 2:
-                        modified_dims[0] = orig_dims[0];
-                        modified_dims[1] = orig_dims[2];
-                        for (int i = 3; i < ndims; i++) {
-                            modified_dims[2] *= orig_dims[i];
-                        }
-                        modified_dims[3] = orig_dims[1];
-                        break;
-                    case 3:
-                        modified_dims[0] = orig_dims[0] * orig_dims[2];
-                        modified_dims[1] = orig_dims[3];
-                        modified_dims[2] = ndims == 4 ? 1 : orig_dims[4];
-                        modified_dims[3] = orig_dims[1];
-                        break;
-                }
-                break;
-            default: return status::unimplemented;
+        for (int i = 4; i < ndims; i++) {
+            modified_dims[3] *= orig_dims[i];
         }
         return status::success;
     }
@@ -148,9 +84,6 @@ struct miopen_softmax_impl_base_t {
                            format_tag::abc, format_tag::abcd, format_tag::abcde,
                            format_tag::abcdef)) {
             tag = dnnl_nchw;
-        } else if (mem_wrapper.matches_one_of_tag(format_tag::acb,
-                           format_tag::acdb, format_tag::acdeb)) {
-            tag = dnnl_nhwc;
         } else {
             return status::unimplemented;
         }
@@ -161,7 +94,6 @@ struct miopen_softmax_impl_base_t {
 struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
     int dims[NUM_IO][DNNL_MAX_NDIMS];
     miopenTensorDescriptor_t tensor_desc;
-    miopenTensorFormat_t format;
 
     status_t init(const softmax_pd_t *pd) override {
 
@@ -173,7 +105,7 @@ struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
         format_tag_t tag;
         CHECK(convert_tag(pd->src_md(), tag));
         CHECK(convert_dims_softmax(pd->src_md()->padded_dims, dims[src],
-                pd->axis(), pd->ndims(), tag, format));
+                pd->axis(), pd->ndims(), tag));
         convert_dims(pd->src_md()->format_desc.blocking.strides, strides[src],
                 pd->ndims());
         convert_dims(pd->dst_md()->format_desc.blocking.strides, strides[dst],
@@ -185,8 +117,8 @@ struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
 
         CHECK(convert_data_type(pd->src_md(), &data_type));
 
-        CHECK(create_and_set_tensor_descriptor_ex(
-                &tensor_desc, format, data_type, 4, dims[src], strides[src]));
+        CHECK(create_and_set_tensor_descriptor(
+                &tensor_desc, data_type, 4, dims[src], strides[src]));
 
         return status::success;
     }
@@ -209,8 +141,6 @@ struct miopen_softmax_bwd_impl_t : public miopen_softmax_impl_base_t {
     miopenTensorDescriptor_t tensor_dst_desc;
     miopenTensorDescriptor_t tensor_diff_desc;
 
-    miopenTensorFormat_t dst_format, diff_src_format;
-
     status_t init(const softmax_pd_t *pd) override {
 
         if (pd->has_zero_dim_memory()) return status::success;
@@ -221,9 +151,9 @@ struct miopen_softmax_bwd_impl_t : public miopen_softmax_impl_base_t {
         CHECK(convert_tag(pd->dst_md(), tag));
 
         CHECK(convert_dims_softmax(pd->dst_md()->padded_dims, dims[dst],
-                pd->axis(), pd->ndims(), tag, dst_format));
+                pd->axis(), pd->ndims(), tag));
         CHECK(convert_dims_softmax(pd->diff_src_md()->padded_dims, dims[d_src],
-                pd->axis(), pd->ndims(), tag, diff_src_format));
+                pd->axis(), pd->ndims(), tag));
 
         convert_alg_kind(pd->is_logsoftmax(), &alg_kind);
 
@@ -238,10 +168,10 @@ struct miopen_softmax_bwd_impl_t : public miopen_softmax_impl_base_t {
         convert_dims(pd->diff_dst_md()->format_desc.blocking.strides,
                 strides[d_dst], pd->ndims());
 
-        CHECK(create_and_set_tensor_descriptor_ex(&tensor_dst_desc, dst_format,
-                data_type, 4, dims[dst], strides[dst]));
-        CHECK(create_and_set_tensor_descriptor_ex(&tensor_diff_desc,
-                diff_src_format, data_type, 4, dims[d_src], strides[d_src]));
+        CHECK(create_and_set_tensor_descriptor(
+                &tensor_dst_desc, data_type, 4, dims[dst], strides[dst]));
+        CHECK(create_and_set_tensor_descriptor(
+                &tensor_diff_desc, data_type, 4, dims[d_src], strides[d_src]));
 
         return status::success;
     }
