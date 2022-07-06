@@ -557,7 +557,8 @@ struct jit_bnorm_t : public jit_generator {
         shl(jbp_->is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
     }
 
-    void uni_vmovups_spat_data(const Operand &dst, const Operand &src) {
+    void uni_vmovups_spat_data(
+            const Operand &dst, const Operand &src, bool is_nt_store = false) {
         if (dst.isMEM()) {
             if (is_bf16_) {
                 constexpr bool isAvx2 = isa == avx2;
@@ -574,7 +575,10 @@ struct jit_bnorm_t : public jit_generator {
 
                 vmovdqu16(dst.getAddress(), dst_reg);
             } else {
-                uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
+                if (is_nt_store)
+                    uni_vmovntps(dst.getAddress(), Vmm(src.getIdx()));
+                else
+                    uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
             }
         } else {
             if (is_bf16_) {
@@ -876,14 +880,9 @@ struct jit_bnorm_t : public jit_generator {
                         fwd_process_relu_avx512_common(
                                 vdata, idx * vlen_spat_data_);
                     }
-
-                    if (stream_store_allowed) {
-                        uni_vmovntps(
-                                vmmword[reg_dst + reg_soff_nspc + offt], vdata);
-                    } else {
-                        uni_vmovups_spat_data(
-                                vmmword[reg_dst + reg_soff_nspc + offt], vdata);
-                    }
+                    uni_vmovups_spat_data(
+                            vmmword[reg_dst + reg_soff_nspc + offt], vdata,
+                            stream_store_allowed);
                 }
                 add(reg_soff_nspc, spat_step);
                 sub(reg_ctr, num_spat_pts);
@@ -1674,15 +1673,9 @@ struct jit_bnorm_t : public jit_generator {
                         uni_vmulps(vdiff_data, vdiff_data, vgamma);
                     }
 
-                    if (stream_store_allowed) {
-                        uni_vmovntps(
-                                vmmword[reg_diff_src + reg_soff_nspc + offt],
-                                vdiff_data);
-                    } else {
-                        uni_vmovups_spat_data(
-                                vmmword[reg_diff_src + reg_soff_nspc + offt],
-                                vdiff_data);
-                    }
+                    uni_vmovups_spat_data(
+                            vmmword[reg_diff_src + reg_soff_nspc + offt],
+                            vdiff_data, stream_store_allowed);
                 }
                 add(reg_soff_nspc, spat_step);
                 sub(reg_ctr, num_spat_pts);
