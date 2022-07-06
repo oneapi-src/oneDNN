@@ -58,37 +58,6 @@ struct miopen_softmax_impl_base_t {
 
         return status::success;
     }
-
-    status_t convert_dims_softmax(const dims_t &orig_dims, int *modified_dims,
-            int axis, int ndims, format_tag_t tag) const {
-
-        // Initialise all dims to 1
-        for (int i = 0; i < 4; i++) {
-            modified_dims[i] = 1;
-        }
-        int num_dims = ndims < 4 ? ndims : 4;
-        for (int i = 0; i < num_dims; i++) {
-            modified_dims[i] = orig_dims[i];
-        }
-        for (int i = 4; i < ndims; i++) {
-            modified_dims[3] *= orig_dims[i];
-        }
-        return status::success;
-    }
-
-    status_t convert_tag(const memory_desc_t *md, format_tag_t &tag) const {
-        const memory_desc_wrapper mem_wrapper(md);
-        if (mem_wrapper.matches_one_of_tag(format_tag::ba)) {
-            tag = dnnl_cn;
-        } else if (mem_wrapper.matches_one_of_tag(format_tag::ab,
-                           format_tag::abc, format_tag::abcd, format_tag::abcde,
-                           format_tag::abcdef)) {
-            tag = dnnl_nchw;
-        } else {
-            return status::unimplemented;
-        }
-        return status::success;
-    }
 };
 
 struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
@@ -102,10 +71,8 @@ struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
         if (pd->ndims() > MIOPEN_DIM_MAX) { return status::invalid_arguments; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();
 
-        format_tag_t tag;
-        CHECK(convert_tag(pd->src_md(), tag));
-        CHECK(convert_dims_softmax(pd->src_md()->padded_dims, dims[src],
-                pd->axis(), pd->ndims(), tag));
+        convert_dims(pd->src_md()->padded_dims, dims[src],
+                pd->ndims());
         convert_dims(pd->src_md()->format_desc.blocking.strides, strides[src],
                 pd->ndims());
         convert_dims(pd->dst_md()->format_desc.blocking.strides, strides[dst],
@@ -147,13 +114,10 @@ struct miopen_softmax_bwd_impl_t : public miopen_softmax_impl_base_t {
         if (pd->ndims() > MIOPEN_DIM_MAX) { return status::invalid_arguments; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();
 
-        format_tag_t tag;
-        CHECK(convert_tag(pd->dst_md(), tag));
-
-        CHECK(convert_dims_softmax(pd->dst_md()->padded_dims, dims[dst],
-                pd->axis(), pd->ndims(), tag));
-        CHECK(convert_dims_softmax(pd->diff_src_md()->padded_dims, dims[d_src],
-                pd->axis(), pd->ndims(), tag));
+        convert_dims(pd->dst_md()->padded_dims, dims[dst],
+                pd->ndims());
+        convert_dims(pd->diff_src_md()->padded_dims, dims[d_src],
+                pd->ndims());
 
         convert_alg_kind(pd->is_logsoftmax(), &alg_kind);
 
