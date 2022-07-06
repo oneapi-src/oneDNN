@@ -367,7 +367,7 @@ int get_arg_index(int arg) {
     switch (arg) {
         case DNNL_ARG_SRC_0: return 0;
         case DNNL_ARG_SRC_1: return 1;
-        default: assert(!"unsupported arg");
+        default: return -1;
     }
     return -1;
 }
