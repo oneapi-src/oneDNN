@@ -120,7 +120,9 @@ public:
     }
 
     void _visit(const let_t &obj) override {
-        auto guard = mem_usage_guard(obj.var.type().size());
+        // Empty objects are allocated in reserved space
+        int size = obj.value.is_empty() ? 0 : obj.var.type().size();
+        auto guard = mem_usage_guard(size);
         print_indent();
         out_ << obj.var << "." << obj.var.type() << " = " << obj.value << "\n";
         visit(obj.body);
@@ -536,8 +538,10 @@ stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body) {
 
 class grf_usage_visitor_t : public ir_visitor_t {
 public:
-    grf_usage_visitor_t(int grf_size, bool skip_let)
-        : grf_size_(grf_size), skip_let_(skip_let) {}
+    grf_usage_visitor_t(int grf_size, int external_usage, bool skip_let)
+        : grf_size_(grf_size)
+        , skip_let_(skip_let)
+        , grf_usage_(external_usage) {}
 
     void _visit(const alloc_t &obj) override {
         int size = (obj.kind == alloc_kind_t::grf ? obj.size : 0);
@@ -547,7 +551,9 @@ public:
     }
 
     void _visit(const let_t &obj) override {
-        int size = (skip_let_ ? 0 : obj.var.type().size());
+        // Empty objects are allocated in reserved space
+        int size = (skip_let_ || obj.value.is_empty()) ? 0
+                                                       : obj.var.type().size();
         auto guard = grf_usage_guard(size);
         ir_visitor_t::_visit(obj);
     }
@@ -567,8 +573,9 @@ private:
     int peak_grf_usage_ = 0;
 };
 
-int get_peak_grf_usage(const stmt_t &stmt, int grf_size, bool skip_let) {
-    grf_usage_visitor_t visitor(grf_size, skip_let);
+int get_peak_grf_usage(
+        const stmt_t &stmt, int grf_size, int external_usage, bool skip_let) {
+    grf_usage_visitor_t visitor(grf_size, external_usage, skip_let);
     visitor.visit(stmt);
     return utils::div_up(visitor.peak_grf_usage(), grf_size);
 }
