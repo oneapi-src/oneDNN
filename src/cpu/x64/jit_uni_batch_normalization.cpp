@@ -248,8 +248,6 @@ struct jit_bnorm_t : public jit_generator {
 
     const batch_normalization_pd_t *bdesc_;
     const jit_bnorm_conf_t *jbp_;
-    bool is_spatial_thr_;
-    bool is_nspc_;
     bool is_bf16_;
 
     Reg64 reg_param = abi_param1;
@@ -363,8 +361,8 @@ struct jit_bnorm_t : public jit_generator {
     void compute_static_strides() {
         spat_size = bdesc_->D() * bdesc_->W() * bdesc_->H();
         chan_data_offt = bdesc_->C() * sizeof(acc_data_t);
-        spat_step
-                = is_nspc_ ? chan_data_offt / (1 + is_bf16_) : vlen_spat_data_;
+        spat_step = jbp_->is_nspc_ ? chan_data_offt / (1 + is_bf16_)
+                                   : vlen_spat_data_;
         mb_offt = spat_step * spat_size;
         ws_mb_offt = (spat_step / (is_bf16_ ? 16 : 32)) * spat_size;
     }
@@ -401,7 +399,7 @@ struct jit_bnorm_t : public jit_generator {
         mov(ptr[rsp + stack_off_ws], reg_tmp);
         mov(reg_tmp, ptr[reg_param + PARAM_OFF(barrier)]);
         mov(ptr[rsp + stack_off_barrier], reg_tmp);
-        if (is_spatial_thr_) {
+        if (jbp_->is_spatial_thr_) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(spat_size_loc)]);
             mov(ptr[rsp + stack_off_spat_size_loc], reg_tmp);
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(S_s)]);
@@ -496,13 +494,13 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void fwd_process_relu_avx512_common(Vmm vdst, int offt = 0) {
-        shr(is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
+        shr(jbp_->is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
         vcmpps(kstore_mask, vzero, vdst, _cmp_lt_os);
-        kmovw(ptr[reg_ws + (is_nspc_ ? reg_soff_nspc : reg_soff)
+        kmovw(ptr[reg_ws + (jbp_->is_nspc_ ? reg_soff_nspc : reg_soff)
                       + offt / (1 << bit_shift())],
                 kstore_mask);
         vblendmps(vdst | kstore_mask, vzero, vdst);
-        shl(is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
+        shl(jbp_->is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
     }
 
     void fwd_process_relu_alpha(Vmm vmm_dst) {
@@ -551,12 +549,12 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void bwd_process_relu_avx512_common(Vmm vdiff_dst, int offt = 0) {
-        shr(is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
+        shr(jbp_->is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
         kmovw(kstore_mask,
-                ptr[reg_ws + (is_nspc_ ? reg_soff_nspc : reg_soff)
+                ptr[reg_ws + (jbp_->is_nspc_ ? reg_soff_nspc : reg_soff)
                         + offt / (1 << bit_shift())]);
         vmovups(vdiff_dst | kstore_mask | T_z, vdiff_dst);
-        shl(is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
+        shl(jbp_->is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
     }
 
     void uni_vmovups_spat_data(const Operand &dst, const Operand &src) {
@@ -675,7 +673,7 @@ struct jit_bnorm_t : public jit_generator {
         for (size_t i = 0; i < num_active_regs; i++)
             init(i);
         if (loop_unroll) {
-            if (is_spatial_thr_) {
+            if (jbp_->is_spatial_thr_) {
                 mov(reg_ctr, ptr[rsp + stack_off_spat_size_loc]);
                 add(reg_soff, ptr[rsp + stack_off_s_s]);
             } else {
@@ -692,7 +690,9 @@ struct jit_bnorm_t : public jit_generator {
                 sub(reg_ctr, factor);
                 jnz(label);
             }
-            if (is_spatial_thr_) { add(reg_soff, ptr[rsp + stack_off_s_tail]); }
+            if (jbp_->is_spatial_thr_) {
+                add(reg_soff, ptr[rsp + stack_off_s_tail]);
+            }
         }
 
         for (size_t i = 0; i < loop_tail; i++) {
@@ -780,7 +780,7 @@ struct jit_bnorm_t : public jit_generator {
 
         xor_(reg_soff_nspc, reg_soff_nspc);
 
-        if (is_spatial_thr_) {
+        if (jbp_->is_spatial_thr_) {
             mov(reg_ctr, ptr[rsp + stack_off_spat_size_loc]);
             add(reg_soff_nspc, ptr[rsp + stack_off_s_s]);
             // TODO: need a better heuristic for num_spat_pts
@@ -814,7 +814,7 @@ struct jit_bnorm_t : public jit_generator {
 
             xor_(reg_soff_nspc, reg_soff_nspc);
 
-            if (is_spatial_thr_) {
+            if (jbp_->is_spatial_thr_) {
                 mov(reg_ctr, ptr[rsp + stack_off_spat_size_loc]);
                 add(reg_soff_nspc, ptr[rsp + stack_off_s_s]);
             } else {
@@ -1003,7 +1003,7 @@ struct jit_bnorm_t : public jit_generator {
 
             if (isa == sse41) mov(reg_tmp_off, reg_soff);
 
-            is_nspc_ ? compute_mean_variance_nspc() : mean_channels();
+            jbp_->is_nspc_ ? compute_mean_variance_nspc() : mean_channels();
 
             if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
@@ -1016,7 +1016,7 @@ struct jit_bnorm_t : public jit_generator {
             }
 
             // Process next image
-            if (is_nspc_) {
+            if (jbp_->is_nspc_) {
                 // Can use static offset since we comeback after spatial loop
                 add(reg_src, mb_offt);
                 add(reg_soff, mb_offt);
@@ -1028,7 +1028,7 @@ struct jit_bnorm_t : public jit_generator {
             jl(mean_spatial);
         }
 
-        if (is_nspc_) mov(reg_src, ptr[rsp + stack_off_src]); // comeback
+        if (jbp_->is_nspc_) mov(reg_src, ptr[rsp + stack_off_src]); // comeback
 
         Label no_mean_reduction;
         barrier();
@@ -1074,7 +1074,7 @@ struct jit_bnorm_t : public jit_generator {
 
             if (isa == sse41) mov(reg_tmp_off, reg_soff);
 
-            is_nspc_ ? compute_mean_variance_nspc(false) : var_channels();
+            jbp_->is_nspc_ ? compute_mean_variance_nspc(false) : var_channels();
 
             if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
@@ -1087,7 +1087,7 @@ struct jit_bnorm_t : public jit_generator {
             }
 
             // Process next image
-            if (is_nspc_) {
+            if (jbp_->is_nspc_) {
                 // Can use static offset since we comeback after spatial loop
                 add(reg_src, mb_offt);
                 add(reg_soff, mb_offt);
@@ -1099,7 +1099,7 @@ struct jit_bnorm_t : public jit_generator {
             jl(var_spatial);
         }
 
-        if (is_nspc_) mov(reg_src, ptr[rsp + stack_off_src]); // comeback
+        if (jbp_->is_nspc_) mov(reg_src, ptr[rsp + stack_off_src]); // comeback
 
         Label no_var_reduction;
         barrier();
@@ -1298,7 +1298,7 @@ struct jit_bnorm_t : public jit_generator {
             xor_(reg_coff, reg_coff);
             if (isa == sse41) mov(reg_tmp_off, reg_soff);
 
-            is_nspc_ ? forward_channels_nspc() : forward_channels();
+            jbp_->is_nspc_ ? forward_channels_nspc() : forward_channels();
 
             if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
@@ -1313,7 +1313,7 @@ struct jit_bnorm_t : public jit_generator {
             }
 
             // Process next image
-            if (is_nspc_) {
+            if (jbp_->is_nspc_) {
                 // Can use static offset since we comeback after spatial loop
                 add(reg_src, mb_offt);
                 add(reg_dst, mb_offt);
@@ -1327,7 +1327,7 @@ struct jit_bnorm_t : public jit_generator {
             jl(dst_spatial);
         }
 
-        if (is_nspc_) {
+        if (jbp_->is_nspc_) {
             // comeback
             mov(reg_src, ptr[rsp + stack_off_src]);
             mov(reg_dst, ptr[rsp + stack_off_dst]);
@@ -1408,7 +1408,7 @@ struct jit_bnorm_t : public jit_generator {
 
         xor_(reg_soff_nspc, reg_soff_nspc);
 
-        if (is_spatial_thr_) {
+        if (jbp_->is_spatial_thr_) {
             mov(reg_ctr, ptr[rsp + stack_off_spat_size_loc]);
             add(reg_soff_nspc, ptr[rsp + stack_off_s_s]);
         } else {
@@ -1594,7 +1594,7 @@ struct jit_bnorm_t : public jit_generator {
     void backward_diff_channels_nspc_compute(const int num_ch_blks) {
         auto compute = [=](bool stream_store_allowed) {
             xor_(reg_soff_nspc, reg_soff_nspc);
-            if (is_spatial_thr_) {
+            if (jbp_->is_spatial_thr_) {
                 mov(reg_ctr, ptr[rsp + stack_off_spat_size_loc]);
                 add(reg_soff_nspc, ptr[rsp + stack_off_s_s]);
             } else {
@@ -1779,7 +1779,8 @@ struct jit_bnorm_t : public jit_generator {
         {
             xor_(reg_coff, reg_coff);
             if (isa == sse41) { mov(reg_tmp_off, reg_soff); }
-            is_nspc_ ? backward_sh_channels_nspc() : backward_sh_channels();
+            jbp_->is_nspc_ ? backward_sh_channels_nspc()
+                           : backward_sh_channels();
             if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
                 add(reg_diff_dst, vlen / 2);
@@ -1790,7 +1791,7 @@ struct jit_bnorm_t : public jit_generator {
                 sub(reg_src, vlen / 2);
             }
             // Process next image
-            if (is_nspc_) {
+            if (jbp_->is_nspc_) {
                 // Can use static offset since we comeback after spatial loop
                 add(reg_src, mb_offt);
                 add(reg_diff_dst, mb_offt);
@@ -1803,7 +1804,7 @@ struct jit_bnorm_t : public jit_generator {
             jl(sh_spatial);
         }
 
-        if (is_nspc_) {
+        if (jbp_->is_nspc_) {
             // comeback
             mov(reg_src, ptr[rsp + stack_off_src]);
             mov(reg_diff_dst, ptr[rsp + stack_off_diff_dst]);
@@ -1866,7 +1867,8 @@ struct jit_bnorm_t : public jit_generator {
             // diff_shift is shared with soff_max.
             mov(reg_diff_shift, ptr[rsp + stack_off_diff_shift]);
             if (isa == sse41) { mov(reg_tmp_off, reg_soff); }
-            is_nspc_ ? backward_diff_channels_nspc() : backward_diff_channels();
+            jbp_->is_nspc_ ? backward_diff_channels_nspc()
+                           : backward_diff_channels();
             if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
                 add(reg_diff_dst, vlen / 2);
@@ -1879,7 +1881,7 @@ struct jit_bnorm_t : public jit_generator {
                 sub(reg_src, vlen / 2);
             }
             // Process next image
-            if (is_nspc_) {
+            if (jbp_->is_nspc_) {
                 // Can use static offset since we comeback after spatial loop
                 if (!bdesc_->use_global_stats()) add(reg_src, mb_offt);
                 add(reg_diff_dst, mb_offt);
@@ -1895,7 +1897,7 @@ struct jit_bnorm_t : public jit_generator {
             cmp(reg_soff, reg_soff_max);
             jl(diff_spatial);
         }
-        if (is_nspc_) {
+        if (jbp_->is_nspc_) {
             // comeback
             if (!bdesc_->use_global_stats())
                 mov(reg_src, ptr[rsp + stack_off_src]);
@@ -1912,12 +1914,10 @@ struct jit_bnorm_t : public jit_generator {
                 "unsupported isa");
 
         is_bf16_ = bdesc_->desc()->data_desc.data_type == data_type::bf16;
-        is_nspc_ = jbp_->is_nspc_;
-        is_spatial_thr_ = jbp_->is_spatial_thr_;
         vlen_spat_data_ = vlen / (1 + is_bf16_); // 32B of BF16 -> 64B of FP32
 
-        unroll_blocks = isa == avx512_core && !is_spatial_thr_ ? 4 : 1;
-        unroll_regs = isa == avx512_core && !is_spatial_thr_ ? 4 : 1;
+        unroll_blocks = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
+        unroll_regs = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
     }
 
     void generate() override {
@@ -1965,11 +1965,7 @@ namespace bnorm_impl {
 template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
     driver_t(const batch_normalization_pd_t *bdesc, int nthr)
-        : bdesc_(bdesc), jbp_(bdesc_, nthr, simd_w), ker_(bdesc_, &jbp_) {
-        do_blocking_ = jbp_.do_blocking_;
-        is_nspc_ = jbp_.is_nspc_;
-        dt_size_ = jbp_.dt_size_;
-    }
+        : bdesc_(bdesc), jbp_(bdesc_, nthr, simd_w), ker_(bdesc_, &jbp_) {}
 
     ~driver_t() = default;
 
@@ -2068,9 +2064,10 @@ struct driver_t : public c_compatible {
                 p.N_nthr = jbp_.N_nthr_last_iter_ * jbp_.S_nthr_last_iter_;
             }
 
-            global_C_blk_s = do_blocking_
-                    ? (C_blk_s == -1) ? -1 : it * jbp_.C_blks_per_iter_ + C_blk_s
-                    : C_blk_s;
+            global_C_blk_s = jbp_.do_blocking_ ? (C_blk_s == -1)
+                            ? -1
+                            : it * jbp_.C_blks_per_iter_ + C_blk_s
+                                               : C_blk_s;
 
             int C_blks_thr = C_blk_e - C_blk_s;
             int N_thr = N_e - N_s;
@@ -2078,7 +2075,7 @@ struct driver_t : public c_compatible {
             if (C_blks_thr == 0 || N_thr == 0) continue;
 
             size_t coff_base = global_C_blk_s * simd_w;
-            size_t soff_base = is_nspc_
+            size_t soff_base = jbp_.is_nspc_
                     ? coff_base + N_s * img_size
                     : global_C_blk_s * p.spat_size * simd_w + N_s * img_size;
             size_t shift_off = use_tmp_diff_scale(bdesc_) ? bdesc_->C() : 0;
@@ -2103,18 +2100,21 @@ struct driver_t : public c_compatible {
             if (tmp_diff_shift != nullptr)
                 p.diff_shift = tmp_diff_shift + coff_base;
 
-            p.soff_max = dt_size_ * N_thr * img_size;
+            p.soff_max = jbp_.dt_size_ * N_thr * img_size;
             if (src != nullptr)
-                p.src = (void *)((char *)src + soff_base * dt_size_);
+                p.src = (void *)((char *)src + soff_base * jbp_.dt_size_);
             if (dst != nullptr)
-                p.dst = (void *)((char *)dst + soff_base * dt_size_);
+                p.dst = (void *)((char *)dst + soff_base * jbp_.dt_size_);
             if (diff_src != nullptr)
-                p.diff_src = (void *)((char *)diff_src + soff_base * dt_size_);
+                p.diff_src = (void *)((char *)diff_src
+                        + soff_base * jbp_.dt_size_);
             if (diff_dst != nullptr)
-                p.diff_dst = (void *)((char *)diff_dst + soff_base * dt_size_);
+                p.diff_dst = (void *)((char *)diff_dst
+                        + soff_base * jbp_.dt_size_);
             if (ws != nullptr) p.ws = ws + soff_base / 8;
 
-            p.mb_stride_Bc = dt_size_ * (img_size - p.coff_max * p.spat_size);
+            p.mb_stride_Bc
+                    = jbp_.dt_size_ * (img_size - p.coff_max * p.spat_size);
 
             // use SP_N_nthr which is the same as p.N_nthr except maybe for
             // the last iteration.
@@ -2128,7 +2128,7 @@ struct driver_t : public c_compatible {
                     = (it * jbp_.C_blks_per_iter_ + C_blk_e) * simd_w > C;
 
             size_t iter_barriers
-                    = do_blocking_ ? it * global_barriers_per_iter : 0;
+                    = jbp_.do_blocking_ ? it * global_barriers_per_iter : 0;
             p.barrier = barriers + C_ithr + iter_barriers;
             if (p.soff_max != 0 && p.coff_max != 0) ker_(&p);
         }
@@ -2174,9 +2174,6 @@ private:
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_conf_t jbp_;
     jit_bnorm_t<isa> ker_;
-    bool do_blocking_;
-    bool is_nspc_;
-    size_t dt_size_;
 };
 } // namespace bnorm_impl
 
