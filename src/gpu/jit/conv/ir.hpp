@@ -426,7 +426,8 @@ stmt_t get_stmt_body(const stmt_t &stmt);
 
 stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body);
 
-int get_peak_grf_usage(const stmt_t &stmt, int grf_size, bool skip_let = false);
+int get_peak_grf_usage(const stmt_t &stmt, int grf_size, int external_usage = 0,
+        bool skip_let = false);
 
 struct mem_usage_guard_t {
     mem_usage_guard_t(int *mem_usage, int size) : ptr(mem_usage), size(size) {

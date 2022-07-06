@@ -640,7 +640,8 @@ public:
         , kernel_info_(kernel_info)
         , require_dpas_(require_dpas)
         , require_global_atomics_(require_global_atomics)
-        , regs_((grf_mode == grf_mode_t::large)             ? 256
+        , regs_((grf_mode == grf_mode_t::large)
+                          ? 256
                           : (grf_mode == grf_mode_t::small) ? 128
                                                             : hw_cfg.regs())
         , ra_(hw, kernel_name,
@@ -4155,9 +4156,11 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     ir_trace() << "Register usage estimate:         "
                << cfg_.estimated_peak_grf_usage << std::endl;
     ir_trace() << "IR register usage:               "
-               << get_peak_grf_usage(body, grf_size) << std::endl;
+               << get_peak_grf_usage(body, grf_size, ra_.get_grf_usage())
+               << std::endl;
     ir_trace() << "IR register usage (without let): "
-               << get_peak_grf_usage(body, grf_size, /*skip_let=*/true)
+               << get_peak_grf_usage(body, grf_size, ra_.get_grf_usage(),
+                          /*skip_let=*/true)
                << std::endl;
     profile.start();
 #endif
