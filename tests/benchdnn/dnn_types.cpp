@@ -147,7 +147,7 @@ static int str2arg(const std::string &str) {
     return BENCHDNN_DNNL_ARG_UNDEF;
 }
 
-const std::string arg2str(int arg) {
+static std::string arg2str(int arg) {
     if (supported_args.find(arg) != supported_args.end())
         return std::string(supported_args.at(arg)[0]);
     if (arg & DNNL_ARG_MULTIPLE_SRC) {
