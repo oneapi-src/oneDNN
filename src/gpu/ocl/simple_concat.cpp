@@ -80,25 +80,32 @@ static status_t init_conf_common(
     if (nelems == 0) return status::unimplemented;
 
     const auto &blk = dst_mdw.blocking_desc();
-
-    int pre_concat_dim = 0;
-    bool is_first = true;
+    const auto concat_dim = pd->concat_dim();
+    // TODO: refactor to avoid duplication in get_ordered_dim_idxs and
+    // is_same_axis_order.
+    dim_t extern_axis = 1;
+    int extern_dim = -1;
+    std::vector<dim_t> blocks(ndims, 1);
+    for (int i = 0; i < blk.inner_nblks; ++i)
+        blocks[blk.inner_idxs[i]] *= blk.inner_blks[i];
     for (int i = 0; i < ndims; ++i) {
-        if (blk.strides[i] <= blk.strides[pre_concat_dim]
-                && blk.strides[i] > blk.strides[pd->concat_dim()]) {
-            pre_concat_dim = i;
-            is_first = false;
+        const auto &stride = blk.strides[i];
+        if (stride > blk.strides[concat_dim]) {
+            if (extern_dim == -1 || stride < blk.strides[extern_dim])
+                extern_dim = i;
+            extern_axis *= dst_mdw.padded_dims()[i] / blocks[i];
         }
     }
+
     int offset = 0;
     bool has_padding = false;
     const auto dst_dim_order = get_ordered_dim_idxs(dst_mdw);
+    const dim_t c_blks = blocks[concat_dim];
     for (int i = 0; i < pd->n_inputs(); ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
 
         // check concat dim padding
-        if (src_mdw.padded_dims()[pd->concat_dim()]
-                != src_mdw.dims()[pd->concat_dim()]) {
+        if (src_mdw.padded_dims()[concat_dim] != src_mdw.dims()[concat_dim]) {
             if (has_padding)
                 return status::unimplemented;
             else
@@ -117,60 +124,37 @@ static status_t init_conf_common(
         if (!src_mdw.is_dense()) return status::unimplemented;
 
         const auto &src_blk = src_mdw.blocking_desc();
-
-        conf.offset[i] = offset;
-        int src_extern_dim_size = (is_first)
-                ? src_mdw.nelems(true)
-                : (src_mdw.dims()[pd->concat_dim()] != 0)
-                        * src_blk.strides[pre_concat_dim];
-        offset += src_extern_dim_size / src_blk.strides[pd->concat_dim()];
-
+        const auto step = src_mdw.padded_dims()[concat_dim] / c_blks;
+        auto src_extern_dim_size = (extern_dim == -1)
+                ? src_blk.strides[concat_dim] * step
+                : src_blk.strides[extern_dim];
         conf.src_extern_dim_sizes[i] = src_extern_dim_size * data_type_size;
+        conf.offset[i] = offset;
+        offset += step;
     }
 
-    conf.dst_offset0 = dst_mdw.offset0();
-    conf.dst_extern_dim_size
-            = (is_first) ? nelems : blk.strides[pre_concat_dim];
-
-    int extern_axis = nelems / conf.dst_extern_dim_size;
-    int concat_dim_size
-            = conf.dst_extern_dim_size / blk.strides[pd->concat_dim()];
-    conf.inner_axis = blk.strides[pd->concat_dim()] * data_type_size;
+    auto concat_dim_size = dst_mdw.padded_dims()[concat_dim] / c_blks;
+    conf.dst_extern_dim_size = (extern_dim == -1)
+            ? blk.strides[concat_dim] * concat_dim_size
+            : blk.strides[extern_dim];
+    conf.inner_axis = blk.strides[concat_dim] * data_type_size;
     conf.n = pd->n_inputs();
-    while (concat_dim_size % 2 == 0) {
-        // check offsets
-        bool ok = true;
-        for (int i = 0; i < conf.n; ++i) {
-            if (conf.offset[i] % 2) {
-                ok = false;
-                break;
-            }
-        }
-        if (!ok) break;
-        for (int i = 0; i < conf.n; ++i) {
-            conf.offset[i] /= 2;
-        }
-        concat_dim_size /= 2;
-        conf.inner_axis *= 2;
-    }
-    for (auto k : {3, 5, 7}) {
-        if (concat_dim_size % k == 0) {
-            // check offsets
-            bool ok = true;
-            for (int i = 0; i < conf.n; ++i) {
-                if (conf.offset[i] % k) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (!ok) break;
-            for (int i = 0; i < conf.n; ++i) {
-                conf.offset[i] /= k;
-            }
-            concat_dim_size /= k;
-            conf.inner_axis *= k;
-        }
-    }
+
+    auto shift_in = [&concat_dim_size, &conf](int k) {
+        // partition concat_dim_size so that more data is read at once
+        if (concat_dim_size % k) return false;
+        for (int i = 0; i < conf.n; ++i)
+            if (conf.offset[i] % k) return false;
+        for (int i = 0; i < conf.n; ++i)
+            conf.offset[i] /= k;
+        concat_dim_size /= k;
+        conf.inner_axis *= k;
+        return true;
+    };
+    while (shift_in(2))
+        ;
+    for (auto k : {3, 5, 7})
+        shift_in(k);
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.data_type_size = (conf.inner_axis % 32 == 0) ? 4 : 2;
@@ -178,6 +162,7 @@ static status_t init_conf_common(
 
     conf.dst_extern_dim_size
             = conf.dst_extern_dim_size * data_type_size / conf.data_type_size;
+    conf.dst_offset0 = dst_mdw.offset0() * data_type_size / conf.data_type_size;
 
     auto set_gws_d = [&conf, extern_axis, concat_dim_size]() {
         conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
@@ -223,6 +208,7 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("N_INPUTS", conf.n);
     kernel_ctx.define_int("SIMD", conf.simd);
     kernel_ctx.define_int("DATA_TYPE_SIZE", conf.data_type_size);
+    kernel_ctx.print_options();
     return status::success;
 }
 
