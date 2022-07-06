@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,10 +28,9 @@ pool,test_pool_ci
 prelu,test_prelu_ci
 reduction,test_reduction_ci
 resampling,test_resampling_ci
-#FIXME: RNN is not supported due to multiple differences with other primitives
-#rnn,test_lstm_ci
-#rnn,test_gru_ci
-#rnn,test_rnn_ci
+rnn,test_lstm_ci
+rnn,test_gru_ci
+rnn,test_rnn_ci
 shuffle,test_shuffle_ci
 softmax,test_softmax_ci
 sum,test_sum_ci
