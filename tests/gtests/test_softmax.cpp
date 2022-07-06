@@ -51,13 +51,20 @@ protected:
 
         SKIP_IF_CUDA(!cuda_check_format_tag(p.memory_format),
                 "Unsupported format tag");
+        SKIP_IF_HIP(!hip_check_format_tag(p.memory_format),
+                "Unsupported format tag");
         if (!is_fwd) {
             SKIP_IF_CUDA(!cuda_check_format_tag(p.diff_memory_format),
+                    "Unsupported format tag");
+            SKIP_IF_HIP(!hip_check_format_tag(p.diff_memory_format),
                     "Unsupported format tag");
         }
         SKIP_IF_CUDA(data_traits<data_t>::data_type == memory::data_type::bf16,
                 "Unsupported datatype for CUDA");
         SKIP_IF_CUDA(p.axis != 1, "Unsupported axis values for CUDA");
+        SKIP_IF_HIP(data_traits<data_t>::data_type == memory::data_type::bf16,
+                "Unsupported datatype for HIP");
+        SKIP_IF_HIP(p.axis != 1, "Unsupported axis values for HIP");
 
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
         if (!is_fwd && is_gpu) {
@@ -74,6 +81,12 @@ protected:
     bool cuda_check_format_tag(memory::format_tag tag) {
         return (tag != memory::format_tag::aBcd8b
                 && tag != memory::format_tag::aBc16b);
+    }
+    bool hip_check_format_tag(memory::format_tag tag) {
+        return (tag == memory::format_tag::a || tag == memory::format_tag::ab
+                || tag == memory::format_tag::abc
+                || tag == memory::format_tag::abcd
+                || tag == memory::format_tag::abcde);
     }
 
     void Forward() {
