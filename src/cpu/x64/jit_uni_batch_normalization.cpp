@@ -46,11 +46,171 @@ namespace barrier = simple_barrier;
 using acc_data_t = float;
 
 namespace {
+dim_t get_c_padded(const batch_normalization_pd_t *bdesc) {
+    return bdesc->src_md()->padded_dims[1];
+}
+
 bool is_nspc(const memory_desc_wrapper &d) {
     using namespace format_tag;
     const bool is_nspc = d.matches_one_of_tag(nc, nwc, nhwc, ndhwc);
     return is_nspc;
 }
+
+struct jit_bnorm_conf_t {
+    // TODO: put all needed info here to avoid duplicate work and potentially
+    // diverging definitions of derived parameters
+    const batch_normalization_pd_t *bdesc_;
+
+    int simd_w_;
+    size_t dt_size_;
+    bool is_nspc_;
+
+    // thread partition info
+    bool do_blocking_;
+    bool is_spatial_thr_;
+    dim_t C_blks_per_iter_;
+    int C_nthr_;
+    int N_nthr_;
+    int S_nthr_;
+    int64_t iters_;
+    // C_blks and thread partition can change for last iteration
+    dim_t C_blks_last_iter_;
+    int C_nthr_last_iter_;
+    int N_nthr_last_iter_;
+    int S_nthr_last_iter_;
+
+    jit_bnorm_conf_t(
+            const batch_normalization_pd_t *bdesc, int nthr, int simd_w)
+        : bdesc_(bdesc), simd_w_(simd_w) {
+
+        const dim_t N = bdesc_->MB();
+        const dim_t C_PADDED = get_c_padded(bdesc_);
+        const dim_t D = bdesc_->D();
+        const dim_t H = bdesc_->H();
+        const dim_t W = bdesc_->W();
+        const dim_t SP = D * H * W;
+
+        const memory_desc_wrapper src_d(bdesc_->src_md());
+        is_nspc_ = is_nspc(src_d);
+
+        dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
+        size_t data_size = dt_size_ * N * C_PADDED * SP;
+        const size_t l3_size = platform::get_per_core_cache_size(3) * nthr;
+        // TODO: cache balancing for nspc
+        const size_t l3_filling_factor = 4;
+        do_blocking_ = !is_nspc_ && data_size >= l3_size / l3_filling_factor;
+
+        // find thread partition over N, C_blks and SP
+
+        const dim_t C_blks = C_PADDED / simd_w_;
+
+        if (do_blocking_) {
+            const int num_tensors = bdesc_->is_fwd() ? 1 : 2;
+            const size_t working_set_size
+                    = dt_size_ * (N * SP * simd_w_) * num_tensors;
+            bnorm_utils::cache_balance(working_set_size, C_blks, N, nthr,
+                    C_blks_per_iter_, iters_);
+            C_blks_last_iter_ = C_blks - (iters_ - 1) * C_blks_per_iter_;
+        } else {
+            C_blks_per_iter_ = C_blks;
+            iters_ = 1;
+        }
+
+        is_spatial_thr_
+                = this->thread_partition(/* is_spatial_thr_ = */ true, nthr,
+                        /* dimensions */
+                        N, C_blks_per_iter_, SP,
+                        /* outputs */
+                        C_nthr_, N_nthr_, S_nthr_);
+
+        if (iters_ > 1)
+            this->thread_partition(is_spatial_thr_, nthr,
+                    /* dimensions */
+                    N, C_blks_last_iter_, SP,
+                    /* outputs */
+                    C_nthr_last_iter_, N_nthr_last_iter_, S_nthr_last_iter_);
+    }
+
+    // given nthr and shape of problem, choose the thread partition
+    // to use (ie set N_nthr, C_nthr, and S_nthr)
+    bool thread_partition(bool spatial_thr_allowed, int nthr, dim_t N,
+            dim_t C_blks, dim_t SP, int &C_nthr, int &N_nthr, int &S_nthr) {
+        if (((nthr <= C_blks) && IMPLICATION(is_nspc_, N == 1))
+                || !dnnl_thr_syncable()) {
+            C_nthr = nthr;
+            N_nthr = 1;
+            S_nthr = 1;
+        } else {
+            if (is_nspc_) {
+                if (C_blks <= 8)
+                    C_nthr = 1;
+                else if (nthr >= 8 && C_blks <= 32)
+                    C_nthr = 8;
+                else {
+                    C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
+                    // Unroll by channels in JIT kernel
+                    if ((C_nthr == C_blks) || (C_nthr == nthr)) C_nthr = 1;
+                }
+                N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
+                // heuristic for training on avx512_core_amx
+                // TODO: test heuristic when global stats flag is set
+                if (!bdesc_->use_global_stats() && 0 < dt_size_ && 0 < simd_w_
+                        && 1 < C_nthr && nthr <= N
+                        && mayiuse(avx512_core_amx)) {
+                    const size_t data_size
+                            = dt_size_ * N * SP * C_blks * simd_w_;
+                    const size_t C_split_data_size
+                            = utils::div_up(data_size, N_nthr);
+                    const size_t N_split_data_size
+                            = utils::div_up(data_size, nthr);
+                    const size_t l2_size_per_core
+                            = platform::get_per_core_cache_size(2);
+                    const size_t l3_size_per_core
+                            = platform::get_per_core_cache_size(3);
+                    const size_t cache_size_per_core
+                            = l2_size_per_core + l3_size_per_core;
+                    // if current split is too big for cache, better to split by N
+                    const bool condition1
+                            = cache_size_per_core < C_split_data_size;
+                    // if split by N is also too big for cache, bwd is better off as it was
+                    const bool condition2 = bdesc_->is_fwd()
+                            || cache_size_per_core >= N_split_data_size;
+                    if (condition1 && condition2) {
+                        C_nthr = 1;
+                        N_nthr = nthr;
+                    }
+                }
+                S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
+            } else {
+                if (do_blocking_) {
+                    N_nthr = (int)nstl::min<dim_t>(N, nthr);
+                    C_nthr = (int)nstl::min<dim_t>(C_blks, nthr / N_nthr);
+                    S_nthr = (int)nstl::min<dim_t>(
+                            SP, nthr / (C_nthr * N_nthr));
+                } else {
+                    C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
+                    N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
+                    S_nthr = (int)nstl::min<dim_t>(
+                            SP, nthr / (C_nthr * N_nthr));
+                }
+            }
+
+            if (!spatial_thr_allowed) S_nthr = 1;
+
+            if (S_nthr < 1) S_nthr = 1;
+        }
+
+        // spatial_thr_allowed is meant to help maintain
+        // consistent decisions about spatial threading
+        // between mutiple invocations of this routine.
+        // It is caller's responsibility to check the
+        // return value and pass it as a flag to the
+        // next call if needed.
+        if (S_nthr == 1) spatial_thr_allowed = false;
+
+        return spatial_thr_allowed;
+    }
+};
 } // namespace
 
 template <cpu_isa_t isa>
@@ -87,6 +247,7 @@ struct jit_bnorm_t : public jit_generator {
     int vlen_spat_data_; // set by ctor depending on data type (BF16 or FP32);
 
     const batch_normalization_pd_t *bdesc_;
+    const jit_bnorm_conf_t *jbp_;
     bool is_spatial_thr_;
     bool is_nspc_;
     bool is_bf16_;
@@ -1744,21 +1905,15 @@ struct jit_bnorm_t : public jit_generator {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *bdesc)
-        : jit_generator(jit_name()), bdesc_(bdesc) {
+    jit_bnorm_t(
+            const batch_normalization_pd_t *bdesc, const jit_bnorm_conf_t *jbp)
+        : jit_generator(jit_name()), bdesc_(bdesc), jbp_(jbp) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
-        const int simd_w = isa == sse41
-                ? 8
-                : cpu_isa_traits<isa>::vlen / sizeof(acc_data_t);
         is_bf16_ = bdesc_->desc()->data_desc.data_type == data_type::bf16;
-        size_t dt_size
-                = types::data_type_size(bdesc_->desc()->data_desc.data_type);
-        const memory_desc_wrapper src_d(bdesc_->src_md());
-        is_nspc_ = is_nspc(src_d);
-        is_spatial_thr_ = bnorm_utils::is_spatial_thr(
-                bdesc_, is_nspc_, simd_w, dt_size);
+        is_nspc_ = jbp_->is_nspc_;
+        is_spatial_thr_ = jbp_->is_spatial_thr_;
         vlen_spat_data_ = vlen / (1 + is_bf16_); // 32B of BF16 -> 64B of FP32
 
         unroll_blocks = isa == avx512_core && !is_spatial_thr_ ? 4 : 1;
@@ -1810,19 +1965,10 @@ namespace bnorm_impl {
 template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
     driver_t(const batch_normalization_pd_t *bdesc, int nthr)
-        : bdesc_(bdesc), ker_(bdesc_) {
-        const dim_t C_PADDED = get_c_padded(bdesc_);
-
-        const memory_desc_wrapper src_d(bdesc_->src_md());
-        is_nspc_ = is_nspc(src_d);
-
-        dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
-        size_t data_size = dt_size_ * bdesc_->MB() * C_PADDED * bdesc_->D()
-                * bdesc_->H() * bdesc_->W();
-        const size_t l3_size = platform::get_per_core_cache_size(3) * nthr;
-        // TODO: cache balancing for nspc
-        const size_t l3_filling_factor = 4;
-        do_blocking_ = !is_nspc_ && data_size >= l3_size / l3_filling_factor;
+        : bdesc_(bdesc), jbp_(bdesc_, nthr, simd_w), ker_(bdesc_, &jbp_) {
+        do_blocking_ = jbp_.do_blocking_;
+        is_nspc_ = jbp_.is_nspc_;
+        dt_size_ = jbp_.dt_size_;
     }
 
     ~driver_t() = default;
@@ -1846,108 +1992,22 @@ struct driver_t : public c_compatible {
         }
     }
 
-    bool thread_balance(bool do_blocking, bool spatial_thr_allowed,
-            bool is_nspc, int ithr, int nthr, dim_t N, dim_t C_blks, dim_t SP,
-            int &C_ithr, int &C_nthr, dim_t &C_blk_s, dim_t &C_blk_e,
-            int &N_ithr, int &N_nthr, dim_t &N_s, dim_t &N_e, int &S_ithr,
-            int &S_nthr, dim_t &S_s, dim_t &S_e) {
-        // NOTE: spatial threading decision made in this function shall be consistent
-        //       with bnorm_utils::is_spatial_thr() behavior.
-        // TODO: consolidate spatial threading logic into a single location.
-        if (((nthr <= C_blks) && IMPLICATION(is_nspc, N == 1))
-                || !dnnl_thr_syncable()) {
-            C_ithr = ithr;
-            C_nthr = nthr;
-            N_ithr = 0;
-            N_nthr = 1;
-            S_ithr = 0;
-            S_nthr = 1;
-            N_s = 0;
-            N_e = N;
-            S_s = 0;
-            S_e = SP;
+    // given nthr, shape of problem, and thread partition,
+    // balance work among the threads
+    void thread_balance(int ithr, int nthr, dim_t N, dim_t C_blks, dim_t SP,
+            int &C_ithr, int C_nthr, dim_t &C_blk_s, dim_t &C_blk_e,
+            int &N_ithr, int N_nthr, dim_t &N_s, dim_t &N_e, int &S_ithr,
+            int S_nthr, dim_t &S_s, dim_t &S_e) {
+        if (ithr < C_nthr * N_nthr * S_nthr) {
+            utils::nd_iterator_init(
+                    ithr, C_ithr, C_nthr, N_ithr, N_nthr, S_ithr, S_nthr);
             balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
+            balance211(N, N_nthr, N_ithr, N_s, N_e);
+            balance211(SP, S_nthr, S_ithr, S_s, S_e);
         } else {
-            if (is_nspc) {
-                if (C_blks <= 8)
-                    C_nthr = 1;
-                else if (nthr >= 8 && C_blks <= 32)
-                    C_nthr = 8;
-                else {
-                    C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
-                    // Unroll by channels in JIT kernel
-                    if ((C_nthr == C_blks) || (C_nthr == nthr)) C_nthr = 1;
-                }
-                N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
-                // heuristic for training on avx512_core_amx
-                // NOTE: since `nthr <= N` this does not affect is_spatial_thr
-                // TODO: test heuristic when global stats flag is set
-                if (!bdesc_->use_global_stats() && 0 < dt_size_ && 0 < simd_w
-                        && 1 < C_nthr && nthr <= N
-                        && mayiuse(avx512_core_amx)) {
-                    const size_t data_size
-                            = dt_size_ * N * SP * C_blks * simd_w;
-                    const size_t C_split_data_size
-                            = utils::div_up(data_size, N_nthr);
-                    const size_t N_split_data_size
-                            = utils::div_up(data_size, nthr);
-                    const size_t l2_size_per_core
-                            = platform::get_per_core_cache_size(2);
-                    const size_t l3_size_per_core
-                            = platform::get_per_core_cache_size(3);
-                    const size_t cache_size_per_core
-                            = l2_size_per_core + l3_size_per_core;
-                    // if current split is too big for cache, better to split by N
-                    const bool condition1
-                            = cache_size_per_core < C_split_data_size;
-                    // if split by N is also too big for cache, bwd is better off as it was
-                    const bool condition2 = bdesc_->is_fwd()
-                            || cache_size_per_core >= N_split_data_size;
-                    if (condition1 && condition2) {
-                        C_nthr = 1;
-                        N_nthr = nthr;
-                    }
-                }
-                S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
-            } else {
-                if (do_blocking) {
-                    N_nthr = (int)nstl::min<dim_t>(N, nthr);
-                    C_nthr = (int)nstl::min<dim_t>(C_blks, nthr / N_nthr);
-                    S_nthr = (int)nstl::min<dim_t>(
-                            SP, nthr / (C_nthr * N_nthr));
-                } else {
-                    C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
-                    N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
-                    S_nthr = (int)nstl::min<dim_t>(
-                            SP, nthr / (C_nthr * N_nthr));
-                }
-            }
-
-            if (!spatial_thr_allowed) S_nthr = 1;
-
-            if (S_nthr < 1) S_nthr = 1;
-            if (ithr < C_nthr * N_nthr * S_nthr) {
-                N_ithr = (ithr / S_nthr) % N_nthr;
-                C_ithr = ithr / (N_nthr * S_nthr);
-                S_ithr = ithr % S_nthr;
-                balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
-                balance211(N, N_nthr, N_ithr, N_s, N_e);
-                balance211(SP, S_nthr, S_ithr, S_s, S_e);
-            } else {
-                S_ithr = N_ithr = C_ithr = -ithr;
-                S_s = S_e = N_s = N_e = C_blk_s = C_blk_e = -1;
-            }
+            S_ithr = N_ithr = C_ithr = -ithr;
+            S_s = S_e = N_s = N_e = C_blk_s = C_blk_e = -1;
         }
-
-        // spatial_thr_allowed is meant to help maintain
-        // consistent decisions about spatial threading
-        // between mutiple invocations of this routine.
-        // It is caller's responsibility to check the
-        // return value and pass it as a flag to the
-        // next call if needed.
-        if (S_nthr == 1) spatial_thr_allowed = false;
-
-        return spatial_thr_allowed;
     }
 
     void exec(int ithr, int nthr, const void *src, void *diff_src, void *dst,
@@ -1978,54 +2038,38 @@ struct driver_t : public c_compatible {
         p.spat_size = SP;
         p.chan_size = 1.0f * N * p.spat_size;
 
-        dim_t C_blks = C_PADDED / simd_w;
-
-        int C_ithr {0}, C_nthr {0}, N_ithr {0}, N_nthr {0}, S_ithr {0},
-                S_nthr {0};
+        int C_ithr {0}, N_ithr {0}, S_ithr {0};
         dim_t C_blk_s {0}, C_blk_e {0}, N_s {0}, N_e {0}, S_s {0}, S_e {0};
 
-        dim_t C_blks_per_iter {1};
-        int64_t iters {1};
-        if (do_blocking_) {
-            int num_tensors = bdesc_->is_fwd() ? 1 : 2;
-            size_t working_set_size
-                    = dt_size_ * (N * D * H * W * simd_w) * num_tensors;
-            bnorm_utils::cache_balance(
-                    working_set_size, C_blks, N, nthr, C_blks_per_iter, iters);
-        }
+        this->thread_balance(ithr, nthr, N, jbp_.C_blks_per_iter_, SP, C_ithr,
+                jbp_.C_nthr_, C_blk_s, C_blk_e, N_ithr, jbp_.N_nthr_, N_s, N_e,
+                S_ithr, jbp_.S_nthr_, S_s, S_e);
 
-        bool spatial_thr_allowed = this->thread_balance(do_blocking_,
-                true /* spatial_thr_allowed */, is_nspc_, ithr, nthr, N,
-                do_blocking_ ? C_blks_per_iter : C_blks, SP,
-                /* outputs */ C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr,
-                N_s, N_e, S_ithr, S_nthr, S_s, S_e);
-
-        int SP_N_ithr = N_ithr * S_nthr + S_ithr;
-        int SP_N_nthr = N_nthr * S_nthr;
+        int SP_N_ithr = N_ithr * jbp_.S_nthr_ + S_ithr;
+        int SP_N_nthr = jbp_.N_nthr_ * jbp_.S_nthr_;
         assert(IMPLICATION(!dnnl_thr_syncable(), SP_N_nthr == 1));
 
         p.N_ithr = SP_N_ithr;
         p.N_nthr = SP_N_nthr;
 
-        int last_iter_blks = C_blks - (iters - 1) * C_blks_per_iter;
         int global_C_blk_s;
-        int global_barriers_per_iter = C_nthr;
+        int global_barriers_per_iter = jbp_.C_nthr_;
 
-        for (int64_t it = 0; it < iters; it++) {
-            if (it == iters - 1 && iters > 1) {
+        for (int64_t it = 0; it < jbp_.iters_; it++) {
+            if (it == jbp_.iters_ - 1 && jbp_.iters_ > 1) {
                 C_blk_s = C_blk_e = N_s = N_e = 0;
-                spatial_thr_allowed = this->thread_balance(do_blocking_,
-                        spatial_thr_allowed, is_nspc_, ithr, nthr, N,
-                        last_iter_blks, SP, C_ithr, C_nthr, C_blk_s, C_blk_e,
-                        N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
+                this->thread_balance(ithr, nthr, N, jbp_.C_blks_last_iter_, SP,
+                        C_ithr, jbp_.C_nthr_last_iter_, C_blk_s, C_blk_e,
+                        N_ithr, jbp_.N_nthr_last_iter_, N_s, N_e, S_ithr,
+                        jbp_.S_nthr_last_iter_, S_s, S_e);
 
                 // Update call parameters for JIT, last iteration
-                p.N_ithr = N_ithr * S_nthr + S_ithr;
-                p.N_nthr = N_nthr * S_nthr;
+                p.N_ithr = N_ithr * jbp_.S_nthr_last_iter_ + S_ithr;
+                p.N_nthr = jbp_.N_nthr_last_iter_ * jbp_.S_nthr_last_iter_;
             }
 
             global_C_blk_s = do_blocking_
-                    ? (C_blk_s == -1) ? -1 : it * C_blks_per_iter + C_blk_s
+                    ? (C_blk_s == -1) ? -1 : it * jbp_.C_blks_per_iter_ + C_blk_s
                     : C_blk_s;
 
             int C_blks_thr = C_blk_e - C_blk_s;
@@ -2075,12 +2119,13 @@ struct driver_t : public c_compatible {
             // use SP_N_nthr which is the same as p.N_nthr except maybe for
             // the last iteration.
             p.rbuf1 = rbuf
-                    + ((it * C_blks_per_iter) * SP_N_nthr + C_blk_s * p.N_nthr
-                              + p.N_ithr * C_blks_thr)
+                    + ((it * jbp_.C_blks_per_iter_) * SP_N_nthr
+                              + C_blk_s * p.N_nthr + p.N_ithr * C_blks_thr)
                             * simd_w;
             // rbuf1 and rbuf2 have to be disjoint
             p.rbuf2 = p.rbuf1 + C_PADDED * nthr;
-            p.is_cblk_tail = (it * C_blks_per_iter + C_blk_e) * simd_w > C;
+            p.is_cblk_tail
+                    = (it * jbp_.C_blks_per_iter_ + C_blk_e) * simd_w > C;
 
             size_t iter_barriers
                     = do_blocking_ ? it * global_barriers_per_iter : 0;
@@ -2126,11 +2171,8 @@ private:
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
-    static dim_t get_c_padded(const batch_normalization_pd_t *bdesc) {
-        return bdesc->src_md()->padded_dims[1];
-    }
-
     const batch_normalization_pd_t *bdesc_;
+    jit_bnorm_conf_t jbp_;
     jit_bnorm_t<isa> ker_;
     bool do_blocking_;
     bool is_nspc_;
