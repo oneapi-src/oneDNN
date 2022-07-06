@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ public:
     sycl_cpu_engine_t(
             const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
         : sycl_engine_base_t(engine_kind::cpu, dev, ctx, index) {
-        assert(dev.is_cpu() || dev.is_host());
+        assert(dev.is_cpu() || is_host(dev));
     }
 
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,

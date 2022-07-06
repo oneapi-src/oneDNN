@@ -81,8 +81,13 @@ inline std::string to_string(backend_t backend) {
 
 backend_t get_sycl_gpu_backend();
 
+inline bool is_host(const ::sycl::device &dev) {
+    return dev.get_info<::sycl::info::device::device_type>()
+            == ::sycl::info::device_type::host;
+}
+
 inline backend_t get_sycl_backend(const ::sycl::device &dev) {
-    if (dev.is_host()) return backend_t::host;
+    if (is_host(dev)) return backend_t::host;
 
     auto plat = dev.get_platform();
     std::string plat_name = plat.get_info<::sycl::info::platform::name>();

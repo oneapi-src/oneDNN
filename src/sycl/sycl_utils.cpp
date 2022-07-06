@@ -101,7 +101,7 @@ bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs) {
 }
 
 device_id_t sycl_device_id(const ::sycl::device &dev) {
-    if (dev.is_host())
+    if (is_host(dev))
         return std::make_tuple(static_cast<int>(backend_t::host), 0, 0);
 
     device_id_t device_id

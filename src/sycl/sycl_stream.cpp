@@ -81,7 +81,7 @@ status_t sycl_stream_t::init() {
                 && IMPLICATION(
                         engine()->kind() == engine_kind::gpu, sycl_dev.is_gpu())
                 && IMPLICATION(engine()->kind() == engine_kind::cpu,
-                        (sycl_dev.is_cpu() || sycl_dev.is_host()));
+                        (sycl_dev.is_cpu() || is_host(sycl_dev)));
         if (!args_ok) return status::invalid_arguments;
     }
 

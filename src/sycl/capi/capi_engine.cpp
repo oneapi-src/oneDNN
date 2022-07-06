@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "common/engine.hpp"
 #include "common/utils.hpp"
 #include "sycl/sycl_engine.hpp"
+#include "sycl/sycl_utils.hpp"
 
 using namespace dnnl::impl;
 
@@ -36,7 +37,7 @@ status_t dnnl_sycl_interop_engine_create(
     engine_kind_t kind;
     if (sycl_dev.is_gpu())
         kind = engine_kind::gpu;
-    else if (sycl_dev.is_cpu() || sycl_dev.is_host())
+    else if (sycl_dev.is_cpu() || dnnl::impl::sycl::is_host(sycl_dev))
         kind = engine_kind::cpu;
     else
         return status::invalid_arguments;
