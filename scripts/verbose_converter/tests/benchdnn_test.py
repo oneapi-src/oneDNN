@@ -101,6 +101,9 @@ def generate_verbose(path_to_benchdnn, driver, batch):
         l_s = l.split(',')
         d = benchdnn_gen.convert_driver(l_s[3]) if len(l_s) > 3 else ''
         if len(l_s) > 3 and l_s[0] == 'onednn_verbose' and d == driver:
+            # filter out creation calls
+            verbose_operation = l_s[1]
+            if verbose_operation != 'exec': continue
             # filter out additional forward calls
             verbose_prop_kind = l_s[5]
             if benchdnn_prop_kind != None and verbose_prop_kind != benchdnn_prop_kind:
