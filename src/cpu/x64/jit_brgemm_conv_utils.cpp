@@ -84,6 +84,17 @@ bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
                     broadcasting_strategy_t::scalar}));
 }
 
+bool is_groups_ok(jit_brgemm_conv_conf_t &jcp) {
+    // Enable grouped convs for the shapes not supported in direct convs
+    // direct approach only supports int8/bf16 grouped conv
+    // when channels per groups is at least multiple of 4
+    // and bf16 grouped conv not with layout nxc on jf_bf16 inpl
+    // TODO: remove this condition after the restriction on small ic is removed
+    return jcp.ngroups > 1
+            && IMPLICATION(one_of(jcp.src_dt, u8, s8, bf16),
+                    jcp.ic % 4 == 0 && jcp.oc % 4 == 0);
+}
+
 status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md) {
@@ -1691,10 +1702,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                             && jcp.oc < 16
                             // already optimized for amx 1x1 convs
                             && !jcp.is_1x1)
-            // direct approach only supports int8 grouped conv
-            // when channels per groups is at least multiple of 4
-            && IMPLICATION(one_of(jcp.src_dt, u8, s8),
-                    jcp.ic % 4 == 0 && jcp.oc % 4 == 0);
+            // Enable the shapes not supported in direct convs
+            && IMPLICATION(with_groups, is_groups_ok(jcp));
     if (is_grouped_small_ic) return status::unimplemented;
 
     jcp.s8s8_avx512 = jcp.src_dt == s8 && !is_amx(jcp.isa);
@@ -1808,12 +1817,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const memory_desc_wrapper bias_d(&bias_md);
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    // direct convolution only support int8 grouped conv
-    // when channels per groups is at least multiple of 4
-    // then we need to enable such shapes in brgemm conv
-    const bool is_support_group_int8 = with_groups && jcp.ngroups > 1
-            && !IMPLICATION(one_of(jcp.src_dt, u8, s8),
-                    jcp.ic % 4 == 0 && jcp.oc % 4 == 0);
+
     // TODO: check these restrictions
     if (is_amx(isa)) {
         // disabled for two convolutions from ssd_resnet34
@@ -1825,7 +1829,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1
                         || jcp.dilate_d > 0));
 
-        if (jcp.ic <= 4 && !is_real_3d && !is_support_group_int8)
+        if (jcp.ic <= 4 && !is_real_3d
+                && IMPLICATION(with_groups, is_groups_ok(jcp)))
             return status::unimplemented;
 
         if (jcp.f_pad >= jcp.kd || jcp.t_pad >= jcp.kh || jcp.r_pad >= jcp.kw)
