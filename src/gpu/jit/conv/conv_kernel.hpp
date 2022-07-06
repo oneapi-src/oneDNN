@@ -4141,9 +4141,11 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     ir_trace() << "Register usage estimate:         "
                << cfg_.estimated_peak_grf_usage << std::endl;
     ir_trace() << "IR register usage:               "
-               << get_peak_grf_usage(body, grf_size) << std::endl;
+               << get_peak_grf_usage(body, grf_size, ra_.get_grf_usage())
+               << std::endl;
     ir_trace() << "IR register usage (without let): "
-               << get_peak_grf_usage(body, grf_size, /*skip_let=*/true)
+               << get_peak_grf_usage(body, grf_size, ra_.get_grf_usage(),
+                          /*skip_let=*/true)
                << std::endl;
     profile.start();
 #endif

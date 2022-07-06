@@ -129,6 +129,7 @@ public:
 
 #ifdef GEN_CONV_DEBUG
     int get_peak_grf_usage() const { return peak_grf_usage; }
+    int get_grf_usage() const { return ra.countAllocedRegisters(); }
 
     // For performing speculative allocations that may not be used in the final
     // register allocation
@@ -146,7 +147,7 @@ protected:
 #ifdef GEN_CONV_DEBUG
     void update_peak_grf_usage() {
         if (is_speculate) return;
-        int register_count = ra.countAllocedRegisters();
+        int register_count = get_grf_usage();
         if (peak_grf_usage < register_count) peak_grf_usage = register_count;
     }
 #else
