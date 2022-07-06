@@ -447,7 +447,11 @@ def convert_flags(mds, prim_kind):
             flags += ' ' + oflag
         return flags
 
+    def convert_flags_rnn(mds):
+        return f"--trivial-strides=true"
+
     cvt_flags = {
+        'rnn': convert_flags_rnn,
         'reorder': convert_flags_reorder,
     }
 
