@@ -86,6 +86,12 @@ inline bool is_host(const ::sycl::device &dev) {
             == ::sycl::info::device_type::host;
 }
 
+inline bool is_host(const ::sycl::platform &plat) {
+    auto devices = plat.get_devices();
+    if (devices.size() != 1) return false;
+    return is_host(devices[0]);
+}
+
 inline backend_t get_sycl_backend(const ::sycl::device &dev) {
     if (is_host(dev)) return backend_t::host;
 

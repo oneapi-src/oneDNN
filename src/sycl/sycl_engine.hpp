@@ -90,7 +90,7 @@ inline std::vector<::sycl::device> get_sycl_devices(
 
     for (const auto &p : platforms) {
 #if !defined(DNNL_SYCL_CUDA) && !defined(DNNL_SYCL_HIP)
-        if (!is_intel_platform(p)) continue;
+        if (!is_host(p) && !is_intel_platform(p)) continue;
 #endif
         auto p_devices = p.get_devices(dev_type);
         devices.insert(devices.end(), p_devices.begin(), p_devices.end());
