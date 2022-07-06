@@ -174,8 +174,8 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask
-                = sm::post_ops | sm::oscale_runtime | sm::zero_points_runtime;
+            const auto attr_skip_mask = sm::post_ops | sm::oscale_runtime
+                    | sm::zero_points_runtime;
             using namespace data_type;
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
