@@ -351,7 +351,24 @@ struct jit_bnorm_t : public jit_generator {
 
     int bit_shift() { return 5 - is_bf16_; }
 
-    bool stream_store_supported() { return !is_bf16_; }
+    bool stream_store_supported() {
+        // keep original behavior for f32
+        if (!is_bf16_) return true;
+        // TODO: check performance of heuristic for other cases, such as:
+        // blocked layout, pre-avx512_core_amx machines, and f32 datatype.
+        const bool is_applicable = jbp_->is_nspc_ && mayiuse(avx512_core_amx);
+        if (!is_applicable) return false;
+        const size_t l2_size_per_core = platform::get_per_core_cache_size(2);
+        const size_t l3_size_per_core = platform::get_per_core_cache_size(3);
+        const size_t cache_size_per_core = l2_size_per_core + l3_size_per_core;
+        const size_t buffer_count = bdesc_->is_fwd() ? 2 : 3;
+        const size_t data_size = buffer_count * jbp_->dt_size_ * bdesc_->MB()
+                * bdesc_->C() * bdesc_->D() * bdesc_->H() * bdesc_->W();
+        // do not divide by C_nthr for nspc layout
+        const size_t data_size_per_core
+                = data_size / (jbp_->N_nthr_ * jbp_->S_nthr_);
+        return cache_size_per_core < data_size_per_core;
+    }
 
     bool is_c_padded() const {
         const memory_desc_wrapper data_d(bdesc_->src_md());
@@ -573,7 +590,11 @@ struct jit_bnorm_t : public jit_generator {
                 else
                     bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
 
-                vmovdqu16(dst.getAddress(), dst_reg);
+                // store to memory
+                if (is_nt_store)
+                    uni_vmovntps(dst.getAddress(), dst_reg);
+                else
+                    vmovdqu16(dst.getAddress(), dst_reg);
             } else {
                 if (is_nt_store)
                     uni_vmovntps(dst.getAddress(), Vmm(src.getIdx()));
@@ -892,7 +913,7 @@ struct jit_bnorm_t : public jit_generator {
 
         if (stream_store_supported()) {
             Label normal_store, end_store;
-            test(reg_dst, vlen - 1);
+            test(reg_dst, vlen_spat_data_ - 1);
             jnz(normal_store, T_NEAR);
             compute(true);
             jmp(end_store, T_NEAR);
@@ -900,7 +921,7 @@ struct jit_bnorm_t : public jit_generator {
             { compute(false); }
             L(end_store);
         } else {
-            compute(false); // no NT store for BF16
+            compute(false); // disabled for bf16 when data fits in cache
         }
     }
 
@@ -1693,7 +1714,7 @@ struct jit_bnorm_t : public jit_generator {
             { compute(false); }
             L(end_store);
         } else {
-            compute(false); // no NT store for BF16
+            compute(false); // disabled for bf16 when data fits in cache
         }
     }
 
