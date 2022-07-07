@@ -189,40 +189,95 @@ typedef struct {
 
 /// Policy specifications for partitioning
 typedef enum {
-    /// Best optimization
+    /// Max policy is to be defined. The library intends to deliver best
+    /// optimization and larger partition with max policy. It also means users
+    /// may lose fine-grained control the operations in the partition.
+    /// Currently, max policy has the same effect as fusion policy.
     dnnl_graph_partition_policy_max = 0,
-    /// Have fusion
+    /// Fusion policy returns partitions with typical post-op fusions, eg.
+    /// Convolution + ReLU or other element-wise operations or a chian of
+    /// post-ops.
     dnnl_graph_partition_policy_fusion = 1,
-    /// No optimization
+    /// Debug policy doesn't not apply any fusions. It returns partitions with
+    /// single operation in each partition. The policy is useful when users
+    /// notice any bug or correctness issue in max policy or fusion policy.
     dnnl_graph_partition_policy_debug = 2,
 } dnnl_graph_partition_policy_t;
 
+/// Partition kind. It defines the basic structure of the subgraph contained in
+/// a partition. For example, kind
+/// #dnnl_graph_partition_kind_convolution_post_ops indicates the partition
+/// contains one Convolution and its post-ops. But the operation kind of the
+/// post-ops are not specified. Partition's kind is decided by the library
+/// internally and can be queried from a partition.
 typedef enum {
+    /// The partition kind is not defined.
     dnnl_graph_partition_kind_undef = 0,
+    /// The partition contains a Convolution and its post-ops.
     dnnl_graph_partition_kind_convolution_post_ops = 1,
+    /// The partition contains a ConvTranspose and its post-ops.
     dnnl_graph_partition_kind_convtranspose_post_ops = 2,
+    /// The partition contains an Interpolate and its post-ops.
     dnnl_graph_partition_kind_interpolate_post_ops = 3,
+    /// The partition contains a MatMul and its post-ops.
     dnnl_graph_partition_kind_matmul_post_ops = 4,
+    /// The partition contains a Reduction and its post-ops.
     dnnl_graph_partition_kind_reduction_post_ops = 5,
+    /// The partition contains an Unary op and its post-ops.
     dnnl_graph_partition_kind_unary_post_ops = 6,
+    /// The partition contains a Binary op and its post-ops.
     dnnl_graph_partition_kind_binary_post_ops = 7,
+    /// The partition contains a Pooling op (AvgPool or MaxPool) and its
+    /// post-ops.
     dnnl_graph_partition_kind_pooling_post_ops = 8,
+    /// The partition contains a BatchNorm op and its post-ops.
     dnnl_graph_partition_kind_batch_norm_post_ops = 9,
+    /// Other partitions based on post-ops but not specified by above kinds.
     dnnl_graph_partition_kind_misc_post_ops = 10,
+    /// The partition contains a quantized version of Convolution and its
+    /// post-ops.
     dnnl_graph_partition_kind_quantized_convolution_post_ops = 11,
+    /// The partition contains a quantized version of ConvTranspose and its
+    /// post-ops.
     dnnl_graph_partition_kind_quantized_convtranspose_post_ops = 12,
+    /// The partition contains a quantized version of MatMul and its
+    /// post-ops.
     dnnl_graph_partition_kind_quantized_matmul_post_ops = 13,
+    /// The partition contains a quantized version of Unary op and its
+    /// post-ops.
     dnnl_graph_partition_kind_quantized_unary_post_ops = 14,
+    /// The partition contains a quantized version of Pooling op and its
+    /// post-ops.
     dnnl_graph_partition_kind_quantized_pooling_post_ops = 15,
+    /// Other partitions based quantization and post-ops but not specified
+    /// by above kinds.
     dnnl_graph_partition_kind_misc_quantized_post_ops = 16,
+    /// The partition contains a Convolution backward op and its post-ops.
     dnnl_graph_partition_kind_convolution_backprop_post_ops = 17,
+    /// The partition contains a variant of Multi-head Attention.
     dnnl_graph_partition_kind_mha = 18,
+    /// The partition contains a variant of Multi-layer Perceptron.
     dnnl_graph_partition_kind_mlp = 19,
+    /// The partition contains a variant of quantized MHA.
     dnnl_graph_partition_kind_quantized_mha = 20,
+    /// The partition contains a variant of quantized MLP.
     dnnl_graph_partition_kind_quantized_mlp = 21,
+    /// The partition contains a variant of residual Convolution block with
+    /// multiple Convolutions in it.
     dnnl_graph_partition_kind_residual_conv_blocks = 22,
+    /// The partition contains a variant of quantized version of residual
+    /// Convolution block with multiple Convolutions in it.
     dnnl_graph_partition_kind_quantized_residual_conv_blocks = 23,
 } dnnl_graph_partition_kind_t;
+
+/// An opaque structure to describe a partition.
+struct dnnl_graph_partition;
+
+/// A partition handle.
+typedef struct dnnl_graph_partition *dnnl_graph_partition_t;
+
+/// A constant partition handle.
+typedef const struct dnnl_graph_partition *const_dnnl_graph_partition_t;
 
 /// @} dnnl_graph_api_partition
 
@@ -270,6 +325,15 @@ typedef enum {
     dnnl_graph_gpu = 2,
 } dnnl_graph_engine_kind_t;
 
+/// An opaque structure to describe an engine.
+struct dnnl_graph_engine;
+
+/// An engine handle.
+typedef struct dnnl_graph_engine *dnnl_graph_engine_t;
+
+/// A constant engine handle.
+typedef const struct dnnl_graph_engine *const_dnnl_graph_engine_t;
+
 /// @} dnnl_graph_api_engine
 
 /// @addtogroup dnnl_graph_api_graph
@@ -289,7 +353,16 @@ typedef enum {
     dnnl_graph_fpmath_mode_tf32 = 4,
 } dnnl_graph_fpmath_mode_t;
 
-/// @}
+/// An opaque structure to describe a graph.
+struct dnnl_graph_graph;
+
+/// A graph handle.
+typedef struct dnnl_graph_graph *dnnl_graph_graph_t;
+
+/// A constant graph handle.
+typedef const struct dnnl_graph_graph *const_dnnl_graph_graph_t;
+
+/// @} dnnl_graph_api_graph
 
 /// @addtogroup dnnl_graph_api_op
 /// @{
@@ -394,61 +467,131 @@ typedef enum {
 
 /// Attributes of operations
 typedef enum {
+    /// Undefined op attribute.
     dnnl_graph_op_attr_undef = 0,
 
-    // float32 attributes
+    // float32 attributes. The value of these attributes can be any single
+    // float32 number.
+
+    /// Specifies an alpha attribute to an op.
     dnnl_graph_op_attr_alpha = 1,
+    /// Specifies an beta attribute to an op.
     dnnl_graph_op_attr_beta,
+    /// Specifies an epsilon attribute to an op.
     dnnl_graph_op_attr_epsilon,
+    /// Specifies a max attribute to an op.
     dnnl_graph_op_attr_max,
+    ///Specifies a min attribute to an op.
     dnnl_graph_op_attr_min,
+    /// Specifies a momentum attribute to an op.
     dnnl_graph_op_attr_momentum,
 
-    // float32 vector attributes
+    // float32 vector attributes. The value of these attributes can be a vector
+    // of float32 numbers.
+
+    /// Specifies a scales attribute to an op.
     dnnl_graph_op_attr_scales,
 
-    // int64_t attributes
+    // int64_t attributes. The value of these attributes can be any single int64
+    // number.
+
+    /// Specifies an axis attribute to an op.
     dnnl_graph_op_attr_axis = 0x20,
+    /// Specifies a begin_norm_axis attribute to an op.
     dnnl_graph_op_attr_begin_norm_axis,
+    /// Specifies a groups attribute to an op.
     dnnl_graph_op_attr_groups,
 
-    // int64_t vector attributes
+    // int64_t vector attributes. The value of these attributes can be a vector
+    // of int64 numbers.
+
+    /// Specifies an axes attribute to an op.
     dnnl_graph_op_attr_axes,
+    /// Specifies a dilations attribute to an op.
     dnnl_graph_op_attr_dilations,
+    /// Specifies a filter_shape attribute to an op.
     dnnl_graph_op_attr_filter_shape,
+    /// Specifies a input_shape attribute to an op.
     dnnl_graph_op_attr_input_shape,
+    /// Specifies a kernel attribute to an op.
     dnnl_graph_op_attr_kernel,
+    /// Specifies an order attribute to an op.
     dnnl_graph_op_attr_order,
+    /// Specifies an output_padding attribute to an op.
     dnnl_graph_op_attr_output_padding,
+    /// Specifies an output_shape attribute to an op.
     dnnl_graph_op_attr_output_shape,
+    /// Specifies a pads_begin attribute to an op.
     dnnl_graph_op_attr_pads_begin,
+    /// Specifies a pads_end attribute to an op.
     dnnl_graph_op_attr_pads_end,
+    /// Specifies a shape attribute to an op.
     dnnl_graph_op_attr_shape,
+    /// Specifies a sizes attribute to an op.
     dnnl_graph_op_attr_sizes,
+    /// Specifies a strides attribute to an op.
     dnnl_graph_op_attr_strides,
+    /// Specifies a zps attribute to an op.
     dnnl_graph_op_attr_zps,
 
-    // bool attributes
+    // bool attributes. The value of these attributes can be any single bool
+    // value.
+
+    /// Specifies an exclude_pad attribute to an op.
     dnnl_graph_op_attr_exclude_pad = 0x40,
+    /// Specifies a keep_dims attribute to an op.
     dnnl_graph_op_attr_keep_dims,
+    /// Specifies a keep_stats attribute to an op.
     dnnl_graph_op_attr_keep_stats,
+    /// Specifies a per_channel_broadcast attribute to an op.
     dnnl_graph_op_attr_per_channel_broadcast,
+    /// Specifies a special_zero attribute to an op.
     dnnl_graph_op_attr_special_zero,
+    /// Specifies a transpose_a attribute to an op.
     dnnl_graph_op_attr_transpose_a,
+    /// Specifies a transpose_b attribute to an op.
     dnnl_graph_op_attr_transpose_b,
+    /// Specifies an use_affine attribute to an op.
     dnnl_graph_op_attr_use_affine,
+    /// Specifies an use_dst attribute to an op.
     dnnl_graph_op_attr_use_dst,
 
-    // string attributes
+    // string attributes. The value of these attributes can be a string.
+
+    /// Specifies an auto_broadcast attribute to an op. The value can be "none"
+    /// or "numpy".
     dnnl_graph_op_attr_auto_broadcast = 0x60,
+    /// Specifies an auto_pad attribute to an op. The value can be "none",
+    /// "same_upper", "same_lower", or "valid".
     dnnl_graph_op_attr_auto_pad,
+    /// Specifies an coordinate_transformation_mode attribute to an op. The
+    /// value can be "half_pixel" or "align_corners". The attribute is defined
+    /// for Interpolate operations.
     dnnl_graph_op_attr_coordinate_transformation_mode,
+    /// Specifies a data_format of an op. The value can be "NCX" or "NXC".
     dnnl_graph_op_attr_data_format,
+    /// Specifies a filter_format of an op. The value can be "OIX" or "XIO".
     dnnl_graph_op_attr_filter_format,
+    /// Specifies a mode attribute of an op. The value can be "nearest",
+    /// "linear", "bilinear", or "trilinear". The attribute is defined for
+    /// Interpolate operations.
     dnnl_graph_op_attr_mode,
+    /// Specifies a qtype attribute to an op. The value can be "per_channel" or
+    /// "per_tensor". The attribute is defined for quantization operations.
     dnnl_graph_op_attr_qtype,
+    /// Specifies a rounding_type attribute to an op. The value can be "ceil" or
+    /// "floor".
     dnnl_graph_op_attr_rounding_type,
 } dnnl_graph_op_attr_t;
+
+/// An opaque structure to describe an operation.
+struct dnnl_graph_op;
+
+/// An operation handle.
+typedef struct dnnl_graph_op *dnnl_graph_op_t;
+
+/// A constant operation handle.
+typedef const struct dnnl_graph_op *const_dnnl_graph_op_t;
 
 /// @} dnnl_graph_api_op
 
@@ -469,12 +612,29 @@ typedef void *(*dnnl_graph_sycl_allocate_f)(
 typedef void (*dnnl_graph_sycl_deallocate_f)(
         void *buf, const void *dev, const void *context, void *event);
 
+/// An opaque structure to describe an allocator.
+struct dnnl_graph_allocator;
+
+/// An allocator handle.
+typedef struct dnnl_graph_allocator *dnnl_graph_allocator_t;
+
+/// A constant allocator handle.
+typedef const struct dnnl_graph_allocator *const_dnnl_graph_allocator_t;
+
 /// @} dnnl_graph_api_allocator
 
 /// @addtogroup dnnl_graph_api_compiled_partition
 /// @{
 
-/// @brief In-place pair definition
+/// In-place pair definition. It can queried from a compiled partition
+/// indicating that an input and an output of the partition can share the same
+/// memory buffer for computation. In-place computation helps to reduce the
+/// memory footprint and improves cache locality. But since the library may not
+/// have a global view of user's application, it's possible that the tensor with
+/// `input_id` is used at other places in user's computation graph. In this
+/// case, the user should take the in-place pair as a hint and pass a different
+/// memory buffer for output tensor to avoid overwriting the input memory buffer
+/// which will probably cause unexpected incorrect results.
 typedef struct {
     /// The id of input tensor
     size_t input_id;
@@ -483,52 +643,45 @@ typedef struct {
     size_t output_id;
 } dnnl_graph_inplace_pair_t;
 
-/// @} dnnl_graph_api_compiled_partition
-
-/// @cond DO_NOT_DOCUMENT_THIS
-
-/// @brief An allocator handle
-struct dnnl_graph_allocator;
-typedef struct dnnl_graph_allocator *dnnl_graph_allocator_t;
-typedef const struct dnnl_graph_allocator *const_dnnl_graph_allocator_t;
-
-/// @brief A tensor handle
-struct dnnl_graph_tensor;
-typedef struct dnnl_graph_tensor *dnnl_graph_tensor_t;
-typedef const struct dnnl_graph_tensor *const_dnnl_graph_tensor_t;
-
-/// @brief A op handle
-struct dnnl_graph_op;
-typedef struct dnnl_graph_op *dnnl_graph_op_t;
-typedef const struct dnnl_graph_op *const_dnnl_graph_op_t;
-
-/// @brief A partition handle
-struct dnnl_graph_partition;
-typedef struct dnnl_graph_partition *dnnl_graph_partition_t;
-typedef const struct dnnl_graph_partition *const_dnnl_graph_partition_t;
-
-/// @brief A compiled partition handle
+/// An opaque structure to describe a compiled partition.
 struct dnnl_graph_compiled_partition;
+
+/// A compiled partition handle.
 typedef struct dnnl_graph_compiled_partition *dnnl_graph_compiled_partition_t;
+
+/// A constant compiled partition handle.
 typedef const struct dnnl_graph_compiled_partition
         *const_dnnl_graph_compiled_partition_t;
 
-/// @brief A graph handle
-struct dnnl_graph_graph;
-typedef struct dnnl_graph_graph *dnnl_graph_graph_t;
-typedef const struct dnnl_graph_graph *const_dnnl_graph_graph_t;
+/// @} dnnl_graph_api_compiled_partition
 
-/// @brief An engine handle
-struct dnnl_graph_engine;
-typedef struct dnnl_graph_engine *dnnl_graph_engine_t;
-typedef const struct dnnl_graph_engine *const_dnnl_graph_engine_t;
+/// @addtogroup dnnl_graph_api_tensor
+/// @{
 
-/// @brief A stream handle
+/// An opaque structure to describe a tensor.
+struct dnnl_graph_tensor;
+
+/// A tensor handle.
+typedef struct dnnl_graph_tensor *dnnl_graph_tensor_t;
+
+/// A constant tensor handle.
+typedef const struct dnnl_graph_tensor *const_dnnl_graph_tensor_t;
+
+/// @} dnnl_graph_api_tensor
+
+/// @addtogroup dnnl_graph_api_stream
+/// @{
+
+/// An opaque structure to describe a stream.
 struct dnnl_graph_stream;
+
+/// A stream handle.
 typedef struct dnnl_graph_stream *dnnl_graph_stream_t;
+
+/// A constant stream handle.
 typedef const struct dnnl_graph_stream *const_dnnl_graph_stream_t;
 
-/// @endcond
+/// @} dnnl_graph_api_stream
 
 /// @addtogroup dnnl_graph_api_service
 /// @{
