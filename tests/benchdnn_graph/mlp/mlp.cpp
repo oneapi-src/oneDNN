@@ -134,7 +134,7 @@ inline int fill_data(data_kind_t kind, const mlp_graph_spec_t *spec,
             rt_dims_masks, attr);
     matmul_prb.scales = scales;
     ::matmul::cfg_t cfg(&matmul_prb, {SRC, WEI, BIA, DST});
-    const auto density = cfg.get_density(kind, matmul_prb.k);
+    const auto density = cfg.get_density({kind, matmul_prb.k});
 
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t n_chunks = 16;
