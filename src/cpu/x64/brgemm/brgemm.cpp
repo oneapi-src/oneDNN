@@ -176,27 +176,6 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
         return status::unimplemented;
 
-    if (!IMPLICATION(brg->is_f32, mayiuse(avx512_core)))
-        return status::unimplemented;
-    if (!IMPLICATION(brg->is_bf16, mayiuse(avx512_core_bf16)))
-        return status::unimplemented;
-    if (!IMPLICATION(brg->is_int8, mayiuse(avx512_core_vnni)))
-        return status::unimplemented;
-
-    if (isa != isa_any) {
-        if (!one_of(isa, avx512_core, avx512_core_bf16, avx512_core_vnni,
-                    avx512_core_bf16_amx_bf16, avx512_core_bf16_amx_int8))
-            return status::invalid_arguments;
-
-        if (!IMPLICATION(brg->is_int8 && isa == avx512_core_bf16_amx_int8,
-                    mayiuse(avx512_core_bf16_amx_int8)))
-            return status::invalid_arguments;
-
-        if (!IMPLICATION(brg->is_bf16 && isa == avx512_core_bf16_amx_bf16,
-                    mayiuse(avx512_core_bf16_amx_bf16)))
-            return status::invalid_arguments;
-    }
-
     CHECK(brgemm_blocking(brg));
 
     return status::success;
