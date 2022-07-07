@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2022 Intel Corporation
+* Copyright 2022 IBM Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +41,9 @@
 #include "cpu/x64/gemm/gemm_driver.hpp"
 
 using namespace dnnl::impl::cpu::x64;
+#elif DNNL_PPC64
+#include "cpu/ppc64/ppc64_gemm_driver.hpp"
+using namespace dnnl::impl::cpu::ppc64;
 #endif
 
 namespace dnnl {
@@ -72,6 +76,13 @@ dnnl_status_t check_gemm_input(const char *transa, const char *transb,
             && (is_packed_b || *ldb >= nstl::max(dim_t(1), nrow_b))
             && *ldc >= nstl::max(dim_t(1), *M);
     if (!consistency) return dnnl_invalid_arguments;
+#if DNNL_PPC64
+#ifdef __MMA__
+    if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
+                && utils::one_of(*transb, 'n', 'N', 't', 'T')))
+        return dnnl_unimplemented;
+#endif
+#endif
 
     return dnnl_success;
 }
@@ -190,6 +201,14 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (mayiuse(sse41))
         return gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
                 B, LDB, bo, beta, C, LDC, co, false);
+#elif DNNL_PPC64
+#ifdef __MMA__
+    int ATflag = (*transa == 'T') || (*transa == 't');
+    int BTflag = (*transb == 'T') || (*transb == 't');
+
+    return cblas_gemm_s8x8s32_ppc64(ATflag, BTflag, offsetc, *M, *N, *K, *alpha,
+            A, *LDA, ao, B, *LDB, bo, C, *beta, *LDC, co, 0);
+#endif
 #endif
 
     return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
@@ -220,6 +239,23 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     else if (use_s8u8)
         return simple_gemm_s8s8s32(transa, transb, offsetc, M, N, K, alpha, A,
                 LDA, ao, B, LDB, bo, beta, C, LDC, co);
+#endif
+
+#if DNNL_PPC64
+#ifdef __MMA__
+    int ATflag = (*transa == 'T') || (*transa == 't');
+    int BTflag = (*transb == 'T') || (*transb == 't');
+
+    // Note please that the coercion of "B" and "bo" from int8_t to uint8_t is
+    // accompanied by the last parameter being set to "1" instead of "0", as
+    // in the analogous call in the previous routine above.
+    // This last parameter flags the fact of the coercion, so the called routine
+    // can process "B" and "bo" appropriately.
+
+    return cblas_gemm_s8x8s32_ppc64(ATflag, BTflag, offsetc, *M, *N, *K, *alpha,
+            A, *LDA, ao, (const uint8_t *)B, *LDB, (const uint8_t *)bo, C,
+            *beta, *LDC, co, 1);
+#endif
 #endif
 
     return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
