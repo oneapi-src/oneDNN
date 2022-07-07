@@ -98,6 +98,19 @@ if(UNIX)
     endif()
 endif()
 
+macro(enable_conditional_compilation4 target)
+    if(COMMAND ie_mark_target_as_cc)
+        ie_mark_target_as_cc(${target})
+        if(SELECTIVE_BUILD STREQUAL "ON")
+            # After disabling a block of code, some variables might be unused.
+            if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+                    OR CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
+                target_compile_options(${target} PRIVATE -Wno-unused-variable)
+            endif()
+        endif()
+    endif()
+endmacro()
+
 add_subdirectory(common)
 
 if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")

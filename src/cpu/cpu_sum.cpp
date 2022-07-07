@@ -32,25 +32,28 @@ namespace cpu {
 
 namespace {
 using namespace dnnl::impl::data_type;
-#define INSTANCE(...) \
+
+#define INSTANCE_IMPL(...) \
     impl_list_item_t(impl_list_item_t::sum_type_deduction_helper_t< \
-            __VA_ARGS__::pd_t>()),
+            __VA_ARGS__::pd_t>())
+#define INSTANCE(...) DNNL_PRIMITIVE_IMPL(INSTANCE_IMPL, __VA_ARGS__)
 #define INSTANCE_X64(...) DNNL_X64_ONLY(INSTANCE(__VA_ARGS__))
 // clang-format off
-constexpr impl_list_item_t cpu_sum_impl_list[] = REG_SUM_P({
-        INSTANCE_X64(jit_bf16_sum_t<bf16, bf16>)
-        INSTANCE_X64(jit_bf16_sum_t<bf16, f32>)
-        INSTANCE(simple_sum_t<f16>)
-        INSTANCE(simple_sum_t<f16, f32>)
-        INSTANCE(simple_sum_t<bf16>)
-        INSTANCE(simple_sum_t<bf16, f32>)
-        INSTANCE(simple_sum_t<f32>)
+const impl_list_item_t cpu_sum_impl_list[] = REG_SUM_P({
+        INSTANCE_X64(jit_bf16_sum_t, bf16, bf16)
+        INSTANCE_X64(jit_bf16_sum_t, bf16, f32)
+        INSTANCE(simple_sum_t, f16)
+        INSTANCE(simple_sum_t, f16, f32)
+        INSTANCE(simple_sum_t, bf16)
+        INSTANCE(simple_sum_t, bf16, f32)
+        INSTANCE(simple_sum_t, f32)
         INSTANCE(ref_sum_t)
         nullptr,
 });
 // clang-format on
 #undef INSTANCE_X64
 #undef INSTANCE
+#undef INSTANCE_IMPL
 } // namespace
 
 const impl_list_item_t *cpu_engine_impl_list_t::get_sum_implementation_list() {

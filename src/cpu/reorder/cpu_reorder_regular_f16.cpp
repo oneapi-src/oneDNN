@@ -28,11 +28,10 @@ const impl_list_map_t &regular_f16_impl_list_map() {
         {{f16, data_type::undef, 0}, {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-
-            REG_SR(f16, any, f16, any, fmt_order::any, spec::reference)
-            REG_SR(f16, any, f32, any, fmt_order::any, spec::reference)
-            REG_SR(f16, any, s8, any, fmt_order::any, spec::reference)
-            REG_SR(f16, any, u8, any, fmt_order::any, spec::reference)
+            REG_SR(f16, any, f16, any, fmt_order_any, spec_reference)
+            REG_SR(f16, any, f32, any, fmt_order_any, spec_reference)
+            REG_SR(f16, any, s8, any, fmt_order_any, spec_reference)
+            REG_SR(f16, any, u8, any, fmt_order_any, spec_reference)
 
             nullptr,
         }},

@@ -103,6 +103,7 @@ set(OBJ_LIB ${DNNL_LIBRARY_NAME}_cpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
+enable_conditional_compilation4(${OBJ_LIB})
 
 if (DNNL_TARGET_ARCH STREQUAL "X64")
     add_subdirectory(x64)
