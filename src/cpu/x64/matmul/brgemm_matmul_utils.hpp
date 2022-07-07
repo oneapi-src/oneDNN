@@ -224,6 +224,14 @@ struct brgemm_matmul_conf_utils_t {
         return use_blocked_LDB ? bgmmc.wei_n_blk : bgmmc.N;
     }
 
+    inline bool maybe_low_brg_blocking() const {
+        // Check if m_block is a prime number from 32 to 64
+        const bool is_prime_num
+                = utils::one_of(bgmmc.M_blk, 37, 41, 43, 47, 53, 59, 61);
+        const bool maybe_ldb_tail = bgmmc.N % 16;
+        return is_prime_num && IMPLICATION(bgmmc.M_blk < 48, maybe_ldb_tail);
+    }
+
     inline bool check_n_blk_fixed() const { return n_blk_fixed; }
 
     inline bool check_is_transposed(format_tag_t tag) const {

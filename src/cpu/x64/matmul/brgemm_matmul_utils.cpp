@@ -513,6 +513,7 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
             = div_up(static_cast<int>(bgmmc.K), min_k_per_thread);
     const bool is_amx_bf16
             = bgmmc.isa == avx512_core_bf16_amx_bf16; // note: also bf32
+    const bool is_amx_int8 = bgmmc.isa == avx512_core_bf16_amx_int8;
     const int max_nthr_k = is_amx_bf16 && bgmmc.batch == 1
             ? nstl::min(saturate(1, 7, bgmmc.nthr / 8), max_k_parallel_work)
             : 1;
@@ -528,7 +529,10 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
                 = num_parallel_work > 16 * bgmmc.nthr;
         const bool low_parallelism
                 = static_cast<float>(num_parallel_work) < 1.5f * bgmmc.nthr;
-        const int min_M_blk = low_parallelism && bgmmc.M_blk > 32
+        const bool maybe_low_blocking
+                = is_amx_int8 && bm_conf_utils.maybe_low_brg_blocking();
+        const int min_M_blk
+                = (maybe_low_blocking || low_parallelism) && bgmmc.M_blk > 32
                 ? div_up(bgmmc.M_blk, 2)
                 : bgmmc.M_blk;
         const int min_N_blk = low_parallelism && is_amx_bf16
@@ -544,10 +548,13 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
                         : (bgmmc.use_buffer_a || a_lot_of_parallel_work ? 4
                                                                         : 1),
                 num_N_blk);
+
         std::unordered_set<int> mblk_candidates;
         for (int m_blk = bgmmc.M_blk; m_blk >= min_M_blk;
-                m_blk = m_blk > 1 ? div_up(m_blk, 2) : m_blk - 1)
-            mblk_candidates.insert(m_blk);
+                m_blk = m_blk > 1 ? div_up(m_blk, 2) : m_blk - 1) {
+            if (IMPLICATION(maybe_low_blocking, m_blk != bgmmc.M_blk))
+                mblk_candidates.insert(m_blk);
+        }
 
         if (bgmmc.M > 16) {
             // Add multiple of 16 M block sizes for consideration
