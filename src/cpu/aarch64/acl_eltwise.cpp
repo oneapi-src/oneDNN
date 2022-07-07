@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,20 +21,13 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-using namespace dnnl::impl::status;
-using namespace dnnl::impl::memory_tracking::names;
-using namespace dnnl::impl::utils;
-
-template <data_type_t data_type>
-status_t acl_eltwise_fwd_t<data_type>::execute_forward(
-        const exec_ctx_t &ctx) const {
+status_t acl_eltwise_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     // Lock here is needed because resource_mapper does not support
     // concurrent access.
     std::lock_guard<std::mutex> _lock {this->mtx};
 
-    status_t status = status::success;
-    auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto src_base = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    auto dst_base = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     // Retrieve primitive resource and configured Compute Library objects
     auto *acl_resource
@@ -43,8 +36,7 @@ status_t acl_eltwise_fwd_t<data_type>::execute_forward(
 
     // import_memory() and free() methods do not allocate/free any additional
     // memory, only acquire/release pointers.
-    acl_obj.src_tensor.allocator()->import_memory(
-            const_cast<data_t *>(src_base));
+    acl_obj.src_tensor.allocator()->import_memory(const_cast<void *>(src_base));
     acl_obj.dst_tensor.allocator()->import_memory(dst_base);
 
     acl_obj.act.run();
@@ -52,11 +44,8 @@ status_t acl_eltwise_fwd_t<data_type>::execute_forward(
     acl_obj.src_tensor.allocator()->free();
     acl_obj.dst_tensor.allocator()->free();
 
-    return status;
+    return status::success;
 }
-
-template struct acl_eltwise_fwd_t<data_type::f32>;
-template struct acl_eltwise_fwd_t<data_type::s8>;
 
 } // namespace aarch64
 } // namespace cpu
