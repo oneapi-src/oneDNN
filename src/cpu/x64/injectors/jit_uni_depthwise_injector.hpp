@@ -86,7 +86,7 @@ struct jit_uni_depthwise_injector_f32 {
         assert(utils::one_of(depthwise_alg, alg_kind::depthwise_scale_shift, alg_kind::depthwise_prelu));
     }
 
-    void compute_vector_range(int start_idx, int end_idx, const Xbyak::Reg64& p_weights, const Xbyak::Reg64& p_bias, bool is_broadcast = false);
+    void compute_vector_range(int start_idx, int end_idx, const Xbyak::Reg64& p_weights, const Xbyak::Reg64& p_bias, bool is_broadcast = false, bool scale_only = false);
 
     void init_ptrs(const Xbyak::RegExp& ptr_data,
                    const Xbyak::Reg64& reg_d_weights, const Xbyak::Reg64& reg_d_bias,
@@ -124,13 +124,13 @@ private:
 
     int aux_vecs_count(alg_kind_t elt_alg, bool is_broadcast);
 
-    void compute_body(size_t start_idx, size_t end_idx, const Xbyak::Reg64& p_weights, const Xbyak::Reg64& p_bias, bool is_broadcast = false);
+    void compute_body(size_t start_idx, size_t end_idx, const Xbyak::Reg64& p_weights, const Xbyak::Reg64& p_bias, bool is_broadcast = false,  bool scale_only = false);
     void injector_preamble(size_t start_idx, size_t end_idx, bool is_broadcast = false);
     void injector_preamble_tail(size_t start_idx, size_t end_idx);
     void injector_postamble();
     void assign_regs();
 
-    void scale_shift_compute_vector(const Vmm &vmm_src, const Xbyak::Reg64& p_weights, const Xbyak::Reg64& p_bias, bool is_broadcast = false, int offset = 0);
+    void scale_shift_compute_vector(const Vmm &vmm_src, const Xbyak::Reg64& p_weights, const Xbyak::Reg64& p_bias, bool is_broadcast = false, int offset = 0, bool scale_only = false);
     void prelu_compute_vector(const Vmm &vmm_src, const Xbyak::Reg64& p_weights, const Xbyak::Reg64& p_bias, bool is_broadcast = false, int offset = 0);
 };
 
