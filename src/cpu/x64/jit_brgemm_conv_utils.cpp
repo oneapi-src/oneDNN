@@ -2426,11 +2426,10 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
 
     // TODO: Optimize memory allocation when threaded on height and depth
     jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih * jcp.id;
+    jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
     jcp.tr_src_buf_count = jcp.global_transpose
             ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups
             : jcp.nthr;
-
-    jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
     jcp.tr_diff_dst_buf_count = jcp.global_transpose
             ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
             : jcp.nthr;
