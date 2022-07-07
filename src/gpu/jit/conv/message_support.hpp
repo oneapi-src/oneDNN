@@ -42,6 +42,8 @@ enum class send_op_t {
     store_2d,
 };
 
+std::ostream &operator<<(std::ostream &out, const send_op_t value);
+
 // Send address model.
 enum class send_address_t {
     a64,
@@ -136,16 +138,7 @@ public:
 
     std::string str() const override {
         std::ostringstream oss;
-        switch (op) {
-            case send_op_t::atomic_fadd: oss << "atomic_fadd"; break;
-            case send_op_t::load: oss << "load"; break;
-            case send_op_t::load_2d: oss << "load_2d"; break;
-            case send_op_t::prefetch: oss << "prefetch"; break;
-            case send_op_t::prefetch_2d: oss << "prefetch_2d"; break;
-            case send_op_t::store: oss << "store"; break;
-            case send_op_t::store_2d: oss << "store_2d"; break;
-            default: ir_error_not_expected();
-        }
+        oss << op;
         oss << ".";
         if (is_scattered()) oss << slots << "x";
         oss << type.str();

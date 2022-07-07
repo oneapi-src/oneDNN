@@ -24,6 +24,22 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+std::ostream &operator<<(std::ostream &out, const send_op_t op) {
+    const char *s = nullptr;
+    switch (op) {
+        case send_op_t::atomic_fadd: s = "atomic_fadd"; break;
+        case send_op_t::load: s = "load"; break;
+        case send_op_t::load_2d: s = "load_2d"; break;
+        case send_op_t::prefetch: s = "prefetch"; break;
+        case send_op_t::prefetch_2d: s = "prefetch_2d"; break;
+        case send_op_t::store: s = "store"; break;
+        case send_op_t::store_2d: s = "store_2d"; break;
+        default: ir_error_not_expected(); s = "unknown";
+    }
+
+    return out << s;
+}
+
 stmt_t send_t::create_offset_store(const expr_t &header_buf,
         const expr_t &mem_buf, const expr_t &_mem_off,
         bool is_signed_offset) const {
