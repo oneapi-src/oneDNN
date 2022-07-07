@@ -102,7 +102,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::bcast_loop(
         int num_substeps = jcp.bcast_block / jcp.ur;
         assert(num_substeps > 0 && num_substeps < 10);
         for (int i = 0; i < num_substeps; i++) {
-            reduce_loop(load_loop_blk, jcp.ur, i, false);
+            reduce_loop(load_loop_blk, jcp.ur, false);
             if (i < num_substeps - 1) {
                 add(aux1_reg_bcast_data, jcp.bcast_loop_bcast_substep);
                 add(aux_reg_output_data, jcp.bcast_loop_output_substep);
@@ -127,7 +127,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::bcast_loop(
         Label bcast_loop_tail_out;
         cmp(bcast_loop_iter, 0);
         jz(bcast_loop_tail_out, T_NEAR);
-        reduce_loop(load_loop_blk, jcp.ur_tail, 0, true);
+        reduce_loop(load_loop_blk, jcp.ur_tail, true);
         L(bcast_loop_tail_out);
     }
 }
@@ -292,7 +292,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::apply_postops(
 
 template <typename Vmm>
 void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
-        int load_loop_blk, int ur, int substep, bool wraparound) {
+        int load_loop_blk, int ur, bool wraparound) {
     auto vreg_load
             = [=](int i_load) { return Vmm(ur * load_loop_blk + i_load); };
 

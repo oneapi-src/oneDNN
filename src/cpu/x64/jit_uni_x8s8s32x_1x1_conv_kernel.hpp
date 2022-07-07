@@ -116,7 +116,7 @@ private:
     void apply_postops(const int ur, const int load_loop_blk,
             const bool mask_flag_in, const float *p_sum_scale,
             const int32_t *p_sum_zp);
-    void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
+    void reduce_loop(int load_loop_blk, int ur, bool wraparound);
 
     void generate() override;
     void cvt2ps(data_type_t type_in, const Vmm &vmm_in, const Xbyak::Reg64 &reg,

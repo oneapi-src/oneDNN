@@ -128,7 +128,7 @@ private:
     inline Vmm_down_t vmm_store() { return Vmm_down_t(ymm_store.getIdx()); };
 
     void bcast_loop(int load_loop_blk);
-    void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
+    void reduce_loop(int load_loop_blk, int ur, bool wraparound);
 
     Xbyak::Address output_ptr(const int i_load, const int i_ur);
     int vreg_accum_idx(const int load_loop_blk, int i_load, int i_ur) const;

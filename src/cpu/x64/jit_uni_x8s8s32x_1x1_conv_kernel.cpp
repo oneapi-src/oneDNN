@@ -91,7 +91,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::bcast_loop(
     L(bcast_loop);
     {
         assert(jcp.bcast_block == jcp.ur);
-        reduce_loop(load_loop_blk, jcp.ur, 0, false);
+        reduce_loop(load_loop_blk, jcp.ur, false);
         add(aux1_reg_bcast_data, jcp.bcast_loop_bcast_step);
         add(aux_reg_output_data, jcp.bcast_loop_output_step);
 
@@ -105,7 +105,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::bcast_loop(
         Label bcast_loop_tail_out;
         cmp(reg_bcast_loop_iter, 0);
         jz(bcast_loop_tail_out, T_NEAR);
-        reduce_loop(load_loop_blk, jcp.ur_tail, 0, true);
+        reduce_loop(load_loop_blk, jcp.ur_tail, true);
         L(bcast_loop_tail_out);
     }
 }
@@ -226,7 +226,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
 
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
-        int load_loop_blk, int ur, int substep, bool wraparound) {
+        int load_loop_blk, int ur, bool wraparound) {
 
     // use 0x10001 to represent 2 words of 0x1
     // and avoid using uni_vpbroadcastb that is missing in jit generator
