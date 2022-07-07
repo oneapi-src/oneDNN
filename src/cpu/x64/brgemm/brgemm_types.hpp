@@ -180,8 +180,8 @@ struct brgemm_t {
     int typesize_C = 0;
     int typesize_D = 0;
     int typesize_bias = 0;
-    impl::cpu::x64::cpu_isa_t isa = isa_any;
 
+    bool is_ymm = false;
     bool is_zmm = false;
     bool is_tmm = false;
     bool is_int8 = false, is_int8_tmm = false;

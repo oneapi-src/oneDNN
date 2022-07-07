@@ -417,11 +417,11 @@ status_t brgemm_kernel_create(
         } else if (brg.is_zmm) {
             // isa specific instantiations are required because
             // post-ops require template isa param.
-            if (brg.isa == avx512_core_bf16) {
+            if (brg.isa_impl == avx512_core_bf16) {
                 CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
                         new brgemm_kernel_common_t<avx512_core_bf16,
                                 Xbyak::Zmm>(brg)));
-            } else if (brg.isa == avx512_core_vnni) {
+            } else if (brg.isa_impl == avx512_core_vnni) {
                 CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
                         new brgemm_kernel_common_t<avx512_core_vnni,
                                 Xbyak::Zmm>(brg)));
@@ -430,6 +430,9 @@ status_t brgemm_kernel_create(
                         new brgemm_kernel_common_t<avx512_core, Xbyak::Zmm>(
                                 brg)));
             }
+        } else if (brg.is_ymm) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                    new brgemm_kernel_common_t<avx2, Xbyak::Ymm>(brg)));
         }
     }
     if (!(*brg_kernel)) return status::unimplemented;

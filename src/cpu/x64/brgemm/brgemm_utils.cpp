@@ -113,7 +113,7 @@ void set_isa_impl(brgemm_t *brg) {
         brg->isa_impl = utils::map(true, isa_any,
                 is_isa_ok(avx512_core)
                         || is_isa_ok(avx512_core_bf16_amx_bf16) /*bf32*/,
-                avx512_core);
+                avx512_core, is_isa_ok(avx2), avx2);
     } else if (brg->is_bf16) {
         brg->isa_impl = utils::map(true, isa_any,
                 is_isa_ok(avx512_core_bf16_amx_bf16), avx512_core_bf16_amx_bf16,
@@ -129,6 +129,8 @@ void set_brg_vmm(brgemm_t *brg) {
     brg->is_tmm = brg->is_int8_tmm || brg->is_bf16_tmm || brg->is_bf32;
     brg->is_zmm = !brg->is_tmm && mayiuse(avx512_core)
             && is_superset(brg->isa_impl, avx512_core);
+    brg->is_ymm
+            = !brg->is_zmm && mayiuse(avx2) && is_superset(brg->isa_impl, avx2);
 }
 
 status_t brgemm_blocking(brgemm_t *brg) {
@@ -136,11 +138,12 @@ status_t brgemm_blocking(brgemm_t *brg) {
     set_isa_impl(brg);
     if (brg->isa_impl == isa_any) return status::unimplemented;
     set_brg_vmm(brg);
-    if (!(brg->is_tmm || brg->is_zmm))
+    if (!(brg->is_tmm || brg->is_zmm || brg->is_ymm))
         return status::unimplemented;
 
     if (!brg->is_tmm) {
-        brg->ld_block = 16;
+        const int simd_w = is_superset(brg->isa_impl, avx512_core) ? 16 : 8;
+        brg->ld_block = simd_w;
         brg->ldb = brg->load_dim / brg->ld_block;
         brg->ldb_tail = brg->load_dim % brg->ld_block;
 
@@ -150,12 +153,15 @@ status_t brgemm_blocking(brgemm_t *brg) {
 
         if (brg->ldb2 == 0) brg->ld_block2 = nstl::max(1, brg->ldb2_tail);
         brg->embd_bcst = !brg->is_int8 && !brg->is_bf16
-                && (brg->ldb2_tail <= 1 && brg->ldb2 == 0);
+                && (brg->ldb2_tail <= 1 && brg->ldb2 == 0)
+                /*only avx512 or more can bcast*/
+                && is_superset(brg->isa_impl, avx512_core);
 
         int ld_block = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
         int adj_ld_block = (ld_block == 0) ? (ld_block + 1) : ld_block;
 
-        const int max_avx512_regs = 32;
+        const int max_isa_regs
+                = is_superset(brg->isa_impl, avx512_core) ? 32 : 16;
         const int max_bcst_regs = 1;
         const bool req_compensation = brg->req_s8s8_compensation
                 || brg->zp_type_a != brgemm_broadcast_t::none;
@@ -163,16 +169,18 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 = (brg->req_cal_comp_pads || brg->brgattr.max_top_vpad > 0
                           || brg->brgattr.max_bottom_vpad > 0)
                 && brg->zp_type_a != brgemm_broadcast_t::none;
-        int max_regs = max_avx512_regs - (adj_ld_block + max_bcst_regs);
+        int max_regs = max_isa_regs - (adj_ld_block + max_bcst_regs);
         int max_block
-                = (brg->embd_bcst ? 28
+                = (brg->embd_bcst ? max_regs - 4
                                   : ((brg->beta == 1.f || brg->beta == 0.f)
                                                   ? max_regs
                                                   : max_regs - 1));
         max_block -= req_compensation;
         max_block -= req_zp_a_comp_pads;
-        if (req_zp_a_comp_pads) max_block = nstl::min(max_block, 27);
-        if (brg->is_bf16_emu) max_block = nstl::min(max_block, 28);
+        if (req_zp_a_comp_pads) max_block = nstl::min(max_block, max_regs - 5);
+        if (brg->is_bf16_emu)
+            max_block
+                    = nstl::min(max_block, 28); // bf16_emu only for avx512_core
         max_block /= adj_ld_block;
         int min_block = 1;
         float best_bd_block_eff = 0.f;
@@ -197,7 +205,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->bdb = brg->bcast_dim / brg->bd_block;
         brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
-        brg->rd_block = 16 / brg->typesize_A;
+        brg->rd_block = simd_w / brg->typesize_A;
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
