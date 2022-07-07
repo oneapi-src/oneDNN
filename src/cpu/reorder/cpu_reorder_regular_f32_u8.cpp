@@ -27,17 +27,17 @@ const impl_list_map_t &regular_f32_u8_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         // f32 -> u8
         {{f32, u8, 0}, {
-            CPU_REORDER_INSTANCE(rnn_data_reorder_t<f32, u8>)
+            CPU_REORDER_INSTANCE(rnn_data_reorder_t, f32, u8)
 
             REG_FAST_DIRECT_COPY(f32, u8)
 
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_blk_reorder_t))
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64_jit_uni_reorder_t))
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_blk_reorder_t))
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
+            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_blk_reorder_t))
+            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64_jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, u8, nChw16c))
-            REG_SR(f32, any, u8, any, fmt_order::any, spec::reference)
+            REG_SR(f32, any, u8, any, fmt_order_any, spec_reference)
 
             nullptr,
         }},

@@ -32,21 +32,18 @@ namespace cpu {
 
 namespace {
 using namespace dnnl::impl::data_type;
+
 #define INSTANCE(...) \
     impl_list_item_t(impl_list_item_t::sum_type_deduction_helper_t< \
             __VA_ARGS__::pd_t>()),
 #define SUM_INSTANCE_AVX512(...) REG_AVX512_ISA(INSTANCE(__VA_ARGS__))
 #define SUM_INSTANCE_AVX2(...) REG_AVX2_ISA(INSTANCE(__VA_ARGS__))
 // clang-format off
-constexpr impl_list_item_t cpu_sum_impl_list[] = REG_SUM_P({
+const impl_list_item_t cpu_sum_impl_list[] = REG_SUM_P({
         SUM_INSTANCE_AVX512(jit_xf16_sum_t<bf16, bf16, avx512_core>)
         SUM_INSTANCE_AVX512(jit_xf16_sum_t<bf16, f32, avx512_core>)
         SUM_INSTANCE_AVX2(jit_xf16_sum_t<bf16, bf16, avx2_vnni_2>)
         SUM_INSTANCE_AVX2(jit_xf16_sum_t<bf16, f32, avx2_vnni_2>)
-        SUM_INSTANCE_AVX2(jit_xf16_sum_t<f16, f16, avx2_vnni_2>)
-        SUM_INSTANCE_AVX2(jit_xf16_sum_t<f16, f32, avx2_vnni_2>)
-        INSTANCE(simple_sum_t<f16>)
-        INSTANCE(simple_sum_t<f16, f32>)
         INSTANCE(simple_sum_t<bf16>)
         INSTANCE(simple_sum_t<bf16, f32>)
         INSTANCE(simple_sum_t<f32>)
