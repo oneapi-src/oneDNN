@@ -6641,7 +6641,8 @@ private:
         int stride_step = 16;
         dim_t stride_beg = dense_stride_bytes;
         dim_t stride_end = 2 * dense_stride_bytes;
-        const int slm_banks = 65;
+        const int slm_banks = compute::device_info_t::slm_memory_bank_count(
+                convert_ngen_arch_to_dnnl(cfg_.hw()));
         for (dim_t s = stride_beg; s < stride_end; s += stride_step) {
             bool ok = true;
             for (dim_t off0 = 0; off0 < inner_bytes; off0 += write_step) {

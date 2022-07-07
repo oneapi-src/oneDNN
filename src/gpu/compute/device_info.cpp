@@ -138,6 +138,21 @@ int device_info_t::max_slm_size_per_tg(
     return slm_size / threads_per_eu(gpu_arch, large_grf_mode);
 }
 
+int device_info_t::slm_memory_bank_count(gpu_arch_t gpu_arch) {
+    //NOTE: slm_bank_count can vary based on SKU and even runtime configuration
+    //so arch alone may not be sufficient to determnine bank count accurately.
+    switch (gpu_arch) {
+        case gpu::compute::gpu_arch_t::gen9:
+        case gpu::compute::gpu_arch_t::gen11:
+        case gpu::compute::gpu_arch_t::xe_lp: return 65;
+        case gpu::compute::gpu_arch_t::xe_hp:
+        case gpu::compute::gpu_arch_t::xe_hpc: return 64;
+        case gpu::compute::gpu_arch_t::xe_hpg: return 32;
+        case gpu::compute::gpu_arch_t::unknown: assert(!"not expected");
+    }
+    return 32;
+}
+
 status_t device_info_t::init_attributes_common(engine_t *engine) {
     // TODO: Fix for discrete GPUs. The code below is written for
     // integrated GPUs assuming that last-level cache for GPU is shared
