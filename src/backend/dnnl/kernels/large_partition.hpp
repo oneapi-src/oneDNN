@@ -130,9 +130,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_eltwise);
-        BACKEND_DNNL_ADD_PASS(pipeline, remove_zps_for_eltwise);
-
         BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
         BACKEND_DNNL_ADD_PASS(pipeline, replace_quant_data_with_binary_post_op);
 

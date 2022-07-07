@@ -90,16 +90,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
-        if (quantized) {
-            BACKEND_DNNL_ADD_PASS(
-                    pipeline, replace_quant_dequant_with_mul_scales);
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_eltwise);
-            BACKEND_DNNL_ADD_PASS(pipeline, remove_zps_for_eltwise);
-            BACKEND_DNNL_ADD_PASS(
-                    pipeline, replace_quant_data_with_binary_post_op);
-            BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-        }
-
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 

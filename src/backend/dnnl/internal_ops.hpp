@@ -44,8 +44,6 @@ namespace op_kind {
     X(pool_post_ops_fusion, Pool_post_ops_chain_fusion) \
     X(int8_conv_post_ops_fusion, INT8_conv_post_ops_chain) \
     X(int8_matmul_post_ops_fusion, INT8_matmul_post_ops_fusion) \
-    X(int8_relu, INT8_ReLU) \
-    X(int8_relu_add, INT8_ReLU_add) \
     X(dnnl_mul_scales, Dnnl_mul_scales) \
     X(dnnl_constant_scales, Dnnl_constant_scales) \
     X(dnnl_add_zps, Dnnl_add_zps) \

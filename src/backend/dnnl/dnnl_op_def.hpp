@@ -136,37 +136,6 @@ DNNL_GRAPH_OP_SCHEMA(eltwise_binary, 1,
                 .set_output(0, "output", "output tensor")
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(int8_relu, 1,
-        op_schema_t()
-                .set_num_inputs(1)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::qtype,
-                        "specifies which dequantization type is used", false,
-                        attribute_kind::s, "per_tensor")
-                .set_attr(op_attr::scales, "apply in quantization formula",
-                        true, attribute_kind::fs)
-                .set_attr(op_attr::zps, "offset value that maps to float zero",
-                        true, attribute_kind::is)
-                .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(int8_relu_add, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::qtype,
-                        "specifies which dequantization type is used", false,
-                        attribute_kind::s, "per_tensor")
-                .set_attr(op_attr::scales, "apply in quantization formula",
-                        true, attribute_kind::fs)
-                .set_attr(op_attr::zps, "offset value that maps to float zero",
-                        true, attribute_kind::is)
-                .set_shape_inference_function(infer_identity_output_shape))
-
 // TODO(xxx) Merge this op into dnnl_convolution
 DNNL_GRAPH_OP_SCHEMA(dnnl_conv_depthwise, 1,
         op_schema_t()

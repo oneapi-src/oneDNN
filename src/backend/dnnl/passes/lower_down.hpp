@@ -44,10 +44,6 @@ impl::status_t folding_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t fuse_to_int8_eltwise(std::shared_ptr<subgraph_t> &sg);
-
-impl::status_t remove_zps_for_eltwise(std::shared_ptr<subgraph_t> &sg);
-
 impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg);
