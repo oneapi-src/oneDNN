@@ -50,18 +50,14 @@ status_t tensor_info(
 // Insert a dimension of size 1 at the index dim_i of TensorInfo
 status_t insert_singleton_dimension(arm_compute::TensorInfo &ti, size_t dim_i);
 
-// Copy the memory descs {d0, d1, d2} to {d0_perm, d1_perm, d2_perm}, but with
-// the dimensions permuted so that their last logical dimensions are all dense
-// (stride of 1). The function finds the highest indexed dimension with a
-// stride of 1 for all descs (common). Then it permutes this to be the last
-// dimension. Note that the last dimension is the one that is dense in an
-// unpermuted tensor, in this case it would copy the descs unchanged. The
-// function may fail to find a common dense dimension, and will return
-// unimplemented.
-status_t permute_common_dense_dimension_to_last(memory_desc_t *d0_permed,
-        memory_desc_t *d1_permed, memory_desc_t *d2_permed,
-        const memory_desc_t *d0, const memory_desc_t *d1,
-        const memory_desc_t *d2);
+// Reorder the logical dimensions of the memory descriptors (mds) by stride so
+// that accessing the tensor elements in the natural order is dense. Note, this
+// does not reorder the data, it just reorders the logical indices. The
+// permutation is common to all mds, so the function returns when it cannot find
+// a dimension with a common smallest stride. Returns the number of dimensions
+// that we managed to reorder to be dense.
+int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
+        std::vector<const memory_desc_t *> mds);
 
 // Logs a custom 'info' line describing an unsupported case
 #define LOG_ACL_UNSUPPORTED(msg) \

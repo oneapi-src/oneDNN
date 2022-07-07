@@ -88,13 +88,15 @@ struct acl_prelu_fwd_t : public primitive_t {
             if (!attr()->has_default_values()) return status::unimplemented;
 
             // ACL pointwise arithmetic operators assume that the innermost
-            // dimensions are dense for src, weights and dst. So we try to permute
-            // the logical dims so that the innermost dim on each desc is dense
-            // (without any data reordering)
+            // dimensions are dense for src, weights and dst. Reordering the
+            // logical dimensions by stride does this (if reordered_dims >= 1 )
+            // and also makes memory accesses contiguous in ACL (without any
+            // data reordering).
             memory_desc_t src_d_permed, weights_d_permed, dst_d_permed;
-            CHECK(permute_common_dense_dimension_to_last(&src_d_permed,
-                    &weights_d_permed, &dst_d_permed, src_md(0), weights_md(0),
-                    dst_md(0)));
+            int reordered_dims = reorder_dimensions_by_stride(
+                    {&src_d_permed, &weights_d_permed, &dst_d_permed},
+                    {src_md(0), weights_md(0), dst_md(0)});
+            if (reordered_dims < 1) return status::unimplemented;
 
             // Create ACL tensor infos with permuted descs
             CHECK(tensor_info(app_.src_info, src_d_permed));
