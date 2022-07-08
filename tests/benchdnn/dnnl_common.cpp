@@ -502,15 +502,19 @@ void skip_start(res_t *res) {
 
 void skip_unimplemented_data_type(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res) {
-    bool has_bf16_support = is_gpu();
-    bool has_f64_support = is_f64_supported();
-    // f16 is supported on GPU and for inference only.
-    bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
+    const bool has_f64_support = is_f64_supported();
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     using namespace dnnl::impl::cpu::platform;
     // bf16 is supported on AVX512-CORE+
-    has_bf16_support = has_bf16_support
-            || (is_cpu() && has_data_type_support(dnnl_bf16));
+    const bool has_bf16_support
+            = is_gpu() || (is_cpu() && has_data_type_support(dnnl_bf16));
+    const bool has_f16_support = (is_gpu() && (dir & FLAG_FWD))
+            || (is_cpu() && has_data_type_support(dnnl_f16));
+
+#else
+    const bool has_bf16_support = is_gpu();
+    // f16 is supported on GPU for inference only.
+    const bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
 #endif
 
     for (const auto &i_dt : v_dt) {
