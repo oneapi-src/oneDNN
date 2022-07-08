@@ -19,16 +19,22 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
+/// @cond DO_NOT_DOCUMENT_THIS
 #include <limits>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
-/// @addtogroup dnnl_graph_api oneDNN graph API
+/// @endcond
+
+/// @addtogroup dnnl_graph_api oneDNN Graph API
 /// @{
 
+/// oneDNN namespace
 namespace dnnl {
+
+/// oneDNN Graph API namespace
 namespace graph {
 
 /// @addtogroup dnnl_graph_api_utils Utilities
@@ -82,6 +88,7 @@ private:
     static dnnl_graph_status_t dummy_del(T) { return dnnl_graph_success; }
 };
 
+/// @cond DO_NOT_DOCUMENT_THIS
 #define DNNL_GRAPH_HANDLE_ALIAS(type) \
     using type##_handle = detail::handle<dnnl_graph_##type##_t, \
             dnnl_graph_##type##_destroy>
@@ -97,9 +104,10 @@ DNNL_GRAPH_HANDLE_ALIAS(partition);
 
 #undef DNNL_GRAPH_HANDLE_ALIAS
 
+/// @endcond
 } // namespace detail
 
-/// dnnl graph exception class.
+/// oneDNN Graph exception class.
 ///
 /// This class captures the status returned by a failed C API function and
 /// the error message from the call site.
@@ -153,6 +161,8 @@ struct error : public std::exception {
     }
 };
 
+/// @cond DO_NOT_DOCUMENT_THIS
+
 template <bool B>
 using requires = typename std::enable_if<B, bool>::type;
 
@@ -193,6 +203,8 @@ constexpr dnnl_graph_data_type_t get_data_type() {
     return dnnl_graph_data_type_undef;
 }
 
+/// @endcond
+
 /// @} dnnl_graph_api_utils
 
 /// @addtogroup dnnl_graph_api_status
@@ -226,26 +238,24 @@ enum class status {
     invalid_data_type = dnnl_graph_invalid_data_type,
 };
 
-/// @} dnnl_api_status
+/// @} dnnl_graph_api_status
 
 /// @addtogroup dnnl_graph_api_allocator Allocator
-/// Definitions of allocator
 ///
-/// Regarding the allocator call-back function, we also provide a hint/attribute
-/// to integration, which indicates that which type of memory is being requested
-/// (persistent/output/temp) and the expected alignment of memory allocation.
+/// Definitions of allocator which is used to acquire memory resources in
+/// partition compilation and execution.
 ///
 /// @{
 
-/// Allocator
+/// An allocator.
 class allocator : public detail::allocator_handle {
 public:
     using detail::allocator_handle::handle;
 
     /// Constructs an allocator according to given function pointers
     ///
-    /// @param cpu_malloc A pointer to malloc function for CPU
-    /// @param cpu_free A pointer to free function for CPU
+    /// @param host_malloc A pointer to malloc function for host.
+    /// @param host_free A pointer to free function for host.
     allocator(dnnl_graph_host_allocate_f host_malloc,
             dnnl_graph_host_deallocate_f host_free) {
         dnnl_graph_allocator_t a = nullptr;
@@ -268,19 +278,20 @@ public:
 
 /// @addtogroup dnnl_graph_api_engine Engine
 ///
-/// Engine represents a device and its context. Compiled partitions are
-/// associated with engines. A compiled partition should only access the tensor
-/// which is associated with the same device and context, no matter the tensor
-/// is produced by a compiled partition or created directly by the user.
-
+/// Engine represents a device (a CPU or a GPU card) and its context. A graph
+/// should be created with a specific engine kind and all partitions returned
+/// from the graph will inherit the engine kind. An engine object with the same
+/// kind will be used to compile a partition and generate corresponding kernels.
+/// The compiled partition will executed on the specific engine.
+///
 /// @{
 
-/// An engine contains device #kind and a device_id or device_handle.
+/// An execution engine.
 class engine : public detail::engine_handle {
 public:
     using detail::engine_handle::handle;
 
-    /// engine kind
+    /// Kinds of engine.
     enum class kind {
         /// An unspecified engine
         any = dnnl_graph_any_engine,
@@ -290,10 +301,10 @@ public:
         gpu = dnnl_graph_gpu,
     };
 
-    /// Constructs an engine with specified kind and device_id
+    /// Constructs an engine with specified kind and index.
     ///
-    /// @param akind The kind of engine to construct
-    /// @param index Specify which device to be used
+    /// @param akind The kind of engine to construct.
+    /// @param index Specify which device to be used.
     engine(kind akind, size_t index) {
         dnnl_graph_engine_t e = nullptr;
         error::check_succeed(
@@ -302,11 +313,11 @@ public:
         reset(e);
     }
 
-    /// Constructs an engine with specified kind and device_id
+    /// Constructs an engine with specified kind, index, and allocator.
     ///
-    /// @param akind Engine kind
-    /// @param index Specify which device to be used
-    /// @param alloc The memory allocator bound with engine
+    /// @param akind The kind of engine to construct.
+    /// @param index Specify which device to be used.
+    /// @param alloc The memory allocator for the engine.
     engine(kind akind, size_t index, const allocator &alloc) {
         dnnl_graph_engine_t e = nullptr;
         error::check_succeed(dnnl_graph_engine_create_with_allocator(&e,
@@ -316,9 +327,9 @@ public:
         reset(e);
     }
 
-    /// Returns concrete kind of the current engine
+    /// Returns the kind of an engine.
     ///
-    ///@returns Kind of engine
+    ///@returns Kind of the engine.
     kind get_kind() const {
         dnnl_graph_engine_kind_t akind;
         error::check_succeed(dnnl_graph_engine_get_kind(get(), &akind),
@@ -335,20 +346,18 @@ public:
 
 /// @addtogroup dnnl_graph_api_stream Stream
 ///
-/// Stream is the logical abstraction for execution units.
+/// An encapsulation of execution context tied to a particular engine.
 ///
 /// @{
 
-/// A stream is created on top of oneDNN graph engine. For SYCL device, it
-/// contains an opencl queue. oneDNN Graph engine may have multiple streams.
-/// A compiled partition is submitted to a stream for execution.
+/// An execution stream.
 class stream : public detail::stream_handle {
 public:
     using detail::stream_handle::handle;
 
-    /// Constructs a stream for the specified engine
+    /// Constructs a stream for the specified engine.
     ///
-    /// @param engine Engine to create stream on
+    /// @param engine Engine to create stream on.
     stream(const engine &engine) {
         dnnl_graph_stream_t s = nullptr;
         error::check_succeed(dnnl_graph_stream_create(&s, engine.get()),
@@ -369,22 +378,26 @@ public:
 
 /// @addtogroup dnnl_graph_api_logical_tensor Logical tensor
 ///
-/// Logical tensor describes the meta data of the input or output tensor, like
-/// element data type, number of dimensions, size for each dimension (shape),
-/// layout, and the total size of data.
+/// Logical tensor describes the meta-data of the input or output tensor, like
+/// elements data type, number of dimensions, size for each dimension (shape),
+/// layout, and the property of the tensor.
 ///
-/// Each logical tensor has an ID. The tensor metadata may be enriched in the
-/// framework graph as it progresses toward final execution. Logical tensor is
-/// not mutable. Users must create a new logical tensor with the same ID to pass
-/// any new additional information to oneDNN Graph implementation.
+/// Each logical tensor has an unique ID. The library uses logical tensor IDs to
+/// build up the connections between operations if the output of one operation
+/// has the same ID as the input of another operation. The meta-data in a
+/// logical tensor may be enriched in the framework graph as it progresses
+/// toward final execution. For example, the library doesn't require detailed
+/// shape information at the operation and graph creation stage. But shape
+/// information of input logical tensor will be required at partition
+/// compilation stage. Logical tensor is not mutable. Users must create a new
+/// logical tensor with the same ID to pass any new additional information to
+/// oneDNN Graph API. Please note that the library also has unique IDs for
+/// operations. The ID should be unique among different logical tensors, but it
+/// can have the same value between a logical tensor and an operation.
 ///
 /// @{
 
 /// Logical tensor object
-///
-/// A logical tensor not only helps oneDNN graph implementation to build the
-/// graph, but plays a critical role to exchange metadata between users and
-/// oneDNN graph implementation.
 class logical_tensor {
     friend class op;
     friend class tensor;
@@ -419,49 +432,57 @@ public:
 
     /// Layout type
     enum class layout_type {
-        /// undefined layout type
+        /// Undefined layout type.
         undef = dnnl_graph_layout_type_undef,
-        /// any means that oneDNN graph implementation needs to decide the
-        /// layout for the compiled partition.
+        /// Any means to let the library to decide the layout for a tensor
+        /// during partition compilation.
         any = dnnl_graph_layout_type_any,
-        /// strided means that the layout is determined by the strides field.
+        /// Strided means that the layout of a tensor is determined by the
+        /// strides field in the logical tensor.
         strided = dnnl_graph_layout_type_strided,
-        /// opaque means that the layout is a target-specific layout decided by
-        /// oneDNN graph implementation.
+        /// Opaque means that the layout of a tensor is the library specific.
+        /// Usually, an opaque layout is generated by a partition which is
+        /// compiled with layout type any.
         opaque = dnnl_graph_layout_type_opaque,
     };
 
     /// Tensor property
     enum class property_type {
-        /// undefined tensor property
+        /// Undefined tensor property.
         undef = dnnl_graph_tensor_property_undef,
-        /// variable means the tensor will be changed during iterations
+        /// Variable means the tensor may be changed during computation or
+        /// between different iterations.
         variable = dnnl_graph_tensor_property_variable,
-        /// constant means the tensor will keep unchanged during iterations
+        /// Constant means the tensor will keep unchanged during computation and
+        /// between different iterations. It's useful for the library to apply
+        /// optimizations for constant tensors or cache constant tensors inside
+        /// the library. For example, constant weight tensors in inference
+        /// scenarios.
         constant = dnnl_graph_tensor_property_constant,
     };
 
-    /// default constructor
-    /// construct an empty object
+    /// Default constructor for an empty logical tensor object.
     logical_tensor() = default;
 
-    /// Constructs a logical tensor object
+    /// Constructs a logical tensor object from C data.
     explicit logical_tensor(const dnnl_graph_logical_tensor_t &c_data)
         : data(c_data) {}
 
-    /// Copy
+    /// Copy constructor.
     logical_tensor(const logical_tensor &other) = default;
 
-    /// Assign
+    /// Assignment
     logical_tensor &operator=(const logical_tensor &other) = default;
 
-    /// Constructs a logical tensor object
+    /// Constructs a logical tensor object with ID, data type, ndims, layout
+    /// type, and property type.
     ///
-    /// @param tid Tensor id
-    /// @param dtype Data type
-    /// @param ndims Number of dimension, -1 means it's unknown, 0 means scalar
-    /// @param ltype Layout type
-    /// @param ptype Property type
+    /// @param tid Logical tensor ID.
+    /// @param dtype Elements data type.
+    /// @param ndims Number of dimensions. -1 means unknown and 0 means a scalar
+    ///     tensor.
+    /// @param ltype Layout type.
+    /// @param ptype Property type.
     logical_tensor(size_t tid, data_type dtype, int32_t ndims,
             layout_type ltype, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
@@ -472,23 +493,25 @@ public:
         data = val;
     }
 
-    /// Delegated constructor
+    /// Delegated constructor.
     ///
-    /// @param tid Tensor id
-    /// @param dtype Data type
-    /// @param ltype Layout type
+    /// @param tid Logical tensor ID.
+    /// @param dtype Elements data type.
+    /// @param ltype Layout type.
     logical_tensor(
             size_t tid, data_type dtype, layout_type ltype = layout_type::undef)
         : logical_tensor(tid, dtype, DNNL_GRAPH_UNKNOWN_NDIMS, ltype) {}
 
-    /// Constructs a logical tensor object
+    /// Constructs a logical tensor object with basic information and detailed
+    /// dims.
     ///
-    /// @param tid Tensor id
-    /// @param dtype Data type
-    /// @param adims Tensor dimensions, -1 means a particular axis of dims is
-    ///        unknown, or the axis can be deduced by its size and other axis.
-    /// @param ltype Layout type
-    /// @param ptype Tensor property type
+    /// @param tid Logical tensor ID.
+    /// @param dtype Elements data type.
+    /// @param adims Logical tensor dimensions. -1 means the size of that
+    ///     dimension is unknown. 0 is used to define zero-dimension tensor.
+    /// @param ltype Layout type. If it's strided, the strides field in the
+    ///     output logical tensor will be deduced accordingly.
+    /// @param ptype Property type.
     logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
             layout_type ltype, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
@@ -509,20 +532,21 @@ public:
         data = val;
     }
 
-    /// Constructs a logical tensor object
+    /// Constructs a logical tensor object with detailed dims and strides. The
+    /// layout_type of the output logical tensor object will always be strided.
     ///
-    /// @note The layout_type for this constructor will always be strided
-    ///
-    /// @param tid Tensor id
-    /// @param dtype Data type
-    /// @param adims Tensor dimensions, -1 means a particular axis of dims is
-    /// @param strides Tensor strides
-    /// @param ptype Tensor property type
+    /// @param tid Logical tensor ID.
+    /// @param dtype Elements data type.
+    /// @param adims Logical tensor dimensions. -1 means the size of that
+    ///     dimension is unknown. 0 is used to define zero-dimension tensor.
+    /// @param strides Logical tensor strides. -1 means the stride of the
+    ///     dimension is unknown. The library currently doesn't support other
+    ///     negative stride values.
+    /// @param ptype Property type.
     logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
             const dims_t &strides, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
-        // TODO(lvtao): check the size of adims and strides.
-        // They should be same.
+        // TODO(xxx): check the size of adims and strides. They should be same.
         error::check_succeed(
                 dnnl_graph_logical_tensor_init_with_strides(&val, tid,
                         convert_to_c(dtype), static_cast<int32_t>(adims.size()),
@@ -531,15 +555,16 @@ public:
         data = val;
     }
 
-    /// Constructs a logical tensor object
+    /// Constructs a logical tensor object with detailed dims and an opaque
+    /// layout ID. layout_type of the output logical tensor object will always
+    /// be opaque.
     ///
-    /// @note The layout_type for this constructor will always be opaque
-    ///
-    /// @param tid Tensor id
-    /// @param dtype Data type
-    /// @param adims Tensor dimensions, -1 means a particular axis of dims is
-    /// @param lid Layout id
-    /// @param ptype Tensor property type
+    /// @param tid Logical tensor ID.
+    /// @param dtype Elements data type.
+    /// @param adims Logical tensor dimensions. -1 means the size of that
+    ///     dimension is unknown. 0 is used to define zero-dimension tensor.
+    /// @param lid Opaque layout id.
+    /// @param ptype Property type
     logical_tensor(size_t tid, data_type dtype, const dims_t &adims, size_t lid,
             property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
@@ -564,9 +589,9 @@ public:
         data = val;
     }
 
-    /// Returns dimensions of the logical tensor
+    /// Returns dimensions of a logical tensor.
     ///
-    /// @returns A the dimensions vector
+    /// @returns A vector describing the size of each dimension.
     dims_t get_dims() const {
         if (data.ndims < 0) {
             error::check_succeed(dnnl_graph_invalid_arguments,
@@ -576,35 +601,37 @@ public:
         return {data.dims, data.dims + data.ndims};
     }
 
-    /// Returns unique id of the logical tensor
+    /// Returns the unique id of a logical tensor.
     ///
-    /// @returns Id number
+    /// @returns An integer value describing the ID.
     size_t get_id() const { return data.id; }
 
-    /// Returns data type of the logical tensor
+    /// Returns the data type of a logical tensor.
     ///
-    /// @returns The data type
+    /// @returns The data type.
     data_type get_data_type() const {
         return static_cast<data_type>(data.data_type);
     }
 
-    /// Returns property type of the logical tensor
+    /// Returns the property type of a logical tensor.
     ///
-    /// @returns The property type
+    /// @returns The property type.
     property_type get_property_type() const {
         return static_cast<property_type>(data.property);
     }
 
-    /// Returns layout type of the logical tensor
+    /// Returns the layout type of a logical tensor.
     ///
-    /// @returns The layout type
+    /// @returns The layout type.
     layout_type get_layout_type() const {
         return static_cast<layout_type>(data.layout_type);
     }
 
-    /// Returns the layout of the tensor
+    /// Returns the layout ID of a logical tensor. The API should be called on a
+    /// logical tensor with opaque layout type. Otherwise, an exception will be
+    /// raised.
     ///
-    /// @returns Layout id
+    /// @returns Layout ID.
     size_t get_layout_id() const {
         if (get_layout_type() != layout_type::opaque) {
             error::check_succeed(dnnl_graph_invalid_arguments,
@@ -614,9 +641,11 @@ public:
         return data.layout.layout_id;
     }
 
-    /// Returns strides of this logical tensor
+    /// Returns the strides of a logical tensor. The API should be called on a
+    /// logical tensor with strided layout type. Otherwise, an exception will be
+    /// raised.
     ///
-    /// @returns A copy of strides vector
+    /// @returns A vector describing the stride size of each dimension.
     dims_t get_strides() const {
         if (get_layout_type() != layout_type::strided) {
             error::check_succeed(dnnl_graph_invalid_arguments,
@@ -631,9 +660,9 @@ public:
         return {data.layout.strides, data.layout.strides + data.ndims};
     }
 
-    /// Get memory size required by this logical tensor
+    /// Returns memory size in bytes required by this logical tensor.
     ///
-    /// @returns The memory size in bytes
+    /// @returns The memory size in bytes.
     size_t get_mem_size() const {
         size_t size = 0;
         error::check_succeed(
@@ -642,11 +671,11 @@ public:
         return size;
     }
 
-    /// Compares if this and input logical tensor has the same layout
+    /// Compares if two logical tenors have the same layout.
     ///
-    /// @param lt The input logical tensor to be compared
-    /// @returns @c true if they have the same layout
-    ///        @c false if they have different layout
+    /// @param lt The input logical tensor to be compared.
+    /// @returns @c true if they have the same layout. @c false if they have
+    ///     different layout.
     bool has_same_layout(const logical_tensor &lt) const {
         uint8_t is_same {0};
         error::check_succeed(dnnl_graph_logical_tensor_has_same_layout(
@@ -673,26 +702,28 @@ private:
 
 /// @addtogroup dnnl_graph_api_tensor Tensor
 ///
-/// Tensor is an abstraction for multidimensional input and output data needed
-/// in the execution of a compiled partition.
+/// Tensor is an abstraction for multi-dimensional input and output data needed
+/// in the execution of a compiled partition. A tensor object encapsulates a
+/// handle to a memory buffer allocated on a specific engine and a logical
+/// tensor which describes the dimensions, elements data type, and memory
+/// layout.
 ///
 /// @{
 
-/// Framework integration code is responsible for managing the tensor's,
-/// lifecycle.
+/// A tensor object
 class tensor : public detail::tensor_handle {
 public:
     using dims_t = std::vector<dnnl_graph_dim_t>;
 
-    /// Default constructor. Constructs an empty object.
+    /// Default constructor. Constructs an empty tensor object.
     tensor() = default;
 
-    /// Constructs a tensor object according to the given logical tensor.
+    /// Constructs a tensor object according to a given logical tensor, an
+    /// engine, and a memory handle.
     ///
     /// @param lt The given logical tensor
     /// @param aengine Engine to store the data on.
-    /// @param handle Handle of memory buffer to use as an underlying storage,
-    ///     if the ndims in the logical tensor is 0, data handle holds a scalar
+    /// @param handle Handle of memory buffer to use as an underlying storage.
     tensor(const logical_tensor &lt, const engine &aengine, void *handle) {
         dnnl_graph_tensor_t t = nullptr;
         error::check_succeed(
@@ -702,10 +733,10 @@ public:
         reset(t);
     }
 
-    /// Returns the underlying memory buffer with the specific type
+    /// Returns the underlying memory handle with the specific data type.
     ///
-    /// @tparam T Type of the request buffer
-    /// @returns The underlying memory buffer
+    /// @tparam T Type of the request buffer.
+    /// @returns The underlying memory handle.
     template <typename T>
     typename std::add_pointer<T>::type get_data_handle() const {
         void *handle {};
@@ -715,10 +746,9 @@ public:
         return reinterpret_cast<typename std::add_pointer<T>::type>(handle);
     }
 
-    /// Sets the underlying memory buffer
+    /// Sets the underlying memory handle.
     ///
-    /// @param handle Data handle. For the CPU engine, the data handle
-    ///     is a pointer to the actual data.
+    /// @param handle Memory handle.
     void set_data_handle(void *handle) {
         error::check_succeed(dnnl_graph_tensor_set_data_handle(get(), handle),
                 "setting data handle to the tensor failed");
@@ -737,29 +767,31 @@ public:
 
 /// @} dnnl_graph_api_tensor
 
-/// @addtogroup dnnl_graph_api_compiled_partition Compiled_partition
+/// @addtogroup dnnl_graph_api_compiled_partition Compiled partition
 ///
-/// A compiled partition represents the generated code specialized for target
-/// hardware and meta data described by parameter logical tensors.
+/// A compiled partition represents the generated kernels specialized for a
+/// partition on a target hardware (engine) with input and output information
+/// specified by the logical tensors.
 ///
 /// @{
 
-/// A compiled partition contains a partition and a handle representing the
-/// target specific compiled object.
+/// A compiled partition object.
 class compiled_partition : public detail::compiled_partition_handle {
 public:
-    /// Default constructor. Constructs an empty object.
+    /// Default constructor. Constructs an empty compiled partition object.
     compiled_partition() = default;
 
-    /// Constructs a compiled partition object
+    /// Constructs a compiled partition object.
     compiled_partition(dnnl_graph_compiled_partition_t compiled_partition) {
         reset(compiled_partition, false);
     }
 
-    /// Returns the logical tensor according to tensor id
+    /// Queries an input or output logical tensor according to tensor ID. If the
+    /// tensor ID doesn't belong to any input or output of the compiled
+    /// partition, an exception will be raised by the API.
     ///
-    /// @param tid The unique id of required tensor
-    /// @returns The logical tensor
+    /// @param tid The unique id of required tensor.
+    /// @returns The logical tensor.
     logical_tensor query_logical_tensor(size_t tid) const {
         dnnl_graph_logical_tensor_t lt;
         error::check_succeed(dnnl_graph_compiled_partition_query_logical_tensor(
@@ -768,17 +800,17 @@ public:
         return logical_tensor {lt};
     }
 
-    /// Returns the in-place port pairs
+    /// Returns the hint of in-place pairs from a compiled partition. It
+    /// indicates that an input and an output of the partition can share the
+    /// same memory buffer for computation. In-place computation helps to reduce
+    /// the memory footprint and improves cache locality. But since the library
+    /// may not have a global view of user's application, it's possible that the
+    /// input tensor is used at other places in user's computation graph. In
+    /// this case, the user should take the in-place pair as a hint and pass a
+    /// different memory buffer for output tensor to avoid overwriting the input
+    /// memory buffer which will probably cause unexpected incorrect results.
     ///
-    /// @note
-    ///     Each entry of the returned vector is a pair of IDs of input and
-    ///     output ports. For in-place ports, users can assign same memory
-    ///     buffer when passing tensor along with execution API. The in-place
-    ///     optimization is optional, users can always use different memory
-    ///     buffers for the execution.
-    ///
-    /// @returns List of pairs of that indicates input and output use same
-    ///     memory buffer.
+    /// @returns A list of pairs of input and output IDs.
     std::vector<std::pair<size_t, size_t>> get_inplace_ports() const {
         size_t num = 0;
         const dnnl_graph_inplace_pair_t *inplace_pairs;
@@ -798,11 +830,11 @@ public:
         return inplace_options;
     }
 
-    /// Execute a compiled partition
+    /// Execute a compiled partition.
     ///
-    /// @param astream Stream object to run over
-    /// @param inputs A list of input tensors in the partition
-    /// @param outputs A list of output tensors in the partition
+    /// @param astream Stream object to run over.
+    /// @param inputs A list of input tensors.
+    /// @param outputs A list of output tensors.
     void execute(stream &astream, const std::vector<tensor> &inputs,
             const std::vector<tensor> &outputs) const {
         std::vector<const_dnnl_graph_tensor_t> c_inputs;
@@ -828,14 +860,18 @@ public:
 
 /// @addtogroup dnnl_graph_api_op Op
 ///
-/// OP is an abstraction of compute logic for deep neural network operation.
+/// OP is an abstraction of computation logic for deep neural network
+/// operations. An op object encapsulates an operation kind which describes the
+/// computation logic, an unique ID which differentiates operations with the
+/// same kind, and logical tensors which describes the input and output of the
+/// operation and its connections to other operations in the graph.
 ///
 /// @{
 
-/// A op contains kind, attribute, and the input and output logical tensor(s).
+/// An op object.
 class op : public detail::op_handle {
 public:
-    /// Kinds of operations
+    /// Kinds of operations.
     enum class kind {
         Abs = dnnl_graph_op_abs,
         AbsBackprop = dnnl_graph_op_abs_backprop,
@@ -935,71 +971,138 @@ public:
         LastSymbol = dnnl_graph_op_last_symbol,
     };
 
-    /// Attributes of operations
+    /// Attributes of operations. Different operations support different
+    /// attributes. Check the document of each operation for what attributes are
+    /// supported and what are the potential values for them. Missing required
+    /// attribute or illegal attribute value may lead to failure when adding the
+    /// operation to a graph.
     enum class attr {
+        /// Undefined op attribute.
         undef = dnnl_graph_op_attr_undef,
 
-        // float32 attributes
+        // float32 attributes. The value of these attributes can be any single
+        // float32 number.
+
+        /// Specifies an alpha attribute to an op.
         alpha = dnnl_graph_op_attr_alpha,
+        /// Specifies an beta attribute to an op.
         beta = dnnl_graph_op_attr_beta,
+        /// Specifies an epsilon attribute to an op.
         epsilon = dnnl_graph_op_attr_epsilon,
+        /// Specifies a max attribute to an op.
         max = dnnl_graph_op_attr_max,
+        /// Specifies a min attribute to an op.
         min = dnnl_graph_op_attr_min,
+        /// Specifies a momentum attribute to an op.
         momentum = dnnl_graph_op_attr_momentum,
 
-        // float32 vector attributes
+        // float32 vector attributes. The value of these attributes can be a
+        // vector of float32 numbers.
+
+        /// Specifies a scales attribute to an op.
         scales = dnnl_graph_op_attr_scales,
 
-        // int64_t attributes
+        // int64_t attributes. The value of these attributes can be any single
+        // int64 number.
+
+        /// Specifies an axis attribute to an op.
         axis = dnnl_graph_op_attr_axis,
+        /// Specifies a begin_norm_axis attribute to an op.
         begin_norm_axis = dnnl_graph_op_attr_begin_norm_axis,
+        /// Specifies a groups attribute to an op.
         groups = dnnl_graph_op_attr_groups,
 
-        // int64_t vector attributes
+        // int64_t vector attributes. The value of these attributes can be a
+        // vector of int64 numbers.
+
+        /// Specifies an axes attribute to an op.
         axes = dnnl_graph_op_attr_axes,
+        /// Specifies a dilations attribute to an op.
         dilations = dnnl_graph_op_attr_dilations,
+        /// Specifies a filter_shape attribute to an op.
         filter_shape = dnnl_graph_op_attr_filter_shape,
+        /// Specifies an input_shape attribute to an op.
         input_shape = dnnl_graph_op_attr_input_shape,
+        /// Specifies a kernel attribute to an op.
         kernel = dnnl_graph_op_attr_kernel,
+        /// Specifies an order attribute to an op.
         order = dnnl_graph_op_attr_order,
+        /// Specifies an output_padding attribute to an op.
         output_padding = dnnl_graph_op_attr_output_padding,
+        /// Specifies an output_shape attribute to an op.
         output_shape = dnnl_graph_op_attr_output_shape,
+        /// Specifies a pads_begin attribute to an op.
         pads_begin = dnnl_graph_op_attr_pads_begin,
+        /// Specifies a pads_end attribute to an op.
         pads_end = dnnl_graph_op_attr_pads_end,
+        /// Specifies a shape attribute to an op.
         shape = dnnl_graph_op_attr_shape,
+        /// Specifies a sizes attribute to an op.
         sizes = dnnl_graph_op_attr_sizes,
+        /// Specifies a strides attribute to an op.
         strides = dnnl_graph_op_attr_strides,
+        /// Specifies a zps attribute to an op.
         zps = dnnl_graph_op_attr_zps,
 
-        // bool attributes
+        // bool attributes. The value of these attributes can be any single bool
+        // value.
+
+        /// Specifies an exclude_pad attribute to an op.
         exclude_pad = dnnl_graph_op_attr_exclude_pad,
+        /// Specifies a keep_dims attribute to an op.
         keep_dims = dnnl_graph_op_attr_keep_dims,
+        /// Specifies a keep_stats attribute to an op.
         keep_stats = dnnl_graph_op_attr_keep_stats,
+        /// Specifies a per_channel_broadcast attribute to an op.
         per_channel_broadcast = dnnl_graph_op_attr_per_channel_broadcast,
+        /// Specifies a special_zero attribute to an op.
         special_zero = dnnl_graph_op_attr_special_zero,
+        /// Specifies a transpose_a attribute to an op.
         transpose_a = dnnl_graph_op_attr_transpose_a,
+        /// Specifies a transpose_b attribute to an op.
         transpose_b = dnnl_graph_op_attr_transpose_b,
+        /// Specifies an use_affine attribute to an op.
         use_affine = dnnl_graph_op_attr_use_affine,
+        /// Specifies an use_dst attribute to an op.
         use_dst = dnnl_graph_op_attr_use_dst,
 
-        // string attributes
+        // string attributes. The value of these attributes can be a string.
+
+        /// Specifies an auto_broadcast attribute to an op. The value can be
+        /// "none" or "numpy".
         auto_broadcast = dnnl_graph_op_attr_auto_broadcast,
+        /// Specifies an auto_pad attribute to an op. The value can be "none",
+        /// "same_upper", "same_lower", or "valid".
         auto_pad = dnnl_graph_op_attr_auto_pad,
+        /// Specifies an coordinate_transformation_mode attribute to an op. The
+        /// value can be "half_pixel" or "align_corners". The attribute is
+        /// defined for Interpolate operations.
         coordinate_transformation_mode
         = dnnl_graph_op_attr_coordinate_transformation_mode,
+        /// Specifies a data_format of an op. The value can be "NCX" or "NXC".
         data_format = dnnl_graph_op_attr_data_format,
+        /// Specifies a filter_format of an op. The value can be "OIX" or "XIO".
         filter_format = dnnl_graph_op_attr_filter_format,
+        /// Specifies a mode attribute of an op. The value can be "nearest",
+        /// "linear", "bilinear", or "trilinear". The attribute is defined for
+        /// Interpolate operations.
         mode = dnnl_graph_op_attr_mode,
+        /// Specifies a qtype attribute to an op. The value can be "per_channel"
+        /// or "per_tensor". The attribute is defined for quantization
+        /// operations.
         qtype = dnnl_graph_op_attr_qtype,
+        /// Specifies a rounding_type attribute to an op. The value can be
+        /// "ceil" or "floor".
         rounding_type = dnnl_graph_op_attr_rounding_type,
     };
 
-    /// Constructs an OP object
+    /// Constructs an op object with an unique ID, an operation kind, and a name
+    /// string.
     ///
-    /// @param id The unique id of this op
+    /// @param id The unique ID of the op.
     /// @param akind The op kind specifies which computation is represented by
-    ///     the op, such as Convolution and ReLU.
-    /// @param verbose_name The string added for debug
+    ///     the op, such as Convolution or ReLU.
+    /// @param verbose_name The string added as the op name.
     op(size_t id, kind akind, const std::string &verbose_name) {
         dnnl_graph_op_t op = nullptr;
         error::check_succeed(dnnl_graph_op_create(&op, id, convert_to_c(akind),
@@ -1008,13 +1111,14 @@ public:
         reset(op);
     }
 
-    /// Contructs an Op object based on input/output tensors and attributes
+    /// Constructs an op object with an unique ID, an operation kind, and
+    /// input/output logical tensors.
     ///
-    /// @param id The unique id of this op.
+    /// @param id The unique ID of this op.
     /// @param akind The op kind specifies which computation is represented by
-    ///     this op, such as Convolution and ReLU.
+    ///     this op, such as Convolution or ReLU.
     /// @param inputs Input logical tensor to be bound to this op.
-    /// @param outputs Output logical tensor to be bound to this op
+    /// @param outputs Output logical tensor to be bound to this op.
     /// @param verbose_name The string added as the op name.
     op(size_t id, kind akind, const std::vector<logical_tensor> &inputs,
             const std::vector<logical_tensor> &outputs,
@@ -1031,17 +1135,17 @@ public:
         }
     }
 
-    /// Adds input logical tensor to the op
+    /// Adds an input logical tensor to the op.
     ///
-    /// @param t Input logical tensor
+    /// @param t Input logical tensor.
     void add_input(const logical_tensor &t) {
         error::check_succeed(dnnl_graph_op_add_input(get(), &(t.data)),
                 "adding input to the op failed");
     }
 
-    /// Adds input logical tensors to the op
+    /// Adds a vector of input logical tensors to the op.
     ///
-    /// @param ts The list of input logical tensors
+    /// @param ts The list of input logical tensors.
     void add_inputs(const std::vector<logical_tensor> &ts) {
         for (const auto &t : ts) {
             error::check_succeed(dnnl_graph_op_add_input(get(), &(t.data)),
@@ -1049,17 +1153,17 @@ public:
         }
     }
 
-    /// Adds output logical tensor to the op
+    /// Adds an output logical tensor to the op.
     ///
-    /// @param t Output logical tensor
+    /// @param t Output logical tensor.
     void add_output(const logical_tensor &t) {
         error::check_succeed(dnnl_graph_op_add_output(get(), &(t.data)),
                 "adding output to the op failed");
     }
 
-    /// Adds output logical tensors to the op
+    /// Adds a vector of output logical tensors to the op.
     ///
-    /// @param ts The list of output logical tensors
+    /// @param ts The list of output logical tensors.
     void add_outputs(const std::vector<logical_tensor> &ts) {
         for (const auto &t : ts) {
             error::check_succeed(dnnl_graph_op_add_output(get(), &(t.data)),
@@ -1067,7 +1171,10 @@ public:
         }
     }
 
-    /// Sets the attribute according to the name and type (int64_t)
+    /// Sets the attribute according to the name and type (int64_t). This API is
+    /// deprecated. Please use the version accepting `op::attr` as the attribute
+    /// name.
+    ///
     ///
     /// @tparam Type Attribute's type
     /// @param name Attribute's name
@@ -1082,12 +1189,12 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type (int64_t)
+    /// Sets the attribute according to the name and type (int64_t).
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type,
             requires<std::is_same<Type, int64_t>::value> = true>
     op &set_attr(attr name, const Type &value) {
@@ -1097,12 +1204,14 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type (float)
+    /// Sets the attribute according to the name and type (float). This API is
+    /// deprecated. Please use the version accepting `op::attr` as the attribute
+    /// name.
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type, requires<std::is_same<Type, float>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(str2attr(name));
@@ -1111,12 +1220,12 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type (float)
+    /// Sets the attribute according to the name and type (float).
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type, requires<std::is_same<Type, float>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
@@ -1125,12 +1234,14 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type (bool)
+    /// Sets the attribute according to the name and type (bool). This API is
+    /// deprecated. Please use the version accepting `op::attr` as the attribute
+    /// name.
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type, requires<std::is_same<Type, bool>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(str2attr(name));
@@ -1140,12 +1251,12 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type (bool)
+    /// Sets the attribute according to the name and type (bool).
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type, requires<std::is_same<Type, bool>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
@@ -1155,12 +1266,14 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type (string)
+    /// Sets the attribute according to the name and type (string). This API is
+    /// deprecated. Please use the version accepting `op::attr` as the attribute
+    /// name.
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type,
             requires<std::is_same<Type, std::string>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
@@ -1171,12 +1284,12 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type (string)
+    /// Sets the attribute according to the name and type (string).
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type,
             requires<std::is_same<Type, std::string>::value> = true>
     op &set_attr(attr name, const Type &value) {
@@ -1188,12 +1301,13 @@ public:
     }
 
     /// Sets the attribute according to the name and type
-    /// (std::vector<int64_t>)
+    /// (std::vector<int64_t>). This API is deprecated. Please use the version
+    /// accepting `op::attr` as the attribute name.
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type,
             requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
@@ -1205,12 +1319,12 @@ public:
     }
 
     /// Sets the attribute according to the name and type
-    /// (std::vector<int64_t>)
+    /// (std::vector<int64_t>).
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type,
             requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
     op &set_attr(attr name, const Type &value) {
@@ -1221,13 +1335,14 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type
-    /// (std::vector<float>)
+    /// Sets the attribute according to the name and type (std::vector<float>).
+    /// This API is deprecated. Please use the version accepting `op::attr` as
+    /// the attribute name.
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type,
             requires<std::is_same<Type, std::vector<float>>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
@@ -1238,13 +1353,12 @@ public:
         return *this;
     }
 
-    /// Sets the attribute according to the name and type
-    /// (std::vector<float>)
+    /// Sets the attribute according to the name and type (std::vector<float>).
     ///
-    /// @tparam Type Attribute's type
-    /// @param name Attribute's name
-    /// @param value The attribute's value
-    /// @returns The Op self
+    /// @tparam Type Attribute's type.
+    /// @param name Attribute's name.
+    /// @param value The attribute's value.
+    /// @returns The Op self.
     template <typename Type,
             requires<std::is_same<Type, std::vector<float>>::value> = true>
     op &set_attr(attr name, const Type &value) {
@@ -1320,26 +1434,39 @@ private:
 
 /// @addtogroup dnnl_graph_api_partition Partition
 ///
-/// Partition represents a collection of OPs identified by oneDNN graph
-/// implementation as the basic unit for compilation and execution.
+/// Partition represents a collection of operations and their input and output
+/// logical tensors identified by library as the basic unit for compilation and
+/// execution.
 ///
 /// @{
 
-/// A partition contains a list of OP ids.
+/// A partition object.
 class partition : public detail::partition_handle {
 public:
-    /// Policy specifications for partitioning
+    /// Policy specifications for partitioning.
     enum class policy {
-        /// Best optimization
-        /// for now, the `max` mode is just the same as `fusion` mode.
+        /// Max policy is to be defined. The library intends to deliver best
+        /// optimization and larger partition with max policy. It also means
+        /// users may lose fine-grained control the operations in the partition.
+        /// Currently, max policy has the same effect as fusion policy.
         max = dnnl_graph_partition_policy_max,
-        /// Have fusion
+        /// Fusion policy returns partitions with typical post-op fusions, eg.
+        /// Convolution + ReLU or other element-wise operations or a chian of
+        /// post-ops.
         fusion = dnnl_graph_partition_policy_fusion,
-        /// No optimization
+        /// Debug policy doesn't not apply any fusions. It returns partitions
+        /// with single operations in each partition. The policy is useful when
+        /// users notice any bug or correctness issue in max policy or fusion
+        /// policy.
         debug = dnnl_graph_partition_policy_debug,
     };
 
-    /// Kinds of partition
+    /// Partition kind. It defines the basic structure of the subgraph contained
+    /// in a partition. For example, kind
+    /// #dnnl::graph::partition::kind::convolution_post_ops indicates the
+    /// partition contains one Convolution and its post-ops. But the operation
+    /// kind of the post-ops are not specified. Partition's kind is decided by
+    /// the library internally and can be queried from a partition.
     enum class kind {
         /// The partition's kind is not defined.
         undef = dnnl_graph_partition_kind_undef,
@@ -1408,17 +1535,21 @@ public:
         = dnnl_graph_partition_kind_quantized_residual_conv_blocks,
     };
 
+    /// Default constructor. Constructs an empty partition object.
     partition() = default;
 
-    /// Constructs a partition object
+    /// Constructs a partition object for C data.
     ///
     /// @param p A raw pointer to the C API handle
     partition(dnnl_graph_partition_t p) { reset(p, false); }
 
-    /// Constructs a partition with a given op and engine kind
+    /// Creates a new partition with a given operator and engine kind. The API
+    /// is used to create a partition from an operation directly without
+    /// creating the graph and calling `get_partitions()`. The output partition
+    /// contains only one operation.
     ///
-    /// @param aop An operator used to create the partition
-    /// @param ekind Engine kind
+    /// @param aop An operation used to create the partition.
+    /// @param ekind Engine kind.
     partition(const op &aop, engine::kind ekind) {
         dnnl_graph_partition_t p = nullptr;
         error::check_succeed(
@@ -1428,9 +1559,9 @@ public:
         reset(p);
     }
 
-    /// Returns the number of dnnl graph ops in the partition
+    /// Returns the number of operations contained in the partition.
     ///
-    /// @returns Number of ops
+    /// @returns Number of operations.
     size_t get_ops_num() const {
         size_t num {0};
         error::check_succeed(dnnl_graph_partition_get_op_num(get(), &num),
@@ -1438,9 +1569,9 @@ public:
         return num;
     }
 
-    /// Returns all op’s id of the partition
+    /// Returns all operation IDs contained in the partition.
     ///
-    /// @returns An unordered set of op ids
+    /// @returns An unordered set of operation IDs.
     std::vector<size_t> get_ops() const {
         auto num = get_ops_num();
         std::vector<size_t> ops(num);
@@ -1451,9 +1582,10 @@ public:
         return ops;
     }
 
-    /// Returns the unique id of the partition
+    /// Returns the unique ID of the partition. Partition ID is generated by the
+    /// library internally. The ID can be used for debugging purpose or verbose.
     ///
-    /// @returns Unique id
+    /// @returns ID of the partition.
     size_t get_id() const {
         size_t id {};
         error::check_succeed(dnnl_graph_partition_get_id(get(), &id),
@@ -1461,14 +1593,18 @@ public:
         return id;
     }
 
-    /// Compile the partition to generate compiled partition based
-    /// on the input/output logical tensors. The order of these two lists
-    /// may have already been changed according to the fwk fused op.
+    /// Compiles a partition with given input and output logical tensors. The
+    /// output logical tensors can contain unknown dimensions. For this case,
+    /// the compilation will deduce the output shapes according to input shapes.
+    /// The output logical tensors can also have layout type `any`. The
+    /// compilation will choose the optimal layout for output tensors. The
+    /// optimal layout will be represented as an opaque layout ID saved in the
+    /// output logical tensor.
     ///
-    /// @param inputs A list of input logical tensors
-    /// @param outputs A list of output logical tensors
-    /// @param e The engine used to compile the partition
-    /// @returns A compiled partition
+    /// @param inputs A list of input logical tensors.
+    /// @param outputs A list of output logical tensors.
+    /// @param e The engine used to compile the partition.
+    /// @returns A compiled partition.
     compiled_partition compile(const std::vector<logical_tensor> &inputs,
             const std::vector<logical_tensor> &outputs, const engine &e) const {
         if (!is_supported()) {
@@ -1479,10 +1615,15 @@ public:
         return compile_(inputs, outputs, &e);
     }
 
-    /// Returns the supporting status of the partition
+    /// Returns the supporting status of a partition. Some operations may not be
+    /// supported by the library under certain circumstances. During
+    /// partitioning stage, unsupported partitions will be returned to users
+    /// with each containing an unsupported operation. Users should check the
+    /// supporting status of a partition before transforming the computation
+    /// graph or compiling the partition.
     ///
-    /// @returns @c true if this partition is supported by oneDNN Graph backend
-    ///     @c false if this partition isn't supported by oneDNN Graph backend
+    /// @returns @c true if this partition is supported or @c false if this
+    ///     partition isn't supported by the library
     bool is_supported() const {
         uint8_t supported {0};
         error::check_succeed(
@@ -1491,9 +1632,9 @@ public:
         return supported != 0;
     }
 
-    /// Returns a list of input logical tensors from the partition
+    /// Returns a list of input logical tensors from the partition.
     ///
-    /// @returns A list of input logical tensors
+    /// @returns A list of input logical tensors.
     std::vector<logical_tensor> get_in_ports() const {
         size_t num = 0;
         error::check_succeed(dnnl_graph_partition_get_in_ports_num(get(), &num),
@@ -1512,9 +1653,9 @@ public:
         return inputs;
     }
 
-    /// Returns a list of output logical tensors from the partition
+    /// Returns a list of output logical tensors from the partition.
     ///
-    /// @returns A list of output logical tensor
+    /// @returns A list of output logical tensor.
     std::vector<logical_tensor> get_out_ports() const {
         size_t num = 0;
         error::check_succeed(
@@ -1534,25 +1675,25 @@ public:
         return outputs;
     }
 
-    /// Returns the engine kind of the partition
+    /// Returns the engine kind of the partition.
     ///
-    /// @returns The engine kind
+    /// @returns The engine kind.
     engine::kind get_engine_kind() const {
         dnnl_graph_engine_kind_t akind;
         error::check_succeed(
                 dnnl_graph_partition_get_engine_kind(get(), &akind),
-                "cannot get the engine kind from the partition");
+                "could not get the engine kind from the partition");
 
         return static_cast<engine::kind>(akind);
     }
 
-    /// Returns the kind of the partition
+    /// Returns the kind of the partition.
     ///
-    /// @returns The partition kind
+    /// @returns The partition kind.
     kind get_kind() const {
         dnnl_graph_partition_kind_t pkind = dnnl_graph_partition_kind_undef;
         error::check_succeed(dnnl_graph_partition_get_kind(get(), &pkind),
-                "cannot get the kind of the partition");
+                "could not get the kind of the partition");
 
         return static_cast<kind>(pkind);
     }
@@ -1581,7 +1722,7 @@ private:
                 dnnl_graph_partition_compile(get(), cpartitions,
                         c_inputs.size(), c_inputs.data(), c_outputs.size(),
                         c_outputs.data(), e->get()),
-                "partition compile failed");
+                "could not compile the partition");
 
         return compiled_partition(cpartitions);
     }
@@ -1591,17 +1732,19 @@ private:
 
 /// @addtogroup dnnl_graph_api_graph Graph
 ///
-/// A Graph contains a set of OPs. #dnnl::graph::graph::add_op() adds an OP and
-/// its logical tensors to a graph. oneDNN Graph implementation accumulates the
-/// OPs and logical tensors and constructs and validates the graph as internal
-/// state.
+/// Graph represents a computational DAG with a set of operations.
+/// #dnnl::graph::graph::add_op() adds an operation and its input and output
+/// logical tensors into a graph. The library accumulates the operations and
+/// logical tensors and constructs and validates the graph as an internal state.
+/// A graph object is associated to a specific engine kind. The partitions
+/// returned from the graph will inherit the engine kind of the graph.
 ///
 /// @{
 
-/// A graph session to start analysis of computational DAG.
+/// A graph object.
 class graph : public detail::graph_handle {
 public:
-    // floating-point math mode
+    /// floating-point math mode.
     enum class fpmath_mode {
         /// Default behavior, no downconversions allowed
         strict = dnnl_graph_fpmath_mode_strict,
@@ -1615,9 +1758,9 @@ public:
         tf32 = dnnl_graph_fpmath_mode_tf32,
     };
 
-    /// Constructs a graph session using device information
+    /// Constructs a graph with an engine kind.
     ///
-    /// @param engine_kind Can be cpu, gpu or any supported engine.
+    /// @param engine_kind Engine kind.
     graph(engine::kind engine_kind) {
         dnnl_graph_graph_t g = nullptr;
         error::check_succeed(
@@ -1626,10 +1769,12 @@ public:
         reset(g);
     }
 
-    /// Constructs a graph session using device information and math mode
+    /// Creates a new empty graph with an engine kind and a floating-point math
+    /// mode. All partitions returned from the graph will inherit the engine
+    /// kind and floating-point math mode.
     ///
-    /// @param engine_kind Can be cpu, gpu or any supported engine.
-    /// @param mode Specified floating-point math mode.
+    /// @param engine_kind Engine kind.
+    /// @param mode Floating-point math mode.
     graph(engine::kind engine_kind, fpmath_mode mode) {
         dnnl_graph_graph_t g = nullptr;
         error::check_succeed(
@@ -1639,12 +1784,14 @@ public:
         reset(g);
     }
 
-    /// Add an op to the graph session to construct DAG for analysis
+    /// Adds an op into the graph to construct a computational DAG. The API will
+    /// return failure if the operator has already been added to the graph or
+    /// the operation cannot pass the schema check in the library (eg. input and
+    /// output numbers and data types, the attributes of the operation, etc.).
     ///
-    /// @param op An operator that represents the entry of frameworks'
-    ///    graph
+    /// @param op An operation to be added.
     /// @param allow_exception A flag indicating whether the method is allowed
-    ///    to throw an exception if it fails to add the op to the graph.
+    ///     to throw an exception if it fails to add the op to the graph.
     /// @returns #success or a status describing the error otherwise.
     status add_op(const op &op, bool allow_exception = true) {
         dnnl_graph_status_t ret = dnnl_graph_add_op(get(), op.get());
@@ -1656,11 +1803,13 @@ public:
         return static_cast<status>(ret);
     }
 
-    /// Get filtered partitions
+    /// Gets filtered partitions from a graph. Partitions will be claimed
+    /// internally according to the capability of the library, the engine kind
+    /// of the graph, and the policy.
     ///
-    /// @param policy Partition policy, defaults to
-    ///     #dnnl::graph::partition::policy::fusion
-    /// @return A vector storing the partitions
+    /// @param policy Partition policy, defaults to policy
+    ///     #dnnl::graph::partition::policy::fusion.
+    /// @return A vector storing the partitions.
     std::vector<partition> get_partitions(
             partition::policy policy = partition::policy::fusion) {
         error::check_succeed(
@@ -1750,7 +1899,7 @@ inline const version_t *version() {
 
 /// @} dnnl_api_service
 
-/// @addtogroup dnnl_graph_constant_tensor_cache Constant Tensor Cache
+/// @addtogroup dnnl_graph_api_constant_tensor_cache Constant Tensor Cache
 ///
 /// A set of functions that provide constant tensor cache control
 ///
@@ -1774,7 +1923,7 @@ inline int get_constant_tensor_cache() {
     return result;
 }
 
-/// @} dnnl_graph_constant_tensor_cache
+/// @} dnnl_graph_api_constant_tensor_cache
 
 } // namespace graph
 } // namespace dnnl
