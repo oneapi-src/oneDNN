@@ -71,8 +71,7 @@ struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
         if (pd->ndims() > MIOPEN_DIM_MAX) { return status::invalid_arguments; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();
 
-        convert_dims(pd->src_md()->padded_dims, dims[src],
-                pd->ndims());
+        convert_dims(pd->src_md()->padded_dims, dims[src], pd->ndims());
         convert_dims(pd->src_md()->format_desc.blocking.strides, strides[src],
                 pd->ndims());
         convert_dims(pd->dst_md()->format_desc.blocking.strides, strides[dst],
@@ -114,10 +113,8 @@ struct miopen_softmax_bwd_impl_t : public miopen_softmax_impl_base_t {
         if (pd->ndims() > MIOPEN_DIM_MAX) { return status::invalid_arguments; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();
 
-        convert_dims(pd->dst_md()->padded_dims, dims[dst],
-                pd->ndims());
-        convert_dims(pd->diff_src_md()->padded_dims, dims[d_src],
-                pd->ndims());
+        convert_dims(pd->dst_md()->padded_dims, dims[dst], pd->ndims());
+        convert_dims(pd->diff_src_md()->padded_dims, dims[d_src], pd->ndims());
 
         convert_alg_kind(pd->is_logsoftmax(), &alg_kind);
 
