@@ -53,6 +53,7 @@ inline impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
         HANDLE_ISA(avx512_core_bf16);
         HANDLE_ISA(avx512_core_amx);
         HANDLE_ISA(avx2_vnni);
+        HANDLE_ISA(avx512_core_fp16);
         default:
             assert(input_isa == cpu_isa::all);
             return impl::cpu::x64::cpu_isa_t::isa_all;
@@ -108,7 +109,7 @@ inline const std::set<cpu_isa> &cpu_isa_all() {
     static const std::set<cpu_isa> isa_all {cpu_isa::sse41, cpu_isa::avx,
             cpu_isa::avx2, cpu_isa::avx2_vnni, cpu_isa::avx512_core,
             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core_bf16,
-            cpu_isa::avx512_core_amx, cpu_isa::all};
+            cpu_isa::avx512_core_fp16, cpu_isa::avx512_core_amx, cpu_isa::all};
 
     return isa_all;
 }
@@ -133,12 +134,18 @@ inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
                     {cpu_isa::avx512_core_bf16, cpu_isa::avx512_core_vnni,
                             cpu_isa::avx512_core, cpu_isa::avx2, cpu_isa::avx,
                             cpu_isa::sse41}},
+            {cpu_isa::avx512_core_fp16,
+                    {cpu_isa::avx512_core_fp16, cpu_isa::avx512_core_bf16,
+                            cpu_isa::avx512_core_vnni, cpu_isa::avx512_core,
+                            cpu_isa::avx2, cpu_isa::avx, cpu_isa::sse41}},
             {cpu_isa::avx512_core_amx,
-                    {cpu_isa::avx512_core_amx, cpu_isa::avx512_core_bf16,
+                    {cpu_isa::avx512_core_amx, cpu_isa::avx512_core_fp16,
+                            cpu_isa::avx512_core_bf16,
                             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core,
                             cpu_isa::avx2, cpu_isa::avx, cpu_isa::sse41}},
             {cpu_isa::all,
                     {cpu_isa::all, cpu_isa::avx512_core_amx,
+                            cpu_isa::avx512_core_fp16,
                             cpu_isa::avx512_core_bf16,
                             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core,
                             cpu_isa::avx2_vnni, cpu_isa::avx2, cpu_isa::avx,

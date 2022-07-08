@@ -66,6 +66,7 @@ enum cpu_isa_bit_t : unsigned {
     amx_int8_bit = 1u << 10,
     amx_bf16_bit = 1u << 11,
     avx_vnni_bit = 1u << 12,
+    avx512_core_fp16_bit = 1u << 13,
 
     // Fill in hints from most significant bit to least significant bit
     prefer_ymm_bit = 1u << (cpu_isa_total_bits - 1),
@@ -117,7 +118,8 @@ enum cpu_isa_t : unsigned {
     amx_bf16 = amx_bf16_bit | amx_tile,
     avx512_core_bf16_amx_int8 = avx512_core_bf16 | amx_int8,
     avx512_core_bf16_amx_bf16 = avx512_core_bf16 | amx_bf16,
-    avx512_core_amx = avx512_core_bf16 | amx_int8 | amx_bf16,
+    avx512_core_fp16 = avx512_core_fp16_bit | avx512_core_bf16,
+    avx512_core_amx = avx512_core_fp16 | amx_int8 | amx_bf16,
     // NOTES: 1. isa_all by default has no isa specific hints
     isa_all = ~0u & ~cpu_isa_hints_utils::hints_mask,
 };
@@ -254,6 +256,13 @@ struct cpu_isa_traits<avx512_core_amx> {
     static constexpr const char *user_option_env = "avx512_core_amx";
 };
 
+template <>
+struct cpu_isa_traits<avx512_core_fp16> : public cpu_isa_traits<avx512_core> {
+    static constexpr dnnl_cpu_isa_t user_option_val
+            = dnnl_cpu_isa_avx512_core_fp16;
+    static constexpr const char *user_option_env = "avx512_core_fp16";
+};
+
 inline const Xbyak::util::Cpu &cpu() {
     const static Xbyak::util::Cpu cpu_;
     return cpu_;
@@ -309,9 +318,13 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
             return mayiuse(avx512_core_bf16, soft) && mayiuse(amx_int8, soft);
         case avx512_core_bf16_amx_bf16:
             return mayiuse(avx512_core_bf16, soft) && mayiuse(amx_bf16, soft);
+        case avx512_core_fp16:
+            return cpu().has(Cpu::tAVX512_FP16)
+                    && mayiuse(avx512_core_bf16, soft);
         case avx512_core_amx:
             return mayiuse(avx512_core_bf16_amx_int8, soft)
-                    && mayiuse(avx512_core_bf16_amx_bf16, soft);
+                    && mayiuse(avx512_core_bf16_amx_bf16, soft)
+                    && cpu().has(Cpu::tAVX512_FP16);
         case isa_any: return true;
         case isa_all: return false;
     }
@@ -336,9 +349,10 @@ static inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
     ((isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
     ((isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
+    ((isa) == avx512_core_fp16 ? prefix STRINGIFY(avx512_core_fp16) : \
     ((isa) == avx512_core_bf16_amx_int8 ? prefix STRINGIFY(avx512_core_amx_int8) : \
     ((isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_amx_bf16) : \
-    prefix suffix_if_any))))))))))
+    prefix suffix_if_any)))))))))))
 /* clang-format on */
 
 inline size_t data_type_vnni_granularity(data_type_t data_type) {

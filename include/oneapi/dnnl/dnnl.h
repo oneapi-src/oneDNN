@@ -4003,7 +4003,7 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 ///     The ISAs are only partially ordered:
 ///         - SSE41 < AVX < AVX2,
 ///         - AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16
-///           < AVX512_CORE_AMX,
+///           < AVX512_CORE_FP16 < AVX512_CORE_AMX,
 ///         - AVX2 < AVX2_VNNI.
 ///
 /// @sa @ref dev_guide_cpu_dispatcher_control for more details

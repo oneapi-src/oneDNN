@@ -110,7 +110,12 @@ bool has_data_type_support(data_type_t data_type) {
 #else
             return false;
 #endif
-        case data_type::f16: return false;
+        case data_type::f16:
+#if DNNL_X64
+            return x64::mayiuse(x64::avx512_core_fp16);
+#else
+            return false;
+#endif
         default: return true;
     }
 }

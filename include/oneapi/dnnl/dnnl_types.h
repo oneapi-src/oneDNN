@@ -3149,7 +3149,12 @@ typedef enum {
     /// and Intel Core processor family.
     dnnl_cpu_isa_avx512_core_bf16 = 0xe7,
 
-    /// Intel AVX-512, Intel DL Boost and bfloat16 support and
+    /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support
+    /// for Intel Xeon Scalable processor family
+    /// and Intel Core processor family.
+    dnnl_cpu_isa_avx512_core_fp16 = 0x1e7,
+
+    /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer and bfloat16 support
     dnnl_cpu_isa_avx512_core_amx = 0x3e7,
 
