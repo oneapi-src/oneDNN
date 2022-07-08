@@ -439,7 +439,9 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prim, init_pd, prb, res), WARN);
+    bool is_service_prim = prb->dir & FLAG_BWD;
+    SAFE(init_prim(prim, init_pd, prb, res, FLAG_FWD, nullptr, is_service_prim),
+            WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_fpd = query_pd(prim);
