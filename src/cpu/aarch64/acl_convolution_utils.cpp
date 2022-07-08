@@ -156,10 +156,18 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const auto acl_layout = is_nspc ? arm_compute::DataLayout::NHWC
                                     : arm_compute::DataLayout::NCHW;
 
-    auto acl_src_data_t = acl_utils::get_acl_data_t(src_d.data_type());
-    auto acl_wei_data_t = acl_utils::get_acl_data_t(wei_d.data_type());
-    auto acl_dst_data_t = acl_utils::get_acl_data_t(dst_d.data_type());
-    auto acl_bia_data_t = acl_utils::get_acl_data_t(bia_d.data_type());
+    // For convolutions, int8 datatypes imply quantized types in ACL
+    acp.is_int8 = utils::one_of(src_d.data_type(), s8, u8)
+            && wei_d.data_type() == s8;
+
+    auto acl_src_data_t
+            = acl_utils::get_acl_data_t(src_d.data_type(), acp.is_int8);
+    auto acl_wei_data_t
+            = acl_utils::get_acl_data_t(wei_d.data_type(), acp.is_int8);
+    auto acl_dst_data_t
+            = acl_utils::get_acl_data_t(dst_d.data_type(), acp.is_int8);
+    auto acl_bia_data_t
+            = acl_utils::get_acl_data_t(bia_d.data_type(), acp.is_int8);
 
     if (acl_bia_data_t == arm_compute::DataType::UNKNOWN)
         acl_bia_data_t = arm_compute::DataType::F32;
@@ -195,9 +203,6 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // clang-format on
 
     // Add quantization info to tensors
-    acp.is_int8 = utils::one_of(src_d.data_type(), s8, u8)
-            && wei_d.data_type() == s8;
-
     if (acp.is_int8) {
         const float *scales = attr.output_scales_.scales_;
         acp.src_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
