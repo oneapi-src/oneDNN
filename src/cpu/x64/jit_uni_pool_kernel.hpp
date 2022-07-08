@@ -82,8 +82,6 @@ private:
     // Used only for avx and if c tail is present
     Vmm vmm_c_tail_mask = Vmm(2);
 
-    Xmm xmm_ker_area_h = Xmm(2);
-    Xmm xmm_one = Xmm(2);
     Xmm xmm_tmp = Xmm(3);
 
     Vmm vmm_ker_area_h = Vmm(2);
