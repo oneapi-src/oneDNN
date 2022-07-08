@@ -1822,8 +1822,7 @@ struct driver_t : public c_compatible {
         const size_t l3_size
                 = platform::get_per_core_cache_size(3) * nthr / 2; // XXX
         // TODO: cache balancing for nspc
-        do_blocking_
-                = is_nspc_ ? false : (data_size >= l3_size / 2 && l3_size > 0);
+        do_blocking_ = is_nspc_ ? false : (data_size >= l3_size / 2);
     }
 
     ~driver_t() = default;
