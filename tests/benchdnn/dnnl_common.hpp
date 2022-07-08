@@ -332,6 +332,13 @@ struct dnnl_api_traits<dnnl_primitive_desc_t> {
 };
 
 template <>
+struct dnnl_api_traits<dnnl_primitive_desc_iterator_t> {
+    static void destroy(dnnl_primitive_desc_iterator_t t) {
+        DNN_SAFE_V(dnnl_primitive_desc_iterator_destroy(t));
+    }
+};
+
+template <>
 struct dnnl_api_traits<dnnl_primitive_attr_t> {
     static void destroy(dnnl_primitive_attr_t t) {
         DNN_SAFE_V(dnnl_primitive_attr_destroy(t));
@@ -385,10 +392,17 @@ template <typename prb_t>
 struct init_pd_args_t {
     init_pd_args_t(res_t *res, dnnl_engine_t engine, const prb_t *prb,
             dir_t dir, const_dnnl_primitive_desc_t hint)
-        : pd(pd), res(res), engine(engine), prb(prb), dir(dir), hint(hint) {}
+        : pd(nullptr)
+        , pd_it(nullptr)
+        , res(res)
+        , engine(engine)
+        , prb(prb)
+        , dir(dir)
+        , hint(hint) {}
 
     // Output members
     dnnl_primitive_desc_t pd;
+    dnnl_primitive_desc_iterator_t pd_it;
 
     // Input members
     res_t *res;
@@ -540,6 +554,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     dnnl_status_t status = dnnl_success;
     dnnl_primitive_t prim_ {};
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
 
     skip_start(res);
@@ -576,14 +591,18 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
 
     init_pd_args.engine = engine;
     status = init_pd_func(init_pd_args);
+
+    pd_itw.reset(init_pd_args.pd_it);
+    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
     pdw.reset(init_pd_args.pd);
+
     SAFE(check_dnnl_status(status, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
 
     SAFE(check_skip_impl(prb, pdw, res), WARN);
     if (res->state == SKIPPED) return OK;
 
-    if (init_pd_args.pd)
-        DNN_SAFE(dnnl_primitive_create(&prim_, init_pd_args.pd), WARN);
+    DNN_SAFE(dnnl_primitive_create(&prim_, pdw), WARN);
     prim.reset(prim_);
 
 #endif
@@ -591,8 +610,13 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     // the global test engine.
     init_pd_args.engine = get_test_engine();
     status = init_pd_func(init_pd_args);
+
+    pd_itw.reset(init_pd_args.pd_it);
+    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
     pdw.reset(init_pd_args.pd);
+
     SAFE(check_dnnl_status(status, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
 
     SAFE(check_skip_impl(prb, pdw, res), WARN);
     if (res->state == SKIPPED) return OK;
