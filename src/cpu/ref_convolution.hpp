@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,18 +48,12 @@ struct ref_convolution_fwd_t : public primitive_t {
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && platform::has_data_type_support(src_type)
-                    && platform::has_data_type_support(wei_type)
                     && platform::has_data_type_support(bia_type)
                     && platform::has_data_type_support(dst_type)
-                    && utils::one_of(src_type, f32, bf16)
-                    && utils::one_of(wei_type, f32, bf16)
-                    && utils::one_of(dst_type, f32, bf16)
+                    && utils::one_of(src_type, f32, bf16, f16)
                     && src_type == wei_type
-                    && IMPLICATION(src_type == f32, dst_type == f32)
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16)
-                                    && IMPLICATION(
-                                            src_type == f32, bia_type == f32))
+                    && utils::one_of(dst_type, src_type, f32)
+                    && utils::one_of(bia_type, data_type::undef, src_type, f32)
                     && set_default_formats()
                     && attr()->has_default_values(
                             smask_t::post_ops | smask_t::sum_dt, dst_type)
