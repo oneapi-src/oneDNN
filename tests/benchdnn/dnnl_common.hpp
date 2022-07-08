@@ -464,20 +464,50 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
     return FAIL;
 }
 
-inline int check_skip_impl(
-        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd, res_t *res,
-        bool is_service_prim) {
-    if (pd && !is_service_prim) {
-        res->impl_name = query_impl_info(pd);
-        if (maybe_skip(res->impl_name)) {
-            BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
-                    res->impl_name.c_str());
+// `fetch_impl` is responsible to provide a valid `pd` under certain conditions:
+// 1. Either valid `pd` or `pd_it` were provided.
+// 2a. It's a service primitive (fwd-for-bwd or cpu-for-gpu or
+//     simple-prims-of-complex-prim).
+// 2b. It's a tested primitive and not all implementations hit skip-impl option
+//     values.
+template <typename prb_t>
+int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> &pd_itw,
+        init_pd_args_t<prb_t> &init_pd_args, res_t *res, bool is_service_prim) {
+    if (!init_pd_args.pd && !init_pd_args.pd_it) return FAIL;
+
+    pd_itw.reset(init_pd_args.pd_it);
+    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
+    pdw.reset(init_pd_args.pd);
+
+    // Iterator is not supported, further logic is not applicable.
+    // Service primitive is not supposed to utilize further logic.
+    if (!pd_itw || is_service_prim) return OK;
+
+    while (true) {
+        const auto impl_name = query_impl_info(pdw);
+        // Skip-impl is not requested or hit. Latest pd already fetched.
+        if (!maybe_skip(impl_name)) return OK;
+
+        BENCHDNN_PRINT(6, "Implementation skipped: %s\n", impl_name.c_str());
+
+        auto status = dnnl_primitive_desc_iterator_next(pd_itw);
+        if (status == dnnl_iterator_ends) {
+            BENCHDNN_PRINT(2, "%s\n", "All implementations were skipped!");
             res->state = SKIPPED;
             res->reason = SKIP_IMPL_HIT;
+            pdw.reset(nullptr);
+            return OK;
+        } else if (status == dnnl_success) {
+            pdw.reset(dnnl_primitive_desc_iterator_fetch(pd_itw));
+        } else {
+            BENCHDNN_PRINT(0, "%s\n", "Unexpected status from pd iterator.");
+            return FAIL;
         }
     }
 
-    return OK;
+    // Unreached fail status.
+    return FAIL;
 }
 
 // This is an internal to `init_prim` function that utilizes the logic of
@@ -496,16 +526,11 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
     init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
     status = init_pd_func(init_pd_args);
 
-    pd_itw.reset(init_pd_args.pd_it);
-    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
-    pdw.reset(init_pd_args.pd);
-
     SAFE(check_dnnl_status(status, prb, res), WARN);
     if (res->state == SKIPPED) return OK;
 
-    // If this is a tested primitive, might want to skip primitive creation, if
-    // this is the impl requested to be skipped.
-    SAFE(check_skip_impl(pdw, res, is_service_prim), WARN);
+    // Fetch also checks if user requested to skip certain implementations.
+    SAFE(fetch_impl(pdw, pd_itw, init_pd_args, res, is_service_prim), WARN);
     if (res->state == SKIPPED) return OK;
 
     DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN);

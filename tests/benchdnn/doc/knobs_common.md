@@ -65,14 +65,14 @@ The following common options are supported:
   COMMON-OPTIONS!) to their default values. The only exception is
   `--perf-template` option which will not be reset.
 
-* `--skip-impl=STR` -- Instructs the driver to return SKIPPED status when the
-  implementation name matches `STR`. `STR` is a string literal with no spaces.
-  When `STR` is empty (the default), the driver behavior is not modified. `STR`
-  supports several patterns to be matched against through `,` delimiter between
-  patterns. Picked up implementation name is searched for all patterns specified
-  and if any of patterns match any part of implementation name string, it counts
-  as a hit. E.g. `--skip-impl=ref,gemm` will make `ref:any` or `x64:gemm:jit`
-  implementations to be skipped.
+* `--skip-impl=STR` -- Instructs the driver to jump to the next implementation
+  in the list if the name of the one returned matches `STR`. `STR` is a string
+  literal with no spaces. When `STR` is empty (the default), the driver behavior
+  is not modified. `STR` supports several patterns to be matched against through
+  `,` delimiter between patterns. A name of implementation fetched is searched
+  against all patterns specified, and if any of patterns match any part of
+  implementation name string, it counts as a hit. E.g. `--skip-impl=ref,gemm`
+  will make `ref:any` or `x64:gemm:jit` implementations to be skipped.
 
 * `--start=N` -- Specifies the test index `N` to start testing from. All tests
   before the index are skipped.

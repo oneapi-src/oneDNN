@@ -620,9 +620,9 @@ static bool parse_skip_impl(
         const char *str, const std::string &option_name = "skip-impl") {
     static const std::string help
             = "STRING    (Default: not specified)\n    Instructs the driver to "
-              "skip implementations which names matching `STRING`.\n    "
-              "`STRING` is a string literal with no spaces.\n    When empty, "
-              "option has no effect.\n";
+              "iterate over implementations when fetched implementation name "
+              "matching `STRING`.\n    `STRING` is a string literal with no "
+              "spaces.\n    When empty, option has no effect.\n";
     const auto chars2chars = [](const char *str) { return str; };
     bool parsed = parse_single_value_option(
             skip_impl, std::string(), chars2chars, str, option_name, help);
