@@ -27,9 +27,15 @@
 #include <util/utils.hpp>
 
 namespace sc {
-expr get_ir_null();
-expr get_ir_zero_index();
+SC_INTERNAL_API expr get_ir_null();
+SC_INTERNAL_API expr get_ir_zero_index();
 namespace builtin {
+
+/**
+ * Infer output dtype based on dtype of input A for brgemm
+ * */
+SC_INTERNAL_API sc_data_type_t infer_output_dtype(sc_data_type_t dtype_A);
+
 /**
  * Generates a call node to print_index, and wrap the call node with
  * evaluate node. Also declares the print_index function in the builder
@@ -89,7 +95,7 @@ expr make_trace(expr func_name, expr in_or_out);
 
 // Create a initialized postops data vector. Its length matches the number of
 // dnnl postop data init func args
-std::vector<expr> create_initialed_postops_data();
+SC_INTERNAL_API std::vector<expr> create_initialed_postops_data();
 
 /**
  * Generates a call node to dnnl_brgemm_init_f32, and wrap the call node

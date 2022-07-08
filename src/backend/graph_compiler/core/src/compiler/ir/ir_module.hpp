@@ -30,7 +30,7 @@
 #include <util/any_map.hpp>
 
 namespace sc {
-class ir_module_t {
+class SC_INTERNAL_API ir_module_t {
     // Items to appear in the module.
     // Might be useful at some point to be able to include data,
     // initializations, finalizations, etc.

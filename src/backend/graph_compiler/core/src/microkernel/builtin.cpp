@@ -39,7 +39,7 @@ expr get_ir_zero_index() {
 }
 
 namespace builtin {
-static sc_data_type_t infer_output_dtype(sc_data_type_t dtype_A) {
+sc_data_type_t infer_output_dtype(sc_data_type_t dtype_A) {
     if (dtype_A == datatypes::u8 || dtype_A == datatypes::s8) {
         return datatypes::s32;
     }

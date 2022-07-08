@@ -31,7 +31,7 @@ struct context_t;
 // the assignment overload for utils::bind_vector_to_args
 namespace utils {
 template <>
-struct bind_assigner_t<expr::lvalue_proxy_t, expr> {
+struct SC_INTERNAL_API bind_assigner_t<expr::lvalue_proxy_t, expr> {
     static void assign(expr::lvalue_proxy_t &dst, const expr &src) {
         dst.data_ = src;
         dst.require_remake_ = false;
@@ -40,7 +40,7 @@ struct bind_assigner_t<expr::lvalue_proxy_t, expr> {
 } // namespace utils
 
 namespace builder {
-struct scope_mgr_t {
+struct SC_INTERNAL_API scope_mgr_t {
     builder::builder_impl_t *ctx_;
     using callback_type = std::function<void(builder::builder_impl_t *, stmt)>;
     callback_type on_pop_;
@@ -70,7 +70,7 @@ struct scope_mgr_t {
  * At the end of the scope, this class will push a for-loop node in current
  * build
  * */
-struct for_range_simulator_t {
+struct SC_INTERNAL_API for_range_simulator_t {
     expr var_;
     builder::builder_impl_t *ctx_;
     expr min_;
@@ -138,17 +138,18 @@ struct for_range_simulator_t {
     }
 };
 
-for_range_simulator_t range(const std::string &name, for_loop &out, expr min,
+SC_INTERNAL_API for_range_simulator_t range(const std::string &name,
+        for_loop &out, expr min, expr extent, expr step = expr(1),
+        for_type type = for_type::NORMAL, int num_threads = 0);
+SC_INTERNAL_API for_range_simulator_t range_nobind(const std::string &name,
+        expr min, expr extent, expr step = expr(1),
+        for_type type = for_type::NORMAL, int num_threads = 0);
+SC_INTERNAL_API for_range_simulator_t range(for_loop &out, expr min,
         expr extent, expr step = expr(1), for_type type = for_type::NORMAL,
         int num_threads = 0);
-for_range_simulator_t range_nobind(const std::string &name, expr min,
-        expr extent, expr step = expr(1), for_type type = for_type::NORMAL,
-        int num_threads = 0);
-for_range_simulator_t range(for_loop &out, expr min, expr extent,
+SC_INTERNAL_API for_range_simulator_t range(expr min, expr extent,
         expr step = expr(1), for_type type = for_type::NORMAL,
         int num_threads = 0);
-for_range_simulator_t range(expr min, expr extent, expr step = expr(1),
-        for_type type = for_type::NORMAL, int num_threads = 0);
 
 /**
  * Builds a for-loop. Takes arguments:
@@ -180,7 +181,7 @@ for_range_simulator_t range(expr min, expr extent, expr step = expr(1),
 #define _named_for_(OUT, IDX, ...) \
     for (auto IDX : ::sc::builder::range(#IDX, OUT, __VA_ARGS__))
 
-struct nested_for_ranges_t {
+struct SC_INTERNAL_API nested_for_ranges_t {
     std::vector<for_range_simulator_t> loops_;
     unsigned cur_var_ = 0;
     expr get_var() {
@@ -263,7 +264,7 @@ struct nested_for_ranges_t {
     // _simu is destoryed here. The if-then-else is generated
     }
 */
-struct if_simulator_t {
+struct SC_INTERNAL_API if_simulator_t {
     stmt true_block_;
     stmt false_block_;
     builder::builder_impl_t *ctx_;
@@ -326,7 +327,7 @@ struct if_simulator_t {
         if (__if_scope__.second == 0)
 #define _else_ else
 
-struct func_simulator_t {
+struct SC_INTERNAL_API func_simulator_t {
     operator bool() const { return true; }
     std::vector<expr> vargs_;
     func_t *outfunc_;
@@ -355,24 +356,27 @@ struct func_simulator_t {
     }
 };
 
-func_simulator_t _make_func_simulator(const std::string &name, func_t *outfunc,
-        sc_data_type_t dtype, std::vector<std::vector<expr>> &&args);
+SC_INTERNAL_API func_simulator_t _make_func_simulator(const std::string &name,
+        func_t *outfunc, sc_data_type_t dtype,
+        std::vector<std::vector<expr>> &&args);
 
-std::vector<expr> _make_arg(
+SC_INTERNAL_API std::vector<expr> _make_arg(
         const char *name, sc_data_type_t dtype, const std::vector<int> &args);
-std::vector<expr> _make_arg(const char *name, sc_data_type_t dtype,
+SC_INTERNAL_API std::vector<expr> _make_arg(const char *name,
+        sc_data_type_t dtype,
         std::initializer_list<unsigned long> args); // NOLINT,
 // We must use unsigned long here to let g++ and MSVC to correctly let UL number
 // literals find correct overload version of function.
-std::vector<expr> _make_arg(
+SC_INTERNAL_API std::vector<expr> _make_arg(
         const char *name, sc_data_type_t dtype, const std::vector<expr> &args);
 
-std::vector<expr> _make_arg(const char *name, sc_data_type_t dtype,
-        std::initializer_list<int> args);
+SC_INTERNAL_API std::vector<expr> _make_arg(const char *name,
+        sc_data_type_t dtype, std::initializer_list<int> args);
 
-std::vector<expr> _make_arg(const char *name, sc_data_type_t dtype);
+SC_INTERNAL_API std::vector<expr> _make_arg(
+        const char *name, sc_data_type_t dtype);
 
-func_t _decl_func(const std::string &name, sc_data_type_t dtype,
+SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
         std::vector<std::vector<expr>> &&args);
 
 /**

@@ -397,13 +397,13 @@ public:
     using parent::operator*;
     using parent::operator->;
     // converter from c++ float to f32 `constant` IR
-    node_ptr(float v);
+    SC_INTERNAL_API node_ptr(float v);
     // converter from c++ int32_t to s32 `constant` IR
-    node_ptr(int32_t v);
+    SC_INTERNAL_API node_ptr(int32_t v);
     // converter from c++ uint64_t to index `constant` IR
-    node_ptr(uint64_t v);
+    SC_INTERNAL_API node_ptr(uint64_t v);
     // converter from c++ bool to boolean `constant` IR
-    node_ptr(bool v);
+    SC_INTERNAL_API node_ptr(bool v);
     node_ptr() = default;
 };
 using expr_c = node_ptr<const expr_base, expr_base>;
@@ -427,17 +427,18 @@ public:
     using parent::operator->;
 
     // converter from c++ float to f32 `constant` IR
-    node_ptr(float v);
+    SC_INTERNAL_API node_ptr(float v);
     // converter from c++ int32_t to s32 `constant` IR
-    node_ptr(int32_t v);
+    SC_INTERNAL_API node_ptr(int32_t v);
     // converter from c++ uint64_t to index `constant` IR
-    node_ptr(uint64_t v);
+    SC_INTERNAL_API node_ptr(uint64_t v);
 #if defined(_MSC_VER) || defined(__APPLE__)
     // converter from c++ uint64_t to index `constant` IR
-    node_ptr(unsigned long v) : node_ptr(static_cast<uint64_t>(v)) {} // NOLINT
+    SC_INTERNAL_API node_ptr(unsigned long v) // NOLINT
+        : node_ptr(static_cast<uint64_t>(v)) {} // NOLINT
 #endif
     // converter from c++ bool to boolean `constant` IR
-    node_ptr(bool v);
+    SC_INTERNAL_API node_ptr(bool v);
 
     node_ptr() = default;
     node_ptr(const parent &v) : parent(v) {}
@@ -449,7 +450,7 @@ public:
      * @param require_remake_ whether to call remake() every time get() is
      *      called. If true, will generate a new expr when getting the expr
      * */
-    struct lvalue_proxy_t {
+    struct SC_INTERNAL_API lvalue_proxy_t {
         expr::parent data_;
         bool require_remake_;
         lvalue_proxy_t();

@@ -43,7 +43,7 @@ namespace builder {
  * The internal implementation of IR builder. Use ir_builder_t
  * in most cases instead
  * */
-class builder_impl_t {
+class SC_INTERNAL_API builder_impl_t {
 public:
     /**
      * A basic block is a list of statements that is temporarily
@@ -199,13 +199,13 @@ public:
  * Gets the current thread-local builder. If you have never set
  * a builder by `set_current()`, this function will return nullptr
  * */
-builder_impl_t *get_current_builder();
+SC_INTERNAL_API builder_impl_t *get_current_builder();
 
 /**
  * Sets the current thread-local builder.
  * @param b the pointer to the builder
  * */
-void set_current_builder(builder_impl_t *b);
+SC_INTERNAL_API void set_current_builder(builder_impl_t *b);
 
 /**
  * Makes a binary/logic/cmp node of the same type of original, with new LHS=l
@@ -256,7 +256,7 @@ expr make_var(sc_data_type_t type, const std::string &name);
  * @param in the expression to convert
  * @return the created node
  * */
-expr make_cast(sc_data_type_t type, const expr_c &in);
+SC_INTERNAL_API expr make_cast(sc_data_type_t type, const expr_c &in);
 
 /**
  * Makes a add (+) node
@@ -280,7 +280,7 @@ expr make_sub(const expr_c &left, const expr_c &right);
  * @param right right hand side
  * @return the created node
  * */
-expr make_mul(const expr_c &left, const expr_c &right);
+SC_INTERNAL_API expr make_mul(const expr_c &left, const expr_c &right);
 
 /**
  * Makes a div (div) node
@@ -724,18 +724,18 @@ expr remake_call(
  * @param strides stride info for each dim (optional)
  * @return the created node
  * */
-expr make_tensor(const std::string &name, const std::vector<expr> &dims,
-        sc_data_type_t dtype,
+SC_INTERNAL_API expr make_tensor(const std::string &name,
+        const std::vector<expr> &dims, sc_data_type_t dtype,
         address_space addrspace = address_space::automatic,
         const std::shared_ptr<static_data_t> &init_value = nullptr,
         const std::vector<expr> &strides = {});
-expr make_tensor(const std::string &name, const std::vector<expr_c> &dims,
-        sc_data_type_t dtype,
+SC_INTERNAL_API expr make_tensor(const std::string &name,
+        const std::vector<expr_c> &dims, sc_data_type_t dtype,
         address_space addrspace = address_space::automatic,
         const std::shared_ptr<static_data_t> &init_value = nullptr,
         const std::vector<expr_c> &strides = {});
-expr make_tensor(const std::string &name, std::initializer_list<expr> dims,
-        sc_data_type_t dtype,
+SC_INTERNAL_API expr make_tensor(const std::string &name,
+        std::initializer_list<expr> dims, sc_data_type_t dtype,
         address_space addrspace = address_space::automatic,
         const std::shared_ptr<static_data_t> &init_value = nullptr,
         std::initializer_list<expr> strides = std::initializer_list<expr>());
@@ -766,13 +766,14 @@ expr make_stensor(const std::string &name, const std::vector<expr_c> &dims,
  * @param ret_type the return type of the function
  * @return the created node
  * */
-func_t make_func(const std::string &name, const std::vector<expr> &params,
-        stmt body, sc_data_type_t ret_type);
+SC_INTERNAL_API func_t make_func(const std::string &name,
+        const std::vector<expr> &params, stmt body, sc_data_type_t ret_type);
 /**
  * @see make_func overloaded function
  * */
-func_t make_func(const std::string &name, const std::vector<expr_c> &params,
-        const stmt_c &body, sc_data_type_t ret_type);
+SC_INTERNAL_API func_t make_func(const std::string &name,
+        const std::vector<expr_c> &params, const stmt_c &body,
+        sc_data_type_t ret_type);
 
 /**
  * Makes an assign statement, the statement is not attached to any builder
@@ -822,7 +823,7 @@ stmt make_returns_unattached(const expr_c &val = expr_c());
  * @param init init value, nullable
  * @return the pushed node
  * */
-stmt make_var_tensor_def_unattached(const expr_c &var,
+SC_INTERNAL_API stmt make_var_tensor_def_unattached(const expr_c &var,
         linkage linkage = linkage::local, const expr_c &init = expr_c());
 
 /**
@@ -885,12 +886,15 @@ low_level_intrin remake_low_level_intrin(
  * D + offset2`, to finally compute the index on the base tensor.
  * @return the address of the element in the tensor
  * */
-expr tensor_ptr(const expr &tensor, const std::vector<expr> &idx,
-        const std::vector<expr> &shape = {}, bool is_slice = false);
-expr tensor_ptr(const expr_c &tensor, const std::vector<expr_c> &idx,
-        const std::vector<expr_c> &shape = {}, bool is_slice = false);
-expr tensor_ptr(const expr &tensor, std::initializer_list<expr> idx,
-        std::initializer_list<expr> shape = {}, bool is_slice = false);
+SC_INTERNAL_API expr tensor_ptr(const expr &tensor,
+        const std::vector<expr> &idx, const std::vector<expr> &shape = {},
+        bool is_slice = false);
+SC_INTERNAL_API expr tensor_ptr(const expr_c &tensor,
+        const std::vector<expr_c> &idx, const std::vector<expr_c> &shape = {},
+        bool is_slice = false);
+SC_INTERNAL_API expr tensor_ptr(const expr &tensor,
+        std::initializer_list<expr> idx, std::initializer_list<expr> shape = {},
+        bool is_slice = false);
 /**
  * Sets the attr of the input IR node
  * @tparam TNode should be expr(_c) or stmt(_c)
