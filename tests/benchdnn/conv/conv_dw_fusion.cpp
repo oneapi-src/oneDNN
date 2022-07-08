@@ -274,7 +274,9 @@ int doit(const prb_t *prb, res_t *res) {
     std::unique_ptr<prb_t> p0 = get_first_conv_prb(prb);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim0;
-    SAFE(init_prim(prim0, init_pd, p0.get(), res), WARN);
+    SAFE(init_prim(prim0, init_pd, p0.get(), res, FLAG_FWD, nullptr,
+                 /* is_service_prim = */ true),
+            WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd0 = query_pd(prim0);
@@ -326,7 +328,9 @@ int doit(const prb_t *prb, res_t *res) {
     if (!p1) SAFE(FAIL, CRIT);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim1;
-    SAFE(init_prim(prim1, init_pd, p1.get(), res), WARN);
+    SAFE(init_prim(prim1, init_pd, p1.get(), res, FLAG_FWD, nullptr,
+                 /* is_service_prim = */ true),
+            WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd1 = query_pd(prim1);
