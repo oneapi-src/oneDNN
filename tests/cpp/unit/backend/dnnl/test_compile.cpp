@@ -209,6 +209,13 @@ static bool allclose(const test::vector<T> &a, const test::vector<T> &b,
 }
 } // namespace
 
+static size_t product(std::vector<int64_t> &in) {
+    if (in.empty()) return 0;
+    int64_t prod = std::accumulate(in.begin(), in.end(),
+            static_cast<int64_t>(1), std::multiplies<int64_t>());
+    return static_cast<size_t>(prod);
+}
+
 TEST(Compile, ConvolutionFp32) {
     using dims = impl::dnnl_impl::dims;
 
@@ -1012,9 +1019,6 @@ struct dnnl_graph_test_concat_params {
     std::vector<impl::dim_t> src0_shape;
     std::vector<impl::dim_t> src1_shape;
     std::vector<impl::dim_t> dst_shape;
-    test::vector<float> src0_data;
-    test::vector<float> src1_data;
-    test::vector<float> ref_dst;
     int64_t axis;
     bool is_nhwc;
 };
@@ -1025,12 +1029,20 @@ public:
         const auto params = ::testing::TestWithParam<
                 dnnl_graph_test_concat_params>::GetParam();
 
-        const std::vector<impl::dim_t> &src0_dims = params.src0_shape;
-        const std::vector<impl::dim_t> &src1_dims = params.src1_shape;
-        const std::vector<impl::dim_t> &dst_dims = params.dst_shape;
-        test::vector<float> src0_data = params.src0_data;
-        test::vector<float> src1_data = params.src1_data;
-        test::vector<float> dst_data(params.ref_dst.size(), 0.);
+        std::vector<impl::dim_t> src0_dims = params.src0_shape;
+        std::vector<impl::dim_t> src1_dims = params.src1_shape;
+        std::vector<impl::dim_t> dst_dims = params.dst_shape;
+        test::vector<float> src0_data(product(src0_dims));
+        test::vector<float> src1_data(product(src1_dims));
+        test::vector<float> case1_out_data(product(dst_dims));
+        test::vector<float> case2_out_data(product(dst_dims));
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(src0_data.begin(), src0_data.end(),
+                [&]() { return f32_distribution(generator); });
+        std::generate(src1_data.begin(), src1_data.end(),
+                [&]() { return f32_distribution(generator); });
+
         const auto &axis = params.axis;
 
         impl::op_t concat_op(impl::op_kind::Concat, "concat");
@@ -1061,9 +1073,17 @@ public:
         concat_op.add_output(dst_lt);
 
         auto &eng = get_engine();
+        auto &strm = get_stream();
         impl::graph_t g(eng.kind());
         g.add_op(&concat_op);
         g.build_graph();
+
+        impl::tensor_t src0_ts(src0_lt, &eng, src0_data.data());
+        impl::tensor_t src1_ts(src1_lt, &eng, src1_data.data());
+        impl::tensor_t case1_dst_ts(dst_lt, &eng, case1_out_data.data());
+
+        ASSERT_EQ(run_graph(g, {src0_ts, src1_ts}, {case1_dst_ts}, eng, strm),
+                impl::status::success);
 
         impl::pass::pass_base_ptr apass = get_pass("concat_pass");
         apass->run(g);
@@ -1080,16 +1100,12 @@ public:
 
         p.compile(&cp, inputs, outputs, &eng);
 
-        impl::tensor_t src0_ts(src0_lt, &eng, src0_data.data());
-        impl::tensor_t src1_ts(src1_lt, &eng, src1_data.data());
-        impl::tensor_t dst_ts(dst_lt, &eng, dst_data.data());
-
-        auto &strm = get_stream();
-        cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
+        impl::tensor_t case2_dst_ts(dst_lt, &eng, case2_out_data.data());
+        cp.execute(&strm, {src0_ts, src1_ts}, {case2_dst_ts});
         strm.wait();
 
-        for (size_t i = 0; i < dst_data.size(); ++i) {
-            ASSERT_FLOAT_EQ(params.ref_dst[i], dst_data[i]);
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
     }
 };
@@ -1101,65 +1117,38 @@ TEST_P(Concat, TestConcat) {
 INSTANTIATE_TEST_SUITE_P(Execute, Concat,
         ::testing::Values(
                 // 2D, axis = 0
-                dnnl_graph_test_concat_params {{1, 2}, {1, 2}, {2, 2}, {1., 1.},
-                        {2., 2.}, {1., 1., 2., 2.}, 0, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2}, {1, 2}, {2, 2}, 0, false},
                 // 2D, axis = 1
-                dnnl_graph_test_concat_params {{1, 2}, {1, 2}, {1, 4}, {1., 1.},
-                        {2., 2.}, {1., 1., 2., 2.}, 1, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2}, {1, 2}, {1, 4}, 1, false},
                 // 3D, axis = 0
-                dnnl_graph_test_concat_params {{1, 2, 2}, {1, 2, 2}, {2, 2, 2},
-                        {1., 1., 2., 2.}, {3., 3., 4., 4.},
-                        {1., 1., 2., 2., 3., 3., 4., 4.}, 0, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2}, {1, 2, 2}, {2, 2, 2}, 0, false},
                 // 3D, axis = 1
-                dnnl_graph_test_concat_params {{1, 2, 2}, {1, 2, 2}, {1, 4, 2},
-                        {1., 1., 2., 2.}, {3., 3., 4., 4.},
-                        {1., 1., 2., 2., 3., 3., 4., 4.}, 1, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2}, {1, 2, 2}, {1, 4, 2}, 1, false},
                 // 3D, axis = 2
-                dnnl_graph_test_concat_params {{1, 2, 2}, {1, 2, 2}, {1, 2, 4},
-                        {1., 1., 2., 2.}, {3., 3., 4., 4.},
-                        {1., 1., 3., 3., 2., 2., 4., 4.}, 2, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2}, {1, 2, 2}, {1, 2, 4}, 2, false},
                 // 4D, axis = 0
-                dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
-                        {2, 2, 2, 2}, {1., 1., 2., 2., 3., 3., 4., 4.},
-                        {5., 5., 6., 6., 7., 7., 8., 8.},
-                        {1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7.,
-                                8., 8.},
-                        0, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2, 2}, {1, 2, 2, 2}, {2, 2, 2, 2}, 0, false},
                 // 4D, axis = 0
-                dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
-                        {2, 2, 2, 2}, {1., 1., 2., 2., 3., 3., 4., 4.},
-                        {5., 5., 6., 6., 7., 7., 8., 8.},
-                        {1., 1., 2., 2., 3., 3., 4., 4., 5., 6., 7., 8., 5., 6.,
-                                7., 8.},
-                        0, true},
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2, 2}, {1, 2, 2, 2}, {2, 2, 2, 2}, 0, true},
                 // 4D, axis = 1
-                dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
-                        {1, 4, 2, 2}, {1., 1., 2., 2., 3., 3., 4., 4.},
-                        {5., 5., 6., 6., 7., 7., 8., 8.},
-                        {1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7.,
-                                8., 8.},
-                        1, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 4, 2, 2}, 1, false},
                 // 4D, axis = 2
-                dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
-                        {1, 2, 4, 2}, {1., 1., 2., 2., 3., 3., 4., 4.},
-                        {5., 5., 6., 6., 7., 7., 8., 8.},
-                        {1., 1., 2., 2., 5., 5., 6., 6., 3., 3., 4., 4., 7., 7.,
-                                8., 8.},
-                        2, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 2, 4, 2}, 2, false},
                 // 4D, axis = 3
-                dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
-                        {1, 2, 2, 4}, {1., 1., 2., 2., 3., 3., 4., 4.},
-                        {5., 5., 6., 6., 7., 7., 8., 8.},
-                        {1., 1., 5., 5., 2., 2., 6., 6., 3., 3., 7., 7., 4., 4.,
-                                8., 8.},
-                        3, false},
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 2, 2, 4}, 3, false},
                 // 4D, axis = -1
-                dnnl_graph_test_concat_params {{1, 2, 2, 2}, {1, 2, 2, 2},
-                        {1, 2, 2, 4}, {1., 1., 2., 2., 3., 3., 4., 4.},
-                        {5., 5., 6., 6., 7., 7., 8., 8.},
-                        {1., 1., 5., 5., 2., 2., 6., 6., 3., 3., 7., 7., 4., 4.,
-                                8., 8.},
-                        -1, false}));
+                dnnl_graph_test_concat_params {
+                        {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 2, 2, 4}, -1, false}));
 
 TEST(Compile, ConcatWithMoreInputs) {
     size_t num_inputs = 64;
@@ -2912,13 +2901,6 @@ TEST(Execute, MatmulBf16Bf16Bf16) {
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
     strm.wait();
-}
-
-static size_t product(std::vector<int64_t> &in) {
-    if (in.empty()) return 0;
-    int64_t prod = std::accumulate(in.begin(), in.end(),
-            static_cast<int64_t>(1), std::multiplies<int64_t>());
-    return static_cast<size_t>(prod);
 }
 
 TEST(Execute, MatmulNdx1d) {
@@ -5021,10 +5003,6 @@ struct dnnl_graph_test_convtranspose_params {
     impl::dnnl_impl::dims dilations;
     impl::dnnl_impl::dims pads_begin;
     impl::dnnl_impl::dims pads_end;
-    test::vector<float> src;
-    test::vector<float> weight;
-    test::vector<float> bias;
-    test::vector<float> ref_dst;
 };
 
 class Convtranspose4D5D
@@ -5036,9 +5014,25 @@ public:
         auto params = ::testing::TestWithParam<
                 dnnl_graph_test_convtranspose_params>::GetParam();
 
-        // default engine kind is cpu.
         impl::engine_t &eng = get_engine();
-        test::vector<float> dst(params.ref_dst.size(), 0.0);
+        std::vector<impl::dim_t> src_dims = params.src_shape;
+        std::vector<impl::dim_t> weight_dims = params.weight_shape;
+        std::vector<impl::dim_t> bias_dims = params.bias_shape;
+        std::vector<impl::dim_t> dst_dims = params.dst_shape;
+        test::vector<float> src_data(product(src_dims));
+        test::vector<float> weight_data(product(weight_dims));
+        test::vector<float> bias_data(product(bias_dims));
+        test::vector<float> case1_out_data(product(dst_dims));
+        test::vector<float> case2_out_data(product(dst_dims));
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(src_data.begin(), src_data.end(),
+                [&]() { return f32_distribution(generator); });
+        std::generate(weight_data.begin(), weight_data.end(),
+                [&]() { return f32_distribution(generator); });
+        std::generate(bias_data.begin(), bias_data.end(),
+                [&]() { return f32_distribution(generator); });
+
         impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
         convtranspose_op.set_attr<dims>(impl::op_attr::strides, params.strides);
         convtranspose_op.set_attr<dims>(
@@ -5096,21 +5090,28 @@ public:
         p.compile(&cp, inputs, outputs, &eng);
         ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, &eng, params.src.data());
-        impl::tensor_t weight_ts(weight_lt, &eng, params.weight.data());
-        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+        impl::tensor_t src_ts(src_lt, &eng, src_data.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight_data.data());
+        impl::tensor_t dst1_ts(dst_lt, &eng, case1_out_data.data());
+        impl::tensor_t dst2_ts(dst_lt, &eng, case2_out_data.data());
         impl::tensor_t bias_ts;
-        if (params.with_bias)
-            bias_ts = impl::tensor_t(bias_lt, &eng, params.bias.data());
-
+        if (params.with_bias) {
+            bias_ts = impl::tensor_t(bias_lt, &eng, bias_data.data());
+        }
         impl::stream_t &strm = get_stream();
-        if (params.with_bias)
-            cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
-        else
-            cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
+        if (params.with_bias) {
+            ASSERT_EQ(run_graph(g, {src_ts, weight_ts, bias_ts}, {dst1_ts}, eng,
+                              strm),
+                    impl::status::success);
+            cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst2_ts});
+        } else {
+            ASSERT_EQ(run_graph(g, {src_ts, weight_ts}, {dst1_ts}, eng, strm),
+                    impl::status::success);
+            cp.execute(&strm, {src_ts, weight_ts}, {dst2_ts});
+        }
         strm.wait();
-        for (size_t i = 0; i < dst.size(); ++i) {
-            ASSERT_FLOAT_EQ(dst[i], params.ref_dst[i]);
+        for (size_t i = 0; i < case2_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
     }
 };
@@ -5120,67 +5121,39 @@ TEST_P(Convtranspose4D5D, TestConvtranspose) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Execute, Convtranspose4D5D,
-        ::testing::Values(
-                dnnl_graph_test_convtranspose_params {"NXC", "OIX",
-                        {1, 2, 2, 1}, {1, 1, 3, 3}, false, {1}, {1, 4, 4, 1},
-                        {1, 1}, {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {0.0},
-                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
-                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+        ::testing::Values(dnnl_graph_test_convtranspose_params {"NXC", "OIX",
+                                  {1, 2, 2, 1}, {1, 1, 3, 3}, false, {1},
+                                  {1, 4, 4, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
                 dnnl_graph_test_convtranspose_params {"NCX", "OIX",
                         {1, 1, 2, 2}, {1, 1, 3, 3}, true, {1}, {1, 1, 4, 4},
-                        {1, 1}, {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
-                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
-                                3.5, 6.0, 2.5, 6.0, 2.5}},
+                        {1, 1}, {1, 1}, {0, 0}, {0, 0}},
                 dnnl_graph_test_convtranspose_params {"NXC", "XIO",
                         {1, 2, 2, 1}, {3, 3, 1, 1}, false, {1}, {1, 4, 4, 1},
-                        {1, 1}, {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
-                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
-                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                        {1, 1}, {1, 1}, {0, 0}, {0, 0}},
                 dnnl_graph_test_convtranspose_params {"NCX", "XIO",
                         {1, 1, 2, 2}, {3, 3, 1, 1}, true, {1}, {1, 1, 4, 4},
-                        {1, 1}, {1, 1}, {0, 0}, {0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
-                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
-                                3.5, 6.0, 2.5, 6.0, 2.5}},
+                        {1, 1}, {1, 1}, {0, 0}, {0, 0}},
                 dnnl_graph_test_convtranspose_params {"NXC", "OIX",
                         {1, 1, 2, 2, 1}, {1, 1, 1, 3, 3}, false, {1},
                         {1, 1, 4, 4, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
-                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
-                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                        {0, 0, 0}},
                 dnnl_graph_test_convtranspose_params {"NCX", "OIX",
                         {1, 1, 1, 2, 2}, {1, 1, 1, 3, 3}, false, {1},
                         {1, 1, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
-                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
-                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                        {0, 0, 0}},
                 dnnl_graph_test_convtranspose_params {"NXC", "XIO",
                         {1, 1, 2, 2, 1}, {1, 3, 3, 1, 1}, false, {1},
                         {1, 1, 4, 4, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
-                        {-1.0, 2.5, -1.0, 2.5, 5.0, 0.5, 7.5, 1.5, -1.0, 7.5,
-                                0.5, 2.5, 5.0, 1.5, 5.0, 1.5}},
+                        {0, 0, 0}},
                 dnnl_graph_test_convtranspose_params {"NCX", "XIO",
                         {1, 1, 1, 2, 2}, {1, 3, 3, 1, 1}, true, {1},
                         {1, 1, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {-1.0, 2.5, 5.0, 1.5},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, {1.0},
-                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
-                                3.5, 6.0, 2.5, 6.0, 2.5}}));
+                        {0, 0, 0}}));
 
 struct dnnl_graph_test_convtranspose_bwd_params {
     std::vector<int64_t> src_dims;
     std::vector<int64_t> wei_dims;
     std::vector<int64_t> dst_dims;
-    test::vector<float> src0_data;
-    test::vector<float> src1_data;
-    test::vector<float> ref_dst_data;
     impl::dnnl_impl::dims strides;
     impl::dnnl_impl::dims pads_begin;
     impl::dnnl_impl::dims pads_end;
@@ -5201,10 +5174,20 @@ public:
 
         // default engine kind is cpu.
         impl::engine_t &eng = get_engine();
-        test::vector<float> diff_dst = params.src0_data;
-        test::vector<float> weight = params.src1_data;
-        test::vector<float> ref_diff_src = params.ref_dst_data;
-        test::vector<float> diff_src(ref_diff_src.size(), 0.0);
+        std::vector<impl::dim_t> src_dims = params.src_dims;
+        std::vector<impl::dim_t> wei_dims = params.wei_dims;
+        std::vector<impl::dim_t> dst_dims = params.dst_dims;
+        test::vector<float> diff_dst(product(dst_dims));
+        test::vector<float> weight(product(wei_dims));
+        test::vector<float> case1_out_data(product(src_dims));
+        test::vector<float> case2_out_data(product(src_dims));
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(diff_dst.begin(), diff_dst.end(),
+                [&]() { return f32_distribution(generator); });
+        std::generate(weight.begin(), weight.end(),
+                [&]() { return f32_distribution(generator); });
+
         impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropData);
         deconv_op.set_attr<dims>(impl::op_attr::strides, params.strides);
         deconv_op.set_attr<dims>(impl::op_attr::dilations, params.dilations);
@@ -5217,12 +5200,12 @@ public:
                 impl::op_attr::filter_format, params.filter_format);
 
         // prepare logical tensor
-        impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
-                0, params.dst_dims, impl::data_type::f32);
-        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-                1, params.wei_dims, impl::data_type::f32);
-        impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-                2, params.src_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_dst_lt
+                = utils::logical_tensor_init(0, dst_dims, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt
+                = utils::logical_tensor_init(1, wei_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_src_lt
+                = utils::logical_tensor_init(2, src_dims, impl::data_type::f32);
 
         deconv_op.add_input(diff_dst_lt);
         deconv_op.add_input(weight_lt);
@@ -5256,13 +5239,17 @@ public:
 
         impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
         impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
-        impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
+        impl::tensor_t diff_src1_ts(diff_src_lt, &eng, case1_out_data.data());
+        impl::tensor_t diff_src2_ts(diff_src_lt, &eng, case2_out_data.data());
 
         impl::stream_t &strm = get_stream();
-        cp.execute(&strm, {diff_dst_ts, weight_ts}, {diff_src_ts});
+        ASSERT_EQ(run_graph(g, {diff_dst_ts, weight_ts}, {diff_src1_ts}, eng,
+                          strm),
+                impl::status::success);
+        cp.execute(&strm, {diff_dst_ts, weight_ts}, {diff_src2_ts});
         strm.wait();
-        for (size_t i = 0; i < diff_src.size(); ++i) {
-            ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
     }
 };
@@ -5275,69 +5262,36 @@ INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropData,
         ::testing::Values(
                 // NCX, OIX
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
-                        {1, 1, 3, 3}, {1, 1, 4, 4},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, 5.0, 1.5}, {1, 1}, {0, 0}, {0, 0}, {1, 1},
-                        "NCX", "OIX"},
+                        {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NCX", "OIX"},
                 // 3d, NCX, IOX
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
-                        {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, 5.0, 1.5}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
-                        {1, 1, 1}, "NCX", "OIX"},
+                        {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {1, 1, 1}, "NCX", "OIX"},
                 // NCX, XIO
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
-                        {3, 3, 1, 1}, {1, 1, 4, 4},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, 5.0, 1.5}, {1, 1}, {0, 0}, {0, 0}, {1, 1},
-                        "NCX", "XIO"},
+                        {3, 3, 1, 1}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NCX", "XIO"},
                 // 3d, NCX, XIO
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
-                        {1, 3, 3, 1, 1}, {1, 1, 1, 4, 4},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, 5.0, 1.5}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
-                        {1, 1, 1}, "NCX", "XIO"},
+                        {1, 3, 3, 1, 1}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {1, 1, 1}, "NCX", "XIO"},
                 // NXC, XIO
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1},
-                        {3, 4, 1, 1}, {1, 3, 4, 1},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
-                                0.0},
-                        {0.5}, {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NXC", "XIO"},
+                        {3, 4, 1, 1}, {1, 3, 4, 1}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NXC", "XIO"},
                 // 3d, NXC, XIO
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1, 1},
-                        {1, 3, 4, 1, 1}, {1, 1, 3, 4, 1},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
-                                0.0},
-                        {0.5}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1, 1},
-                        "NXC", "XIO"},
+                        {1, 3, 4, 1, 1}, {1, 1, 3, 4, 1}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {1, 1, 1}, "NXC", "XIO"},
                 // NXC, OIX
                 dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
-                        {1, 1, 3, 3}, {1, 4, 4, 1},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, 5.0, 1.5}, {1, 1}, {0, 0}, {0, 0}, {1, 1},
-                        "NXC", "OIX"},
+                        {1, 1, 3, 3}, {1, 4, 4, 1}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NXC", "OIX"},
                 // 3d, NXC, OIX
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
-                        {1, 1, 1, 3, 3}, {1, 1, 4, 4, 1},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
-                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
-                        {-1.0, 2.5, 5.0, 1.5}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
-                        {1, 1, 1}, "NXC", "OIX"}));
+                        {1, 1, 1, 3, 3}, {1, 1, 4, 4, 1}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {1, 1, 1}, "NXC", "OIX"}));
 
 class ConvTransposeBackpropFilters
     : public ::testing::TestWithParam<
@@ -5350,10 +5304,20 @@ public:
                 dnnl_graph_test_convtranspose_bwd_params>::GetParam();
 
         impl::engine_t &eng = get_engine();
-        test::vector<float> src = params.src0_data;
-        test::vector<float> diff_dst = params.src1_data;
-        test::vector<float> ref_diff_wei = params.ref_dst_data;
-        test::vector<float> diff_wei(ref_diff_wei.size(), 0.0);
+        std::vector<impl::dim_t> src_dims = params.src_dims;
+        std::vector<impl::dim_t> wei_dims = params.wei_dims;
+        std::vector<impl::dim_t> dst_dims = params.dst_dims;
+        test::vector<float> src(product(src_dims));
+        test::vector<float> diff_dst(product(dst_dims));
+        test::vector<float> case1_out_data(product(wei_dims));
+        test::vector<float> case2_out_data(product(wei_dims));
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(src.begin(), src.end(),
+                [&]() { return f32_distribution(generator); });
+        std::generate(diff_dst.begin(), diff_dst.end(),
+                [&]() { return f32_distribution(generator); });
+
         impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropFilters);
         deconv_op.set_attr<dims>(impl::op_attr::strides, params.strides);
         deconv_op.set_attr<dims>(impl::op_attr::dilations, params.dilations);
@@ -5366,12 +5330,12 @@ public:
         deconv_op.set_attr<std::string>(
                 impl::op_attr::filter_format, params.filter_format);
 
-        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-                0, params.src_dims, impl::data_type::f32);
-        impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
-                1, params.dst_dims, impl::data_type::f32);
-        impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
-                2, params.wei_dims, impl::data_type::f32);
+        impl::logical_tensor_t src_lt
+                = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_dst_lt
+                = utils::logical_tensor_init(1, dst_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_wei_lt
+                = utils::logical_tensor_init(2, wei_dims, impl::data_type::f32);
 
         deconv_op.add_input(src_lt);
         deconv_op.add_input(diff_dst_lt);
@@ -5404,13 +5368,17 @@ public:
 
         impl::tensor_t src_ts(src_lt, &eng, src.data());
         impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-        impl::tensor_t diff_wei_ts(diff_wei_lt, &eng, diff_wei.data());
+        impl::tensor_t diff_wei_ts1(diff_wei_lt, &eng, case1_out_data.data());
+        impl::tensor_t diff_wei_ts2(diff_wei_lt, &eng, case2_out_data.data());
 
         impl::stream_t &strm = get_stream();
-        cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_wei_ts});
+        ASSERT_EQ(
+                run_graph(g, {src_ts, diff_dst_ts}, {diff_wei_ts1}, eng, strm),
+                impl::status::success);
+        cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_wei_ts2});
         strm.wait();
-        for (size_t i = 0; i < diff_wei.size(); ++i) {
-            ASSERT_FLOAT_EQ(diff_wei[i], ref_diff_wei[i]);
+        for (size_t i = 0; i < case2_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
     }
 };
@@ -5422,35 +5390,17 @@ TEST_P(ConvTransposeBackpropFilters, TestConvTransposeBackpropFilters) {
 INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropFilters,
         ::testing::Values(
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
-                        {1, 1, 3, 3}, {1, 1, 4, 4}, {-1.0, 2.5, 5, 1.5},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0.0, 3.0, -2.0, -1.0, 4.0},
-                        {-4.75, 3.0, 6.5, 11.75, 14.5, -2.25, 16.25, -16.5,
-                                2.0},
-                        {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NCX", "OIX"},
+                        {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NCX", "OIX"},
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
-                        {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4}, {-1.0, 2.5, 5, 1.5},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0.0, 3.0, -2.0, -1.0, 4.0},
-                        {-4.75, 3.0, 6.5, 11.75, 14.5, -2.25, 16.25, -16.5,
-                                2.0},
-                        {1, 1, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1, 1}, "NCX",
-                        "OIX"},
+                        {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {1, 1, 1}, "NCX", "OIX"},
                 dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
-                        {3, 3, 1, 1}, {1, 4, 4, 1}, {-1.0, 2.5, 5, 1.5},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0.0, 3.0, -2.0, -1.0, 4.0},
-                        {-4.75, 3.0, 6.5, 11.75, 14.5, -2.25, 16.25, -16.5,
-                                2.0},
-                        {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NXC", "XIO"},
+                        {3, 3, 1, 1}, {1, 4, 4, 1}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NXC", "XIO"},
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
-                        {1, 3, 3, 1, 1}, {1, 1, 4, 4, 1}, {-1.0, 2.5, 5, 1.5},
-                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
-                                -1.0, 0.0, 3.0, -2.0, -1.0, 4.0},
-                        {-4.75, 3.0, 6.5, 11.75, 14.5, -2.25, 16.25, -16.5,
-                                2.0},
-                        {1, 1, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1, 1}, "NXC",
-                        "XIO"}));
+                        {1, 3, 3, 1, 1}, {1, 1, 4, 4, 1}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {1, 1, 1}, "NXC", "XIO"}));
 
 TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     using dims = impl::dnnl_impl::dims;
@@ -7391,8 +7341,6 @@ TEST(Execute, ConvMultiplePostOps) {
 
 struct dnnl_graph_test_convtranspose_add_params {
     std::vector<impl::dim_t> add_src_shape;
-    test::vector<float> add_src_data;
-    test::vector<float> ref_dst;
     bool swap;
     bool with_bias;
 };
@@ -7407,13 +7355,18 @@ public:
         using dims = impl::dnnl_impl::dims;
 
         impl::engine_t &eng = get_engine();
+        std::vector<impl::dim_t> add_dims = params.add_src_shape;
         test::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
         test::vector<float> weight_data {
                 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
         test::vector<float> bias_data = {1.0};
-        test::vector<float> add_src_data = params.add_src_data;
-        test::vector<float> ref_dst_data = params.ref_dst;
-        test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+        test::vector<float> add_src_data(product(add_dims));
+        test::vector<float> case1_out_data(16);
+        test::vector<float> case2_out_data(16);
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(add_src_data.begin(), add_src_data.end(),
+                [&]() { return f32_distribution(generator); });
 
         impl::op_t convtranspose_op(
                 0, impl::op_kind::ConvTranspose, "ConvTranspose");
@@ -7435,8 +7388,8 @@ public:
                 1, {1, 1, 3, 3}, impl::data_type::f32);
         impl::logical_tensor_t bias_lt
                 = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
-        impl::logical_tensor_t add_src_lt = utils::logical_tensor_init(
-                3, params.add_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t add_src_lt
+                = utils::logical_tensor_init(3, add_dims, impl::data_type::f32);
         impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
                 4, {1, 4, 4, 1}, impl::data_type::f32, impl::layout_type::any);
         impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
@@ -7488,18 +7441,26 @@ public:
         if (params.with_bias)
             bias_ts = impl::tensor_t(bias_lt, &eng, bias_data.data());
         impl::tensor_t add_src_ts(add_src_lt, &eng, add_src_data.data());
-        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst_data.data());
+        impl::tensor_t add_dst_ts1(add_dst_lt, &eng, case1_out_data.data());
+        impl::tensor_t add_dst_ts2(add_dst_lt, &eng, case2_out_data.data());
 
         impl::stream_t &strm = get_stream();
-        if (params.with_bias)
+        if (params.with_bias) {
+            ASSERT_EQ(run_graph(g, {src_ts, weight_ts, bias_ts, add_src_ts},
+                              {add_dst_ts1}, eng, strm),
+                    impl::status::success);
             cp.execute(&strm, {src_ts, weight_ts, bias_ts, add_src_ts},
-                    {add_dst_ts});
-        else
-            cp.execute(&strm, {src_ts, weight_ts, add_src_ts}, {add_dst_ts});
+                    {add_dst_ts2});
+        } else {
+            ASSERT_EQ(run_graph(g, {src_ts, weight_ts, add_src_ts},
+                              {add_dst_ts1}, eng, strm),
+                    impl::status::success);
+            cp.execute(&strm, {src_ts, weight_ts, add_src_ts}, {add_dst_ts2});
+        }
         strm.wait();
 
-        for (size_t i = 0; i < dst_data.size(); ++i) {
-            ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
     }
 };
@@ -7512,53 +7473,29 @@ INSTANTIATE_TEST_SUITE_P(TestConvTransposeAddCompile,
         test_convtranspose_add_compile,
         ::testing::Values(
                 // with broadcast add, no swap inputs, without bias
-                dnnl_graph_test_convtranspose_add_params {{1, 1, 1, 1}, {1.0},
-                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
-                                3.5, 6.0, 2.5, 6.0, 2.5},
-                        false, false},
+                dnnl_graph_test_convtranspose_add_params {
+                        {1, 1, 1, 1}, false, false},
                 // with broadcast add, swap inputs, without bias
-                dnnl_graph_test_convtranspose_add_params {{1, 1, 1, 1}, {1.0},
-                        {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
-                                3.5, 6.0, 2.5, 6.0, 2.5},
-                        true, false},
+                dnnl_graph_test_convtranspose_add_params {
+                        {1, 1, 1, 1}, true, false},
                 // no broadcast add (sum), no swap inputs, without bias
-                dnnl_graph_test_convtranspose_add_params {{1, 4, 4, 1},
-                        {3.0, 3.0, 3.0, 3.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0,
-                                2.0, 1.0, 1.0, 1.0, 1.0},
-                        {2.0, 5.5, 2.0, 5.5, 6.0, 1.5, 8.5, 2.5, 1.0, 9.5, 2.5,
-                                4.5, 6.0, 2.5, 6.0, 2.5},
-                        false, false},
+                dnnl_graph_test_convtranspose_add_params {
+                        {1, 4, 4, 1}, false, false},
                 // no broadcast add (sum), swap inputs, without bias
-                dnnl_graph_test_convtranspose_add_params {{1, 4, 4, 1},
-                        {3.0, 3.0, 3.0, 3.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0,
-                                2.0, 1.0, 1.0, 1.0, 1.0},
-                        {2.0, 5.5, 2.0, 5.5, 6.0, 1.5, 8.5, 2.5, 1.0, 9.5, 2.5,
-                                4.5, 6.0, 2.5, 6.0, 2.5},
-                        true, false},
+                dnnl_graph_test_convtranspose_add_params {
+                        {1, 4, 4, 1}, true, false},
                 // with broadcast add, no swap inputs, with bias
-                dnnl_graph_test_convtranspose_add_params {{1, 1, 1, 1}, {1.0},
-                        {1.0, 4.5, 1.0, 4.5, 7.0, 2.5, 9.5, 3.5, 1.0, 9.5, 2.5,
-                                4.5, 7.0, 3.5, 7.0, 3.5},
-                        false, true},
+                dnnl_graph_test_convtranspose_add_params {
+                        {1, 1, 1, 1}, false, true},
                 // with broadcast add, swap inputs, with bias
-                dnnl_graph_test_convtranspose_add_params {{1, 1, 1, 1}, {1.0},
-                        {1.0, 4.5, 1.0, 4.5, 7.0, 2.5, 9.5, 3.5, 1.0, 9.5, 2.5,
-                                4.5, 7.0, 3.5, 7.0, 3.5},
-                        true, true},
+                dnnl_graph_test_convtranspose_add_params {
+                        {1, 1, 1, 1}, true, true},
                 // no broadcast add (sum), no swap inputs, with bias
-                dnnl_graph_test_convtranspose_add_params {{1, 4, 4, 1},
-                        {3.0, 3.0, 3.0, 3.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0,
-                                2.0, 1.0, 1.0, 1.0, 1.0},
-                        {3.0, 6.5, 3.0, 6.5, 7.0, 2.5, 9.5, 3.5, 2.0, 10.5, 3.5,
-                                5.5, 7.0, 3.5, 7.0, 3.5},
-                        false, true},
+                dnnl_graph_test_convtranspose_add_params {
+                        {1, 4, 4, 1}, false, true},
                 // no broadcast add (sum), swap inputs, with bias
-                dnnl_graph_test_convtranspose_add_params {{1, 4, 4, 1},
-                        {3.0, 3.0, 3.0, 3.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0,
-                                2.0, 1.0, 1.0, 1.0, 1.0},
-                        {3.0, 6.5, 3.0, 6.5, 7.0, 2.5, 9.5, 3.5, 2.0, 10.5, 3.5,
-                                5.5, 7.0, 3.5, 7.0, 3.5},
-                        true, true}));
+                dnnl_graph_test_convtranspose_add_params {
+                        {1, 4, 4, 1}, true, true}));
 
 TEST(operator_kernel, convtranspose_relu) {
     using dims = impl::dnnl_impl::dims;
@@ -10742,120 +10679,100 @@ TEST(Execute, DequantizePerChannelSymmetric) {
     q_dq_out.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out}); \
     q_dq_out.set_attr<int64_t>(impl::op_attr::axis, 0);
 
-struct dnnl_graph_test_reduce_params {
-    test::vector<float> ref_dst_data;
-    impl::op_kind_t op_kind;
-};
+TEST(Compile, TestReduce) {
+    const auto apply_keep_dims_attr = [](const std::vector<int64_t> &shape,
+                                              const std::vector<int64_t> &axes,
+                                              const bool keep_dims) {
+        if (keep_dims) return shape;
+        std::vector<size_t> excluded_axes;
+        for (const auto axis : axes) {
+            excluded_axes.push_back(static_cast<size_t>(
+                    (axis < 0) ? shape.size() + axis : axis));
+        }
+        std::vector<int64_t> new_shape;
+        for (size_t i = 0; i < shape.size(); ++i) {
+            const auto excluded
+                    = std::find(excluded_axes.begin(), excluded_axes.end(), i)
+                    != excluded_axes.end();
+            if (!excluded) new_shape.push_back(shape[i]);
+        }
+        return new_shape;
+    };
 
-class test_reduce_compile
-    : public ::testing::TestWithParam<dnnl_graph_test_reduce_params> {
-public:
-    void TestReduce() {
-        const auto apply_keep_dims_attr
-                = [](const std::vector<int64_t> &shape,
-                          const std::vector<int64_t> &axes,
-                          const bool keep_dims) {
-                      if (keep_dims) return shape;
-                      std::vector<size_t> excluded_axes;
-                      for (const auto axis : axes) {
-                          excluded_axes.push_back(static_cast<size_t>(
-                                  (axis < 0) ? shape.size() + axis : axis));
-                      }
-                      std::vector<int64_t> new_shape;
-                      for (size_t i = 0; i < shape.size(); ++i) {
-                          const auto excluded = std::find(excluded_axes.begin(),
-                                                        excluded_axes.end(), i)
-                                  != excluded_axes.end();
-                          if (!excluded) new_shape.push_back(shape[i]);
-                      }
-                      return new_shape;
-                  };
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
 
-        const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_reduce_params>::GetParam();
+    std::vector<int64_t> reduce_src_shape {2, 2, 2, 2};
+    std::vector<int64_t> reduce_dst_shape {2, 1, 2, 1};
+    std::vector<bool> keep_dims_vals {true, false};
+    std::vector<int64_t> axes {-3, 3};
 
-        impl::engine_t &engine = get_engine();
-        impl::stream_t &strm = get_stream();
+    test::vector<float> src_data(product(reduce_src_shape));
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return f32_distribution(generator); });
 
-        std::vector<int64_t> reduce_src_shape {2, 2, 2, 2};
-        std::vector<int64_t> reduce_dst_shape {2, 1, 2, 1};
-        std::vector<bool> keep_dims_vals {true, false};
-        std::vector<int64_t> axes {-3, 3};
-        test::vector<float> src_data = {-1.75, -1.5, -1.25, -1.0, -0.75, -0.5,
-                -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0};
+    const std::vector<impl::op_kind_t> op_infos {impl::op_kind::ReduceL1,
+            impl::op_kind::ReduceL2, impl::op_kind::ReduceMax,
+            impl::op_kind::ReduceMean, impl::op_kind::ReduceMin,
+            impl::op_kind::ReduceProd, impl::op_kind::ReduceSum};
 
-        for (auto keep_dims : keep_dims_vals) {
-            auto new_reduce_dst_shape
-                    = apply_keep_dims_attr(reduce_dst_shape, axes, keep_dims);
+    for_(auto &op_kind : op_infos)
+    for (auto keep_dims : keep_dims_vals) {
+        auto new_reduce_dst_shape
+                = apply_keep_dims_attr(reduce_dst_shape, axes, keep_dims);
 
-            impl::op_t reduce {0, params.op_kind, "reduce"};
-            reduce.set_attr<std::vector<int64_t>>(impl::op_attr::axes, axes);
-            reduce.set_attr<bool>(impl::op_attr::keep_dims, keep_dims);
+        impl::op_t reduce {0, op_kind, "reduce"};
+        reduce.set_attr<std::vector<int64_t>>(impl::op_attr::axes, axes);
+        reduce.set_attr<bool>(impl::op_attr::keep_dims, keep_dims);
 
-            impl::logical_tensor_t reduce_src = utils::logical_tensor_init(
-                    0, reduce_src_shape, impl::data_type::f32);
-            impl::logical_tensor_t reduce_dst = utils::logical_tensor_init(
-                    1, new_reduce_dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t reduce_src = utils::logical_tensor_init(
+                0, reduce_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t reduce_dst = utils::logical_tensor_init(
+                1, new_reduce_dst_shape, impl::data_type::f32);
 
-            reduce.add_input(reduce_src);
-            reduce.add_output(reduce_dst);
+        reduce.add_input(reduce_src);
+        reduce.add_output(reduce_dst);
 
-            impl::graph_t g(engine.kind());
-            g.add_op(&reduce);
-            g.build_graph();
+        impl::graph_t g(engine.kind());
+        g.add_op(&reduce);
+        g.build_graph();
 
-            impl::pass::pass_base_ptr apass = get_pass("reduce_pass");
-            apass->run(g);
-            ASSERT_EQ(g.get_num_partitions(), 1);
-            auto part = g.get_partitions()[0];
+        impl::pass::pass_base_ptr apass = get_pass("reduce_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
 
-            impl::partition_t p;
-            p.init(part);
+        impl::partition_t p;
+        p.init(part);
 
-            impl::compiled_partition_t cp(p);
+        impl::compiled_partition_t cp(p);
 
-            std::vector<const impl::logical_tensor_t *> lt_ins {&reduce_src};
-            std::vector<const impl::logical_tensor_t *> lt_outs {&reduce_dst};
+        std::vector<const impl::logical_tensor_t *> lt_ins {&reduce_src};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&reduce_dst};
 
-            p.compile(&cp, lt_ins, lt_outs, &engine);
+        p.compile(&cp, lt_ins, lt_outs, &engine);
 
-            test::vector<float> dst_data(product(new_reduce_dst_shape));
-            impl::tensor_t reduce_src_ts(reduce_src, &engine, src_data.data());
-            impl::tensor_t reduce_dst_ts(reduce_dst, &engine, dst_data.data());
+        test::vector<float> case1_out_data(product(new_reduce_dst_shape));
+        test::vector<float> case2_out_data(product(new_reduce_dst_shape));
+        impl::tensor_t reduce_src_ts(reduce_src, &engine, src_data.data());
+        impl::tensor_t reduce_dst_ts1(
+                reduce_dst, &engine, case1_out_data.data());
+        impl::tensor_t reduce_dst_ts2(
+                reduce_dst, &engine, case2_out_data.data());
 
-            cp.execute(&strm, {reduce_src_ts}, {reduce_dst_ts});
-            strm.wait();
+        ASSERT_EQ(run_graph(g, {reduce_src_ts}, {reduce_dst_ts1}, engine, strm),
+                impl::status::success);
 
-            for (size_t i = 0; i < dst_data.size(); ++i) {
-                ASSERT_FLOAT_EQ(dst_data[i], params.ref_dst_data[i]);
-            }
+        cp.execute(&strm, {reduce_src_ts}, {reduce_dst_ts2});
+        strm.wait();
+
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
     }
-};
-
-TEST_P(test_reduce_compile, TestReduceCompile) {
-    TestReduce();
 }
-
-INSTANTIATE_TEST_SUITE_P(TestReduceCompile, test_reduce_compile,
-        ::testing::Values(
-                dnnl_graph_test_reduce_params {
-                        {4.5f, 2.5f, 3.5f, 5.5f}, impl::op_kind::ReduceL1},
-                dnnl_graph_test_reduce_params {
-                        {2.47487378f, 1.62018514f, 2.03100967f, 2.93683505f},
-                        impl::op_kind::ReduceL2},
-                dnnl_graph_test_reduce_params {
-                        {-0.5f, 0.0f, 1.5f, 2.0f}, impl::op_kind::ReduceMax},
-                dnnl_graph_test_reduce_params {
-                        {-1.125f, -0.625f, 0.875f, 1.375f},
-                        impl::op_kind::ReduceMean},
-                dnnl_graph_test_reduce_params {{-1.75f, -1.25f, 0.25f, 0.75f},
-                        impl::op_kind::ReduceMin},
-                dnnl_graph_test_reduce_params {
-                        {0.984375f, 0.0f, 0.234375f, 2.625f},
-                        impl::op_kind::ReduceProd},
-                dnnl_graph_test_reduce_params {
-                        {-4.5f, -2.5f, 3.5f, 5.5f}, impl::op_kind::ReduceSum}));
 
 TEST(ExecuteSubgraphFp32, ReduceAdd) {
     impl::engine_t &engine = get_engine();
@@ -17435,7 +17352,6 @@ struct dnnl_graph_test_eltwise_binary_params {
     impl::op_kind_t eltwise_kind;
     impl::op_kind_t binary_kind;
     std::vector<impl::dim_t> binary_src_shape;
-    test::vector<float> binary_src_data;
     bool swap;
 };
 
@@ -17447,8 +17363,13 @@ public:
                 dnnl_graph_test_eltwise_binary_params>::GetParam();
         impl::engine_t &eng = get_engine();
 
+        std::vector<impl::dim_t> binary_src_shape = params.binary_src_shape;
         test::vector<float> src {-2.0, -1.5, 1.0, 0.5};
-        test::vector<float> binary_src = params.binary_src_data;
+        test::vector<float> binary_src(product(binary_src_shape));
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(binary_src.begin(), binary_src.end(),
+                [&]() { return f32_distribution(generator); });
         test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
         impl::op_t eltwise_op(0, params.eltwise_kind, "elt");
@@ -17465,7 +17386,7 @@ public:
         impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
                 1, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
         impl::logical_tensor_t binary_src_lt = utils::logical_tensor_init(
-                2, params.binary_src_shape, impl::data_type::f32);
+                2, binary_src_shape, impl::data_type::f32);
         impl::logical_tensor_t binary_dst_lt = utils::logical_tensor_init(
                 3, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
 
@@ -17528,41 +17449,35 @@ TEST_P(EltwiseBinary, TestEltwiseBinary) {
 INSTANTIATE_TEST_SUITE_P(Execute, EltwiseBinary,
         ::testing::Values(
                 // with broadcast add and no swap inputs
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
-                        impl::op_kind::Add, {1}, {2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {
+                        impl::op_kind::ReLU, impl::op_kind::Add, {1}, false},
                 // with broadcast add and swap inputs
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
-                        impl::op_kind::Add, {1}, {2.0}, true},
+                dnnl_graph_test_eltwise_binary_params {
+                        impl::op_kind::ReLU, impl::op_kind::Add, {1}, true},
                 // no broadcast add and no swap inputs
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
-                        impl::op_kind::Add, {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0},
-                        false},
+                        impl::op_kind::Add, {1, 1, 2, 2}, false},
                 // no broadcast add and swap inputs
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
-                        impl::op_kind::Add, {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0},
-                        true},
+                        impl::op_kind::Add, {1, 1, 2, 2}, true},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Clamp,
-                        impl::op_kind::Multiply, {1}, {2.0}, false},
+                        impl::op_kind::Multiply, {1}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Round,
-                        impl::op_kind::Maximum, {1, 1, 2, 2},
-                        {2.0, 2.0, 2.0, 2.0}, false},
+                        impl::op_kind::Maximum, {1, 1, 2, 2}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Sigmoid,
-                        impl::op_kind::Divide, {1}, {2.0}, false},
+                        impl::op_kind::Divide, {1}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::SoftPlus,
-                        impl::op_kind::Minimum, {1, 1, 2, 2},
-                        {2.0, 2.0, 2.0, 2.0}, false},
+                        impl::op_kind::Minimum, {1, 1, 2, 2}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Exp,
-                        impl::op_kind::Minimum, {1, 1, 2, 2},
-                        {2.0, 2.0, 2.0, 2.0}, false},
+                        impl::op_kind::Minimum, {1, 1, 2, 2}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Elu,
-                        impl::op_kind::Subtract, {1, 1, 2, 2},
-                        {2.0, 2.0, 2.0, 2.0}, false},
+                        impl::op_kind::Subtract, {1, 1, 2, 2}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Sqrt,
-                        impl::op_kind::Minimum, {1}, {2.0}, false},
+                        impl::op_kind::Minimum, {1}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::HardSwish,
-                        impl::op_kind::Minimum, {1}, {2.0}, false},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Tanh,
-                        impl::op_kind::Add, {1}, {2.0}, true}));
+                        impl::op_kind::Minimum, {1}, false},
+                dnnl_graph_test_eltwise_binary_params {
+                        impl::op_kind::Tanh, impl::op_kind::Add, {1}, true}));
 
 TEST(Execute, Eltwise3BinaryPostops) {
     impl::engine_t &eng = get_engine();
@@ -23610,8 +23525,6 @@ TEST(Execute, Int8ReorderAdd) {
 
 struct dnnl_graph_test_prelu_params {
     dnnl::graph::impl::dims wei_dims;
-    test::vector<float> wei;
-    test::vector<float> ref_dst;
     std::string data_format;
     bool per_channel_broadcast;
 };
@@ -23629,16 +23542,21 @@ public:
         op.set_attr<bool>(impl::op_attr::per_channel_broadcast,
                 params.per_channel_broadcast);
 
-        test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -1.0, 1.0};
-        test::vector<float> wei = params.wei;
-        test::vector<float> dst(src.size(), 0.0);
-
         dnnl::graph::impl::dims dims {1, 2, 2, 2};
+        test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -1.0, 1.0};
+        std::vector<impl::dim_t> wei_dims = params.wei_dims;
+        test::vector<float> wei(product(wei_dims));
+        test::vector<float> case1_out_data(product(dims));
+        test::vector<float> case2_out_data(product(dims));
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(wei.begin(), wei.end(),
+                [&]() { return f32_distribution(generator); });
 
         impl::logical_tensor_t src_lt
                 = utils::logical_tensor_init(0, dims, impl::data_type::f32);
-        impl::logical_tensor_t wei_lt = utils::logical_tensor_init(
-                1, params.wei_dims, impl::data_type::f32);
+        impl::logical_tensor_t wei_lt
+                = utils::logical_tensor_init(1, wei_dims, impl::data_type::f32);
         impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
                 2, dims, impl::data_type::f32, impl::layout_type::any);
 
@@ -23672,15 +23590,18 @@ public:
 
         impl::tensor_t src_ts(src_lt, &eng, src.data());
         impl::tensor_t wei_ts(wei_lt, &eng, wei.data());
-        impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+        impl::tensor_t dst_ts1(dst_lt, &eng, case1_out_data.data());
+        impl::tensor_t dst_ts2(dst_lt, &eng, case2_out_data.data());
 
         impl::stream_t &strm = get_stream();
 
-        cp.execute(&strm, {src_ts, wei_ts}, {dst_ts});
+        ASSERT_EQ(run_graph(g, {src_ts, wei_ts}, {dst_ts1}, eng, strm),
+                impl::status::success);
+        cp.execute(&strm, {src_ts, wei_ts}, {dst_ts2});
         strm.wait();
 
         for (size_t i = 0; i < src.size(); ++i) {
-            ASSERT_FLOAT_EQ(dst[i], params.ref_dst[i]);
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
         }
     }
 };
@@ -23692,49 +23613,25 @@ TEST_P(Prelu, TestPrelu) {
 INSTANTIATE_TEST_SUITE_P(Execute, Prelu,
         ::testing::Values(
                 // no broadcast
-                dnnl_graph_test_prelu_params {{1, 2, 2, 2},
-                        {2.0, 2.0, 2.0, 0.0, 0.0, 1.0, 1.0, 1.0},
-                        {-4.0, -3.0, -2.0, 0.0, 0.0, 3.5, -1.0, 1.0}, "NXC",
-                        false},
+                dnnl_graph_test_prelu_params {{1, 2, 2, 2}, "NXC", false},
                 // channel-shared broadcast
-                dnnl_graph_test_prelu_params {{1, 1, 1, 1}, {2.0},
-                        {-4.0, -3.0, -2.0, -1.0, 0.0, 3.5, -2.0, 1.0}, "NXC",
-                        false},
+                dnnl_graph_test_prelu_params {{1, 1, 1, 1}, "NXC", false},
                 // shared-axes broadcast
-                dnnl_graph_test_prelu_params {{1, 2, 2, 1},
-                        {2.0, 1.0, 1.0, 2.0},
-                        {-4.0, -3.0, -1.0, -0.5, 0.0, 3.5, -2.0, 1.0}, "NCX",
-                        false},
+                dnnl_graph_test_prelu_params {{1, 2, 2, 1}, "NCX", false},
                 // channel-wise broadcast, NCX
-                dnnl_graph_test_prelu_params {{1, 2, 1, 1}, {1.0, 0.0},
-                        {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, 0.0, 1.0}, "NCX",
-                        true},
+                dnnl_graph_test_prelu_params {{1, 2, 1, 1}, "NCX", true},
                 // channel-wise broadcast, NXC
-                dnnl_graph_test_prelu_params {{1, 1, 1, 2}, {1.0, 0.0},
-                        {-2.0, 0.0, -1.0, 0.0, 0.0, 3.5, -1.0, 1.0}, "NXC",
-                        true},
+                dnnl_graph_test_prelu_params {{1, 1, 1, 2}, "NXC", true},
                 // 1D weights broadcast, NXC
-                dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
-                        {-2.0, -3.0, -1.0, -1.0, 0.0, 3.5, -1.0, 1.0}, "NXC",
-                        true},
+                dnnl_graph_test_prelu_params {{2}, "NXC", true},
                 // 1d weights, no channel-wise broadcast, NCX
-                dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
-                        {-2.0, -3.0, -1.0, -1.0, 0.0, 3.5, -1.0, 1.0}, "NCX",
-                        false},
+                dnnl_graph_test_prelu_params {{2}, "NCX", false},
                 // 1d weights, channel-wise broadcast, NCX
-                dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
-                        {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -2.0, 1.0}, "NCX",
-                        true}));
+                dnnl_graph_test_prelu_params {{2}, "NCX", true}));
 
 struct dnnl_graph_test_prelu_bwd_params {
     dnnl::graph::impl::dims data_dims;
     dnnl::graph::impl::dims wei_dims;
-    dnnl::graph::impl::dims diff_wei_dims;
-    test::vector<float> src;
-    test::vector<float> wei;
-    test::vector<float> diff_dst;
-    test::vector<float> ref_diff_src;
-    test::vector<float> ref_diff_wei;
     std::string data_format;
 };
 
@@ -23747,32 +23644,38 @@ public:
         impl::engine_t &eng = get_engine();
         impl::stream_t &strm = get_stream();
 
-        test::vector<float> src = params.src;
-        test::vector<float> wei = params.wei;
-        test::vector<float> diff_dst = params.diff_dst;
-        test::vector<float> diff_src(src.size(), 0.f);
-
-        size_t diff_wei_size = 1;
-        for (auto dim : params.diff_wei_dims) {
-            diff_wei_size *= dim;
-        }
-        test::vector<float> diff_wei(diff_wei_size, 0.f);
+        std::vector<impl::dim_t> data_dims = params.data_dims;
+        std::vector<impl::dim_t> wei_dims = params.wei_dims;
+        test::vector<float> src(product(data_dims));
+        test::vector<float> wei(product(wei_dims));
+        test::vector<float> diff_dst(product(data_dims));
+        test::vector<float> diff_src1(product(data_dims));
+        test::vector<float> diff_src2(product(data_dims));
+        test::vector<float> diff_wei1(product(wei_dims));
+        test::vector<float> diff_wei2(product(wei_dims));
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(src.begin(), src.end(),
+                [&]() { return f32_distribution(generator); });
+        std::generate(wei.begin(), wei.end(),
+                [&]() { return f32_distribution(generator); });
+        std::generate(diff_dst.begin(), diff_dst.end(),
+                [&]() { return f32_distribution(generator); });
 
         impl::op_t prelu_op(impl::op_kind::PReLUBackprop, "prelu_bwd");
         prelu_op.set_attr<std::string>(
                 impl::op_attr::data_format, params.data_format);
 
         impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-                0, params.data_dims, impl::data_type::f32);
-        impl::logical_tensor_t wei_lt = utils::logical_tensor_init(
-                1, params.wei_dims, impl::data_type::f32);
+                0, data_dims, impl::data_type::f32);
+        impl::logical_tensor_t wei_lt
+                = utils::logical_tensor_init(1, wei_dims, impl::data_type::f32);
         impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
-                2, params.data_dims, impl::data_type::f32);
-        impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(3,
-                params.data_dims, impl::data_type::f32, impl::layout_type::any);
-        impl::logical_tensor_t diff_wei_lt
-                = utils::logical_tensor_init(4, params.diff_wei_dims,
-                        impl::data_type::f32, impl::layout_type::any);
+                2, data_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+                3, data_dims, impl::data_type::f32, impl::layout_type::any);
+        impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
+                4, wei_dims, impl::data_type::f32, impl::layout_type::any);
 
         prelu_op.add_input(src_lt);
         prelu_op.add_input(wei_lt);
@@ -23804,19 +23707,25 @@ public:
         impl::tensor_t src_ts(src_lt, &eng, src.data());
         impl::tensor_t wei_ts(wei_lt, &eng, wei.data());
         impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-        impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
-        impl::tensor_t diff_wei_ts(diff_wei_lt, &eng, diff_wei.data());
+        impl::tensor_t diff_src_ts1(diff_src_lt, &eng, diff_src1.data());
+        impl::tensor_t diff_wei_ts1(diff_wei_lt, &eng, diff_wei1.data());
+        impl::tensor_t diff_src_ts2(diff_src_lt, &eng, diff_src2.data());
+        impl::tensor_t diff_wei_ts2(diff_wei_lt, &eng, diff_wei2.data());
+
+        ASSERT_EQ(run_graph(g, {src_ts, wei_ts, diff_dst_ts},
+                          {diff_src_ts1, diff_wei_ts1}, eng, strm),
+                impl::status::success);
 
         ASSERT_EQ(cp.execute(&strm, {src_ts, wei_ts, diff_dst_ts},
-                          {diff_src_ts, diff_wei_ts}),
+                          {diff_src_ts2, diff_wei_ts2}),
                 impl::status::success);
         strm.wait();
 
-        for (size_t i = 0; i < params.ref_diff_src.size(); ++i) {
-            ASSERT_FLOAT_EQ(diff_src[i], params.ref_diff_src[i]);
+        for (size_t i = 0; i < diff_src1.size(); ++i) {
+            ASSERT_FLOAT_EQ(diff_src1[i], diff_src2[i]);
         }
-        for (size_t i = 0; i < params.ref_diff_wei.size(); ++i) {
-            ASSERT_FLOAT_EQ(diff_wei[i], params.ref_diff_wei[i]);
+        for (size_t i = 0; i < diff_wei1.size(); ++i) {
+            ASSERT_FLOAT_EQ(diff_wei1[i], diff_wei2[i]);
         }
     }
 };
@@ -23828,42 +23737,20 @@ TEST_P(PreluBackprop, TestPreluBackprop) {
 INSTANTIATE_TEST_SUITE_P(Execute, PreluBackprop,
         ::testing::Values(
                 // NCX, 1d slope, per tensor broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1}, {1},
-                        {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0}, {-4.0},
-                        {-0.0625, 0.125, 0.0, 0.0625, -0.125, 0.0, 0.0625,
-                                0.125},
-                        {0.25, -0.5, -0.0, 0.0625, 0.5, 0.0, 0.0625, 0.125},
-                        {0.125}, "NCX"},
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1}, "NCX"},
                 // NCX, 1d slope, per channel broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 1, 1}, {2}, {2},
-                        {-0.0, 2.0}, {-4.0, 2.0}, {-0.0625, 0.125},
-                        {0.25, 0.125}, {0.0, 0.0}, "NCX"},
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 1, 1}, {2}, "NCX"},
                 // NCX, tensorflow case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {2, 2, 2},
-                        {2, 2, 2}, {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0},
-                        {-4.0, 2.0, 1.0, 0.5, -0.25, 8.0, 4.0, 2.0},
-                        {-0.0625, 0.125, 0.0, 0.0625, -0.125, 0.0, 0.0625,
-                                0.125},
-                        {0.25, 0.25, 0.0, 0.0625, 0.03125, 0.0, 0.0625, 0.125},
-                        {0.0, 0.0, 0.0, 0.0, 0.125, 0.0, 0.0, 0.0}, "NCX"},
+                dnnl_graph_test_prelu_bwd_params {
+                        {1, 2, 2, 2}, {2, 2, 2}, "NCX"},
                 // NXC, 1d slope, per tensor broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1}, {1},
-                        {-0.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 2.0}, {-4.0},
-                        {-0.0625, -0.125, 0.125, 0.0, 0.0, 0.0625, 0.0625,
-                                0.125},
-                        {0.25, 0.5, -0.5, 0.0, -0.0, 0.0625, 0.0625, 0.125},
-                        {0.125}, "NXC"},
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1}, "NXC"},
                 // NXC, 1d slope, per channel broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 1, 1, 2}, {2}, {2},
-                        {-0.0, -1.0}, {-4.0, 1.0}, {-0.0625, -0.125},
-                        {0.25, -0.125}, {0.0, 0.125}, "NXC"},
+                dnnl_graph_test_prelu_bwd_params {{1, 1, 1, 2}, {2}, "NXC"},
                 // 2d input, per tensor broadcast
-                dnnl_graph_test_prelu_bwd_params {{1, 2}, {1}, {1}, {-0.0, 0.0},
-                        {-4.0}, {-0.0625, 0.125}, {0.25, -0.5}, {0.0}, "NCX"},
+                dnnl_graph_test_prelu_bwd_params {{1, 2}, {1}, "NCX"},
                 // 2d input, per channel broadcast
-                dnnl_graph_test_prelu_bwd_params {{1, 2}, {2}, {2}, {-0.0, 0.0},
-                        {-4.0, 2.0}, {-0.0625, 0.125}, {0.25, 0.25}, {0.0, 0.0},
-                        "NCX"}));
+                dnnl_graph_test_prelu_bwd_params {{1, 2}, {2}, "NCX"}));
 
 TEST(Execute, DynamicQuantizeS32ZpsPerTensor) {
     // default engine kind is cpu.
