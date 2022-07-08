@@ -61,20 +61,23 @@
 #endif
 
 #if defined(IS_MAX)
-#define SUB_GROUP_REDUCE(x) sub_group_reduce_max(x)
+#define SUB_GROUP_REDUCE(x, c_block) sub_group_reduce_max(x)
 #elif defined(IS_MIN)
-#define SUB_GROUP_REDUCE(x) sub_group_reduce_min(x)
+#define SUB_GROUP_REDUCE(x, c_block) sub_group_reduce_min(x)
 #elif defined(IS_MUL)
-#define SUB_GROUP_REDUCE(x) \
+#define SUB_GROUP_REDUCE(x, c_block) \
     ({ \
+        int cid_end \
+                = (INITIAL_C % SUB_GROUP_SIZE == 0 ? SUB_GROUP_SIZE \
+                                                   : (INITIAL_C - c_block)); \
         float sub_group_acc = 1.0; \
-        for (int wi_id = 0; wi_id < SUB_GROUP_SIZE; wi_id++) { \
-            sub_group_acc *= intel_sub_group_shuffle(c_acc, wi_id); \
+        for (int channel_id = 0; channel_id < cid_end; channel_id++) { \
+            sub_group_acc *= intel_sub_group_shuffle(c_acc, channel_id); \
         } \
         sub_group_acc; \
     })
 #else
-#define SUB_GROUP_REDUCE(x) sub_group_reduce_add(x)
+#define SUB_GROUP_REDUCE(x, c_block) sub_group_reduce_add(x)
 #endif
 
 #if INITIAL_C_CHUNKS == 1
@@ -172,7 +175,10 @@ __kernel void gen9_initial_reduce(
         }
     }
 #endif
-    if (c >= INITIAL_C || n_start >= INITIAL_N) { return; }
+    int channel_id = (INITIAL_C % SUB_GROUP_SIZE == 0
+                    ? c
+                    : (c + get_sub_group_local_id()));
+    if (channel_id >= INITIAL_C || n_start >= INITIAL_N) { return; }
 
     VECT_FLOAT_T vector_acc = INIT_ACC;
     for (int n = n_start; n < n_end; n++) {
@@ -233,7 +239,7 @@ __kernel void gen9_initial_reduce(
 #endif // INITIAL_C_CHUNKS == 2
     const int dst_off
             = INITIAL_DST_OFFSET(n_chunk_idx, c_block_idx, hwd_chunk_idx);
-    c_acc = SUB_GROUP_REDUCE(c_acc);
+    c_acc = SUB_GROUP_REDUCE(c_acc, c);
     if (local_id == 0) { WRITE_INITIAL_RESULT(dst, dst_off, c_acc); }
 #else // IS_C_REDUCED
     const int dst_c = c + local_id;

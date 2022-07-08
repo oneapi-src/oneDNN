@@ -160,12 +160,13 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     conf.sub_group_size = 16;
-    if (conf.src_dims[1] % conf.sub_group_size != 0) {
+    const auto &src_padded_dims = src_mdw.padded_dims();
+    if (src_padded_dims[1] % conf.sub_group_size != 0) {
         return status_t::dnnl_unimplemented;
     }
-    conf.initial_c_chunks
-            = std::min(static_cast<int>(conf.src_dims[1]) / conf.sub_group_size,
-                    conf.c_block_size / conf.sub_group_size);
+    conf.initial_c_chunks = std::min(
+            static_cast<int>(src_padded_dims[1]) / conf.sub_group_size,
+            conf.c_block_size / conf.sub_group_size);
 
     std::tie(conf.initial_n_chunk_size, conf.initial_n_chunks)
             = get_initial_n_split(conf.src_dims[0], conf.is_reduction_dim[0]);
@@ -225,10 +226,10 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     conf.final_c_dim = conf.is_reduction_dim[1]
-            ? conf.src_dims[1] / (conf.sub_group_size * conf.initial_c_chunks)
+            ? src_padded_dims[1] / (conf.sub_group_size * conf.initial_c_chunks)
             : conf.src_dims[1];
     conf.final_c_chunk_size = conf.is_reduction_dim[1]
-            ? conf.src_dims[1] / (conf.sub_group_size * conf.initial_c_chunks)
+            ? src_padded_dims[1] / (conf.sub_group_size * conf.initial_c_chunks)
             : 1;
 
     conf.final_n_dim = conf.is_reduction_dim[0] ? conf.initial_n_chunks
