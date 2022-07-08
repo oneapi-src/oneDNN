@@ -718,6 +718,74 @@ TEST(PatternMatcherV2, Alternation) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
+TEST(PatternMatcherV2, AlternationWithConsumer) {
+    /*
+    pattern:
+          matmul
+            |
+(softmax + relu) | (relu + softmax)
+            |
+          matmul
+    graph:
+         matmul
+           |
+         softmax
+           |
+          relu
+           |
+         matmul
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto pmatmul = graphp->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto alter1 = std::make_shared<pb_graph_t>("alter1");
+    auto psoftmax1 = alter1->append_op(impl::op_kind::SoftMax, "psoftmax1");
+    auto prelu1 = alter1->append_op(
+            impl::op_kind::ReLU, {in_edge(0, psoftmax1, 0)}, "prelu1");
+    alter1->create_input_port(0, psoftmax1, 0);
+    alter1->create_output_port(0, prelu1, 0);
+    auto alter2 = std::make_shared<pb_graph_t>("alter2");
+    auto prelu2 = alter2->append_op(impl::op_kind::ReLU, "prelu2");
+    auto psoftmax2 = alter2->append_op(
+            impl::op_kind::SoftMax, {in_edge(0, prelu2, 0)}, "psoftmax2");
+    alter2->create_input_port(0, prelu2, 0);
+    alter2->create_output_port(0, psoftmax2, 0);
+    auto palter = graphp->append_alternation(
+            {alter1, alter2}, {in_edge(0, pmatmul, 0)}, "palter");
+    auto pmatmul2 = graphp->append_op(
+            impl::op_kind::MatMul, {in_edge(0, palter, 0)}, "pmatmul2");
+    UNUSED(pmatmul2);
+
+    graph_t agraph;
+    op_t matmul0 {0, MatMul, "matmul0"};
+    op_t softmax {1, SoftMax, "softmax"};
+    op_t relu {2, ReLU, "relu"};
+    op_t matmul1 {3, MatMul, "matmul1"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    matmul0.add_input(lt_vec[0]);
+    matmul0.add_input(lt_vec[1]);
+    matmul0.add_output(lt_vec[2]);
+    softmax.add_input(lt_vec[2]);
+    softmax.add_output(lt_vec[3]);
+    relu.add_input(lt_vec[3]);
+    relu.add_output(lt_vec[4]);
+    matmul1.add_input(lt_vec[4]);
+    matmul1.add_input(lt_vec[5]);
+    matmul1.add_output(lt_vec[6]);
+
+    ASSERT_EQ(agraph.add_op(&matmul0), status::success);
+    ASSERT_EQ(agraph.add_op(&softmax), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul1), status::success);
+
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    // should match the 1st rep_unit
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    EXPECT_EQ(fusion_ops.size(), 4);
+}
+
 //
 // Repetition node wraps body that gets repeated a
 // number of times specified by a range and constructed with

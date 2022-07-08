@@ -612,7 +612,19 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
         if (match_graph(temp_bind, &local_ctx, temp_op_map)) {
             matched_op_map = temp_op_map;
             fill_parent_io_map(&local_ctx, bind_arg);
-            return true;
+            if (bind_arg.bind_kind != BIND_OUT) {
+                // alternation is restricted to have only 1 out port
+                if (local_ctx.out_port_map.size() != 1) return false;
+                op_t *current_op = local_ctx.out_port_map[0].first;
+                return match_node_outputs(
+                        current_op, bind_arg.bind_node, ctx, matched_op_map);
+            } else {
+                // alternation is restricted to have only 1 in port
+                if (local_ctx.in_port_map.size() != 1) return false;
+                op_t *current_op = local_ctx.in_port_map[0].first;
+                return match_node_inputs(
+                        current_op, bind_arg.bind_node, ctx, matched_op_map);
+            }
         }
     }
     return false;
