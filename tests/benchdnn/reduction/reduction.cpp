@@ -47,8 +47,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &rd, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &rd,
+            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
 }
 
 bool is_norm_alg(const alg_t alg) {
