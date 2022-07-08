@@ -24,51 +24,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-int get_nhwc_ic_block(int ic, int max_vect_size = 8) {
-    const int nblocks = ic / (max_vect_size * 16);
-    return nblocks < 2 || (ic / nblocks) % 16 ? ic : ic / nblocks;
-}
-int get_nhwc_vect_size(int ic, int simd = 16) {
-    int vect_size = 8;
-    while (true) {
-        if (ic / (vect_size * simd)) return vect_size;
-        vect_size /= 2;
-    }
-    return 1;
-}
-
-int get_nhwc_sp_block_size(
-        int sp, int ic_dim, int eu_count, int threads_per_eu, int simd = 16) {
-
-    float efficiency_eus = 0.0f;
-    float efficiency_threads = 0.0f;
-    int block_size_eus = sp;
-    int block_size_threads = sp;
-    int curr_block_size = sp;
-
-    while (true) {
-        int nblocks = utils::div_up(sp, curr_block_size);
-        int nthr = nblocks * (ic_dim / simd);
-
-        float curr_efficiency_eus = (float)nthr / utils::rnd_up(nthr, eu_count);
-        float curr_efficiency_threads
-                = (float)nthr / utils::rnd_up(nthr, eu_count * threads_per_eu);
-
-        if (curr_efficiency_threads > efficiency_threads) {
-            efficiency_threads = curr_efficiency_threads;
-            block_size_threads = curr_block_size;
-        }
-        if (curr_efficiency_eus >= efficiency_eus) {
-            efficiency_eus = curr_efficiency_eus;
-            block_size_eus = curr_block_size;
-        }
-        if (nthr >= eu_count * threads_per_eu && efficiency_eus == 1)
-            return block_size_eus;
-        if (curr_block_size == 1) return block_size_threads;
-        curr_block_size--;
-    }
-}
-
 int get_block_size(bool is_backward, int hw_threads, int nn, int ic,
         int work_size, int simd = 16) {
     int block_size = 256;
@@ -139,6 +94,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
 
     conf.mb_block = 1;
+    conf.ic_block = 16;
 
     const bool has_padding = !data_mdw.is_dense();
     const bool is_blocked_16c
@@ -175,20 +131,6 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
                     || is_nhwc))
         return status::unimplemented;
 
-    // IC tail processing is not implemented yet for NHWC optimized kernels
-    // TODO: implement it
-    // The use of NHWC optimized kernels
-    // is limited by XeHPG+ due to performance reasons
-    conf.nhwc_optimized = conf.ic % 16 == 0
-            && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
-            && gpu_arch >= compute::gpu_arch_t::xe_hpg;
-
-    if (conf.nhwc_optimized) {
-        conf.ic_block = get_nhwc_ic_block(utils::rnd_up(conf.ic, 16));
-    } else {
-        conf.ic_block = 16;
-    }
-
     conf.mb_block = is_blocked_32n16c ? 32 : is_blocked_16n16c ? 16 : 1;
 
     if (is_nhwc) {
@@ -205,21 +147,12 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     // block read/write operation for 2 spacial rows at once
     if (is_nhwc && conf.ic == 8 && conf.sp % 2) return status::unimplemented;
 
-    conf.calc_stat_ic = conf.nhwc_optimized
-            ? utils::div_up(conf.ic, conf.ic_block) * 16
-            : utils::rnd_up(conf.ic, 16);
-
-    auto eu_count = compute_engine->device_info()->eu_count();
-    auto threads_per_eu
-            = compute_engine->device_info()->threads_per_eu(gpu_arch, false);
-    const int max_sp_block_size = get_block_size(conf.is_backward, eu_count,
-            conf.nn, utils::rnd_up(conf.ic, 16), conf.sp);
-    const int nhwc_sp_block = get_nhwc_sp_block_size(
-            conf.sp, conf.calc_stat_ic, eu_count, threads_per_eu);
+    const int max_sp_block_size = get_block_size(conf.is_backward,
+            compute_engine->device_info()->eu_count(), conf.nn,
+            utils::rnd_up(conf.ic, 16), conf.sp);
 
     if (conf.nn == 1)
-        conf.stat_sp_block
-                = conf.nhwc_optimized ? nhwc_sp_block : max_sp_block_size;
+        conf.stat_sp_block = max_sp_block_size;
     else
         conf.stat_sp_block
                 = nstl::min(utils::rnd_up(conf.sp, 16), max_sp_block_size);
@@ -231,13 +164,13 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     conf.reduce_stat_nblocks = conf.nn * conf.stat_sp_nblocks;
 
-    conf.vect_size
-            = conf.nhwc_optimized ? get_nhwc_vect_size(conf.ic_block) : 8;
-
     conf.dispatch_calc_stat = compute_engine->create_dispatch();
     conf.dispatch_calc_stat.define_dim("STAT_MB", 0, conf.nn);
     conf.dispatch_calc_stat.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
-    conf.dispatch_calc_stat.define_dim("STAT_IC", 2, conf.calc_stat_ic);
+
+    conf.dispatch_calc_stat.define_dim(
+            "STAT_IC", 2, utils::rnd_up(conf.ic, 16));
+
     CHECK(conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
     conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
     conf.dispatch_calc_stat.generate();
@@ -256,16 +189,23 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
     conf.dispatch_reduce_stat.generate();
 
+    if (conf.is_backward) {
+        // batchnorm backward is able to process data in blocks with size bigger
+        // than 8 but from experiments it looks like bigger blocks are slower on
+        // gen 9 gpu.
+        // TODO: investigate why increased block size decrease performance?
+        conf.vect_size = 8;
+    } else {
+        conf.vect_size = 8;
+    }
+
     const int sp_pad = utils::rnd_up(conf.sp, conf.vect_size);
     conf.sp_tail = utils::rnd_dn(conf.sp, conf.vect_size);
 
     conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
     conf.dispatch.define_dim("MB", 0, conf.nn);
-    conf.dispatch.define_dim("SP", 1,
-            conf.nhwc_optimized ? conf.stat_sp_nblocks
-                                : sp_pad / conf.vect_size);
-    conf.dispatch.define_dim("IC", 2, conf.calc_stat_ic);
-
+    conf.dispatch.define_dim("SP", 1, sp_pad / conf.vect_size);
+    conf.dispatch.define_dim("IC", 2, utils::rnd_up(conf.ic, 16));
     CHECK(conf.dispatch.vectorize_dim("IC", 16));
     conf.dispatch.generate();
 
@@ -315,7 +255,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("DIFF_SHIFT", conf.diff_shift);
     kernel_ctx.define_int("REDUCE_IC_SUB_GROUPS", conf.stat_ic / 16);
     kernel_ctx.define_int("USE_STATS_ONE_PASS", conf.use_stats_one_pass);
-    kernel_ctx.define_int("NHWC_OPTIMIZED", conf.nhwc_optimized);
 
     if (conf.data_type == data_type::s8)
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");

@@ -518,8 +518,6 @@ struct bnorm_conf_t {
     bool vectorize_calc_stats;
     bool skip_reduce_stat;
     bool use_stats_one_pass;
-    bool nhwc_optimized;
-    int calc_stat_ic;
 
     compute::dispatch_t dispatch_calc_stat;
     compute::dispatch_t dispatch_reduce_stat;
