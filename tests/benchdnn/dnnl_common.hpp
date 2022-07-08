@@ -535,27 +535,56 @@ inline int check_skip_impl(
     return OK;
 }
 
+// This is an internal to `init_prim` function that utilizes the logic of
+// creating a `pd` and `prim` and assign them to input wrappers. It allows to
+// remove code duplication and keep all the logic in a single place.
+template <typename func_t, typename prb_t>
+int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
+        dnnl_engine_t engine, const func_t &init_pd_func, const prb_t *prb,
+        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint,
+        bool is_service_prim) {
+    dnnl_status_t status = dnnl_success;
+    dnnl_primitive_t prim {};
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
+
+    init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
+    status = init_pd_func(init_pd_args);
+
+    pd_itw.reset(init_pd_args.pd_it);
+    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
+    pdw.reset(init_pd_args.pd);
+
+    SAFE(check_dnnl_status(status, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
+    // If this is a tested primitive, might want to skip primitive creation, if
+    // this is the impl requested to be skipped.
+    SAFE(check_skip_impl(pdw, res, is_service_prim), WARN);
+    if (res->state == SKIPPED) return OK;
+
+    DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN);
+    primw.reset(prim);
+
+    return OK;
+}
+
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, const prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr,
         bool is_service_prim = false) {
-    dnnl_status_t status = dnnl_success;
-    dnnl_primitive_t prim_ {};
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> primw;
 
     skip_start(res);
     if (res->state == SKIPPED) return OK;
     skip_invalid_prb(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    init_pd_args_t<prb_t> init_pd_args(res, nullptr, prb, dir, hint);
-
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
-    // The first primitive creation using a temporary engine.
+        // The first primitive creation using a temporary engine.
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice using different
     // engines but the same device and context in the case of OpenCL and DPCPP.
@@ -578,47 +607,22 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     engine_t engine(engine_tgt_kind);
 #endif
 
-    init_pd_args.engine = engine;
-    status = init_pd_func(init_pd_args);
-
-    pd_itw.reset(init_pd_args.pd_it);
-    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
-    pdw.reset(init_pd_args.pd);
-
-    SAFE(check_dnnl_status(status, prb, res), WARN);
+    SAFE(create_primitive(primw, pdw, engine, init_pd_func, prb, res, dir, hint,
+                 is_service_prim),
+            WARN);
     if (res->state == SKIPPED) return OK;
-
-    // If this is a tested primitive, might want to skip primitive creation, if
-    // this is the impl requested to be skipped.
-    SAFE(check_skip_impl(pdw, res, is_service_prim), WARN);
-    if (res->state == SKIPPED) return OK;
-
-    DNN_SAFE(dnnl_primitive_create(&prim_, pdw), WARN);
-    prim.reset(prim_);
 
 #endif
-    // The second (if the cache is enabled) primitive creation using
-    // the global test engine.
-    init_pd_args.engine = get_test_engine();
-    status = init_pd_func(init_pd_args);
-
-    pd_itw.reset(init_pd_args.pd_it);
-    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
-    pdw.reset(init_pd_args.pd);
-
-    SAFE(check_dnnl_status(status, prb, res), WARN);
+    // The second (if the cache is enabled) primitive creation using the global
+    // test engine. This primitive is expected to come from the cache.
+    SAFE(create_primitive(primw, pdw, get_test_engine(), init_pd_func, prb, res,
+                 dir, hint, is_service_prim),
+            WARN);
     if (res->state == SKIPPED) return OK;
-
-    SAFE(check_skip_impl(pdw, res, is_service_prim), WARN);
-    if (res->state == SKIPPED) return OK;
-
-    // This primitive is expected to come from the cache.
-    DNN_SAFE(dnnl_primitive_create(&prim_, pdw), WARN);
-    prim.reset(prim_);
 
     // Further checks are only for tested primitives.
     if (is_service_prim) {
-        user_prim.reset(prim.release());
+        user_prim.reset(primw.release());
         return OK;
     }
 
@@ -629,14 +633,13 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     // Check primitive descriptor is picked up from the cache, if applicable.
     SAFE(check_pd_cache(pdw), WARN);
     // Check primitive is picked up from the cache, if applicable.
-    SAFE(check_primitive_cache(prim), WARN);
-
+    SAFE(check_primitive_cache(primw), WARN);
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pdw, res), WARN);
 
-    SAFE(test_persistent_cache_api(prim, pdw, res), WARN);
+    SAFE(test_persistent_cache_api(primw, pdw, res), WARN);
 
-    user_prim.reset(prim.release());
+    user_prim.reset(primw.release());
     return OK;
 }
 
