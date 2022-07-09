@@ -6647,7 +6647,7 @@ private:
             bool ok = true;
             for (dim_t off0 = 0; off0 < inner_bytes; off0 += write_step) {
                 // Check banks for a single SLM write.
-                bool found[slm_banks] = {false};
+                std::vector<bool> found(slm_banks, false);
                 for (dim_t off = off0; off < off0 + write_step;
                         off += sizeof(uint32_t)) {
                     int bank0 = (off / sizeof(uint32_t)) % slm_banks;
