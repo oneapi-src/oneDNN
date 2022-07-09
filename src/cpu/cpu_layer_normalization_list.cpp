@@ -33,15 +33,13 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
         {{forward}, {
             CPU_INSTANCE(simple_layer_normalization_fwd_t<f32>)
             CPU_INSTANCE(simple_layer_normalization_fwd_t<bf16>)
-            CPU_INSTANCE(ref_layer_normalization_fwd_t<f32>)
-            CPU_INSTANCE(ref_layer_normalization_fwd_t<bf16>)
+            CPU_INSTANCE(ref_layer_normalization_fwd_t)
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
             CPU_INSTANCE(simple_layer_normalization_bwd_t<f32>)
             CPU_INSTANCE(simple_layer_normalization_bwd_t<bf16>)
-            CPU_INSTANCE(ref_layer_normalization_bwd_t<f32>)
-            CPU_INSTANCE(ref_layer_normalization_bwd_t<bf16>)
+            CPU_INSTANCE(ref_layer_normalization_bwd_t)
             nullptr,
         })},
     });
