@@ -18,6 +18,7 @@
 #include "common/dnnl_thread.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/ref_io_helper.hpp"
 
 // Control to enable/disable kernels for debugging.
 #define ENABLE_JIT_KERNELS 1
@@ -35,26 +36,28 @@ namespace lnorm_utils {
 
 using namespace data_type;
 
-template <>
-void stat_and_data_kernel_t<f32>::operator()(const float *src, float *dst,
+void stat_and_data_kernel_t::operator()(const void *src, void *dst,
         const float *scale, const float *shift, float *mean, float *var,
         const size_t block_size) const {
     // XXX: manual unrolling for use_scaleshift_ due to clang issue.
     //      see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
+
     for (size_t offset = 0; offset < block_size; offset++) {
-        float v_mean, v_variance;
+        float v_mean = 0, v_variance = 0;
         if (calculate_stats_) {
-            v_mean = 0;
             PRAGMA_OMP_SIMD(reduction(+ : v_mean))
             for (dim_t c = 0; c < C_; ++c) {
-                v_mean += src[c + C_ * offset];
+                float s = io::load_float_value(
+                        data_type_, src, c + C_ * offset);
+                v_mean += s;
             }
             v_mean /= C_;
 
-            v_variance = 0;
             PRAGMA_OMP_SIMD(reduction(+ : v_variance))
             for (dim_t c = 0; c < C_; ++c) {
-                const auto src_sub_mean = src[c + C_ * offset] - v_mean;
+                float s = io::load_float_value(
+                        data_type_, src, c + C_ * offset);
+                float src_sub_mean = s - v_mean;
                 v_variance += src_sub_mean * src_sub_mean;
             }
             v_variance /= C_;
@@ -63,36 +66,44 @@ void stat_and_data_kernel_t<f32>::operator()(const float *src, float *dst,
             v_variance = var[offset];
         }
 
-        const float inv_sqrtvar = 1. / sqrtf(v_variance + eps_);
+        const float inv_sqrtvar = 1.f / sqrtf(v_variance + eps_);
         if (use_scaleshift_ || (use_scale_ && use_shift_)) {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; ++c) {
                 const float sm = scale[c] * inv_sqrtvar;
                 const float sv = shift[c];
-                const size_t elem = c + C_ * offset;
-                dst[elem] = sm * (src[elem] - v_mean) + sv;
+                const size_t off = c + C_ * offset;
+                float s = io::load_float_value(data_type_, src, off);
+                float d = sm * (s - v_mean) + sv;
+                io::store_float_value(data_type_, d, dst, off);
             }
         } else if (use_scale_) {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; ++c) {
                 const float sm = scale[c] * inv_sqrtvar;
-                const size_t elem = c + C_ * offset;
-                dst[elem] = sm * (src[elem] - v_mean);
+                const size_t off = c + C_ * offset;
+                float s = io::load_float_value(data_type_, src, off);
+                float d = sm * (s - v_mean);
+                io::store_float_value(data_type_, d, dst, off);
             }
         } else if (use_shift_) {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; ++c) {
-                const float sm = 1.0f * inv_sqrtvar;
+                const float sm = 1.f * inv_sqrtvar;
                 const float sv = shift[c];
-                const size_t elem = c + C_ * offset;
-                dst[elem] = sm * (src[elem] - v_mean) + sv;
+                const size_t off = c + C_ * offset;
+                float s = io::load_float_value(data_type_, src, off);
+                float d = sm * (s - v_mean) + sv;
+                io::store_float_value(data_type_, d, dst, off);
             }
         } else {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; ++c) {
-                const float sm = 1.0f * inv_sqrtvar;
-                const size_t elem = c + C_ * offset;
-                dst[elem] = sm * (src[elem] - v_mean);
+                const float sm = 1.f * inv_sqrtvar;
+                const size_t off = c + C_ * offset;
+                float s = io::load_float_value(data_type_, src, off);
+                float d = sm * (s - v_mean);
+                io::store_float_value(data_type_, d, dst, off);
             }
         }
         if (calculate_stats_ && save_stats_) {
@@ -102,8 +113,7 @@ void stat_and_data_kernel_t<f32>::operator()(const float *src, float *dst,
     }
 }
 
-template <>
-void diff_ss_kernel_t<f32>::operator()(const float *src, const float *diff_dst,
+void diff_ss_kernel_t::operator()(const void *src, const void *diff_dst,
         float *diff_gamma, float *diff_beta, const float *mean,
         const float *var, float *const inv_sqrtvar,
         const size_t block_size) const {
@@ -111,20 +121,18 @@ void diff_ss_kernel_t<f32>::operator()(const float *src, const float *diff_dst,
         inv_sqrtvar[offset] = 1. / sqrtf(var[offset] + eps_);
         PRAGMA_OMP_SIMD()
         for (dim_t c = 0; c < C_; c++) {
-            const size_t elem = c + C_ * offset;
-            const float dd = diff_dst[elem];
-            diff_gamma[c]
-                    += (src[elem] - mean[offset]) * dd * inv_sqrtvar[offset];
+            const size_t off = c + C_ * offset;
+            float s = io::load_float_value(data_type_, src, off);
+            float dd = io::load_float_value(data_type_, diff_dst, off);
+            diff_gamma[c] += (s - mean[offset]) * dd * inv_sqrtvar[offset];
             diff_beta[c] += dd;
         }
     }
 }
 
-template <>
-void diff_data_kernel_t<f32>::operator()(const float *src,
-        const float *diff_dst, float *diff_src, const float *ss,
-        const float *mean, float *const inv_sqrtvar,
-        const size_t block_size) const {
+void diff_data_kernel_t::operator()(const void *src, const void *diff_dst,
+        void *diff_src, const float *ss, const float *mean,
+        float *const inv_sqrtvar, const size_t block_size) const {
     // XXX: manual unrolling for use_scaleshift_ due to clang issue.
     //      see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
     float dd_gamma, dd_gamma_x;
@@ -135,19 +143,20 @@ void diff_data_kernel_t<f32>::operator()(const float *src,
             if (use_scaleshift_ || use_scale_) {
                 PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
                 for (dim_t c = 0; c < C_; c++) {
-                    const size_t elem = c + C_ * offset;
-                    const float v_diff_dst = diff_dst[elem];
-                    dd_gamma += v_diff_dst * ss[c];
-                    dd_gamma_x
-                            += v_diff_dst * ss[c] * (src[elem] - mean[offset]);
+                    const size_t off = c + C_ * offset;
+                    float s = io::load_float_value(data_type_, src, off);
+                    float dd = io::load_float_value(data_type_, diff_dst, off);
+                    dd_gamma += dd * ss[c];
+                    dd_gamma_x += dd * ss[c] * (s - mean[offset]);
                 }
             } else {
                 PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
                 for (dim_t c = 0; c < C_; c++) {
-                    const size_t elem = c + C_ * offset;
-                    const float v_diff_dst = diff_dst[elem];
-                    dd_gamma += v_diff_dst;
-                    dd_gamma_x += v_diff_dst * (src[elem] - mean[offset]);
+                    const size_t off = c + C_ * offset;
+                    float s = io::load_float_value(data_type_, src, off);
+                    float dd = io::load_float_value(data_type_, diff_dst, off);
+                    dd_gamma += dd;
+                    dd_gamma_x += dd * (s - mean[offset]);
                 }
             }
             dd_gamma_x *= inv_sqrtvar[offset];
@@ -157,106 +166,62 @@ void diff_data_kernel_t<f32>::operator()(const float *src,
         if (use_scaleshift_ || use_scale_) {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; c++) {
-                const size_t elem = c + C_ * offset;
-                float v_diff_src = diff_dst[elem] * ss[c];
-                if (calculate_diff_stats_)
-                    v_diff_src -= dd_gamma / C_
-                            + (src[elem] - mean[offset]) * dd_gamma_x
-                                    * inv_sqrtvar[offset] / C_;
-                v_diff_src *= inv_sqrtvar[offset];
-                diff_src[elem] = v_diff_src;
+                const size_t off = c + C_ * offset;
+                float dd = io::load_float_value(data_type_, diff_dst, off);
+                float ds = dd * ss[c];
+                if (calculate_diff_stats_) {
+                    float s = io::load_float_value(data_type_, src, off);
+                    ds -= dd_gamma / C_;
+                    ds -= (s - mean[offset]) * dd_gamma_x * inv_sqrtvar[offset]
+                            / C_;
+                }
+                ds *= inv_sqrtvar[offset];
+                io::store_float_value(data_type_, ds, diff_src, off);
             }
         } else {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; c++) {
-                const size_t elem = c + C_ * offset;
-                float v_diff_src = diff_dst[elem];
-                if (calculate_diff_stats_)
-                    v_diff_src -= dd_gamma / C_
-                            + (src[elem] - mean[offset]) * dd_gamma_x
-                                    * inv_sqrtvar[offset] / C_;
-                v_diff_src *= inv_sqrtvar[offset];
-                diff_src[elem] = v_diff_src;
+                const size_t off = c + C_ * offset;
+                float dd = io::load_float_value(data_type_, diff_dst, off);
+                float ds = dd;
+                if (calculate_diff_stats_) {
+                    float s = io::load_float_value(data_type_, src, off);
+                    ds -= dd_gamma / C_;
+                    ds -= (s - mean[offset]) * dd_gamma_x * inv_sqrtvar[offset]
+                            / C_;
+                }
+                ds *= inv_sqrtvar[offset];
+                io::store_float_value(data_type_, ds, diff_src, off);
             }
         }
     }
 }
 
-template <>
-void diff_data_kernel_t<bf16>::operator()(const bfloat16_t *src,
-        const bfloat16_t *diff_dst, bfloat16_t *diff_src, const float *ss,
-        const float *mean, float *const inv_sqrtvar,
-        const size_t block_size) const {
-    assert(!"No default diff_data_kernel_t operator() for bf16 "
-            "input!");
-}
-
-template <>
-void stat_and_data_kernel_t<bf16>::operator()(const bfloat16_t *src,
-        bfloat16_t *dst, const float *scale, const float *shift, float *mean,
-        float *var, const size_t block_size) const {
-    assert(!"No default stat_and_data_kernel_t operator() for bf16 input!");
-}
-
-template <>
-void diff_ss_kernel_t<bf16>::operator()(const bfloat16_t *src,
-        const bfloat16_t *diff_dst, float *diff_gamma, float *diff_beta,
-        const float *mean, const float *var, float *const inv_sqrtvar,
-        const size_t block_size) const {
-    assert(!"No default diff_ss_kernel_t operator() for bf16 input!");
-}
-
 // Interface section
 
-template <data_type_t data_type>
-stat_and_data_kernel_t<data_type> *stat_and_data_kernel_t<data_type>::create(
+stat_and_data_kernel_t *stat_and_data_kernel_t::create(
         const layer_normalization_pd_t *pd) {
 #if ENABLE_JIT_KERNELS && DNNL_X64
-    if (auto *res
-            = x64::lnorm_utils::stat_and_data_kernel_create<data_type>(pd))
+    if (auto *res = x64::lnorm_utils::stat_and_data_kernel_create(pd))
         return res;
 #endif
-    if (data_type == bf16) {
-        assert(!"No default stat_and_data_kernel_t for bf16 input!");
-        return nullptr;
-    }
-    return new stat_and_data_kernel_t<data_type>(pd);
+    return new stat_and_data_kernel_t(pd);
 }
 
-template <data_type_t data_type>
-diff_ss_kernel_t<data_type> *diff_ss_kernel_t<data_type>::create(
+diff_ss_kernel_t *diff_ss_kernel_t::create(const layer_normalization_pd_t *pd) {
+#if ENABLE_JIT_KERNELS && DNNL_X64
+    if (auto *res = x64::lnorm_utils::diff_ss_kernel_create(pd)) return res;
+#endif
+    return new diff_ss_kernel_t(pd);
+}
+
+diff_data_kernel_t *diff_data_kernel_t::create(
         const layer_normalization_pd_t *pd) {
 #if ENABLE_JIT_KERNELS && DNNL_X64
-    if (auto *res = x64::lnorm_utils::diff_ss_kernel_create<data_type>(pd))
-        return res;
+    if (auto *res = x64::lnorm_utils::diff_data_kernel_create(pd)) return res;
 #endif
-    if (data_type == bf16) {
-        assert(!"No default diff_ss_kernel_t for bf16 input!");
-        return nullptr;
-    }
-    return new diff_ss_kernel_t<data_type>(pd);
+    return new diff_data_kernel_t(pd);
 }
-
-template <data_type_t data_type>
-diff_data_kernel_t<data_type> *diff_data_kernel_t<data_type>::create(
-        const layer_normalization_pd_t *pd) {
-#if ENABLE_JIT_KERNELS && DNNL_X64
-    if (auto *res = x64::lnorm_utils::diff_data_kernel_create<data_type>(pd))
-        return res;
-#endif
-    if (data_type == bf16) {
-        assert(!"No default diff_data_kernel_t for bf16 input!");
-        return nullptr;
-    }
-    return new diff_data_kernel_t<data_type>(pd);
-}
-
-template struct diff_ss_kernel_t<f32>;
-template struct diff_ss_kernel_t<bf16>;
-template struct stat_and_data_kernel_t<f32>;
-template struct stat_and_data_kernel_t<bf16>;
-template struct diff_data_kernel_t<f32>;
-template struct diff_data_kernel_t<bf16>;
 
 } // namespace lnorm_utils
 } // namespace cpu

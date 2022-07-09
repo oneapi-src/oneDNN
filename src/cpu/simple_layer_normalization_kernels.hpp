@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,14 +24,11 @@ namespace impl {
 namespace cpu {
 namespace lnorm_utils {
 
-template <data_type_t data_type>
 struct stat_and_data_kernel_t {
-    using data_t = typename prec_traits<data_type>::type;
-    static stat_and_data_kernel_t<data_type> *create(
-            const layer_normalization_pd_t *pd);
+    static stat_and_data_kernel_t *create(const layer_normalization_pd_t *pd);
     virtual ~stat_and_data_kernel_t() = default;
 
-    virtual void operator()(const data_t *src, data_t *dst, const float *scale,
+    virtual void operator()(const void *src, void *dst, const float *scale,
             const float *shift, float *mean, float *var,
             const size_t block_size) const;
 
@@ -45,7 +42,8 @@ protected:
         , use_shift_(pd->use_shift())
         , save_stats_(pd->is_training())
         , calculate_stats_(!pd->stats_are_src())
-        , eps_(pd->desc()->layer_norm_epsilon) {}
+        , eps_(pd->desc()->layer_norm_epsilon)
+        , data_type_(pd->src_md()->data_type) {}
 
     int C_;
     bool use_scaleshift_;
@@ -54,16 +52,14 @@ protected:
     bool save_stats_;
     bool calculate_stats_;
     const float eps_;
+    data_type_t data_type_;
 };
 
-template <data_type_t data_type>
 struct diff_ss_kernel_t {
-    using data_t = typename prec_traits<data_type>::type;
-    static diff_ss_kernel_t<data_type> *create(
-            const layer_normalization_pd_t *pd);
+    static diff_ss_kernel_t *create(const layer_normalization_pd_t *pd);
     virtual ~diff_ss_kernel_t() = default;
 
-    virtual void operator()(const data_t *src, const data_t *diff_dst,
+    virtual void operator()(const void *src, const void *diff_dst,
             float *diff_gamma, float *diff_beta, const float *mean,
             const float *var, float *const inv_sqrtvar,
             const size_t block_size) const;
@@ -72,21 +68,21 @@ struct diff_ss_kernel_t {
 
 protected:
     diff_ss_kernel_t(const layer_normalization_pd_t *pd)
-        : C_(pd->norm_axis()), eps_(pd->desc()->layer_norm_epsilon) {}
+        : C_(pd->norm_axis())
+        , eps_(pd->desc()->layer_norm_epsilon)
+        , data_type_(pd->src_md()->data_type) {}
 
     int C_;
     const float eps_;
+    data_type_t data_type_;
 };
 
-template <data_type_t data_type>
 struct diff_data_kernel_t {
-    using data_t = typename prec_traits<data_type>::type;
-    static diff_data_kernel_t<data_type> *create(
-            const layer_normalization_pd_t *pd);
+    static diff_data_kernel_t *create(const layer_normalization_pd_t *pd);
     virtual ~diff_data_kernel_t() = default;
 
-    virtual void operator()(const data_t *src, const data_t *diff_dst,
-            data_t *diff_src, const float *ss, const float *mean,
+    virtual void operator()(const void *src, const void *diff_dst,
+            void *diff_src, const float *ss, const float *mean,
             float *const inv_sqrtvar, const size_t block_size) const;
 
     virtual status_t create_kernel() { return status::success; }
@@ -98,7 +94,8 @@ protected:
         , calculate_diff_stats_(!pd->use_global_stats())
         , use_scaleshift_(pd->use_scaleshift())
         , use_scale_(pd->use_scale())
-        , use_shift_(pd->use_shift()) {}
+        , use_shift_(pd->use_shift())
+        , data_type_(pd->src_md()->data_type) {}
 
     int C_;
     const float eps_;
@@ -106,6 +103,7 @@ protected:
     bool use_scaleshift_;
     bool use_scale_;
     bool use_shift_;
+    data_type_t data_type_;
 };
 
 } // namespace lnorm_utils

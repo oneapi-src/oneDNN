@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,16 +25,13 @@ namespace cpu {
 namespace x64 {
 namespace lnorm_utils {
 
-template <data_type_t d_type>
-cpu::lnorm_utils::stat_and_data_kernel_t<d_type> *stat_and_data_kernel_create(
+cpu::lnorm_utils::stat_and_data_kernel_t *stat_and_data_kernel_create(
         const layer_normalization_pd_t *pd);
 
-template <data_type_t d_type>
-cpu::lnorm_utils::diff_ss_kernel_t<d_type> *diff_ss_kernel_create(
+cpu::lnorm_utils::diff_ss_kernel_t *diff_ss_kernel_create(
         const layer_normalization_pd_t *pd);
 
-template <data_type_t d_type>
-cpu::lnorm_utils::diff_data_kernel_t<d_type> *diff_data_kernel_create(
+cpu::lnorm_utils::diff_data_kernel_t *diff_data_kernel_create(
         const layer_normalization_pd_t *pd);
 
 } // namespace lnorm_utils

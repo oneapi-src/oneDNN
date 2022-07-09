@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,19 +34,12 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <data_type_t data_type>
 struct simple_layer_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
-        pd_t(const layer_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const layer_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_layer_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_layer_normalization_fwd_pd_t::
+                cpu_layer_normalization_fwd_pd_t;
 
-        pd_t(const pd_t &other) = default;
-        ~pd_t() = default;
-
-        DECLARE_COMMON_PD_T("simple_layer_normalization:any",
-                simple_layer_normalization_fwd_t);
+        DECLARE_COMMON_PD_T("simple:any", simple_layer_normalization_fwd_t);
 
         status_t init(engine_t *engine);
 
@@ -75,7 +68,7 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
         CHECK(safe_ptr_assign(stat_and_data_kernel_,
-                lnorm_utils::stat_and_data_kernel_t<data_type>::create(pd())));
+                lnorm_utils::stat_and_data_kernel_t::create(pd())));
         if (stat_and_data_kernel_)
             CHECK(stat_and_data_kernel_->create_kernel());
         return status::success;
@@ -131,28 +124,19 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
     }
 
 private:
-    using data_t = typename prec_traits<data_type>::type;
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<lnorm_utils::stat_and_data_kernel_t<data_type>>
-            stat_and_data_kernel_;
+    std::unique_ptr<lnorm_utils::stat_and_data_kernel_t> stat_and_data_kernel_;
     std::shared_ptr<primitive_t> reorder_;
 };
 
-template <data_type_t data_type>
 struct simple_layer_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
-        pd_t(const layer_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const layer_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_layer_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_layer_normalization_bwd_pd_t::
+                cpu_layer_normalization_bwd_pd_t;
 
-        pd_t(const pd_t &other) = default;
-        ~pd_t() = default;
-
-        DECLARE_COMMON_PD_T("simple_layer_normalization:any",
-                simple_layer_normalization_bwd_t);
+        DECLARE_COMMON_PD_T("simple:any", simple_layer_normalization_bwd_t);
 
         status_t init(engine_t *engine);
 
@@ -187,10 +171,10 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
-        CHECK(safe_ptr_assign(diff_ss_kernel_,
-                lnorm_utils::diff_ss_kernel_t<data_type>::create(pd())));
+        CHECK(safe_ptr_assign(
+                diff_ss_kernel_, lnorm_utils::diff_ss_kernel_t::create(pd())));
         CHECK(safe_ptr_assign(diff_data_kernel_,
-                lnorm_utils::diff_data_kernel_t<data_type>::create(pd())));
+                lnorm_utils::diff_data_kernel_t::create(pd())));
         if (diff_ss_kernel_) CHECK(diff_ss_kernel_->create_kernel());
         if (diff_data_kernel_) CHECK(diff_data_kernel_->create_kernel());
         return status::success;
@@ -238,13 +222,11 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
     }
 
 private:
-    using data_t = typename prec_traits<data_type>::type;
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<lnorm_utils::diff_ss_kernel_t<data_type>> diff_ss_kernel_;
-    std::unique_ptr<lnorm_utils::diff_data_kernel_t<data_type>>
-            diff_data_kernel_;
+    std::unique_ptr<lnorm_utils::diff_ss_kernel_t> diff_ss_kernel_;
+    std::unique_ptr<lnorm_utils::diff_data_kernel_t> diff_data_kernel_;
     std::shared_ptr<primitive_t> reorder_;
 };
 

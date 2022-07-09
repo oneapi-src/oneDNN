@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,21 +49,19 @@ status_t fill_compatible_stats_md(
 
 } // namespace
 
-template <data_type_t data_type>
-status_t simple_layer_normalization_fwd_t<data_type>::pd_t::init(
-        engine_t *engine) {
+status_t simple_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
     const memory_desc_wrapper src_d(src_md());
 
     const bool ok = is_fwd() && !has_zero_dim_memory()
-            && platform::has_data_type_support(data_type)
-            && utils::everyone_is(
-                    data_type, src_md()->data_type, dst_md()->data_type)
-            && (f32 == stat_md()->data_type) && check_scale_shift_data_type()
+            && utils::one_of(src_md()->data_type, f32, bf16)
+            && src_md()->data_type == dst_md()->data_type
+            && platform::has_data_type_support(src_md()->data_type)
+            && stat_md()->data_type == f32 && check_scale_shift_data_type()
+            && attr()->has_default_values() && set_default_formats_common()
             && src_d.is_blocking_desc()
-            && src_d.blocking_desc().strides[ndims() - 1]
-                    == 1 // plain format, last logical dim is last physical
-            && attr()->has_default_values() && set_default_formats_common();
+            // plain format, last logical dim is last physical
+            && src_d.blocking_desc().strides[ndims() - 1] == 1;
     if (!ok) return status::unimplemented;
 
     CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
@@ -78,16 +76,15 @@ status_t simple_layer_normalization_fwd_t<data_type>::pd_t::init(
     return status::success;
 }
 
-template <data_type_t data_type>
-status_t simple_layer_normalization_fwd_t<data_type>::execute_forward(
+status_t simple_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     const bool use_ss = pd()->use_scaleshift();
     const bool use_scale = pd()->use_scale();
     const bool use_shift = pd()->use_shift();
 
     auto scratchpad = ctx.get_scratchpad_grantor();
-    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    const auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     const memory_desc_wrapper ss_d(pd()->weights_md());
     const size_t shift_off
@@ -113,6 +110,7 @@ status_t simple_layer_normalization_fwd_t<data_type>::execute_forward(
     }
 
     const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const dim_t N = pd()->across_axis();
     const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
@@ -120,30 +118,32 @@ status_t simple_layer_normalization_fwd_t<data_type>::execute_forward(
     parallel(0, [&](const int ithr, const int nthr) {
         dim_t N_start = 0, N_end = 0;
         balance211(N, nthr, ithr, N_start, N_end);
+        const char *const __restrict src_ptr
+                = reinterpret_cast<const char *>(src)
+                + N_start * C_padded * src_d.data_type_size();
+        char *const __restrict dst_ptr = reinterpret_cast<char *>(dst)
+                + N_start * C_padded * dst_d.data_type_size();
         const int block_size = N_end - N_start;
-        (*stat_and_data_kernel_)(&src[N_start * C_padded],
-                &dst[N_start * C_padded], scale, shift, &mean[N_start],
+        (*stat_and_data_kernel_)(src_ptr, dst_ptr, scale, shift, &mean[N_start],
                 &variance[N_start], block_size);
     });
     return status::success;
 }
 
-template <data_type_t data_type>
-status_t simple_layer_normalization_bwd_t<data_type>::pd_t::init(
-        engine_t *engine) {
+status_t simple_layer_normalization_bwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
     const memory_desc_wrapper src_d(src_md());
 
     const bool ok = is_bwd() && !has_zero_dim_memory()
-            && set_default_formats_common()
-            && platform::has_data_type_support(data_type)
-            && utils::everyone_is(
-                    data_type, src_md()->data_type, dst_md()->data_type)
-            && (f32 == stat_md()->data_type) && check_scale_shift_data_type()
+            && utils::one_of(src_md()->data_type, f32, bf16)
+            && src_md()->data_type == diff_dst_md()->data_type
+            && diff_dst_md()->data_type == diff_src_md()->data_type
+            && platform::has_data_type_support(src_md()->data_type)
+            && stat_md()->data_type == f32 && check_scale_shift_data_type()
+            && attr()->has_default_values() && set_default_formats_common()
             && src_d.is_blocking_desc()
-            && src_d.blocking_desc().strides[ndims() - 1]
-                    == 1 //plain format, last logical dim is last physical
-            && attr()->has_default_values();
+            // plain format, last logical dim is last physical
+            && src_d.blocking_desc().strides[ndims() - 1] == 1;
     if (!ok) return status::unimplemented;
 
     CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
@@ -158,8 +158,7 @@ status_t simple_layer_normalization_bwd_t<data_type>::pd_t::init(
     return status::success;
 }
 
-template <data_type_t data_type>
-status_t simple_layer_normalization_bwd_t<data_type>::execute_backward(
+status_t simple_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
 
@@ -170,11 +169,11 @@ status_t simple_layer_normalization_bwd_t<data_type>::execute_backward(
     const bool use_shift = pd()->use_shift();
 
     auto scratchpad = ctx.get_scratchpad_grantor();
-    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
     auto scale = CTX_IN_MEM(
             float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
 
     const size_t diff_shift_off
             = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
@@ -201,6 +200,8 @@ status_t simple_layer_normalization_bwd_t<data_type>::execute_backward(
             = scratchpad.template get<float>(key_lnorm_inv_sqrtvar);
 
     const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
     const dim_t N = pd()->across_axis();
     const dim_t C = pd()->norm_axis();
@@ -220,6 +221,12 @@ status_t simple_layer_normalization_bwd_t<data_type>::execute_backward(
         dim_t N_start = 0, N_end = 0;
         balance211(N, nthr, ithr, N_start, N_end);
         const int block_size = N_end - N_start;
+        const char *const __restrict src_ptr
+                = reinterpret_cast<const char *>(src)
+                + N_start * C_padded * src_d.data_type_size();
+        const char *const __restrict diff_dst_ptr
+                = reinterpret_cast<const char *>(diff_dst)
+                + N_start * C_padded * diff_dst_d.data_type_size();
 
         float *my_diff_gamma = reduce + C * ithr;
         float *my_diff_beta = reduce + C * nthr + C * ithr;
@@ -227,8 +234,7 @@ status_t simple_layer_normalization_bwd_t<data_type>::execute_backward(
             my_diff_gamma[c] = 0.;
             my_diff_beta[c] = 0.;
         }
-        (*diff_ss_kernel_)(&src[N_start * C_padded],
-                &diff_dst[N_start * C_padded], my_diff_gamma, my_diff_beta,
+        (*diff_ss_kernel_)(src_ptr, diff_dst_ptr, my_diff_gamma, my_diff_beta,
                 &mean[N_start], &variance[N_start], &inv_sqrtvar[N_start],
                 block_size);
     });
@@ -247,18 +253,20 @@ status_t simple_layer_normalization_bwd_t<data_type>::execute_backward(
         dim_t N_start = 0, N_end = 0;
         balance211(N, nthr, ithr, N_start, N_end);
         const int block_size = N_end - N_start;
+        const char *const __restrict src_ptr
+                = reinterpret_cast<const char *>(src)
+                + N_start * C_padded * src_d.data_type_size();
+        const char *const __restrict diff_dst_ptr
+                = reinterpret_cast<const char *>(diff_dst)
+                + N_start * C_padded * diff_dst_d.data_type_size();
+        char *const __restrict diff_src_ptr = reinterpret_cast<char *>(diff_src)
+                + N_start * C_padded * diff_src_d.data_type_size();
 
-        (*diff_data_kernel_)(&src[N_start * C_padded],
-                &diff_dst[N_start * C_padded], &diff_src[N_start * C_padded],
-                scale, &mean[N_start], &inv_sqrtvar[N_start], block_size);
+        (*diff_data_kernel_)(src_ptr, diff_dst_ptr, diff_src_ptr, scale,
+                &mean[N_start], &inv_sqrtvar[N_start], block_size);
     });
     return status::success;
 }
-
-template struct simple_layer_normalization_fwd_t<bf16>;
-template struct simple_layer_normalization_fwd_t<f32>;
-template struct simple_layer_normalization_bwd_t<bf16>;
-template struct simple_layer_normalization_bwd_t<f32>;
 
 } // namespace cpu
 } // namespace impl

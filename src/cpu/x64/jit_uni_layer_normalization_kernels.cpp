@@ -31,42 +31,31 @@ using namespace data_type;
 using namespace Xbyak;
 using namespace Xbyak::util;
 
-template <data_type_t>
-struct jit_transfer_t;
-
-template <>
-struct jit_transfer_t<f32> {
-    jit_transfer_t(jit_generator &gen, const int simd_w = 8);
-
-    template <data_type_t load_data_type>
-    void load(Ymm &vmm_src, Reg64 reg_src, int nelems, size_t offt_elems);
-
-    template <data_type_t store_data_type>
-    void store(Ymm &vmm_dst, Reg64 reg_dst, int nelems, size_t offt_elems);
+struct jit_transfer_t {
+    jit_transfer_t(jit_generator &gen, const int simd_w)
+        : gen_(gen)
+        , simd_w_(simd_w)
+        , emulate_bf16_(!mayiuse(avx512_core_bf16)) {
+        if (emulate_bf16_) {
+            this->bf16_emu_ = utils::make_unique<bf16_emulation_t>(&this->gen_,
+                    this->bf16_emu_reserv_1_, this->bf16_emu_reserv_2_,
+                    this->bf16_emu_reserv_3_, this->bf16_emu_scratch_,
+                    this->bf16_emu_reserv_4_);
+        }
+    }
 
     // Need to have bf16 emu available publically here since initialization
     // has to happen after preamble.
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
-protected:
-    jit_generator &gen_;
-    const int simd_w_;
-};
-
-jit_transfer_t<f32>::jit_transfer_t(jit_generator &gen, const int simd_w)
-    : gen_(gen), simd_w_ {simd_w} {}
-
-template <>
-struct jit_transfer_t<bf16> : jit_transfer_t<f32> {
-    jit_transfer_t(jit_generator &gen);
-
-    template <data_type_t load_data_type>
-    void load(Zmm &zmm_src, Reg64 reg_src, int nelems, size_t offt_elems);
-
-    template <data_type_t store_data_type>
-    void store(Zmm &zmm_dst, Reg64 reg_dst, int nelems, size_t offt_elems);
+    void load(Ymm &vmm_src, Reg64 reg_src, int nelems, size_t offt_elems,
+            data_type_t data_type);
+    void store(Ymm &vmm_dst, Reg64 reg_dst, int nelems, size_t offt_elems,
+            data_type_t data_type);
 
 private:
+    jit_generator &gen_;
+    const int simd_w_;
     const bool emulate_bf16_;
     const Reg64 reg_tmp_ = r15;
     const Zmm bf16_emu_reserv_1_ = Zmm(28);
@@ -76,124 +65,96 @@ private:
     const Zmm bf16_emu_reserv_4_ = Zmm(31);
 };
 
-jit_transfer_t<bf16>::jit_transfer_t(jit_generator &gen)
-    : jit_transfer_t<f32>(gen, 16 /* simd_w_ */)
-    , emulate_bf16_ {!mayiuse(avx512_core_bf16)} {
-    if (emulate_bf16_) {
-        this->bf16_emu_ = utils::make_unique<bf16_emulation_t>(&this->gen_,
-                this->bf16_emu_reserv_1_, this->bf16_emu_reserv_2_,
-                this->bf16_emu_reserv_3_, this->bf16_emu_scratch_,
-                this->bf16_emu_reserv_4_);
+void jit_transfer_t::load(Ymm &vmm_src, Reg64 reg_src, int nelems,
+        size_t offt_elems, data_type_t data_type) {
+    if (data_type == f32) {
+        if (nelems == 1)
+            gen_.vmovss(Xmm(vmm_src.getIdx()),
+                    dword[reg_src + offt_elems * sizeof(float)]);
+        else if (nelems == simd_w_)
+            gen_.uni_vmovups(
+                    vmm_src, zword[reg_src + offt_elems * sizeof(float)]);
+        else
+            assert(!"unsupported nelems for load src");
+    } else if (data_type == bf16) {
+        if (nelems == 1) {
+            const Xmm x_reg = Xmm(vmm_src.getIdx());
+            gen_.movzx(
+                    reg_tmp_, word[reg_src + offt_elems * sizeof(bfloat16_t)]);
+            gen_.movq(x_reg, reg_tmp_);
+            gen_.vpslld(x_reg, x_reg, 0x10);
+        } else if (nelems == simd_w_) {
+            gen_.vpmovzxwd(
+                    vmm_src, yword[reg_src + offt_elems * sizeof(bfloat16_t)]);
+            gen_.vpslld(vmm_src, vmm_src, 0x10);
+        } else {
+            assert(!"unsupported nelems for load src");
+        }
+    } else {
+        assert(!"unexpected!");
     }
 }
 
-template <>
-void jit_transfer_t<f32>::load<f32>(
-        Ymm &vmm_src, Reg64 reg_src, int nelems, size_t offt_elems) {
-    if (nelems == 1)
-        gen_.vmovss(Xmm(vmm_src.getIdx()),
-                dword[reg_src + offt_elems * sizeof(float)]);
-    else if (nelems == simd_w_)
-        gen_.uni_vmovups(vmm_src, zword[reg_src + offt_elems * sizeof(float)]);
-    else
-        assert(!"unsupported nelems for load src");
-}
-
-template <>
-void jit_transfer_t<f32>::store<f32>(
-        Ymm &vmm_dst, Reg64 reg_dst, int nelems, size_t offt_elems) {
-    if (nelems == 1)
-        gen_.vmovss(dword[reg_dst + offt_elems * sizeof(float)],
-                Xmm(vmm_dst.getIdx()));
-    else if (nelems == simd_w_)
-        gen_.uni_vmovups(zword[reg_dst + offt_elems * sizeof(float)], vmm_dst);
-    else
-        assert(!"unsupported nelems");
-}
-
-template <>
-void jit_transfer_t<bf16>::load<f32>(
-        Zmm &zmm_src, Reg64 reg_src, int nelems, size_t offt_elems) {
-    jit_transfer_t<f32>::load<f32>(zmm_src, reg_src, nelems, offt_elems);
-}
-
-template <>
-void jit_transfer_t<bf16>::store<f32>(
-        Zmm &zmm_dst, Reg64 reg_dst, int nelems, size_t offt_elems) {
-    jit_transfer_t<f32>::store<f32>(zmm_dst, reg_dst, nelems, offt_elems);
-}
-
-template <>
-void jit_transfer_t<bf16>::load<bf16>(
-        Zmm &zmm_src, Reg64 reg_src, int nelems, size_t offt_elems) {
-    if (nelems == 1) {
-        const Xmm x_reg = Xmm(zmm_src.getIdx());
-        gen_.movzx(reg_tmp_, word[reg_src + offt_elems * sizeof(bfloat16_t)]);
-        gen_.movq(x_reg, reg_tmp_);
-        gen_.vpslld(x_reg, x_reg, 0x10);
-    } else if (nelems == simd_w_) {
-        gen_.vpmovzxwd(
-                zmm_src, yword[reg_src + offt_elems * sizeof(bfloat16_t)]);
-        gen_.vpslld(zmm_src, zmm_src, 0x10);
-    } else
-        assert(!"unsupported nelems for load src");
-}
-
-template <>
-void jit_transfer_t<bf16>::store<bf16>(
-        Zmm &zmm_dst, Reg64 reg_dst, int nelems, size_t offt_elems) {
-    if (nelems == 1) {
-        const Ymm ymm_dst = Ymm(zmm_dst.getIdx());
-        if (emulate_bf16_)
-            bf16_emu_->vcvtneps2bf16(ymm_dst, zmm_dst);
+void jit_transfer_t::store(Ymm &vmm_dst, Reg64 reg_dst, int nelems,
+        size_t offt_elems, data_type_t data_type) {
+    if (data_type == f32) {
+        if (nelems == 1)
+            gen_.vmovss(dword[reg_dst + offt_elems * sizeof(float)],
+                    Xmm(vmm_dst.getIdx()));
+        else if (nelems == simd_w_)
+            gen_.uni_vmovups(
+                    zword[reg_dst + offt_elems * sizeof(float)], vmm_dst);
         else
-            gen_.vcvtneps2bf16(ymm_dst, zmm_dst);
-        const Xmm xmm_dst = Xmm(zmm_dst.getIdx());
-        gen_.vpextrw(
-                word[reg_dst + offt_elems * sizeof(bfloat16_t)], xmm_dst, 0);
-    } else if (nelems == simd_w_) {
-        const Ymm ymm_dst = Ymm(zmm_dst.getIdx());
-        if (emulate_bf16_)
-            bf16_emu_->vcvtneps2bf16(ymm_dst, zmm_dst);
-        else
-            gen_.vcvtneps2bf16(ymm_dst, zmm_dst);
-        gen_.vmovdqu16(
-                yword[reg_dst + offt_elems * sizeof(bfloat16_t)], ymm_dst);
-    } else
-        assert(!"unsupported nelems");
+            assert(!"unsupported nelems");
+    } else if (data_type == bf16) {
+        if (nelems == 1) {
+            const Ymm ymm_dst = Ymm(vmm_dst.getIdx());
+            if (emulate_bf16_)
+                bf16_emu_->vcvtneps2bf16(ymm_dst, vmm_dst);
+            else
+                gen_.vcvtneps2bf16(ymm_dst, vmm_dst);
+            const Xmm xmm_dst = Xmm(vmm_dst.getIdx());
+            gen_.vpextrw(word[reg_dst + offt_elems * sizeof(bfloat16_t)],
+                    xmm_dst, 0);
+        } else if (nelems == simd_w_) {
+            const Ymm ymm_dst = Ymm(vmm_dst.getIdx());
+            if (emulate_bf16_)
+                bf16_emu_->vcvtneps2bf16(ymm_dst, vmm_dst);
+            else
+                gen_.vcvtneps2bf16(ymm_dst, vmm_dst);
+            gen_.vmovdqu16(
+                    yword[reg_dst + offt_elems * sizeof(bfloat16_t)], ymm_dst);
+        } else {
+            assert(!"unsupported nelems");
+        }
+    } else {
+        assert(!"unexpected!");
+    }
 }
 
 template <data_type_t data_type>
-struct jit_stat_and_data_kernel_t : stat_and_data_kernel_t<data_type>,
+struct jit_stat_and_data_kernel_t : stat_and_data_kernel_t,
                                     public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_stat_and_data_kernel_t);
 
     jit_stat_and_data_kernel_t(const layer_normalization_pd_t *pd);
 
-    using data_t = typename prec_traits<data_type>::type;
-    void operator()(const data_t *src, data_t *dst, const float *scale,
+    void operator()(const void *src, void *dst, const float *scale,
             const float *shift, float *mean, float *var,
             const size_t block_size) const override;
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
 private:
-    jit_transfer_t<data_type> jit_transfer_;
+    jit_transfer_t jit_transfer_;
     static constexpr int unroll_factor_ = 8;
     static constexpr int simd_w = data_type == bf16 ? 16 : 8;
     using Vmm = typename utils::conditional<data_type == bf16, Xbyak::Zmm,
             Xbyak::Ymm>::type;
-    using stat_and_data_kernel_t<data_type>::C_;
-    using stat_and_data_kernel_t<data_type>::use_scaleshift_;
-    using stat_and_data_kernel_t<data_type>::use_scale_;
-    using stat_and_data_kernel_t<data_type>::use_shift_;
-    using stat_and_data_kernel_t<data_type>::save_stats_;
-    using stat_and_data_kernel_t<data_type>::calculate_stats_;
-    using stat_and_data_kernel_t<data_type>::eps_;
 
     struct ker_args_t {
-        const data_t *src;
-        data_t *dst;
+        const void *src;
+        void *dst;
         const float *scale;
         const float *shift;
         const float *mean;
@@ -237,15 +198,15 @@ private:
 template <data_type_t data_type>
 jit_stat_and_data_kernel_t<data_type>::jit_stat_and_data_kernel_t(
         const layer_normalization_pd_t *pd)
-    : stat_and_data_kernel_t<data_type>(pd)
+    : stat_and_data_kernel_t(pd)
     , jit_generator(jit_name())
-    , jit_transfer_ {*this} {
+    , jit_transfer_(*this, simd_w) {
     assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
 }
 
 template <data_type_t data_type>
-void jit_stat_and_data_kernel_t<data_type>::operator()(const data_t *src,
-        data_t *dst, const float *scale, const float *shift, float *mean,
+void jit_stat_and_data_kernel_t<data_type>::operator()(const void *src,
+        void *dst, const float *scale, const float *shift, float *mean,
         float *var, const size_t block_size) const {
     ker_args_t args;
     args.src = src;
@@ -282,15 +243,12 @@ void jit_stat_and_data_kernel_t<data_type>::generate() {
 
     const auto calculate_dst = [=](int nelems, size_t offt_elems) {
         if (use_scaleshift_ || use_scale_) {
-            jit_transfer_.template load<f32>(
-                    vmm_gamma, reg_scale, nelems, offt_elems);
+            jit_transfer_.load(vmm_gamma, reg_scale, nelems, offt_elems, f32);
         }
         if (use_scaleshift_ || use_shift_) {
-            jit_transfer_.template load<f32>(
-                    vmm_beta, reg_shift, nelems, offt_elems);
+            jit_transfer_.load(vmm_beta, reg_shift, nelems, offt_elems, f32);
         }
-        jit_transfer_.template load<data_type>(
-                vmm_data, reg_src, nelems, offt_elems);
+        jit_transfer_.load(vmm_data, reg_src, nelems, offt_elems, data_type);
         vsubps(vmm_data, vmm_data, vmm_mean);
         vmulps(vmm_data, vmm_data, vmm_inv_sqrtvar);
         if (use_scaleshift_ || (use_scale_ && use_shift_))
@@ -299,8 +257,7 @@ void jit_stat_and_data_kernel_t<data_type>::generate() {
             if (use_scale_) vmulps(vmm_data, vmm_data, vmm_gamma);
             if (use_shift_) vaddps(vmm_data, vmm_data, vmm_beta);
         }
-        jit_transfer_.template store<data_type>(
-                vmm_data, reg_dst, nelems, offt_elems);
+        jit_transfer_.store(vmm_data, reg_dst, nelems, offt_elems, data_type);
     };
 
     // add block_start to block_size to define block_end
@@ -379,8 +336,8 @@ void jit_stat_and_data_kernel_t<data_type>::compute(F op) {
         // unrolled loop
         for (int i = 0; i < C_vecs / unroll; i++)
             for (int j = 0; j < unroll; j++) {
-                jit_transfer_.template load<data_type>(
-                        vmm_src, reg_src, simd_w, (i * unroll + j) * simd_w);
+                jit_transfer_.load(vmm_src, reg_src, simd_w,
+                        (i * unroll + j) * simd_w, data_type);
                 op(Vmm(j));
             }
 
@@ -394,8 +351,7 @@ void jit_stat_and_data_kernel_t<data_type>::compute(F op) {
 
         // unrolled loop remainder
         for (int i = utils::rnd_dn(C_vecs, unroll); i < C_vecs; i++) {
-            jit_transfer_.template load<data_type>(
-                    vmm_src, reg_src, simd_w, i * simd_w);
+            jit_transfer_.load(vmm_src, reg_src, simd_w, i * simd_w, data_type);
             op(Vmm(0));
         }
 
@@ -405,7 +361,7 @@ void jit_stat_and_data_kernel_t<data_type>::compute(F op) {
 
     // vector remainder
     for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++) {
-        jit_transfer_.template load<data_type>(vmm_src, reg_src, 1, i);
+        jit_transfer_.load(vmm_src, reg_src, 1, i, data_type);
         op(Vmm(0));
     }
 
@@ -438,31 +394,26 @@ void jit_stat_and_data_kernel_t<f32>::reduce() {
 }
 
 template <data_type_t data_type>
-struct jit_diff_ss_kernel_t : diff_ss_kernel_t<data_type>,
-                              public jit_generator {
+struct jit_diff_ss_kernel_t : diff_ss_kernel_t, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_diff_ss_kernel_t);
 
     jit_diff_ss_kernel_t(const layer_normalization_pd_t *pd);
 
-    using data_t = typename prec_traits<data_type>::type;
-    void operator()(const data_t *src, const data_t *diff_dst,
-            float *diff_gamma, float *diff_beta, const float *mean,
-            const float *var, float *const inv_sqrtvar,
-            const size_t block_size) const override;
+    void operator()(const void *src, const void *diff_dst, float *diff_gamma,
+            float *diff_beta, const float *mean, const float *var,
+            float *const inv_sqrtvar, const size_t block_size) const override;
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
 private:
-    jit_transfer_t<data_type> jit_transfer_;
+    jit_transfer_t jit_transfer_;
     static constexpr int simd_w = data_type == bf16 ? 16 : 8;
     using Vmm = typename utils::conditional<data_type == bf16, Xbyak::Zmm,
             Xbyak::Ymm>::type;
-    using diff_ss_kernel_t<data_type>::C_;
-    using diff_ss_kernel_t<data_type>::eps_;
 
     struct ker_args_t {
-        const data_t *src;
-        const data_t *diff_dst;
+        const void *src;
+        const void *diff_dst;
         float *diff_gamma;
         float *diff_beta;
         const float *mean;
@@ -494,15 +445,15 @@ private:
 template <data_type_t data_type>
 jit_diff_ss_kernel_t<data_type>::jit_diff_ss_kernel_t(
         const layer_normalization_pd_t *pd)
-    : diff_ss_kernel_t<data_type>(pd)
+    : diff_ss_kernel_t(pd)
     , jit_generator(jit_name())
-    , jit_transfer_ {*this} {
+    , jit_transfer_(*this, simd_w) {
     assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
 }
 
 template <data_type_t data_type>
-void jit_diff_ss_kernel_t<data_type>::operator()(const data_t *src,
-        const data_t *diff_dst, float *diff_gamma, float *diff_beta,
+void jit_diff_ss_kernel_t<data_type>::operator()(const void *src,
+        const void *diff_dst, float *diff_gamma, float *diff_beta,
         const float *mean, const float *var, float *const inv_sqrtvar,
         const size_t block_size) const {
     ker_args_t args;
@@ -546,22 +497,18 @@ void jit_diff_ss_kernel_t<data_type>::generate() {
 
     const int C_vecs = C_ / simd_w;
     const auto calculate_diff_gamma_beta = [=](int nelems, size_t offt_elems) {
-        jit_transfer_.template load<data_type>(
-                vmm_ddst, reg_diff_dst, nelems, offt_elems);
-        jit_transfer_.template load<f32>(
-                vmm_dbeta, reg_diff_beta, nelems, offt_elems);
-        jit_transfer_.template load<f32>(
-                vmm_dgamma, reg_diff_gamma, nelems, offt_elems);
-        jit_transfer_.template load<data_type>(
-                vmm_src, reg_src, nelems, offt_elems);
+        jit_transfer_.load(
+                vmm_ddst, reg_diff_dst, nelems, offt_elems, data_type);
+        jit_transfer_.load(vmm_dbeta, reg_diff_beta, nelems, offt_elems, f32);
+        jit_transfer_.load(vmm_dgamma, reg_diff_gamma, nelems, offt_elems, f32);
+        jit_transfer_.load(vmm_src, reg_src, nelems, offt_elems, data_type);
         vaddps(vmm_dbeta, vmm_dbeta, vmm_ddst);
         vsubps(vmm_src, vmm_src, vmm_mean);
         vmulps(vmm_src, vmm_src, vmm_inv_sqrtvar);
         vfmadd231ps(vmm_dgamma, vmm_src, vmm_ddst);
-        jit_transfer_.template store<f32>(
-                vmm_dbeta, reg_diff_beta, nelems, offt_elems);
-        jit_transfer_.template store<f32>(
-                vmm_dgamma, reg_diff_gamma, nelems, offt_elems);
+        jit_transfer_.store(vmm_dbeta, reg_diff_beta, nelems, offt_elems, f32);
+        jit_transfer_.store(
+                vmm_dgamma, reg_diff_gamma, nelems, offt_elems, f32);
     };
 
     // add block_start to block_size to define block_end
@@ -597,35 +544,27 @@ void jit_diff_ss_kernel_t<data_type>::generate() {
 }
 
 template <data_type_t data_type>
-struct jit_diff_data_kernel_t : diff_data_kernel_t<data_type>,
-                                public jit_generator {
+struct jit_diff_data_kernel_t : diff_data_kernel_t, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_diff_data_kernel_t);
 
     jit_diff_data_kernel_t(const layer_normalization_pd_t *pd);
 
-    using data_t = typename prec_traits<data_type>::type;
-    void operator()(const data_t *src, const data_t *diff_dst, data_t *diff_src,
+    void operator()(const void *src, const void *diff_dst, void *diff_src,
             const float *ss, const float *mean, float *const inv_sqrtvar,
             const size_t block_size) const override;
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
 private:
-    jit_transfer_t<data_type> jit_transfer_;
+    jit_transfer_t jit_transfer_;
     static constexpr int simd_w = data_type == bf16 ? 16 : 8;
     using Vmm = typename utils::conditional<data_type == bf16, Xbyak::Zmm,
             Xbyak::Ymm>::type;
-    using diff_data_kernel_t<data_type>::C_;
-    using diff_data_kernel_t<data_type>::eps_;
-    using diff_data_kernel_t<data_type>::calculate_diff_stats_;
-    using diff_data_kernel_t<data_type>::use_scaleshift_;
-    using diff_data_kernel_t<data_type>::use_scale_;
-    using diff_data_kernel_t<data_type>::use_shift_;
 
     struct ker_args_t {
-        const data_t *src;
-        const data_t *diff_dst;
-        data_t *diff_src;
+        const void *src;
+        const void *diff_dst;
+        void *diff_src;
         const float *ss;
         const float *mean;
         const float *inv_sqrtvar;
@@ -662,15 +601,15 @@ private:
 template <data_type_t data_type>
 jit_diff_data_kernel_t<data_type>::jit_diff_data_kernel_t(
         const layer_normalization_pd_t *pd)
-    : diff_data_kernel_t<data_type>(pd)
+    : diff_data_kernel_t(pd)
     , jit_generator(jit_name())
-    , jit_transfer_ {*this} {
+    , jit_transfer_(*this, simd_w) {
     assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
 }
 
 template <data_type_t data_type>
-void jit_diff_data_kernel_t<data_type>::operator()(const data_t *src,
-        const data_t *diff_dst, data_t *diff_src, const float *ss,
+void jit_diff_data_kernel_t<data_type>::operator()(const void *src,
+        const void *diff_dst, void *diff_src, const float *ss,
         const float *mean, float *const inv_sqrtvar,
         const size_t block_size) const {
     ker_args_t args;
@@ -710,31 +649,27 @@ void jit_diff_data_kernel_t<data_type>::generate() {
 
     auto compute_dd_gammas = [=](int nelems, size_t offt_elems) {
         Vmm vmm_ddst = vmm_dsrc;
-        jit_transfer_.template load<data_type>(
-                vmm_ddst, reg_diff_dst, nelems, offt_elems);
+        jit_transfer_.load(
+                vmm_ddst, reg_diff_dst, nelems, offt_elems, data_type);
         if (use_scaleshift_ || use_scale_) {
-            jit_transfer_.template load<f32>(
-                    vmm_gamma, reg_gamma, nelems, offt_elems);
+            jit_transfer_.load(vmm_gamma, reg_gamma, nelems, offt_elems, f32);
             vmulps(vmm_ddst, vmm_ddst, vmm_gamma);
         }
-        jit_transfer_.template load<data_type>(
-                vmm_src, reg_src, nelems, offt_elems);
+        jit_transfer_.load(vmm_src, reg_src, nelems, offt_elems, data_type);
         vaddps(vmm_dd_gamma, vmm_dd_gamma, vmm_ddst);
         vsubps(vmm_src, vmm_src, vmm_mean);
         vfmadd231ps(vmm_dd_gamma_x, vmm_ddst, vmm_src);
     };
 
     auto compute_diff_src = [=](int nelems, size_t offt_elems) {
-        jit_transfer_.template load<data_type>(
-                vmm_dsrc, reg_diff_dst, nelems, offt_elems);
+        jit_transfer_.load(
+                vmm_dsrc, reg_diff_dst, nelems, offt_elems, data_type);
         if (use_scaleshift_ || use_scale_) {
-            jit_transfer_.template load<f32>(
-                    vmm_gamma, reg_gamma, nelems, offt_elems);
+            jit_transfer_.load(vmm_gamma, reg_gamma, nelems, offt_elems, f32);
             vmulps(vmm_dsrc, vmm_dsrc, vmm_gamma);
         }
         if (calculate_diff_stats_) {
-            jit_transfer_.template load<data_type>(
-                    vmm_src, reg_src, nelems, offt_elems);
+            jit_transfer_.load(vmm_src, reg_src, nelems, offt_elems, data_type);
             vsubps(vmm_src, vmm_src, vmm_mean);
             vmulps(vmm_src, vmm_src, vmm_inv_sqrtvar);
             vfmadd213ps(vmm_src, vmm_dd_gamma_x, vmm_dd_gamma);
@@ -742,8 +677,8 @@ void jit_diff_data_kernel_t<data_type>::generate() {
             vsubps(vmm_dsrc, vmm_dsrc, vmm_src);
         }
         vmulps(vmm_dsrc, vmm_dsrc, vmm_inv_sqrtvar);
-        jit_transfer_.template store<data_type>(
-                vmm_dsrc, reg_diff_src, nelems, offt_elems);
+        jit_transfer_.store(
+                vmm_dsrc, reg_diff_src, nelems, offt_elems, data_type);
     };
 
     // add block_start to block_size to define block_end
@@ -827,42 +762,43 @@ void jit_diff_data_kernel_t<bf16>::reduce(
     vaddps(xmm_vec, xmm_high, xmm_vec);
 };
 
-template <>
-stat_and_data_kernel_t<bf16> *stat_and_data_kernel_create(
+stat_and_data_kernel_t *stat_and_data_kernel_create(
         const layer_normalization_pd_t *pd) {
-    return mayiuse(avx512_core) ? new jit_stat_and_data_kernel_t<bf16>(pd)
-                                : nullptr;
+    if (pd->src_md()->data_type == f32) {
+        return mayiuse(avx2) ? new jit_stat_and_data_kernel_t<f32>(pd)
+                             : nullptr;
+    } else if (pd->src_md()->data_type == bf16) {
+        return mayiuse(avx512_core) ? new jit_stat_and_data_kernel_t<bf16>(pd)
+                                    : nullptr;
+    } else {
+        assert(!"unexpected data type!");
+        return nullptr;
+    }
 }
 
-template <>
-stat_and_data_kernel_t<f32> *stat_and_data_kernel_create(
-        const layer_normalization_pd_t *pd) {
-    return mayiuse(avx2) ? new jit_stat_and_data_kernel_t<f32>(pd) : nullptr;
+diff_ss_kernel_t *diff_ss_kernel_create(const layer_normalization_pd_t *pd) {
+    if (pd->src_md()->data_type == f32) {
+        return mayiuse(avx2) ? new jit_diff_ss_kernel_t<f32>(pd) : nullptr;
+    } else if (pd->src_md()->data_type == bf16) {
+        return mayiuse(avx512_core) ? new jit_diff_ss_kernel_t<bf16>(pd)
+                                    : nullptr;
+    } else {
+        assert(!"unexpected data type!");
+        return nullptr;
+    }
 }
 
-template <>
-diff_ss_kernel_t<bf16> *diff_ss_kernel_create(
+diff_data_kernel_t *diff_data_kernel_create(
         const layer_normalization_pd_t *pd) {
-    return mayiuse(avx512_core) ? new jit_diff_ss_kernel_t<bf16>(pd) : nullptr;
-}
-
-template <>
-diff_ss_kernel_t<f32> *diff_ss_kernel_create(
-        const layer_normalization_pd_t *pd) {
-    return mayiuse(avx2) ? new jit_diff_ss_kernel_t<f32>(pd) : nullptr;
-}
-
-template <>
-diff_data_kernel_t<bf16> *diff_data_kernel_create(
-        const layer_normalization_pd_t *pd) {
-    return mayiuse(avx512_core) ? new jit_diff_data_kernel_t<bf16>(pd)
-                                : nullptr;
-}
-
-template <>
-diff_data_kernel_t<f32> *diff_data_kernel_create(
-        const layer_normalization_pd_t *pd) {
-    return mayiuse(avx2) ? new jit_diff_data_kernel_t<f32>(pd) : nullptr;
+    if (pd->src_md()->data_type == f32) {
+        return mayiuse(avx2) ? new jit_diff_data_kernel_t<f32>(pd) : nullptr;
+    } else if (pd->src_md()->data_type == bf16) {
+        return mayiuse(avx512_core) ? new jit_diff_data_kernel_t<bf16>(pd)
+                                    : nullptr;
+    } else {
+        assert(!"unexpected data type!");
+        return nullptr;
+    }
 }
 
 } // namespace lnorm_utils
