@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,7 +19,10 @@
 
 #include "cpu/platform.hpp"
 
-#if DNNL_X64
+// Control to enable/disable kernels for debugging.
+#define ENABLE_JIT_KERNELS 1
+
+#if ENABLE_JIT_KERNELS && DNNL_X64
 #include "cpu/x64/jit_uni_layer_normalization_kernels.hpp"
 #endif
 
@@ -208,7 +211,7 @@ void diff_ss_kernel_t<bf16>::operator()(const bfloat16_t *src,
 template <data_type_t data_type>
 stat_and_data_kernel_t<data_type> *stat_and_data_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
-#if DNNL_X64
+#if ENABLE_JIT_KERNELS && DNNL_X64
     if (auto *res
             = x64::lnorm_utils::stat_and_data_kernel_create<data_type>(pd))
         return res;
@@ -223,7 +226,7 @@ stat_and_data_kernel_t<data_type> *stat_and_data_kernel_t<data_type>::create(
 template <data_type_t data_type>
 diff_ss_kernel_t<data_type> *diff_ss_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
-#if DNNL_X64
+#if ENABLE_JIT_KERNELS && DNNL_X64
     if (auto *res = x64::lnorm_utils::diff_ss_kernel_create<data_type>(pd))
         return res;
 #endif
@@ -237,7 +240,7 @@ diff_ss_kernel_t<data_type> *diff_ss_kernel_t<data_type>::create(
 template <data_type_t data_type>
 diff_data_kernel_t<data_type> *diff_data_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
-#if DNNL_X64
+#if ENABLE_JIT_KERNELS && DNNL_X64
     if (auto *res = x64::lnorm_utils::diff_data_kernel_create<data_type>(pd))
         return res;
 #endif
