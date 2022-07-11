@@ -20,19 +20,18 @@ Non accurate results may occur due to the following behaviors:
 These behaviors are intentional, giving significantly better performance than
 the equivalent accurate computation.
 However, depending on the user, compromising accuracy may not be an option.
-Adding an optional bit exact implemetation will allow the user to prioritize
+Adding an optional bit exact implementation will allow the user to prioritize
 correctness over performance.
 
 ## Proposal
 
-The proposal is to let the user choose a slower implementation with guranteed
+The proposal is to let the user choose a slower implementation with guaranteed
 accuracy.
 
-The link below demostrates the changes in the primitive's implemetation,
+The link below demonstrates the changes in the primitive's implementation,
 allowing accurate results.
-It does not demostrate any API changes needed to expose this option to the
-user, instead it uses a compile time define. One way to expose this option
-may be via primitive attributes API.
+It does not demonstrate any API changes needed to expose this option to the
+user, instead it uses a compile time define.
 
 https://github.com/oneapi-src/oneDNN/compare/master...maayaneh:oneDNN:master
 
@@ -49,3 +48,54 @@ are:
 3. Avoid using 128 compensation for signed input - this is not essential for
    correctness, it is simply not necessary since the alternative multiplication
    instruction does not require the input to be unsigned.
+
+### Proposed API
+
+#### Option 1: Add a build time option
+
+Let the user set the same behavior for all convolutions with a build option.
+
+Option name: `ONEDNN_JIT_AVX512_FORCE_BE`
+Supported values: ON, OFF (default)
+
+Pros:
+* Simple implementation.
+* Simple usage - after building nothing is required from the user.
+
+Cons:
+* No granularity - all primitives are configured the same.
+
+#### Option 2: Add a primitive attribute
+
+Extend primitive attributes with the following members:
+
+~~~c++
+struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
+   ...
+   void set_force_be(bool force_be) { is_force_be_ = force_be; };
+   ...
+   bool is_force_be_;
+}
+~~~
+
+Usage:
+~~~c++
+dnnl::primitive_attr conv_attr;
+
+// force_be is set per primitive
+conv_attr.set_force_be(true);
+
+// create primitive descriptor with custom attributes
+auto conv_pd = convolution_forward::primitive_desc(conv_desc, conv_attr, engine);
+~~~
+
+Pros:
+* Granularity - allow the user to choose a different behavior per primitive.
+
+Cons:
+* Usage is not as simple - the attribute needs to be reset per primitive.
+
+
+I recommend using option 1 for simplicity. While option 1 offers no
+granularity, I believe in most cases the same user will require the same
+behavior for all primitives, thus rendering granularity unnecessary.
