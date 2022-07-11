@@ -418,16 +418,25 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         wsp_tile = wsp_tile_global + ithr * 2 * brgemm_convolution_utils::P4K;
     }
 
-    size_t tr_src_buf_number(int g, int ic) const {
+    size_t tr_src_buf_number(int g, int icb) const {
         return jcp.global_transpose
-                ? ithr_mb * jcp.nb_ic * jcp.ngroups + g * jcp.nb_ic + ic
+                ? ithr_mb * jcp.nb_ic * jcp.ngroups + g * jcp.nb_ic + icb
                 : ithr;
     }
 
-    size_t tr_diff_dst_buf_number(int g, int oc) const {
-        return jcp.global_transpose
-                ? ithr_mb * jcp.nb_oc * jcp.ngroups + g * jcp.nb_oc + oc
-                : ithr;
+    size_t tr_diff_dst_buf_number(int g, int ocb) const {
+        // for current loop order (xoi) if jcp.tr_ocb_chunk then we can reuse
+        // same area in  tr_diff_dst buffer
+        if (jcp.tr_ocb_chunk)
+            return jcp.global_transpose
+                    ? ((ithr_mb * jcp.ngroups + g) * jcp.nthr_oc_b + ithr_oc_b)
+                                    * jcp.nb_oc_blocking
+                            + (ocb - oc_b_start) % jcp.nb_oc_blocking
+                    : ithr;
+        else
+            return jcp.global_transpose
+                    ? ithr_mb * jcp.nb_oc * jcp.ngroups + g * jcp.nb_oc + ocb
+                    : ithr;
     }
 
     size_t tr_src_off(int g, int icb, int id, int ih) const {
@@ -513,103 +522,113 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         }
     }
 
-    void maybe_global_transpose(int img, int od_s, int odb_s, int odb_e,
-            int oh_s, int ohb_s, int ohb_e) const {
+    void maybe_global_transpose(int img, int ocb_s, int ocb_e, int icb_s,
+            int icb_e, int od_s, int odb_s, int odb_e, int oh_s, int ohb_s,
+            int ohb_e) const {
         if (!jcp.global_transpose) return;
 
-        const auto id_s = nstl::max(0, -jcp.f_pad + od_s * jcp.stride_d);
-        const auto ih_s = nstl::max(0, -jcp.t_pad + oh_s * jcp.stride_h);
-
-        const auto idb_s = nstl::max(0, -jcp.f_pad + odb_s * jcp.stride_d);
-        const auto idb_e = nstl::min(
-                jcp.id, -jcp.f_pad + (odb_e - 1) * jcp.stride_d + jcp.ext_kd);
-        const auto ihb_s = nstl::max(0, -jcp.t_pad + ohb_s * jcp.stride_h);
-        const auto ihb_e = nstl::min(
-                jcp.ih, -jcp.t_pad + (ohb_e - 1) * jcp.stride_h + jcp.ext_kh);
-
         using simple_barrier::barrier;
-        int work_amount
-                = g_work * ic_b_work * (idb_e - idb_s) * (ihb_e - ihb_s);
-        int tr_start {0}, tr_end {0};
-        balance211(work_amount, jcp.nthr_oc_b, ithr_oc_b, tr_start, tr_end);
+        const int icb_work = icb_e - icb_s;
+        const int ocb_work = ocb_e - ocb_s;
 
-        int g {0}, ic_b {0}, jd {0}, jh {0};
-        nd_iterator_init(tr_start, g, g_work, ic_b, ic_b_work, jd,
-                idb_e - idb_s, jh, ihb_e - ihb_s);
+        if (icb_work > 0) {
+            const auto id_s = nstl::max(0, -jcp.f_pad + od_s * jcp.stride_d);
+            const auto ih_s = nstl::max(0, -jcp.t_pad + oh_s * jcp.stride_h);
 
-        if (jcp.nthr_oc_b > 1)
-            barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
-        while (tr_start < tr_end) {
-            int g_ = g + g_start;
-            int ic_b_ = ic_b + ic_b_start;
+            const auto idb_s = nstl::max(0, -jcp.f_pad + odb_s * jcp.stride_d);
+            const auto idb_e = nstl::min(jcp.id,
+                    -jcp.f_pad + (odb_e - 1) * jcp.stride_d + jcp.ext_kd);
 
-            int jd_s = jd + idb_s;
+            const auto ihb_s = nstl::max(0, -jcp.t_pad + ohb_s * jcp.stride_h);
+            const auto ihb_e = nstl::min(jcp.ih,
+                    -jcp.t_pad + (ohb_e - 1) * jcp.stride_h + jcp.ext_kh);
 
-            int jh_s = jh + ihb_s;
-            int jh_e = jh_s + nstl::min(tr_end - tr_start, ihb_e - jh_s);
+            int work_amount
+                    = g_work * icb_work * (idb_e - idb_s) * (ihb_e - ihb_s);
+            int tr_start {0}, tr_end {0};
+            balance211(work_amount, jcp.nthr_oc_b, ithr_oc_b, tr_start, tr_end);
 
-            const int ic_off_idx = g_ * jcp.ic + ic_b_ * jcp.ic_block;
-
-            const src_data_t *p_src {nullptr};
-            if (jcp.harness == harness_2d_reduction) {
-                p_src = &src[src_d.blk_off(img, ic_off_idx, jh_s)];
-            } else if (jcp.harness == harness_3d_reduction) {
-                p_src = &src[src_d.blk_off(img, ic_off_idx, jd_s, jh_s)];
-            } else
-                assert(!"Invalid harness type");
-
-            src_data_t *p_tr_src
-                    = &tr_src[tr_src_off(g_, ic_b_, jd_s - id_s, jh_s - ih_s)];
-            trans_src_nxc(p_tr_src, p_src, 0, 0, ic_b_, 0, jh_e - jh_s);
-
-            nd_iterator_jump(tr_start, tr_end, g, g_work, ic_b, ic_b_work, jd,
+            int g {0}, ic_b {0}, jd {0}, jh {0};
+            nd_iterator_init(tr_start, g, g_work, ic_b, icb_work, jd,
                     idb_e - idb_s, jh, ihb_e - ihb_s);
+
+            if (jcp.nthr_oc_b > 1)
+                barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
+            while (tr_start < tr_end) {
+                int g_ = g + g_start;
+                int ic_b_ = ic_b + icb_s;
+
+                int jd_s = jd + idb_s;
+
+                int jh_s = jh + ihb_s;
+                int jh_e = jh_s + nstl::min(tr_end - tr_start, ihb_e - jh_s);
+
+                const int ic_off_idx = g_ * jcp.ic + ic_b_ * jcp.ic_block;
+
+                const src_data_t *p_src {nullptr};
+                if (jcp.harness == harness_2d_reduction) {
+                    p_src = &src[src_d.blk_off(img, ic_off_idx, jh_s)];
+                } else if (jcp.harness == harness_3d_reduction) {
+                    p_src = &src[src_d.blk_off(img, ic_off_idx, jd_s, jh_s)];
+                } else
+                    assert(!"Invalid harness type");
+
+                src_data_t *p_tr_src = &tr_src[tr_src_off(
+                        g_, ic_b_, jd_s - id_s, jh_s - ih_s)];
+                trans_src_nxc(p_tr_src, p_src, 0, 0, ic_b_, 0, jh_e - jh_s);
+
+                nd_iterator_jump(tr_start, tr_end, g, g_work, ic_b, icb_work,
+                        jd, idb_e - idb_s, jh, ihb_e - ihb_s);
+            }
+            if (jcp.nthr_oc_b > 1)
+                barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
         }
-        if (jcp.nthr_oc_b > 1)
-            barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
 
-        jd = 0;
-        jh = 0;
-        work_amount = g_work * oc_b_work * (odb_e - odb_s) * (ohb_e - ohb_s);
-        tr_start = 0;
-        tr_end = 0;
-        balance211(work_amount, jcp.nthr_ic_b, ithr_ic_b, tr_start, tr_end);
+        if (ocb_work > 0) {
+            int jd = 0;
+            int jh = 0;
+            int work_amount
+                    = g_work * ocb_work * (odb_e - odb_s) * (ohb_e - ohb_s);
+            int tr_start = 0;
+            int tr_end = 0;
+            balance211(work_amount, jcp.nthr_ic_b, ithr_ic_b, tr_start, tr_end);
 
-        g = 0;
-        int oc_b = 0;
-        nd_iterator_init(tr_start, g, g_work, oc_b, oc_b_work, jd,
-                odb_e - odb_s, jh, ohb_e - ohb_s);
-
-        if (jcp.nthr_ic_b > 1)
-            barrier(&tr_diff_dst_bctx[ithr_but_ic], jcp.nthr_ic_b);
-        while (tr_start < tr_end) {
-            int g_ = g + g_start;
-            int oc_b_ = oc_b + oc_b_start;
-            int jd_s = jd + odb_s;
-            int jh_s = jh + ohb_s;
-            int jh_e = jh_s + nstl::min(tr_end - tr_start, ohb_e - jh_s);
-            const int oc_off_idx = g_ * jcp.oc + oc_b_ * jcp.oc_block;
-
-            const diff_dst_data_t *p_diff_dst {nullptr};
-            if (jcp.harness == harness_2d_reduction) {
-                p_diff_dst
-                        = &diff_dst[diff_dst_d.blk_off(img, oc_off_idx, jh_s)];
-            } else if (jcp.harness == harness_3d_reduction) {
-                p_diff_dst = &diff_dst[diff_dst_d.blk_off(
-                        img, oc_off_idx, jd_s, jh_s)];
-            } else
-                assert(!"Invalid harness type");
-
-            diff_dst_data_t *p_tr_diff_dst = &tr_diff_dst[tr_diff_dst_off(
-                    g_, oc_b_, jd_s - od_s, jh_s - oh_s)];
-            trans_dst_nxc(
-                    p_tr_diff_dst, p_diff_dst, 0, 0, oc_b_, 0, jh_e - jh_s);
-
-            nd_iterator_jump(tr_start, tr_end, g, g_work, oc_b, oc_b_work, jd,
+            int g = 0;
+            int oc_b = 0;
+            nd_iterator_init(tr_start, g, g_work, oc_b, ocb_work, jd,
                     odb_e - odb_s, jh, ohb_e - ohb_s);
+
+            if (jcp.nthr_ic_b > 1)
+                barrier(&tr_diff_dst_bctx[ithr_but_ic], jcp.nthr_ic_b);
+            while (tr_start < tr_end) {
+                int g_ = g + g_start;
+                int oc_b_ = oc_b + ocb_s;
+                int jd_s = jd + odb_s;
+                int jh_s = jh + ohb_s;
+                int jh_e = jh_s + nstl::min(tr_end - tr_start, ohb_e - jh_s);
+                const int oc_off_idx = g_ * jcp.oc + oc_b_ * jcp.oc_block;
+
+                const diff_dst_data_t *p_diff_dst {nullptr};
+                if (jcp.harness == harness_2d_reduction) {
+                    p_diff_dst = &diff_dst[diff_dst_d.blk_off(
+                            img, oc_off_idx, jh_s)];
+                } else if (jcp.harness == harness_3d_reduction) {
+                    p_diff_dst = &diff_dst[diff_dst_d.blk_off(
+                            img, oc_off_idx, jd_s, jh_s)];
+                } else
+                    assert(!"Invalid harness type");
+
+                diff_dst_data_t *p_tr_diff_dst = &tr_diff_dst[tr_diff_dst_off(
+                        g_, oc_b_, jd_s - od_s, jh_s - oh_s)];
+                trans_dst_nxc(
+                        p_tr_diff_dst, p_diff_dst, 0, 0, oc_b_, 0, jh_e - jh_s);
+
+                nd_iterator_jump(tr_start, tr_end, g, g_work, oc_b, ocb_work,
+                        jd, odb_e - odb_s, jh, ohb_e - ohb_s);
+            }
+            if (jcp.nthr_ic_b > 1)
+                barrier(&tr_diff_dst_bctx[ithr_but_ic], jcp.nthr_ic_b);
         }
-        if (jcp.nthr_ic_b > 1)
-            barrier(&tr_diff_dst_bctx[ithr_but_ic], jcp.nthr_ic_b);
     }
 
     void maybe_local_traspose(void *&p_src, void *&p_dst, int img, int g,
@@ -796,51 +815,77 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
         for (int ohb_s = oh_s; ohb_s < oh_e; ohb_s += height_block) {
             const int ohb_e = nstl::min(ohb_s + height_block, oh_e);
             assert(ohb_e <= jcp.oh);
-            ti->maybe_global_transpose(img, 0, 0, 1, oh_s, ohb_s, ohb_e);
+
+            ti->maybe_global_transpose(img,
+                    jcp.tr_ocb_chunk ? 0 : ti->oc_b_start,
+                    jcp.tr_ocb_chunk ? 0 : ti->oc_b_end,
+                    jcp.tr_icb_chunk ? 0 : ti->ic_b_start,
+                    jcp.tr_icb_chunk ? 0 : ti->ic_b_end, 0, 0, 1, oh_s, ohb_s,
+                    ohb_e);
 
             for_(int g = ti->g_start; g < ti->g_end; ++g)
-            for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end;
-                    oc_b += jcp.nb_oc_blocking)
-            for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
-                    ic_b += jcp.nb_ic_blocking) {
-                const int nb_oc_blocks
-                        = (oc_b + jcp.nb_oc_blocking > ti->oc_b_end)
-                        ? 1
-                        : jcp.nb_oc_blocking;
-                void *p_src {nullptr};
-                void *p_dst {nullptr};
-                ti->maybe_local_traspose(p_src, p_dst, img, g, ic_b, oc_b, 0, 0,
-                        1, oh_s, ohb_s, ohb_e);
+            for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end;
+                    oc_b += jcp.nb_oc_blocking) {
+                const int oc_b_e
+                        = nstl::min(oc_b + jcp.nb_oc_blocking, ti->oc_b_end);
 
-                if (jcp.with_bias && ic_b == 0) {
-                    auto bp = jit_conv_call_s();
+                if (jcp.tr_ocb_chunk)
+                    ti->maybe_global_transpose(img, oc_b, oc_b_e, 0, 0, 0, 0, 1,
+                            oh_s, ohb_s, ohb_e);
 
-                    bp.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
-                            + oc_b * jcp.oc_block;
-                    bp.channel = (start == ti->img_start) && (ohb_s == oh_s);
+                for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
+                        ic_b += jcp.nb_ic_blocking) {
 
-                    bp.os_index_begin = ohb_s;
-                    bp.os_index_end = ohb_e;
-                    bp.last_oc_block
-                            = (nb_oc_blocks == jcp.nb_oc_blocking) ? 0 : 1;
+                    const int ic_b_e = nstl::min(
+                            ic_b + jcp.nb_ic_blocking, ti->ic_b_end);
 
-                    bp.dst = p_dst;
+                    if (oc_b == ti->oc_b_start && jcp.tr_icb_chunk)
+                        ti->maybe_global_transpose(img, 0, 0, ic_b, ic_b_e, 0,
+                                0, 1, oh_s, ohb_s, ohb_e);
 
-                    (*diff_bias_kernel_)(&bp);
-                }
+                    void *p_src {nullptr};
+                    void *p_dst {nullptr};
+                    ti->maybe_local_traspose(p_src, p_dst, img, g, ic_b, oc_b,
+                            0, 0, 1, oh_s, ohb_s, ohb_e);
 
-                const auto do_init = (start == ti->img_start);
+                    if (jcp.with_bias && ic_b == 0) {
+                        auto bp = jit_conv_call_s();
 
-                for (int kh = 0; kh < jcp.kh; kh++) {
-                    const int bs_ih_s = _pd->get_start_ih(kh, ohb_s);
-                    const int bs_ih_e = _pd->get_finish_ih(kh, ohb_e);
-                    const auto bs = div_up(bs_ih_e - bs_ih_s, jcp.stride_h);
-                    if (bs == 0 && !do_init) continue;
+                        bp.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
+                                + oc_b * jcp.oc_block;
+                        bp.channel
+                                = (start == ti->img_start) && (ohb_s == oh_s);
 
-                    for_(int s = 0; s < jcp.stride_w; s++)
-                    for (int kw = s; kw < jcp.kw; kw += jcp.stride_w)
-                        do_brgemm_call(g, bs, ic_b, oc_b, ohb_s, bs_ih_s, p_src,
-                                p_dst, kh, kw, do_init);
+                        bp.os_index_begin = ohb_s;
+                        bp.os_index_end = ohb_e;
+
+                        bp.last_oc_block
+                                = ((oc_b_e - oc_b) == jcp.nb_oc_blocking) ? 0
+                                                                          : 1;
+
+                        bp.dst = p_dst;
+
+                        (*diff_bias_kernel_)(&bp);
+                    }
+
+                    if (ti->g_start == ti->g_end
+                            || ti->oc_b_start == ti->oc_b_end
+                            || ti->ic_b_start == ti->ic_b_end)
+                        continue;
+
+                    const auto do_init = (start == ti->img_start);
+
+                    for (int kh = 0; kh < jcp.kh; kh++) {
+                        const int bs_ih_s = _pd->get_start_ih(kh, ohb_s);
+                        const int bs_ih_e = _pd->get_finish_ih(kh, ohb_e);
+                        const auto bs = div_up(bs_ih_e - bs_ih_s, jcp.stride_h);
+                        if (bs == 0 && !do_init) continue;
+
+                        for_(int s = 0; s < jcp.stride_w; s++)
+                        for (int kw = s; kw < jcp.kw; kw += jcp.stride_w)
+                            do_brgemm_call(g, bs, ic_b, oc_b, ohb_s, bs_ih_s,
+                                    p_src, p_dst, kh, kw, do_init);
+                    }
                 }
             }
         }
@@ -958,73 +1003,99 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
 
             for (int ohb_s = oh_s; ohb_s < oh_e; ohb_s += jcp.oh_block) {
                 const auto ohb_e = nstl::min(jcp.oh, ohb_s + jcp.oh_block);
-                ti->maybe_global_transpose(
-                        img, od_s, odb_s, odb_e, oh_s, ohb_s, ohb_e);
+
+                ti->maybe_global_transpose(img,
+                        jcp.tr_ocb_chunk ? 0 : ti->oc_b_start,
+                        jcp.tr_ocb_chunk ? 0 : ti->oc_b_end,
+                        jcp.tr_icb_chunk ? 0 : ti->ic_b_start,
+                        jcp.tr_icb_chunk ? 0 : ti->ic_b_end, od_s, odb_s, odb_e,
+                        oh_s, ohb_s, ohb_e);
 
                 for_(int g = ti->g_start; g < ti->g_end; ++g)
-                for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end;
-                        oc_b += jcp.nb_oc_blocking)
-                for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
-                        ic_b += jcp.nb_ic_blocking) {
+                for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end;
+                        oc_b += jcp.nb_oc_blocking) {
+                    const int oc_b_e = nstl::min(
+                            oc_b + jcp.nb_oc_blocking, ti->oc_b_end);
+                    if (jcp.tr_ocb_chunk)
+                        ti->maybe_global_transpose(img, oc_b, oc_b_e, 0, 0,
+                                od_s, odb_s, odb_e, oh_s, ohb_s, ohb_e);
 
-                    const int nb_oc_blocks
-                            = (oc_b + jcp.nb_oc_blocking > ti->oc_b_end)
-                            ? 1
-                            : jcp.nb_oc_blocking;
+                    for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
+                            ic_b += jcp.nb_ic_blocking) {
 
-                    void *p_src {nullptr};
-                    void *p_dst {nullptr};
-                    ti->maybe_local_traspose(p_src, p_dst, img, g, ic_b, oc_b,
-                            od_s, odb_s, odb_e, oh_s, ohb_s, ohb_e);
+                        const int ic_b_e = nstl::min(
+                                ic_b + jcp.nb_ic_blocking, ti->ic_b_end);
 
-                    if (jcp.with_bias && ic_b == 0) {
-                        for (int iodb = odb_s; iodb < odb_e; iodb++) {
-                            auto bp = jit_conv_call_s();
+                        if (oc_b == ti->oc_b_start && jcp.tr_icb_chunk)
+                            ti->maybe_global_transpose(img, 0, 0, ic_b, ic_b_e,
+                                    od_s, odb_s, odb_e, oh_s, ohb_s, ohb_e);
 
-                            bp.bias = diff_bias
-                                    + g * rnd_up(jcp.oc, jcp.oc_block)
-                                    + oc_b * jcp.oc_block;
-                            bp.os_index_begin = ohb_s;
-                            bp.os_index_end = ohb_e;
-                            bp.last_oc_block
-                                    = (nb_oc_blocks == jcp.nb_oc_blocking) ? 0
-                                                                           : 1;
+                        void *p_src {nullptr};
+                        void *p_dst {nullptr};
+                        ti->maybe_local_traspose(p_src, p_dst, img, g, ic_b,
+                                oc_b, od_s, odb_s, odb_e, oh_s, ohb_s, ohb_e);
 
-                            bp.channel = (start == ti->img_start)
-                                    && (odb_s == od_s) && (iodb == odb_s)
-                                    && (ohb_s == oh_s);
-                            bp.dst = ((diff_dst_data_t *)p_dst)
-                                    + (iodb - od_s) * jcp.oh * jcp.tr_ow
-                                            * jcp.oc_block
-                                    + (ohb_s - oh_s) * jcp.tr_ow * jcp.oc_block;
-                            (*diff_bias_kernel_)(&bp);
+                        if (jcp.with_bias && ic_b == 0) {
+                            for (int iodb = odb_s; iodb < odb_e; iodb++) {
+                                auto bp = jit_conv_call_s();
+
+                                bp.bias = diff_bias
+                                        + g * rnd_up(jcp.oc, jcp.oc_block)
+                                        + oc_b * jcp.oc_block;
+                                bp.os_index_begin = ohb_s;
+                                bp.os_index_end = ohb_e;
+
+                                bp.last_oc_block
+                                        = ((oc_b_e - oc_b)
+                                                  == jcp.nb_oc_blocking)
+                                        ? 0
+                                        : 1;
+
+                                bp.channel = (start == ti->img_start)
+                                        && (odb_s == od_s) && (iodb == odb_s)
+                                        && (ohb_s == oh_s);
+                                bp.dst = ((diff_dst_data_t *)p_dst)
+                                        + (iodb - od_s) * jcp.oh * jcp.tr_ow
+                                                * jcp.oc_block
+                                        + (ohb_s - oh_s) * jcp.tr_ow
+                                                * jcp.oc_block;
+                                (*diff_bias_kernel_)(&bp);
+                            }
                         }
-                    }
 
-                    const auto do_init
-                            = (start == ti->img_start && ohb_s == oh_s);
+                        if (ti->g_start == ti->g_end
+                                || ti->oc_b_start == ti->oc_b_end
+                                || ti->ic_b_start == ti->ic_b_end)
+                            continue;
 
-                    for (int kd = 0; kd < jcp.kd; kd++) {
-                        const int bs_id_s = _pd->get_start_id(kd, odb_s);
-                        const int bs_id_e = _pd->get_finish_id(kd, odb_e);
-                        const auto bs_d
-                                = div_up(bs_id_e - bs_id_s, jcp.stride_d);
-                        // bs_d may be 0 but we may still need to call brgemm to
-                        // initialize output
-                        if (bs_d == 0 && !do_init) continue;
+                        const auto do_init
+                                = (start == ti->img_start && ohb_s == oh_s);
 
-                        for (int kh = 0; kh < jcp.kh; kh++) {
-                            const int bs_ih_s = _pd->get_start_ih(kh, ohb_s);
-                            const int bs_ih_e = _pd->get_finish_ih(kh, ohb_e);
-                            const auto bs_h
-                                    = div_up(bs_ih_e - bs_ih_s, jcp.stride_h);
-                            if (bs_h == 0 && !do_init) continue;
+                        for (int kd = 0; kd < jcp.kd; kd++) {
+                            const int bs_id_s = _pd->get_start_id(kd, odb_s);
+                            const int bs_id_e = _pd->get_finish_id(kd, odb_e);
+                            const auto bs_d
+                                    = div_up(bs_id_e - bs_id_s, jcp.stride_d);
+                            // bs_d may be 0 but we may still need to call brgemm to
+                            // initialize output
+                            if (bs_d == 0 && !do_init) continue;
 
-                            for_(int s = 0; s < jcp.stride_w; s++)
-                            for (int kw = s; kw < jcp.kw; kw += jcp.stride_w)
-                                do_brgemm_call(g, bs_d, bs_h, ic_b, oc_b, od_s,
-                                        oh_s, bs_id_s, bs_ih_s, p_src, p_dst,
-                                        kd, kh, kw, do_init);
+                            for (int kh = 0; kh < jcp.kh; kh++) {
+                                const int bs_ih_s
+                                        = _pd->get_start_ih(kh, ohb_s);
+                                const int bs_ih_e
+                                        = _pd->get_finish_ih(kh, ohb_e);
+                                const auto bs_h = div_up(
+                                        bs_ih_e - bs_ih_s, jcp.stride_h);
+                                if (bs_h == 0 && !do_init) continue;
+
+                                for_(int s = 0; s < jcp.stride_w; s++)
+                                for (int kw = s; kw < jcp.kw;
+                                        kw += jcp.stride_w)
+                                    do_brgemm_call(g, bs_d, bs_h, ic_b, oc_b,
+                                            od_s, oh_s, bs_id_s, bs_ih_s, p_src,
+                                            p_dst, kd, kh, kw, do_init);
+                            }
                         }
                     }
                 }

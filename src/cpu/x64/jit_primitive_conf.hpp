@@ -921,6 +921,8 @@ struct jit_brgemm_conv_conf_t {
     int spatial_blk_size; // Height/depth block size inside the driver
     int typesize_in;
     int typesize_out;
+    bool tr_ocb_chunk = false;
+    bool tr_icb_chunk = false;
 };
 
 struct jit_shuffle_conf_t {

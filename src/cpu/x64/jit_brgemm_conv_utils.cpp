@@ -2624,8 +2624,15 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
         jcp.K = jcp.tr_ow;
     }
 
-    const int irow_size = jcp.src_dsz * jcp.K * jcp.ic_block
-            * jcp.nb_ic_blocking * jcp.stride_h * jcp.stride_w
+    jcp.tr_ocb_chunk = (jcp.oh * jcp.ow > 38 * 38) ? true : false;
+    jcp.tr_icb_chunk = false;
+
+    jcp.K_tail = 0;
+
+    balance_bwd_w(jcp);
+
+    const int irow_size = jcp.src_dsz * jcp.tr_iw * jcp.ic_block
+            * div_up(jcp.nb_ic, jcp.nthr_ic_b) * jcp.stride_h * jcp.stride_w
             * 2 /*we have real and transposed input */;
     const int orow_size = jcp.dst_dsz * jcp.K * jcp.oc_block
             * jcp.nb_oc_blocking * 2 /*we have real and transposed diff_dst*/;
@@ -2640,6 +2647,9 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
             = nstl::max(0.f, 0.8f * brg_blocking_t::L2 - jcp.kd * iframe_size)
             / (iframe_size + oframe_size);
     jcp.od_block = utils::saturate(1, jcp.od, od_block_limit);
+
+    jcp.tr_ocb_chunk = (jcp.oh * jcp.ow > 28 * 28) ? true : false;
+    jcp.tr_icb_chunk = false;
     jcp.K_tail = 0;
 
     balance_bwd_w(jcp);
