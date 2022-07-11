@@ -249,9 +249,14 @@ static std::vector<graph_tensor_ptr> copy_partition_to_fmgr(sc_graph_t &g,
         auto copied = copyable->copy(fmgr_in, fmgr_out, fmgr->get_graph());
         copied->attrs_[attr_key_orig_op] = op;
 
-        // build the  fused op name
+        // build the fused op name
         if (!op_name.empty()) op_name += '_';
-        op_name += copied->op_name_;
+        std::string *name = &copied->op_name_;
+        if (auto layer_name = op->attrs_.get_or_null<std::string>(
+                    op_attr_key::layer_name)) {
+            name = layer_name;
+        }
+        op_name += *name;
     });
 
     return additional_args;
@@ -359,7 +364,12 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
         auto copyable = op->dyn_cast<op_traits::copyable_t>();
         COMPILE_ASSERT(
                 copyable, "Expecting copyable base op: " << op->op_name_);
-        op_name = op->op_name_;
+        if (auto layer_name = op->attrs_.get_or_null<std::string>(
+                    op_attr_key::layer_name)) {
+            op_name = *layer_name;
+        } else {
+            op_name = op->op_name_;
+        }
         auto fused_op_addtional_in = copy_partition_to_fmgr(g,
                 op->get_outputs()[0], fmgr.get(), *post_fusion_partition,
                 op_name, multi_use, fused_op_out);

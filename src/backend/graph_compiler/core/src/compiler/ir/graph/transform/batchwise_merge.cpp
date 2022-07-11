@@ -317,9 +317,14 @@ static std::vector<graph_tensor_ptr> copy_partition_to_graph(sc_graph_t &g,
         auto copied = copyable->copy(new_graph_in, new_graph_ou, bw_graph);
         copied->attrs_[bw_attr_key_orig_op] = op;
 
-        // build the  fused op name
+        // build the fused op name
         if (!op_name.empty()) op_name += '_';
-        op_name += copied->op_name_;
+        std::string *name = &copied->op_name_;
+        if (auto layer_name = copied->attrs_.get_or_null<std::string>(
+                    op_attr_key::layer_name)) {
+            name = layer_name;
+        }
+        op_name += *name;
     });
 
     return input_tsr;

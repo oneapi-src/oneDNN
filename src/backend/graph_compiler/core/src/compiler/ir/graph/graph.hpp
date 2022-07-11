@@ -176,6 +176,8 @@ constexpr const char *bwise_skip_fuse = "bwise_skip_fuse";
 constexpr const char *bwise_break_pre_fuse = "bwise_break_pre_fuse";
 constexpr const char *bwise_break_post_fuse = "bwise_break_post_fuse";
 constexpr const char *bwise_no_strided_dims = "bwise_no_strided_dims";
+// the name of the layer. Will be used to name the IR function
+constexpr const char *layer_name = "temp.name";
 }; // namespace op_attr_key
 
 class SC_INTERNAL_API sc_op : public virtual op_base_trait_t,

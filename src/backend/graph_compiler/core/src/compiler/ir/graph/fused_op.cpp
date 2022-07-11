@@ -103,7 +103,15 @@ func_t create_func_decl_for_op(
     graph::mark_read_or_write_buffers(outs, false);
     std::vector<expr> args = outs;
     args.insert(args.end(), ins.begin(), ins.end());
-    auto func_name = op->op_name_;
+    std::string func_name;
+    if (auto layer_name
+            = op->attrs_.get_or_null<std::string>(op_attr_key::layer_name)) {
+        COMPILE_ASSERT(!layer_name->empty() && isalpha(layer_name->front()),
+                "Bad layername: " << *layer_name);
+        func_name = *layer_name;
+    } else {
+        func_name = op->op_name_;
+    }
     func_name += "__";
     func_name += std::to_string(op->logical_op_id_);
     auto func = builder::make_func(func_name, args,
