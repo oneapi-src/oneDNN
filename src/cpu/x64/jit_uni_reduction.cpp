@@ -14,7 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "jit_uni_reduction.hpp"
+#include "common/dnnl_thread.hpp"
+
+#include "cpu/x64/jit_uni_reduction.hpp"
 
 namespace dnnl {
 namespace impl {

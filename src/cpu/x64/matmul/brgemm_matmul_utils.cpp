@@ -16,6 +16,7 @@
 
 #include <unordered_set>
 
+#include "common/dnnl_thread.hpp"
 #include "cpu/platform.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"

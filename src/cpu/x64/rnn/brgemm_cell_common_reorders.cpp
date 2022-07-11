@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/x64/rnn/brgemm_cell_common_reorders.hpp"
+#include "common/dnnl_thread.hpp"
 #include "cpu/rnn/rnn_utils.hpp"
 
 namespace dnnl {

@@ -22,6 +22,7 @@
 #include <memory>
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "common/dnnl_thread.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/type_helpers.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"

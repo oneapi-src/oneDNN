@@ -23,7 +23,6 @@
 
 #include "oneapi/dnnl/dnnl_types.h"
 
-#include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 

@@ -17,6 +17,8 @@
 
 #include <bitset>
 
+#include "common/dnnl_thread.hpp"
+
 #include "cpu/cpu_pooling_pd.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_uni_pool_kernel.hpp"

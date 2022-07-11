@@ -19,6 +19,7 @@
 #include "cpu/x64/cpu_isa_traits.hpp"
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"

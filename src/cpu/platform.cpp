@@ -16,6 +16,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <thread>
+
 #include "cpu/platform.hpp"
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL

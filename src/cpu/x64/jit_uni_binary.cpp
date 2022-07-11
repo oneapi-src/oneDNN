@@ -16,6 +16,7 @@
 
 #include <functional>
 
+#include "common/dnnl_thread.hpp"
 #include "cpu/cpu_primitive.hpp"
 #include "cpu/x64/jit_uni_binary.hpp"
 

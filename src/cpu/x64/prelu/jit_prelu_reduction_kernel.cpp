@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/x64/prelu/jit_prelu_reduction_kernel.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
 #include "cpu/x64/prelu/jit_prelu_utils.hpp"
 

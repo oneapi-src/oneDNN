@@ -29,6 +29,7 @@
 
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/stack_checker.hpp"
 #include "common/verbose.hpp"
 

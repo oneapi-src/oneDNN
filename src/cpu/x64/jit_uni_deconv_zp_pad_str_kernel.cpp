@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <cassert>
+#include "common/dnnl_thread.hpp"
 #include "common/utils.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include <type_traits>

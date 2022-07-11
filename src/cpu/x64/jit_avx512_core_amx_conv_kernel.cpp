@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"

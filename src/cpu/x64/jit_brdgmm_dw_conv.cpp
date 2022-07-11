@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/utils.hpp"
 

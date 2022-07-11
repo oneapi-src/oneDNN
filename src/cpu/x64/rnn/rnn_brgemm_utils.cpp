@@ -15,6 +15,7 @@
 *******************************************************************************/
 #include <tuple>
 #include <utility>
+#include "common/dnnl_thread.hpp"
 #include "cpu/rnn/rnn_utils.hpp"
 #include "cpu/x64/rnn/rnn_brgemm_utils.hpp"
 
