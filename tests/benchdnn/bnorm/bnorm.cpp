@@ -508,7 +508,7 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     SAFE(src_dt.reorder(src_fp), WARN);
-    if (fuse_add_relu) SAFE(src_add_dt.reorder(src_add_fp), WARN);
+    SAFE(src_add_dt.reorder(src_add_fp), WARN);
     if (prb->flags & GLOB_STATS) {
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
@@ -599,7 +599,9 @@ int doit(const prb_t *prb, res_t *res) {
                 d_ss_dt);
         args.set(DNNL_ARG_DIFF_SHIFT, d_sh_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_dt);
+        // Since DIFF_SRC_1 is the second output it can be in blocked format
+        // and unconditional including leads zero-paddiing failures
+        if (fuse_add_relu) args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
