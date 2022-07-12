@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "backend/dnnl/kernels/resampling.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 #include "backend/dnnl/patterns/utils.hpp"
@@ -72,13 +73,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_post_ops_fusion)
                             in_edges_t {in_edge(0, interpolate, 0)},
                             "prepetition");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::interpolate_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_resampling_fwd>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

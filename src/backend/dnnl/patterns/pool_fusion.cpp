@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "backend/dnnl/kernels/pool.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 #include "backend/dnnl/patterns/utils.hpp"
@@ -64,13 +65,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
                             MAX_REPETITION, {in_edge(0, ppool, 0)},
                             "prepetition");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::pool_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_pooling_fwd>();
+        });
 
 /*
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
@@ -104,13 +101,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_cpu)
                     pgraph->append_op(impl::op_kind::Quantize,
                             {in_edge(0, pbinary, 0)}, "pquantize");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::int8_pool_binary);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_pooling>();
+        });
 
 /*
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
@@ -146,13 +139,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_gpu)
                     pgraph->append_op(impl::op_kind::Quantize,
                             {in_edge(0, pbinary, 0)}, "pquantize");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::int8_pool_binary);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_pooling>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

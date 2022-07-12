@@ -18,6 +18,9 @@
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 #include "backend/dnnl/patterns/utils.hpp"
 
+#include "backend/dnnl/kernels/eltwise.hpp"
+#include "backend/dnnl/kernels/large_partition.hpp"
+
 #include "utils/pm/pbuilder.hpp"
 
 namespace dnnl {
@@ -64,13 +67,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, eltwise_binary_fusion)
                             in_edges_t {in_edge(0, peltwise, 0)},
                             "prepetition");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::eltwise_binary);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_eltwise_fwd>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, chained_relu_fusion)
         .set_priority(5.0f)
@@ -86,13 +85,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, chained_relu_fusion)
                     pgraph->append_repetition(
                             chained_relu, {0, 0}, 1, MAX_REPETITION);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

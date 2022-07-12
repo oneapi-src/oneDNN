@@ -18,6 +18,8 @@
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 #include "backend/dnnl/patterns/utils.hpp"
 
+#include "backend/dnnl/kernels/convtranspose.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -166,13 +168,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::quantized_convtranspose_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_convtranspose>();
+        });
 
 /*
 ConvTranspose: Currently DNNL Backend doesn't support below
@@ -285,13 +283,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::quantized_convtranspose_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_convtranspose>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, convtranspose_post_ops_fusion)
@@ -329,13 +323,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->create_input_port(0, convtranspose, 0);
                     pgraph->create_output_port(0, repetition_post_ops, 0);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::convtranspose_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_convtranspose_fwd>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

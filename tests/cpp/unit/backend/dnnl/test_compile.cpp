@@ -39,10 +39,6 @@ namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = impl::dnnl_impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-static dnnl_impl::kernel_registry_t &get_dnnl_kernel_registry() {
-    return dnnl_impl::dnnl_backend::get_singleton().get_kernel_registry();
-}
-
 namespace {
 dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     auto &backend_ptr
@@ -63,6 +59,20 @@ void run_all_passes(impl::graph_t &agraph) {
     auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "", impl::partition_policy::fusion);
+}
+
+void run_all_single_passes(impl::graph_t &agraph) {
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
+            backend_ptr.get_pass_registry());
+    auto &passes = pm.get_passes();
+    for (auto &p : passes) {
+        if (p->get_priority() == 8.f) {
+            //single op pass
+            p->run(agraph);
+        }
+    }
 }
 
 // This function run the unfused graph op by op. The output tensor of the whole
@@ -109,12 +119,22 @@ impl::status_t run_graph(impl::graph_t &agraph,
 
     // compile and execute each op in topo order
     return impl::topo_order_visit(copied.get_output_ops(), [&](impl::op_t *op) {
-        // construct a single op partition without running pass
-        auto part
-                = std::make_shared<dnnl_impl::dnnl_partition_impl_t>(eng.kind(),
-                        impl::fpmath_mode::strict, impl::partition_kind::undef);
-        part->add_op(op->shared_from_this());
-        part->init(op);
+        // construct a single op partition
+        impl::graph_t g(eng.kind());
+        impl::op_t single_op(op->get_kind());
+        single_op.merge_attributes(op->get_attributes());
+        for (size_t i = 0; i < op->num_inputs(); i++) {
+            single_op.add_input(op->get_input_value(i)->get_logical_tensor());
+        }
+        for (size_t i = 0; i < op->num_outputs(); i++) {
+            single_op.add_output(op->get_output_value(i)->get_logical_tensor());
+        }
+        g.add_op(&single_op);
+        g.build_graph();
+        run_all_single_passes(g);
+
+        auto part = g.get_partitions()[0];
+        // compile
         impl::partition_t p;
         p.init(part);
 
@@ -956,10 +976,6 @@ TEST(Compile, BatchNormBackpropFp32) {
             0.01788854f, -0.05366563f, 0.05366563f, -0.01788854f};
     test::vector<float> ref_diff_scale_data {0.17888544f};
     test::vector<float> ref_diff_shift_data {0.6f};
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto bn_kernel = op_factory.create_kernel(bn_op);
-    ASSERT_TRUE(bn_kernel);
 
     bn_op.add_input(src);
     bn_op.add_input(diff_dst);
@@ -9742,10 +9758,6 @@ TEST(Execute, LayerNormBackpropFp32) {
                 = utils::logical_tensor_init(7, scaleshift_dims,
                         impl::data_type::f32, impl::layout_type::strided);
 
-        auto &op_factory = get_dnnl_kernel_registry();
-        auto ln_bwd_kernel = op_factory.create_kernel(ln_bwd_op);
-        ASSERT_TRUE(ln_bwd_kernel);
-
         ln_bwd_op.add_input(src);
         ln_bwd_op.add_input(diff_dst);
         ln_bwd_op.add_input(mean);
@@ -15405,9 +15417,6 @@ TEST(Execute, InterpolateForwardNearest) {
     op.set_attr<std::string>(
             impl::op_attr::coordinate_transformation_mode, "half_pixel");
     op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(kernel);
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
@@ -15827,9 +15836,6 @@ TEST(Execute, InterpolateBackwardNearest) {
     impl::op_t op(impl::op_kind::InterpolateBackprop);
     op.set_attr<std::string>(impl::op_attr::mode, "nearest");
     op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(kernel);
 
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(0, {1, 1, 3, 3}, impl::data_type::f32);
@@ -15884,9 +15890,6 @@ TEST(Execute, InterpolateBackwardLinear) {
     impl::op_t op(impl::op_kind::InterpolateBackprop);
     op.set_attr<std::string>(impl::op_attr::mode, "linear");
     op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto kernel = op_factory.create_kernel(op);
-    ASSERT_TRUE(kernel);
 
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(0, {1, 1, 3, 3}, impl::data_type::f32);

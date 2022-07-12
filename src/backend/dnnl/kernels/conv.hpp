@@ -360,7 +360,7 @@ public:
     }
 };
 
-struct conv_bwd_data : public conv_base_t {
+struct conv_bwd_data_t : public conv_base_t {
 public:
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
@@ -423,7 +423,7 @@ public:
     }
 };
 
-struct conv_bwd_weights : public conv_base_t {
+struct conv_bwd_weights_t : public conv_base_t {
 public:
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,

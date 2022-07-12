@@ -26,6 +26,16 @@
 
 namespace utils = dnnl::graph::tests::unit::utils;
 
+namespace {
+void run_all_passes(impl::graph_t &agraph) {
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
+            backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "", impl::partition_policy::fusion);
+}
+} // namespace
+
 TEST(CompiledPartition, Relu) {
     impl::engine_t &eng = get_engine();
 
@@ -43,15 +53,14 @@ TEST(CompiledPartition, Relu) {
     impl::graph_t g(eng.kind());
     g.add_op(&relu_op);
     g.build_graph();
+    run_all_passes(g);
 
-    auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
-            eng.kind(), impl::fpmath_mode::strict,
-            impl::partition_kind::unary_post_ops);
-    pimpl->add_op(std::make_shared<impl::op_t>(relu_op));
-    pimpl->init(&relu_op);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
 
+    // compile
     impl::partition_t p;
-    p.init(pimpl);
+    p.init(part);
 
     impl::compiled_partition_t cp(p);
     ASSERT_EQ(p.id(), cp.src_partition().id());
@@ -120,13 +129,14 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
     g.add_op(&relu_op);
     g.build_graph();
 
-    auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
-            eng.kind(), impl::fpmath_mode::strict, impl::partition_kind::undef);
-    pimpl->add_op(std::make_shared<impl::op_t>(relu_op));
-    pimpl->init(&relu_op);
+    run_all_passes(g);
 
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
     impl::partition_t p;
-    p.init(pimpl);
+    p.init(part);
 
     impl::compiled_partition_t cp(p);
     ASSERT_EQ(p.id(), cp.src_partition().id());
@@ -230,13 +240,17 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
     n.add_input(lt_in1);
     n.add_output(lt_out);
 
-    auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
-            eng.kind(), impl::fpmath_mode::strict, impl::partition_kind::undef);
-    pimpl->add_op(std::make_shared<impl::op_t>(n));
-    pimpl->init(&n);
+    impl::graph_t g(eng.kind());
+    g.add_op(&n);
+    g.build_graph();
+    run_all_passes(g);
 
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
     impl::partition_t p;
-    p.init(pimpl);
+    p.init(part);
 
     impl::compiled_partition_t cp(p);
 

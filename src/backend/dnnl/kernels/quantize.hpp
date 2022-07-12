@@ -22,7 +22,13 @@
 #include <string>
 #include <vector>
 
-#include "backend/dnnl/common.hpp"
+#include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/passes/compile_ops.hpp"
+#include "backend/dnnl/passes/layout_propagation.hpp"
+#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/scratchpad.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
 
 namespace dnnl {
 namespace graph {

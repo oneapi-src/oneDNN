@@ -17,13 +17,11 @@
 #ifndef BACKEND_DNNL_DNNL_PARTITION_IMPL_HPP
 #define BACKEND_DNNL_DNNL_PARTITION_IMPL_HPP
 
-#include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
-#include <unordered_map>
+#include <unordered_set>
 
 #include "interface/backend.hpp"
 #include "interface/partition.hpp"
@@ -38,7 +36,7 @@ namespace dnnl_impl {
 
 namespace {
 
-inline impl::status_t get_ordered_inputs_outputs(const impl::op_t *work_op,
+inline impl::status_t get_ordered_inputs_outputs(
         const std::vector<impl::logical_tensor_t> &expected,
         const std::vector<impl::logical_tensor_t> &given,
         std::vector<impl::logical_tensor_t> &ordered) {
@@ -108,64 +106,57 @@ public:
 
     ///// The following are used only in backend for constructing object
 
-    void init(const impl::op_t *aop) {
-        fused_op_ = std::make_shared<impl::op_t>(aop->get_kind());
-        fused_op_->merge_attributes(aop->get_attributes());
-        add_tensors(aop);
-        add_tensors_map(aop);
+    void init(FCreateKernel kernel_creator) {
+        init_inputs_outputs();
+
+        // init kernel
+        kernel_creator_ = std::move(kernel_creator);
     }
 
     void add_op(const std::shared_ptr<op_t> &op) { ops_.emplace_back(op); }
 
-    void add_op(const std::vector<std::shared_ptr<op_t>> &ops) {
-        for (auto &op : ops) {
-            add_op(op);
+    // init backend partition's input/output logical tensors
+    // based on ops in the partition
+    void init_inputs_outputs() {
+        inputs_.clear();
+        outputs_.clear();
+        std::unordered_set<impl::op_t *> visit;
+        for (auto &cur_op : ops_) {
+            visit.insert(cur_op.get());
+        }
+
+        for (auto &cur_op : ops_) {
+            for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
+                auto in_value = cur_op->get_input_value(j);
+                if (!in_value->has_producer()
+                        || !visit.count(&in_value->get_producer())) {
+                    inputs_.push_back(in_value->get_logical_tensor());
+                }
+            }
+            for (size_t j = 0; j < cur_op->num_outputs(); ++j) {
+                auto out_value = cur_op->get_output_value(j);
+                // if out_value has no consumer
+                // OR any of its consumers are not inside the pattern
+                // it is output tensor
+                bool is_output = out_value->get_consumers().empty();
+                for (auto &consumer : out_value->get_consumers()) {
+                    if (!visit.count(&consumer.get_op())) {
+                        is_output = true;
+                        break;
+                    }
+                }
+                if (is_output) {
+                    outputs_.push_back(out_value->get_logical_tensor());
+                }
+            }
         }
     }
 
-    void add_tensors(const impl::op_t *op) {
-        for (size_t i = 0; i < op->num_inputs(); ++i) {
-            inputs_.push_back(op->get_input_value(i)->get_logical_tensor());
-        }
-        for (size_t i = 0; i < op->num_outputs(); ++i) {
-            outputs_.push_back(op->get_output_value(i)->get_logical_tensor());
-        }
-    }
-
-    void add_tensors_map(const impl::op_t *aop) {
-        for (auto kv : aop->get_input_tensor_map()) {
-            inputs_map_[kv.second] = kv.first;
-        }
-        for (auto kv : aop->get_output_tensor_map()) {
-            outputs_map_[kv.second] = kv.first;
-        }
-    }
-
-    impl::logical_tensor_t *find_input(size_t id, size_t offset) {
-        auto p = std::make_pair(id, offset);
-
-        auto v = inputs_map_.find(p);
-        if (v != inputs_map_.end()) {
-            return &(inputs_.at(v->second));
-        } else {
-            return nullptr;
-        }
-    }
-
-    impl::logical_tensor_t *find_output(size_t id, size_t offset) {
-        auto p = std::make_pair(id, offset);
-
-        auto v = outputs_map_.find(p);
-        if (v != outputs_map_.end()) {
-            return &(outputs_.at(v->second));
-        } else {
-            return nullptr;
-        }
-    }
+    FCreateKernel get_kernel_creator() const { return kernel_creator_; }
 
     /////////////// the followings are the implementation of interface
 
-    bool is_initialized() const override { return fused_op_ != nullptr; }
+    bool is_initialized() const override { return kernel_creator_ != nullptr; }
 
     std::shared_ptr<impl::partition_impl_t> clone() const override {
         auto ret = std::make_shared<dnnl_partition_impl_t>(
@@ -173,11 +164,8 @@ public:
         ret->ops_ = impl::graph_t::deep_copy(ops_);
         ret->inputs_ = inputs_;
         ret->outputs_ = outputs_;
+        ret->kernel_creator_ = kernel_creator_;
         ret->id_ = id_;
-        ret->fused_op_ = std::make_shared<impl::op_t>(fused_op_->get_kind());
-        ret->fused_op_->merge_attributes(fused_op_->get_attributes());
-        ret->inputs_map_ = inputs_map_;
-        ret->outputs_map_ = outputs_map_;
         return ret;
     }
 
@@ -194,11 +182,9 @@ public:
         auto part = std::dynamic_pointer_cast<dnnl_partition_impl_t>(
                 this->clone());
 
-        std::shared_ptr<impl::op_t> fused_op = part->get_fused_op();
-        if (!fused_op) return status::invalid_arguments;
-
-        // create kernel
-        auto kernel = dnnl_backend::get_singleton().create_kernel(*fused_op);
+        // get kernel creator
+        auto kernel_creator = part->get_kernel_creator();
+        kernel_ptr kernel = kernel_creator();
         if (!kernel) return status::unimplemented;
 
         status_t ret;
@@ -211,12 +197,10 @@ public:
 
         std::vector<impl::logical_tensor_t> ordered_inputs;
         std::vector<impl::logical_tensor_t> ordered_outputs;
-        ret = get_ordered_inputs_outputs(
-                fused_op.get(), inputs_, inputs, ordered_inputs);
+        ret = get_ordered_inputs_outputs(inputs_, inputs, ordered_inputs);
         if (status::success != ret) return ret;
 
-        ret = get_ordered_inputs_outputs(
-                fused_op.get(), outputs_, outputs, ordered_outputs);
+        ret = get_ordered_inputs_outputs(outputs_, outputs, ordered_outputs);
         if (status::success != ret) return ret;
 
         // wrapper kernel to dnnl_compiled_partition_impl_t
@@ -263,13 +247,6 @@ public:
             return oss.str();
         };
 
-        os << " [ op: (";
-        if (fused_op_) {
-            os << "ID: " << fused_op_->get_id()
-               << ", kind: " << impl::op_t::kind2str(fused_op_->get_kind());
-        }
-        os << ") \n";
-
         os << "  [ inputs: ";
         const char *delimer = "";
         for (const auto &i : inputs_) {
@@ -297,19 +274,8 @@ public:
         return os.str();
     }
 
-    const std::shared_ptr<impl::op_t> &get_fused_op() const {
-        return fused_op_;
-    };
-
 private:
-    // // Fused op. Currently, only one op here
-    std::shared_ptr<impl::op_t> fused_op_ {nullptr};
-
-    // Map from (op id, op input offset) -> partition input index
-    std::unordered_map<std::pair<size_t, size_t>, size_t> inputs_map_;
-
-    // Map from (op id, op output offset) -> partition output index
-    std::unordered_map<std::pair<size_t, size_t>, size_t> outputs_map_;
+    FCreateKernel kernel_creator_;
 };
 
 } // namespace dnnl_impl

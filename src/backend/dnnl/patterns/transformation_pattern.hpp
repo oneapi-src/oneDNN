@@ -41,8 +41,9 @@ public:
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
             std::vector<std::vector<op_t *>> &fusion_ops);
 
-    inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
-            std::vector<std::vector<op_t *>> &fusion_ops, op_t &op_with_backend,
+    inline void init_partition(dnnl::graph::impl::graph_t &backend_graph,
+            std::vector<std::vector<op_t *>> &fusion_ops,
+            const FCreateKernel &kernel_creator,
             dnnl::graph::impl::partition_kind_t pkind);
 
     pattern_utils_t() = default;
@@ -51,7 +52,6 @@ public:
     pattern_utils_t &operator=(const pattern_utils_t &) = delete;
 };
 
-// function to do v2 pattern matching
 inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
         std::vector<std::vector<op_t *>> &fusion_ops) {
@@ -66,88 +66,24 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
     });
 }
 
-//do fuse with v2 pattern language
-inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
-        std::vector<std::vector<op_t *>> &fusion_ops, op_t &fused_op,
+inline void pattern_utils_t::init_partition(
+        dnnl::graph::impl::graph_t &backend_graph,
+        std::vector<std::vector<op_t *>> &fusion_ops,
+        const FCreateKernel &kernel_creator,
         dnnl::graph::impl::partition_kind_t pkind) {
-    std::vector<op_t *> fusion_ops_set;
-    std::unordered_set<op_t *> visit;
-
     for (auto &pairs : fusion_ops) {
-        fusion_ops_set.clear();
-        visit.clear();
-        std::shared_ptr<op_t> partition_fused_op(new op_t(fused_op.get_kind()));
-        partition_fused_op->merge_attributes(fused_op.get_attributes());
-        for (size_t i = 0; i < pairs.size(); ++i) {
-            visit.insert(pairs[i]);
-            fusion_ops_set.push_back(pairs[i]);
-        }
-
-        for (auto &cur_op : fusion_ops_set) {
-            // merge the attrs and op ids
-            partition_fused_op->merge_attributes(cur_op->get_attributes());
-            partition_fused_op->add_op_ids(cur_op->get_op_ids());
-
-            for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
-                std::shared_ptr<value_t> in_value = cur_op->get_input_value(j);
-                // if in_value has no producer or its producer isn't in pattern,
-                // add this input value to fused op
-                if (!in_value->has_producer()
-                        || !visit.count(&in_value->get_producer())) {
-                    std::shared_ptr<value_t> copied_in_value
-                            = std::make_shared<value_t>(
-                                    in_value->get_logical_tensor(),
-                                    /*internal*/ true);
-                    partition_fused_op->add_input(copied_in_value);
-                }
-            }
-
-            // find an end_op to start reorder, find an op whose output isn't in
-            // matched_pairs, can't use pb_op's output == 0, because ops defined
-            // in subgraph also has 0 output but isn't the end of the pattern.
-            bool is_end = true;
-            for (auto &output : cur_op->get_output_values()) {
-                for (auto &consumer : output->get_consumers()) {
-                    if (visit.count(&(consumer.get_op()))) {
-                        is_end = false;
-                        break;
-                    }
-                }
-                if (!is_end) { break; }
-            }
-
-            // merge the output tensor if current op is an end op
-            if (is_end) {
-                // it's the end op of pattern
-                for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
-                    std::shared_ptr<value_t> out_value
-                            = cur_op->get_output_value(k);
-                    std::shared_ptr<value_t> copied_out_value
-                            = std::make_shared<value_t>(
-                                    out_value->get_logical_tensor(),
-                                    /*internal*/ true);
-                    partition_fused_op->add_output(copied_out_value);
-                }
-            }
-        }
-
         std::shared_ptr<dnnl_partition_impl_t> pimpl
                 = std::make_shared<dnnl_partition_impl_t>(
                         backend_graph.get_engine_kind(),
                         backend_graph.get_fpmath_mode(), pkind);
 
-        // use the fused op to initialize the partition_impl, and merge the
-        // informations to it.
-        pimpl->init(partition_fused_op.get());
-
-        // transfer the ownership of fusion op from graph to partition
-        // note: the fusion op will not be removed from the graph
+        // transfer the matched op's ownership from graph to partition
         for (size_t i = 0; i < pairs.size(); ++i) {
             pimpl->add_op(pairs[i]->shared_from_this());
             // claim the op belong to the partition
             pairs[i]->set_partition(pimpl.get());
         }
-
+        pimpl->init(kernel_creator);
         backend_graph.add_partition(pimpl);
     }
 }
@@ -180,10 +116,10 @@ public:
         // we can have only one optimized pattern
         std::vector<impl::pass::FCreateV2Pattern> pfuncs
                 = get_attr<impl::pass::FCreateV2Pattern>("FCreateV2Pattern");
-        impl::pass::FCreateV2FusedOp optfunc
-                = get_attr<impl::pass::FCreateV2FusedOp>("FCreateV2FusedOp")[0];
-        std::shared_ptr<op_t> fused_op_ptr = optfunc();
-        op_t fused_op = *fused_op_ptr;
+
+        FCreateKernel kernel_creator
+                = get_attr<FCreateKernel>("FCreateKernel")[0];
+
         pattern_utils_t pu;
         for (auto &pfunc : pfuncs) {
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph
@@ -201,9 +137,8 @@ public:
                     fflush(stdout);
                 }
 
-                // Only fuse not rewrite. Will remove the fuse once dnnl
-                // backend support subgraph mode
-                pu.fuse(agraph, fusion_ops, fused_op, get_kind());
+                pu.init_partition(
+                        agraph, fusion_ops, kernel_creator, get_kind());
             }
         }
     }

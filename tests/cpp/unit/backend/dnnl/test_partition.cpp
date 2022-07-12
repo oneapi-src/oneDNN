@@ -45,9 +45,9 @@ TEST(Partition, AddOps) {
     std::vector<std::shared_ptr<op_t>> ops;
     for (auto id : ids) {
         ops.emplace_back(new op_t(id, op_kind::Wildcard, "Wildcard"));
+        p.add_op(ops.back());
     }
 
-    p.add_op(ops);
     ASSERT_EQ(p.get_ops().size(), 3);
 }
 
@@ -67,14 +67,11 @@ TEST(Partition, Init) {
     engine_t eng {};
     dnnl_impl::dnnl_partition_impl_t p(
             eng.kind(), fpmath_mode::strict, partition_kind::undef);
-    op_t n(op_kind::Convolution);
-    n.set_attr<int64_t>(op_attr::groups, 0);
-    p.init(&n);
-    ASSERT_TRUE(p.is_initialized());
+    std::shared_ptr<op_t> n(new op_t(0, op_kind::Convolution, "Conv"));
+    n->set_attr<int64_t>(op_attr::groups, 0);
+    p.add_op(n);
+    ASSERT_FALSE(p.is_initialized());
     ASSERT_TRUE(p.get_assigned_backend()->get_name() != "fake_backend");
-    ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
-    ASSERT_TRUE(p.get_fused_op()->has_attr(op_attr::groups));
-    ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>(op_attr::groups), 0);
 }
 
 TEST(Partition, Clone) {
@@ -83,12 +80,11 @@ TEST(Partition, Clone) {
             partition_kind::convolution_post_ops);
     auto n = std::make_shared<op_t>(op_kind::Convolution);
     n->set_attr<int64_t>(op_attr::groups, 1);
-    p.init(n.get()); // fused op for dispatch
+
     p.add_op(n); // the subgraph
 
-    ASSERT_TRUE(p.is_initialized());
+    ASSERT_FALSE(p.is_initialized());
     ASSERT_TRUE(p.get_assigned_backend()->get_name() == "dnnl_backend");
-    ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
     ASSERT_EQ(p.get_ops()[0]->get_kind(), op_kind::Convolution);
     ASSERT_TRUE(p.get_ops()[0]->has_attr(op_attr::groups));
     ASSERT_EQ(p.get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);
@@ -96,9 +92,8 @@ TEST(Partition, Clone) {
     // clone the partition
     auto p_copy = std::dynamic_pointer_cast<dnnl_impl::dnnl_partition_impl_t>(
             p.clone());
-    ASSERT_TRUE(p_copy->is_initialized());
+    ASSERT_FALSE(p_copy->is_initialized());
     ASSERT_TRUE(p_copy->get_assigned_backend()->get_name() == "dnnl_backend");
-    ASSERT_EQ(p_copy->get_fused_op()->get_kind(), op_kind::Convolution);
     ASSERT_EQ(p_copy->get_ops()[0]->get_kind(), op_kind::Convolution);
     ASSERT_TRUE(p_copy->get_ops()[0]->has_attr(op_attr::groups));
     ASSERT_EQ(p_copy->get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);

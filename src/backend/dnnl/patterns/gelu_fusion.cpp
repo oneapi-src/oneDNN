@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/kernels/eltwise.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 
@@ -71,12 +72,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, gelu_fusion)
                     pgraph->append_op(impl::op_kind::Multiply,
                             {in_edge(0, multiply_1, 0)}, "multiply_2");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    auto fused_op = std::make_shared<op_t>(impl::op_kind::GELU);
-                    fused_op->set_attr(op_attr::backend, std::string("dnnl"));
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_eltwise_fwd>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

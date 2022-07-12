@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "backend/dnnl/kernels/conv.hpp"
+#include "backend/dnnl/kernels/large_partition.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 #include "backend/dnnl/patterns/utils.hpp"
@@ -356,13 +358,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
                                     in_edges_t {in_edge(0, conv, 0)});
                     depthwise->append_decision_function(check_input_num<2>);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::dnnl_conv_depthwise);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_conv_fwd>();
+        });
 
 /*
                     [quant_weight]*
@@ -478,13 +476,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_conv_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_conv>();
+        });
 
 /*
 Conv: Currently DNNL Backend doesn't support below
@@ -587,13 +581,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_conv_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_conv>();
+        });
 
 /*
                     [quant_weight]*
@@ -694,13 +684,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_cpu)
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, typecast_gelu, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_conv_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_conv>();
+        });
 
 /*
 Conv: Currently DNNL Backend doesn't support below
@@ -787,13 +773,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
                                     in_edges_t {in_edge(0, typecast_gelu, 0)});
                     quant_out->append_decision_function(check_zps_values<0>);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_conv_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_conv>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_simple_resblock_fusion)
         .set_priority(5.f) // low priority to avoid current functionality
@@ -824,13 +806,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_simple_resblock_fusion)
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 // Two conv fusion for f32 resnet
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -842,13 +820,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pm::pb_op_t *relu0 = conv_bias_relu(pgraph, nullptr);
                     conv_bias_relu(pgraph, relu0);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, conv_bias_relu_conv_bias_add_relu_fusion)
@@ -859,13 +833,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pm::pb_op_t *relu0 = conv_bias_relu(pgraph, nullptr);
                     conv_bias_add_relu(pgraph, relu0, nullptr);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, identical_bottleneck_resblock_fusion)
@@ -879,13 +849,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     identical_bottleneck_resblock(pgraph, nullptr, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, convolutional_bottleneck_resblock_fusion)
@@ -900,13 +866,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     convolutional_bottleneck_resblock(
                             pgraph, nullptr, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 // Two conv fusion for int8 resnet
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -919,13 +881,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = int8_conv_bias_relu(pgraph, nullptr);
                     int8_conv_bias_relu(pgraph, quant_dst0);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_identical_bottleneck_resblock_fusion)
@@ -940,13 +898,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     int8_identical_bottleneck_resblock(
                             pgraph, nullptr, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl,
         int8_convolutional_bottleneck_resblock_fusion)
@@ -961,13 +915,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl,
                     int8_convolutional_bottleneck_resblock(
                             pgraph, nullptr, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_resnet50_stage_1_4_fusion)
@@ -991,13 +941,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     output = int8_identical_bottleneck_resblock(
                             pgraph, output, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_2_fusion)
         .set_priority(22.1f) // high priority to support lz models
@@ -1023,13 +969,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_2_fusion)
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_3_fusion)
         .set_priority(22.2f) // high priority to support lz models
@@ -1054,13 +996,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_3_fusion)
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_resnet34_stage_1_4_fusion)
@@ -1073,13 +1011,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     output = int8_identical_basic_resblock(pgraph, output);
                     output = int8_identical_basic_resblock(pgraph, output);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_2_fusion)
         .set_priority(22.1f) // high priority to support lz models
@@ -1093,13 +1027,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_2_fusion)
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = int8_identical_basic_resblock(pgraph, output);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_3_fusion)
         .set_priority(22.2f) // high priority to support lz models
@@ -1113,13 +1043,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_3_fusion)
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = int8_identical_basic_resblock(pgraph, output);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, f32_resnet50_stage_1_4_fusion)
@@ -1142,13 +1068,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     output = identical_bottleneck_resblock(
                             pgraph, output, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_2_fusion)
         .set_priority(22.1f) // high priority to support itex
@@ -1173,13 +1095,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_2_fusion)
                         output = identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_3_fusion)
         .set_priority(22.2f) // high priority to support itex
@@ -1202,13 +1120,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_3_fusion)
                         output = identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -1225,13 +1139,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     output = int8_identical_bottleneck_resblock(
                             pgraph, output, false, true, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -1249,13 +1159,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, false, true, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -1272,13 +1178,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, false, true, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_4_fusion)
@@ -1294,13 +1196,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     output = int8_identical_bottleneck_resblock(pgraph, output,
                             false, true, true, /* f32 output */ true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 /*
               \   /
@@ -1361,13 +1259,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::conv_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_conv_fwd>();
+        });
 
 /*
               \   /
@@ -1480,13 +1374,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::conv_bias_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_conv_fwd>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, conv_bwd_weights_bwd_bias_fusion)
@@ -1502,13 +1392,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_op(impl::op_kind::BiasAddBackprop,
                             in_edges_t {in_edge(0, wildcard, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::dnnl_conv_bwd_weights);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<conv_bwd_weights_t>();
+        });
 
 // ResNeXt101 stage 1 and stage 4 have 1 convolutional bottleneck residual block
 // and followed by 2 identical bottleneck blocks. The convolution's bias can be
@@ -1539,13 +1425,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     output = int8_identical_bottleneck_resblock(
                             pgraph, output, true, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 // ResNeXt101 stage 2 has 1 convolutional bottleneck residual block and followed
 // by 3 identical bottleneck blocks. The convolution's bias can be connected to
@@ -1577,13 +1459,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, true, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 // ResNeXt101 stage 3 has 1 convolutional bottleneck residual block and followed
 // by 22 identical bottleneck blocks. The convolution's bias can be connected to
@@ -1614,13 +1492,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, true, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 // ResNeXt101 backbone is the composition of 4 stages, which has 102 conv inside
 // it. The convolution's bias can be connected to conv op directly as an
@@ -1686,13 +1560,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, true, true);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

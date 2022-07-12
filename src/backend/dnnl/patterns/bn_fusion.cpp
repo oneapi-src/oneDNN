@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/kernels/batchnorm.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 
@@ -50,13 +51,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
                             impl::op_kind::BatchNormInference);
                     pgraph->append_op(impl::op_kind::ReLU, {in_edge(0, bn, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::bn_relu);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batchnorm_fwd_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bwd_relu_bwd_fusion)
         .set_priority(8.8f)
@@ -68,13 +65,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bwd_relu_bwd_fusion)
                     pgraph->append_op(impl::op_kind::BatchNormTrainingBackprop,
                             {in_edge(0, relu_bwd, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::bn_bwd_relu_bwd);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batchnorm_bwd_t>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

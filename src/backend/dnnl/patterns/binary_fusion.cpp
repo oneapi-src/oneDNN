@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "backend/dnnl/kernels/binary.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 #include "backend/dnnl/patterns/utils.hpp"
@@ -53,13 +54,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reciprocal_multiply_fusion)
                     pgraph->append_op(impl::op_kind::Multiply,
                             in_edges_t {in_edge(0, reciprocal, 0)}, "multiply");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(impl::op_kind::Divide);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr { return std::make_shared<binary_t>(); });
 
 // TODO(zitian): wait for the implementation of comparison ops:
 //      Gt, Ge, Le, Lt, Eq, Ne
@@ -84,13 +80,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, binary_post_ops_fusion)
                     pgraph->append_repetition(post_subgraph, {0, 0}, 1,
                             MAX_REPETITION, {in_edge(0, binary_op, 0)}, "palt");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::binary_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr { return std::make_shared<binary_t>(); });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

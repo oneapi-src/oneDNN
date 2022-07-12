@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "backend/dnnl/kernels/quantize.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
-
 #include "utils/pm/pbuilder.hpp"
 
 namespace dnnl {
@@ -64,13 +64,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, typecast_quantize_fusion)
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, typecast, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(impl::op_kind::Quantize);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantize_dequantize_t>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

@@ -31,16 +31,15 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/constant_cache.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/kernels/conv.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
-#include "backend/dnnl/passes/op_executable.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
-#include "backend/dnnl/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -346,7 +345,7 @@ public:
 using float_convtranspose_fwd = convtranspose_fwd_t</* quantized */ false>;
 using quantized_convtranspose = convtranspose_fwd_t</* quantized */ true>;
 
-struct convtranspose_bwd_data : public conv_base_t {
+struct convtranspose_bwd_data_t : public conv_base_t {
 public:
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
@@ -409,7 +408,7 @@ public:
     }
 };
 
-struct convtranspose_bwd_weights : public conv_base_t {
+struct convtranspose_bwd_weights_t : public conv_base_t {
 public:
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,

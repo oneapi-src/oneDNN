@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/kernels/sum.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 
@@ -71,13 +72,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, sum_fusion)
                     pgraph->append_repetition(addgraph, {0, 0}, 1,
                             MAX_REPETITION, {in_edge(0, add_base, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::dnnl_sum);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr { return std::make_shared<sum_t>(); });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

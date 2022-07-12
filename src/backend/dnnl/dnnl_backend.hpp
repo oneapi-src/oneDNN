@@ -280,72 +280,7 @@ struct kernel_base_t {
 };
 
 using kernel_ptr = std::shared_ptr<kernel_base_t>;
-
-class kernel_registry_t {
-public:
-    using kernel_creator_f = kernel_ptr (*)();
-    using ptr = std::shared_ptr<kernel_registry_t>;
-
-    kernel_registry_t() = default;
-    virtual ~kernel_registry_t() = default;
-
-    template <typename kernel_type>
-    static kernel_ptr create_kernel() {
-        return std::make_shared<kernel_type>();
-    }
-
-    /*!
-     * \brief register a backend kernel's creator for a op_kind
-     */
-    bool register_kernel(impl::op_kind_t op_kind, kernel_creator_f fn) {
-        std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
-        kernel_creator_f_map_.data_.insert({op_kind, fn});
-        return true;
-    }
-
-    /*!
-     * \brief create an kernel instance for a op
-     */
-    kernel_ptr create_kernel(const impl::op_t &aop) {
-        auto op_kind = aop.get_kind();
-
-        // This internal env var is used for test purpose. When setting
-        // _DNNL_GRAPH_USE_GENERAL_KERNEL to 1, all partitions will be
-        // dispatched to general kernel.
-        if (impl::utils::getenv_int_internal("USE_GENERAL_KERNEL", 0)) {
-            op_kind = dnnl_impl::op_kind::large_partition;
-        }
-
-        std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
-
-        auto pos = kernel_creator_f_map_.data_.find(op_kind);
-        if (pos == kernel_creator_f_map_.data_.end()) return {};
-
-        auto create_fn = pos->second;
-        return create_fn();
-    }
-
-    /*!
-     * \brief get registered kernel number
-     */
-    size_t get_register_kernels_num() const {
-        std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
-        return kernel_creator_f_map_.data_.size();
-    }
-
-private:
-    // Disable assignment and copy
-    kernel_registry_t(const kernel_registry_t &) = delete;
-    kernel_registry_t(kernel_registry_t &&) = delete;
-    kernel_registry_t &operator=(const kernel_registry_t &) = delete;
-    kernel_registry_t &operator=(kernel_registry_t &&) = delete;
-
-    mutable struct {
-        std::unordered_map<impl::op_kind_t, kernel_creator_f, enum_hash_t>
-                data_;
-        mutable std::mutex m_;
-    } kernel_creator_f_map_;
-};
+using FCreateKernel = std::function<kernel_ptr(void)>;
 
 class dnnl_backend : public backend {
     friend class dnnl_partition_impl_t;
@@ -362,16 +297,10 @@ public:
     impl::utils::optional<impl::utils::any_t> get_mem_desc(
             const size_t &layout_id) const;
 
-    kernel_registry_t &get_kernel_registry() { return kernel_registry_; }
-
     impl::pass::pass_registry_t &get_pass_registry() { return pass_registry_; }
 
     dnnl_layout_id_manager_t &get_layout_id_manager() {
         return layout_id_manager_;
-    }
-
-    kernel_ptr create_kernel(const impl::op_t &aop) {
-        return kernel_registry_.create_kernel(aop);
     }
 
     size_t get_mem_size(const impl::logical_tensor_t &lt) const override;
@@ -436,11 +365,9 @@ private:
     dnnl_backend(const std::string &name, float priority);
 
     bool register_passes();
-    bool register_kernels();
     bool register_op_schemas();
 
     dnnl_layout_id_manager_t layout_id_manager_;
-    kernel_registry_t kernel_registry_;
     impl::pass::pass_registry_t pass_registry_;
 };
 

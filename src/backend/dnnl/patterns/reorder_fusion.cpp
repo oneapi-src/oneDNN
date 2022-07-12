@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/kernels/reorder.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 #include "backend/dnnl/patterns/utils.hpp"
@@ -57,13 +58,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reorder_sum_fusion)
                                 == "none";
                     });
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::reorder_sum);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_reorder>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_fusion)
         .set_priority(10.1f)
@@ -78,13 +75,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_fusion)
                     pgraph->append_op(impl::op_kind::Quantize,
                             {in_edge(0, reorder, 0)}, "pquant");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::int8_reorder);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_reorder>();
+        });
 
 /*
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
@@ -116,13 +109,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_sum_fusion_cpu)
                     pgraph->append_op(impl::op_kind::Quantize,
                             {in_edge(0, add, 0)}, "pquant");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::int8_reorder);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_reorder>();
+        });
 
 /*
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
@@ -156,13 +145,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_sum_fusion_gpu)
                     pgraph->append_op(impl::op_kind::Quantize,
                             {in_edge(0, add, 0)}, "pquant");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::int8_reorder);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_reorder>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

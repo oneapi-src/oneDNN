@@ -35,107 +35,6 @@ namespace dnnl_impl {
 template <typename T>
 op_schema_t get_op_schema();
 
-DNNL_GRAPH_OP_SCHEMA(binary_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({2, 5}))
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(pool_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({2, 4}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::strides, "the distance to slide the filter",
-                        true, attribute_kind::is)
-                .set_attr(op_attr::pads_begin, "top and left padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::pads_end, "bottom and right padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::exclude_pad, "a type of pooling strategy",
-                        false, attribute_kind::b)
-                .set_attr(op_attr::kernel, "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
-                .set_attr(op_attr::dilations,
-                        "the distance in width and height between elements "
-                        "in the filter",
-                        false, attribute_kind::is,
-                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 1))
-                .set_attr(op_attr::rounding_type,
-                        "a type of rounding to be applied", false,
-                        attribute_kind::s, "floor")
-                .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None")
-                .set_shape_inference_function(infer_pool_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(int8_pool_binary, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "other", "the second input tensor of binary")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::strides, "the distance to slide the filter",
-                        true, attribute_kind::is)
-                .set_attr(op_attr::pads_begin, "top and left padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::pads_end, "bottom and right padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::exclude_pad, "a type of pooling strategy",
-                        false, attribute_kind::b)
-                .set_attr(op_attr::kernel, "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::dilations,
-                        "the distance in width and height between elements "
-                        "in the filter",
-                        false, attribute_kind::is,
-                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 1))
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
-                .set_attr(op_attr::rounding_type,
-                        "a type of rounding to be applied", false,
-                        attribute_kind::s, "floor")
-                .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None")
-                .set_attr(op_attr::qtype,
-                        "specifies which dequantization type is used", false,
-                        attribute_kind::s, "per_tensor")
-                .set_attr(op_attr::axis,
-                        "specifies dimension on which apply per-channel "
-                        "dequantization",
-                        false, attribute_kind::i, int64_t(1))
-                .set_attr(op_attr::scales, "apply in quantization formula",
-                        true, attribute_kind::fs)
-                .set_attr(op_attr::zps, "offset value that maps to float zero",
-                        true, attribute_kind::is)
-                .set_shape_inference_function(infer_pool_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(eltwise_binary, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_identity_output_shape))
-
 // TODO(xxx) Merge this op into dnnl_convolution
 DNNL_GRAPH_OP_SCHEMA(dnnl_conv_depthwise, 1,
         op_schema_t()
@@ -190,157 +89,6 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_depthwise, 1,
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_conv_depthwise_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(bn_relu, 1,
-        op_schema_t()
-                .set_num_inputs(5)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "gamma", "gamma scaling for normalized value")
-                .set_input(
-                        2, "beta", "beta added to the scaled normalized value")
-                .set_input(3, "mean", "value for mean normalization")
-                .set_input(4, "variance", "value for variance normalization")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::epsilon,
-                        "the number to be added to the variance to avoid "
-                        "division by zero",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
-                .set_shape_inference_function(infer_identity_output_shape))
-
-// This op schema represents part of convolution related fusions.
-// The fusion patterns should follow the below general rule:
-//
-//      Convolution + [Add|Mul] x [0, 32] + [ReLU|Abs|Elu|GELU] x [0, 32] +
-//                                                          [Add|Mul] x [0, 32]
-//
-// In above rule, currently the supported binary ops are Add and Multiply. The
-// supported eltwise ops are ReLU, Abs, Elu and GELU.
-//
-// [Add|Mul] x [0, 32] means the repetition times of block
-// [Add|Mul] can be from 0 to 32. So do [ReLU|Abs|Elu|GELU] block and the second
-// [Add|mul] block. Hence it will cover but not limited to the below patterns:
-//
-//  1. Convolution + [Add|Mul] + ... + [Add|Mul] + ReLU + ... + Abs + [Add|Mul]
-//                                                      + ... + [Add|Mul]
-//  2. Convolution + ReLU + ... + Elu + [Add|Mul] + ... + [Add|Mul]
-//  3. Convolution + ReLU + ... + GELU
-//  4. Convolution + [Add|Mul] + ... + [Add|Mul]
-//  ......
-DNNL_GRAPH_OP_SCHEMA(conv_bias_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({3, 35}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_conv_output_shape)
-                .SET_CONV_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(conv_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({2, 34}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_conv_output_shape)
-                .SET_CONV_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(int8_conv_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({2, 35}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_conv_output_shape)
-                .SET_CONV_COMMON_ATTRS)
-
-// This op schema represents all convtranspose related fusions.
-// At the moment available are:
-// convtranspose + bias,
-// convtranspose + w/wo bias + binary add,
-// convtranspose + w/wo bias + sum,
-// convtranspose + w/wo bias + relu.
-// Thanks to the unification of the op schema for these patterns,
-// we can reduce the size of the binary.
-DNNL_GRAPH_OP_SCHEMA(convtranspose_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({2, 6}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::output_padding,
-                        "additional amount of paddings to be added to each "
-                        "spatial axis in the output tensor",
-                        false, attribute_kind::is,
-                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
-                .set_shape_inference_function(infer_convtranspose_output_shape)
-                .SET_CONV_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(quantized_convtranspose_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({2, 3, 4}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_input(3, "other", "other tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::output_padding,
-                        "additional amount of paddings to be added to each "
-                        "spatial axis in the output tensor",
-                        false, attribute_kind::is,
-                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
-                .set_shape_inference_function(infer_convtranspose_output_shape)
-                .SET_CONV_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_post_ops_chain_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({2, 34}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "filter", "filter tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_CONV_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_post_ops_chain_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({3, 35}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "filter", "filter tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_CONV_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(int8_matmul_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({2, 35}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "filter", "filter tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_mul_scales, 1,
         op_schema_t()
@@ -1022,42 +770,6 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
                         false, attribute_kind::b, false)
                 .set_shape_inference_function(infer_bn_bwd_output_shape))
 
-// This op schema represents all interpolate related fusions.
-// At the moment available are:
-// interpolate + binary add,
-// interpolate + sum,
-// interpolate + eltwise.
-// Thanks to the unification of the op schema for these patterns,
-// we can reduce the size of the binary.
-DNNL_GRAPH_OP_SCHEMA(interpolate_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({1, 2}))
-                .set_num_outputs(1)
-                .set_input(
-                        0, "data", "Input tensor with data for interpolation")
-                .set_input(
-                        1, "sizes", "describing output shape for spatial axes")
-                .set_output(0, "output",
-                        "a tensor with selected data from input tensor")
-                .set_attr(op_attr::mode, "specifies type of interpolation",
-                        true, attribute_kind::s)
-                .set_attr(op_attr::sizes,
-                        "describing output shape for spatial axes", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::scales, "describing scales for spatial axes",
-                        false, attribute_kind::fs)
-                .set_attr(op_attr::coordinate_transformation_mode,
-                        "specifies how to transform the coordinate in the "
-                        "resized tensor to the coordinate in the original "
-                        "tensor",
-                        false, attribute_kind::s, "half_pixel")
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
-                .set_shape_inference_function(infer_interpolate_output_shape))
-
 DNNL_GRAPH_OP_SCHEMA(dnnl_resampling_bwd, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
@@ -1165,23 +877,6 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                         false, attribute_kind::b, false)
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_binary_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(reorder_sum, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "src0", "input tensor")
-                .set_input(1, "src1", "input tensor")
-                .set_output(0, "dst", "output tensor")
-                .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(int8_reorder, 1,
-        op_schema_t()
-                .set_num_inputs(1)
-                .set_num_outputs(1)
-                .set_input(0, "src", "input tensor")
-                .set_output(0, "dst", "output tensor")
-                .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise, 1,
         op_schema_t()
@@ -1372,31 +1067,6 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax_bwd, 1,
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
-// Represents all currently available reduction related fusions.
-// Base-OP possibilities:
-// [ReduceL1|ReduceL2|ReduceMax|ReduceMean|ReduceMin|ReduceProd|ReduceSum]
-// Post-OP possibilities:
-// [Abs, Clamp, Elu, Exp, GELU, Hardswish, Log, Sigmoid, SoftPlus, Pow, ReLU,
-// Round, Sqrt, Square, Sigmoid+Multiply, Tanh, Add, Multiply, Maximum, Minimum,
-// Divide, Subtract]
-DNNL_GRAPH_OP_SCHEMA(reduction_post_ops_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({1, 2, 3}))
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "axes",
-                        "(optional) 1D tensor, specifies indices of input "
-                        "data, along which the reduction is performed.")
-                .set_input(2, "other", "(optional) src1 tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::alg_kind,
-                        "specifies algorithm kind, can be one of "
-                        "l1/l2/max/mean/min/prod/sum",
-                        true, attribute_kind::i)
-                .set_shape_inference_function(infer_reduce_output_shape)
-                .SET_REDUCE_COMMON_ATTRS)
-
 DNNL_GRAPH_OP_SCHEMA(dnnl_resampling, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::variadic)
@@ -1465,18 +1135,6 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_concat, 1,
                         "output of this op is constant",
                         false, attribute_kind::b, false)
                 // Analysis rules
-                .set_shape_inference_function(infer_concat_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(quantized_concat_fusion, 1,
-        op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::variadic)
-                .set_num_inputs(std::set<size_t>({1, 64}))
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr(op_attr::axis,
-                        "specifies which dimension to concatenate along", true,
-                        attribute_kind::i)
                 .set_shape_inference_function(infer_concat_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm_bwd, 1,

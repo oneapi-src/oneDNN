@@ -55,15 +55,6 @@ dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
 
     return *find;
 }
-
-const impl::op_t *get_fused_op(
-        const std::shared_ptr<dnnl::graph::impl::partition_impl_t> &part) {
-    return dynamic_cast<
-            const dnnl::graph::impl::dnnl_impl::dnnl_partition_impl_t *>(
-            part.get())
-            ->get_fused_op()
-            .get();
-}
 } // namespace
 
 TEST(SubgraphPass, LowerDownToInt8Conv) {
@@ -147,8 +138,8 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_conv_post_ops_fusion);
+    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+            impl::partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
 
@@ -285,8 +276,8 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+            impl::partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 
@@ -740,8 +731,8 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+            impl::partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 
@@ -853,8 +844,8 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::matmul_bias_post_ops_chain_fusion);
+    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+            impl::partition_kind::matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 
@@ -1352,8 +1343,8 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     pass::pass_base_ptr apass = get_pass("int8_bf16_matmul_div_add_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+            impl::partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
 

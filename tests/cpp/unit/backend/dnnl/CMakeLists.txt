@@ -19,7 +19,6 @@ set(OBJ_LIB ${LIB_NAME}_backend_dnnl_unit_test)
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_fused_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_id.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
@@ -31,7 +30,7 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
     ${GRAPH_TEST_THREAD}
     ${TEST_ALLOCATOR}
-    )
+)
 
 target_include_directories(${OBJ_LIB}
     PRIVATE

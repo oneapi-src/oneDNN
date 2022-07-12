@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "backend/dnnl/kernels/large_partition.hpp"
+#include "backend/dnnl/kernels/matmul.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
 #include "backend/dnnl/patterns/utils.hpp"
@@ -97,13 +99,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, matmul_post_ops_chain_fusion)
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::matmul_post_ops_chain_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_matmul>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, matmul_bias_post_ops_chain_fusion)
@@ -206,14 +204,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::matmul_bias_post_ops_chain_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
-
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_matmul>();
+        });
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
@@ -240,13 +233,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, div, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
@@ -276,13 +265,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, div, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 /*
                     [quant_weight]*
@@ -396,13 +381,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 /*
 MatMul: Currently DNNL Backend doesn't support below
@@ -502,13 +483,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
@@ -548,13 +525,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, div, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
@@ -596,13 +569,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, div, 0)});
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 /*
                     [quant_weight]*
@@ -733,13 +702,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             in_edges_t {in_edge(0, prep, 0)},
                             "popt_tc_quant_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
@@ -857,13 +822,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             in_edges_t {in_edge(0, prep, 0)},
                             "popt_tc_quant_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
         .set_priority(5.0f)
@@ -947,13 +908,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
                             in_edges_t {in_edge(0, matmul_v, 0)},
                             "transpose_output");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
         .set_priority(20.0f)
@@ -1049,13 +1006,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
                             in_edges_t {in_edge(0, post_transpose, 0)},
                             "popt_reshape_out");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bf16_MHA_fusion)
         .set_priority(5.0f)
@@ -1171,13 +1124,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bf16_MHA_fusion)
                             in_edges_t {in_edge(0, matmul_v, 0)},
                             "transpose_output");
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::large_partition);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
 
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
@@ -1215,14 +1164,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                             in_edge(1, typecast_weight, 0)});
                     matmul->append_decision_function(check_input_num<2>);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
-
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
@@ -1261,13 +1205,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                             in_edge(1, typecast_weight, 0)});
                     matmul->append_decision_function(check_input_num<2>);
                 })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
-                    return fused_op;
-                });
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
