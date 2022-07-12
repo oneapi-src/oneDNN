@@ -87,7 +87,11 @@ public:
     void set_simd_size(int value) { simd_size_ = value; }
     void set_vec_size(int value) { vec_size_ = value; }
     void set_regs(int value) { regs_ = value; }
-    void set_max_tg_size(int value) { max_tg_size_ = value; }
+    void set_max_tg_size(int value) {
+        max_tg_overriden_ = max_tg_size_ != 0;
+        max_tg_size_ = value;
+    }
+    bool max_tg_overriden() { return max_tg_overriden_; }
 
     int max_tg_size() const {
         if (max_tg_size_ != 0) return max_tg_size_;
@@ -131,6 +135,7 @@ private:
     int eu_count_;
     size_t max_wg_size_;
     bool large_grf_support_;
+    bool max_tg_overriden_ = false;
 
     // SIMD width (used for thread dispatching).
     int simd_size_ = 0;

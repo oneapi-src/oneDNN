@@ -502,7 +502,10 @@ void block_helper_t::init_bmnk_blocks() {
             int tg_dim = compute_block(d.size(), target_blk, d.iter_dim())
                     / d.iter_dim();
             //restrict maximum single tg dim as max_tg size is reduced
-            tg_dim = std::min(utils::rnd_down_pow2(tg_dim), target_tg_size / 4);
+            tg_dim = std::min(utils::rnd_down_pow2(tg_dim),
+                    hw_cfg_.max_tg_overriden() ? target_tg_size
+                                    / (hw_cfg_.hw() >= ngen::HW::XeHPC ? 2 : 4)
+                                               : hw_cfg_.simd_size());
             tg_dims[i] = tg_dim;
             if (d.pref_tg_block()) {
                 //only one preferred dim allowed
