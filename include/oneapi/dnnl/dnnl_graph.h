@@ -674,15 +674,6 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
         dnnl_graph_graph_t graph, size_t num,
         dnnl_graph_partition_t *partition);
 
-/// Visualize a graph as a dot file.
-///
-/// @param graph The target graph.
-/// @param ignore_env_var Ignore DNNL_GRAPH_DUMP environment variable.
-/// @returns #dnnl_graph_success on success or a status describing the error
-///     otherwise.
-dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
-        dnnl_graph_graph_t graph, const int ignore_env_var);
-
 /// @} dnnl_graph_api_graph
 
 /// @addtogroup dnnl_graph_api_stream

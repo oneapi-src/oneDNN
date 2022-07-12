@@ -347,7 +347,9 @@ public:
                     pass_config_json.c_str());
             fflush(stdout);
         } else {
-            if (impl::utils::getenv_int_user("DUMP", 0) > 0) {
+            if (impl::utils::getenv_int_user("DUMP", 0) > 0
+                    || impl::utils::check_verbose_string_user(
+                            "DUMP", "pattern")) {
                 printf("onednn_graph_verbose,info,pattern,dump,%s\n",
                         pass_config_json.c_str());
                 fflush(stdout);

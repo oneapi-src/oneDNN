@@ -368,6 +368,18 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
     auto status = graph->build_graph();
     if (status != status::success) return status::invalid_graph;
 
+#ifdef DNNL_GRAPH_ENABLE_DUMP
+    if (utils::getenv_int_user("DUMP", 0) > 0
+            || utils::check_verbose_string_user("DUMP", "graph")) {
+        // deep copy for graph serialization. note that this is for
+        // visualization purpose
+        graph_t agraph(*graph);
+        std::stringstream filename;
+        filename << "graph-" << agraph.id() << ".json";
+        agraph.serialize(filename.str());
+    }
+#endif
+
     // Get partition_impl by calling each backends
     std::vector<const backend *> &backends
             = backend_registry_t::get_singleton().get_registered_backends();
@@ -404,69 +416,27 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
     if (graph == nullptr) { return status::invalid_graph; }
     std::vector<partition_t *> partitions {partition, partition + num};
     graph->get_ordered_partitions(partitions);
-    return status::success;
-}
-
-status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
-        graph_t *graph, const int ignore_env_var) {
 #ifdef DNNL_GRAPH_ENABLE_DUMP
-    if (ignore_env_var || utils::getenv_int_user("DUMP", 0) > 0) {
-        const auto status = graph->build_graph();
-        if (status) return status;
-        std::ofstream out;
-        auto filename = "graph-" + std::to_string(graph->id()) + ".dot";
-        printf("onednn_graph_verbose,info,visualize graph to a dot file %s\n",
-                filename.c_str());
-        out.open(filename);
-        out << "digraph G {\n";
-        topo_order_visit(graph->get_output_ops(), [&](op_t *op) {
-            const auto &current_op_name = op->get_name();
-            const size_t current_op_id = op->get_id();
-            // dump edge between ops
-            for (size_t i = 0; i < op->num_inputs(); ++i) {
-                auto input_value = op->get_input_value(i);
-                if (input_value->has_producer()) {
-                    op_t *input_op = &(input_value->get_producer());
-                    const std::string &input_op_name = input_op->get_name();
-                    const size_t input_op_id = input_op->get_id();
-                    out << "\"" << input_op_name << "_" << input_op_id
-                        << "\" -> \"" << current_op_name << "_" << current_op_id
-                        << "\";\n";
-                }
-            }
-            // dump op info
-            const auto &op_kind_name = op_t::kind2str(op->get_kind());
-            out << "\"" << current_op_name << "_" << current_op_id
-                << "\"[label=\"" << current_op_name << "_" << current_op_id
-                << "\\n"
-                << "opkind: " << op_kind_name << "\\n"
-                << "\"];\n";
-            return status::success;
-        });
-        // dump partition info after get_partitions
-        auto &partition_vec = graph->get_partitions();
-        for (auto &p : partition_vec) {
-            auto *bkd = p->get_assigned_backend();
-            if (bkd == nullptr) { continue; }
+    if (utils::getenv_int_user("DUMP", 0) > 0
+            || utils::check_verbose_string_user("DUMP", "graph")) {
+        // graph serialization after partitioning. note that this is for
+        // visualization purpose
+        graph_t agraph(*graph);
+        for (auto &aop : agraph.get_ops()) {
+            // p_impl is shallow copy
+            const auto p_impl = aop->get_partition();
+            const auto p_id = p_impl->id();
+            auto *bkd = p_impl->get_assigned_backend();
             auto bkd_name = bkd->get_name();
-            for (auto &op : p->get_ops()) {
-                auto op_name = op->get_name();
-                const auto &op_kind_name = op_t::kind2str(op->get_kind());
-                auto op_id = op->get_id();
-                out << "\"" << op_name << "_" << op_id << "\"[label=\""
-                    << op_name << "_" << op_id << "\\n"
-                    << "opkind: " << op_kind_name << "\\n"
-                    << "partition id: " << p->id() << "\\n"
-                    << bkd_name << "\"];\n";
-            }
+            aop->set_attr<std::string>(
+                    op_attr::partition_id, std::to_string(p_id));
+            aop->set_attr<std::string>(op_attr::backend, bkd_name);
         }
-        out << "}\n";
-        out.close();
-    }
-#else
-    UNUSED(graph);
-    UNUSED(ignore_env_var);
-#endif
 
+        std::stringstream filename;
+        filename << "graph-" << agraph.id() << "-partitioning.json";
+        agraph.serialize(filename.str());
+    }
+#endif
     return status::success;
 }

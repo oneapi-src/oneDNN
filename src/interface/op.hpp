@@ -331,6 +331,7 @@ public:
             CASE(rounding_type);
             CASE(matched);
             CASE(backend);
+            CASE(partition_id);
             default: return "undefined_attr";
         }
 #undef CASE

@@ -1450,7 +1450,6 @@ TEST(PatternMatcherV2, MultipleConsumerDifferentPartition) {
     ASSERT_EQ(agraph.add_op(&mul), status::success);
     ASSERT_EQ(agraph.add_op(&softmaxbwd), status::success);
     agraph.build_graph();
-    dnnl_graph_graph_visualize(&agraph, 1);
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
@@ -1582,7 +1581,6 @@ TEST(PatternMatcherV2, RepetitionExternalOutput) {
     ASSERT_EQ(agraph.add_op(&ext1), status::success);
     ASSERT_EQ(agraph.add_op(&ext2), status::success);
     agraph.build_graph();
-    dnnl_graph_graph_visualize(&agraph, 1);
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
@@ -1675,7 +1673,6 @@ TEST(PatternMatcherV2, RepetitionExternalOutputSwapOrder) {
     ASSERT_EQ(agraph.add_op(&relu1), status::success);
 
     agraph.build_graph();
-    dnnl_graph_graph_visualize(&agraph, 1);
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[3].get(), graphp, fusion_ops));

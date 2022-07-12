@@ -1850,16 +1850,7 @@ public:
             out_list.emplace_back(p);
         }
 
-        error::check_succeed(dnnl_graph_graph_visualize(get(), 0),
-                "cannot visualize the graph");
-
         return out_list;
-    }
-
-    /// Visualize the graph
-    void visualize() const {
-        error::check_succeed(dnnl_graph_graph_visualize(get(), 1),
-                "cannot visualize the graph");
     }
 
 private:

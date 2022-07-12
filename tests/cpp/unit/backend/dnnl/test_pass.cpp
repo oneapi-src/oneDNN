@@ -2906,7 +2906,6 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
 
             pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
             apass->run(agraph);
-            dnnl_graph_graph_visualize(&agraph, 0);
             ASSERT_EQ(agraph.get_num_partitions(), 1);
             ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(),
                     num_chain_ops + 1);
@@ -3009,7 +3008,6 @@ TEST(Pass, FuseConvPostOpsChain) {
 
             pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
             apass->run(agraph);
-            dnnl_graph_graph_visualize(&agraph, 0);
             ASSERT_EQ(agraph.get_num_partitions(), 1);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
                     impl::partition_kind::convolution_post_ops);

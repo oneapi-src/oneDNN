@@ -97,8 +97,13 @@ int main(int argc, char **argv) {
     id_mgr.freeze(); // graph is built up, and the arguments set could be frozen
     std::cout << "Success!\n";
 
+    const int len = 64;
+    char original_str[len]; // NOLINT
+    getenv("ONEDNN_GRAPH_DUMP", original_str, len);
+    custom_setenv("ONEDNN_GRAPH_DUMP", "graph", 1);
     /// The graph will be partitioned into 1 partitions: `matmul + relu`
     auto partitions = g.get_partitions();
+    custom_setenv("ONEDNN_GRAPH_DUMP", original_str, 1);
 
     /// mark the output logical tensors of partition as ANY layout enabled
     std::unordered_set<size_t> id_to_set_any_layout;
@@ -121,11 +126,7 @@ int main(int argc, char **argv) {
 
     // Serialize Graph
     std::cout << "Serialize Graph--------------------------------";
-
-    const int len = 12;
-    char original_str[len]; // NOLINT
-    getenv("ONEDNN_GRAPH_DUMP", original_str, len);
-    custom_setenv("ONEDNN_GRAPH_DUMP", "2", 1);
+    custom_setenv("ONEDNN_GRAPH_DUMP", "subgraph", 1);
     std::cout << "Success!\n";
 
     for (size_t i = 0; i < partitions.size(); ++i) {

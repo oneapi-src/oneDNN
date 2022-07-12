@@ -13,4 +13,21 @@ Please refer to [build options](@ref dev_guide_build_options).
 |                           | 2           | Information of partition compilation and compiled partition execution
 | ONEDNN_GRAPH_DUMP         | 0 (default) | No graph or pattern configuration file dump
 |                           | 1           | Library graph and pattern configuration file
-|                           | 2           | Library graph, pattern configuration file, and backend subgraph
+|                           | 2           | Library graph, pattern configuration file and serialized subgraph
+
+Environmental variable `ONEDNN_GRAPH_DUMP` also allows users to set flags.
+
+| Variable                  | Flags            | Description
+| :---                      | :---             |:---
+| ONEDNN_GRAPH_DUMP         | (default)        | No graph or pattern configuration file dump
+|                           | graph            | Library graph
+|                           | pattern          | Library pattern configuration file
+|                           | subgraph         | Library subgraph contained in a partition
+
+These flags can be combined together to make the library dumping different
+files. For example, the below setting will generate files containing library
+graph and subgraphs in each partition.
+
+```bash
+export ONEDNN_GRAPH_DUMP=graph,subgraph
+```

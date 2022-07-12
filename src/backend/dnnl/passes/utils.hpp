@@ -103,8 +103,9 @@ public:
 #endif
     {
         MAYBE_UNUSED(partition_id);
-        // Set DNNL_GRAPH_DUMP=2 to enable dump subgraph
-        enabled_ = impl::utils::getenv_int_user("DUMP", 0) > 1;
+        // Set _DNNL_GRAPH_BACKEND_SUBGRAPH_DUMP=1 to enable dump subgraph
+        enabled_ = impl::utils::getenv_int_internal("BACKEND_SUBGRAPH_DUMP", 0)
+                > 0;
     }
 
     status_t run(const std::shared_ptr<subgraph_t> &sg,

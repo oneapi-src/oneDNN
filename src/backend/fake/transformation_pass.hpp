@@ -65,7 +65,9 @@ public:
         pu.match(agraph, pgraph, matched_op_list);
         if (!matched_op_list.empty()) {
             // temporary solution here for showing which pattern matched
-            if (impl::utils::getenv_int_user("DUMP", 0) > 0) {
+            if (impl::utils::getenv_int_user("DUMP", 0) > 0
+                    || impl::utils::check_verbose_string_user(
+                            "DUMP", "pattern")) {
                 printf("onednn_graph_verbose,info,pattern,hit,%s\n",
                         get_pass_name().c_str());
                 fflush(stdout);
