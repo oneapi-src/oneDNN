@@ -47,13 +47,13 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<avx2>)
             CPU_INSTANCE_X64(jit_uni_softmax_fwd_t<sse41>)
             CPU_INSTANCE_AARCH64(jit_uni_softmax_fwd_t<sve_512>)
-            CPU_INSTANCE_AARCH64(jit_uni_softmax_bwd_t<sve_512>)
             CPU_INSTANCE_AARCH64_ACL(acl_softmax_fwd_t)
             CPU_INSTANCE(ref_softmax_fwd_t)
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
             CPU_INSTANCE_X64(jit_uni_softmax_bwd_t<avx512_core>)
+            CPU_INSTANCE_AARCH64(jit_uni_softmax_bwd_t<sve_512>)
             CPU_INSTANCE(ref_softmax_bwd_t)
             nullptr,
         })},
