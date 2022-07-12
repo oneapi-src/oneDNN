@@ -308,19 +308,49 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     {in_edge(0, dropout_grad, 0),
                                             in_edge(1, softmax_sum, 0)},
                                     "softmax_sub");
-                    auto fscore_grad = pgraph->append_alternation(
-                            {impl::op_kind::Divide, impl::op_kind::Multiply},
-                            {in_edge(0, softmax_sub, 0)}, "fscore_grad");
-                    fscore_grad->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
-                    auto bmm_q_grad_weight = pgraph->append_op(
-                            impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
-                            "bmm_q_grad_weight");
+                    /* Create 2 subgraph for alternation */
+                    auto successive_mul_subgraph = std::make_shared<pb_graph_t>(
+                            "successive_mul_subgraph");
+                    auto softmax_mul2 = successive_mul_subgraph->append_op(
+                            impl::op_kind::Multiply, "softmax_mul2");
+                    auto fscore_grad_alter1
+                            = successive_mul_subgraph->append_alternation(
+                                    {impl::op_kind::Divide,
+                                            impl::op_kind::Multiply},
+                                    {in_edge(0, softmax_mul2, 0)},
+                                    "fscore_grad");
+                    successive_mul_subgraph->create_input_port(
+                            0, softmax_mul2, 0);
+                    successive_mul_subgraph->create_output_port(
+                            0, fscore_grad_alter1, 0);
+
+                    auto single_fscore_grad_subgraph
+                            = std::make_shared<pb_graph_t>(
+                                    "single_fscore_grad_subgraph");
+                    auto fscore_grad_alter2
+                            = single_fscore_grad_subgraph->append_alternation(
+                                    {impl::op_kind::Divide,
+                                            impl::op_kind::Multiply},
+                                    "fscore_grad");
+                    single_fscore_grad_subgraph->create_input_port(
+                            0, fscore_grad_alter2, 0);
+                    single_fscore_grad_subgraph->create_output_port(
+                            0, fscore_grad_alter2, 0);
+
+                    auto softmax_grad_alter = pgraph->append_alternation(
+                            {successive_mul_subgraph,
+                                    single_fscore_grad_subgraph},
+                            {in_edge(0, softmax_sub, 0)}, "softmax_grad_alter");
+                    auto bmm_q_grad_weight
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    {in_edge(0, softmax_grad_alter, 0)},
+                                    "bmm_q_grad_weight");
                     bmm_q_grad_weight->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
-                    auto bmm_k_grad_weight = pgraph->append_op(
-                            impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
-                            "bmm_k_grad_weight");
+                    auto bmm_k_grad_weight
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    {in_edge(0, softmax_grad_alter, 0)},
+                                    "bmm_k_grad_weight");
                     bmm_k_grad_weight->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
                 });
@@ -584,17 +614,49 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     {in_edge(0, dropout_grad, 0),
                                             in_edge(1, softmax_sum, 0)},
                                     "softmax_sub");
-                    auto fscore_grad = pgraph->append_alternation(
-                            {impl::op_kind::Divide, impl::op_kind::Multiply},
-                            {in_edge(0, softmax_sub, 0)}, "fscore_grad");
-                    auto bmm_q_grad_weight = pgraph->append_op(
-                            impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
-                            "bmm_q_grad_weight");
+                    /* Create 2 subgraph for alternation */
+                    auto successive_mul_subgraph = std::make_shared<pb_graph_t>(
+                            "successive_mul_subgraph");
+                    auto softmax_mul2 = successive_mul_subgraph->append_op(
+                            impl::op_kind::Multiply, "softmax_mul2");
+                    auto fscore_grad_alter1
+                            = successive_mul_subgraph->append_alternation(
+                                    {impl::op_kind::Divide,
+                                            impl::op_kind::Multiply},
+                                    {in_edge(0, softmax_mul2, 0)},
+                                    "fscore_grad");
+                    successive_mul_subgraph->create_input_port(
+                            0, softmax_mul2, 0);
+                    successive_mul_subgraph->create_output_port(
+                            0, fscore_grad_alter1, 0);
+
+                    auto single_fscore_grad_subgraph
+                            = std::make_shared<pb_graph_t>(
+                                    "single_fscore_grad_subgraph");
+                    auto fscore_grad_alter2
+                            = single_fscore_grad_subgraph->append_alternation(
+                                    {impl::op_kind::Divide,
+                                            impl::op_kind::Multiply},
+                                    "fscore_grad");
+                    single_fscore_grad_subgraph->create_input_port(
+                            0, fscore_grad_alter2, 0);
+                    single_fscore_grad_subgraph->create_output_port(
+                            0, fscore_grad_alter2, 0);
+
+                    auto softmax_grad_alter = pgraph->append_alternation(
+                            {successive_mul_subgraph,
+                                    single_fscore_grad_subgraph},
+                            {in_edge(0, softmax_sub, 0)}, "softmax_grad_alter");
+                    auto bmm_q_grad_weight
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    {in_edge(0, softmax_grad_alter, 0)},
+                                    "bmm_q_grad_weight");
                     bmm_q_grad_weight->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
-                    auto bmm_k_grad_weight = pgraph->append_op(
-                            impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
-                            "bmm_k_grad_weight");
+                    auto bmm_k_grad_weight
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    {in_edge(0, softmax_grad_alter, 0)},
+                                    "bmm_k_grad_weight");
                     bmm_k_grad_weight->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
                 });
