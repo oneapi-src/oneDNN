@@ -23,6 +23,7 @@ namespace bnorm {
 check_alg_t str2check_alg(const char *str) {
     if (!strcasecmp("alg_0", str)) return ALG_0;
     if (!strcasecmp("alg_1", str)) return ALG_1;
+    if (!strcasecmp("alg_2", str)) return ALG_2;
     return ALG_AUTO;
 }
 
@@ -30,6 +31,7 @@ const char *check_alg2str(check_alg_t alg) {
     switch (alg) {
         case ALG_0: return "alg_0";
         case ALG_1: return "alg_1";
+        case ALG_2: return "alg_2";
         case ALG_AUTO: return "alg_auto";
     }
     return "alg_auto";
