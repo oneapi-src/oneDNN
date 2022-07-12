@@ -128,11 +128,11 @@ public:
                                 = tensor_cfg.user_layout(info.arg_name(1));
                         auto dst_layout
                                 = tensor_cfg.compute_layout(info.arg_name(1));
-                        kernels_.push_back(
-                                make_kernel<reorder_kernel_t>(primitive, engine,
-                                        cfg.exec_cfg(), info, src_layout,
-                                        dst_layout, cfg.is_dpas_or_dpasw_fma(),
-                                        grf_mode_t::matches));
+                        kernels_.push_back(make_kernel<reorder_kernel_t>(
+                                primitive, engine, cfg.exec_cfg(),
+                                "conv_reorder", info, src_layout, dst_layout,
+                                cfg.is_dpas_or_dpasw_fma(),
+                                grf_mode_t::matches));
                         break;
                     }
                     case kernel_id_t::post_reorder: {
@@ -140,11 +140,11 @@ public:
                                 = tensor_cfg.compute_layout(info.arg_name(0));
                         auto dst_layout
                                 = tensor_cfg.user_layout(info.arg_name(0));
-                        kernels_.push_back(
-                                make_kernel<reorder_kernel_t>(primitive, engine,
-                                        cfg.exec_cfg(), info, src_layout,
-                                        dst_layout, cfg.is_dpas_or_dpasw_fma(),
-                                        grf_mode_t::matches));
+                        kernels_.push_back(make_kernel<reorder_kernel_t>(
+                                primitive, engine, cfg.exec_cfg(),
+                                "conv_reorder", info, src_layout, dst_layout,
+                                cfg.is_dpas_or_dpasw_fma(),
+                                grf_mode_t::matches));
                         break;
                     }
                     case kernel_id_t::zero_out:
