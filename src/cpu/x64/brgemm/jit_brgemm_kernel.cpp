@@ -1553,8 +1553,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::set_A_B_matrices() {
         mov(reg_aux_A, reg_aux1_A);
         mov(reg_aux_B, reg_aux1_B);
 
-        add(reg_aux1_A, brg.stride_a);
-        add(reg_aux1_B, brg.stride_b);
+        safe_add(reg_aux1_A, brg.stride_a, reg_tmp_gpr);
+        safe_add(reg_aux1_B, brg.stride_b, reg_tmp_gpr);
         if (vpad_exist) {
             mov(reg_strd_batch, ptr[rsp + origin_strd_batch_offs_]);
             add(reg_strd_batch, sizeof(brgemm_batch_element_t));

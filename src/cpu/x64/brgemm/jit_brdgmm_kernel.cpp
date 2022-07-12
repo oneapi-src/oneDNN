@@ -165,8 +165,8 @@ void jit_brdgmm_kernel_base_t::set_A_B_matrices() {
         mov(reg_aux_A, reg_aux1_A);
         mov(reg_aux_B, reg_aux1_B);
         if (brg.brgattr.max_bs > 1) {
-            add(reg_aux1_A, brg.stride_a);
-            add(reg_aux1_B, brg.stride_b);
+            safe_add(reg_aux1_A, brg.stride_a, reg_tmp);
+            safe_add(reg_aux1_B, brg.stride_b, reg_tmp);
         }
     }
 
