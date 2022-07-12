@@ -37,7 +37,7 @@
 
 namespace bnorm {
 
-enum check_alg_t { ALG_0, ALG_1, ALG_AUTO };
+enum check_alg_t { ALG_0, ALG_1, ALG_2, ALG_AUTO };
 check_alg_t str2check_alg(const char *str);
 const char *check_alg2str(check_alg_t alg);
 
