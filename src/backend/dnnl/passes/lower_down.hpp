@@ -122,6 +122,15 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg);
 impl::status_t fuse_post_typecast_to_matmul_or_conv(
         std::shared_ptr<subgraph_t> &sg);
 
+/// fuse post typecast(f32 <-> bf16/f16) to softmax
+///
+///          |                  -->             |
+///       softmax                            softmax
+///          |                                  |
+///       typecast
+///          |
+impl::status_t fuse_post_typecast_to_softmax(std::shared_ptr<subgraph_t> &sg);
+
 impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 /// translate the subgraph containing chain of Adds into dnnl_sum

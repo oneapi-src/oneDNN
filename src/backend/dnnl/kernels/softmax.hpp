@@ -73,6 +73,10 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_softmax);
+        BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

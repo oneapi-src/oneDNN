@@ -309,7 +309,8 @@ impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
 
     std::set<op_t *> visited;
     for (auto &cur_op : subgraph) {
-        if (!has_int8_support(cur_op->get_kind())
+        if ((!has_int8_support(cur_op->get_kind())
+                    && cur_op->get_kind() != op_kind::dnnl_softmax)
                 || visited.count(cur_op.get()) != 0)
             continue;
 
@@ -373,7 +374,8 @@ impl::status_t replace_quant_data_with_binary_post_op(
     std::vector<const op_t *> to_be_removed_ops;
     std::set<op_t *> visited;
     for (const auto &cur_op : subgraph) {
-        if (is_output_scales_supported(cur_op->get_kind())
+        if ((is_output_scales_supported(cur_op->get_kind())
+                    && cur_op->get_kind() != op_kind::dnnl_softmax)
                 || visited.count(cur_op.get()))
             continue;
 
@@ -2190,6 +2192,32 @@ impl::status_t fuse_post_typecast_to_matmul_or_conv(
             out->set_data_type(impl::data_type::f32);
             fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
         }
+    }
+
+    for (auto &fusion_group : fusion_groups)
+        // delete original typecast ops
+        for (auto &del_op : fusion_group) {
+            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                    [del_op](const op_ptr &f_op) {
+                        return del_op == f_op.get();
+                    });
+            if (pos != subgraph.end()) subgraph.erase(pos);
+        }
+    return impl::status::success;
+}
+
+impl::status_t fuse_post_typecast_to_softmax(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<std::vector<op_t *>> fusion_groups;
+    for (const auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_softmax) continue;
+        auto out = cur_op->get_output_value(0);
+        if (out->get_consumers().size() != 1) continue;
+        auto &next_op = out->get_consumers()[0].get_op();
+        if (!is_typecast(&next_op)) continue;
+        auto tc_out = next_op.get_output_value(0);
+        cur_op->connect_output(0, tc_out);
+        fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
     }
 
     for (auto &fusion_group : fusion_groups)
