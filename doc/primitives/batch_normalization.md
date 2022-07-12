@@ -256,6 +256,9 @@ correctly. Hence, in case of training one should use the #dnnl_fuse_norm_relu or
 3. **GPU**
    - ReLU eltwise post-op doesn't support non-zero \f$\alpha\f$ parameter.
 
+4. CPU implementations do not support the fusion with binary addition and ReLU
+   activation (#dnnl_fuse_norm_add_relu).
+
 ## Performance Tips
 
 1. For backward propagation, use the same memory format for `src`, `diff_dst`,
