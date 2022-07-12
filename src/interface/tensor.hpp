@@ -66,6 +66,8 @@ private:
             return dnnl::graph::impl::data_type::s8;
         else if (std::is_same<T, uint8_t>::value)
             return dnnl::graph::impl::data_type::u8;
+        else if (std::is_same<T, bool>::value)
+            return dnnl::graph::impl::data_type::boolean;
         else
             return dnnl::graph::impl::data_type::undef;
     }

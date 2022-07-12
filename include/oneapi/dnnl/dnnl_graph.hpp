@@ -193,12 +193,18 @@ constexpr dnnl_graph_data_type_t get_data_type() {
     return dnnl_graph_bf16;
 }
 
+template <typename T, requires<std::is_same<T, bool>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_boolean;
+}
+
 template <typename T,
         requires<!std::is_same<T, float>::value
                 && !std::is_same<T, int16_t>::value
                 && !std::is_same<T, uint16_t>::value
                 && !std::is_same<T, int8_t>::value
-                && !std::is_same<T, uint8_t>::value> = true>
+                && !std::is_same<T, uint8_t>::value
+                && !std::is_same<T, bool>::value> = true>
 constexpr dnnl_graph_data_type_t get_data_type() {
     return dnnl_graph_data_type_undef;
 }
@@ -902,10 +908,13 @@ public:
         Elu = dnnl_graph_op_elu,
         EluBackprop = dnnl_graph_op_elu_backprop,
         End = dnnl_graph_op_end,
+        Equal = dnnl_graph_op_equal,
         Erf = dnnl_graph_op_erf,
         Exp = dnnl_graph_op_exp,
         GELU = dnnl_graph_op_gelu,
         GELUBackprop = dnnl_graph_op_gelu_backprop,
+        Greater = dnnl_graph_op_greater,
+        GreaterEqual = dnnl_graph_op_greater_equal,
         HardSwish = dnnl_graph_op_hard_swish,
         HardSwishBackprop = dnnl_graph_op_hard_swish_backprop,
         Index = dnnl_graph_op_index,
@@ -914,6 +923,8 @@ public:
         LayerNorm = dnnl_graph_op_layer_norm,
         LayerNormBackprop = dnnl_graph_op_layer_norm_backprop,
         LeakyReLU = dnnl_graph_op_leaky_relu,
+        Less = dnnl_graph_op_less,
+        LessEqual = dnnl_graph_op_less_equal,
         Log = dnnl_graph_op_log,
         LogSoftmax = dnnl_graph_op_log_softmax,
         LogSoftmaxBackprop = dnnl_graph_op_log_softmax_backprop,
@@ -930,6 +941,7 @@ public:
         MishBackprop = dnnl_graph_op_mish_backprop,
         Multiply = dnnl_graph_op_multiply,
         Negative = dnnl_graph_op_negative,
+        NotEqual = dnnl_graph_op_not_equal,
         Pow = dnnl_graph_op_pow,
         PowBackprop = dnnl_graph_op_pow_backprop,
         PowBackpropExponent = dnnl_graph_op_pow_backprop_exponent,
