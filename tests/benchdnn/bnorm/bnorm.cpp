@@ -162,10 +162,16 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
                 }
                 v += (s[sp] - m) * (s[sp] - m);
                 if (fill_src_add) {
-                    const int l_base = mb + c + d + h + w;
-                    s_add[sp] = round_to_nearest_representable(prb->dt,
-                            1. / (2 << l_base % 5)
-                                    * ((s[sp] - m) < 0 ? -1 : 1));
+                    // The main purpose of such filling is to avoid catastrophic
+                    // cancellation. To do that, the sign of `Add` tensor final
+                    // values is kept the same as it would be after applying
+                    // bnorm: what's below mean, that has negative sign, what's
+                    // equal or higher - positive.
+                    const int64_t mod2_base = (mb + c + d + h + w) % 5;
+                    const float mod2_val = 1.f / (2LL << mod2_base);
+                    const int64_t sign_val = s[sp] < m ? -1 : 1;
+                    s_add[sp] = round_to_nearest_representable(
+                            prb->dt, mod2_val * sign_val);
                 }
             }
         }
@@ -326,6 +332,11 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res->reason = CASE_NOT_SUPPORTED;
         }
     }
+    // BN+Add+ReLU fusion is not supported on CPU
+    if (is_cpu() && prb->fuse_add_relu()) {
+        res->state = SKIPPED;
+        res->reason = CASE_NOT_SUPPORTED;
+    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -350,7 +361,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const int f32_mant_digits = 24;
     const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
     float trh = trh_coeff
-            * ((kind == SRC || kind == DST || kind == SRC_ADD) ? 5e-7 : 0);
+            * ((kind == SRC || kind == DST || kind == SRC_1) ? 5e-7 : 0);
     if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
         trh = trh_coeff * 5e-6;
 
@@ -497,7 +508,7 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     SAFE(src_dt.reorder(src_fp), WARN);
-    SAFE(src_add_dt.reorder(src_add_fp), WARN);
+    if (fuse_add_relu) SAFE(src_add_dt.reorder(src_add_fp), WARN);
     if (prb->flags & GLOB_STATS) {
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
@@ -588,7 +599,7 @@ int doit(const prb_t *prb, res_t *res) {
                 d_ss_dt);
         args.set(DNNL_ARG_DIFF_SHIFT, d_sh_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        if (fuse_add_relu) args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_dt);
+        args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
@@ -614,7 +625,7 @@ int doit(const prb_t *prb, res_t *res) {
             if ((use_ss || use_sc) && (prb->dir & FLAG_WEI))
                 kinds.push_back(use_sc ? SC : SS);
             if (use_sh && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
-            if (fuse_add_relu) kinds.push_back(SRC_ADD);
+            if (fuse_add_relu) kinds.push_back(SRC_1);
 
             check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
         }
