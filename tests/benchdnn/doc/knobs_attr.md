@@ -9,8 +9,7 @@
     --attr-zero-points=ARG:POLICY:ZEROPOINT[*][+...]
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
-                    DW_K3S1P1[:DST_DT[:OUTPUTSCALE]]
-                    DW_K3S2P1[:DST_DT[:OUTPUTSCALE]]
+                    DW:KkSsPp[:DST_DT[:OUTPUTSCALE]]
                     BINARY:DT[:POLICY[:TAG]]
 ```
 
@@ -126,8 +125,8 @@ specified. `SCALE` has same notation and semantics as for `SUM` kind, but
 requires both `ALPHA` and `BETA` to be specified. `SCALE` is applicable only
 when output tensor has integer data type.
 
-`DW_K3S1P1` and `DW_K3S2P1` post operation kinds append depthwise convolution
-with kernel size of 3, strides of 1 and 2 correspondently and paddings of 1.
+`DW:KkSsPp` post operation kind appends depthwise convolution with kernel size
+of `k`, stride size of `s`, and left padding size of `p`.
 These kinds are applicable only for convolution operation with kernel size of 1
 as of now. They support optional argument `DST_DT`, which defines destination
 tensor data type. Refer to [data types](knobs_dt.md) for details. Optional

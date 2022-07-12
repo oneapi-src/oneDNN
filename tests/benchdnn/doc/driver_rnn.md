@@ -76,6 +76,7 @@ The table below shows supported name configurations for this driver:
 |:---         |:---           |:---   |:---       |:---            |:---  |:---                    |:---
 | f32         | f32           | f32   | f32       | f32            | f32  | f32                    | TBA
 | bf16        | bf16          | bf16  | bf16      | bf16           | bf16 | bf16                   | TBA
+| bf16        | bf16          | bf16  | bf16      | bf16           | f32  | bf16f32                | TBA
 | bf16        | f32           | bf16  | bf16      | bf16           | f32  | bf16f32bf16bf16bf16f32 | TBA
 | u8          | f32           | u8    | u8        | u8             | f32  | u8u8u8u8               | TBA
 | u8          | f32           | u8    | u8        | f32            | f32  | u8u8u8f32              | TBA

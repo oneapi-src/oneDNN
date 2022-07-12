@@ -147,7 +147,7 @@ static int str2arg(const std::string &str) {
     return BENCHDNN_DNNL_ARG_UNDEF;
 }
 
-const std::string arg2str(int arg) {
+static std::string arg2str(int arg) {
     if (supported_args.find(arg) != supported_args.end())
         return std::string(supported_args.at(arg)[0]);
     if (arg & DNNL_ARG_MULTIPLE_SRC) {
@@ -322,6 +322,7 @@ static po_table_entry_t kind_table[] = {
         // sum
         {pk_t::SUM, {"sum"}, dnnl_alg_kind_undef},
         // depthwise convolution
+        {pk_t::DW, {"dw"}, dnnl_convolution_auto},
         {pk_t::DW_K3S1P1, {"dw_k3s1p1"}, dnnl_convolution_auto},
         {pk_t::DW_K3S2P1, {"dw_k3s2p1"}, dnnl_convolution_auto},
         // eltwise
@@ -453,21 +454,6 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
     *this = post_ops_t();
     if (s.empty()) return OK;
 
-    // TODO: remove me after a while
-    if (s.front() == '\'' || s.back() == '\'') {
-        BENCHDNN_PRINT(0, "%s\n",
-                "ERROR: `--attr-post-ops` no longer requires opening and "
-                "closing `'` (and `\"` for CLI) quotes. Please discard them to "
-                "proceed with successful parsing.");
-        return FAIL;
-    } else if (s.find_first_of(";", 0) != std::string::npos) {
-        BENCHDNN_PRINT(0, "%s\n",
-                "ERROR: `--attr-post-ops` no longer accepts `;` as post-ops "
-                "delimiter. Please use `+` as a delimiter between several "
-                "post-ops, i.e. `--attr-post-ops=sum+relu`.");
-        return FAIL;
-    }
-
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
         auto subs = parser::get_substr(s, start_pos, '+');
@@ -496,6 +482,27 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             // sum dt, if specified, should be defined
             if (e.sum.dt == dnnl_data_type_undef) return FAIL;
         } else if (e.is_convolution_kind()) {
+            if (kind == DW) {
+                // `DW` has input of `dw:kXsYpZ`, while rest have `dw_k3sXp1`.
+                const auto str_dw_params
+                        = parser::get_substr(subs, subs_pos, ':');
+                size_t pos = 0, idx = 0;
+
+                pos += idx;
+                if (str_dw_params[pos] != 'k') return FAIL;
+                e.convolution.kernel = std::stoi(&str_dw_params[++pos], &idx);
+
+                pos += idx;
+                if (str_dw_params[pos] != 's') return FAIL;
+                e.convolution.stride = std::stoi(&str_dw_params[++pos], &idx);
+
+                pos += idx;
+                if (str_dw_params[pos] != 'p') return FAIL;
+                e.convolution.padding = std::stoi(&str_dw_params[++pos]);
+
+                if (subs_pos == std::string::npos) continue;
+            }
+
             e.convolution.dst_dt
                     = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
             if (e.convolution.dst_dt == dnnl_data_type_undef) return FAIL;
@@ -565,7 +572,7 @@ bool attr_t::post_ops_t::entry_t::is_sum_kind() const {
     return kind == SUM;
 }
 bool attr_t::post_ops_t::entry_t::is_convolution_kind() const {
-    return kind == DW_K3S1P1 || kind == DW_K3S2P1;
+    return kind == DW || kind == DW_K3S1P1 || kind == DW_K3S2P1;
 }
 bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
     return kind > ELTWISE_START && kind < ELTWISE_END;
@@ -662,6 +669,10 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.sum.zero_point;
             if (e.sum.dt != dnnl_data_type_undef) s << ":" << e.sum.dt;
         } else if (e.is_convolution_kind()) {
+            if (e.kind == pk_t::DW) {
+                s << ":k" << e.convolution.kernel << "s" << e.convolution.stride
+                  << "p" << e.convolution.padding;
+            }
             const auto &co = e.convolution.oscale;
             if (e.convolution.dst_dt != dnnl_f32 || !co.is_def())
                 s << ":" << e.convolution.dst_dt;
@@ -961,11 +972,10 @@ dnnl_primitive_attr_t create_dnnl_attr(
                 const auto count = scales ? os_args.get_count(policy) : 0;
                 const auto mask = os_args.get_mask(policy);
 
-                const auto dnnl_post_ops_append_dw = e.convolution.stride == 1
-                        ? dnnl_post_ops_append_dw_k3s1p1
-                        : dnnl_post_ops_append_dw_k3s2p1;
                 DNN_SAFE_V(dnnl_post_ops_append_dw(ops, wei_dt, bia_dt,
-                        e.convolution.dst_dt, count, mask, scales));
+                        e.convolution.dst_dt, e.convolution.kernel,
+                        e.convolution.stride, e.convolution.padding, count,
+                        mask, scales));
             } else if (e.is_eltwise_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
                         e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));

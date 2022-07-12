@@ -158,7 +158,7 @@ bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
             = "POST-OPS\n    Specifies post-ops attribute. `POST-OPS` syntax "
               "is one of those:\n    * SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]\n  "
               "  * ELTWISE[:ALPHA[:BETA[:SCALE]]]\n    * "
-              "DW_K3S1P1[:DST_DT[:OUTPUTSCALE]]\n    * "
+              "DW:KkSsPp[:DST_DT[:OUTPUTSCALE]]\n    * "
               "BINARY:DT[:POLICY[:TAG]]\n    More details at "
               "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
               "doc/knobs_attr.md\n";

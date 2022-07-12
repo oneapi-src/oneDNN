@@ -423,6 +423,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     const int32_t *dst_zp_ptr = (const int32_t *)dst_zero_points_m;
     char *src_comp_ptr = (char *)wei_dt + wei_offset_zp;
+    int32_t zp_a_val = !prb->attr.zero_points.is_def(DNNL_ARG_SRC)
+            ? src_zero_points_m.get_elem(0)
+            : 0;
 
     if (!prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
         // TODO: weights zero point is not supported yet.
@@ -446,7 +449,7 @@ int doit(const prb_t *prb, res_t *res) {
             /* b_zp_compensations */ nullptr,
             /* c_zp_values */ dst_zp_ptr,
             /* skip_accumulation */ brgemm_attr.generate_skip_accumulation,
-            /* zp_a_val */ src_zero_points_m.get_elem(0),
+            /* zp_a_val */ zp_a_val,
             /* do_only_comp */ false,
             /* do_only_zp_a_val */ false);
 
