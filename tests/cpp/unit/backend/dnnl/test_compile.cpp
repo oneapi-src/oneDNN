@@ -123,6 +123,8 @@ impl::status_t run_graph(impl::graph_t &agraph,
         impl::graph_t g(eng.kind());
         impl::op_t single_op(op->get_kind());
         single_op.merge_attributes(op->get_attributes());
+        single_op.remove_attr(impl::op_attr::matched);
+        single_op.set_partition(nullptr);
         for (size_t i = 0; i < op->num_inputs(); i++) {
             single_op.add_input(op->get_input_value(i)->get_logical_tensor());
         }

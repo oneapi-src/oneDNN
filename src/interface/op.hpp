@@ -250,6 +250,8 @@ public:
         return attributes_.find(name) != attributes_.end();
     }
 
+    void remove_attr(op_attr_t name) { attributes_.erase(name); }
+
     const std::unordered_map<op_attr_t, attribute_value_t> &
     get_attributes() const {
         return attributes_;
