@@ -206,12 +206,32 @@ dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
                 static_cast<size_t>(ltw.layout_id()));
         return impl::utils::any_cast<memory::desc>(td.value());
     } else if (ltw.is_any()) {
-        auto dims = ltw.ndims() >= 0 ? ltw.vdims() : impl::dims {};
-        return {dims, dtype, dnnl::memory::format_tag::any};
+        if (ltw.ndims() > 0) {
+            return {ltw.vdims(), dtype, dnnl::memory::format_tag::any};
+        } else if (ltw.ndims() == 0) {
+            // we convert the scalar to a 1d memory
+            return {impl::dims {1}, dtype, dnnl::memory::format_tag::any};
+        } else {
+            // not an error, since the scratchpad output logical tensor will be
+            // empty and with any layout type before layout propagation.
+            return {impl::dims {}, dtype, dnnl::memory::format_tag::any};
+        }
     } else if (ltw.is_strided()) {
-        auto dims = ltw.ndims() >= 0 ? ltw.vdims() : impl::dims {};
-        return {dims, dtype, ltw.vstrides()};
+        if (ltw.ndims() > 0) {
+            return {ltw.vdims(), dtype, ltw.vstrides()};
+        } else if (ltw.ndims() == 0) {
+            // we convert the scalar to a 1d memory
+            return {impl::dims {1}, dtype, impl::dims {1}};
+        } else {
+            assertm(false,
+                    "An empty strided logical tensor can't be convert to "
+                    "memory desc");
+            return {impl::dims {}, dtype, impl::dims {}};
+        }
     } else {
+        // not an error, since the scratchpad output logical tensor will be
+        // empty and with undef layout type after layout propagation if the op
+        // doesn't need scratchpad memory.
         return {};
     }
 }
@@ -463,57 +483,90 @@ memory::desc to_ncx_format(const memory::desc &adesc) {
             adesc.dims(), adesc.data_type(), get_ncx_format(adesc.data.ndims));
 }
 
-void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td) {
+impl::status_t fill_layout_info(
+        impl::logical_tensor_t *lt, const memory::desc &md) {
     const impl::logical_tensor_wrapper_t ltw(lt);
     if (ltw.is_any()) { // we only reset any format
-#ifdef DNNL_GRAPH_LAYOUT_DEBUG
-        const int ndims = td.data.ndims;
-        if (ndims <= 1) { // scratchpads mem
-            const dnnl_dims_t &dims = td.data.dims;
-            lt->ndims = ndims;
-            std::copy(dims, dims + ndims, lt->dims);
-            lt->data_type = static_cast<impl::data_type_t>(td.data.data_type);
+        const int lt_ndims = ltw.ndims();
+        const int md_ndims = md.data.ndims;
+
+        if (md_ndims == 0) {
+            if (lt_ndims < 0) {
+                lt->layout_type = impl::layout_type::undef;
+                return impl::status::success;
+            } else {
+                assertm(false,
+                        "The logical tensor should be also empty when the "
+                        "memory desc is empty");
+                return impl::status::invalid_arguments;
+            }
         }
-#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
+        if (lt_ndims < 0 && md_ndims > 0) { // some scratchpads mem
+            lt->ndims = md_ndims;
+            const dnnl_dims_t &dims = md.data.dims;
+            std::copy(dims, dims + md_ndims, lt->dims);
+            lt->data_type = static_cast<impl::data_type_t>(md.data_type());
+        }
+
+        if (lt_ndims == 0 && impl::utils::prod(md.dims()) == 1) { // scalar
+            lt->layout_type = impl::layout_type::strided;
+        }
 
         if (lt->id != std::numeric_limits<size_t>::max()
-                && (is_format(td, "ncx") || is_format(td, "nxc"))) {
+                && (is_format(md, "ncx") || is_format(md, "nxc"))) {
             lt->layout_type = impl::layout_type::strided;
             impl::utils::array_copy(lt->layout.strides,
-                    td.data.format_desc.blocking.strides, td.data.ndims);
+                    md.data.format_desc.blocking.strides, md.data.ndims);
         } else {
             impl::utils::optional<size_t> layout_id
-                    = dnnl_backend::get_singleton().set_mem_desc(td);
+                    = dnnl_backend::get_singleton().set_mem_desc(md);
             lt->layout.layout_id = layout_id.value();
             lt->layout_type = impl::layout_type::opaque;
         }
     }
+    return impl::status::success;
 }
 
-void fill_layout_info(
-        const std::shared_ptr<impl::value_t> &val, const memory::desc &td) {
+impl::status_t fill_layout_info(
+        const std::shared_ptr<impl::value_t> &val, const memory::desc &md) {
     impl::logical_tensor_t lt = val->get_logical_tensor();
     const impl::logical_tensor_wrapper_t ltw(lt);
     if (ltw.is_any()) { // we only reset any format
-#ifdef DNNL_GRAPH_LAYOUT_DEBUG
-        const int ndims = td.data.ndims;
-        if (ndims <= 1) { // scratchpads mem
-            val->set_dims(td.dims());
-            val->set_data_type(
-                    static_cast<impl::data_type_t>(td.data.data_type));
+        const int lt_ndims = ltw.ndims();
+        const int md_ndims = md.data.ndims;
+
+        if (md_ndims == 0) {
+            if (lt_ndims < 0) {
+                val->set_layout_type(impl::layout_type::undef);
+                return impl::status::success;
+            } else {
+                assertm(false,
+                        "The logical tensor should be also empty when the "
+                        "memory desc is empty");
+                return impl::status::invalid_arguments;
+            }
         }
-#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
+        if (lt_ndims < 0 && md_ndims > 0) { // some scratchpads mem
+            val->set_dims(md.dims());
+            val->set_data_type(static_cast<impl::data_type_t>(md.data_type()));
+        }
+
+        if (lt_ndims == 0 && impl::utils::prod(md.dims()) == 1) { // scalar
+            val->set_strides({});
+        }
 
         if (ltw.id() != std::numeric_limits<size_t>::max()
-                && (is_format(td, "ncx") || is_format(td, "nxc"))) {
-            const auto ndims = td.data.ndims;
-            const auto &strides = td.data.format_desc.blocking.strides;
-            val->set_strides({strides, strides + ndims});
+                && (is_format(md, "ncx") || is_format(md, "nxc"))) {
+            const auto &strides = md.data.format_desc.blocking.strides;
+            val->set_strides({strides, strides + lt_ndims});
         } else {
             val->set_layout_id(
-                    dnnl_backend::get_singleton().set_mem_desc(td).value());
+                    dnnl_backend::get_singleton().set_mem_desc(md).value());
         }
     }
+    return impl::status::success;
 }
 
 } // namespace dnnl_impl

@@ -828,8 +828,10 @@ status_t infer_matmul_output_shape(op_t *n,
             // matmul: incompatible arg shapes
             return status::invalid_shape;
         }
-        // example: input0={1,1}, input1={1,1}, output={2}
-        inferred_out_shape = {1};
+        // example: input0={1,1}, input1={1,1}, output={2}. According to spec,
+        // output shape of two 1D tensors multiplication [S] x [S] is squeezed
+        // to scalar.
+        inferred_out_shape = {};
     } else if (input0_rank == 1) {
         if (updated_input0[0] != updated_input1[input1_rank - 2]) {
             // matmul: incompatible arg shapes
@@ -1131,7 +1133,7 @@ status_t infer_bn_fwd_train_output_shape(op_t *n,
 
     infer_identity_output_shape(n, inputs, outputs);
     cvec_int64 new_out_dims = {channels};
-    set_shapes_in_range(outputs, 1, outputs.size(), new_out_dims);
+    set_shapes_in_range(outputs, 1, 5 /* output number*/, new_out_dims);
     return status::success;
 }
 
@@ -1162,7 +1164,10 @@ status_t infer_bn_bwd_output_shape(op_t *n,
 
     infer_identity_output_shape(n, inputs, outputs);
     cvec_int64 new_out_dims = {channels};
-    set_shapes_in_range(outputs, 1, outputs.size(), new_out_dims);
+    set_shapes_in_range(outputs, 1,
+            std::min(outputs.size(),
+                    static_cast<size_t>(3) /* max output number*/),
+            new_out_dims);
     return status::success;
 }
 

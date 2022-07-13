@@ -507,7 +507,8 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     // output shape is not must
     ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(subgraph, inputs,
-                      {logical_tensor_init(9, impl::data_type::s8)}),
+                      {logical_tensor_init(
+                              9, impl::data_type::s8, impl::layout_type::any)}),
             status::success);
 
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
@@ -580,26 +581,16 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
             ASSERT_NE(ltw.layout_type(), layout_type::any);
             //     ASSERT_NE(ltw.data_type(), data_type::undef);
         }
-        size_t idx = 0;
-        for (auto &val : cur_op->get_output_values()) {
-            auto lt = val->get_logical_tensor();
-            impl::logical_tensor_wrapper_t ltw(lt);
 
-            // skip shape and dtype check for conv's scratchpad output
-            if (!(cur_op->get_kind() == dnnl_impl::op_kind::dnnl_convolution
-                        && idx == cur_op->num_outputs() - 1)) {
-                ASSERT_FALSE(ltw.is_shape_unknown());
-                // inserted reorder's logical tensor is not set to new data type
-                // since didn't do type inference after layout propagation
-                // ASSERT_NE(ltw.data_type(), data_type::undef);
-                ASSERT_NE(ltw.layout_type(), layout_type::undef);
-                ASSERT_NE(ltw.layout_type(), layout_type::any);
-            } else {
-                ASSERT_EQ(ltw.layout_type(), layout_type::opaque);
-            }
+        auto lt = cur_op->get_output_value(0)->get_logical_tensor();
+        impl::logical_tensor_wrapper_t ltw(lt);
 
-            idx++;
-        }
+        ASSERT_FALSE(ltw.is_shape_unknown());
+        // inserted reorder's logical tensor is not set to new data type
+        // since didn't do type inference after layout propagation
+        // ASSERT_NE(ltw.data_type(), data_type::undef);
+        ASSERT_NE(ltw.layout_type(), layout_type::undef);
+        ASSERT_NE(ltw.layout_type(), layout_type::any);
     }
 
     dnnl_impl::constant_propagation(subgraph);
@@ -779,6 +770,7 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
 
     for (auto &val : subgraph->get_output_values()) {
         auto lt = val->get_logical_tensor();
+        if (lt.id == std::numeric_limits<size_t>::max()) continue;
         ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
@@ -885,6 +877,7 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
 
     for (auto &val : subgraph->get_output_values()) {
         auto lt = val->get_logical_tensor();
+        if (lt.id == std::numeric_limits<size_t>::max()) continue;
         ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
@@ -1383,6 +1376,7 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
 
     for (auto &val : subgraph->get_output_values()) {
         auto lt = val->get_logical_tensor();
+        if (lt.id == std::numeric_limits<size_t>::max()) continue;
         ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 

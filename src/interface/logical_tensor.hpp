@@ -80,8 +80,16 @@ struct logical_tensor_wrapper_t {
     bool is_strided() const { return lt->layout_type == layout_type::strided; }
     bool is_opaque() const { return lt->layout_type == layout_type::opaque; }
     bool is_constant() const { return lt->property == property_type::constant; }
+    bool is_layout_type_undef() const {
+        return lt->layout_type == impl::layout_type::undef;
+    }
+    bool is_data_type_undef() const {
+        return lt->data_type == impl::data_type::undef;
+    }
 
-    bool is_zero() const { return ndims() == 0; }
+    bool is_empty() const { return ndims() < 0; }
+
+    bool is_scalar() const { return ndims() == 0; }
 
     bool has_zero_dim() const {
         for (int d = 0; d < ndims(); ++d) {
@@ -151,7 +159,8 @@ struct logical_tensor_wrapper_t {
 
     // get element number
     dim_t nelems() const {
-        if (is_zero()) return 0;
+        if (is_empty()) return 0;
+        if (is_scalar()) return 1;
         // TODO(lvtao): need to specify: DNNL_RUNTIME_DIM_VAL?
         if (is_shape_unknown()) return -1;
         return utils::array_product(dims(), static_cast<size_t>(ndims()));

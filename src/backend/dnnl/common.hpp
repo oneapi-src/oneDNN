@@ -123,10 +123,11 @@ bool is_4c_blocked(const memory::desc &adesc);
 
 memory::desc to_ncx_format(const memory::desc &adesc);
 
-void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td);
+impl::status_t fill_layout_info(
+        impl::logical_tensor_t *lt, const memory::desc &md);
 
-void fill_layout_info(
-        const std::shared_ptr<impl::value_t> &val, const memory::desc &td);
+impl::status_t fill_layout_info(
+        const std::shared_ptr<impl::value_t> &val, const memory::desc &md);
 
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \

@@ -70,12 +70,13 @@ static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
         dnnl::graph::impl::data_type_t dtype,
         dnnl::graph::impl::layout_type_t ltype
         = dnnl::graph::impl::layout_type::strided) {
-    if (dims.size() == 0) { return logical_tensor_init(id, dtype); }
     dnnl::graph::impl::logical_tensor_t val;
     val.id = id;
     val.data_type = dtype;
     val.ndims = static_cast<int>(dims.size());
     val.property = dnnl::graph::impl::property_type::undef;
+    val.layout_type = ltype;
+    if (val.ndims == 0) return val; // scalar, don't need dims and strides
 
     // dims
     for (size_t d = 0; d < dims.size(); ++d) {
@@ -83,7 +84,6 @@ static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
     }
 
     // strides
-    val.layout_type = ltype;
     if (ltype == dnnl::graph::impl::layout_type::strided) {
         val.layout.strides[val.ndims - 1] = 1;
         for (int s = val.ndims - 2; s >= 0; --s) {

@@ -2805,11 +2805,8 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             auto scratchpad_val = insert_empty_scratchpad(fused_op);
             const auto &pd = create_reorder_pd(fused_op, *p_engine, mgr);
             const memory::desc scratchpad_desc = pd.scratchpad_desc();
-            const memory::dims dims = scratchpad_desc.dims();
-            scratchpad_val->set_dims(dims);
-            scratchpad_val->set_data_type(static_cast<impl::data_type_t>(
-                    scratchpad_desc.data_type()));
-            fill_layout_info(scratchpad_val, scratchpad_desc);
+            auto status = fill_layout_info(scratchpad_val, scratchpad_desc);
+            if (status != impl::status::success) return status;
 
             subgraph.emplace_back(fused_op);
 

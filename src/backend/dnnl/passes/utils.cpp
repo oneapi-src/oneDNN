@@ -223,12 +223,18 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
             for (const auto &given : givens) {
                 if (edge_id == given.id) {
                     if (check_given) {
+                        impl::logical_tensor_wrapper_t given_ltw(given);
                         // check given lts
-                        bool valid = given.data_type != impl::data_type::undef;
+                        bool valid = !given_ltw.is_data_type_undef()
+                                && !given_ltw.is_layout_type_undef();
                         if (must_have_shape) {
-                            valid = valid && given.ndims > 0;
-                            for (size_t i = 0; i < given.ndims; i++) {
-                                valid = valid && given.dims[i] != -1;
+                            valid = valid && !given_ltw.is_empty();
+                            // ndims=0 means the tensor is a scalar, we don't
+                            // need to check its shape
+                            if (given_ltw.ndims() > 0) {
+                                for (auto dim : given_ltw.vdims()) {
+                                    valid = valid && dim != -1;
+                                }
                             }
                         }
                         if (!valid) return status::invalid_arguments;
@@ -446,7 +452,7 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
                                 : "def")
                 + ":"
                 + std::string(impl::utils::layout_type2str(ltw.layout_type()))
-                + ":"
+                + ":" + std::to_string(ltw.ndims()) + ":"
                 + dims2str(ltw.ndims() < 0 ? std::vector<impl::dim_t>()
                                            : ltw.vdims())
                 + ":"
@@ -982,7 +988,6 @@ value_ptr insert_empty_scratchpad(op_ptr &op) {
             = std::make_shared<value_t>(*op, op->num_outputs(), lt);
     op->add_output(scratchpad_val);
     scratchpad_val->set_data_type(impl::data_type::u8);
-    scratchpad_val->set_dims(impl::dims {0});
     return scratchpad_val;
 }
 

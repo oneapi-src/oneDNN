@@ -24,6 +24,9 @@ using namespace dnnl::graph::impl;
 
 size_t logical_tensor_wrapper_t::size() const {
     if (is_strided()) {
+        // scalar (0-D tensor)
+        if (ndims() == 0) { return data_type_size(); }
+
         size_t max_size = 0;
         for (int d = 0; d < ndims(); ++d) {
             dim_t strided_pdim = dims()[d];

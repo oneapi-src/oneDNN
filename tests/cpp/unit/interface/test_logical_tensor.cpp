@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ TEST(LogicalTensor, CreateWithShape) {
     impl::logical_tensor_t lt_0
             = utils::logical_tensor_init(id, {}, impl::data_type::f32);
     ASSERT_EQ(lt_0.id, id);
-    ASSERT_EQ(lt_0.ndims, -1);
+    ASSERT_EQ(lt_0.ndims, 0);
     ASSERT_EQ(lt_0.data_type, impl::data_type::f32);
 
     impl::logical_tensor_t lt_1
