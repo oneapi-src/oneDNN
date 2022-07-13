@@ -39,9 +39,17 @@ using namespace data_type;
 void stat_and_data_kernel_t::operator()(const void *src, void *dst,
         const float *scale, const float *shift, float *mean, float *var,
         const size_t block_size) const {
+    const auto C_ = pd_->norm_axis();
+    const auto calculate_stats_ = !pd_->stats_are_src();
+    const auto data_type_ = pd_->src_md()->data_type;
+    const auto eps_ = pd_->desc()->layer_norm_epsilon;
+    const auto use_scaleshift_ = pd_->use_scaleshift();
+    const auto use_scale_ = pd_->use_scale();
+    const auto use_shift_ = pd_->use_shift();
+    const auto save_stats_ = pd_->is_training();
+
     // XXX: manual unrolling for use_scaleshift_ due to clang issue.
     //      see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
-
     for (size_t offset = 0; offset < block_size; offset++) {
         float v_mean = 0, v_variance = 0;
         if (calculate_stats_) {
@@ -117,13 +125,18 @@ void diff_ss_kernel_t::operator()(const void *src, const void *diff_dst,
         float *diff_gamma, float *diff_beta, const float *mean,
         const float *var, float *const inv_sqrtvar,
         const size_t block_size) const {
+    const auto C_ = pd_->norm_axis();
+    const auto src_dt = pd_->src_md()->data_type;
+    const auto diff_dst_dt = pd_->diff_dst_md()->data_type;
+    const auto eps_ = pd_->desc()->layer_norm_epsilon;
+
     for (size_t offset = 0; offset < block_size; offset++) {
         inv_sqrtvar[offset] = 1. / sqrtf(var[offset] + eps_);
         PRAGMA_OMP_SIMD()
         for (dim_t c = 0; c < C_; c++) {
             const size_t off = c + C_ * offset;
-            float s = io::load_float_value(data_type_, src, off);
-            float dd = io::load_float_value(data_type_, diff_dst, off);
+            float s = io::load_float_value(src_dt, src, off);
+            float dd = io::load_float_value(diff_dst_dt, diff_dst, off);
             diff_gamma[c] += (s - mean[offset]) * dd * inv_sqrtvar[offset];
             diff_beta[c] += dd;
         }
@@ -133,6 +146,14 @@ void diff_ss_kernel_t::operator()(const void *src, const void *diff_dst,
 void diff_data_kernel_t::operator()(const void *src, const void *diff_dst,
         void *diff_src, const float *ss, const float *mean,
         float *const inv_sqrtvar, const size_t block_size) const {
+    const auto C_ = pd_->norm_axis();
+    const auto calculate_diff_stats_ = !pd_->stats_are_src();
+    const auto src_dt = pd_->src_md()->data_type;
+    const auto diff_dst_dt = pd_->diff_dst_md()->data_type;
+    const auto diff_src_dt = pd_->diff_src_md()->data_type;
+    const auto use_scaleshift_ = pd_->use_scaleshift();
+    const auto use_scale_ = pd_->use_scale();
+
     // XXX: manual unrolling for use_scaleshift_ due to clang issue.
     //      see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
     float dd_gamma, dd_gamma_x;
@@ -144,8 +165,8 @@ void diff_data_kernel_t::operator()(const void *src, const void *diff_dst,
                 PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
                 for (dim_t c = 0; c < C_; c++) {
                     const size_t off = c + C_ * offset;
-                    float s = io::load_float_value(data_type_, src, off);
-                    float dd = io::load_float_value(data_type_, diff_dst, off);
+                    float s = io::load_float_value(src_dt, src, off);
+                    float dd = io::load_float_value(diff_dst_dt, diff_dst, off);
                     dd_gamma += dd * ss[c];
                     dd_gamma_x += dd * ss[c] * (s - mean[offset]);
                 }
@@ -153,8 +174,8 @@ void diff_data_kernel_t::operator()(const void *src, const void *diff_dst,
                 PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
                 for (dim_t c = 0; c < C_; c++) {
                     const size_t off = c + C_ * offset;
-                    float s = io::load_float_value(data_type_, src, off);
-                    float dd = io::load_float_value(data_type_, diff_dst, off);
+                    float s = io::load_float_value(src_dt, src, off);
+                    float dd = io::load_float_value(diff_dst_dt, diff_dst, off);
                     dd_gamma += dd;
                     dd_gamma_x += dd * (s - mean[offset]);
                 }
@@ -167,31 +188,31 @@ void diff_data_kernel_t::operator()(const void *src, const void *diff_dst,
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; c++) {
                 const size_t off = c + C_ * offset;
-                float dd = io::load_float_value(data_type_, diff_dst, off);
+                float dd = io::load_float_value(diff_dst_dt, diff_dst, off);
                 float ds = dd * ss[c];
                 if (calculate_diff_stats_) {
-                    float s = io::load_float_value(data_type_, src, off);
+                    float s = io::load_float_value(src_dt, src, off);
                     ds -= dd_gamma / C_;
                     ds -= (s - mean[offset]) * dd_gamma_x * inv_sqrtvar[offset]
                             / C_;
                 }
                 ds *= inv_sqrtvar[offset];
-                io::store_float_value(data_type_, ds, diff_src, off);
+                io::store_float_value(diff_src_dt, ds, diff_src, off);
             }
         } else {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; c++) {
                 const size_t off = c + C_ * offset;
-                float dd = io::load_float_value(data_type_, diff_dst, off);
+                float dd = io::load_float_value(diff_dst_dt, diff_dst, off);
                 float ds = dd;
                 if (calculate_diff_stats_) {
-                    float s = io::load_float_value(data_type_, src, off);
+                    float s = io::load_float_value(src_dt, src, off);
                     ds -= dd_gamma / C_;
                     ds -= (s - mean[offset]) * dd_gamma_x * inv_sqrtvar[offset]
                             / C_;
                 }
                 ds *= inv_sqrtvar[offset];
-                io::store_float_value(data_type_, ds, diff_src, off);
+                io::store_float_value(diff_src_dt, ds, diff_src, off);
             }
         }
     }

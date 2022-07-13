@@ -17,7 +17,7 @@
 #ifndef CPU_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
 #define CPU_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
 
-#include "common/layer_normalization_pd.hpp"
+#include "cpu/cpu_layer_normalization_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,24 +35,9 @@ struct stat_and_data_kernel_t {
     virtual status_t create_kernel() { return status::success; }
 
 protected:
-    stat_and_data_kernel_t(const layer_normalization_pd_t *pd)
-        : C_(pd->norm_axis())
-        , use_scaleshift_(pd->use_scaleshift())
-        , use_scale_(pd->use_scale())
-        , use_shift_(pd->use_shift())
-        , save_stats_(pd->is_training())
-        , calculate_stats_(!pd->stats_are_src())
-        , eps_(pd->desc()->layer_norm_epsilon)
-        , data_type_(pd->src_md()->data_type) {}
+    stat_and_data_kernel_t(const layer_normalization_pd_t *pd) : pd_(pd) {}
 
-    int C_;
-    bool use_scaleshift_;
-    bool use_scale_;
-    bool use_shift_;
-    bool save_stats_;
-    bool calculate_stats_;
-    const float eps_;
-    data_type_t data_type_;
+    const layer_normalization_pd_t *pd_;
 };
 
 struct diff_ss_kernel_t {
@@ -67,14 +52,9 @@ struct diff_ss_kernel_t {
     virtual status_t create_kernel() { return status::success; }
 
 protected:
-    diff_ss_kernel_t(const layer_normalization_pd_t *pd)
-        : C_(pd->norm_axis())
-        , eps_(pd->desc()->layer_norm_epsilon)
-        , data_type_(pd->src_md()->data_type) {}
+    diff_ss_kernel_t(const layer_normalization_pd_t *pd) : pd_(pd) {}
 
-    int C_;
-    const float eps_;
-    data_type_t data_type_;
+    const layer_normalization_pd_t *pd_;
 };
 
 struct diff_data_kernel_t {
@@ -88,22 +68,9 @@ struct diff_data_kernel_t {
     virtual status_t create_kernel() { return status::success; }
 
 protected:
-    diff_data_kernel_t(const layer_normalization_pd_t *pd)
-        : C_(pd->norm_axis())
-        , eps_(pd->desc()->layer_norm_epsilon)
-        , calculate_diff_stats_(!pd->use_global_stats())
-        , use_scaleshift_(pd->use_scaleshift())
-        , use_scale_(pd->use_scale())
-        , use_shift_(pd->use_shift())
-        , data_type_(pd->src_md()->data_type) {}
+    diff_data_kernel_t(const layer_normalization_pd_t *pd) : pd_(pd) {}
 
-    int C_;
-    const float eps_;
-    bool calculate_diff_stats_;
-    bool use_scaleshift_;
-    bool use_scale_;
-    bool use_shift_;
-    data_type_t data_type_;
+    const layer_normalization_pd_t *pd_;
 };
 
 } // namespace lnorm_utils

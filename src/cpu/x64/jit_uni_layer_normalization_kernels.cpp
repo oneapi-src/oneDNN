@@ -163,6 +163,14 @@ private:
         float eps;
     };
 
+    dim_t C_;
+    bool use_scaleshift_;
+    bool use_scale_;
+    bool use_shift_;
+    bool save_stats_;
+    bool calculate_stats_;
+    float eps_;
+
     void generate() override;
 
     template <typename F>
@@ -202,6 +210,14 @@ jit_stat_and_data_kernel_t<data_type>::jit_stat_and_data_kernel_t(
     , jit_generator(jit_name())
     , jit_transfer_(*this, simd_w) {
     assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
+
+    C_ = pd_->norm_axis();
+    eps_ = pd_->desc()->layer_norm_epsilon;
+    calculate_stats_ = !pd_->stats_are_src();
+    use_scaleshift_ = pd_->use_scaleshift();
+    use_scale_ = pd_->use_scale();
+    use_shift_ = pd_->use_shift();
+    save_stats_ = pd_->is_training();
 }
 
 template <data_type_t data_type>
@@ -423,6 +439,10 @@ private:
 
     void generate() override;
 
+    const memory_desc_wrapper src_d_, d_dst_d_;
+    size_t C_;
+    float eps_;
+
     const Xbyak::Reg64 reg_param = abi_param1;
     const Xbyak::Reg64 reg_src = rdx;
     const Xbyak::Reg64 reg_diff_dst = rax;
@@ -447,8 +467,12 @@ jit_diff_ss_kernel_t<data_type>::jit_diff_ss_kernel_t(
         const layer_normalization_pd_t *pd)
     : diff_ss_kernel_t(pd)
     , jit_generator(jit_name())
-    , jit_transfer_(*this, simd_w) {
+    , jit_transfer_(*this, simd_w)
+    , src_d_(pd_->src_md())
+    , d_dst_d_(pd_->diff_dst_md()) {
     assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
+    C_ = pd_->norm_axis();
+    eps_ = pd_->desc()->layer_norm_epsilon;
 }
 
 template <data_type_t data_type>
@@ -570,7 +594,15 @@ private:
         const float *inv_sqrtvar;
         size_t block_size;
     };
+
     void generate() override;
+
+    const memory_desc_wrapper src_d_, d_dst_d_, d_src_d_;
+    size_t C_;
+    bool use_scaleshift_;
+    bool use_scale_;
+    bool use_shift_;
+    bool calculate_diff_stats_;
 
     void reduce(Vmm vmm_vec);
 
@@ -603,8 +635,17 @@ jit_diff_data_kernel_t<data_type>::jit_diff_data_kernel_t(
         const layer_normalization_pd_t *pd)
     : diff_data_kernel_t(pd)
     , jit_generator(jit_name())
-    , jit_transfer_(*this, simd_w) {
+    , jit_transfer_(*this, simd_w)
+    , src_d_(pd_->src_md())
+    , d_dst_d_(pd_->diff_dst_md())
+    , d_src_d_(pd_->diff_src_md()) {
     assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
+
+    C_ = pd_->norm_axis();
+    calculate_diff_stats_ = !pd_->stats_are_src();
+    use_scaleshift_ = pd_->use_scaleshift();
+    use_scale_ = pd_->use_scale();
+    use_shift_ = pd_->use_shift();
 }
 
 template <data_type_t data_type>
