@@ -5166,8 +5166,9 @@ private:
         dim_t k_blk = bmnk_layout.dim(k_idx);
 
         // Cannot calculate correct r_count when !is_a, but rcount is effectively
-        // ignored in that case as rcount mainly effects b_layout.
-        int rcount = is_a && mn_blk < 8 ? mn_blk : 8;
+        // ignored in that case as rcount mainly affects b_layout.
+        // Also note that rcount used here may not be supported in hardware and is used soley to compute layout.
+        int rcount = is_a ? mn_blk : 8;
         auto _dpas = dpas_t::make(/*is_dpasw=*/false, simd_size_, /*sdepth=*/8,
                 rcount, type_t::undef(), b_type_, a_type_);
         auto &dpas = _dpas.as<dpas_t>();
