@@ -83,12 +83,8 @@ macro(platform_gnu_nowarn_ccxx_flags var gnu_version)
 endmacro()
 
 if(DNNL_WITH_SYCL)
-    # Clang cannot vectorize some loops with #pragma omp simd and gets
-    # very upset. Tell it that it's okay and that we love it
-    # unconditionally.
-    append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
     # Suppress self-comparison warning to avoid false positives in macros such
-    # as JIT_IMPL_NAME_HELPER. 
+    # as JIT_IMPL_NAME_HELPER.
     append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-tautological-compare")
     if(WIN32)
         # XXX: SYCL does not like __thiscall convention coming from TBB,
@@ -158,12 +154,20 @@ if(MSVC)
         # Default fp-model in icx and dpcpp (unlike clang) may be precise or
         # fast=1 depending on the version.
         append(CMAKE_CCXX_FLAGS "/fp:precise")
+        # icx and dpcpp cannot vectorize some loops with #pragma omp simd and
+        # gets very upset. Tell it that it's okay and that we love it
+        # unconditionally.
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
     endif()
 elseif(UNIX OR MINGW)
     if(DNNL_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
         # Default fp-model in icx and dpcpp (unlike clang) may be precise or
         # fast=1 depending on the version.
         append(CMAKE_CCXX_FLAGS "-ffp-model=precise -fno-reciprocal-math")
+        # icx and dpcpp cannot vectorize some loops with #pragma omp simd and
+        # gets very upset. Tell it that it's okay and that we love it
+        # unconditionally.
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
     endif()
 
     platform_unix_and_mingw_common_ccxx_flags(CMAKE_CCXX_FLAGS)
