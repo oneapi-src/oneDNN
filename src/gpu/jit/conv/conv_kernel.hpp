@@ -3238,8 +3238,18 @@ private:
         auto src_tile_layout = src_layout_.map(tile);
         auto dst_tile_layout = dst_layout_.map(tile);
         if (!dst_tile_layout.is_dense()) return false;
-        if (src_tile_layout.blocks().size() < 2) return false;
-        if (dst_tile_layout.blocks().size() < 2) return false;
+        auto layout_ok = [](const layout_t &l) {
+            if (l.blocks().size() < 2) return false;
+            for (auto &b : l.blocks()) {
+                if (math::is_pow2(b.block)) continue;
+                for (int i = 2; i < (int)b.block / 2; i++)
+                    if (b.block % i != 0) return false;
+            }
+            return true;
+        };
+
+        if (!layout_ok(src_tile_layout)) return false;
+        if (!layout_ok(dst_tile_layout)) return false;
 
         // Set layout offset to 0 since the offset is handled by fixing up the
         // register input to try_emit_2d_impl
