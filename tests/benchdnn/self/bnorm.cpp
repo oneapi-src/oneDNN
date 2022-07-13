@@ -38,7 +38,7 @@ static int check_flags() {
             flags2str(USE_SCALESHIFT | FUSE_NORM_RELU), "SR");
     SELF_CHECK_CASE_CPP_STR_EQ(
             flags2str(GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU), "GSR");
-    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(FUSE_NORM_RELU), "A");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(FUSE_NORM_ADD_RELU), "A");
     SELF_CHECK_CASE_CPP_STR_EQ(
             flags2str(GLOB_STATS | FUSE_NORM_ADD_RELU), "GA");
     SELF_CHECK_CASE_CPP_STR_EQ(
