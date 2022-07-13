@@ -534,9 +534,19 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 bool skip = elem.first == op_attr::matched
                         || elem.first == op_attr::with_sum;
                 if (!skip && expected_attrs.count(elem.first) == 0) {
-                    // TODO(xxx): need to print the attribute string.
-                    DEBUG_PRINT_ERROR("internal attribute is not defined");
-                    assertm(false, "undefined attrs");
+#ifndef NDEBUG
+                    if (impl::op_t::attr2str(elem.first)
+                                    .compare("undefined_attr")) {
+                        DEBUG_PRINT_ERROR("common attribute "
+                                + impl::op_t::attr2str(elem.first) + " in op "
+                                + op->get_name() + " is not defined");
+                    } else {
+                        DEBUG_PRINT_ERROR("internal attribute "
+                                + op_attr::internal_attr2str(elem.first)
+                                + " in op " + op->get_name()
+                                + " is not defined");
+                    }
+#endif
                     return impl::status::invalid_op;
                 }
             }

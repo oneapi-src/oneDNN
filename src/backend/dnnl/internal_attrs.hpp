@@ -17,6 +17,8 @@
 #ifndef BACKEND_DNNL_INTERNAL_ATTRS_HPP
 #define BACKEND_DNNL_INTERNAL_ATTRS_HPP
 
+#include <string>
+
 #include "interface/c_types_map.hpp"
 
 namespace dnnl {
@@ -65,6 +67,45 @@ const op_attr_t p = 0x10300;
 // vector of int64_t
 const op_attr_t dst_zps = 0x10400;
 const op_attr_t src_zps = 0x10401;
+
+static inline std::string internal_attr2str(impl::op_attr_t attr) {
+#define CASE(a) \
+    case (a): return #a
+
+    switch (attr) {
+        CASE(canonicalized);
+        CASE(change_layout);
+        CASE(is_constant);
+        CASE(is_convtranspose);
+        CASE(is_training);
+        CASE(fwd_alg_kind);
+        CASE(fuse_relu);
+        CASE(with_bias);
+        CASE(with_dw_bias);
+        CASE(with_runtime_scales);
+        CASE(with_runtime_zps);
+        CASE(with_runtime_src_zps);
+        CASE(with_runtime_dst_zps);
+        CASE(is_bias_add);
+        CASE(with_sum);
+        CASE(alg_kind);
+        CASE(dw_groups);
+        CASE(expand_to);
+        CASE(fusion_info_key);
+        CASE(dw_filter_format);
+        CASE(dw_type);
+        CASE(from_format);
+        CASE(insert_1dim);
+        CASE(kind);
+        CASE(permute_kind);
+        CASE(to_format);
+        CASE(p);
+        CASE(dst_zps);
+        CASE(src_zps);
+        default: return "undefined_attr";
+    }
+#undef CASE
+}
 
 } // namespace op_attr
 } // namespace dnnl_impl

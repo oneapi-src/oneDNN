@@ -1789,3 +1789,59 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     // 1 bias scaling, 1 bias expanding, 1 fused matmul, 2 reshape
     ASSERT_EQ(subgraph->get_mutable_ops().size(), 5);
 }
+
+TEST(SubgraphPass, CheckUndefinedOpAttribute) {
+    /*
+    (f32) \     / (f32)
+            conv
+             | (f32)
+            relu
+             | (f32)
+    */
+    graph_t agraph;
+    op_t conv {0, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t relu {1, ReLU, "relu"};
+
+    logical_tensor_t fp32_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t fp32_weight = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t fp32_bias = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t fp32_conv_out = logical_tensor_init(3, data_type::f32);
+    conv.add_input(fp32_data);
+    conv.add_input(fp32_weight);
+    conv.add_input(fp32_bias);
+    conv.add_output(fp32_conv_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(4, data_type::f32);
+    relu.add_input(fp32_conv_out);
+    relu.add_output(fp32_relu_out);
+
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            agraph.get_partitions()[0]->get_ops());
+
+    fp32_data = logical_tensor_init(0, {1, 112, 112, 8}, data_type::f32);
+    fp32_weight = logical_tensor_init(1, {3, 3, 8, 8}, data_type::f32);
+    fp32_bias = logical_tensor_init(2, {8}, data_type::f32);
+
+    // set incorrect op attribute to trigger the alarm.
+    std::vector<int64_t> zps = {0};
+    subgraph->get_ops()[0]->set_attr(op_attr::zps, zps);
+    ASSERT_TRUE(subgraph->get_ops()[0]->has_attr(op_attr::zps));
+
+    dnnl_impl::set_given_inputs_outputs(
+            subgraph, {fp32_data, fp32_weight, fp32_bias}, {fp32_relu_out});
+    dnnl_impl::lower_down(subgraph);
+    dnnl_impl::subgraph_validator_t validator;
+    ASSERT_EQ(validator.run(subgraph), status::invalid_op);
+}
