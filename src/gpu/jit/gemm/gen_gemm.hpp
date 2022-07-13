@@ -216,6 +216,16 @@ struct gen_gemm_t : public gpu_gemm_t {
             return status::success;
         }
 
+        status_t query(query_t what, int idx, void *result) const override {
+            switch ((int)what) {
+                case (int)query::preferred_gpu_threads_per_eu:
+                    *(int *)result = 4;
+                    break;
+                default: return gpu_gemm_pd_t::query(what, idx, result);
+            }
+            return status::success;
+        }
+
         bool set_default_formats() {
             using namespace data_type;
             using namespace format_tag;

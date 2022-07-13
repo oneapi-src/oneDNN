@@ -1334,6 +1334,7 @@ const query_t scratchpad_md = dnnl_query_scratchpad_md;
 // Internal only query kinds.
 const query_t internal_only_start = (query_t)(1 << 12);
 const query_t zero_pad_d = internal_only_start;
+const query_t preferred_gpu_threads_per_eu = (query_t)(internal_only_start + 1);
 } // namespace query
 
 using blocking_desc_t = dnnl_blocking_desc_t;
