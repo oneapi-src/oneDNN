@@ -41,7 +41,8 @@ void stat_and_data_kernel_t::operator()(const void *src, void *dst,
         const size_t block_size) const {
     const auto C_ = pd_->norm_axis();
     const auto calculate_stats_ = !pd_->stats_are_src();
-    const auto data_type_ = pd_->src_md()->data_type;
+    const auto src_dt = pd_->src_md()->data_type;
+    const auto dst_dt = pd_->dst_md()->data_type;
     const auto eps_ = pd_->desc()->layer_norm_epsilon;
     const auto use_scaleshift_ = pd_->use_scaleshift();
     const auto use_scale_ = pd_->use_scale();
@@ -55,16 +56,14 @@ void stat_and_data_kernel_t::operator()(const void *src, void *dst,
         if (calculate_stats_) {
             PRAGMA_OMP_SIMD(reduction(+ : v_mean))
             for (dim_t c = 0; c < C_; ++c) {
-                float s = io::load_float_value(
-                        data_type_, src, c + C_ * offset);
+                float s = io::load_float_value(src_dt, src, c + C_ * offset);
                 v_mean += s;
             }
             v_mean /= C_;
 
             PRAGMA_OMP_SIMD(reduction(+ : v_variance))
             for (dim_t c = 0; c < C_; ++c) {
-                float s = io::load_float_value(
-                        data_type_, src, c + C_ * offset);
+                float s = io::load_float_value(src_dt, src, c + C_ * offset);
                 float src_sub_mean = s - v_mean;
                 v_variance += src_sub_mean * src_sub_mean;
             }
@@ -81,18 +80,18 @@ void stat_and_data_kernel_t::operator()(const void *src, void *dst,
                 const float sm = scale[c] * inv_sqrtvar;
                 const float sv = shift[c];
                 const size_t off = c + C_ * offset;
-                float s = io::load_float_value(data_type_, src, off);
+                float s = io::load_float_value(src_dt, src, off);
                 float d = sm * (s - v_mean) + sv;
-                io::store_float_value(data_type_, d, dst, off);
+                io::store_float_value(dst_dt, d, dst, off);
             }
         } else if (use_scale_) {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; ++c) {
                 const float sm = scale[c] * inv_sqrtvar;
                 const size_t off = c + C_ * offset;
-                float s = io::load_float_value(data_type_, src, off);
+                float s = io::load_float_value(src_dt, src, off);
                 float d = sm * (s - v_mean);
-                io::store_float_value(data_type_, d, dst, off);
+                io::store_float_value(dst_dt, d, dst, off);
             }
         } else if (use_shift_) {
             PRAGMA_OMP_SIMD()
@@ -100,18 +99,18 @@ void stat_and_data_kernel_t::operator()(const void *src, void *dst,
                 const float sm = 1.f * inv_sqrtvar;
                 const float sv = shift[c];
                 const size_t off = c + C_ * offset;
-                float s = io::load_float_value(data_type_, src, off);
+                float s = io::load_float_value(src_dt, src, off);
                 float d = sm * (s - v_mean) + sv;
-                io::store_float_value(data_type_, d, dst, off);
+                io::store_float_value(dst_dt, d, dst, off);
             }
         } else {
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; ++c) {
                 const float sm = 1.f * inv_sqrtvar;
                 const size_t off = c + C_ * offset;
-                float s = io::load_float_value(data_type_, src, off);
+                float s = io::load_float_value(src_dt, src, off);
                 float d = sm * (s - v_mean);
-                io::store_float_value(data_type_, d, dst, off);
+                io::store_float_value(dst_dt, d, dst, off);
             }
         }
         if (calculate_stats_ && save_stats_) {

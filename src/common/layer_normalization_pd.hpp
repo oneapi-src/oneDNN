@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -249,9 +249,6 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
 
     const memory_desc_t *src_md(int index = 0) const override {
         return index == 0 ? &data_md_ : index <= 2 ? &stat_md_ : &glob_zero_md;
-    }
-    const memory_desc_t *dst_md(int index = 0) const override {
-        return (index == 0) ? &data_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_dst_md(int index = 0) const override {
         return index == 0 ? &diff_data_md_ : &glob_zero_md;

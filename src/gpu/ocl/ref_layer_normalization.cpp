@@ -32,7 +32,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
     memory_desc_wrapper src_mdw(pd->src_md());
     memory_desc_wrapper stat_mdw(pd->stat_md());
-    memory_desc_wrapper dst_mdw(pd->dst_md());
+    memory_desc_wrapper dst_mdw(
+            pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md());
 
     int ndims = src_mdw.ndims();
 
