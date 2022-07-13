@@ -907,8 +907,8 @@ private:
             auto &buf = s.buf_base();
             auto ret = seen.insert(buf);
             if (i == 0 || !ret.second) continue;
-            tile_stmt = alloc_t::make(
-                    buf, s.buf_size(), alloc_kind_t::grf, tile_stmt);
+            int size = utils::rnd_up(s.buf_size(), cfg_.hw_cfg.grf_size());
+            tile_stmt = alloc_t::make(buf, size, alloc_kind_t::grf, tile_stmt);
         }
 
         stmt_ = stmt_.append(tile_stmt);

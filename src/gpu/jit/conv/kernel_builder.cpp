@@ -4545,6 +4545,108 @@ stmt_t inject_dp4a(const stmt_t &s) {
     return ret;
 }
 
+class buffer_access_verifier_t : public ir_visitor_t {
+public:
+    void _visit(const alloc_t &obj) override {
+        buf_sizes_.emplace(obj.buf, obj.size);
+        ir_visitor_t::_visit(obj);
+        buf_sizes_.erase(obj.buf);
+    }
+
+    void _visit(const func_call_t &obj) override {
+        auto &func = obj.func;
+        if (auto *dpas = func.as_ptr<dpas_t>()) {
+            auto &dst = dpas_t::arg_dst(obj);
+            auto &src0 = dpas_t::arg_src0(obj);
+            auto &src1 = dpas_t::arg_src1(obj);
+            auto &src2 = dpas_t::arg_src2(obj);
+            check_access(dst, dpas->dst_size(), obj);
+            if (!is_zero(src0)) check_access(src0, dpas->src0_size(), obj);
+            check_access(src1, dpas->src1_size(), obj);
+            check_access(src2, dpas->src2_size(), obj);
+        } else if (func.is<eltwise_t>()) {
+            auto &elems = eltwise_t::arg_elems(obj);
+            auto &data = eltwise_t::arg_data(obj);
+            int size = to_cpp<int>(elems) * sizeof(float);
+            check_access(data, size, obj);
+        } else if (auto *mad = func.as_ptr<mad_t>()) {
+            auto &dst = mad_t::arg_dst(obj);
+            auto &src0 = mad_t::arg_src0(obj);
+            auto &src1 = mad_t::arg_src1(obj);
+            auto &src2 = mad_t::arg_src2(obj);
+            check_access(dst, mad->dst_size(), obj);
+            if (!is_zero(src0)) check_access(src0, mad->src0_size(), obj);
+            check_access(src1, mad->src1_size(), obj);
+            check_access(src2, mad->src2_size(), obj);
+        } else if (auto *reduce = func.as_ptr<reduce_t>()) {
+            auto &dst_buf = reduce_t::arg_dst_buf(obj);
+            auto &src_buf = reduce_t::arg_src_buf(obj);
+            check_access(dst_buf, reduce->dst_layout.size(), obj);
+            check_access(src_buf, reduce->src_layout.size(), obj);
+        } else if (auto *reorder = func.as_ptr<reorder_t>()) {
+            auto &dst_buf = reorder_t::arg_dst_buf(obj);
+            auto &src_buf = reorder_t::arg_src_buf(obj);
+            check_access(dst_buf, reorder->dst_layout.size(), obj);
+            check_access(src_buf, reorder->src_layout.size(), obj);
+            return;
+        } else if (auto *send = func.as_ptr<send_t>()) {
+            if (!send->is_prefetch() && !send->is_prefetch_2d()) {
+                auto &reg_buf = send_t::arg_reg_buf(obj);
+                int size = send->payload_size();
+                check_access(reg_buf, size, obj);
+            }
+            return;
+        } else if (func.is<builtin_t>()) {
+            // No buffers to check.
+        } else {
+            ir_error_not_expected() << "Unhandled function: " << obj;
+        }
+
+        ir_visitor_t::_visit(obj);
+    }
+
+    void _visit(const load_t &obj) override {
+        auto elem_type = obj.type.scalar();
+        int stride_bytes
+                = (obj.has_default_stride() ? elem_type.size() : obj.stride);
+        int off = to_cpp<int>(obj.off);
+        check_access(obj.buf + off, obj.type.elems() * stride_bytes, obj);
+        ir_visitor_t::_visit(obj);
+    }
+
+    void _visit(const store_t &obj) override {
+        auto elem_type = obj.value.type().scalar();
+        int stride_bytes
+                = (obj.has_default_stride() ? elem_type.size() : obj.stride);
+        int off = to_cpp<int>(obj.off);
+        check_access(
+                obj.buf + off, obj.value.type().elems() * stride_bytes, obj);
+        ir_visitor_t::_visit(obj);
+    }
+
+private:
+    void check_access(const expr_t &buf, int size, const object_t &obj) {
+        auto &base = (is_var(buf) ? buf : buf.as<ptr_t>().base);
+        int off = (is_var(buf) ? 0 : to_cpp<int>(buf.as<ptr_t>().off));
+        auto it = buf_sizes_.find(base);
+        ir_assert(it != buf_sizes_.end())
+                << "Can't find allocation for buffer: " << buf;
+        int buf_size = it->second;
+        ir_assert(off + size <= buf_size)
+                << "Invalid access:\n    " << obj << "\n    Buffer " << base
+                << " has size: " << buf_size;
+    }
+
+    object_map_t<expr_t, int> buf_sizes_;
+};
+
+void verify_buffer_access(const stmt_t &s) {
+    trace_start();
+    buffer_access_verifier_t verifier;
+    verifier.visit(s);
+    trace_pass("verify_buffer_access", s);
+}
+
 class multiply_builder_t {
 public:
     multiply_builder_t() = default;
@@ -5218,8 +5320,10 @@ public:
                 stmt = substitute(stmt, reg_buf_, tmp_buf_);
                 stmt = stmt.append(create_reorder_stmt(
                         load_layout, reg_layout_, tmp_buf_, reg_buf_));
-                tmp_buf_size_
-                        = std::max(tmp_buf_size_, int(load_layout.size()));
+                int load_reg_size = int(load_layout.size());
+                load_reg_size
+                        = utils::rnd_up(load_reg_size, hw_cfg_.grf_size());
+                tmp_buf_size_ = std::max(tmp_buf_size_, load_reg_size);
             }
         }
     }
@@ -6908,6 +7012,10 @@ void kernel_builder_t::build() {
     if (cfg_.fma_kind == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_);
     stmt_ = inject_bank_conflict_attribute(stmt_);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
+
+#ifndef NDEBUG
+    verify_buffer_access(stmt_);
+#endif
 
     ir_trace() << "Convolution kernel body:\n" << stmt_ << std::endl;
     trace_perf();
