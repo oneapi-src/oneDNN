@@ -1808,9 +1808,10 @@ public:
 
     static alloc_attr_t make(const std::vector<expr_t> &bufs,
             const std::vector<int> &buf_sizes,
+            const std::vector<int> &buf_min_block_sizes,
             const std::vector<stmt_t> &instructions) {
-        return alloc_attr_t(
-                new bank_conflict_attr_t(bufs, buf_sizes, instructions));
+        return alloc_attr_t(new bank_conflict_attr_t(
+                bufs, buf_sizes, buf_min_block_sizes, instructions));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -1821,17 +1822,27 @@ public:
         return std::hash<const self_type *>()(this);
     }
 
+    // List of buffers accessed from instructions.
     std::vector<expr_t> bufs;
+    // Buffer sizes in bytes.
     std::vector<int> buf_sizes;
+    // Minimum power-of-two block sizes for each buffer to avoid unhandled
+    // cross-boundary accesses. A buffer may be allocated in fixed-size blocks
+    // to avoid bank conflicts however the block size can't be arbitrary - we
+    // need to avoid unhandled boundary crossings (e.g. in memory loads).
+    std::vector<int> buf_min_block_sizes;
+    // List of instructions whose bank conflicts are to be avoided.
     std::vector<stmt_t> instructions;
 
 private:
     bank_conflict_attr_t(const std::vector<expr_t> &bufs,
             const std::vector<int> &buf_sizes,
+            const std::vector<int> &buf_min_block_sizes,
             const std::vector<stmt_t> &instructions)
         : alloc_attr_impl_t(_type_info())
         , bufs(bufs)
         , buf_sizes(buf_sizes)
+        , buf_min_block_sizes(buf_min_block_sizes)
         , instructions(instructions) {}
 };
 
