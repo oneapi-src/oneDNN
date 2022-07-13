@@ -98,7 +98,8 @@ std::shared_ptr<sc_graph_t> quantize_op_t::get_graph_impl() {
         auto quantize_const_scales = graph->make("constant", {}, {},
                 {{"values", scales_ptr}, {"dtype", datatypes::f32},
                         {"plain_dims", plain_dims},
-                        {"format", sc_data_format_t()}});
+                        {"format", sc_data_format_t()},
+                        {"all_positive", true}});
         auto div_scale = graph->make("mul",
                 {inputs[0], quantize_const_scales->get_outputs()[0]}, {}, {});
 
@@ -204,7 +205,8 @@ std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph_impl() {
         auto const_scales = graph->make("constant", {}, {},
                 {{"values", scales_ptr}, {"dtype", datatypes::f32},
                         {"plain_dims", scales_plain_dims},
-                        {"format", sc_data_format_t()}});
+                        {"format", sc_data_format_t()},
+                        {"all_positive", true}});
         auto f32_cast
                 = graph->make("cast", inputs, {}, {{"dtype", qinfos.dtype_}});
 

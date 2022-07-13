@@ -23,6 +23,7 @@
 #include "transform.hpp"
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/unary_elemwise.hpp>
 #include <unordered_map>
 
 SC_MODULE(graph.simplify)
@@ -246,10 +247,264 @@ void redundant_binary_op_elimination(
     graph.reset_op_ids();
 }
 
+static bool is_basic_binary_calculate_op(const sc_op_ptr &node) {
+    return node->isa<add_op_t>() || node->isa<sub_op_t>()
+            || node->isa<mul_op_t>() || node->isa<div_op_t>();
+}
+
+static bool is_high_priority_op(const sc_op_ptr &node) {
+    return node->isa<mul_op_t>() || node->isa<div_op_t>();
+}
+
+static bool is_lower_priority_op(const sc_op_ptr &node) {
+    return node->isa<add_op_t>() || node->isa<sub_op_t>();
+}
+
+static bool is_constant_op(const sc_op *node) {
+    return node->isa<constant_op_t>()
+            || node->attrs_.get_or_else("constant", const_kind::not_const)
+            != const_kind::not_const;
+}
+
+static bool is_all_positive(const sc_op *node) {
+    return node->attrs_.get_or_else("all_positive", false);
+}
+
+// a add/mul op with two inputs: in0 and in1, when in0 is a constant and in1
+// not, exchange them.
+static void exchange_binary_const_ops(
+        sc_graph_t &graph, const context_ptr &ctx) {
+    auto vis = op_visitor_t::dfs_topology_sort();
+    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+        if (node->isa<mul_op_t>() || node->isa<add_op_t>()) {
+            if (node->get_inputs()[0]->producer_owner_->attrs_.get_or_else(
+                        "constant", const_kind::not_const)
+                            != const_kind::not_const
+                    && node->get_inputs()[1]
+                                    ->producer_owner_->attrs_.get_or_else(
+                                            "constant", const_kind::not_const)
+                            == const_kind::not_const) {
+                auto new_node = graph.make(node->op_name_,
+                        {node->get_inputs()[1], node->get_inputs()[0]}, {},
+                        node->attrs_);
+                node->replace_uses_with_and_remove(new_node);
+            }
+        }
+    });
+    graph.reset_op_ids();
+}
+
+// For case like: mul + add + relu + (mul/div), change to mul + add + (mul/div)
+// + relu for more folding opportunities.
+static void push_relu_back(sc_graph_t &graph, const context_ptr &ctx) {
+    auto vis = op_visitor_t::dfs_topology_sort();
+    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+        if (node->isa<relu_op_t>()) {
+            sc_op_ptr cur_node = node, pre_node = node;
+            while (cur_node->is_single_output_single_use()
+                    && utils::is_one_of(cur_node->get_outputs()[0]
+                                                ->uses_[0]
+                                                .second->op_name_,
+                            std::string("mul"), std::string("div"))) {
+                cur_node = cur_node->get_outputs()[0]->uses_[0].second;
+                auto inp1 = cur_node->get_inputs()[1]->producer_owner_;
+                if (!(is_constant_op(inp1) && is_all_positive(inp1))) {
+                    cur_node = pre_node;
+                    break;
+                }
+                if (pre_node == node) {
+                    cur_node->replace_input(
+                            node->get_outputs()[0]->uses_[0].first,
+                            node->get_inputs()[0]);
+                }
+                pre_node = cur_node;
+            }
+            if (cur_node != node) {
+                auto &out_tsr = cur_node->get_outputs()[0];
+                auto uses = out_tsr->uses_;
+                for (auto &use : uses) {
+                    use.second->replace_input(
+                            use.first, node->get_outputs()[0]);
+                }
+                node->replace_input(0, out_tsr);
+            }
+        }
+    });
+    graph.reset_op_ids();
+}
+
+static bool is_same_priority(const sc_op_ptr &op0, const sc_op_ptr &op1,
+        const sc_data_type_t &dtype, std::string &elt_type) {
+    std::string add = "add", sub = "sub", mul = "mul", div = "div";
+    bool ret = false;
+    if (utils::is_one_of(op0->op_name_, add, sub)
+            && utils::is_one_of(op1->op_name_, add, sub)) {
+        if (op0->op_name_ == sub) {
+            elt_type = op1->op_name_ == add ? sub : add;
+        } else {
+            elt_type = op1->op_name_;
+        }
+        return true;
+    }
+    if (dtype == datatypes::f32) {
+        if (utils::is_one_of(op0->op_name_, mul, div)
+                && utils::is_one_of(op1->op_name_, mul, div)) {
+            ret = true;
+        }
+    } else if (dtype == datatypes::s32) {
+        if ((op0->op_name_ == mul && op1->op_name_ == mul)
+                || (op0->op_name_ == div && op1->op_name_ == div)) {
+            ret = true;
+        }
+    }
+    if (ret) {
+        if (op0->op_name_ == div) {
+            elt_type = op1->op_name_ == mul ? div : mul;
+        } else {
+            elt_type = op1->op_name_;
+        }
+    }
+    return ret;
+}
+
+// Process the pattern like "(a + b) + c" => "a + (b + c)" where b and c are
+// constant. Return the new folded node if processing is successful.
+static sc_op_ptr same_priority_pattern_fold(
+        sc_graph_t &graph, const sc_op_ptr &node) {
+    if (is_basic_binary_calculate_op(node)
+            && node->is_single_output_single_use()) {
+        auto &out_tsr = node->get_outputs()[0];
+        auto next_node = out_tsr->uses_[0].second;
+        std::string elt_type;
+        if (utils::is_one_of(
+                    out_tsr->details_.dtype_, datatypes::f32, datatypes::s32)
+                && is_same_priority(
+                        node, next_node, out_tsr->details_.dtype_, elt_type)) {
+            auto *cur_inp1 = node->get_inputs()[1]->producer_owner_;
+            auto *next_inp1 = next_node->get_inputs()[1]->producer_owner_;
+            if (is_constant_op(cur_inp1) && is_constant_op(next_inp1)) {
+                sc_op_ptr cal_const;
+                cal_const = graph.make(elt_type,
+                        {cur_inp1->get_outputs()[0],
+                                next_inp1->get_outputs()[0]},
+                        {}, {});
+                cal_const->attrs_.set("constant", const_kind::local_const);
+                cal_const->attrs_.set("all_positive",
+                        is_all_positive(cur_inp1)
+                                && is_all_positive(next_inp1));
+                auto new_node = graph.make(node->op_name_,
+                        {node->get_inputs()[0], cal_const->get_outputs()[0]},
+                        {}, node->attrs_);
+                node->replace_uses_with_and_remove(new_node);
+                auto uses = next_node->get_outputs()[0]->uses_;
+                for (auto &use : uses) {
+                    use.second->replace_input(
+                            use.first, new_node->get_outputs()[0]);
+                }
+                next_node->remove();
+                return new_node;
+            }
+        }
+    }
+    return nullptr;
+}
+
+// process the partten like "(a * b + c) * d => (a * b * d + c * d)" where b, c,
+// d are constant. Return the new folded node if processing is successful.
+static sc_op_ptr diff_priority_pattern_fold(
+        sc_graph_t &graph, const sc_op_ptr &node) {
+    if (is_high_priority_op(node) && node->is_single_output_single_use()) {
+        auto &out_tsr = node->get_outputs()[0];
+        auto &dtype = out_tsr->details_.dtype_;
+        auto next_node = out_tsr->uses_[0].second;
+        auto *cur_inp1 = node->get_inputs()[1]->producer_owner_;
+        if (!is_constant_op(cur_inp1)) { return nullptr; }
+        if (is_lower_priority_op(next_node)
+                && node->is_single_output_single_use()) {
+            auto nnext_node = next_node->get_outputs()[0]->uses_[0].second;
+            auto *next_inp1 = next_node->get_inputs()[1]->producer_owner_;
+            if (!is_constant_op(next_inp1)) { return nullptr; }
+            if (is_high_priority_op(nnext_node)) {
+                auto nnext_inp1 = nnext_node->get_inputs()[1]->producer_owner_;
+                if (!is_constant_op(nnext_inp1)) { return nullptr; }
+                std::string cur_elt_type = "mul",
+                            next_elt_type = nnext_node->op_name_;
+                if ((dtype == datatypes::s32 && node->isa<mul_op_t>()
+                            && nnext_node->isa<mul_op_t>())
+                        || (dtype == datatypes::f32
+                                && is_same_priority(node, nnext_node, dtype,
+                                        cur_elt_type))) {
+                    auto cur_cal_const = graph.make(cur_elt_type,
+                            {cur_inp1->get_outputs()[0],
+                                    nnext_inp1->get_outputs()[0]},
+                            {}, {});
+                    cur_cal_const->attrs_.set(
+                            "constant", const_kind::local_const);
+                    cur_cal_const->attrs_.set("all_positive",
+                            is_all_positive(cur_inp1)
+                                    && is_all_positive(nnext_inp1));
+                    auto new_node = graph.make(node->op_name_,
+                            {node->get_inputs()[0],
+                                    cur_cal_const->get_outputs()[0]},
+                            {}, node->attrs_);
+                    node->replace_uses_with_and_remove(new_node);
+                    auto next_cal_const = graph.make(next_elt_type,
+                            {next_inp1->get_outputs()[0],
+                                    nnext_inp1->get_outputs()[0]},
+                            {}, {});
+                    next_cal_const->attrs_.set(
+                            "constant", const_kind::local_const);
+                    next_cal_const->attrs_.set("all_positive",
+                            is_all_positive(next_inp1)
+                                    && is_all_positive(nnext_inp1));
+                    auto new_next_node = graph.make(next_node->op_name_,
+                            {next_node->get_inputs()[0],
+                                    next_cal_const->get_outputs()[0]},
+                            {}, next_node->attrs_);
+                    next_node->replace_uses_with_and_remove(new_next_node);
+                    auto uses = nnext_node->get_outputs()[0]->uses_;
+                    auto last_out = new_next_node->get_outputs()[0];
+                    for (auto &use : uses) {
+                        use.second->replace_input(use.first, last_out);
+                    }
+                    nnext_node->remove();
+                    return new_node;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
+static void fold_polynomial(sc_graph_t &graph, const context_ptr &ctx) {
+    auto vis = op_visitor_t::bfs();
+    constexpr const int MAX_TRY_TIMES = 100;
+    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+        sc_op_ptr last_folded = node, pre_folded = last_folded;
+        for (int i = 0; i < MAX_TRY_TIMES; i++) {
+            auto same_folded = same_priority_pattern_fold(graph, last_folded);
+            if (same_folded) { last_folded = same_folded; }
+            auto diff_folded = diff_priority_pattern_fold(graph, last_folded);
+            if (diff_folded) { last_folded = diff_folded; }
+            if (pre_folded == last_folded) { break; }
+            pre_folded = last_folded;
+        }
+        vis.update_state_for_visited(last_folded);
+    });
+    graph.reset_op_ids();
+}
+
+void graph_constant_folding(sc_graph_t &graph, const context_ptr &ctx) {
+    exchange_binary_const_ops(graph, ctx);
+    push_relu_back(graph, ctx);
+    fold_polynomial(graph, ctx);
+}
+
 void graph_simplify(sc_graph_t &graph, const context_ptr &ctx) {
     redundant_binary_op_elimination(graph, ctx);
     excess_tensor_view_elimination(graph, ctx);
     horizontal_same_op_elimination(graph, ctx);
+    graph_constant_folding(graph, ctx);
 }
 
 } // namespace sc

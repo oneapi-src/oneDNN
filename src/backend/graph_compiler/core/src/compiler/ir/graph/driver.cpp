@@ -78,6 +78,8 @@ create_default_graph_flow() {
             layout_propagation, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("tensor_view_transform",
             tensor_view_transform, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("const_folding",
+            graph_constant_input_folding, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass(
             "graph_simplify", graph_simplify, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("global_reschedule",
