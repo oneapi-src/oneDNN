@@ -55,9 +55,10 @@ struct gen9_reduction_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("ocl:gen9", gen9_reduction_t);
 
         status_t init(engine_t *engine) {
+            using smask_t = primitive_attr_t::skip_mask_t;
             bool ok = set_default_params() == status::success
                     && attr_.has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
+                            smask_t::post_ops | smask_t::gpu_attr)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
@@ -77,7 +78,7 @@ struct gen9_reduction_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        compute::kernel_ctx_t kernel_ctx;
+        compute::kernel_ctx_t kernel_ctx(pd()->attr());
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);

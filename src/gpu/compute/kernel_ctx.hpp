@@ -28,6 +28,8 @@
 #include <type_traits>
 
 #include "common/bit_cast.hpp"
+#include "common/primitive_attr.hpp"
+#include "gpu/gpu_primitive_attr.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,7 +38,9 @@ namespace compute {
 
 class kernel_ctx_t {
 public:
-    kernel_ctx_t() { set_default_options(); }
+    kernel_ctx_t(const primitive_attr_t *attr = nullptr) {
+        set_default_options(attr);
+    }
 
     std::string options() const {
         std::ostringstream oss;
@@ -120,9 +124,17 @@ public:
     }
 
 private:
-    void set_default_options() {
+    void set_default_options(const primitive_attr_t *attr) {
         // By default fp32 division and sqrt are not IEEE-compliant
         add_option("-cl-fp32-correctly-rounded-divide-sqrt");
+
+        if (attr && attr->gpu_attr_) {
+            auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+                    attr->gpu_attr_.get());
+            if (gpu_attr->threads_per_eu() == 4) {
+                add_option("-cl-intel-256-GRF-per-thread");
+            }
+        }
     }
 
     std::map<std::string, int64_t> int_var_map_;
