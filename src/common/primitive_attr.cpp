@@ -141,6 +141,9 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
             rnn_weights_projection_qparams_);
     CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::sum_dt),
             post_ops_.sum_with_default_dt(dst_dt)));
+    bool gpu_attr_ok = IMPLICATION((bool)(~mask & smask_t::gpu_attr),
+            !gpu_attr_ || gpu_attr_->has_default_values());
+    CHECK_ARG(gpu_attr_ok);
     CHECK_ARG(this->defined(defined_mask));
     return ok;
 #undef CHECK_MASK
@@ -373,6 +376,11 @@ status_t primitive_attr_t::set_post_ops(const post_ops_t &post_ops) {
 
 status_t primitive_attr_t::set_default_formats(const memory_desc_t *dst_md) {
     return post_ops_.set_default_formats(dst_md);
+}
+
+status_t primitive_attr_t::set_gpu_attr(const primitive_attr_item_t &gpu_attr) {
+    gpu_attr_ = gpu_attr.clone();
+    return status::success;
 }
 
 /* Public C API */

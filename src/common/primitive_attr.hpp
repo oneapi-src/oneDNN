@@ -320,6 +320,17 @@ private:
     }
 };
 
+struct serialization_stream_t;
+
+struct primitive_attr_item_t {
+    virtual std::unique_ptr<primitive_attr_item_t> clone() const = 0;
+    virtual bool has_default_values() const = 0;
+    virtual bool is_equal(const primitive_attr_item_t &other) const = 0;
+    virtual size_t get_hash() const = 0;
+    virtual void serialize(serialization_stream_t &stream) const = 0;
+    virtual ~primitive_attr_item_t() = default;
+};
+
 } // namespace impl
 } // namespace dnnl
 
@@ -627,6 +638,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         CHECK(rnn_weights_projection_qparams_.copy_from(
                 other.rnn_weights_projection_qparams_));
         CHECK(rnn_tparams_.copy_from(other.rnn_tparams_));
+        if (other.gpu_attr_) gpu_attr_ = other.gpu_attr_->clone();
 
         return status::success;
     }
@@ -646,7 +658,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         rnn_weights_qparams = 1u << 8,
         rnn_tparams = 1u << 9,
         sum_dt = 1u << 10,
-        rnn_weights_projection_qparams = 1u << 11
+        rnn_weights_projection_qparams = 1u << 11,
+        gpu_attr = 1u << 12
     };
 
     /** Returns true if the attributes have default values.
@@ -668,7 +681,10 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 && rnn_weights_qparams_ == rhs.rnn_weights_qparams_
                 && rnn_weights_projection_qparams_
                         == rhs.rnn_weights_projection_qparams_
-                && rnn_tparams_ == rhs.rnn_tparams_;
+                && rnn_tparams_ == rhs.rnn_tparams_
+                && ((gpu_attr_ && rhs.gpu_attr_
+                            && gpu_attr_->is_equal(*rhs.gpu_attr_))
+                        || (!gpu_attr_ && !rhs.gpu_attr_));
         return ret;
     }
 
@@ -676,6 +692,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::status_t set_scratchpad_mode(
             dnnl::impl::scratchpad_mode_t scratchpad_mode);
     dnnl::impl::status_t set_post_ops(const dnnl::impl::post_ops_t &post_ops);
+    dnnl::impl::status_t set_gpu_attr(
+            const dnnl::impl::primitive_attr_item_t &gpu_attr);
     dnnl::impl::status_t set_default_formats(
             const dnnl::impl::memory_desc_t *dst_md);
 
@@ -712,6 +730,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::scales_t rnn_weights_qparams_;
     dnnl::impl::scales_t rnn_weights_projection_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
+
+    std::unique_ptr<dnnl::impl::primitive_attr_item_t> gpu_attr_;
 
     dnnl_primitive_attr &operator=(const dnnl_primitive_attr &other) = delete;
 };

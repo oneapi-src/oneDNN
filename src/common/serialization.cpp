@@ -217,6 +217,12 @@ void serialize_attr(
         sstream.write(attr.rnn_weights_qparams_.scales_,
                 attr.rnn_weights_qparams_.count_);
     }
+    if (attr.gpu_attr_) {
+        attr.gpu_attr_->serialize(sstream);
+    } else {
+        int zero = 0;
+        sstream.write(&zero);
+    }
 }
 
 void serialize_desc(

@@ -302,6 +302,9 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
         seed = get_array_hash(seed, attr.rnn_weights_qparams_.scales_,
                 attr.rnn_weights_qparams_.count_);
     }
+    if (attr.gpu_attr_) {
+        seed = hash_combine(seed, attr.gpu_attr_->get_hash());
+    }
     // Combined hash for attributes
     return seed;
 }
