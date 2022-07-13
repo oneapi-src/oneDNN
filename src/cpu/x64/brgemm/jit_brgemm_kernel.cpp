@@ -369,7 +369,6 @@ void load_data_skip_zmm<Xbyak::Zmm>(jit_generator *jit, data_type_t dt,
     // silently return. This is only needed to let build succeed as load_data
     // doesn't support zmm.
     assert(!"invalid code");
-    return;
 }
 
 template <typename Vmm>
@@ -388,7 +387,6 @@ void store_data_skip_zmm<Xbyak::Zmm>(jit_generator *jit, data_type_t type_out,
     // silently return. This is only needed to let build succeed as store_data
     // doesn't support zmm.
     assert(!"invalid code");
-    return;
 }
 
 template <typename Vmm>
