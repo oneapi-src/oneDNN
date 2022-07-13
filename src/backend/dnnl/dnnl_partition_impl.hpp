@@ -184,6 +184,14 @@ public:
 
         // get kernel creator
         auto kernel_creator = part->get_kernel_creator();
+
+        // This internal env var is used for test purpose. When setting
+        // _DNNL_GRAPH_USE_LARGE_PARTITION_KERNEL to 1, all partitions will be
+        // dispatched to the large partition kernel.
+        if (impl::utils::getenv_int_internal("USE_LARGE_PARTITION_KERNEL", 0)) {
+            kernel_creator = large_partition_kernel_creator;
+        }
+
         kernel_ptr kernel = kernel_creator();
         if (!kernel) return status::unimplemented;
 

@@ -282,6 +282,8 @@ struct kernel_base_t {
 using kernel_ptr = std::shared_ptr<kernel_base_t>;
 using FCreateKernel = std::function<kernel_ptr(void)>;
 
+kernel_ptr large_partition_kernel_creator();
+
 class dnnl_backend : public backend {
     friend class dnnl_partition_impl_t;
 

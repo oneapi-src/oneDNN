@@ -3763,6 +3763,7 @@ impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
                         new_scales_in0, inv_out_scales, multiplier);
                 std::tie(new_qtype_in0, new_axis_in0) = fuse_scales_attributes(
                         {&scales_in0_op, &scales_in1_op, &scales_out_op});
+                break;
             default:
                 assertm(false, "unsupported binary post-op was provided.");
                 break;

@@ -101,6 +101,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_dequant);
 
         // Fusion and canonicalization passes begin
+        BACKEND_DNNL_ADD_PASS(pipeline, move_scalar_div_behind_matmul);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding);
