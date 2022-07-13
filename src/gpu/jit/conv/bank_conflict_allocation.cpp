@@ -667,10 +667,16 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
     std::vector<int> buf_src_idx(bufs.size(), -1);
     for (int i = 0; i < int(bufs.size()); i++) {
         int buf_size = attr.buf_sizes[i];
+        int min_block_size = attr.buf_min_block_sizes[i];
         int regs = utils::div_up(buf_size, hw_ctx.reg_size);
         int block_regs = (bufs[i].is_equal(dst_base) ? dst_block_regs
                                                      : src_block_regs);
+        // Ensure that blocks are uniform, otherwise allocate as a single block.
         if (block_regs != 0 && regs % block_regs != 0) block_regs = 0;
+        // Ensure that the block size is allowed (to avoid unhandled boundary
+        // crossing), otherwise allocate as a single block.
+        if (block_regs != 0 && block_regs * hw_ctx.reg_size < min_block_size)
+            block_regs = 0;
         buf_masks.emplace_back(&hw_ctx, regs, block_regs);
     }
 
