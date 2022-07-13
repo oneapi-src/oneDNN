@@ -7,9 +7,9 @@
 
 where *reduction-knobs* are:
 
- - `--sdt={f32 [default], bf16, s8, u8, s32}` -- src data type.
+ - `--sdt={f32 [default], bf16, f16, s8, u8, s32}` -- src data type.
             Refer to [data types](knobs_dt.md) for details.
- - `--ddt={f32 [default], bf16, s8, u8, s32}` -- dst data type.
+ - `--ddt={f32 [default], bf16, f16, s8, u8, s32}` -- dst data type.
             Refer to [data types](knobs_dt.md) for details.
  - `--stag={nchw [default], ...}` -- physical src memory layout.
             Refer to [tags](knobs_tag.md) for details.

@@ -462,6 +462,7 @@ details on how to use and set these quantization parameters.
    - oneDNN supports s8 as input data only on systems with Advanced Matrix
      Extension(AMX) support.
    - Projection LSTM for bf16 data type is not supported.
+   - f16 data type is not supported.
 
 2. **GPU**
    - No support for AUGRU.

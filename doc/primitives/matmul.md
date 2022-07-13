@@ -92,7 +92,7 @@ types for source, destination, weights, and bias tensors:
 | Source | Weights | Destination            | Bias                   |
 | :--    | :--     | :--                    | :--                    |
 | f32    | f32     | f32                    | f32                    |
-| f16    | f16     | f16, u8, s8            | f16                    |
+| f16    | f16     | f16, u8, s8            | f16, f32               |
 | bf16   | bf16    | f32, bf16              | bf16, f32              |
 | u8, s8 | s8      | u8, s8, s32, f32, bf16 | u8, s8, s32, f32, bf16 |
 

@@ -159,9 +159,11 @@ source, destination, and weights memory objects:
 | forward            | bf16      | bf16      | f32, bf16                    | f32, bf16                   |
 | forward            | f64       | f64       | f64                          | f64                         |
 | backward           | f32, bf16 | bf16      | bf16                         |                             |
+| backward           | f32, f16  | f16       | f16                          |                             |
 | backward           | f32       | f32       | f32                          | f32                         |
 | backward           | f64       | f64       | f64                          | f64                         |
 | weights update     | bf16      | f32, bf16 | bf16, s8, u8                 | f32, bf16                   |
+| weights update     | f16       | f32, f16  | f16                          | f32, f16                    |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -253,10 +255,10 @@ and eltwise primitives for training.
 The library supports any number and order of post operations, but only the
 following sequences deploy optimized code:
 
-| Type of convolutions      | Post-ops sequence supported
-| :--                       | :--
-| f32 and bf16 convolution  | eltwise, sum, sum -> eltwise
-| int8 convolution          | eltwise, sum, sum -> eltwise, eltwise -> sum
+| Type of convolutions           | Post-ops sequence supported
+| :--                            | :--
+| f32, bf16 and f16 convolution  | eltwise, sum, sum -> eltwise
+| int8 convolution               | eltwise, sum, sum -> eltwise, eltwise -> sum
 
 The attributes and post-ops take effect in the following sequence:
 - Source zero point attribute,

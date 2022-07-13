@@ -82,10 +82,9 @@ The source and destination tensors may have `f32`, `bf16`, `f16` or `s8/u8`
 data types.
 The binary primitive supports the following combinations of data types:
 
-| Source 0 / 1         | Destination
-| :--                  | :--
-| bf16                 | bf16
-| s8, u8, f16, f32     | s8, u8, f16, f32
+| Source 0 / 1           | Destination
+| :--                    | :--
+| f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8
 
 @warning
     There might be hardware and/or implementation specific restrictions.

@@ -124,10 +124,9 @@ argument index as specified by the following table.
 Resampling primitive supports the following combination of data types for
 source and destination memory objects:
 
-| Propagation        | Source                 | Destination            |
-| :--                | :--                    | :--                    |
-| forward / backward | f32, s32, bf16, s8, u8 | f32, s32, bf16, s8, u8 |
-| forward            | f16                    | f16                    |
+| Propagation        | Source                      | Destination                 |
+| :--                | :--                         | :--                         |
+| forward / backward | f32, bf16, f16, s32, s8, u8 | f32, s32, bf16, s8, u8, f16 |
 
 ### Post-Ops and Attributes
 

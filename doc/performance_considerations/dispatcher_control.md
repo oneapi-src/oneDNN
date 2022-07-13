@@ -32,12 +32,13 @@ otherwise disabled by default.
 | \                    | AVX512_CORE      | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions
 | \                    | AVX512_CORE_VNNI | Intel AVX-512 with Intel DL Boost
 | \                    | AVX512_CORE_BF16 | Intel AVX-512 with Intel DL Boost and bfloat16 support
-| \                    | AVX512_CORE_AMX  | Intel AVX-512 with Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support
+| \                    | AVX512_CORE_FP16 | Intel AVX-512 with float16 and Intel DL Boost and bfloat16
+| \                    | AVX512_CORE_AMX  | Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support
 | \                    | **ALL**          | **No restrictions (default)**
 
 @note The ISAs are partially ordered:
 * SSE41 < AVX < AVX2,
-* AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16 < AVX512_CORE_AMX,
+* AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16 < AVX512_CORE_FP16 < AVX512_CORE_AMX,
 * AVX2 < AVX2_VNNI.
 
 This feature can also be managed at run-time with the following functions:

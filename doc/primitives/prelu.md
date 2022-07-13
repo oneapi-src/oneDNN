@@ -110,9 +110,9 @@ argument index as specified by the following table.
 
 The PReLU primitive supports the following combinations of data types:
 
-| Propagation        | Source / Destination   |
-| :--                | :--                    |
-| forward / backward | f32, s32, bf16, s8, u8 |
+| Propagation        | Source / Destination        |
+| :--                | :--                         |
+| forward / backward | f32, s32, bf16, f16, s8, u8 |
 
 ### Data Representation
 

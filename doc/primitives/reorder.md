@@ -121,7 +121,7 @@ floating point data type.
    support.
 
 2. **CPU**
-   - Reorders between bf16 and s32 data types are not supported.
+   - Reorders between bf16, f16 and s32 data types are not supported.
 
 3. **GPU**
    - Only tensors of 6 or fewer dimensions are supported.

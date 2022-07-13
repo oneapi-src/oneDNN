@@ -21,10 +21,10 @@ in comparison to fp32.
 
 oneDNN supports training and inference with the following data types:
 
-| Usage mode | CPU                | GPU                          |
-| :---       | :---               | :---                         |
-| Inference  | f32, bf16, s8/u8   | f32, bf16, f16, s8/u8, f64   |
-| Training   | f32, bf16          | f32, bf16, f64               |
+| Usage mode | CPU                     | GPU                          |
+| :---       | :---                    | :---                         |
+| Inference  | f32, bf16, f16, s8/u8   | f32, bf16, f16, s8/u8, f64   |
+| Training   | f32, bf16, f16          | f32, bf16, f64               |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning
@@ -117,7 +117,7 @@ types that oneDNN recognizes.
 | f32       | Intel SSE4.1
 | s8, u8    | Intel AVX2
 | bf16      | Intel DL Boost with bfloat16 support
-| f16       | not supported
+| f16       | Intel AVX512-FP16
 
 @note
   See @ref dev_guide_int8_computations in the Developer Guide for additional
@@ -137,6 +137,12 @@ types that oneDNN recognizes.
 
 @note 
   f64 configuration is not available for the CPU engine.
+
+@note
+  The current f16 CPU instructions accumulate to f16. To avoid overflow, the f16
+  primitives might up-convert the data to f32 before performing math operations.
+  This can lead to scenarios where a f16 primitive may perform slower than
+  similar f32 primitive.
 
 ### Intel(R) Processor Graphics and Xe Architecture graphics
 oneDNN performance optimizations for Intel Processor graphics and

@@ -90,7 +90,7 @@ The logsoftmax primitive supports the following combinations of data types:
 
 | Propagation        | Source / Destination
 | :--                | :--
-| forward / backward | bf16, f32
+| forward / backward | bf16, f32, f16
 
 ### Data Representation
 

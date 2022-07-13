@@ -31,15 +31,15 @@ namespace x64 {
 ///     hardware will be used for BRGEMM kernel generation
 /// @param type Type of batch
 /// @param dt_a Data type of A matrix, can be
-///     AVX512: f32, u8(row-major layout), s8(column-major layout), bf16
+///     AVX512: f32, u8(row-major layout), s8(column-major layout), bf16, f16
 ///     AMX: u8, s8, bf16
 /// @param dt_b Data type of B matrix
-///     AVX512: f32, s8(row-major layout), u8(column-major layout), bf16
+///     AVX512: f32, s8(row-major layout), u8(column-major layout), bf16, f16
 ///     AMX: u8, s8, bf16
 /// @note
 ///     Data type of matrix C depends on data types of matrices A and B
 ///     If A and B have integer u8/s8 data type, C has int32 data type
-///     If A and B have bfloat16 or f32 data type, C has f32 data type
+///     If A and B have bf16 or f16 or f32 data type, C has f32 data type
 /// @param transA Specifies the form of A used in the matrix multiplication
 ///        'false' - A is not transposed, 'true' - A is transposed
 /// @param transB Specifies the form of B used in the matrix multiplication
@@ -76,12 +76,12 @@ status_t DNNL_API brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 ///     If isa is equal to 'isa_any' maximum supported ISA on current
 ///     hardware will be used for BRGEMM kernel generation
 /// @param type Type of batch
-/// @param dt_a Data type of A matrix can be: f32, u8, bf16
-/// @param dt_b Data type of B vector can be: f32, s8, bf16
+/// @param dt_a Data type of A matrix can be: f32, u8, bf16, f16
+/// @param dt_b Data type of B vector can be: f32, s8, bf16, f16
 /// @note
 ///     Data type of matrix C depends on data types of matrices A and vector B
 ///     If A and B have integer u8/s8 data type, C has int32 data type
-///     If A and B have bfloat16 or f32 data type, C has f32 data type
+///     If A and B have bf16 or f16 or f32 data type, C has f32 data type
 /// @param transA Specifies the form of A used in the matrix multiplication
 ///        'false' - A is not transposed, 'true' - A is transposed
 /// @param layout Specifies whether two-dimensional array storage is row-major
@@ -112,7 +112,7 @@ status_t DNNL_API brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 /// @param LDD Specifies the leading dimension of matrix D
 ///        LDD must be at least max(1, N)
 /// @param dt_bias Specifies the data type Bias
-///     Can be u8, s8, s32, bf16 or fp32
+///     Can be u8, s8, s32, bf16, f16 or fp32
 ///
 status_t DNNL_API brgemm_desc_set_postops(brgemm_t *brg,
         const primitive_attr_t *attr, const memory_desc_t *dst_md, int LDD,
@@ -151,7 +151,7 @@ status_t DNNL_API brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 ///     In row major mode matrix B (matrix A for column major) is expected to be
 ///     in a VNNI-friendly format, which requires 4 consecutive elements of K
 ///     dimension for int8 data type, 2 elements for bfloat16 data type and no
-///     requirements for float data type.
+///     requirements for f32 and f16 data types.
 ///
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch

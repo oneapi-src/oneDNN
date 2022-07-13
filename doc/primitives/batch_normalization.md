@@ -181,8 +181,7 @@ The operation supports the following combinations of data types:
 
 | Propagation        | Source / Destination | Mean / Variance / ScaleShift
 | :--                | :--                  | :--
-| forward / backward | f32, bf16            | f32
-| forward            | f16                  | f32
+| forward / backward | f32, bf16, f16       | f32
 | forward            | s8                   | f32
 
 @warning

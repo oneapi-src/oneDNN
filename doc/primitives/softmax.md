@@ -105,12 +105,10 @@ The following attributes are supported by the softmax primitive:
 
 The softmax primitive supports the following combinations of data types:
 
-| Propagation        | Source            | Destination |
-| :--                | :--               | :--         |
-| forward / backward | f32, bf16         | f32, bf16   |
-| forward            | f16               | f16         |
-| forward            | f32, bf16, u8, s8 | u8, s8      |
-| forward            | u8, s8            | f32, bf16   |
+| Propagation        | Source                 | Destination            |
+| :--                | :--                    | :--                    |
+| forward            | f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8 |
+| backward           | f32, bf16, f16         | f32, bf16, f16         |
 
 ### Data Representation
 

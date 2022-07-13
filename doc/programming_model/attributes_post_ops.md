@@ -212,6 +212,7 @@ Supported data types
 | u8, s8                           | u8, s8, s32, f32                   | s8                                  | f32, s32
 | f32                              | f32                                | f32                                 | f32
 | bf16                             | bf16, f32                          | bf16                                | f32, bf16
+| f16                              | f16, f32                           | f16                                 | f32, f16
 
 @note
   * Currently only supported for 2D 1x1 convolution.
@@ -228,6 +229,9 @@ Supported data types
     intermediate object is utilized in other places in user application, its
     lifetime has to be handled by user separately since the library does not
     provide a mechanism to query an intermediate output of base convolution.
+  
+  * Currently, f16 support for depthwise fusion is only through reference fusion
+    implementation. Thus, performance gain is not expected for this data type. 
 
 @anchor dev_guide_attributes_post_ops_binary
 ### Binary Post-op

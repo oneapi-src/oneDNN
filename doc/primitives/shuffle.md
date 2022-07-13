@@ -82,7 +82,7 @@ The shuffle primitive supports the following combinations of data types:
 
 | Propagation        | Source / Destination
 | :--                | :--
-| forward / backward | f32, bf16
+| forward / backward | f32, bf16, f16
 | forward            | s32, s8, u8
 
 @warning
