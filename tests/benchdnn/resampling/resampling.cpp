@@ -121,31 +121,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // No sense to test zero trust for upsampling since it produces valid zeros.
     // TODO: validate this once again.
     cmp.set_zero_trust_percent(99.f);
-
-    // Resampling on integer data types may result in sporadic order of
-    // operations. This may cause a difference around `x.5` floating-point, and
-    // can be rounded either way to `x` or to `x+1` which can't be fixed by
-    // filling.
-    const auto resampling_add_check
-            = [&](const compare::compare_t::driver_check_func_args_t &args) {
-                  if (!is_integral_dt(args.dt)) return false;
-                  // Check that original value is close to x.5f
-                  static constexpr float small_eps = 9e-6;
-                  if (fabsf((floorf(args.exp_f32) + 0.5f) - args.exp_f32)
-                          >= small_eps)
-                      return false;
-                  // If it was, check that exp and got values reside on opposite
-                  // sides of it.
-                  if (args.exp == floorf(args.exp_f32))
-                      return args.got == ceilf(args.exp_f32);
-                  else if (args.exp == ceilf(args.exp_f32))
-                      return args.got == floorf(args.exp_f32);
-                  else {
-                      assert(!"unexpected scenario");
-                      return false;
-                  }
-              };
-    if (prb->alg == linear) cmp.set_driver_check_function(resampling_add_check);
 }
 
 int doit(const prb_t *prb, res_t *res) {

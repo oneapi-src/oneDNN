@@ -221,6 +221,26 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // first or second operand may be returned.
             if (!ok && has_binary_comparison_po(attr) && op_output_has_nans_)
                 ok = true;
+            // Some drivers (like pooling or resampling) on integer data types
+            // may result in sporadic order of operations. This may cause a
+            // difference around `x.5f` value, and can be rounded either way to
+            // `x` or `x + 1` which can't be fixed by filling.
+            if (!ok && is_integral_dt(args.dt)) {
+                // Check that original value is close to x.5f.
+                static constexpr float small_eps = 9e-6;
+                const float floor_val = floorf(args.exp_f32);
+                const float ceil_val = ceilf(args.exp_f32);
+                if (fabsf((floor_val + 0.5f) - args.exp_f32) < small_eps) {
+                    // If it is, check exp and got values are on opposite sides.
+                    if (args.exp == floor_val) {
+                        ok = args.got == ceil_val;
+                    } else if (args.exp == ceil_val) {
+                        ok = args.got == floor_val;
+                    } else {
+                        assert(!"unexpected scenario");
+                    }
+                }
+            }
         }
         // Update zero stats for mistrust testing.
         if (from_parallel && fabsf(args.got) == 0) zeros++;
