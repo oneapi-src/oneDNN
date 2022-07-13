@@ -212,7 +212,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             }
             // For eltwise it also may happen that threshold is really small,
             // but absolute difference is really big.
-            if (!ok && has_eltwise && (fabsf(args.exp) > 1e+6f)) {
+            if (!ok && has_eltwise && (fabsf(args.exp) > 1e+5f)) {
                 ok = args.rel_diff <= std::max(epsilon_dt(dt), 5e-7f);
             }
             // Binary MAX, MIN and comparison operations post-ops may return
