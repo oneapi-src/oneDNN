@@ -397,7 +397,8 @@ _jit_uni_x8s8s32x_deconv_fwd_kernel<isa,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d)
     : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
     , jcp_(ajcp)
-    , postops_injector_(nullptr) {
+    , postops_injector_(nullptr)
+    , ker_max_regs_(jcp_.has_vnni ? 14 : 12) {
 
     if (jcp_.with_eltwise || jcp_.with_binary || jcp_.with_sum) {
         const std::size_t tail_size = get_tail_size();
@@ -428,7 +429,7 @@ template <cpu_isa_t isa, typename Vmm>
 Vmm _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::vmm_out(
         int i_ur, int i_oc) const {
     const int idx = i_ur * jcp_.nb_oc_blocking + i_oc;
-    assert(idx < KER_MAX_REG_IDX);
+    assert(idx < ker_max_regs_);
     /* remap the reg indices to avoid using xmm0 in eltwise injector */
     return Vmm(15 - idx);
 }
@@ -437,7 +438,7 @@ template <cpu_isa_t isa, typename Vmm>
 Vmm _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::vmm_inp(
         int i_ic, int nb_x_blocking) const {
     const int idx = i_ic + nb_x_blocking * jcp_.ur_w;
-    assert(idx < KER_MAX_REG_IDX);
+    assert(idx < ker_max_regs_);
     return Vmm(15 - idx);
 }
 

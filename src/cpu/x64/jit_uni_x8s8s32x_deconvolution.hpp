@@ -60,7 +60,7 @@ private:
     using reg64_t = const Xbyak::Reg64;
 
     static constexpr dim_t IC_SUB_STEP = 4;
-    static constexpr dim_t KER_MAX_REG_IDX = 13;
+    const int ker_max_regs_ = -1;
 
     enum ker_block_t {
         no_last_block = 0x1U,
