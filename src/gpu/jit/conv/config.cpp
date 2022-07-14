@@ -532,19 +532,70 @@ static std::string build_tag(const std::vector<int> &inner_blocks,
     return tag;
 }
 
+auto pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
+    int blocks[3] = {b0, b1, b2};
+    int prev_blk = 1;
+    for (int i = 0; i < 3; i++) {
+        if (blocks[i] == 0) continue;
+        if (dim < blocks[i]) return prev_blk;
+        prev_blk = blocks[i];
+    }
+    return prev_blk;
+};
+
+struct nc_block_t {
+    nc_block_t(int n_block, int c_block)
+        : n_block_(n_block), c_block_(c_block) {}
+
+    int n_block() { return n_block_; }
+    int c_block() { return c_block_; }
+
+    // Ideally, this should only depend on data type, direction, mb, c, and g to
+    // enable the same src/dst formats and avoid reorders between convolutions
+    static nc_block_t get_default_blocking(
+            type_t type, bool is_bwd_d, bool is_dw, int n, int c, int g) {
+
+        // Prefer blk if 2 * blk_dim > blk. Since blk_dim blocking is based on
+        // simd size, computational efficiency is the same.
+        auto small_c_blk = [&]() {
+            if (type.size() >= 4)
+                return 1;
+            else if (is_bwd_d)
+                // Bwd_d implementation does not support small channel block
+                return 1;
+            else
+                return 4 / type.size();
+        }();
+        auto default_c_blk = type.size() == 1 ? 32 : 16;
+        auto blk_dim = is_dw ? g : c;
+        auto c_block = pick_block(2 * blk_dim - 1, small_c_blk, default_c_blk);
+
+        // Non-depthwise convolutions currently require channel is a multiple of
+        // c_block. If that implementation restriction is removed, this logic
+        // could be removed.
+        if (g > 1 && !is_dw && c % c_block != 0) c_block = 1;
+
+        auto n_block = [&]() {
+            auto default_n_blk = type.size() < 4 ? 32 : 16;
+            if (c_block == 1)
+                return 1;
+            else if (c_block == small_c_blk)
+                return pick_block(n, 8, 16);
+            else
+                return pick_block(n, 16, default_n_blk);
+        }();
+
+        return nc_block_t(n_block, c_block);
+    }
+
+private:
+    int n_block_;
+    int c_block_;
+};
+
 void conv_config_t::init_data_tags(bool allow_src_reorder,
         bool allow_wei_reorder, bool allow_dst_reorder, std::string &src_tag,
         std::string &wei_tag, std::string &dst_tag, std::string &user_wei_tag) {
-    auto pick_block = [&](int dim, int b0, int b1 = 0, int b2 = 0) {
-        int blocks[3] = {b0, b1, b2};
-        int prev_blk = 1;
-        for (int i = 0; i < 3; i++) {
-            if (blocks[i] == 0) continue;
-            if (dim < blocks[i]) return prev_blk;
-            prev_blk = blocks[i];
-        }
-        return prev_blk;
-    };
 
     bool is_src_byte
             = utils::one_of(src_data_type, data_type::s8, data_type::u8);
@@ -566,54 +617,73 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
     // dpas requires ic to go before oc in innermost blocks for weights.
     if (!is_mad) std::swap(wei_idxs[1], wei_idxs[2]);
 
-    // Set blocks for source layout.
-    int src_n_blk = 1;
-    int src_c_blk = 1;
-    if (is_small_ic() && !is_dw && !is_bwd_d) {
-        if (is_dp_fma() && is_bwd_w && allow_src_reorder) {
-            src_c_blk = 4;
-            src_n_blk = pick_block(mb, 32 / src_type_size);
-            std::swap(src_idxs[0], src_idxs[1]);
-        } else if (is_dp_fma()) {
-            src_c_blk = 4 / src_type_size;
-            src_n_blk = pick_block(mb, 8, 16);
+    nc_block_t src_blk(1, 1), dst_blk(1, 1);
+    if (is_bwd_w) {
+        // The BWD_W implementation has some issues that prevent using
+        // consolidated blocking logic. This is mainly due to incorreclty
+        // handling some necessary layout transformations. This branch should be
+        // merged with the else branch after those issues are fixed.
+
+        // Set blocks for source layout.
+        int src_n_blk = 1;
+        int src_c_blk = 1;
+        if (is_small_ic() && !is_dw) {
+            if (is_dp_fma() && allow_src_reorder) {
+                src_c_blk = 4;
+                src_n_blk = pick_block(mb, 32 / src_type_size);
+                std::swap(src_idxs[0], src_idxs[1]);
+            } else if (is_dp_fma()) {
+                src_c_blk = 4 / src_type_size;
+                src_n_blk = pick_block(mb, 8, 16);
+            }
+        } else if (is_mad && is_f32_conv()) {
+            src_c_blk = (is_src_byte ? 32 : 16);
+            src_n_blk = pick_block(mb, 16);
+        } else {
+            src_c_blk = (is_src_byte ? 32 : 16);
+            src_n_blk = pick_block(mb, 16, 32);
         }
-    } else if (is_mad && is_f32_conv()) {
-        src_c_blk = (is_src_byte ? 32 : 16);
-        src_n_blk = pick_block(mb, 16);
+
+        // Set blocks for destination layout.
+        int dst_n_blk = 1;
+        int dst_c_blk = 1;
+        if (is_mad && is_f32_conv()) {
+            dst_c_blk = (is_dst_byte ? 32 : 16);
+            dst_n_blk = pick_block(mb, 16);
+        } else {
+            dst_c_blk = (is_dst_byte ? 32 : 16);
+            dst_n_blk = pick_block(mb, 16, 32);
+        }
+
+        if (with_groups && g > 1 && !is_dw) {
+            if (ic % src_c_blk != 0) src_c_blk = 1;
+            if (oc % dst_c_blk != 0) dst_c_blk = 1;
+        }
+
+        if (is_mad) {
+            int i_dim = (is_dw ? g : ic);
+            int o_dim = (is_dw ? g : oc);
+            if (src_c_blk / 2 > i_dim) src_c_blk = 1;
+            if (dst_c_blk / 2 > o_dim) dst_c_blk = 1;
+        }
+
+        if (src_c_blk == 1) src_n_blk = 1;
+        if (dst_c_blk == 1) dst_n_blk = 1;
+
+        src_blk = nc_block_t(src_n_blk, src_c_blk);
+        dst_blk = nc_block_t(dst_n_blk, dst_c_blk);
     } else {
-        src_c_blk = (is_src_byte ? 32 : 16);
-        src_n_blk = pick_block(mb, 16, 32);
+        // Set blocks for src/dst layout.
+        src_blk = nc_block_t::get_default_blocking(
+                src_data_type, is_bwd_d, is_dw, mb, ic, g);
+        dst_blk = nc_block_t::get_default_blocking(
+                dst_data_type, is_bwd_d, is_dw, mb, oc, g);
     }
 
-    // Set blocks for destination layout.
-    int dst_n_blk = 1;
-    int dst_c_blk = 1;
-    if (is_mad && is_f32_conv()) {
-        dst_c_blk = (is_dst_byte ? 32 : 16);
-        dst_n_blk = pick_block(mb, 16);
-    } else {
-        dst_c_blk = (is_dst_byte ? 32 : 16);
-        dst_n_blk = pick_block(mb, 16, 32);
-    }
-
-    if (with_groups && g > 1 && !is_dw) {
-        if (ic % src_c_blk != 0) src_c_blk = 1;
-        if (oc % dst_c_blk != 0) dst_c_blk = 1;
-    }
-
-    if (is_mad) {
-        int i_dim = (is_dw ? g : ic);
-        int o_dim = (is_dw ? g : oc);
-        if (src_c_blk / 2 > i_dim) src_c_blk = 1;
-        if (dst_c_blk / 2 > o_dim) dst_c_blk = 1;
-        if (is_fwd && vec_size < dst_c_blk && o_dim <= vec_size) dst_c_blk = 1;
-        if (is_bwd_d && vec_size < src_c_blk && i_dim <= vec_size)
-            src_c_blk = 1;
-    }
-
-    if (src_c_blk == 1) src_n_blk = 1;
-    if (dst_c_blk == 1) dst_n_blk = 1;
+    src_tag = build_tag({src_blk.n_block(), src_blk.c_block()}, {1, 1},
+            {'a', 'b'}, src_idxs);
+    dst_tag = build_tag({dst_blk.n_block(), dst_blk.c_block()}, {1, 1},
+            {'a', 'b'}, dst_idxs);
 
     // Set blocks for weights layout.
     int wei_g_blk = 1;
@@ -650,9 +720,6 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
             if (is_src_byte) wei_o_blk_outer = 32 / vec_size;
         }
     }
-
-    src_tag = build_tag({src_n_blk, src_c_blk}, {1, 1}, {'a', 'b'}, src_idxs);
-    dst_tag = build_tag({dst_n_blk, dst_c_blk}, {1, 1}, {'a', 'b'}, dst_idxs);
 
     auto common_wei_tag = build_tag({wei_g_blk, wei_o_blk, wei_i_blk},
             {1, wei_o_blk_outer, wei_i_blk_outer}, wei_letters, wei_idxs);
