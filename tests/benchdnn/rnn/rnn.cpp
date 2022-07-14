@@ -764,6 +764,10 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+        if (prb.is_s8() && prb.alg == VANILLA_LSTM) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
         // Implemented only for CPU
         if (prb.cfg[BIAS].dt == dnnl_bf16 || prb.cfg[SRC_ITER_C].dt == dnnl_bf16
                 || prb.cfg[DST_ITER_C].dt == dnnl_bf16) {
