@@ -218,6 +218,7 @@ public:
     static int max_slm_size_per_tg(
             gpu_arch_t gpu_arch, bool large_grf_mode = false);
     static int slm_memory_bank_count(gpu_arch_t gpu_arch);
+    static int slm_memory_bank_granularity(gpu_arch_t gpu_arch);
     size_t llc_cache_size() const { return llc_cache_size_; }
 
     const runtime_version_t &runtime_version() const {
