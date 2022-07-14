@@ -292,6 +292,40 @@ inline bool is_integral_dt(data_type_t dt) {
     return utils::one_of(dt, s32, s8, u8);
 }
 
+template <typename data_t>
+inline void cvt_from_float(data_t *out, const float *inp, size_t nelems) {
+    assert(!"unimplemented");
+}
+
+template <typename data_t>
+inline void cvt_to_float(float *out, const data_t *inp, size_t nelems) {
+    assert(!"unimplemented");
+}
+
+template <>
+inline void cvt_from_float<bfloat16_t>(
+        bfloat16_t *out, const float *inp, size_t nelems) {
+    cvt_float_to_bfloat16(out, inp, nelems);
+}
+
+template <>
+inline void cvt_to_float<bfloat16_t>(
+        float *out, const bfloat16_t *inp, size_t nelems) {
+    cvt_bfloat16_to_float(out, inp, nelems);
+}
+
+template <>
+inline void cvt_from_float<float16_t>(
+        float16_t *out, const float *inp, size_t nelems) {
+    cvt_float_to_float16(out, inp, nelems);
+}
+
+template <>
+inline void cvt_to_float<float16_t>(
+        float *out, const float16_t *inp, size_t nelems) {
+    cvt_float16_to_float(out, inp, nelems);
+}
+
 } // namespace types
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
