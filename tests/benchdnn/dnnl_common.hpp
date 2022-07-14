@@ -577,15 +577,17 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     engine_t engine(engine_tgt_kind);
 #endif
 
-    create_primitive(primw, pdw, engine, init_pd_func, prb, res, dir, hint,
-            is_service_prim);
+    SAFE(create_primitive(primw, pdw, engine, init_pd_func, prb, res, dir, hint,
+                 is_service_prim),
+            WARN);
     if (res->state == SKIPPED) return OK;
 
 #endif
     // The second (if the cache is enabled) primitive creation using the global
     // test engine. This primitive is expected to come from the cache.
-    create_primitive(primw, pdw, get_test_engine(), init_pd_func, prb, res, dir,
-            hint, is_service_prim);
+    SAFE(create_primitive(primw, pdw, get_test_engine(), init_pd_func, prb, res,
+                 dir, hint, is_service_prim),
+            WARN);
     if (res->state == SKIPPED) return OK;
 
     // Further checks are only for tested primitives.
