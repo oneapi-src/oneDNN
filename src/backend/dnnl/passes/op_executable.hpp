@@ -315,7 +315,7 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     // create primitive desc with strided activation when:
     // 1) activation has 4 dimensions and layout is acbd since oneDNN has
     //    optimized kernel
-    // 2) activation has 2 dimensions and device kind is gpu for avoiding
+    // 2) activation has 2/3 dimensions and device kind is gpu for avoiding
     //    blocked activation. This can reduce the cost for the reorder between
     //    plain and block layout, especially for users who compile partition
     //    with plain layout. The performance of strided primitive on GPU will be
@@ -323,7 +323,7 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     const bool use_strided_src
             = (src.dims().size() == 4
                       && is_format(src, dnnl::memory::format_tag::acbd))
-            || (src.dims().size() == 2
+            || ((src.dims().size() == 2 || src.dims().size() == 3)
                     && p_engine.get_kind() == dnnl::engine::kind::gpu);
     if (!use_strided_src) { src = to_format_any(src); }
     auto wei = make_dnnl_memory_desc(
@@ -334,7 +334,7 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
-    if (!(src.dims().size() == 2
+    if (!((src.dims().size() == 2 || src.dims().size() == 3)
                 && p_engine.get_kind() == dnnl::engine::kind::gpu)) {
         dst = to_format_any(dst);
     }
