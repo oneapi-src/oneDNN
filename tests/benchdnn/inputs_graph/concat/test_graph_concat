@@ -1,0 +1,8 @@
+--reset
+--batch=test_graph_concat_bfloat16_ci
+
+--reset
+--batch=test_graph_concat_int8_ci
+
+--reset
+--batch=test_graph_concat_ci

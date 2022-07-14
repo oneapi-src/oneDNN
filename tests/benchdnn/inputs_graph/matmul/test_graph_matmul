@@ -1,45 +1,8 @@
 --reset
---bia_dt=undef,f32
---attr-post-ops=,relu
---batch=shapes_2d
+--batch=test_graph_matmul_bfloat16_ci
 
 --reset
---attr-post-ops=sum,sum+relu
-16x1024:1024x1024:16x1024
+--batch=test_graph_matmul_ci
 
 --reset
---attr-post-ops=clip_v2:-1:1
-384x4096:4096x1024:384x1024
-
-# linear cases
---reset
---bia_dt=undef,f32
-# enable the following knob when accuracy issue of gelu_erf is addressed.
-# --attr-post-ops=elu:1.0,gelu_erf
---attr-post-ops=elu:1.0
-# enable the following shapes when accuracy issue of elu is addressed.
-# --batch=shapes_2d
-1x2048:2048x1000:1x1000
-
-# matmul + binary-add
---reset
---bia_dt=undef,f32
---attr-post-ops=add:f32:common,add:f32:per_oc
-16x1024:1024x1024:16x1024
-384x4096:4096x1024:384x1024
-
-# matmul BERT Large SQuAD 4D
---reset
---batch=shapes_bert_large_squad_4d
-
-# matmul BERT Large SQuAD 3D
---reset
---bia_dt=f32
-# applying bias to 3rd dimension
---bia_mask=4
---batch=shapes_bert_large_squad_3d
-
-# matmul int8 2D
---reset
---batch=test_graph_matmul_int8
-
+--batch=test_graph_matmul_int8_ci

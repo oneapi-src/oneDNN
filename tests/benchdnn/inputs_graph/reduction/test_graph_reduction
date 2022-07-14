@@ -1,0 +1,5 @@
+--reset
+--batch=test_graph_reduction_bf16_ci
+
+--reset
+--batch=test_graph_reduction_ci

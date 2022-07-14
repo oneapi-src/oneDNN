@@ -287,8 +287,10 @@ foreach(driver ${all_graph_drivers})
             inputs_graph/${driver}/test_*_gpu)
     file(GLOB test_files_ci RELATIVE ${driver_dir}
             inputs_graph/${driver}/test_*_ci)
+    file(GLOB test_files_main RELATIVE ${driver_dir}
+            inputs_graph/${driver}/test_graph_${driver})
 
-    # For cpu build option only test *_ci except *_gpu_ci;
+    # For cpu build option only test *_ci(test_graph_${driver}) except *_gpu_ci;
     # For gpu build option only test *_gpu_ci
     if(DNNL_GRAPH_TEST_SET EQUAL DNNL_GRAPH_TEST_SET_CI)
         # gpu_ci files may happen if cpu coverage can not be used on gpu
@@ -303,23 +305,23 @@ foreach(driver ${all_graph_drivers})
                 register_all_graph_tests(gpu "C" "G" "${driver}" "${test_files_gpu_ci}")
             endif()
         else()
-            register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_ci}")
+            register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_main}")
         endif()
     endif()
 
-    # nightly test *_ci. For *_gpu_ci, uses gpu engine, others use cpu engine.
+    # nightly: test_grpah_xxx(xxx represents driver name, include *.ci except *_gpu_ci) files used for both cpu and gpu.
     if(DNNL_GRAPH_TEST_SET GREATER DNNL_GRAPH_TEST_SET_CI)
-        # gpu_ci files may happen if cpu coverage can not be used on gpu
-        # Filter out gpu_ci inputs from ci
-        foreach(test_file ${test_files_gpu_ci})
-            string(REPLACE "${test_file}" "" test_files_ci "${test_files_ci}")
-        endforeach()
+        # special case1：conv use specific _gpu(depthwise test for cpu only) test cases for nightly.
+        string(REPLACE "test_graph_conv" "test_graph_conv_gpu" test_files_main "${test_files_main}")
+        # special case2：deconv use specific _gpu(exp post-ops for cpu only) test cases for nightly.
+        # TODO: remove this line after onednn fix the bug.
+        string(REPLACE "test_graph_deconv" "test_graph_deconv_gpu" test_files_main "${test_files_main}")
 
         if(has_gpu)
-            if(test_files_gpu_ci)
-                register_all_graph_tests(gpu "C" "G" "${driver}" "${test_files_gpu_ci}")
-            endif()
+            register_all_graph_tests(gpu "C" "G" "${driver}" "${test_files_main}")
         endif()
-        register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_ci}")
+        if(has_cpu)
+            register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_main}")
+        endif()
     endif()
 endforeach()

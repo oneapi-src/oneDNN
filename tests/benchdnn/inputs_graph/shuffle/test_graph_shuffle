@@ -1,0 +1,2 @@
+--reset
+--batch=test_graph_shuffle_ci

@@ -9,9 +9,3 @@
 
 --reset
 --batch=test_graph_conv_ci
-
---reset
---batch=test_conv_fused_depthwise_ci
-
---reset
---batch=test_conv_fused_depthwise_bf16_ci

@@ -1,6 +1,5 @@
 --reset
+--batch=test_graph_pool_ci
 
---alg=MAX,AVG_NP,AVG_P
---cfg=f32
---dir=FWD_I
---batch=shapes_2d
+--reset
+--batch=test_graph_pool_int8_ci
