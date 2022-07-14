@@ -37,11 +37,11 @@ status_t DNNL_GRAPH_API dnnl_graph_tensor_destroy(tensor_t *tensor) {
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
-        const tensor_t *tensor, data_type_t type, void **handle) {
+status_t DNNL_GRAPH_API dnnl_graph_tensor_get_data_handle(
+        const tensor_t *tensor, void **handle) {
     if (utils::any_null(tensor, handle)) return status::invalid_arguments;
 
-    *handle = tensor->get_data_handle_if_is(type);
+    *handle = tensor->get_data_handle();
     return status::success;
 }
 

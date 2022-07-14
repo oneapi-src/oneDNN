@@ -166,49 +166,6 @@ struct error : public std::exception {
 template <bool B>
 using requires = typename std::enable_if<B, bool>::type;
 
-template <typename T, requires<std::is_same<T, float>::value> = true>
-constexpr dnnl_graph_data_type_t get_data_type() {
-    return dnnl_graph_f32;
-}
-
-template <typename T, requires<std::is_same<T, int8_t>::value> = true>
-constexpr dnnl_graph_data_type_t get_data_type() {
-    return dnnl_graph_s8;
-}
-
-template <typename T, requires<std::is_same<T, uint8_t>::value> = true>
-constexpr dnnl_graph_data_type_t get_data_type() {
-    return dnnl_graph_u8;
-}
-
-// TODO(wuxun): now use int16 to simulate float16, need fix in the future
-template <typename T, requires<std::is_same<T, int16_t>::value> = true>
-constexpr dnnl_graph_data_type_t get_data_type() {
-    return dnnl_graph_f16;
-}
-
-// TODO(wuxun): now use uint16 to simulate Bfloat16, need fix in the future
-template <typename T, requires<std::is_same<T, uint16_t>::value> = true>
-constexpr dnnl_graph_data_type_t get_data_type() {
-    return dnnl_graph_bf16;
-}
-
-template <typename T, requires<std::is_same<T, bool>::value> = true>
-constexpr dnnl_graph_data_type_t get_data_type() {
-    return dnnl_graph_boolean;
-}
-
-template <typename T,
-        requires<!std::is_same<T, float>::value
-                && !std::is_same<T, int16_t>::value
-                && !std::is_same<T, uint16_t>::value
-                && !std::is_same<T, int8_t>::value
-                && !std::is_same<T, uint8_t>::value
-                && !std::is_same<T, bool>::value> = true>
-constexpr dnnl_graph_data_type_t get_data_type() {
-    return dnnl_graph_data_type_undef;
-}
-
 /// @endcond
 
 /// @} dnnl_graph_api_utils
@@ -739,17 +696,14 @@ public:
         reset(t);
     }
 
-    /// Returns the underlying memory handle with the specific data type.
+    /// Returns the underlying memory handle from a tensor.
     ///
-    /// @tparam T Type of the request buffer.
     /// @returns The underlying memory handle.
-    template <typename T>
-    typename std::add_pointer<T>::type get_data_handle() const {
-        void *handle {};
-        error::check_succeed(dnnl_graph_tensor_get_if_type(
-                                     get(), get_data_type<T>(), &handle),
+    void *get_data_handle() const {
+        void *handle = nullptr;
+        error::check_succeed(dnnl_graph_tensor_get_data_handle(get(), &handle),
                 "could not get data handle from the tensor");
-        return reinterpret_cast<typename std::add_pointer<T>::type>(handle);
+        return handle;
     }
 
     /// Sets the underlying memory handle.

@@ -175,17 +175,14 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_tensor_create(
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_tensor_destroy(
         dnnl_graph_tensor_t tensor);
 
-/// Gets the data handle of a tensor. If `type` doesn't match tensor's data
-/// type, nullptr will be returned.
+/// Gets the underlying memory handle of a tensor.
 ///
 /// @param tensor The input tensor.
-/// @param type Expected data type of the tensor.
 /// @param handle Pointer to the data of input tensor.
 /// @returns #dnnl_graph_success on success or a status describing the error
 ///     otherwise.
-dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
-        const_dnnl_graph_tensor_t tensor, dnnl_graph_data_type_t type,
-        void **handle);
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_tensor_get_data_handle(
+        const_dnnl_graph_tensor_t tensor, void **handle);
 
 /// Set data handle for a tensor.
 ///
