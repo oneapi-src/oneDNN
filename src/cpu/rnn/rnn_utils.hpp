@@ -896,7 +896,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                 case f32s8f32f32:
                 case s8s8s8s8:
                 case f32s8f32s8:
-                    st = gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p,
+                    st = gemm_s8s8s32_pack_get_size("A", "N", "N", &m_p, &n_p,
                             &k_p, &m_p, &data_ld, &parts_pack_size[p],
                             &pack_part);
                     break;

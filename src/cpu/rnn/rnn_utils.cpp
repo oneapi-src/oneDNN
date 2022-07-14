@@ -268,6 +268,11 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                 break;
             default: assert(!"unsupported weights type");
         }
+        if (rnn.is_signed_int8_conf()) {
+            weights_md.extra.flags
+                    = 0 | memory_extra_flags::rnn_s8s8_compensation;
+            weights_md.extra.compensation_mask = 0;
+        }
     } else {
         using namespace format_tag;
         if (rnn.is_brgemm) {

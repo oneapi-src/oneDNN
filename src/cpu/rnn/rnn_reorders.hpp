@@ -314,6 +314,10 @@ template <data_type_t type_i>
 struct rnn_weights_reorder_s8_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
+        typedef dnnl_status_t (*gemm_pack_f)(const char *identifier,
+                const char *transa, const char *transb, const dim_t *M,
+                const dim_t *N, const dim_t *K, const dim_t *lda,
+                const dim_t *ldb, const void *src, void *dst);
 
         DECLARE_COMMON_PD_T("rnn_weights_reorder_s8", rnn_weights_reorder_s8_t);
 
@@ -333,6 +337,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
         format_tag_t otag_ = format_tag::undef;
         size_t thr_scratch_comp_sz_ = 0;
         int nthr_; // To not exceed the limit in execute used for set up.
+        gemm_pack_f gemm_pack;
 
     private:
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
@@ -389,6 +394,10 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
                 return unimplemented;
             }
             _pd->init_scratchpad_md();
+            const bool is_s8s8 = dst_md->extra.flags
+                    & memory_extra_flags::rnn_s8s8_compensation;
+            _pd->gemm_pack = is_s8s8 ? &gemm_s8s8s32_pack : &gemm_s8u8s32_pack;
+
             return safe_ptr_assign(*reorder_pd, _pd);
 #undef PD_CHECK_ARG
         }
@@ -514,7 +523,7 @@ private:
                     dim_t m_p = parts[p] * O;
                     dim_t k_p = I;
                     dim_t lda = (dim_t)G * O;
-                    CHECK(gemm_s8u8s32_pack("A", "N", "N", &m_p, &n, &k_p, &lda,
+                    CHECK(pd()->gemm_pack("A", "N", "N", &m_p, &n, &k_p, &lda,
                             &ldb, scratch_quantized + off_igo(l, d, 0, g, 0),
                             to_pack));
                     to_pack += size_packed_cell[p];
