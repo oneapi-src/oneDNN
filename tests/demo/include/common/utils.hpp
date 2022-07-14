@@ -69,31 +69,6 @@
                     "Not supported data type in current example."); \
     }
 
-// get exact data handle from tensor according to the data type
-void *get_handle_from_tensor(const dnnl::graph::tensor &src,
-        dnnl::graph::logical_tensor::data_type dtype) {
-    switch (dtype) {
-        case dnnl::graph::logical_tensor::data_type::f32:
-            return src.get_data_handle<float>();
-            break;
-        case dnnl::graph::logical_tensor::data_type::f16:
-            return src.get_data_handle<int16_t>();
-            break;
-        case dnnl::graph::logical_tensor::data_type::bf16:
-            return src.get_data_handle<uint16_t>();
-            break;
-        case dnnl::graph::logical_tensor::data_type::u8:
-            return src.get_data_handle<uint8_t>();
-            break;
-        case dnnl::graph::logical_tensor::data_type::s8:
-            return src.get_data_handle<int8_t>();
-            break;
-        default:
-            throw std::runtime_error(
-                    "Not supported data type in current example.");
-    }
-}
-
 dnnl::graph::op::kind opstr2kind(std::string kind) {
     const std::unordered_map<std::string, dnnl::graph::op::kind> op_map = {
             {"Abs", dnnl::graph::op::kind::Abs},

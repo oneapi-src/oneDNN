@@ -226,11 +226,11 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
     //     Step 6 : Check correctness of the output results
     std::cout << "Check correctness------------------------------";
     float expected_result = 256.0;
-    float *actual_output_ptr = tm.get(relu0_dst_desc.get_id()).get_data_handle<float>();
+    void *actual_output_ptr = tm.get(relu0_dst_desc.get_id()).get_data_handle();
     auto output_dims = relu0_dst_desc.get_dims();
     auto num_elem = product(output_dims);
     std::vector<float> expected_output(num_elem, expected_result);
-    compare_data(expected_output.data(), actual_output_ptr, num_elem);
+    compare_data(expected_output.data(), reinterpret_cast<float *>(actual_output_ptr), num_elem);
     std::cout << "Success!\n";
 
     std::cout << "============Run Example Successfully===========\n";

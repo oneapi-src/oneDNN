@@ -192,11 +192,11 @@ int main(int argc, char **argv) {
     std::cout << "Check correctness------------------------------";
     float expected_result = 64.0;
     for (size_t t_num=0; t_num < thread_num; t_num++) {
-        float *actual_output_ptr = tms[t_num].get(relu_dst_desc.get_id()).get_data_handle<float>();
+        void *actual_output_ptr = tms[t_num].get(relu_dst_desc.get_id()).get_data_handle();
         auto output_dims = relu_dst_desc.get_dims();
         auto num_elem = product(output_dims);
         std::vector<float> expected_output(num_elem, expected_result);
-        compare_data(expected_output.data(), actual_output_ptr, num_elem);
+        compare_data(expected_output.data(), reinterpret_cast<float *>(actual_output_ptr), num_elem);
     }
     std::cout << "Success!\n";
 

@@ -169,12 +169,12 @@ int main(int argc, char **argv) {
     // Step 6: Check correctness of the output results
     std::cout << "Check correctness------------------------------";
     float expected_result = 64.0;
-    float *actual_output_ptr
-            = tm.get(relu_dst_desc.get_id()).get_data_handle<float>();
+    void *actual_output_ptr = tm.get(relu_dst_desc.get_id()).get_data_handle();
     auto output_dims = relu_dst_desc.get_dims();
     auto num_elem = product(output_dims);
     std::vector<float> expected_output(num_elem, expected_result);
-    compare_data(expected_output.data(), actual_output_ptr, num_elem);
+    compare_data(expected_output.data(),
+            reinterpret_cast<float *>(actual_output_ptr), num_elem);
     std::cout << "Success!\n";
 
     // Step 7: Deserialize Graph
@@ -246,9 +246,10 @@ int main(int argc, char **argv) {
 
     // Step 9: Check correctness of the output results
     std::cout << "Check correctness of deserialized graph--------";
-    float *actual_output_ptr2
-            = tm2.get(relu_dst_desc.get_id()).get_data_handle<float>();
-    compare_data(expected_output.data(), actual_output_ptr2, num_elem);
+    void *actual_output_ptr2
+            = tm2.get(relu_dst_desc.get_id()).get_data_handle();
+    compare_data(expected_output.data(),
+            reinterpret_cast<float *>(actual_output_ptr2), num_elem);
     std::cout << "Success!\n";
     std::cout << "============Run Example Successfully===========\n";
 

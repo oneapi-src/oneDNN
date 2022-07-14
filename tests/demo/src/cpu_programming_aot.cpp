@@ -176,18 +176,19 @@ int cpu_programming_aot_tutorial(engine::kind engine_kind) {
     float expected_result_2 = (/*weight = */11 * 11 * /*channel = */3 + /*bias = */ + /*bias = */1.0f) + /*add*/1.0f;
 
     if (partitions.size() == 6) {
-        float *actual_output_ptr1 = tm.get(conv_dst_lt.get_id()).get_data_handle<float>();
+        void *actual_output_ptr1 = tm.get(conv_dst_lt.get_id()).get_data_handle();
         auto output_dims = conv_dst_lt.get_dims();
         auto num_elem = product(output_dims);
         std::vector<float> expected_output1(num_elem, expected_result_1);
-        compare_data(expected_output1.data(), actual_output_ptr1, num_elem, (float)1e-5, (float)1e-6);
+        compare_data(expected_output1.data(), reinterpret_cast<float *>(actual_output_ptr1),
+                num_elem, (float)1e-5, (float)1e-6);
     }
 
-    float *actual_output_ptr2 = tm.get(relu_dst_lt.get_id()).get_data_handle<float>();
+    void *actual_output_ptr2 = tm.get(relu_dst_lt.get_id()).get_data_handle();
     auto output_dims = relu_dst_lt.get_dims();
     auto num_elem = product(output_dims);
     std::vector<float> expected_output2(num_elem, expected_result_2);
-    compare_data(expected_output2.data(), actual_output_ptr2, num_elem);
+    compare_data(expected_output2.data(), reinterpret_cast<float *>(actual_output_ptr2), num_elem);
     std::cout << "Example passed successfully!\n";
     return 0;
 }

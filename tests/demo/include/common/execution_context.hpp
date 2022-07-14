@@ -273,8 +273,7 @@ public:
 
             // free original output buffer if it can be in-placed.
             buffer_map_[output_lts[output_lt_idx].get_id()].reset();
-            void *new_mem_ptr = get_handle_from_tensor(inputs[input_lt_idx],
-                    input_lts[input_lt_idx].get_data_type());
+            void *new_mem_ptr = inputs[input_lt_idx].get_data_handle();
             outputs[output_lt_idx].set_data_handle(new_mem_ptr);
             inplace_tensor_ids_.insert(output_id);
         }

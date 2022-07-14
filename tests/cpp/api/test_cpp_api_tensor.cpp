@@ -37,7 +37,7 @@ TEST(APITensor, CreateWithShape) {
     int n0 = 0;
     void *handle0 = &n0;
     tensor t_0 {lt_0, eng, handle0};
-    ASSERT_EQ(t_0.get_data_handle<float>(), handle0);
+    ASSERT_EQ(t_0.get_data_handle(), handle0);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     // 1D
@@ -46,7 +46,7 @@ TEST(APITensor, CreateWithShape) {
     std::vector<float> n1 {0, 1, 2};
     void *handle1 = n1.data();
     tensor t_1 {lt_1, eng, handle1};
-    ASSERT_EQ(t_1.get_data_handle<float>(), handle1);
+    ASSERT_EQ(t_1.get_data_handle(), handle1);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     // 2D
@@ -56,7 +56,7 @@ TEST(APITensor, CreateWithShape) {
     n2.resize(3 * 4);
     void *handle2 = n2.data();
     tensor t_2 {lt_2, eng, handle2};
-    ASSERT_EQ(t_2.get_data_handle<float>(), handle2);
+    ASSERT_EQ(t_2.get_data_handle(), handle2);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     // 3D
@@ -66,7 +66,7 @@ TEST(APITensor, CreateWithShape) {
     n3.resize(3 * 4 * 5);
     void *handle3 = n3.data();
     tensor t_3 {lt_3, eng, handle3};
-    ASSERT_EQ(t_3.get_data_handle<float>(), handle3);
+    ASSERT_EQ(t_3.get_data_handle(), handle3);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     // 4D
@@ -76,14 +76,14 @@ TEST(APITensor, CreateWithShape) {
     n4.resize(3 * 4 * 5 * 6);
     void *handle4 = n4.data();
     tensor t_4 {lt_4, eng, handle4};
-    ASSERT_EQ(t_4.get_data_handle<float>(), handle4);
+    ASSERT_EQ(t_4.get_data_handle(), handle4);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     std::vector<float> n5 {0};
     void *handle5 = n5.data();
     tensor t_5 {lt_0, eng, nullptr};
     t_5.set_data_handle(handle5);
-    ASSERT_EQ(t_5.get_data_handle<float>(), handle5);
+    ASSERT_EQ(t_5.get_data_handle(), handle5);
 }
 
 TEST(APITensor, ShallowCopy) {
@@ -103,7 +103,7 @@ TEST(APITensor, ShallowCopy) {
     tensor t_1 {lt_1, eng, handle};
     tensor t_2(t_1);
 
-    ASSERT_EQ(t_2.get_data_handle<float>(), handle);
+    ASSERT_EQ(t_2.get_data_handle(), handle);
 }
 
 TEST(APITensor, CreateWithLogicalTensorF32) {
@@ -114,7 +114,7 @@ TEST(APITensor, CreateWithLogicalTensorF32) {
             logical_tensor::layout_type::any};
     tensor t {lt, eng, nullptr};
 
-    ASSERT_EQ(t.get_data_handle<float>(), nullptr);
+    ASSERT_EQ(t.get_data_handle(), nullptr);
     ASSERT_EQ(t.get_engine().get_kind(), engine::kind::cpu);
 }
 
@@ -126,7 +126,7 @@ TEST(APITensor, CreateWithLogicalTensorS8) {
             0, logical_tensor::data_type::s8, logical_tensor::layout_type::any};
     tensor t {lt, eng, nullptr};
 
-    ASSERT_EQ(t.get_data_handle<float>(), nullptr);
+    ASSERT_EQ(t.get_data_handle(), nullptr);
     ASSERT_EQ(t.get_engine().get_kind(), engine::kind::cpu);
 }
 #endif
