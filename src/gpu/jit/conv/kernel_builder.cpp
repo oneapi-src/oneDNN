@@ -6592,6 +6592,8 @@ private:
     // stride between outer blocks allows to avoid duplicated banks.
     layout_t pad_slm_layout(
             const layout_t &layout, const grid_info_t &load_grid) const {
+        // EUs are not fused in XeHPC+ so no need to pad SLM.
+        if (cfg_.hw() >= ngen::HW::XeHPC) return layout;
         auto tg_dim0 = load_grid.dim(0);
         auto tg_dim1 = load_grid.dim(1);
         int type_size = layout.type().size();
@@ -6640,17 +6642,20 @@ private:
         int stride_step = 16;
         dim_t stride_beg = dense_stride_bytes;
         dim_t stride_end = 2 * dense_stride_bytes;
-        const int slm_banks = compute::device_info_t::slm_memory_bank_count(
-                convert_ngen_arch_to_dnnl(cfg_.hw()));
+        auto arch = convert_ngen_arch_to_dnnl(cfg_.hw());
+        const int slm_banks
+                = compute::device_info_t::slm_memory_bank_count(arch);
+        const int bank_granularity
+                = compute::device_info_t::slm_memory_bank_granularity(arch);
         for (dim_t s = stride_beg; s < stride_end; s += stride_step) {
             bool ok = true;
             for (dim_t off0 = 0; off0 < inner_bytes; off0 += write_step) {
                 // Check banks for a single SLM write.
                 std::vector<bool> found(slm_banks, false);
                 for (dim_t off = off0; off < off0 + write_step;
-                        off += sizeof(uint32_t)) {
-                    int bank0 = (off / sizeof(uint32_t)) % slm_banks;
-                    int bank1 = ((off + s) / sizeof(uint32_t)) % slm_banks;
+                        off += bank_granularity) {
+                    int bank0 = (off / bank_granularity) % slm_banks;
+                    int bank1 = ((off + s) / bank_granularity) % slm_banks;
                     if (found[bank0]) {
                         ok = false;
                         break;
