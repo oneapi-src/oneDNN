@@ -88,10 +88,16 @@ public:
     const std::array<expr_t, 3> &local_id() const { return local_id_; }
 
     static void compute_blocks(const layout_t &src, const layout_t &dst,
+            std::vector<int> &iter_blocks, std::vector<int> &loop_blocks,
+            std::vector<int> &tg_blocks, int max_iter_tile_bytes = 0,
+            int max_thr_tile_bytes = 0);
+
+    static void compute_blocks(const layout_t &src, const layout_t &dst,
             std::vector<int> &tile_blocks, std::vector<int> &tg_blocks);
 
     static void compute_grid(const layout_t &src, const layout_t &dst,
-            const std::vector<int> &tile_blocks,
+            const std::vector<int> &iter_blocks,
+            const std::vector<int> &loop_blocks,
             const std::vector<int> &tg_blocks, std::array<int, 3> &kernel_grid,
             std::array<int, 3> &tg_grid, std::vector<int> *dim2grid = nullptr);
 
@@ -100,6 +106,12 @@ public:
 
 private:
     void build();
+    bool try_build(const std::vector<int> &iter_blocks,
+            const std::vector<int> &loop_blocks,
+            const std::vector<int> &tg_blocks);
+
+    static const int default_max_iter_tile_bytes = 2048;
+    static const int default_max_thr_tile_bytes = 2048;
 
     hw_config_t hw_cfg_;
     const kernel_info_t &kernel_info_;
