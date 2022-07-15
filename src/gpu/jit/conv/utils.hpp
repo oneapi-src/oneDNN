@@ -168,10 +168,8 @@ bool is_same(const std::vector<T> &a, const std::vector<U> &b) {
 
 class error_stream_t {
 public:
-    error_stream_t(const char *file, int line, const char *assert_msg)
-        : file_(file), line_(line) {
-        out_ << "Assertion " << assert_msg << " failed at " << file_ << ":"
-             << line_ << std::endl;
+    error_stream_t(const char *file, int line, const char *assert_msg) {
+        data_ = new data_t(file, line, assert_msg);
     }
 
     // This is to be able use a steam object in short-circuit evaluation with
@@ -180,19 +178,37 @@ public:
 
     template <typename T>
     error_stream_t &operator<<(const T &t) {
-        out_ << t;
+        data_->out << t;
         return *this;
     }
 
-    ~error_stream_t() {
-        std::cerr << out_.str() << std::endl;
-        abort();
+    ~error_stream_t() noexcept(false) {
+        if (data_ == nullptr) return;
+
+        auto err = std::runtime_error(data_->out.str());
+        delete data_;
+        data_ = nullptr;
+
+        // This is techincally unsafe. Since error_stream_t is only used in
+        // debug builds and since it is only used by ir_assert() which signals
+        // an ill-defined program state, nested throws is not a concern.
+        throw err; // NOLINT
     }
 
 private:
-    const char *file_;
-    int line_;
-    std::ostringstream out_;
+    struct data_t {
+        data_t(const char *file, int line, const char *assert_msg)
+            : file(file), line(line) {
+            out << "Assertion " << assert_msg << " failed at " << file << ":"
+                << line << std::endl;
+        }
+
+        const char *file;
+        int line;
+        std::ostringstream out;
+    };
+
+    data_t *data_;
 };
 
 // Checks assertion and, in case of error, evaluates output operators to print

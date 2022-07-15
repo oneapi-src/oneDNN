@@ -196,13 +196,14 @@ public:
                 }
                 if (!kernels_[i]) return status::runtime_error;
             }
-        } catch (...) {
+        } catch (std::runtime_error &err) {
             // If verbose is enabled, print the primitive case and rethrow the
             // exception.
             if (get_verbose())
                 printf("onednn_verbose,error,%s\n",
                         primitive->pd()->info(engine));
-            throw;
+            std::cerr << err.what() << "\n";
+            return status::runtime_error;
         }
 
         return status::success;
