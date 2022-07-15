@@ -88,7 +88,7 @@ bool is_groups_ok(jit_brgemm_conv_conf_t &jcp) {
     // Enable grouped convs for the shapes not supported in direct convs
     // direct approach only supports int8/bf16 grouped conv
     // when channels per groups is at least multiple of 4
-    // and bf16 grouped conv not with layout nxc on jf_bf16 inpl
+    // and bf16 grouped conv with layout nxc on jit_bf16 impl
     // TODO: remove this condition after the restriction on small ic is removed
     return jcp.ngroups > 1
             && IMPLICATION(one_of(jcp.src_dt, u8, s8, bf16),
@@ -1705,6 +1705,21 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             // Enable the shapes not supported in direct convs
             && IMPLICATION(with_groups, is_groups_ok(jcp));
     if (is_grouped_small_ic) return status::unimplemented;
+
+    // Dispatch the shapes to VNNI for better performance
+    // TODO: optimize the perf of 3d shape with small ic and large spatial
+    const auto max_small_shapes_sz = jcp.is_1x1
+            ? static_cast<int32_t>(brg_blocking_t::L1) / 2
+            : static_cast<int32_t>(brg_blocking_t::L1);
+    const auto is_small_shape = is_amx(jcp.isa) && jcp.os <= 4 && jcp.ic <= 512
+            && jcp.mb * jcp.ngroups * jcp.ic * jcp.oc <= max_small_shapes_sz;
+    const auto is_3d_small_ic = is_amx(jcp.isa) && jcp.ndims == 5
+            && jcp.ic * jcp.oc <= 32 && jcp.od >= 128 && jcp.oh >= 128
+            && jcp.ow >= 128;
+    if (one_of(jcp.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_inference)
+            && (is_small_shape || is_3d_small_ic))
+        return status::unimplemented;
 
     jcp.s8s8_avx512 = jcp.src_dt == s8 && !is_amx(jcp.isa);
 

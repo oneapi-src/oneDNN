@@ -1005,6 +1005,14 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.src_dt = cd.src_desc.data_type;
     jcp.wei_dt = cd.weights_desc.data_type;
 
+    // Dispatch small shapes to VNNI for better performance
+    const auto is_small_shape = jcp.od * jcp.oh * jcp.ow <= 4 && jcp.ic <= 512
+            && jcp.mb * jcp.ngroups * jcp.ic * jcp.oc <= static_cast<int32_t>(
+                       platform::get_per_core_cache_size(1) / 2);
+    const auto is_3d_small_ic = jcp.ndims == 5 && jcp.ic * jcp.oc <= 32
+            && jcp.od >= 128 && jcp.oh >= 128 && jcp.ow >= 128;
+    if (is_small_shape || is_3d_small_ic) return status::unimplemented;
+
     const auto zp = attr.zero_points_;
     jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
     jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);

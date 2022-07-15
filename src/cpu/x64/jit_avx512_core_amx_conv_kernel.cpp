@@ -2308,6 +2308,18 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     if (jcp.is_depthwise)
         return status::unimplemented; // TODO: add support of DW convolution
 
+    // Dispatch small shapes to VNNI for better performance
+    const auto is_real_3d = (jcp.ndims == 5
+            && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1 || jcp.dilate_d > 0));
+    const auto is_supported_small_ic = jcp.ic <= 4 && !is_real_3d;
+    const auto is_small_shape = (jcp.od * jcp.oh * jcp.ow <= 4) && jcp.ic <= 512
+            && jcp.mb * jcp.ngroups * jcp.ic * jcp.oc <= static_cast<int32_t>(
+                       platform::get_per_core_cache_size(1));
+    const auto is_3d_small_ic = is_real_3d && jcp.ic * jcp.oc <= 32
+            && jcp.od >= 128 && jcp.oh >= 128 && jcp.ow >= 128;
+    if ((is_small_shape || is_3d_small_ic) && !is_supported_small_ic)
+        return status::unimplemented;
+
     const auto zp = attr.zero_points_;
     jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
     jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
@@ -2411,7 +2423,6 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
                 : rnd_up(jcp.ic_block_int_np, vnni_width);
         is_small_ic = jcp.ic_block_int_np < jcp.ic_block_int;
     }
-
     // k-remainders
     jcp.kw_per_tile = is_small_ic && !jcp.is_relo && jcp.dilate_w == 0
                     && jcp.stride_w <= jcp.kw // TODO: relax this restriction
