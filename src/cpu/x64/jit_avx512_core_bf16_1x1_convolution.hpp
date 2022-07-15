@@ -130,7 +130,25 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
 
         bool set_default_formats() {
             using namespace format_tag;
-            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+
+            const memory_desc_wrapper src_d(&src_md_);
+            const memory_desc_wrapper dst_d(&dst_md_);
+
+            const auto dat_tag_nxc = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
+            const auto dat_tag_nCx16c
+                    = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            const auto curr_src_tag
+                    = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
+            const auto curr_dst_tag
+                    = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
+            const auto is_data_layout_nxc
+                    = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                              src_d.format_kind() == format_kind::any)
+                    && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                            dst_d.format_kind() == format_kind::any)
+                    && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+
+            auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
             auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
                     OIw8i16o2i, gOIw8i16o2i, OIhw8i16o2i, gOIhw8i16o2i,
                     OIdhw8i16o2i, gOIdhw8i16o2i);
@@ -366,7 +384,23 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
         bool set_default_formats() {
             using namespace format_tag;
 
-            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            const memory_desc_wrapper diff_src_d(&diff_src_md_);
+            const memory_desc_wrapper diff_dst_d(&diff_dst_md_);
+
+            const auto dat_tag_nxc = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
+            const auto dat_tag_nCx16c
+                    = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            const auto curr_src_tag = diff_src_d.matches_one_of_tag(
+                    dat_tag_nxc, dat_tag_nCx16c);
+            const auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
+                    dat_tag_nxc, dat_tag_nCx16c);
+            const auto is_data_layout_nxc
+                    = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                              diff_src_d.format_kind() == format_kind::any)
+                    && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                            diff_dst_d.format_kind() == format_kind::any)
+                    && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+            auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
             auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
                     IOw8o16i2o, gIOw8o16i2o, IOhw8o16i2o, gIOhw8o16i2o,
                     IOdhw8o16i2o, gIOdhw8o16i2o);
@@ -465,7 +499,23 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
         bool set_default_formats() {
             using namespace format_tag;
 
-            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            const memory_desc_wrapper src_d(&src_md_);
+            const memory_desc_wrapper diff_dst_d(&diff_dst_md_);
+
+            const auto dat_tag_nxc = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
+            const auto dat_tag_nCx16c
+                    = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            const auto curr_src_tag
+                    = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
+            const auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
+                    dat_tag_nxc, dat_tag_nCx16c);
+            const auto is_data_layout_nxc
+                    = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                              src_d.format_kind() == format_kind::any)
+                    && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                            diff_dst_d.format_kind() == format_kind::any)
+                    && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+            auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
             auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
                     OIw16i16o, gOIw16i16o, OIhw16i16o, gOIhw16i16o, OIdhw16i16o,
                     gOIdhw16i16o);

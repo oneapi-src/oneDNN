@@ -847,8 +847,11 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             dat_tag_nCx8c, dat_tag_nCx4c, dat_tag_ncx);
     auto curr_dst_tag = dst_d.matches_one_of_tag(
             dat_tag_nxc, dat_tag_nCx16c, dat_tag_nCx8c, dat_tag_nCx4c);
-    bool is_data_layout_nxc
-            = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+    bool is_data_layout_nxc = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                                      src_d.format_kind() == format_kind::any)
+            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                    dst_d.format_kind() == format_kind::any)
+            && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
     jcp.is_1stconv = is_1stconv(jcp);
 
@@ -1912,7 +1915,11 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
             dat_tag_nxc, dat_tag_nCx16c, dat_tag_nCx8c, dat_tag_nCx4c);
     bool is_data_layout_nxc
-            = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+            = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                      diff_src_d.format_kind() == format_kind::any)
+            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                    diff_dst_d.format_kind() == format_kind::any)
+            && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
     jcp.is_1stconv = false;
 
@@ -3964,8 +3971,11 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             dat_tag_nxc, dat_tag_nCx16c, dat_tag_ncx);
     auto curr_dst_tag
             = diff_dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
-    bool is_data_layout_nxc
-            = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+    bool is_data_layout_nxc = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                                      src_d.format_kind() == format_kind::any)
+            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                    diff_dst_d.format_kind() == format_kind::any)
+            && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
     /* Optimization: when `output-width == 1' deploy a special case of the
      * JIT-Kernel by unrolling with regards to height instead of width for

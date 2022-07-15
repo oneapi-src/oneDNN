@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,7 +106,23 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
         bool set_default_formats() {
             using namespace format_tag;
 
-            auto dat_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            const memory_desc_wrapper src_d(&src_md_);
+            const memory_desc_wrapper dst_d(&dst_md_);
+
+            const auto dat_tag_nxc = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
+            const auto dat_tag_nCx8c
+                    = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            const auto curr_src_tag
+                    = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+            const auto curr_dst_tag
+                    = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+            const auto is_data_layout_nxc
+                    = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                              src_d.format_kind() == format_kind::any)
+                    && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                            dst_d.format_kind() == format_kind::any)
+                    && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+            auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
             auto wei_tag = with_groups()
                     ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
                     : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o);
