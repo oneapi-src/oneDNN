@@ -159,7 +159,8 @@ public:
                                            "enabled\n";
                                 kernels_.push_back(make_kernel<conv_kernel_t>(
                                         primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                        primitive->pd(), info, true));
+                                        primitive->pd(), info,
+                                        grf_mode_t::large));
                             } else {
                                 throw e;
                             }
@@ -173,7 +174,8 @@ public:
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
                                 primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
                                 info, src_layout, dst_layout,
-                                cfg.is_dpas_or_dpasw_fma()));
+                                cfg.is_dpas_or_dpasw_fma(),
+                                grf_mode_t::matches));
                         break;
                     }
                     case kernel_id_t::post_reorder: {
@@ -184,13 +186,15 @@ public:
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
                                 primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
                                 info, src_layout, dst_layout,
-                                cfg.is_dpas_or_dpasw_fma()));
+                                cfg.is_dpas_or_dpasw_fma(),
+                                grf_mode_t::matches));
                         break;
                     }
                     case kernel_id_t::zero_out:
                         kernels_.push_back(make_kernel<zero_out_kernel_t>(
                                 primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
-                                info, cfg.is_dpas_or_dpasw_fma()));
+                                info, cfg.is_dpas_or_dpasw_fma(),
+                                grf_mode_t::matches));
                         break;
                     default: ir_error_not_expected();
                 }

@@ -616,6 +616,13 @@ class expr_evaluator_t;
 template <ngen::HW hw>
 class ir_to_ngen_t;
 
+enum class grf_mode_t {
+    any, // Kernel sets optimal grf mode
+    matches, // Propogate grf mode to avoid context switch
+    small, // Force small grf_mode
+    large, // Force large grf_mode
+};
+
 template <ngen::HW hw>
 class ir_kernel_t : public jit_generator<hw> {
 public:
@@ -627,14 +634,18 @@ public:
 
     ir_kernel_t(const std::string &kernel_name, const hw_config_t &hw_cfg,
             const kernel_info_t &kernel_info, bool require_dpas,
-            bool require_global_atomics, bool force_large_grf = false)
+            bool require_global_atomics, grf_mode_t grf_mode = grf_mode_t::any)
         : kernel_name_(kernel_name)
         , hw_cfg_(hw_cfg)
         , kernel_info_(kernel_info)
         , require_dpas_(require_dpas)
         , require_global_atomics_(require_global_atomics)
-        , regs_(force_large_grf ? 256 : hw_cfg.regs())
-        , ra_(hw, kernel_name, reg_allocator_t::warn_all)
+        , regs_((grf_mode == grf_mode_t::large)             ? 256
+                          : (grf_mode == grf_mode_t::small) ? 128
+                                                            : hw_cfg.regs())
+        , ra_(hw, kernel_name,
+                  grf_mode == grf_mode_t::any ? reg_allocator_t::warn_all
+                                              : reg_allocator_t::warn_default)
         , emu_strategy(hw, hw_cfg.stepping_id()) {
         ra_.setRegisterCount(regs_);
     }
@@ -1174,7 +1185,8 @@ public:
     IR_KERNEL_FORWARD(hw)
 
     conv_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
-            const kernel_info_t &kernel_info, bool force_large_grf = false);
+            const kernel_info_t &kernel_info,
+            grf_mode_t grf_mode = grf_mode_t::any);
 
 private:
     const conv_config_t &cfg_;
@@ -1186,9 +1198,10 @@ public:
     IR_KERNEL_FORWARD(hw)
 
     zero_out_kernel_t(const hw_config_t &hw_cfg,
-            const kernel_info_t &kernel_info, bool require_dpas)
+            const kernel_info_t &kernel_info, bool require_dpas,
+            grf_mode_t grf_mode)
         : ir_kernel_t<hw>("zero_out", hw_cfg, kernel_info, require_dpas,
-                /*require_global_atomics=*/false) {
+                /*require_global_atomics=*/false, grf_mode) {
 
         setup_interface();
         generate_prologue();
@@ -2498,9 +2511,10 @@ public:
 
     reorder_kernel_t(const hw_config_t &hw_cfg,
             const kernel_info_t &kernel_info, const layout_t &src_layout,
-            const layout_t &dst_layout, bool require_dpas)
+            const layout_t &dst_layout, bool require_dpas, grf_mode_t grf_mode)
         : ir_kernel_t<hw>("reorder", hw_cfg, kernel_info, require_dpas,
-                /*require_global_atomics=*/false) {
+                /*require_global_atomics=*/false, grf_mode) {
+
         if (reorder_kernel_t<>::is_ir_based_reorder(src_layout, dst_layout)) {
             reorder_kernel_builder_t builder(
                     hw_cfg, kernel_info, src_layout, dst_layout);
@@ -4101,10 +4115,10 @@ private:
 template <ngen::HW hw>
 conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         const convolution_pd_t *pd, const kernel_info_t &kernel_info,
-        bool force_large_grf)
+        grf_mode_t grf_mode)
     : ir_kernel_t<hw>("gen_conv", cfg.hw_cfg, kernel_info,
             utils::one_of(cfg.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw),
-            cfg.do_atomic_update, force_large_grf)
+            cfg.do_atomic_update, grf_mode)
     , cfg_(cfg) {
 
     // XXX: BWD_W does 32x32 multiplication in the inner loop which may cause
