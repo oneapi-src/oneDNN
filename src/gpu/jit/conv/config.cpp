@@ -175,7 +175,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         if (is_dw) bh->set_pref_tg_block(osp_name);
         bh->allow_split({osp_name, "mb"});
         bh->reorder({osp_name, "mb"});
-        if (!fuse_spatial && mb < 16 && iw % 8 != 0) {
+        if (!fuse_spatial && mb < 16 && iw % 8 != 0 && !is_dw) {
             bh->set_max_m_tg_dim(1);
         }
     } else {
