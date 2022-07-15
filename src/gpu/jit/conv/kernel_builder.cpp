@@ -6908,80 +6908,134 @@ void kernel_builder_t::build() {
 }
 
 void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
-        const layout_t &dst, std::vector<int> &tile_blocks,
-        std::vector<int> &tg_blocks) {
+        const layout_t &dst, std::vector<int> &iter_blocks,
+        std::vector<int> &loop_blocks, std::vector<int> &tg_blocks,
+        int max_iter_tile_bytes, int max_thr_tile_bytes) {
+    if (max_iter_tile_bytes <= 0)
+        max_iter_tile_bytes = default_max_iter_tile_bytes;
+    if (max_thr_tile_bytes <= 0)
+        max_thr_tile_bytes = default_max_thr_tile_bytes;
+
     ir_assert(src.ndims() == dst.ndims());
     int ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
-    std::vector<dim_t> inner_dims(ndims);
-    auto src_inner = src.innermost_block_layout();
-    auto dst_inner = dst.innermost_block_layout();
     for (int i = 0; i < ndims; i++) {
         dims[i] = std::max(src.dim(i), dst.dim(i));
-        inner_dims[i] = std::max(src_inner.dim(i), dst_inner.dim(i));
     }
 
-    std::vector<int> sorted_dim_idxs(ndims);
-    std::iota(sorted_dim_idxs.begin(), sorted_dim_idxs.end(), 0);
-
-    auto get_key = [&](int i) {
-        for (auto *l : {&src_inner, &dst_inner}) {
-            if (!l->blocks().empty() && l->blocks()[0].dim_idx == i) return 0;
-        }
-        if (inner_dims[i] != 1) return 1;
-        int src_blk_idx = 0;
-        for (auto &b : src.blocks()) {
-            if (b.dim_idx == i) break;
-            src_blk_idx++;
-        }
-        int dst_blk_idx = 0;
-        for (auto &b : dst.blocks()) {
-            if (b.dim_idx == i) break;
-            dst_blk_idx++;
-        }
-        return 2 + std::min(src_blk_idx, dst_blk_idx);
-    };
-
-    std::sort(sorted_dim_idxs.begin(), sorted_dim_idxs.end(),
-            [&](int a, int b) { return get_key(a) < get_key(b); });
-
-    auto get_block = [&](int dim_idx) {
-        dim_t max_block = 16;
-        dim_t dim = inner_dims[dim_idx];
-        if (dim == 1) dim = dims[dim_idx];
-        return (int)utils::max_div(dim, max_block);
-    };
-    bool f64_reorder
-            = src.type() == type_t::f64() || dst.type() == type_t::f64();
-    dim_t max_total_block = f64_reorder ? 256 : 512;
-    dim_t total_block = 1;
-    bool tg_block_found = false;
-    tile_blocks.resize(ndims, 1);
-    tg_blocks.resize(ndims, 1);
-    for (int idx : sorted_dim_idxs) {
-        int block = get_block(idx);
-        if (total_block * block >= max_total_block) {
-            block = utils::max_div(block, (int)(max_total_block / total_block));
-        }
-        int tg_factor = 2;
-        if (!tg_block_found) {
-            int outer = utils::div_up(dims[idx], block);
-            if (outer % tg_factor == 0) {
-                tg_blocks[idx] = tg_factor;
-                tg_block_found = true;
+    // Pad src/dst layouts to match each other.
+    auto pad_layout = [&](const layout_t &l) {
+        std::vector<block_t> padded_blocks;
+        for (auto &eb : l.enumerated_blocks()) {
+            auto b = eb.second;
+            if (l.is_outermost(eb)) {
+                dim_t inner = l.dim(b.dim_idx) / b.block;
+                b.block = ir_utils::safe_divide(dims[b.dim_idx], inner);
             }
+            padded_blocks.push_back(b);
         }
-        ir_assert(block >= 1);
-        tile_blocks[idx] = block;
-        total_block *= block;
+        return layout_t(l.type(), ndims, 0, padded_blocks);
+    };
+    layout_t padded_src = pad_layout(src);
+    layout_t padded_dst = pad_layout(dst);
+    ir_assert(ir_utils::is_equal(padded_src.dims(), padded_dst.dims()));
+
+    int elems = padded_src.elems();
+    int max_type_size = std::max(src.type().size(), dst.type().size());
+    dim_t max_iter_tile_elems
+            = std::min(max_iter_tile_bytes / max_type_size, elems);
+    dim_t max_thr_tile_elems
+            = std::min(max_thr_tile_bytes / max_type_size, elems);
+
+    std::vector<int> thr_blocks(ndims, 1);
+    iter_blocks.resize(ndims, 1);
+    auto try_update_blocks
+            = [&](const tensor_t &t, std::vector<int> &blocks, int max_elems) {
+                  auto new_blocks = blocks;
+                  for (int i = 0; i < ndims; i++) {
+                      new_blocks[i] = std::max(new_blocks[i], (int)t(i));
+                  }
+                  if (utils::array_product(new_blocks) > max_elems)
+                      return false;
+                  blocks = new_blocks;
+                  return true;
+              };
+
+    // Incrementally increase the tile. In the end:
+    //   S = src.map(tile) -> [src_outer]*[src_inner]
+    //   D = dst.map(tile) -> [dst_outer]*[dst_inner]
+    // Where src_inner and dst_inner are max dense inner
+    // layouts. The goal is to ensure that sizes of src_inner
+    // and dst_inner are similar.
+    layout_iterator_t src_it(padded_src);
+    layout_iterator_t dst_it(padded_dst);
+    bool src_stop = false;
+    bool dst_stop = false;
+    for (;;) {
+        if (utils::array_product(thr_blocks) >= max_thr_tile_elems) break;
+        if (src_stop && dst_stop) break;
+        ir_assert(src_it.has_next());
+        ir_assert(dst_it.has_next());
+
+        dim_t src_bytes = src_it.tile().elems() * src.type().size();
+        dim_t dst_bytes = dst_it.tile().elems() * dst.type().size();
+        bool use_src = (src_bytes <= dst_bytes && !src_stop) || dst_stop;
+        auto &it = (use_src ? src_it : dst_it);
+        auto &stop = (use_src ? src_stop : dst_stop);
+
+        auto prev_it = it;
+        int max_step = (int)std::sqrt(
+                max_thr_tile_elems / utils::array_product(thr_blocks));
+        it.next(max_step);
+        try_update_blocks(it.tile(), iter_blocks, max_iter_tile_elems);
+        if (!try_update_blocks(it.tile(), thr_blocks, max_thr_tile_elems)) {
+            it = prev_it;
+            stop = true;
+        }
     }
-    ir_assert(total_block <= max_total_block);
+
+    ir_assert(utils::array_product(iter_blocks) <= max_iter_tile_elems);
+    ir_assert(utils::array_product(thr_blocks) <= max_thr_tile_elems);
+
+    // Initialize loop blocks.
+    loop_blocks.resize(ndims, 1);
+    for (int i = 0; i < ndims; i++) {
+        loop_blocks[i] = ir_utils::safe_divide(thr_blocks[i], iter_blocks[i]);
+    }
+
+    // Initialize thread group blocks.
+    // Heuristic: try to split outer dimension and assign its
+    // inner part to the thread group. This may give better
+    // bandwidth utilization on XeHP/XeHPG.
+    tg_blocks.resize(ndims, 1);
+    const int tg_factor = 2;
+    for (int i = 0; i < ndims; i++) {
+        int outer = utils::div_up(dims[i], thr_blocks[i]);
+        if (outer % tg_factor == 0) {
+            tg_blocks[i] = tg_factor;
+            break;
+        }
+    }
+}
+
+void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
+        const layout_t &dst, std::vector<int> &tile_blocks,
+        std::vector<int> &tg_blocks) {
+    std::vector<int> iter_blocks;
+    std::vector<int> loop_blocks;
+    compute_blocks(src, dst, iter_blocks, loop_blocks, tg_blocks);
+    size_t n = iter_blocks.size();
+    tile_blocks.resize(n);
+    for (size_t i = 0; i < n; i++) {
+        tile_blocks[i] = iter_blocks[i] * loop_blocks[i];
+    }
 }
 
 void reorder_kernel_builder_t::compute_grid(const layout_t &src,
-        const layout_t &dst, const std::vector<int> &tile_blocks,
-        const std::vector<int> &tg_blocks, std::array<int, 3> &kernel_grid,
-        std::array<int, 3> &tg_grid, std::vector<int> *dim2grid) {
+        const layout_t &dst, const std::vector<int> &iter_blocks,
+        const std::vector<int> &loop_blocks, const std::vector<int> &tg_blocks,
+        std::array<int, 3> &kernel_grid, std::array<int, 3> &tg_grid,
+        std::vector<int> *dim2grid) {
     int ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
     for (int i = 0; i < ndims; i++) {
@@ -7000,7 +7054,8 @@ void reorder_kernel_builder_t::compute_grid(const layout_t &src,
     int max_grid_idx = grid_ndims - 1;
     for (int i = 0; i < ndims; i++) {
         if (dim2grid) (*dim2grid)[i] = grid_idx;
-        int outer = utils::div_up(dims[i], tile_blocks[i] * tg_blocks[i]);
+        int outer = utils::div_up(
+                dims[i], iter_blocks[i] * loop_blocks[i] * tg_blocks[i]);
         tg_grid[grid_idx] *= tg_blocks[i];
         kernel_grid[grid_idx] *= outer;
         if (outer != 1 && grid_idx != max_grid_idx) grid_idx++;
@@ -7009,12 +7064,14 @@ void reorder_kernel_builder_t::compute_grid(const layout_t &src,
 
 compute::nd_range_t reorder_kernel_builder_t::nd_range(
         int simd, const layout_t &src, const layout_t &dst) {
-    std::vector<int> tile_blocks;
+    std::vector<int> iter_blocks;
+    std::vector<int> loop_blocks;
     std::vector<int> tg_blocks;
-    compute_blocks(src, dst, tile_blocks, tg_blocks);
+    compute_blocks(src, dst, iter_blocks, loop_blocks, tg_blocks);
     std::array<int, 3> kernel_grid;
     std::array<int, 3> tg_grid;
-    compute_grid(src, dst, tile_blocks, tg_blocks, kernel_grid, tg_grid);
+    compute_grid(src, dst, iter_blocks, loop_blocks, tg_blocks, kernel_grid,
+            tg_grid);
     std::array<size_t, 3> global;
     std::array<size_t, 3> local;
     for (size_t i = 0; i < kernel_grid.size(); i++) {
@@ -7029,6 +7086,51 @@ compute::nd_range_t reorder_kernel_builder_t::nd_range(
 }
 
 void reorder_kernel_builder_t::build() {
+    std::vector<int> iter_blocks;
+    std::vector<int> loop_blocks;
+    std::vector<int> tg_blocks;
+    compute_blocks(
+            src_layout_, dst_layout_, iter_blocks, loop_blocks, tg_blocks);
+
+    int max_iters = 10;
+    int cur_iter_bytes = default_max_iter_tile_bytes;
+    for (int i = 0; i < max_iters; i++) {
+        if (try_build(iter_blocks, loop_blocks, tg_blocks)) {
+            ir_info() << "Reorder configuration:" << std::endl;
+            ir_info() << "  Source layout:              " << src_layout_
+                      << std::endl;
+            ir_info() << "  Destination layout:         " << dst_layout_
+                      << std::endl;
+            ir_info() << "  Iteration blocks:           "
+                      << ir_utils::make_seq_print_helper(iter_blocks, " x ")
+                      << std::endl;
+            ir_info() << "  Loop blocks:                "
+                      << ir_utils::make_seq_print_helper(loop_blocks, " x ")
+                      << std::endl;
+            ir_info() << "  Thread group blocks:        "
+                      << ir_utils::make_seq_print_helper(tg_blocks, " x ")
+                      << std::endl;
+            return;
+        }
+
+        cur_iter_bytes /= 2;
+        while (cur_iter_bytes >= 1) {
+            std::vector<int> new_iter_blocks;
+            compute_blocks(src_layout_, dst_layout_, new_iter_blocks,
+                    loop_blocks, tg_blocks, cur_iter_bytes);
+            if (!ir_utils::is_equal(new_iter_blocks, iter_blocks)) {
+                iter_blocks = new_iter_blocks;
+                break;
+            }
+            cur_iter_bytes /= 2;
+        }
+    }
+    ir_error_not_expected();
+}
+
+bool reorder_kernel_builder_t::try_build(const std::vector<int> &iter_blocks,
+        const std::vector<int> &loop_blocks,
+        const std::vector<int> &tg_blocks) {
     ir_context_t ir_ctx;
     constraint_set_t init_cset;
 
@@ -7039,21 +7141,10 @@ void reorder_kernel_builder_t::build() {
         vars.push_back(var_t::make(type_t::s32(), std::string(1, letter)));
     }
 
-    std::vector<int> tg_blocks;
-    std::vector<int> tile_blocks;
-    compute_blocks(src_layout_, dst_layout_, tile_blocks, tg_blocks);
-
-    ir_info() << "Reorder configuration:" << std::endl;
-    ir_info() << "  Source layout:              " << src_layout_ << std::endl;
-    ir_info() << "  Destination layout:         " << dst_layout_ << std::endl;
-    ir_info() << "  Tile size per thread:       "
-              << ir_utils::make_seq_print_helper(tile_blocks, " x ")
-              << std::endl;
-
     std::array<int, 3> kernel_grid_dims;
     std::array<int, 3> tg_grid_dims;
     std::vector<int> dim2grid;
-    compute_grid(src_layout_, dst_layout_, tile_blocks, tg_blocks,
+    compute_grid(src_layout_, dst_layout_, iter_blocks, loop_blocks, tg_blocks,
             kernel_grid_dims, tg_grid_dims, &dim2grid);
 
     std::vector<stmt_t> init_stmts;
@@ -7094,20 +7185,34 @@ void reorder_kernel_builder_t::build() {
 
     std::array<std::vector<expr_t>, 3> fused_idxs;
     for (int i = 0; i < ndims; i++) {
+        std::vector<expr_t> ordered;
         auto v = vars[i];
-        if (tile_blocks[i] != 1) {
+        if (iter_blocks[i] != 1) {
             expr_t outer, inner;
-            schedule.split(v, tile_blocks[i], outer, inner);
+            schedule.split(v, iter_blocks[i], outer, inner);
             schedule.tensorize(inner);
             v = outer;
+            ordered.insert(ordered.begin(), outer);
+        }
+        if (loop_blocks[i] != 1) {
+            if (!ordered.empty()) ordered.erase(ordered.begin());
+            expr_t outer, inner;
+            schedule.split(v, loop_blocks[i], outer, inner);
+            v = outer;
+            ordered.insert(ordered.begin(), inner);
+            ordered.insert(ordered.begin(), outer);
         }
         if (tg_blocks[i] != 1) {
+            if (!ordered.empty()) ordered.erase(ordered.begin());
             expr_t outer, inner;
             schedule.split(v, tg_blocks[i], outer, inner);
             schedule.bind(inner, tg_grid_.idx(dim2grid[i]));
             v = outer;
+            ordered.insert(ordered.begin(), inner);
+            ordered.insert(ordered.begin(), outer);
         }
         fused_idxs[dim2grid[i]].push_back(v);
+        schedule.reorder(ordered);
     }
 
     for (size_t i = 0; i < fused_idxs.size(); i++) {
@@ -7160,6 +7265,7 @@ void reorder_kernel_builder_t::build() {
         write_stmt = reorder_stmt.append(write_stmt);
     }
 
+    stmt_ = stmt_t();
     stmt_ = stmt_.append(read_stmt);
     stmt_ = stmt_.append(write_stmt);
 
@@ -7179,7 +7285,20 @@ void reorder_kernel_builder_t::build() {
     stmt_ = optimize_alloc_let(stmt_);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
+    int ir_usage = get_peak_grf_usage(stmt_, hw_cfg_.grf_size());
+    int reserved_usage = 16;
+    int grf_usage = ir_usage + reserved_usage;
+    if (grf_usage > hw_cfg_.regs()) {
+        ir_warning()
+                << "Estimated GRF usage is " << grf_usage
+                << " which exceeds available space, retry with a smaller tile."
+                << std::endl;
+
+        return false;
+    }
+
     ir_trace() << "Reorder kernel body:\n" << stmt_ << std::endl;
+    return true;
 }
 
 } // namespace jit
