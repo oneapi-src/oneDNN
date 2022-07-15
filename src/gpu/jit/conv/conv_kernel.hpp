@@ -2943,6 +2943,8 @@ private:
                 src, dst, max_elems_per_thr, /*match_outer=*/true);
 
         if (tile.is_empty()) return false;
+        if (tile.ndims() < 2) return false;
+
         elems_per_thr = tile.elems();
         if (!math::is_pow2(elems_per_thr)) return false;
 
