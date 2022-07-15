@@ -242,6 +242,11 @@ inline R array_product(const T *arr, size_t size) {
 }
 
 template <typename T, typename R = T>
+inline R array_product(const std::vector<T> &v) {
+    return array_product<T, R>(v.data(), v.size());
+}
+
+template <typename T, typename R = T>
 inline R array_min(const T *arr, size_t size) {
     R min = std::numeric_limits<R>::max();
     for (size_t i = 0; i < size; ++i)
