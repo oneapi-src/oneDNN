@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,11 +74,21 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     // Applies when concat axis is the outermost dimension, e.g. concat_axis = 0
     // or concat_axis = 1, and dims[0] = 1;
     if (!has_outer_loop) {
-        for (int a = 0; a < num_arrs; ++a) {
-            const data_t *i = &iptrs[a][0];
-            data_t *o = &optrs[a][0];
-            parallel_nd(nelems_to_copy[a], [&](dim_t e) { o[e] = i[e]; });
-        }
+        int nthr = dnnl_get_max_threads();
+        parallel(nthr, [&](int ithr, int nthr) {
+            for (int a = 0; a < num_arrs; ++a) {
+                dim_t start {0}, end {0};
+                balance211(nelems_to_copy[a], nthr, ithr, start, end);
+
+                const data_t *i = iptrs[a] + start;
+                data_t *o = optrs[a] + start;
+
+                PRAGMA_OMP_SIMD()
+                for (dim_t e = 0; e < end - start; ++e)
+                    o[e] = i[e];
+            }
+        });
+
         return status::success;
     }
 
