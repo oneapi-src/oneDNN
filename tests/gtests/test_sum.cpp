@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -399,7 +399,7 @@ INST_TEST_CASE(sum_test_s32_omit_output, 1)
 INST_TEST_CASE_BF16(sum_test_bf16bf16_omit_output, 1)
 // Automatically created dst descriptor has bf16 data type so this test is not
 // valid: INST_TEST_CASE(sum_test_bf16f32_omit_output, 1)
-GPU_INST_TEST_CASE(sum_test_f16_omit_output, 1)
+INST_TEST_CASE(sum_test_f16_omit_output, 1)
 
 INST_TEST_CASE(sum_test_float, 0)
 INST_TEST_CASE(sum_test_u8, 0)
@@ -407,7 +407,7 @@ INST_TEST_CASE(sum_test_s8, 0)
 INST_TEST_CASE(sum_test_s32, 0)
 INST_TEST_CASE_BF16(sum_test_bf16bf16, 0)
 INST_TEST_CASE_BF16(sum_test_bf16f32, 0)
-GPU_INST_TEST_CASE(sum_test_f16, 0)
+INST_TEST_CASE(sum_test_f16, 0)
 
 #undef CPU_INST_TEST_CASE
 #undef GPU_INST_TEST_CASE

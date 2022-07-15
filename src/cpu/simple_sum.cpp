@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,34 +46,33 @@ status_t simple_sum_t<src_data_type, dst_data_type>::execute(
 
     const auto scales = pd()->scales();
 
-    auto sum_block_bf16 = [&](dim_t start, dim_t end, int ithr) {
-        const bool is_dst_bf16 = dst_data_type == data_type::bf16;
-
-        const auto bf16_p = pd()->bf16_p_;
+    auto sum_block_xf16 = [&](dim_t start, dim_t end, int ithr) {
+        const bool is_dst_xf16
+                = utils::one_of(dst_data_type, data_type::bf16, data_type::f16);
+        const auto xf16_params = pd()->xf16_params_;
         const auto scratchpad = ctx.get_scratchpad_grantor();
         acc_data_t *wspace = scratchpad.template get<acc_data_t>(
                 memory_tracking::names::key_sum_srcs_cvt);
-        acc_data_t *my_ws = &wspace[ithr * bf16_p.ws_elements_per_thread_];
+        acc_data_t *my_ws = &wspace[ithr * xf16_params.ws_elements_per_thread_];
 
-        for (dim_t b = start; b < end; b += bf16_p.acc_loop_step_) {
-            acc_data_t *my_acc = is_dst_bf16
-                    ? &my_ws[bf16_p.ws_cvt_elements_per_thread_]
+        for (dim_t b = start; b < end; b += xf16_params.acc_loop_step_) {
+            acc_data_t *my_acc = is_dst_xf16
+                    ? &my_ws[xf16_params.ws_cvt_elements_per_thread_]
                     : (acc_data_t *)&output[b];
-            dim_t current_block = nstl::min(bf16_p.acc_loop_step_, end - b);
-            cvt_bfloat16_to_float(
-                    my_ws, (bfloat16_t *)&input_ptrs[0][b], current_block);
+            dim_t current_block
+                    = nstl::min(xf16_params.acc_loop_step_, end - b);
+            types::cvt_to_float(my_ws, &input_ptrs[0][b], current_block);
             for (dim_t e = 0; e < current_block; e++)
                 my_acc[e] = scales[0] * my_ws[e];
 
             for (int a = 1; a < num_arrs; a++) {
-                cvt_bfloat16_to_float(
-                        my_ws, (bfloat16_t *)&input_ptrs[a][b], current_block);
+                types::cvt_to_float(my_ws, &input_ptrs[a][b], current_block);
                 for (dim_t e = 0; e < current_block; e++)
                     my_acc[e] += scales[a] * my_ws[e];
             }
-            if (is_dst_bf16)
-                cvt_float_to_bfloat16(
-                        (bfloat16_t *)&output[b], my_acc, current_block);
+
+            if (is_dst_xf16)
+                types::cvt_from_float(&output[b], my_acc, current_block);
         }
     };
 
@@ -97,19 +96,19 @@ status_t simple_sum_t<src_data_type, dst_data_type>::execute(
         for (dim_t nb = start; nb < end; ++nb) {
             dim_t start_e = nb * block_size;
             dim_t end_e = start_e + block_size;
-            if (src_data_type == data_type::bf16)
-                sum_block_bf16(start_e, end_e, ithr);
-            else
+            if (src_data_type == data_type::f32)
                 sum_block(start_e, end_e, ithr);
+            else
+                sum_block_xf16(start_e, end_e, ithr);
         }
 
         if (tail != 0 && ithr == nthr - 1) {
             dim_t start_e = nelems - tail;
             dim_t end_e = nelems;
-            if (src_data_type == data_type::bf16)
-                sum_block_bf16(start_e, end_e, ithr);
-            else
+            if (src_data_type == data_type::f32)
                 sum_block(start_e, end_e, ithr);
+            else
+                sum_block_xf16(start_e, end_e, ithr);
         }
     });
 
@@ -119,7 +118,8 @@ status_t simple_sum_t<src_data_type, dst_data_type>::execute(
 template struct simple_sum_t<data_type::f32>;
 template struct simple_sum_t<data_type::bf16>;
 template struct simple_sum_t<data_type::bf16, data_type::f32>;
-
+template struct simple_sum_t<data_type::f16>;
+template struct simple_sum_t<data_type::f16, data_type::f32>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -40,6 +40,8 @@ using namespace dnnl::impl::data_type;
 constexpr impl_list_item_t cpu_sum_impl_list[] = REG_SUM_P({
         INSTANCE_X64(jit_bf16_sum_t<bf16, bf16>)
         INSTANCE_X64(jit_bf16_sum_t<bf16, f32>)
+        INSTANCE(simple_sum_t<f16>)
+        INSTANCE(simple_sum_t<f16, f32>)
         INSTANCE(simple_sum_t<bf16>)
         INSTANCE(simple_sum_t<bf16, f32>)
         INSTANCE(simple_sum_t<f32>)

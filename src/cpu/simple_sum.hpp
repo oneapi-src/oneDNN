@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct sum_bf16_params_t {
+struct sum_xf16_params_t {
     dim_t ws_cvt_elements_per_thread_;
     dim_t ws_acc_elements_per_thread_;
     dim_t ws_elements_per_thread_;
@@ -68,12 +68,14 @@ struct simple_sum_t : public primitive_t {
             return status::success;
         }
 
-        sum_bf16_params_t bf16_p_;
+        sum_xf16_params_t xf16_params_;
         dim_t block_size_ = 0, nelems_ = 0, blocks_number_ = 0, tail_ = 0;
 
     private:
         void compute_blocking() {
-            const int block_size_bytes = src_data_type == data_type::bf16
+            const int block_size_bytes
+                    = utils::one_of(
+                              src_data_type, data_type::bf16, data_type::f16)
                     ? 16 * platform::get_cache_line_size()
                     : platform::get_per_core_cache_size(1) / 2;
             block_size_ = block_size_bytes / (int)sizeof(src_data_type);
@@ -84,29 +86,29 @@ struct simple_sum_t : public primitive_t {
         }
 
         void init_scratchpad() {
-            if (src_data_type == data_type::bf16) {
-                bool is_dst_bf16_ = dst_data_type == data_type::bf16;
-                bf16_p_.ws_cvt_elements_per_thread_
+            if (utils::one_of(src_data_type, data_type::bf16, data_type::f16)) {
+                const bool is_dst_xf16 = utils::one_of(
+                        dst_data_type, data_type::bf16, data_type::f16);
+                xf16_params_.ws_cvt_elements_per_thread_
                         = platform::get_cache_line_size()
                         / (int)sizeof(acc_data_t);
 
-                bf16_p_.ws_acc_elements_per_thread_ = is_dst_bf16_
-                        ? bf16_p_.ws_cvt_elements_per_thread_
+                xf16_params_.ws_acc_elements_per_thread_ = is_dst_xf16
+                        ? xf16_params_.ws_cvt_elements_per_thread_
                         : 0;
 
-                bf16_p_.acc_loop_step_ = is_dst_bf16_
-                        ? bf16_p_.ws_cvt_elements_per_thread_
+                xf16_params_.acc_loop_step_ = is_dst_xf16
+                        ? xf16_params_.ws_cvt_elements_per_thread_
                         : 1;
 
-                bf16_p_.ws_elements_per_thread_
-                        = bf16_p_.ws_cvt_elements_per_thread_
-                        + bf16_p_.ws_acc_elements_per_thread_;
-                dim_t bf16cvt_buf_sz_ = bf16_p_.ws_elements_per_thread_
+                xf16_params_.ws_elements_per_thread_
+                        = xf16_params_.ws_cvt_elements_per_thread_
+                        + xf16_params_.ws_acc_elements_per_thread_;
+                const dim_t cvt_buf_sz = xf16_params_.ws_elements_per_thread_
                         * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<acc_data_t>(
-                        memory_tracking::names::key_sum_srcs_cvt,
-                        bf16cvt_buf_sz_);
+                        memory_tracking::names::key_sum_srcs_cvt, cvt_buf_sz);
             }
         }
     };
