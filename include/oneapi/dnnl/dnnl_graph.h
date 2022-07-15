@@ -48,7 +48,6 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
 /// Destroys an allocator.
 ///
 /// @param allocator The allocator to be destroyed.
-
 /// @returns #dnnl_graph_success on success or a status describing the error
 ///     otherwise.
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_allocator_destroy(
@@ -60,8 +59,8 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_allocator_destroy(
 /// @{
 
 /// Initializes a logical tensor with id, data type, number of dimensions,
-/// layout type, and property. The logical tensor's dims are unknown with this
-/// interface.
+/// layout type, and property. The logical tensor's dims will be initialized
+/// with DNNL_GRAPH_UNKNOWN_DIM.
 ///
 /// @param logical_tensor Output logical tensor.
 /// @param tid The unique id of the output logical tensor.
@@ -225,7 +224,9 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_create(dnnl_graph_op_t *op,
 ///     otherwise.
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_destroy(dnnl_graph_op_t op);
 
-/// Adds input logical tensor to the op.
+/// Adds an input logical tensor to an operation. An operation may have multiple
+/// inputs. The order of adding them should follow the definition of the target
+/// operation.
 ///
 /// @param op Input op.
 /// @param input The input logical tensor to be added.
@@ -234,7 +235,9 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_destroy(dnnl_graph_op_t op);
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_add_input(
         dnnl_graph_op_t op, const dnnl_graph_logical_tensor_t *input);
 
-/// Adds output logical tensor to the op.
+/// Adds an output logical tensor to the op. An operation may have multiple
+/// outputs. The order of adding them should follow the definition of the target
+/// operation.
 ///
 /// @param op Input op.
 /// @param output The output logical tensor to be added.
@@ -719,7 +722,6 @@ dnnl_graph_get_compiled_partition_cache_capacity(int *capacity);
 /// Sets a number of compiled partitions that can be held in the compiled
 /// partition cache at the same time.
 ///
-
 /// @param capacity Compiled partition cache capacity to set. The default cache
 ///     capacity is 1024. If a new @p capacity is less than a number of compiled
 ///     partition that the compiled partition cache already has, then the excess
