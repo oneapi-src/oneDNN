@@ -35,10 +35,73 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 gen9_softmax_fwd(
         __global SRC_DATA_T *src, __global DST_DATA_T *dst, float scale) {
+#if IS_NHWC
+    // gws is the combination of mb and axis size
+    const int group = get_global_id(0) / GROUP_SIZE;
+    const int mb = group / OC_PADDED;
+    const int local_oc = group % OC_PADDED;
+
+    const int local_id = get_local_id(0);
+    const int axis_chunk = (local_id / SUB_GROUP_SIZE) * SOFTMAX_BUF;
+
+    const int subgroup_id = get_sub_group_local_id();
+    const int oc_chunk = OC_PADDED * VECT_SIZE * subgroup_id;
+    int data_off = mb * OC_PADDED * SOFTMAX_AXIS_SIZE + oc_chunk + local_oc;
+
+    float d[VECT_SIZE];
+    float max_ = -FLT_MAX;
+    float denom_ = 0.f;
+
+    src += data_off;
+    for (int k = 0, axis_channel_id = OC_PADDED * axis_chunk; k < VECT_SIZE;
+            ++k, axis_channel_id += OC_PADDED) {
+        d[k] = DATA_TO_FLOAT(SRC, src[axis_channel_id]);
+        max_ = max(d[k], max_);
+    }
+
+#if GROUP_SIZE == SUB_GROUP_SIZE
+    max_ = sub_group_reduce_max(max_);
+#else
+    max_ = work_group_reduce_max(max_);
+#endif
+
+    for (int k = 0; k < VECT_SIZE; ++k) {
+#if LOGSOFTMAX
+        denom_ += exp(d[k] - max_);
+#else
+        d[k] = exp(d[k] - max_);
+        denom_ += d[k];
+#endif
+    }
+
+#if GROUP_SIZE == SUB_GROUP_SIZE
+    denom_ = sub_group_reduce_add(denom_);
+#else
+    denom_ = work_group_reduce_add(denom_);
+#endif
+
+#if LOGSOFTMAX
+    denom_ = log(denom_);
+#else
+    denom_ = 1.0 / denom_;
+#endif
+
+    dst += data_off;
+
+    for (int k = 0, axis_channel_id = OC_PADDED * axis_chunk; k < VECT_SIZE;
+            ++k, axis_channel_id += OC_PADDED) {
+#if LOGSOFTMAX
+        d[k] = d[k] - max_ - denom_;
+#else
+        d[k] = d[k] * denom_;
+#endif
+        dst[axis_channel_id] = FLOAT_TO_DATA(DST, d[k] * scale);
+    }
+
+#else
     const int data_off = (get_global_id(0) / GROUP_SIZE) * SOFTMAX_AXIS_SIZE;
 
     float8 d[NUM_BUF];
-
     float max_ = -FLT_MAX;
     float denom_ = 0.f;
 
@@ -81,6 +144,7 @@ gen9_softmax_fwd(
 #endif
         STORE_FLOAT8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE], scale * d[k]);
     }
+#endif
 }
 
 #endif

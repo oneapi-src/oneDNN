@@ -41,6 +41,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("ocl:gen9", gen9_softmax_fwd_t);
 
         status_t init(engine_t *engine) {
+            using namespace dnnl::impl::format_tag;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
@@ -61,27 +62,37 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                                     compute::device_ext_t::khr_fp16))
                     && attr()->has_default_values(skip_mask_t::oscale)
                     && attr_oscale_ok()
-                    && set_default_formats() == status::success;
+                    && set_default_formats() == status::success
+                    && compute_engine->mayiuse_sub_group(16);
             if (!ok) return status::unimplemented;
 
-            group_size = 16;
+            is_nhwc = (src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
+                    != format_tag::undef);
 
-            if (!compute_engine->mayiuse_sub_group((int)group_size))
-                return status::unimplemented;
+            if (is_nhwc) {
+                group_size = 16 * (axis_size() / 128);
+            } else {
+                group_size = 16;
+            }
 
             lws[0] = group_size;
             lws[1] = lws[2] = 1;
             gws[0] = utils::array_product(&src_md()->dims[0], ndims() - 1)
                     * group_size;
             gws[1] = gws[2] = 1;
+            auto src_padded_dims = src_d.padded_dims();
+            batches = src_padded_dims[0] * src_padded_dims[2]
+                    * src_padded_dims[3] * src_padded_dims[4];
 
             return status::success;
         }
 
+        bool is_nhwc = false;
         size_t gws[3] = {};
         size_t lws[3] = {};
         size_t block[3] = {};
         size_t group_size = 0;
+        size_t batches = 0;
     };
 
     status_t init(engine_t *engine) override {
@@ -91,8 +102,13 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
 
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", pd()->axis());
         kernel_ctx.define_int("SOFTMAX_AXIS_SIZE", pd()->axis_size());
+        kernel_ctx.define_int("SOFTMAX_BUF", 128);
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
-        kernel_ctx.define_int("SUB_GROUP_SIZE", pd()->group_size);
+        kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
+        kernel_ctx.define_int("BATCH", pd()->batches);
+        kernel_ctx.define_int("OC", pd()->src_md()->dims[1]);
+        kernel_ctx.define_int("OC_PADDED", pd()->src_md()->padded_dims[1]);
+        kernel_ctx.define_int("IS_NHWC", pd()->is_nhwc);
         kernel_ctx.define_int("IS_FWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
