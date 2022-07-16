@@ -35,6 +35,12 @@ namespace cpu {
 namespace x64 {
 
 struct brgemm_kernel_diff_bias_t {
+    brgemm_kernel_diff_bias_t()
+        : ptr_diff_dst(nullptr)
+        , ptr_diff_bias_acc(nullptr)
+        , ptr_diff_bias(nullptr)
+        , flags(0) {};
+
     void *ptr_diff_dst;
     void *ptr_diff_bias_acc;
     void *ptr_diff_bias;
