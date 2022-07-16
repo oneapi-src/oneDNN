@@ -56,7 +56,7 @@ namespace ocl {
 
 using namespace dnnl::impl::memory_tracking::names;
 
-using dimension_t = struct {
+struct dimension_t {
     dim_t size;
     dim_t step;
     int idx;

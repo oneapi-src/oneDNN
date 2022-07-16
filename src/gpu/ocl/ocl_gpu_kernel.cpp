@@ -35,7 +35,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-namespace {
 // Kernel wrapper storing a per-thread copy of cl_kernel.
 class kernel_wrapper_t {
 public:
@@ -68,7 +67,6 @@ public:
 private:
     cl_kernel kernel_;
 };
-} // namespace
 
 class ocl_gpu_kernel_cache_t {
 public:

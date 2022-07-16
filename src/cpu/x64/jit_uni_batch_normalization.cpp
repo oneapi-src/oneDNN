@@ -55,6 +55,7 @@ bool is_nspc(const memory_desc_wrapper &d) {
     const bool is_nspc = d.matches_one_of_tag(nc, nwc, nhwc, ndhwc);
     return is_nspc;
 }
+} // namespace
 
 struct jit_bnorm_conf_t {
     // TODO: put all needed info here to avoid duplicate work and potentially
@@ -211,7 +212,6 @@ struct jit_bnorm_conf_t {
         return spatial_thr_allowed;
     }
 };
-} // namespace
 
 template <cpu_isa_t isa>
 struct jit_bnorm_t : public jit_generator {
