@@ -1096,6 +1096,12 @@ void brgemm_convolution_bwd_weights_t::reduce_and_convert_diff_weights_and_bias(
 
     const int ic_b_kh_work
             = ti->ic_b_work * ((jcp.ndims == 5) ? jcp.kd : jcp.kh);
+    if (jcp.transform_to_vnni
+            && (ic_b_kh_work <= 0 || ti->oc_b_work == 0 || ti->g_work == 0)) {
+        simple_barrier::barrier(ti->wei_bia_reduction_bctx, jcp.nthr);
+        return;
+    }
+
     const int work = ti->g_work * ti->oc_b_work * ic_b_kh_work;
 
     int start {0}, end {0};
