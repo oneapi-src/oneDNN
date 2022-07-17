@@ -2566,8 +2566,8 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     const int tr_round = 32; // To load full tile register
     int tr_pad
             = rnd_up(nstl::max(jcp.l_pad, jcp.r_pad + 1), tr_round); //!!! why?
-    jcp.tr_iw = rnd_up(div_up(jcp.iw, jcp.stride_w) + tr_pad,
-                        tr_round) //!!! we have tr_iw always 64 or more
+    jcp.tr_iw = rnd_up(div_up(jcp.iw + jcp.l_pad + jcp.r_pad, jcp.stride_w),
+                        tr_round)
             * jcp.stride_w;
 
     // TODO: bf16 training is supported only
