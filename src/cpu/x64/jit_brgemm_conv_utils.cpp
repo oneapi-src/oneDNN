@@ -2632,27 +2632,26 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     balance_bwd_w(jcp);
 
     const int irow_size = jcp.src_dsz * jcp.tr_iw * jcp.ic_block
-            * div_up(jcp.nb_ic, jcp.nthr_ic_b) * jcp.stride_h * jcp.stride_w
+            * div_up(jcp.nb_ic, jcp.nthr_ic_b)
             * 2 /*we have real and transposed input */;
-    const int orow_size = jcp.dst_dsz * jcp.K * jcp.oc_block
-            * jcp.nb_oc_blocking * 2 /*we have real and transposed diff_dst*/;
-    const int oh_block_limit
-            = nstl::max(0.f, 0.8f * brg_blocking_t::L2 - jcp.kh * irow_size)
-            / (irow_size + orow_size);
+    const int orow_size = jcp.dst_dsz * jcp.tr_ow * jcp.oc_block
+            * div_up(jcp.nb_oc, jcp.nthr_oc_b)
+            * 2 /*we have real and transposed diff_dst*/;
+    int oh_block_limit = nstl::max(1.f,
+            nstl::max(0.f, 0.8f * brg_blocking_t::L2 - jcp.kh * irow_size)
+                    / (irow_size + orow_size));
+    // try to split oh by equal oh blocks
+    oh_block_limit = div_up(jcp.oh, div_up(jcp.oh, oh_block_limit));
     jcp.oh_block = utils::saturate(1, jcp.oh, oh_block_limit);
 
     const int iframe_size = irow_size * jcp.id;
     const int oframe_size = orow_size * jcp.od;
-    const int od_block_limit
-            = nstl::max(0.f, 0.8f * brg_blocking_t::L2 - jcp.kd * iframe_size)
-            / (iframe_size + oframe_size);
+    int od_block_limit = nstl::max(1.f,
+            nstl::max(0.f, 0.8f * brg_blocking_t::L2 - jcp.kd * iframe_size)
+                    / (iframe_size + oframe_size));
+    // try to split od by equal od blocks
+    od_block_limit = div_up(jcp.od, div_up(jcp.od, od_block_limit));
     jcp.od_block = utils::saturate(1, jcp.od, od_block_limit);
-
-    jcp.tr_ocb_chunk = (jcp.oh * jcp.ow > 28 * 28) ? true : false;
-    jcp.tr_icb_chunk = false;
-    jcp.K_tail = 0;
-
-    balance_bwd_w(jcp);
 
     jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
     jcp.use_uker = true;
