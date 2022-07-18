@@ -1648,6 +1648,17 @@ public:
             vcvtps2ph(x1, x2, _op_mxcsr);
     }
 
+    void uni_vcvttps2dq(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        if (is_valid_isa(avx))
+            vcvttps2dq(x, op);
+        else
+            cvttps2dq(x, op);
+    }
+
+    void uni_vcvttps2dq(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
+        vcvttps2dq(x, op);
+    }
+
     void uni_vmovmskps(const Xbyak::Reg &x1, const Xbyak::Xmm &x2) {
         movmskps(x1.cvt64(), x2);
     }
