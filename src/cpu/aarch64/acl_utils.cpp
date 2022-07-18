@@ -47,10 +47,11 @@ arm_compute::DataType get_acl_data_t(
     }
 }
 
-arm_compute::ActivationLayerInfo convert_to_acl_act(
-        const alg_kind_t eltwise_alg, const float alpha, const float beta) {
-    using acl_act_t = arm_compute::ActivationLayerInfo::ActivationFunction;
-    acl_act_t acl_act_alg;
+status_t convert_to_acl_act(alg_kind_t eltwise_alg, float alpha, float beta,
+        arm_compute::ActivationLayerInfo &act_info) {
+
+    using namespace arm_compute;
+    using act_func = ActivationLayerInfo::ActivationFunction;
 
     switch (eltwise_alg) {
         case eltwise_relu:
@@ -58,56 +59,56 @@ arm_compute::ActivationLayerInfo convert_to_acl_act(
             // Compute Library defines LEAKY_RELU: f(x) = (x > 0) ? x : a*x
             // whilst Compute Library RELU is defined as: f(x) = max(0,x)
             if (alpha == 0) {
-                acl_act_alg = acl_act_t::RELU;
+                act_info = ActivationLayerInfo(act_func::RELU, alpha, beta);
             } else {
-                acl_act_alg = acl_act_t::LEAKY_RELU;
+                act_info = ActivationLayerInfo(
+                        act_func::LEAKY_RELU, alpha, beta);
             }
             break;
         case eltwise_tanh:
             // oneDNN defines TANH activation as:          f(x) = tanh(x)
             // Compute Library defines TANH activation as: f(x) = a*tanh(b*x)
             // Setting a=b=1 makes the two equivalent
-            return arm_compute::ActivationLayerInfo(acl_act_t::TANH, 1.f, 1.f);
+            act_info = ActivationLayerInfo(act_func::TANH, 1.f, 1.f);
             break;
-        case eltwise_elu: acl_act_alg = acl_act_t::ELU; break;
-        case eltwise_square: acl_act_alg = acl_act_t::SQUARE; break;
-        case eltwise_abs: acl_act_alg = acl_act_t::ABS; break;
-        case eltwise_sqrt: acl_act_alg = acl_act_t::SQRT; break;
-        case eltwise_linear: acl_act_alg = acl_act_t::LINEAR; break;
-        case eltwise_bounded_relu: acl_act_alg = acl_act_t::BOUNDED_RELU; break;
-        case eltwise_soft_relu: acl_act_alg = acl_act_t::SOFT_RELU; break;
-        case eltwise_logistic: acl_act_alg = acl_act_t::LOGISTIC; break;
-        default: return arm_compute::ActivationLayerInfo();
+        case eltwise_elu:
+            act_info = ActivationLayerInfo(act_func::ELU, alpha, beta);
+            break;
+        case eltwise_square:
+            act_info = ActivationLayerInfo(act_func::SQUARE, alpha, beta);
+            break;
+        case eltwise_abs:
+            act_info = ActivationLayerInfo(act_func::ABS, alpha, beta);
+            break;
+        case eltwise_sqrt:
+            act_info = ActivationLayerInfo(act_func::SQRT, alpha, beta);
+            break;
+        case eltwise_linear:
+            act_info = ActivationLayerInfo(act_func::LINEAR, alpha, beta);
+            break;
+        case eltwise_bounded_relu:
+            act_info = ActivationLayerInfo(act_func::BOUNDED_RELU, alpha, beta);
+            break;
+        case eltwise_soft_relu:
+            act_info = ActivationLayerInfo(act_func::SOFT_RELU, alpha, beta);
+            break;
+        case eltwise_logistic:
+            act_info = ActivationLayerInfo(act_func::LOGISTIC, alpha, beta);
+            break;
+        default: act_info = ActivationLayerInfo(); return status::unimplemented;
     }
 
-    return arm_compute::ActivationLayerInfo(acl_act_alg, alpha, beta);
+    return status::success;
 }
 
-arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr) {
-    const auto &post_ops = attr.post_ops_;
-    const int entry_idx = post_ops.find(primitive_kind::eltwise);
-    if (entry_idx == -1) { return arm_compute::ActivationLayerInfo(); }
-
-    const auto eltwise_alg = post_ops.entry_[entry_idx].eltwise.alg;
-    float alpha = post_ops.entry_[entry_idx].eltwise.alpha;
-    float beta = post_ops.entry_[entry_idx].eltwise.beta;
-
-    return convert_to_acl_act(eltwise_alg, alpha, beta);
+status_t convert_to_acl_act(
+        const eltwise_desc_t &ed, arm_compute::ActivationLayerInfo &act_info) {
+    return convert_to_acl_act(ed.alg_kind, ed.alpha, ed.beta, act_info);
 }
 
-arm_compute::ActivationLayerInfo get_acl_act(const eltwise_desc_t &ed) {
-    const alg_kind_t eltwise_alg = ed.alg_kind;
-    float alpha = ed.alpha;
-    float beta = ed.beta;
-
-    return convert_to_acl_act(eltwise_alg, alpha, beta);
-}
-
-bool acl_act_ok(alg_kind_t eltwise_activation) {
-    return utils::one_of(eltwise_activation, eltwise_relu, eltwise_tanh,
-            eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
-            eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
-            eltwise_logistic);
+status_t convert_to_acl_act(const post_ops_t::entry_t::eltwise_t &elt,
+        arm_compute::ActivationLayerInfo &act_info) {
+    return convert_to_acl_act(elt.alg, elt.alpha, elt.beta, act_info);
 }
 
 status_t tensor_info(arm_compute::TensorInfo &info, const memory_desc_t &md) {
