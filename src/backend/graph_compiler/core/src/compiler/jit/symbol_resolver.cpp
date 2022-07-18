@@ -57,6 +57,7 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_aligned_malloc", (void *)sc_aligned_malloc},
             {"sc_aligned_free", (void *)sc_aligned_free},
             {"sc_make_trace", (void *)sc_make_trace},
+            {"sc_make_trace_kernel", (void *)sc_make_trace_kernel},
             {"sc_dump_tensor", (void *)sc_dump_tensor},
             {"sc_value_check", (void *)sc_value_check},
             {"sc_parallel_call_cpu_with_env",

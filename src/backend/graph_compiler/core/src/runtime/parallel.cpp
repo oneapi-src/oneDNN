@@ -30,6 +30,11 @@
 // clang-format on
 #endif
 
+#include <runtime/thread_locals.hpp>
+#ifdef SC_KERNEL_PROFILE
+#include <atomic>
+#endif
+
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 #include <omp.h>
 #endif
@@ -37,6 +42,7 @@
 // todo: handle signed integers
 extern "C" void sc_parallel_call_cpu(void (*pfunc)(int64_t, sc::generic_val *),
         int64_t begin, int64_t end, int64_t step, sc::generic_val *args) {
+    sc::runtime::thread_local_buffer_t::tls_buffer_.is_main_thread_ = true;
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 #pragma omp parallel for
 #endif
@@ -53,6 +59,7 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
         void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
         int64_t step, sc::generic_val *args) {
+    thread_local_buffer_t::tls_buffer_.is_main_thread_ = true;
     tbb::parallel_for(begin, end, step,
             [&](int64_t i) { pfunc(rtl_ctx, module_env, i, args); });
 }
@@ -96,15 +103,31 @@ static int get_in_parallel() {
 }
 #endif
 
+#ifdef SC_KERNEL_PROFILE
+static std::atomic<int> instance_cnt = {0};
+static thread_local int instance_id = instance_cnt++;
+#endif
+
 // omp or sequential
 extern "C" void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
         void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
         int64_t step, sc::generic_val *args) {
+#ifdef SC_KERNEL_PROFILE
+    int parent_instance_id = instance_id;
+#endif
+    sc::runtime::thread_local_buffer_t::tls_buffer_.is_main_thread_ = true;
+
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 #pragma omp parallel for
 #endif
     for (int64_t i = begin; i < end; i += step) {
+#ifdef SC_KERNEL_PROFILE
+        sc::runtime::thread_local_buffer_t::tls_buffer_.instance_id_
+                = parent_instance_id;
+        sc::runtime::thread_local_buffer_t::tls_buffer_.linear_thread_id_
+                = get_thread_num();
+#endif
         pfunc(rtl_ctx, module_env, i, args);
     }
 }

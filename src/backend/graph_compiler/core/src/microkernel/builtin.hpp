@@ -90,8 +90,18 @@ expr boundary_check(expr name, expr idx, expr access_len, expr boundary_len);
  * @param func_id the function id, s32
  * @param in_or_out s32, if 0, this is the entry trace of the function. if 1,
  * this is the exit trace of the function
+ * @param arg the argument in the trace
  * */
-expr make_trace(expr func_name, expr in_or_out);
+expr make_trace(expr func_name, expr in_or_out, expr arg);
+
+/**
+ * Generates a evaluate_call to sc_make_trace_kernel
+ * @param func_id the function id, s32
+ * @param in_or_out s32, if 0, this is the entry trace of the function. if 1,
+ * this is the exit trace of the function
+ * @param arg the argument in the trace
+ * */
+expr make_trace_kernel(expr func_name, expr in_or_out, expr arg);
 
 // Create a initialized postops data vector. Its length matches the number of
 // dnnl postop data init func args

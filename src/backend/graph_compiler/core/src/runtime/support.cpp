@@ -26,6 +26,7 @@
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
 #include <util/os.hpp>
+#include <util/string_utils.hpp>
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -97,6 +98,33 @@ runtime_config_t::runtime_config_t() {
     thread_pool_table_ = &sc_pool_table;
     trace_initial_cap_ = 2048 * 1024;
     trace_out_path_ = utils::getenv_string(env_names[SC_TRACE]);
+    char mode = 0;
+
+    if (trace_out_path_.size() == 1) {
+        // for SC_TRACE=1
+        mode = trace_out_path_[0] - '0';
+        trace_out_path_ = "sctrace.json";
+    } else if (trace_out_path_.size() > 2 && trace_out_path_[1] == ',') {
+        // for SC_TRACE=2,abc.json
+        mode = trace_out_path_[0] - '0';
+        trace_out_path_ = trace_out_path_.substr(2);
+    } else if (trace_out_path_.empty()) {
+        mode = 0;
+    } else {
+        // for SC_TRACE=abc.json
+        mode = 1;
+    }
+
+    switch (mode) {
+        case 0: trace_mode_ = trace_mode_t::OFF; break;
+        case 1: trace_mode_ = trace_mode_t::FAST; break;
+        case 2: trace_mode_ = trace_mode_t::KERNEL; break;
+        case 3: trace_mode_ = trace_mode_t::MULTI_THREAD; break;
+        default:
+            trace_mode_ = trace_mode_t::OFF;
+            trace_out_path_ = "";
+            break;
+    }
     execution_verbose_
             = (utils::getenv_int(env_names[SC_EXECUTION_VERBOSE], 0) == 1);
 

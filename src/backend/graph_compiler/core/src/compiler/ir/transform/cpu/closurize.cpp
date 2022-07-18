@@ -21,6 +21,9 @@
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/closurize_impl.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <microkernel/builtin.hpp>
+#include <runtime/config.hpp>
+#include <runtime/trace.hpp>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
@@ -56,12 +59,21 @@ class closurize_cpu_impl_t : public closurize_impl_t {
     func_t make_closure_func(const std::string &name,
             std::vector<expr_c> &&params, stmt_c body,
             const std::vector<call_node::parallel_attr_t> &para_attr) override {
+        bool need_trace = runtime_config_t::get().trace_mode_
+                == runtime_config_t::trace_mode_t::MULTI_THREAD;
         COMPILE_ASSERT(
                 para_attr.size() == 1, "CPU does not support grouped parallel");
         func_t closure
                 = builder::make_func(name, params, body, datatypes::void_t);
         // make the wrapper function
         stmts seq = make_stmt<stmts_node_t>(std::vector<stmt>());
+        int func_id = -1;
+        if (need_trace) {
+            func_id = register_traced_func(name);
+            seq->seq_.insert(seq->seq_.begin(),
+                    builder::make_evaluate_unattached(
+                            builtin::make_trace(func_id, 0, 0)));
+        }
         expr itervar = builder::make_var(datatypes::index, "i");
         expr args = builder::make_tensor(
                 "args", {(int)params.size() - 1}, datatypes::generic);
@@ -90,7 +102,10 @@ class closurize_cpu_impl_t : public closurize_impl_t {
         }
         seq->seq_.emplace_back(builder::make_evaluate_unattached(
                 builder::make_call(closure->decl_, fargs)));
-
+        if (need_trace) {
+            seq->seq_.emplace_back(builder::make_evaluate_unattached(
+                    builtin::make_trace(func_id, 1, 0)));
+        }
         modu_->add_func({closure, ret});
         return ret;
     }

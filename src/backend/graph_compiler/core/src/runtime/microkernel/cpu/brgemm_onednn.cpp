@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "brgemm_common.hpp"
+#include "kernel_timer.hpp"
 #include "microkernel.hpp"
 #include <cpu/x64/amx_tile_configure.hpp>
 #include <cpu/x64/brgemm/brgemm.hpp>
@@ -35,13 +36,6 @@
 #include <unordered_map>
 #include <util/hash_utils.hpp>
 #include <util/os.hpp>
-
-#ifdef SC_KERNEL_PROFILE
-#include <atomic>
-#include <chrono>
-extern std::atomic<uint64_t> mkernel_init;
-extern std::atomic<uint64_t> mkernel_exec;
-#endif
 
 using namespace dnnl::impl::cpu::x64;
 using namespace sc::brgemm;
@@ -342,6 +336,9 @@ struct brgemm_kernel_info {
     const char *palette_;
     brgemm_kernel_t *brg_kernel_;
     bool is_amx_;
+#ifdef SC_KERNEL_PROFILE
+    int32_t flops_;
+#endif
     ~brgemm_kernel_info() {
         if (brg_kernel_) {
             brgemm_kernel_destroy(brg_kernel_);
@@ -490,8 +487,10 @@ struct brg_desc_safe_t {
         } else {
             status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
         }
-
         assert(status == dnnl::impl::status::success);
+#ifdef SC_KERNEL_PROFILE
+        found_kernel->flops_ = 2 * M * K * N;
+#endif
         return found_kernel;
     }
 
@@ -573,6 +572,7 @@ SC_API void *dnnl_brgemm_func(int M, int N, int K, int LDA, int LDB, int LDC,
 SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
         const void *B, void *C, int num, sc::runtime::stream_t *stream) {
     bool amx_exclusive = false;
+    sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
     brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A, (void **)B,
             nullptr, (void *)C, tmp_amx_tile_buf);
@@ -583,6 +583,7 @@ SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
         const void *A, const void *B, void *C, int num,
         const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
     bool amx_exclusive = false;
+    sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
     brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
             (void **)B, nullptr, (void *)c_buf, (void *)C,
@@ -629,6 +630,7 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
         }
     }
     bool amx_exclusive = false;
+    sc_make_timer(brg_desc, batch_num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
     brgemm_kernel_execute(brg_desc->brg_kernel_, batch_num, batch, (void *)C,
             tmp_amx_tile_buf);
@@ -667,6 +669,7 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
         }
     }
     bool amx_exclusive = false;
+    sc_make_timer(brg_desc, batch_num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
     brgemm_kernel_execute_postops(brg_desc->brg_kernel_, batch_num, batch,
             (void *)c_buf, (void *)C,
@@ -704,18 +707,13 @@ SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
         int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
         char *bd_mask, const void *postops_setting, const void *postops_data,
         void *c_buf, sc::runtime::stream_t *stream) {
-#ifdef SC_KERNEL_PROFILE
-    auto start = std::chrono::high_resolution_clock::now();
-#endif
     float alpha = 1.0, beta = 0.0;
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
             static_cast<int>(stride_b * get_dtype_sizeof(dtypeB)), brgemm_strd,
             dtypeA, dtypeB, brg_attrs, bd_mask, postops_setting);
-#ifdef SC_KERNEL_PROFILE
-    auto init_stop = std::chrono::high_resolution_clock::now();
-#endif
     bool amx_exclusive = false;
+    sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
     if (postops_setting == nullptr) {
         brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
@@ -727,18 +725,6 @@ SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
                 tmp_amx_tile_buf);
     }
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
-
-#ifdef SC_KERNEL_PROFILE
-    auto exec_stop = std::chrono::high_resolution_clock::now();
-    mkernel_init += static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    init_stop - start)
-                    .count());
-    mkernel_exec += static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    exec_stop - init_stop)
-                    .count());
-#endif
     return 0;
 }
 
@@ -747,18 +733,13 @@ SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
         int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
         char *bd_mask, const void *postops_setting, const void *postops_data,
         void *c_buf, sc::runtime::stream_t *stream) {
-#ifdef SC_KERNEL_PROFILE
-    auto start = std::chrono::high_resolution_clock::now();
-#endif
     float alpha = 1.0, beta = 1.0;
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
             static_cast<int>(stride_b * get_dtype_sizeof(dtypeB)), brgemm_strd,
             dtypeA, dtypeB, brg_attrs, bd_mask, postops_setting);
-#ifdef SC_KERNEL_PROFILE
-    auto init_stop = std::chrono::high_resolution_clock::now();
-#endif
     bool amx_exclusive = false;
+    sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
     if (postops_setting == nullptr) {
         brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
@@ -770,18 +751,6 @@ SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
                 tmp_amx_tile_buf);
     }
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
-
-#ifdef SC_KERNEL_PROFILE
-    auto exec_stop = std::chrono::high_resolution_clock::now();
-    mkernel_init += static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    init_stop - start)
-                    .count());
-    mkernel_exec += static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    exec_stop - init_stop)
-                    .count());
-#endif
     return 0;
 }
 
@@ -790,9 +759,6 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
         const void *brg_attrs, char *bd_mask, const void *postops_setting,
         const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
-#ifdef SC_KERNEL_PROFILE
-    auto start = std::chrono::high_resolution_clock::now();
-#endif
     float alpha = 1.0, beta = 1.0;
     const int batch_num = num * len;
 #ifdef _MSC_VER
@@ -820,10 +786,8 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, 0, 0, brgemm_addr, dtypeA, dtypeB, brg_attrs, bd_mask,
             postops_setting);
-#ifdef SC_KERNEL_PROFILE
-    auto init_stop = std::chrono::high_resolution_clock::now();
-#endif
     bool amx_exclusive = false;
+    sc_make_timer(brg_desc, batch_num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
     if (postops_setting == nullptr) {
         brgemm_kernel_execute(brg_desc->brg_kernel_, batch_num, batch,
@@ -838,18 +802,6 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
     _freea(batch);
 #endif
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
-
-#ifdef SC_KERNEL_PROFILE
-    auto exec_stop = std::chrono::high_resolution_clock::now();
-    mkernel_init += static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    init_stop - start)
-                    .count());
-    mkernel_exec += static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    exec_stop - init_stop)
-                    .count());
-#endif
     return 0;
 }
 SC_API void dnnl_brgemm_postops_data_init(void *dnnl_data, void *bias,

@@ -30,7 +30,8 @@ SC_API uint64_t boundary_check(
         const char *name, uint64_t idx, uint64_t acc_len, uint64_t tsr_len);
 SC_API void *sc_global_aligned_alloc(size_t sz, size_t align);
 SC_API void sc_global_aligned_free(void *ptr, size_t align);
-SC_API void sc_make_trace(int id, int in_or_out);
+SC_API void sc_make_trace(int id, int in_or_out, int arg);
+SC_API void sc_make_trace_kernel(int id, int in_or_out, int arg);
 SC_API void sc_dump_tensor(void *tsr, const char *name, const char *shape,
         size_t size, size_t limit, const char *path, bool binary_fmt,
         uint64_t idtype);

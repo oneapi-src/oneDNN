@@ -904,7 +904,10 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
 
     for (auto &f : sub_modu->get_contents()) {
         remove_parallel(f);
-        f->attr()[function_attrs::skip_trace] = true;
+        if (runtime_config_t::get().trace_mode_
+                < runtime_config_t::trace_mode_t::KERNEL) {
+            f->attr()[function_attrs::skip_trace] = true;
+        }
         f->attr()[function_attrs::no_parallel] = true;
     }
     // std::cout << sub_modu->get_entry_func() << "\n";

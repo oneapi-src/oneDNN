@@ -90,12 +90,24 @@ expr boundary_check(expr name, expr idx, expr access_len, expr boundary_len) {
             std::move(access_len), std::move(boundary_len));
 }
 
-expr make_trace(expr func_name, expr in_or_out) {
+expr make_trace(expr func_name, expr in_or_out, expr arg) {
     static func_t make_trace_f = make_func("sc_make_trace",
             {make_var(datatypes::s32, "func_name"),
-                    make_var(datatypes::s32, "in_or_out")},
+                    make_var(datatypes::s32, "in_or_out"),
+                    make_var(datatypes::s32, "arg")},
             stmt(), datatypes::void_t);
-    return make_trace_f(std::move(func_name), std::move(in_or_out));
+    return make_trace_f(
+            std::move(func_name), std::move(in_or_out), std::move(arg));
+}
+
+expr make_trace_kernel(expr func_name, expr in_or_out, expr arg) {
+    static func_t make_trace_f = make_func("sc_make_trace_kernel",
+            {make_var(datatypes::s32, "func_name"),
+                    make_var(datatypes::s32, "in_or_out"),
+                    make_var(datatypes::s32, "arg")},
+            stmt(), datatypes::void_t);
+    return make_trace_f(
+            std::move(func_name), std::move(in_or_out), std::move(arg));
 }
 
 expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,

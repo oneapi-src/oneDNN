@@ -19,6 +19,10 @@
 #include <mutex>
 #include "config.hpp"
 #include <runtime/context.hpp>
+#ifdef SC_KERNEL_PROFILE
+#include <sstream>
+#include <stdio.h>
+#endif
 
 namespace sc {
 
@@ -35,6 +39,7 @@ struct thread_local_registry_t {
     // the TLS objects
     void release(engine_t *engine) {
         std::lock_guard<std::mutex> guard(lock_);
+        write_traces(tls_buffers_);
         for (auto node : tls_buffers_) {
             if (engine == nullptr || node->engine_ == engine) {
                 node->main_memory_pool_.release();

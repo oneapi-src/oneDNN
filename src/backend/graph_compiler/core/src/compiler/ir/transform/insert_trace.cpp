@@ -22,10 +22,11 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <microkernel/builtin.hpp>
+#include <runtime/config.hpp>
+#include <runtime/trace.hpp>
 
 namespace sc {
 
-extern int register_traced_func(const std::string &name);
 class trace_inserter_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
@@ -42,13 +43,13 @@ public:
         bool is_return_last = !seq.empty() && seq.back().isa<returns>();
         std::vector<stmt> newseq;
         newseq.emplace_back(builder::make_evaluate_unattached(
-                builtin::make_trace(func_id, 0)));
+                builtin::make_trace(func_id, 0, 0)));
         for (const auto &s : seq) {
             newseq.emplace_back(dispatch(s).remove_const());
         }
         if (!is_return_last) {
             newseq.emplace_back(builder::make_evaluate_unattached(
-                    builtin::make_trace(func_id, 1)));
+                    builtin::make_trace(func_id, 1, 0)));
         }
         return copy_attr(*v,
                 builder::make_func(v->name_, v->params_,
@@ -56,10 +57,40 @@ public:
                         v->ret_type_));
     }
 
+    stmt_c visit(evaluate_c v) override {
+        if (runtime_config_t::get().trace_mode_
+                        >= runtime_config_t::trace_mode_t::KERNEL
+                && v->value_.isa<intrin_call>()) {
+            auto intrin = v->value_.static_as<intrin_call>();
+            if (intrin->type_ == intrin_type::brgemm) {
+                return builder::make_stmts_unattached({
+                        builder::make_evaluate_unattached(
+                                builtin::make_trace_kernel(0, 0, 0)),
+                        v,
+                        builder::make_evaluate_unattached(
+                                builtin::make_trace_kernel(0, 1,
+                                        intrin->args_.at(brgemm_args::NUM))),
+                });
+            } else if (intrin->type_ == intrin_type::list_brgemm) {
+                return builder::make_stmts_unattached({
+                        builder::make_evaluate_unattached(
+                                builtin::make_trace_kernel(1, 0, 0)),
+                        v,
+                        builder::make_evaluate_unattached(
+                                builtin::make_trace_kernel(1, 1,
+                                        intrin->args_.at(brgemm_args::NUM)
+                                                * intrin->args_.at(
+                                                        brgemm_args::LEN))),
+                });
+            }
+        }
+        return v;
+    }
+
     stmt_c visit(returns_c v) override {
         return builder::make_stmts_unattached(
                 {builder::make_evaluate_unattached(
-                         builtin::make_trace(func_id, 1)),
+                         builtin::make_trace(func_id, 1, 0)),
                         v});
     }
 };

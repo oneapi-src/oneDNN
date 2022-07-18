@@ -44,12 +44,14 @@ struct thread_pool_table {
 };
 
 struct SC_INTERNAL_API runtime_config_t {
+    enum trace_mode_t { OFF = 0, FAST, KERNEL, MULTI_THREAD };
     thread_pool_table *thread_pool_table_;
     // if in muti-instance simulation, the number of threads per instance.
     int get_num_threads() { return thread_pool_table_->get_num_threads(); }
     void set_num_threads(int num) { thread_pool_table_->set_num_threads(num); }
     std::string trace_out_path_;
     int trace_initial_cap_;
+    trace_mode_t trace_mode_;
     bool execution_verbose_;
     int verbose_level_;
     static runtime_config_t &get();
