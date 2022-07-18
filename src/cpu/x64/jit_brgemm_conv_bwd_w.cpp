@@ -418,6 +418,8 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         wsp_tile = wsp_tile_global + ithr * 2 * brgemm_convolution_utils::P4K;
     }
 
+    const pd_t *pd() const { return self->pd(); }
+
     size_t tr_src_buf_number(int g, int icb) const {
         return jcp.global_transpose
                 ? ithr_mb * jcp.nb_ic * jcp.ngroups + g * jcp.nb_ic + icb
@@ -707,6 +709,43 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         }
         p_dst = &tr_diff_dst[tr_diff_dst_off(0, 0, 0, 0)]; //   p_tr_diff_dst;
     }
+
+    bool just_init_output(
+            int start, int end, float *diff_wei, float *diff_bias) {
+        if (start < end || g_start >= g_end || oc_b_start >= oc_b_end
+                || ic_b_start >= ic_b_end)
+            return false;
+        // for rare case if thread has now work by spatial dimension then we
+        // need to initialize the output at least
+        if (jcp.with_bias) {
+            for_(int g = g_start; g < g_end; ++g)
+            {
+                void *p_bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
+                        + oc_b_start * jcp.oc_block;
+                auto bias_amount = (oc_b_end - oc_b_start) * jcp.oc_block;
+                std::memset(p_bias, 0, bias_amount * jcp.acc_dsz);
+            }
+        }
+
+        for_(int g = g_start; g < g_end; ++g)
+        for (int oc_b = oc_b_start; oc_b < oc_b_end; oc_b++) {
+            auto wei_offs_ext = pd()->ndims() == 3
+                    ? wht_blk_off(diff_weights_d, g, oc_b, ic_b_start, 0)
+                    : (pd()->ndims() == 4 ? wht_blk_off(
+                               diff_weights_d, g, oc_b, ic_b_start, 0, 0)
+                                          : wht_blk_off(diff_weights_d, g, oc_b,
+                                                  ic_b_start, 0, 0, 0));
+            void *ptr_C = (jcp.transform_to_vnni) ? diff_wei
+                            + self->wei_offset_int(g, oc_b, ic_b_start, 0, 0, 0)
+                                                  : diff_wei + wei_offs_ext;
+
+            auto C_amount = jcp.kd * jcp.kh * jcp.kw * (ic_b_end - ic_b_start)
+                    * jcp.ic_block * jcp.oc_block;
+
+            std::memset(ptr_C, 0, C_amount * jcp.acc_dsz);
+        }
+        return true;
+    }
 };
 
 void brgemm_convolution_bwd_weights_t::call_brgemm_kernel(thread_info_t &btc,
@@ -809,6 +848,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
 
         call_brgemm_kernel(*ti, brg_idx, bs, ptr_C, ptr_D);
     };
+
+    if (ti->just_init_output(start, end, diff_wei, diff_bias)) return;
 
     while (start < end) {
         const int oh_e = _pd->get_finish_oh(
@@ -991,6 +1032,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
 
         call_brgemm_kernel(*ti, brg_idx, bs, ptr_C, ptr_D);
     };
+
+    if (ti->just_init_output(start, end, diff_wei, diff_bias)) return;
 
     const auto oh_s = 0;
     const auto oh_e = jcp.oh;
