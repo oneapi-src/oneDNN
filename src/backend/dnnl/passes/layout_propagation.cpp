@@ -1207,9 +1207,12 @@ static impl::status_t layout_propagation_for_squeeze(op_ptr &op,
 
         auto axes = op->get_attr<std::vector<int64_t>>(op_attr::axes);
 
-        if (axes.empty() || axes.size() == 2) {
-            // the output is a scalar or no need to squeeze,
-            // just skip for layout propagation
+        if (axes.empty()) {
+            // the output doesn't need to squeeze, just skip layout propagation
+        } else if (ltw(in_lt).vdims().size() == 2 && axes.size() == 2) {
+            // squeeze from {1,1} shaped tensor to a scalar.
+            tmp_in_md = dnnl::memory::desc(
+                    {1, 1}, out_md.data_type(), dnnl::memory::format_tag::ab);
         } else {
             assertm(axes.size() == 1,
                     "the size of axes in squeeze op "

@@ -25809,7 +25809,7 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
     }
 }
 
-TEST(Execute, MatmulScalarOuptput) {
+TEST(Execute, MatmulScalarOutput) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
     matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
     impl::engine_t &eng = get_engine();
@@ -25826,6 +25826,67 @@ TEST(Execute, MatmulScalarOuptput) {
             = utils::logical_tensor_init(1, {3}, impl::data_type::f32);
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             2, impl::data_type::f32, impl::layout_type::any);
+
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&matmul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    // output should be a scalar (ndims=0, layout_type=strided)
+    impl::logical_tensor_t scalar_lt;
+    cp.query_logical_tensor(dst.id, &scalar_lt);
+    ASSERT_EQ(scalar_lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(scalar_lt.ndims, 0);
+
+    impl::tensor_t src_ts(src, &eng, src_data.data());
+    impl::tensor_t weight_ts(weight, &eng, weight_data.data());
+    impl::tensor_t dst_ts(scalar_lt, &eng, dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts, weight_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+}
+
+TEST(Execute, MatmulStridedScalarOutput) {
+    impl::op_t matmul_op(impl::op_kind::MatMul);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src_data {-2.0, -1.5, 1.0};
+    test::vector<float> weight_data {-2.0, -1.5, 1.0};
+    test::vector<float> ref_dst_data {7.25};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {3}, impl::data_type::f32);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(1, {3}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            2, {}, impl::data_type::f32, impl::layout_type::strided);
 
     matmul_op.add_input(src);
     matmul_op.add_input(weight);
