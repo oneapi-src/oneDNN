@@ -19,6 +19,8 @@
 
 #include "cpu/aarch64/matmul/acl_matmul_utils.hpp"
 
+#include "cpu/aarch64/acl_post_ops.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -62,7 +64,7 @@ struct acl_matmul_t : public primitive_t {
 
         pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
                 const cpu_matmul_pd_t *hint_fwd_pd)
-            : cpu_matmul_pd_t(adesc, attr, hint_fwd_pd), amp_() {}
+            : cpu_matmul_pd_t(adesc, attr, hint_fwd_pd), amp_(), post_ops() {}
 
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
@@ -78,36 +80,30 @@ struct acl_matmul_t : public primitive_t {
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(
                             smask_t::oscale | smask_t::post_ops)
-                    && post_ops_ok() && attr_oscale_ok()
-                    && !has_runtime_dims_or_strides();
+                    && attr_oscale_ok() && !has_runtime_dims_or_strides();
             if (!ok) return status::unimplemented;
 
-            auto conf_status = acl_matmul_utils::init_conf_matmul(
-                    amp_, src_md_, weights_md_, dst_md_, *desc(), *attr());
+            CHECK(acl_matmul_utils::init_conf_matmul(
+                    amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
 
-            if (conf_status != status::success) return status::unimplemented;
+            arm_compute::ActivationLayerInfo act_info;
+            CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_, act_info));
+            amp_.gemm_info.set_activation_info(act_info);
+            amp_.use_dst_acc = post_ops.has_sum();
+
+            // Validate ACL GEMM
+            ACL_CHECK_VALID(arm_compute::NEGEMM::validate(&amp_.src_info,
+                    &amp_.wei_info, nullptr, &amp_.dst_info, amp_.alpha, 0.0f,
+                    amp_.gemm_info));
 
             return status::success;
         }
 
         acl_matmul_conf_t amp_;
 
-    protected:
-        bool post_ops_ok() const {
-            using namespace data_type;
-            using namespace alg_kind;
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
-            bool eltwise_only = (po.len() == 1) ? is_eltwise(0) : false;
-            bool eltwise_ok = false;
-            if (eltwise_only) {
-                const auto act_type = po.entry_[0].eltwise.alg;
-                eltwise_ok = acl_matmul_utils::acl_act_ok(act_type);
-            }
-            return eltwise_ok || (po.len() == 0);
-        }
+        acl_post_ops_t post_ops;
 
+    protected:
         bool attr_oscale_ok() const {
             const auto &oscale = attr()->output_scales_;
             return oscale.mask_ == 0;
@@ -123,10 +119,12 @@ struct acl_matmul_t : public primitive_t {
         if (!r) return status::out_of_memory;
 
         // Configure the resource based on information from primitive descriptor
-        auto st = r->configure(pd()->amp_);
-        if (st == status::success) { mapper.add(this, std::move(r)); }
+        CHECK(r->configure(pd()->amp_));
+        mapper.add(this, std::move(r));
 
-        return st;
+        CHECK(pd()->post_ops.create_resource(engine, mapper));
+
+        return status::success;
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;

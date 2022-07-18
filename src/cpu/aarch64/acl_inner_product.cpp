@@ -22,42 +22,52 @@ namespace cpu {
 namespace aarch64 {
 
 status_t acl_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+
     // Lock here is needed because resource_mapper does not support
     // concurrent multithreaded access.
     std::lock_guard<std::mutex> _lock {this->mtx};
 
-    auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
-    auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
-    auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-
     bool with_bias = pd()->aip.with_bias;
-    bool with_sum = pd()->aip.with_sum;
+    bool use_dst_acc = pd()->aip.use_dst_acc;
 
     // Retrieve primitive resource and configured Compute Library objects
-    auto *acl_resource
-            = ctx.get_resource_mapper()->get<acl_ip_resource_t>(this);
-    acl_ip_obj_t &acl_obj = acl_resource->get_acl_obj();
+    acl_ip_obj_t &acl_obj = ctx.get_resource_mapper()
+                                    ->get<acl_ip_resource_t>(this)
+                                    ->get_acl_obj();
 
-    // import_memory() and free() methods do not allocate/free any additional
-    // memory, only acquire/release pointers.
+    auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     acl_obj.src_tensor.allocator()->import_memory(
             const_cast<data_t *>(src_base));
+
+    auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     acl_obj.wei_tensor.allocator()->import_memory(
             const_cast<data_t *>(wei_base));
-    acl_obj.dst_tensor.allocator()->import_memory(dst_base);
+
+    if (use_dst_acc) {
+        // Put the result in a new tensor, it will be accumalated to the dst
+        // during the post ops
+        acl_obj.dst_tensor.allocator()->allocate();
+    } else {
+        auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+        acl_obj.dst_tensor.allocator()->import_memory(dst_base);
+    }
+
     if (with_bias) {
+        auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
         acl_obj.bia_tensor.allocator()->import_memory(
                 const_cast<data_t *>(bia_base));
     }
 
     acl_obj.fc.run();
-    if (with_sum) { acl_obj.add.run(); }
 
     acl_obj.src_tensor.allocator()->free();
     acl_obj.wei_tensor.allocator()->free();
-    acl_obj.dst_tensor.allocator()->free();
     if (with_bias) { acl_obj.bia_tensor.allocator()->free(); }
+
+    void *dst = acl_obj.dst_tensor.buffer();
+    pd()->post_ops.execute(ctx, dst);
+
+    acl_obj.dst_tensor.allocator()->free();
 
     return status::success;
 }

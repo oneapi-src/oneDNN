@@ -66,9 +66,6 @@ private:
 struct acl_eltwise_fwd_t : public primitive_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
-        pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
-                const eltwise_fwd_pd_t *hint_fwd_pd)
-            : cpu_eltwise_fwd_pd_t(adesc, attr, hint_fwd_pd), aep() {}
 
         DECLARE_COMMON_PD_T("acl", acl_eltwise_fwd_t);
 
@@ -96,10 +93,7 @@ struct acl_eltwise_fwd_t : public primitive_t {
                     data_d.nelems() / thread_dim, thread_dim);
             aep.data_info = arm_compute::TensorInfo(shape, 1, acl_data_t);
 
-            if (!acl_utils::acl_act_ok(desc()->alg_kind))
-                return status::unimplemented;
-
-            aep.act_info = acl_utils::get_acl_act(*desc());
+            CHECK(acl_utils::convert_to_acl_act(desc_, aep.act_info));
 
             ACL_CHECK_VALID(arm_compute::NEActivationLayer::validate(
                     &aep.data_info, &aep.data_info, aep.act_info));
@@ -108,6 +102,8 @@ struct acl_eltwise_fwd_t : public primitive_t {
         }
 
         acl_eltwise_conf_t aep;
+
+        friend struct acl_post_ops_t;
     };
 
     acl_eltwise_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -133,8 +129,16 @@ struct acl_eltwise_fwd_t : public primitive_t {
 private:
     // execute_forward has to be const thus mutability of mtx
     mutable std::mutex mtx;
+
     status_t execute_forward(const exec_ctx_t &ctx) const;
+
+    // Execute forward with arbitrary src and dst, used by acl_post_ops_t
+    status_t execute_forward(
+            const exec_ctx_t &ctx, const void *src, void *dst) const;
+
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    friend struct acl_post_ops_t;
 }; // acl_eltwise_fwd_t
 
 } // namespace aarch64
