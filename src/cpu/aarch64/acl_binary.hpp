@@ -220,6 +220,7 @@ struct acl_binary_t : public primitive_t {
             }
         }
 
+        friend struct acl_post_ops_t;
     }; // pd_t
 
     acl_binary_t(const pd_t *apd) : primitive_t(apd) {}
@@ -245,8 +246,15 @@ struct acl_binary_t : public primitive_t {
 private:
     // To guard the const execute_forward, the mutex must be 'mutable'
     mutable std::mutex mtx;
+
     status_t execute_forward(const exec_ctx_t &ctx) const;
+    // Execute forward with arbitrary src0, src1 and dst, used by acl_post_ops_t
+    status_t execute_forward(const exec_ctx_t &ctx, const void *src0,
+            const void *src1, void *dst) const;
+
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    friend struct acl_post_ops_t;
 
 }; // acl_binary_t
 

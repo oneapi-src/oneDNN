@@ -39,9 +39,22 @@ namespace acl_utils {
 
 arm_compute::DataType get_acl_data_t(
         const dnnl_data_type_t dt, const bool is_quantized = false);
-arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
-arm_compute::ActivationLayerInfo get_acl_act(const eltwise_desc_t &ed);
-bool acl_act_ok(alg_kind_t eltwise_activation);
+
+// Convert alg_kind_t, alpha and beta into an ACL ActivationLayerInfo. Will
+// return unimplemented and a disabled ActivationLayerInfo if the conversion
+// fails
+status_t convert_to_acl_act(alg_kind_t eltwise_alg, float alpha, float beta,
+        arm_compute::ActivationLayerInfo &act_info);
+
+// Convert an eltwise_desc_t into an ACL ActivationLayerInfo. Will return
+// unimplemented and a disabled ActivationLayerInfo if the conversion fails
+status_t convert_to_acl_act(
+        const eltwise_desc_t &ed, arm_compute::ActivationLayerInfo &act_info);
+
+// Convert an eltwise post op into an ACL ActivationLayerInfo. Will return
+// unimplemented and a disabled ActivationLayerInfo if the conversion fails
+status_t convert_to_acl_act(const post_ops_t::entry_t::eltwise_t &elt,
+        arm_compute::ActivationLayerInfo &act_info);
 
 // Convert a memory desc to an arm_compute::TensorInfo. Note that memory desc
 // must be blocking format, plain, dense and have no zero dimensions.

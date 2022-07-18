@@ -21,13 +21,11 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-status_t acl_eltwise_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+status_t acl_eltwise_fwd_t::execute_forward(
+        const exec_ctx_t &ctx, const void *src, void *dst) const {
     // Lock here is needed because resource_mapper does not support
     // concurrent access.
     std::lock_guard<std::mutex> _lock {this->mtx};
-
-    auto src_base = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto dst_base = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     // Retrieve primitive resource and configured Compute Library objects
     auto *acl_resource
@@ -36,8 +34,8 @@ status_t acl_eltwise_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     // import_memory() and free() methods do not allocate/free any additional
     // memory, only acquire/release pointers.
-    acl_obj.src_tensor.allocator()->import_memory(const_cast<void *>(src_base));
-    acl_obj.dst_tensor.allocator()->import_memory(dst_base);
+    acl_obj.src_tensor.allocator()->import_memory(const_cast<void *>(src));
+    acl_obj.dst_tensor.allocator()->import_memory(dst);
 
     acl_obj.act.run();
 
@@ -45,6 +43,14 @@ status_t acl_eltwise_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_obj.dst_tensor.allocator()->free();
 
     return status::success;
+}
+
+status_t acl_eltwise_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+
+    const void *src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    void *dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+
+    return execute_forward(ctx, src, dst);
 }
 
 } // namespace aarch64

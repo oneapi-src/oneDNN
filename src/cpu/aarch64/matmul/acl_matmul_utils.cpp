@@ -94,9 +94,6 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
             = utils::one_of(math_mode, fpmath_mode::bf16, fpmath_mode::any);
     amp.gemm_info.set_fast_math(is_fastmath_enabled);
 
-    // Fused ReLU activation
-    amp.gemm_info.set_activation_info(get_acl_act(attr));
-
     // Set alpha (output scaling)
     amp.alpha = attr.output_scales_.scales_[0];
 
@@ -107,62 +104,8 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     if (amp.is_transB)
         ACL_CHECK_VALID(arm_compute::NETranspose::validate(
                 &amp.wei_acc_info, &amp.wei_info));
-    // Validate ACL GEMM
-    ACL_CHECK_VALID(arm_compute::NEGEMM::validate(&amp.src_info, &amp.wei_info,
-            nullptr, &amp.dst_info, amp.alpha, 0.0f, amp.gemm_info));
 
     return status::success;
-}
-
-arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr) {
-    const auto &post_ops = attr.post_ops_;
-    const int entry_idx = post_ops.find(primitive_kind::eltwise);
-    if (entry_idx == -1) { return arm_compute::ActivationLayerInfo(); }
-
-    const auto eltwise_alg = post_ops.entry_[entry_idx].eltwise.alg;
-    float alpha = post_ops.entry_[entry_idx].eltwise.alpha;
-    float beta = post_ops.entry_[entry_idx].eltwise.beta;
-
-    using acl_act_t = arm_compute::ActivationLayerInfo::ActivationFunction;
-    acl_act_t acl_act_alg;
-    switch (eltwise_alg) {
-        case eltwise_relu:
-            // oneDNN defines RELU: f(x) = (x > 0) ? x : a*x
-            // Compute Library defines LEAKY_RELU: f(x) = (x > 0) ? x : a*x
-            // whilst Compute Library RELU is defined as: f(x) = max(0,x)
-            if (alpha == 0) {
-                acl_act_alg = acl_act_t::RELU;
-            } else {
-                acl_act_alg = acl_act_t::LEAKY_RELU;
-            }
-            break;
-        case eltwise_tanh:
-            // oneDNN defines TANH activation as:          f(x) = tanh(x)
-            // Compute Library defines TANH activation as: f(x) = a*tanh(b*x)
-            // Setting a=b=1 makes the two equivalent
-            alpha = 1.f;
-            beta = 1.f;
-            acl_act_alg = acl_act_t::TANH;
-            break;
-        case eltwise_elu: acl_act_alg = acl_act_t::ELU; break;
-        case eltwise_square: acl_act_alg = acl_act_t::SQUARE; break;
-        case eltwise_abs: acl_act_alg = acl_act_t::ABS; break;
-        case eltwise_sqrt: acl_act_alg = acl_act_t::SQRT; break;
-        case eltwise_linear: acl_act_alg = acl_act_t::LINEAR; break;
-        case eltwise_bounded_relu: acl_act_alg = acl_act_t::BOUNDED_RELU; break;
-        case eltwise_soft_relu: acl_act_alg = acl_act_t::SOFT_RELU; break;
-        case eltwise_logistic: acl_act_alg = acl_act_t::LOGISTIC; break;
-        default: return arm_compute::ActivationLayerInfo();
-    }
-
-    return arm_compute::ActivationLayerInfo(acl_act_alg, alpha, beta);
-}
-
-bool acl_act_ok(alg_kind_t eltwise_activation) {
-    return utils::one_of(eltwise_activation, eltwise_relu, eltwise_tanh,
-            eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
-            eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
-            eltwise_logistic);
 }
 
 } // namespace acl_matmul_utils

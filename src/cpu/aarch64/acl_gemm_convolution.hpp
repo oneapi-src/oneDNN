@@ -20,6 +20,7 @@
 #include "cpu/cpu_convolution_pd.hpp"
 
 #include "cpu/aarch64/acl_convolution_utils.hpp"
+#include "cpu/aarch64/acl_post_ops.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -39,30 +40,11 @@ struct acl_resource_t : public resource_t {
         acl_obj_->wei_tensor.allocator()->init(acp.wei_info);
         acl_obj_->dst_tensor.allocator()->init(acp.dst_info);
         acl_obj_->bia_tensor.allocator()->init(acp.bia_info);
-        if (acp.sum_with_eltwise) {
-            acl_obj_->dst_acc_tensor.allocator()->init(acp.dst_info);
-        }
-        // clang-format off
-        acl_obj_->conv.configure(
-            &acl_obj_->src_tensor,
-            &acl_obj_->wei_tensor,
-            acp.with_bias ? &acl_obj_->bia_tensor : nullptr,
-            acp.sum_with_eltwise ? &acl_obj_->dst_acc_tensor : &acl_obj_->dst_tensor,
-            acp.padstride_info,
-            acp.weights_info,
-            acp.dilation_info,
-            acp.sum_with_eltwise ? arm_compute::ActivationLayerInfo() : acp.act_info,
-            acp.fast_math);
-        // clang-format on
-        if (acp.sum_with_eltwise) {
-            acl_obj_->add.configure(&acl_obj_->dst_tensor,
-                    &acl_obj_->dst_acc_tensor, &acl_obj_->dst_acc_tensor,
-                    arm_compute::ConvertPolicy::SATURATE);
-            acl_obj_->act.configure(&acl_obj_->dst_acc_tensor,
-                    &acl_obj_->dst_tensor, acp.act_info);
-            acl_obj_->dst_acc_tensor.allocator()->allocate();
-        }
 
+        acl_obj_->conv.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
+                acp.with_bias ? &acl_obj_->bia_tensor : nullptr,
+                &acl_obj_->dst_tensor, acp.padstride_info, acp.weights_info,
+                acp.dilation_info, acp.act_info, acp.fast_math);
         return status::success;
     }
 
@@ -100,18 +82,22 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
                     && attr()->has_default_values(smask_t::oscale
                                     | smask_t::zero_points | smask_t::post_ops,
                             dst_type)
-                    && output_scales_mask_ok() && zero_points_ok()
-                    && post_ops_ok();
+                    && output_scales_mask_ok() && zero_points_ok();
             if (!ok) return status::unimplemented;
 
-            auto conf_status = acl_convolution_utils::init_conf_gemm(acp_,
-                    src_md_, weights_md_, dst_md_, bias_md_, *desc(), *attr());
-            if (conf_status != status::success) return status::unimplemented;
+            CHECK(acl_convolution_utils::init_conf_gemm(acp_, src_md_,
+                    weights_md_, dst_md_, bias_md_, *desc(), *attr()));
+
+            CHECK(post_ops.init(
+                    engine, attr_.post_ops_, dst_md_, acp_.act_info));
+            acp_.use_dst_acc = post_ops.has_sum();
 
             return status::success;
         }
 
         acl_conv_conf_t acp_;
+
+        acl_post_ops_t post_ops;
 
     protected:
         bool output_scales_mask_ok() const {
@@ -128,27 +114,6 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
             // TODO: add support for asymmetric quantization
             return attr()->zero_points_.has_default_values();
         }
-
-        bool post_ops_ok() const {
-            auto const &po = attr()->post_ops_;
-            // "true" here stands for eltwise.scale == 1.f check
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(true); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
-
-            bool sum_with_eltwise
-                    = (po.len() == 2) && is_sum(0) && is_eltwise(1);
-            bool eltwise_only = (po.len() == 1) ? is_eltwise(0) : false;
-            bool eltwise_ok = false;
-            // Compute Library supports either one eltwise post-op or
-            // sum+eltwise post-ops
-            if (eltwise_only || sum_with_eltwise) {
-                const auto act_type = po.entry_[sum_with_eltwise].eltwise.alg;
-                eltwise_ok = acl_utils::acl_act_ok(act_type);
-            }
-
-            return eltwise_ok || (po.len() == 0);
-        }
     };
 
     acl_gemm_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -161,10 +126,12 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
         if (!r) return status::out_of_memory;
 
         // Configure the resource based on information from primitive descriptor
-        auto st = r->configure(pd()->acp_);
-        if (st == status::success) { mapper.add(this, std::move(r)); }
+        CHECK(r->configure(pd()->acp_));
+        mapper.add(this, std::move(r));
 
-        return st;
+        CHECK(pd()->post_ops.create_resource(engine, mapper));
+
+        return status::success;
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;
@@ -181,7 +148,6 @@ private:
     mutable std::mutex mtx;
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
 }; // acl_gemm_convolution_fwd_t
 
 } // namespace aarch64

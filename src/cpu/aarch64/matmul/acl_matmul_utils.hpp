@@ -40,6 +40,9 @@ struct acl_matmul_obj_t {
 struct acl_matmul_conf_t {
     bool is_transA;
     bool is_transB;
+    // If this is true, the result of the matmul goes into a temporarily
+    // allocated ACL tensor to be accumulated into the oneDNN dst during postops
+    bool use_dst_acc;
     arm_compute::TensorInfo src_info;
     arm_compute::TensorInfo src_acc_info;
     arm_compute::TensorInfo wei_info;
@@ -55,8 +58,6 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
         memory_desc_t &wei_md, memory_desc_t &dst_md, const matmul_desc_t &md,
         const primitive_attr_t &attr);
 
-arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
-bool acl_act_ok(alg_kind_t eltwise_activation);
 } // namespace acl_matmul_utils
 
 } // namespace aarch64

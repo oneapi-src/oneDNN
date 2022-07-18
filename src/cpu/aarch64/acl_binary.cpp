@@ -21,11 +21,8 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-status_t acl_binary_t::execute_forward(const exec_ctx_t &ctx) const {
-
-    auto src0 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_0);
-    auto src1 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_1);
-    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+status_t acl_binary_t::execute_forward(const exec_ctx_t &ctx, const void *src0,
+        const void *src1, void *dst) const {
 
     // Lock here is needed because resource_mapper does not support
     // concurrent multithreaded access.
@@ -47,6 +44,15 @@ status_t acl_binary_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_obj.dst_tensor.allocator()->free();
 
     return status::success;
+}
+
+status_t acl_binary_t::execute_forward(const exec_ctx_t &ctx) const {
+
+    auto src0 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_0);
+    auto src1 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_1);
+    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+
+    return execute_forward(ctx, src0, src1, dst);
 }
 
 } // namespace aarch64
