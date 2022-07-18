@@ -31,6 +31,11 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::resampling::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
+    auto const_pd = query_pd(prim);
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
     //Skip if source and destination datatypes are different.
     if (prb->sdt != prb->ddt) {
         res->state = SKIPPED, res->reason = INVALID_CASE;

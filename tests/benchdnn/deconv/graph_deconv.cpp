@@ -37,6 +37,11 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::deconv::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
+    auto const_pd = query_pd(prim);
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
     const bool with_groups = prb->g > 1;
     if (with_groups) {
         const std::string wei_dnnl_fmt_tag_str

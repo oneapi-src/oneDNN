@@ -29,6 +29,11 @@ static int check_known_skipped_case_graph(
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, ::softmax::init_pd, prb, res), WARN);
 
+    auto const_pd = query_pd(prim);
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
     // oneDNN calculation error, deprecated this case temporarily.
     if (is_gpu() && prb->stag == tag::axb && prb->axis == 2
             && prb->dir == FWD_I) {

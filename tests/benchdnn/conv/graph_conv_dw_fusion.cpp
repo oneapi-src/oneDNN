@@ -29,6 +29,11 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::conv_dw_fusion::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
+    auto const_pd = query_pd(prim);
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
     // We do not support backward pass and bias at the moment
     if (prb->dir != FWD_I && prb->dir != FWD_D) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
