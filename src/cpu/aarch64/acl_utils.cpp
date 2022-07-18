@@ -202,9 +202,6 @@ int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
         // Number of dimensions must match and must be blocked
         if (md->ndims != ndims || md->format_kind != format_kind::blocked)
             return 0;
-
-        // Check all the dimensions are the same size
-        if (!utils::array_cmp(md->dims, mds[0]->dims, (size_t)ndims)) return 0;
     }
 
     int reordered_dims = 0;
@@ -213,29 +210,40 @@ int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
     std::vector<int> perm(ndims);
     std::iota(perm.begin(), perm.end(), 0);
 
-    // For each dimension d1, look for a dimension (d2) in which every md has
-    // the target stride. Target stride is initially 1 (i.e. dense) but will
-    // increase each time we find a dimension which matches.
-    dim_t target_stride = 1;
+    // For each dimension d1, find a dimension (d2) in which every md has the
+    // next smallest stride, then swap d2 into d1. Stride is initially 1 (i.e.
+    // dense) but will increase each time we find a dimension. The target
+    // strides may be different across dimensions if they are broadcasted.
+    std::vector<dim_t> next_smallest_stride(mds.size(), 1);
     for (dim_t d1 = ndims - 1; d1 >= 0; --d1) {
-        bool found_target = false;
+        bool found_swap = false;
         for (dim_t d2 = d1; d2 >= 0; --d2) {
-            found_target = std::all_of(
-                    mds.begin(), mds.end(), [=](const memory_desc_t *m) {
-                        return m->format_desc.blocking.strides[perm[d2]]
-                                == target_stride;
-                    });
-            if (found_target) {
-                // Multiply target stride by dimension
-                target_stride *= mds[0]->dims[perm[d2]];
-                // Swap the found dimension (d2) into d1
+            // Check that all mds have the right stride
+            found_swap = true;
+            for (size_t i = 0; i < mds.size(); i++) {
+                auto &md_strides = mds[i]->format_desc.blocking.strides;
+                // Either it is the next smallest stride, or the dimensions is 1
+                // so we can ignore it
+                bool can_swap = md_strides[perm[d2]] == next_smallest_stride[i]
+                        || mds[i]->dims[perm[d2]] == 1;
+                if (!can_swap) {
+                    found_swap = false;
+                    break;
+                }
+            }
+            if (found_swap) {
+                // Multiply next smallest strides by dimension we just found
+                for (size_t i = 0; i < mds.size(); i++)
+                    next_smallest_stride[i] *= mds[i]->dims[perm[d2]];
+
+                // Swap the found dimension (perm[d2]) into d1
                 nstl::swap(perm[d2], perm[d1]);
                 ++reordered_dims;
                 break;
             }
         }
-        // If we didn't find the target, we can't move onto the next dimension
-        if (!found_target) break;
+        // We didn't find a swap for this dimension, we can't continue
+        if (!found_swap) break;
     }
 
     // dnnl_memory_desc_permute_axes applies the inverse of the permutation
