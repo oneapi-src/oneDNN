@@ -6650,6 +6650,106 @@ TEST(Compile, ConvBnSharedInputs) {
     ASSERT_TRUE(allclose(bn_dst, convbn_dst, /*rtol*/ 0.1f, 1e-6f));
 }
 
+TEST(Execute, ConvolutionBf16InFp32Out) {
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
+                    && eng.kind() == impl::engine_kind::cpu,
+            "Skip bf16 examples for systems that do not support avx512_core.");
+
+    impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+
+    impl::op_t add_op(1, impl::op_kind::Add, "add");
+    impl::op_t tc_op(2, impl::op_kind::TypeCast, "tc");
+
+    // prepare logical tensor
+    impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
+            0, {8, 32, 16, 16}, impl::data_type::bf16);
+    impl::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
+            1, {32, 32, 1, 1}, impl::data_type::bf16);
+    impl::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {8, 32, 16, 16}, impl::data_type::bf16);
+    impl::logical_tensor_t post_src_lt = utils::logical_tensor_init(
+            3, {8, 32, 16, 16}, impl::data_type::bf16);
+    impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {8, 32, 16, 16}, impl::data_type::bf16);
+    impl::logical_tensor_t tc_dst_lt = utils::logical_tensor_init(
+            5, {8, 32, 16, 16}, impl::data_type::f32);
+
+    // Initialize
+    test::vector<uint16_t> conv_src(8 * 32 * 16 * 16, 3);
+    test::vector<uint16_t> conv_weight(32 * 32 * 1 * 1, 2);
+    test::vector<uint16_t> post_src(8 * 32 * 16 * 16, 1);
+    test::vector<float> tc_dst(8 * 32 * 16 * 16, 0.0);
+
+    impl::tensor_t conv_src_ts(conv_src_lt, &eng, conv_src.data());
+    impl::tensor_t conv_weight_ts(conv_weight_lt, &eng, conv_weight.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t tc_dst_ts(tc_dst_lt, &eng, tc_dst.data());
+
+    conv_op.add_input(conv_src_lt);
+    conv_op.add_input(conv_weight_lt);
+    conv_op.add_output(conv_dst_lt);
+    add_op.add_input(conv_dst_lt);
+    add_op.add_input(post_src_lt);
+    add_op.add_output(add_dst_lt);
+    tc_op.add_input(add_dst_lt);
+    tc_op.add_output(tc_dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv_op);
+    g.add_op(&add_op);
+    g.add_op(&tc_op);
+    g.build_graph();
+
+    //run unfused graph to compute the reference
+    ASSERT_EQ(run_graph(g, {conv_src_ts, conv_weight_ts, post_src_ts},
+                      {tc_dst_ts}, eng, strm),
+            impl::status::success);
+
+    // run fusion partition
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    ASSERT_EQ(part->get_ops().size(), 3);
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &conv_src_lt, &conv_weight_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&tc_dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    test::vector<float> convtc_dst(8 * 32 * 16 * 16, 0.0);
+    impl::tensor_t convtc_dst_ts(tc_dst_lt, &eng, convtc_dst.data());
+
+    cp.execute(
+            &strm, {conv_src_ts, conv_weight_ts, post_src_ts}, {convtc_dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < tc_dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(tc_dst[i], convtc_dst[i]);
+    }
+}
+
 TEST(Execute, ConvAdd) {
     using dims = impl::dnnl_impl::dims;
 

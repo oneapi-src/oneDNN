@@ -1207,7 +1207,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3] 
-                |       
+                |
+            [TypeCast]*
+                |
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
         .set_priority(9.7f)
@@ -1255,9 +1257,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
-                    pgraph->append_repetition(alt_graph, {0, 0}, 0,
+                    auto prep = pgraph->append_repetition(alt_graph, {0, 0}, 0,
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
+
+                    // Optional typecast
+                    auto popt_tc_graph
+                            = std::make_shared<pb_graph_t>("poptional_tc");
+                    auto ptc = popt_tc_graph->append_op(
+                            impl::op_kind::TypeCast, "ptc");
+                    ptc->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    ptc->append_decision_function(
+                            check_output_dtype<impl::data_type::f32>);
+                    popt_tc_graph->create_input_port(0, ptc, 0);
+                    popt_tc_graph->create_output_port(0, ptc, 0);
+                    pgraph->append_optional(
+                            popt_tc_graph, {in_edge(0, prep, 0)}, "popt_tc");
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_conv_fwd>();
@@ -1272,7 +1288,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
         [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3] 
-                |      
+                |
+           [TypeCast]*
+                |
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
         .set_priority(9.8f)
@@ -1323,9 +1341,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
-                    pgraph->append_repetition(alt_graph, {0, 0}, 0,
+                    auto prep = pgraph->append_repetition(alt_graph, {0, 0}, 0,
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
+
+                    // Optional typecast
+                    auto popt_tc_graph
+                            = std::make_shared<pb_graph_t>("poptional_tc");
+                    auto ptc = popt_tc_graph->append_op(
+                            impl::op_kind::TypeCast, "ptc");
+                    ptc->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    ptc->append_decision_function(
+                            check_output_dtype<impl::data_type::f32>);
+                    popt_tc_graph->create_input_port(0, ptc, 0);
+                    popt_tc_graph->create_output_port(0, ptc, 0);
+                    pgraph->append_optional(
+                            popt_tc_graph, {in_edge(0, prep, 0)}, "popt_tc");
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1370,9 +1402,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
-                    pgraph->append_repetition(alt_graph, {0, 0}, 0,
+                    auto prep = pgraph->append_repetition(alt_graph, {0, 0}, 0,
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
+
+                    // Optional typecast
+                    auto popt_tc_graph
+                            = std::make_shared<pb_graph_t>("poptional_tc");
+                    auto ptc = popt_tc_graph->append_op(
+                            impl::op_kind::TypeCast, "ptc");
+                    ptc->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    ptc->append_decision_function(
+                            check_output_dtype<impl::data_type::f32>);
+                    popt_tc_graph->create_input_port(0, ptc, 0);
+                    popt_tc_graph->create_output_port(0, ptc, 0);
+                    pgraph->append_optional(
+                            popt_tc_graph, {in_edge(0, prep, 0)}, "popt_tc");
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_conv_fwd>();

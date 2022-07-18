@@ -2182,15 +2182,23 @@ impl::status_t fuse_post_typecast_to_matmul_or_conv(
         } else {
             if (!is_typecast(&next_op)) continue;
             auto tc_out = next_op.get_output_value(0);
-            if (tc_out->get_consumers().size() != 1) continue;
-            auto &q_op = tc_out->get_consumers()[0].get_op();
-            if (q_op.get_kind() != dnnl_impl::op_kind::dnnl_mul_scales)
-                continue;
-            out->remove_consumer(next_op, 0);
-            tc_out->remove_consumer(q_op, 0);
-            q_op.connect_input(0, out);
-            out->set_data_type(impl::data_type::f32);
-            fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
+            if (tc_out->get_consumers().size() > 1) continue;
+            if (tc_out->get_consumers().size() == 1) {
+                // bf16-int8 mix precision case
+                auto &q_op = tc_out->get_consumers()[0].get_op();
+                if (q_op.get_kind() != dnnl_impl::op_kind::dnnl_mul_scales)
+                    continue;
+                out->remove_consumer(next_op, 0);
+                tc_out->remove_consumer(q_op, 0);
+                q_op.connect_input(0, out);
+                out->set_data_type(impl::data_type::f32);
+                fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
+            } else {
+                // tc has no consumer in the subgraph
+                // which means the fp32-in-bf16 out case
+                cur_op->connect_output(0, tc_out);
+                fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
+            }
         }
     }
 

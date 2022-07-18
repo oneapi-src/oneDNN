@@ -301,6 +301,7 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_matmul_or_conv);
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points);
             // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
