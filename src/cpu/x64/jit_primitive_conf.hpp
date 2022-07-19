@@ -986,6 +986,7 @@ struct jit_binary_conf_t {
     dim_t outer_dims = 1;
     int src1_stride = 1;
     int not_bcasted_sp_dims = 0;
+    cpu_isa_t isa = isa_any;
 
     data_type_t src0_type = data_type::undef;
     data_type_t src1_type = data_type::undef;
