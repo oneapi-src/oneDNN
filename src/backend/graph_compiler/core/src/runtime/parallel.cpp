@@ -122,11 +122,10 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
 #pragma omp parallel for
 #endif
     for (int64_t i = begin; i < end; i += step) {
+        auto &tls = sc::runtime::thread_local_buffer_t::tls_buffer_;
 #ifdef SC_KERNEL_PROFILE
-        sc::runtime::thread_local_buffer_t::tls_buffer_.instance_id_
-                = parent_instance_id;
-        sc::runtime::thread_local_buffer_t::tls_buffer_.linear_thread_id_
-                = get_thread_num();
+        tls.additional_->instance_id_ = parent_instance_id;
+        tls.additional_->linear_thread_id_ = get_thread_num();
 #endif
         pfunc(rtl_ctx, module_env, i, args);
     }

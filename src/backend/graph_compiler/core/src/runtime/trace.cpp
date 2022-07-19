@@ -55,11 +55,11 @@ static void write_json_traces(FILE *outf,
         if (sc::runtime_config_t::get().trace_mode_
                 < sc::runtime_config_t::trace_mode_t::MULTI_THREAD) {
             if (!tlb->is_main_thread_) {
-                tlb->trace_.trace_logs_.clear();
+                tlb->additional_->trace_.trace_logs_.clear();
                 continue;
             }
         }
-        for (auto &v : tlb->trace_.trace_logs_) {
+        for (auto &v : tlb->additional_->trace_.trace_logs_) {
             fprintf(outf,
                     R"({"pid":1, "tid":%zu, "ts":%lf, "ph":"%c", "name":"%s@%d", "args":{"flop":%d}, "cat":"call" }%c
 )",
@@ -68,7 +68,7 @@ static void write_json_traces(FILE *outf,
                     v.func_id_, v.arg_, i == trace_size - 1 ? ' ' : ',');
             i++;
         }
-        tlb->trace_.trace_logs_.clear();
+        tlb->additional_->trace_.trace_logs_.clear();
     }
     fputs(R"(],
 "sc_version": "0.0.0"
@@ -86,14 +86,14 @@ static void write_compact_traces(FILE *outf,
     }
     fprintf(outf, "\n");
     for (auto *tlb : tls_buffers) {
-        fprintf(outf, "trace:%d,%d:", tlb->linear_thread_id_,
-                tlb->instance_id_);
-        for (auto &v : tlb->trace_.trace_logs_) {
+        fprintf(outf, "trace:%d,%d:", tlb->additional_->linear_thread_id_,
+                tlb->additional_->instance_id_);
+        for (auto &v : tlb->additional_->trace_.trace_logs_) {
             fprintf(outf, "%ld-%d-%d-%d,", (v.tick_ - min_val), v.in_or_out_,
                     v.func_id_, v.arg_);
         }
         fprintf(outf, "\n");
-        tlb->trace_.trace_logs_.clear();
+        tlb->additional_->trace_.trace_logs_.clear();
     }
 }
 
@@ -103,8 +103,8 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
     size_t trace_size = 0;
     int64_t min_val = std::numeric_limits<uint64_t>::max();
     for (auto v : tls_buffers) {
-        trace_size += v->trace_.trace_logs_.size();
-        for (auto &log : v->trace_.trace_logs_) {
+        trace_size += v->additional_->trace_.trace_logs_.size();
+        for (auto &log : v->additional_->trace_.trace_logs_) {
             min_val = std::min(log.tick_, min_val);
         }
     }
@@ -149,7 +149,8 @@ int get_last_trace_func_id() {
 
 using namespace sc;
 extern "C" void sc_make_trace(int id, int in_or_out, int arg) {
-    auto &trace_mgr = runtime::thread_local_buffer_t::tls_buffer_.trace_;
+    auto &trace_mgr
+            = runtime::thread_local_buffer_t::tls_buffer_.additional_->trace_;
     if (trace_mgr.trace_logs_.empty()) {
         trace_mgr.trace_logs_.reserve(
                 runtime_config_t::get().trace_initial_cap_);

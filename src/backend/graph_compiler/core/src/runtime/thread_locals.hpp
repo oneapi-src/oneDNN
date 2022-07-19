@@ -18,6 +18,7 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_LOCALS_HPP
 #include <assert.h>
 #include <list>
+#include <memory>
 #include <vector>
 #include "context.hpp"
 #include "memorypool.hpp"
@@ -40,18 +41,23 @@ struct thread_local_registry_t;
 // sc::release_runtime_memory to manually release all thread local memory
 // managed by this struct
 struct thread_local_buffer_t {
+    struct additional_t {
+        int linear_thread_id_ = 0;
+        int instance_id_ = 0;
+        trace_manager_t trace_;
+    };
+    bool is_main_thread_;
     engine_t *engine_ = nullptr;
     amx_buffer_t amx_buffer_;
-    int linear_thread_id_ = 0;
-    int instance_id_ = 0;
-    trace_manager_t trace_;
+
     // if the current thread is the "main" thread, use this pool
     memory_pool::filo_memory_pool_t main_memory_pool_ {
             memory_pool::main_chunk_size};
     // if the current thread is a worker thread, use this pool
     memory_pool::filo_memory_pool_t thread_memory_pool_ {
             memory_pool::threadlocal_chunk_size};
-    bool is_main_thread_ = false;
+
+    std::unique_ptr<additional_t> additional_;
 
     ~thread_local_buffer_t();
     using list_type = std::list<thread_local_buffer_t *>;

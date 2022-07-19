@@ -61,7 +61,8 @@ static thread_local_registry_t &get_registry() {
 }
 
 // register itself into registry
-thread_local_buffer_t::thread_local_buffer_t() {
+thread_local_buffer_t::thread_local_buffer_t()
+    : additional_(std::unique_ptr<additional_t>(new additional_t {})) {
     assert(!runtime::registry_destroyed);
     auto &registry = get_registry();
     std::lock_guard<std::mutex> guard(registry.lock_);
