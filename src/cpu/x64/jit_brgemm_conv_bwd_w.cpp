@@ -470,15 +470,20 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         const int ic_tail_work = jcp.ic_tail ? jcp.ic_tail : jcp.ic_block;
         while (work_rest > 0) {
             for (int iwork = 0; iwork < sp_work; iwork++) {
-                auto ctx = jit_trans_src_t::ctx_t();
-                ctx.src = src;
-                ctx.tr_src = tr_src;
-                assert(icb_start + icb < jcp.nb_ic);
-                ctx.ch_work = (icb_start + icb + 1) == jcp.nb_ic ? ic_tail_work
-                                                                 : jcp.ic_block;
-                ctx.src_prf = nullptr;
-                ctx.tr_src_prf = nullptr;
-                (*self->trans_kernel_)(&ctx);
+                //For 1x1 convolutions with strides we transpose only
+                // needed lines
+                if (IMPLICATION(jcp.kh == 1, iwork % jcp.stride_h == 0)) {
+                    auto ctx = jit_trans_src_t::ctx_t();
+                    ctx.src = src;
+                    ctx.tr_src = tr_src;
+                    assert(icb_start + icb < jcp.nb_ic);
+                    ctx.ch_work = (icb_start + icb + 1) == jcp.nb_ic
+                            ? ic_tail_work
+                            : jcp.ic_block;
+                    ctx.src_prf = nullptr;
+                    ctx.tr_src_prf = nullptr;
+                    (*self->trans_kernel_)(&ctx);
+                }
                 src += src_stride;
                 tr_src += tr_src_stride;
             }
