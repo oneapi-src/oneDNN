@@ -15,10 +15,10 @@
 *******************************************************************************/
 
 #include "cpu/x64/jit_uni_layer_normalization_kernels.hpp"
-#include "common/bfloat16.hpp"
-#include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
+#include "cpu/x64/utils/jit_io_helper.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -29,128 +29,36 @@ using namespace dnnl::impl::cpu::lnorm_utils;
 using namespace dnnl::impl::cpu::x64;
 using namespace data_type;
 using namespace Xbyak;
-using namespace Xbyak::util;
 
-struct jit_transfer_t {
-    jit_transfer_t(jit_generator &gen, const int simd_w)
-        : gen_(gen)
-        , simd_w_(simd_w)
-        , emulate_bf16_(!mayiuse(avx512_core_bf16)) {
-        if (emulate_bf16_) {
-            this->bf16_emu_ = utils::make_unique<bf16_emulation_t>(&this->gen_,
-                    this->bf16_emu_reserv_1_, this->bf16_emu_reserv_2_,
-                    this->bf16_emu_reserv_3_, this->bf16_emu_scratch_,
-                    this->bf16_emu_reserv_4_);
-        }
-    }
-
-    // Need to have bf16 emu available publically here since initialization
-    // has to happen after preamble.
-    std::unique_ptr<bf16_emulation_t> bf16_emu_;
-
-    void load(Ymm &vmm_src, Reg64 reg_src, int nelems, size_t offt_elems,
-            data_type_t data_type);
-    void store(Ymm &vmm_dst, Reg64 reg_dst, int nelems, size_t offt_elems,
-            data_type_t data_type);
-
-private:
-    jit_generator &gen_;
-    const int simd_w_;
-    const bool emulate_bf16_;
-    const Reg64 reg_tmp_ = r15;
-    const Zmm bf16_emu_reserv_1_ = Zmm(28);
-    const Zmm bf16_emu_reserv_2_ = Zmm(29);
-    const Reg64 bf16_emu_scratch_ = rax;
-    const Zmm bf16_emu_reserv_3_ = Zmm(30);
-    const Zmm bf16_emu_reserv_4_ = Zmm(31);
-};
-
-void jit_transfer_t::load(Ymm &vmm_src, Reg64 reg_src, int nelems,
-        size_t offt_elems, data_type_t data_type) {
-    if (data_type == f32) {
-        if (nelems == 1)
-            gen_.vmovss(Xmm(vmm_src.getIdx()),
-                    dword[reg_src + offt_elems * sizeof(float)]);
-        else if (nelems == simd_w_)
-            gen_.uni_vmovups(
-                    vmm_src, zword[reg_src + offt_elems * sizeof(float)]);
-        else
-            assert(!"unsupported nelems for load src");
-    } else if (data_type == bf16) {
-        if (nelems == 1) {
-            const Xmm x_reg = Xmm(vmm_src.getIdx());
-            gen_.movzx(
-                    reg_tmp_, word[reg_src + offt_elems * sizeof(bfloat16_t)]);
-            gen_.movq(x_reg, reg_tmp_);
-            gen_.vpslld(x_reg, x_reg, 0x10);
-        } else if (nelems == simd_w_) {
-            gen_.vpmovzxwd(
-                    vmm_src, yword[reg_src + offt_elems * sizeof(bfloat16_t)]);
-            gen_.vpslld(vmm_src, vmm_src, 0x10);
-        } else {
-            assert(!"unsupported nelems for load src");
-        }
-    } else {
-        assert(!"unexpected!");
-    }
-}
-
-void jit_transfer_t::store(Ymm &vmm_dst, Reg64 reg_dst, int nelems,
-        size_t offt_elems, data_type_t data_type) {
-    if (data_type == f32) {
-        if (nelems == 1)
-            gen_.vmovss(dword[reg_dst + offt_elems * sizeof(float)],
-                    Xmm(vmm_dst.getIdx()));
-        else if (nelems == simd_w_)
-            gen_.uni_vmovups(
-                    zword[reg_dst + offt_elems * sizeof(float)], vmm_dst);
-        else
-            assert(!"unsupported nelems");
-    } else if (data_type == bf16) {
-        if (nelems == 1) {
-            const Ymm ymm_dst = Ymm(vmm_dst.getIdx());
-            if (emulate_bf16_)
-                bf16_emu_->vcvtneps2bf16(ymm_dst, vmm_dst);
-            else
-                gen_.vcvtneps2bf16(ymm_dst, vmm_dst);
-            const Xmm xmm_dst = Xmm(vmm_dst.getIdx());
-            gen_.vpextrw(word[reg_dst + offt_elems * sizeof(bfloat16_t)],
-                    xmm_dst, 0);
-        } else if (nelems == simd_w_) {
-            const Ymm ymm_dst = Ymm(vmm_dst.getIdx());
-            if (emulate_bf16_)
-                bf16_emu_->vcvtneps2bf16(ymm_dst, vmm_dst);
-            else
-                gen_.vcvtneps2bf16(ymm_dst, vmm_dst);
-            gen_.vmovdqu16(
-                    yword[reg_dst + offt_elems * sizeof(bfloat16_t)], ymm_dst);
-        } else {
-            assert(!"unsupported nelems");
-        }
-    } else {
-        assert(!"unexpected!");
-    }
-}
-
-template <data_type_t data_type>
-struct jit_stat_and_data_kernel_t : stat_and_data_kernel_t,
-                                    public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_stat_and_data_kernel_t);
-
-    jit_stat_and_data_kernel_t(const layer_normalization_pd_t *pd);
+template <cpu_isa_t isa>
+struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
+                                         public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_lnorm_stat_and_data_kernel_t);
 
     void operator()(const void *src, void *dst, const float *scale,
             const float *shift, float *mean, float *var,
-            const size_t block_size) const override;
+            const size_t block_size) const override {
+        ker_args_t args;
+        args.src = src;
+        args.dst = dst;
+        args.scale = scale;
+        args.shift = shift;
+        args.mean = mean;
+        args.block_size
+                = block_size * C_ * types::data_type_size(src_d_.data_type());
+        args.eps = eps_;
+        args.var = var;
+        jit_generator::operator()(&args);
+    }
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-private:
-    jit_transfer_t jit_transfer_;
-    static constexpr int unroll_factor_ = 8;
-    static constexpr int simd_w = data_type == bf16 ? 16 : 8;
-    using Vmm = typename utils::conditional<data_type == bf16, Xbyak::Zmm,
-            Xbyak::Ymm>::type;
+protected:
+    static constexpr int unroll_factor_ = 4;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    const AddressFrame &vmmword
+            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {
         const void *src;
@@ -163,7 +71,12 @@ private:
         float eps;
     };
 
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
+    const memory_desc_wrapper src_d_, dst_d_;
+    size_t simd_w_;
     dim_t C_;
+    dim_t axis_simd_full_;
+    dim_t axis_simd_tail_;
     bool use_scaleshift_;
     bool use_scale_;
     bool use_shift_;
@@ -171,419 +84,582 @@ private:
     bool calculate_stats_;
     float eps_;
 
-    void generate() override;
-
-    template <typename F>
-    void compute(F op);
-
-    void reduce();
-
     const Xbyak::Reg64 reg_param = abi_param1;
     const Xbyak::Reg64 reg_src = rdx;
     const Xbyak::Reg64 reg_dst = rax;
     const Xbyak::Reg64 reg_mean = rbx;
-    const Xbyak::Reg64 reg_var = rbp;
     const Xbyak::Reg64 reg_scale = r8;
     const Xbyak::Reg64 reg_block_end = r9;
     const Xbyak::Reg64 reg_eps = r10;
     const Xbyak::Reg64 reg_tmp = r11;
     const Xbyak::Reg64 reg_shift = r12;
+    const Xbyak::Reg64 reg_var = r13;
 
-    Vmm vmm_ones = Vmm(8);
-    Vmm vmm_eps = Vmm(9);
-    Vmm vmm_inv_sqrtvar = Vmm(10);
-    Vmm vmm_data = Vmm(11);
-    Vmm vmm_gamma = Vmm(12);
-    Vmm vmm_beta = Vmm(13);
-    Vmm vmm_mean = Vmm(15);
-    Vmm vmm_src = vmm_inv_sqrtvar;
-    Vmm vmm_dst = vmm_data;
+    Vmm vmm_tail_mask = Vmm(0);
+    Vmm vmm_scale = Vmm(7); // In unroll range, safe for dst compute.
+    Vmm vmm_shift = Vmm(8); // In unroll range, safe for dst compute.
+    Vmm vmm_ones = Vmm(9);
+    Vmm vmm_eps = Vmm(10);
+    Vmm vmm_c = Vmm(11);
+    Vmm vmm_mean = Vmm(12);
+    Vmm vmm_inv_sqrtvar = Vmm(13);
+    Vmm vmm_dst = Vmm(14);
+    Vmm vmm_tmp = Vmm(15);
+    Xmm xmm_tmp = Xmm(15);
 
-    Xmm xmm_return_value = Xmm(0);
-    Xmm xmm_tmp = Xmm(14);
-};
-
-template <data_type_t data_type>
-jit_stat_and_data_kernel_t<data_type>::jit_stat_and_data_kernel_t(
-        const layer_normalization_pd_t *pd)
-    : stat_and_data_kernel_t(pd)
-    , jit_generator(jit_name())
-    , jit_transfer_(*this, simd_w) {
-    assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
-
-    C_ = pd_->norm_axis();
-    eps_ = pd_->desc()->layer_norm_epsilon;
-    calculate_stats_ = !pd_->stats_are_src();
-    use_scaleshift_ = pd_->use_scaleshift();
-    use_scale_ = pd_->use_scale();
-    use_shift_ = pd_->use_shift();
-    save_stats_ = pd_->is_training();
-}
-
-template <data_type_t data_type>
-void jit_stat_and_data_kernel_t<data_type>::operator()(const void *src,
-        void *dst, const float *scale, const float *shift, float *mean,
-        float *var, const size_t block_size) const {
-    ker_args_t args;
-    args.src = src;
-    args.dst = dst;
-    args.scale = scale;
-    args.shift = shift;
-    args.mean = mean;
-    args.block_size = block_size * C_ * types::data_type_size(data_type);
-    args.eps = eps_;
-    args.var = var;
-    jit_generator::operator()(&args);
-}
-
-template <data_type_t data_type>
-void jit_stat_and_data_kernel_t<data_type>::generate() {
-    const auto c_size = C_ * types::data_type_size(data_type);
-    static const auto float_size = types::data_type_size(f32);
-
-    preamble();
-    if (jit_transfer_.bf16_emu_) jit_transfer_.bf16_emu_->init_vcvtneps2bf16();
-#define PARAM_OFF(x) offsetof(ker_args_t, x)
-    mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
-    mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
-    mov(reg_scale, ptr[reg_param + PARAM_OFF(scale)]);
-    mov(reg_shift, ptr[reg_param + PARAM_OFF(shift)]);
-    mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
-    mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
-    mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
-    mov(reg_eps, ptr[reg_param + PARAM_OFF(eps)]);
-#undef PARAM_OFF
-    const int C_vecs = C_ / simd_w;
-    // float value of 1
-    static constexpr float one = 1.0;
-
-    const auto calculate_dst = [=](int nelems, size_t offt_elems) {
-        if (use_scaleshift_ || use_scale_) {
-            jit_transfer_.load(vmm_gamma, reg_scale, nelems, offt_elems, f32);
-        }
-        if (use_scaleshift_ || use_shift_) {
-            jit_transfer_.load(vmm_beta, reg_shift, nelems, offt_elems, f32);
-        }
-        jit_transfer_.load(vmm_data, reg_src, nelems, offt_elems, data_type);
-        vsubps(vmm_data, vmm_data, vmm_mean);
-        vmulps(vmm_data, vmm_data, vmm_inv_sqrtvar);
-        if (use_scaleshift_ || (use_scale_ && use_shift_))
-            vfmadd213ps(vmm_data, vmm_gamma, vmm_beta);
-        else {
-            if (use_scale_) vmulps(vmm_data, vmm_data, vmm_gamma);
-            if (use_shift_) vaddps(vmm_data, vmm_data, vmm_beta);
-        }
-        jit_transfer_.store(vmm_data, reg_dst, nelems, offt_elems, data_type);
-    };
-
-    // add block_start to block_size to define block_end
-    add(reg_block_end, reg_src);
-
-    vmovq(xmm_tmp, reg_eps);
-    vbroadcastss(vmm_eps, xmm_tmp);
-    mov(reg_tmp, float2int(one));
-    vmovq(xmm_tmp, reg_tmp);
-    vbroadcastss(vmm_ones, xmm_tmp);
-
-    Label unroll_loop, end;
-    L(unroll_loop);
-    {
-        cmp(reg_block_end, reg_src);
-        jle(end, T_NEAR);
-
-        if (calculate_stats_) {
-            // compute mean
-            compute([&](Vmm vmm_dst) { vaddps(vmm_dst, vmm_dst, vmm_src); });
-            if (save_stats_) vmovss(ptr[reg_mean], xmm_return_value);
-            vbroadcastss(vmm_mean, xmm_return_value);
-
-            //compute var
-            vbroadcastss(vmm_mean, xmm_return_value);
-            compute([&](Vmm vmm_dst) {
-                vsubps(vmm_src, vmm_mean, vmm_src);
-                vfmadd231ps(vmm_dst, vmm_src, vmm_src);
-            });
-            if (save_stats_) vmovss(ptr[reg_var], xmm_return_value);
-            vbroadcastss(vmm_inv_sqrtvar, xmm_return_value);
-        } else {
-            // read mean and var from input
-            vmovss(xmm_tmp, dword[reg_mean]);
-            vbroadcastss(vmm_mean, xmm_tmp);
-            vmovss(xmm_tmp, dword[reg_var]);
-            vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
-        }
-
-        // calculate inv_sqrtvar
-        vaddps(vmm_inv_sqrtvar, vmm_inv_sqrtvar, vmm_eps);
-        vsqrtps(vmm_inv_sqrtvar, vmm_inv_sqrtvar);
-        vdivps(vmm_inv_sqrtvar, vmm_ones, vmm_inv_sqrtvar);
-
-        // calculate dst
-        for (int i = 0; i < C_vecs; i++)
-            calculate_dst(simd_w, i * simd_w);
-
-        for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
-            calculate_dst(1, i);
-
-        add(reg_src, c_size);
-        add(reg_dst, c_size);
-        add(reg_mean, float_size);
-        add(reg_var, float_size);
-        jmp(unroll_loop);
+    jit_stat_and_data_base_kernel_t(const layer_normalization_pd_t *pd)
+        : stat_and_data_kernel_t(pd)
+        , jit_generator(jit_name())
+        , src_d_(pd_->src_md())
+        , dst_d_(pd_->dst_md()) {
+        simd_w_ = vlen / sizeof(float);
+        C_ = pd_->norm_axis();
+        axis_simd_full_ = C_ / simd_w_;
+        axis_simd_tail_ = C_ % simd_w_;
+        eps_ = pd_->desc()->layer_norm_epsilon;
+        calculate_stats_ = !pd_->stats_are_src();
+        use_scaleshift_ = pd_->use_scaleshift();
+        use_scale_ = pd_->use_scale();
+        use_shift_ = pd_->use_shift();
+        save_stats_ = pd_->is_training();
     }
-    L(end);
 
-    postamble();
-}
+    Address src_ptr(size_t offt = 0) {
+        return vmmword[reg_src + offt * src_d_.data_type_size()];
+    }
 
-template <data_type_t data_type>
-template <typename F>
-void jit_stat_and_data_kernel_t<data_type>::compute(F op) {
-    const int C_vecs = C_ / simd_w;
+    Address dst_ptr(size_t offt = 0) {
+        return vmmword[reg_dst + offt * dst_d_.data_type_size()];
+    }
 
-    uni_vpxor(Vmm(0), Vmm(0), Vmm(0));
-    if (C_vecs > 0) {
-        const int unroll = C_vecs >= unroll_factor_ ? unroll_factor_ : 1;
-        assert(math::is_pow2(unroll));
+    Address mean_ptr(size_t offt = 0) {
+        return vmmword[reg_mean + offt * sizeof(float)];
+    }
 
-        for (int i = 1; i < unroll; i++)
-            uni_vpxor(Vmm(i), Vmm(i), Vmm(i));
+    Address var_ptr(size_t offt = 0) {
+        return vmmword[reg_var + offt * sizeof(float)];
+    }
 
-        // unrolled loop
-        for (int i = 0; i < C_vecs / unroll; i++)
-            for (int j = 0; j < unroll; j++) {
-                jit_transfer_.load(vmm_src, reg_src, simd_w,
-                        (i * unroll + j) * simd_w, data_type);
-                op(Vmm(j));
+    Address scale_ptr(size_t offt = 0) {
+        return vmmword[reg_scale + offt * sizeof(float)];
+    }
+
+    Address shift_ptr(size_t offt = 0) {
+        return vmmword[reg_shift + offt * sizeof(float)];
+    }
+
+    virtual void compute_var() = 0;
+    virtual void reduce(Vmm vmm_src, Vmm vmm_tmp) = 0;
+
+    template <typename F>
+    void compute(Vmm vmm_stat, F op) {
+        bool need_tail = false;
+        int base_idx = 1; // Preserve `0` for tail on AVX2.
+
+        uni_vpxor(Vmm(base_idx), Vmm(base_idx), Vmm(base_idx));
+        if (axis_simd_full_ > 0) {
+            const int unroll
+                    = axis_simd_full_ >= unroll_factor_ ? unroll_factor_ : 1;
+            assert(math::is_pow2(unroll));
+
+            for (int i = base_idx + 1; i < base_idx + unroll; i++)
+                uni_vpxor(Vmm(i), Vmm(i), Vmm(i));
+
+            // unrolled loop
+            for (int i = 0; i < axis_simd_full_ / unroll; i++)
+                for (int j = base_idx; j < base_idx + unroll; j++) {
+                    io_[src_d_.data_type()]->load(
+                            src_ptr((i * unroll + j - base_idx) * simd_w_),
+                            Vmm(j + unroll), need_tail);
+                    op(Vmm(j), Vmm(j + unroll), need_tail);
+                }
+
+            // unrolled loop reduction
+            int n = unroll;
+            while (n > 1) {
+                for (int j = base_idx; j < base_idx + n / 2; j++)
+                    uni_vaddps(Vmm(j), Vmm(j), Vmm(j + n / 2));
+                n = n / 2;
             }
 
-        // unrolled loop reduction
-        int n = unroll;
-        while (n > 1) {
-            for (int j = 0; j < n / 2; j++)
-                vaddps(Vmm(j), Vmm(j), Vmm(j + n / 2));
-            n = n / 2;
+            // unrolled loop remainder
+            for (int i = utils::rnd_dn(axis_simd_full_, unroll);
+                    i < axis_simd_full_; i++) {
+                io_[src_d_.data_type()]->load(
+                        src_ptr(i * simd_w_), Vmm(base_idx + 1), need_tail);
+                op(Vmm(base_idx), Vmm(base_idx + 1), need_tail);
+            }
         }
 
-        // unrolled loop remainder
-        for (int i = utils::rnd_dn(C_vecs, unroll); i < C_vecs; i++) {
-            jit_transfer_.load(vmm_src, reg_src, simd_w, i * simd_w, data_type);
-            op(Vmm(0));
+        if (axis_simd_tail_ > 0) {
+            need_tail = true;
+            // vector remainder
+            io_[src_d_.data_type()]->load(src_ptr(axis_simd_full_ * simd_w_),
+                    Vmm(base_idx + 1), need_tail);
+            op(Vmm(base_idx), Vmm(base_idx + 1), need_tail);
         }
 
-        // vector reduction
-        reduce();
+        reduce(Vmm(base_idx), Vmm(base_idx + 1));
+        uni_vdivps(Vmm(base_idx), Vmm(base_idx), vmm_c, vmm_tmp);
+        uni_vmovups(vmm_stat, Vmm(base_idx));
     }
 
-    // vector remainder
-    for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++) {
-        jit_transfer_.load(vmm_src, reg_src, 1, i, data_type);
-        op(Vmm(0));
+    void compute_mean() {
+        compute(vmm_mean, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
+            uni_vaddps(vmm_dst, vmm_dst, vmm_src);
+        });
+        if (save_stats_) uni_vmovss(ptr[reg_mean], Xmm(vmm_mean.getIdx()));
     }
 
-    // scale
-    Xmm xmm_tmp = Xmm(vmm_src.getIdx());
-    mov(reg_tmp, float2int(C_));
-    uni_vmovq(xmm_tmp, reg_tmp);
-    vdivss(xmm_return_value, xmm_return_value, xmm_tmp);
+    void calculate_dst(size_t offt_elems, bool tail = false) {
+        if (use_scaleshift_ || use_scale_) {
+            io_[f32]->load(scale_ptr(offt_elems), vmm_scale, tail);
+        }
+        if (use_scaleshift_ || use_shift_) {
+            io_[f32]->load(shift_ptr(offt_elems), vmm_shift, tail);
+        }
+        io_[src_d_.data_type()]->load(src_ptr(offt_elems), vmm_dst, tail);
+        uni_vsubps(vmm_dst, vmm_dst, vmm_mean);
+        uni_vmulps(vmm_dst, vmm_dst, vmm_inv_sqrtvar);
+        if (use_scaleshift_ || (use_scale_ && use_shift_))
+            uni_vfmadd213ps(vmm_dst, vmm_scale, vmm_shift);
+        else {
+            if (use_scale_) uni_vmulps(vmm_dst, vmm_dst, vmm_scale);
+            if (use_shift_) uni_vaddps(vmm_dst, vmm_dst, vmm_shift);
+        }
+        io_[dst_d_.data_type()]->store(vmm_dst, dst_ptr(offt_elems), tail);
+    }
+
+    void generate() override {
+        const size_t c_src_size
+                = C_ * types::data_type_size(src_d_.data_type());
+        const size_t c_dst_size
+                = C_ * types::data_type_size(dst_d_.data_type());
+        static const size_t float_size = types::data_type_size(f32);
+
+        preamble();
+
+        io_.init_bf16();
+        if (axis_simd_tail_) io_.prepare_tail_mask();
+
+#define PARAM_OFF(x) offsetof(ker_args_t, x)
+        mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
+        mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
+        mov(reg_scale, ptr[reg_param + PARAM_OFF(scale)]);
+        mov(reg_shift, ptr[reg_param + PARAM_OFF(shift)]);
+        mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
+        mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
+        mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
+        mov(reg_eps, ptr[reg_param + PARAM_OFF(eps)]);
+#undef PARAM_OFF
+
+        uni_vmovq(xmm_tmp, reg_eps);
+        uni_vbroadcastss(vmm_eps, xmm_tmp);
+        mov(reg_tmp, float2int(1.f));
+        uni_vmovq(xmm_tmp, reg_tmp);
+        uni_vbroadcastss(vmm_ones, xmm_tmp);
+        mov(reg_tmp, float2int(C_));
+        uni_vmovq(xmm_tmp, reg_tmp);
+        uni_vbroadcastss(vmm_c, xmm_tmp);
+
+        // add block_start to block_size to define block_end
+        add(reg_block_end, reg_src);
+
+        Label unroll_loop, end;
+        L(unroll_loop);
+        {
+            cmp(reg_block_end, reg_src);
+            jle(end, T_NEAR);
+
+            if (calculate_stats_) {
+                // compute stats
+                compute_mean();
+                compute_var();
+            } else {
+                // read mean and var from input
+                uni_vmovss(xmm_tmp, dword[reg_mean]);
+                uni_vbroadcastss(vmm_mean, xmm_tmp);
+                uni_vmovss(xmm_tmp, dword[reg_var]);
+                uni_vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
+            }
+
+            // calculate inv_sqrtvar
+            uni_vaddps(vmm_inv_sqrtvar, vmm_inv_sqrtvar, vmm_eps);
+            uni_vsqrtps(vmm_inv_sqrtvar, vmm_inv_sqrtvar);
+            uni_vdivps(vmm_inv_sqrtvar, vmm_ones, vmm_inv_sqrtvar, vmm_tmp);
+
+            // calculate dst
+            for (int i = 0; i < axis_simd_full_; i++)
+                calculate_dst(i * simd_w_);
+            if (axis_simd_tail_) calculate_dst(axis_simd_full_ * simd_w_, true);
+
+            add(reg_src, c_src_size);
+            add(reg_dst, c_dst_size);
+            add(reg_mean, float_size);
+            add(reg_var, float_size);
+            jmp(unroll_loop);
+        }
+        L(end);
+
+        postamble();
+    }
+};
+
+template <cpu_isa_t isa>
+struct jit_stat_and_data_kernel_t;
+
+template <>
+struct jit_stat_and_data_kernel_t<avx512_core>
+    : jit_stat_and_data_base_kernel_t<avx512_core> {
+
+    jit_stat_and_data_kernel_t(const layer_normalization_pd_t *pd)
+        : jit_stat_and_data_base_kernel_t(pd) {
+        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {
+                src_d_.data_type(), dst_d_.data_type(), f32 /* stats */};
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(
+                simd_w_, axis_simd_tail_, tail_opmask, INT_MAX, reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1, bf16_emu_zmm_2,
+                bf16_emu_zmm_3, bf16_emu_gpr, bf16_emu_zmm_4);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
+                this, avx512_core, dts, io_conf, io_tail_conf, io_bf16_conf);
+    }
+
+    void compute_var() override {
+        compute(vmm_inv_sqrtvar, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
+            // Need to preserve zeros after subtract for correct answer.
+            if (!need_tail)
+                uni_vsubps(vmm_src, vmm_src, vmm_mean);
+            else
+                uni_vsubps(vmm_src | tail_opmask | T_z, vmm_src, vmm_mean);
+            uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
+        });
+        if (save_stats_)
+            uni_vmovss(ptr[reg_var], Xmm(vmm_inv_sqrtvar.getIdx()));
+    }
+
+    void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
+        vshuff32x4(vmm_tmp, vmm_src, vmm_src, 0x4E); // 256-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshuff32x4(vmm_tmp, vmm_src, vmm_src, 0xB1); // 128/256-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshufps(vmm_tmp, vmm_src, vmm_src, 0x4E); // 64/128-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshufps(vmm_tmp, vmm_src, vmm_src, 0xB1); // 32/64-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+    }
+
+    const Zmm bf16_emu_zmm_1 = Zmm(28);
+    const Zmm bf16_emu_zmm_2 = Zmm(29);
+    const Zmm bf16_emu_zmm_3 = Zmm(30);
+    const Zmm bf16_emu_zmm_4 = Zmm(31);
+    const Reg64 bf16_emu_gpr = reg_tmp;
+    Opmask tail_opmask = Opmask(1);
 };
 
 template <>
-void jit_stat_and_data_kernel_t<bf16>::reduce() {
-    Ymm ymm_high = Ymm(1);
-    vextractf32x8(ymm_high, Zmm(0), 1);
-    vaddps(Ymm(0), ymm_high, Ymm(0));
-    vhaddps(Ymm(0), Ymm(0), Ymm(0));
-    vhaddps(Ymm(0), Ymm(0), Ymm(0));
-    Xmm xmm_high = Xmm(1);
-    vextractf128(xmm_high, Ymm(0), 1);
-    vaddps(xmm_return_value, xmm_high, xmm_return_value);
+struct jit_stat_and_data_kernel_t<avx2>
+    : jit_stat_and_data_base_kernel_t<avx2> {
+
+    jit_stat_and_data_kernel_t(const layer_normalization_pd_t *pd)
+        : jit_stat_and_data_base_kernel_t(pd) {
+        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {
+                src_d_.data_type(), dst_d_.data_type(), f32 /* stats */};
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_, Opmask(),
+                vmm_tail_mask.getIdx(), reg_tmp);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
+                this, avx2, dts, io_conf, io_tail_conf);
+    }
+
+    void compute_var() override {
+        compute(vmm_inv_sqrtvar, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
+            // Need to preserve zeros after subtract for correct answer.
+            if (!need_tail)
+                uni_vsubps(vmm_src, vmm_src, vmm_mean);
+            else {
+                // We need to call tail version once, it's fine to use `vmm_tmp`
+                uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
+                uni_vblendvps(vmm_tmp, vmm_tmp, vmm_mean, vmm_tail_mask);
+                uni_vsubps(vmm_src, vmm_src, vmm_tmp);
+            }
+            uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
+        });
+        if (save_stats_)
+            uni_vmovss(ptr[reg_var], Xmm(vmm_inv_sqrtvar.getIdx()));
+    }
+
+    void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
+        vperm2f128(vmm_tmp, vmm_src, vmm_src, 0x1); // 128/256-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshufps(vmm_tmp, vmm_src, vmm_src, 0x4E); // 64/128-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshufps(vmm_tmp, vmm_src, vmm_src, 0xB1); // 32/64-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+    }
+};
+
+stat_and_data_kernel_t *stat_and_data_kernel_create(
+        const layer_normalization_pd_t *pd) {
+    if (mayiuse(avx512_core)) {
+        return new jit_stat_and_data_kernel_t<avx512_core>(pd);
+    } else if (mayiuse(avx2)) {
+        return new jit_stat_and_data_kernel_t<avx2>(pd);
+    } else {
+        return nullptr;
+    }
 }
 
-template <>
-void jit_stat_and_data_kernel_t<f32>::reduce() {
-    Xmm xmm_high = Xmm(1);
-    vextractf128(xmm_high, Ymm(0), 1);
-    vaddps(xmm_return_value, xmm_high, xmm_return_value);
-    vhaddps(xmm_return_value, xmm_return_value, xmm_return_value);
-    vhaddps(xmm_return_value, xmm_return_value, xmm_return_value);
-}
+template <cpu_isa_t isa>
+struct jit_diff_ss_base_kernel_t : diff_ss_kernel_t, public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_lnorm_diff_ss_kernel_t);
 
-template <data_type_t data_type>
-struct jit_diff_ss_kernel_t : diff_ss_kernel_t, public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_diff_ss_kernel_t);
-
-    jit_diff_ss_kernel_t(const layer_normalization_pd_t *pd);
-
-    void operator()(const void *src, const void *diff_dst, float *diff_gamma,
-            float *diff_beta, const float *mean, const float *var,
-            float *const inv_sqrtvar, const size_t block_size) const override;
+    void operator()(const void *src, const void *diff_dst, float *diff_scale,
+            float *diff_shift, const float *mean, const float *var,
+            float *const inv_sqrtvar, const size_t block_size) const override {
+        ker_args_t args;
+        args.src = src;
+        args.diff_dst = diff_dst;
+        args.diff_scale = diff_scale;
+        args.diff_shift = diff_shift;
+        args.mean = mean;
+        for (size_t i = 0; i < block_size; i++) {
+#ifdef __INTEL_COMPILER
+            //Without volatile ICC with -O2 & -O3 optimizes out denominator from
+            //inv_sqrtvar and computes 1/denom with lower precision
+            const volatile float denom = sqrtf(var[i] + eps_);
+#else
+            const float denom = sqrtf(var[i] + eps_);
+#endif
+            inv_sqrtvar[i] = 1.f / denom;
+        }
+        args.inv_sqrtvar = inv_sqrtvar;
+        args.block_size
+                = block_size * C_ * types::data_type_size(src_d_.data_type());
+        jit_generator::operator()(&args);
+    }
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-private:
-    jit_transfer_t jit_transfer_;
-    static constexpr int simd_w = data_type == bf16 ? 16 : 8;
-    using Vmm = typename utils::conditional<data_type == bf16, Xbyak::Zmm,
-            Xbyak::Ymm>::type;
+protected:
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    const AddressFrame &vmmword
+            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {
         const void *src;
         const void *diff_dst;
-        float *diff_gamma;
-        float *diff_beta;
+        float *diff_scale;
+        float *diff_shift;
         const float *mean;
         const float *inv_sqrtvar;
         size_t block_size;
     };
 
-    void generate() override;
-
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
     const memory_desc_wrapper src_d_, d_dst_d_;
-    size_t C_;
+    size_t simd_w_;
+    dim_t C_;
+    dim_t axis_simd_full_;
+    dim_t axis_simd_tail_;
     float eps_;
 
     const Xbyak::Reg64 reg_param = abi_param1;
     const Xbyak::Reg64 reg_src = rdx;
     const Xbyak::Reg64 reg_diff_dst = rax;
-    const Xbyak::Reg64 reg_block_end = rbx;
-    const Xbyak::Reg64 reg_mean = r11;
-    const Xbyak::Reg64 reg_inv_sqrtvar = r10;
-    const Xbyak::Reg64 reg_diff_gamma = r9;
-    const Xbyak::Reg64 reg_diff_beta = r8;
+    const Xbyak::Reg64 reg_mean = rbx;
+    const Xbyak::Reg64 reg_diff_scale = r8;
+    const Xbyak::Reg64 reg_block_end = r9;
+    const Xbyak::Reg64 reg_tmp = r11;
+    const Xbyak::Reg64 reg_diff_shift = r12;
+    const Xbyak::Reg64 reg_inv_sqrtvar = r13;
 
-    Xbyak::Xmm xmm_tmp = Xbyak::Xmm(9);
-
+    Vmm vmm_tail_mask = Vmm(0);
+    Xmm xmm_tmp = Xmm(9);
     Vmm vmm_inv_sqrtvar = Vmm(10);
     Vmm vmm_ddst = Vmm(11);
-    Vmm vmm_dgamma = Vmm(12);
-    Vmm vmm_dbeta = Vmm(13);
+    Vmm vmm_dscale = Vmm(12);
+    Vmm vmm_dshift = Vmm(13);
     Vmm vmm_src = Vmm(14);
     Vmm vmm_mean = Vmm(15);
-};
 
-template <data_type_t data_type>
-jit_diff_ss_kernel_t<data_type>::jit_diff_ss_kernel_t(
-        const layer_normalization_pd_t *pd)
-    : diff_ss_kernel_t(pd)
-    , jit_generator(jit_name())
-    , jit_transfer_(*this, simd_w)
-    , src_d_(pd_->src_md())
-    , d_dst_d_(pd_->diff_dst_md()) {
-    assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
-    C_ = pd_->norm_axis();
-    eps_ = pd_->desc()->layer_norm_epsilon;
-}
-
-template <data_type_t data_type>
-void jit_diff_ss_kernel_t<data_type>::operator()(const void *src,
-        const void *diff_dst, float *diff_gamma, float *diff_beta,
-        const float *mean, const float *var, float *const inv_sqrtvar,
-        const size_t block_size) const {
-    ker_args_t args;
-    args.src = src;
-    args.diff_dst = diff_dst;
-    args.diff_gamma = diff_gamma;
-    args.diff_beta = diff_beta;
-    args.mean = mean;
-    for (size_t i = 0; i < block_size; i++) {
-#ifdef __INTEL_COMPILER
-        //Without volatile ICC with -O2 & -O3 optimizes out denominator from
-        //inv_sqrtvar and computes 1/denom with lower precision
-        const volatile float denom = sqrtf(var[i] + eps_);
-#else
-        const float denom = sqrtf(var[i] + eps_);
-#endif
-        inv_sqrtvar[i] = 1.f / denom;
+    jit_diff_ss_base_kernel_t(const layer_normalization_pd_t *pd)
+        : diff_ss_kernel_t(pd)
+        , jit_generator(jit_name())
+        , src_d_(pd_->src_md())
+        , d_dst_d_(pd_->diff_dst_md()) {
+        simd_w_ = vlen / sizeof(float);
+        C_ = pd_->norm_axis();
+        axis_simd_full_ = C_ / simd_w_;
+        axis_simd_tail_ = C_ % simd_w_;
+        eps_ = pd_->desc()->layer_norm_epsilon;
     }
-    args.inv_sqrtvar = inv_sqrtvar;
-    args.block_size = block_size * C_ * types::data_type_size(data_type);
-    jit_generator::operator()(&args);
-}
 
-template <data_type_t data_type>
-void jit_diff_ss_kernel_t<data_type>::generate() {
-    const auto c_size = C_ * types::data_type_size(data_type);
-    static const auto float_size = types::data_type_size(f32);
+    Address src_ptr(size_t offt = 0) {
+        return vmmword[reg_src + offt * src_d_.data_type_size()];
+    }
 
-    preamble();
-    if (jit_transfer_.bf16_emu_) jit_transfer_.bf16_emu_->init_vcvtneps2bf16();
-#define PARAM_OFF(x) offsetof(ker_args_t, x)
-    mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
-    mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
-    mov(reg_diff_gamma, ptr[reg_param + PARAM_OFF(diff_gamma)]);
-    mov(reg_diff_beta, ptr[reg_param + PARAM_OFF(diff_beta)]);
-    mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
-    mov(reg_inv_sqrtvar, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
-    mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
+    Address d_dst_ptr(size_t offt = 0) {
+        return vmmword[reg_diff_dst + offt * d_dst_d_.data_type_size()];
+    }
 
-#undef PARAM_OFF
+    Address d_scale_ptr(size_t offt = 0) {
+        return vmmword[reg_diff_scale + offt * sizeof(float)];
+    }
 
-    const int C_vecs = C_ / simd_w;
-    const auto calculate_diff_gamma_beta = [=](int nelems, size_t offt_elems) {
-        jit_transfer_.load(
-                vmm_ddst, reg_diff_dst, nelems, offt_elems, data_type);
-        jit_transfer_.load(vmm_dbeta, reg_diff_beta, nelems, offt_elems, f32);
-        jit_transfer_.load(vmm_dgamma, reg_diff_gamma, nelems, offt_elems, f32);
-        jit_transfer_.load(vmm_src, reg_src, nelems, offt_elems, data_type);
-        vaddps(vmm_dbeta, vmm_dbeta, vmm_ddst);
-        vsubps(vmm_src, vmm_src, vmm_mean);
-        vmulps(vmm_src, vmm_src, vmm_inv_sqrtvar);
-        vfmadd231ps(vmm_dgamma, vmm_src, vmm_ddst);
-        jit_transfer_.store(vmm_dbeta, reg_diff_beta, nelems, offt_elems, f32);
-        jit_transfer_.store(
-                vmm_dgamma, reg_diff_gamma, nelems, offt_elems, f32);
+    Address d_shift_ptr(size_t offt = 0) {
+        return vmmword[reg_diff_shift + offt * sizeof(float)];
+    }
+
+    void calculate_diff_scale_shift(size_t offt_elems, bool tail = false) {
+        io_[d_dst_d_.data_type()]->load(d_dst_ptr(offt_elems), vmm_ddst, tail);
+        io_[f32]->load(d_scale_ptr(offt_elems), vmm_dscale, tail);
+        io_[f32]->load(d_shift_ptr(offt_elems), vmm_dshift, tail);
+        io_[src_d_.data_type()]->load(src_ptr(offt_elems), vmm_src, tail);
+
+        uni_vaddps(vmm_dshift, vmm_dshift, vmm_ddst);
+        uni_vsubps(vmm_src, vmm_src, vmm_mean);
+        uni_vmulps(vmm_src, vmm_src, vmm_inv_sqrtvar);
+        uni_vfmadd231ps(vmm_dscale, vmm_src, vmm_ddst);
+
+        io_[f32]->store(vmm_dscale, d_scale_ptr(offt_elems), tail);
+        io_[f32]->store(vmm_dshift, d_shift_ptr(offt_elems), tail);
     };
 
-    // add block_start to block_size to define block_end
-    add(reg_block_end, reg_src);
+    void generate() override {
+        const size_t c_src_size
+                = C_ * types::data_type_size(src_d_.data_type());
+        const size_t c_ddst_size
+                = C_ * types::data_type_size(d_dst_d_.data_type());
+        static const size_t float_size = types::data_type_size(f32);
 
-    Label unroll_loop, end;
-    L(unroll_loop);
-    {
-        cmp(reg_block_end, reg_src);
-        jle(end, T_NEAR);
+        preamble();
 
-        vmovss(xmm_tmp, dword[reg_mean]);
-        vbroadcastss(vmm_mean, xmm_tmp);
-        vmovss(xmm_tmp, dword[reg_inv_sqrtvar]);
-        vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
+        io_.init_bf16();
+        if (axis_simd_tail_) io_.prepare_tail_mask();
 
-        for (int i = 0; i < C_vecs; i++)
-            calculate_diff_gamma_beta(simd_w, i * simd_w);
+#define PARAM_OFF(x) offsetof(ker_args_t, x)
+        mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
+        mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
+        mov(reg_diff_scale, ptr[reg_param + PARAM_OFF(diff_scale)]);
+        mov(reg_diff_shift, ptr[reg_param + PARAM_OFF(diff_shift)]);
+        mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
+        mov(reg_inv_sqrtvar, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
+        mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
+#undef PARAM_OFF
 
-        for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
-            calculate_diff_gamma_beta(1, i);
+        // add block_start to block_size to define block_end
+        add(reg_block_end, reg_src);
 
-        add(reg_src, c_size);
-        add(reg_diff_dst, c_size);
-        add(reg_mean, float_size);
-        add(reg_inv_sqrtvar, float_size);
+        Label unroll_loop, end;
+        L(unroll_loop);
+        {
+            cmp(reg_block_end, reg_src);
+            jle(end, T_NEAR);
 
-        jmp(unroll_loop);
+            uni_vmovss(xmm_tmp, dword[reg_mean]);
+            uni_vbroadcastss(vmm_mean, xmm_tmp);
+            uni_vmovss(xmm_tmp, dword[reg_inv_sqrtvar]);
+            uni_vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
+
+            for (int i = 0; i < axis_simd_full_; i++)
+                calculate_diff_scale_shift(i * simd_w_);
+            if (axis_simd_tail_)
+                calculate_diff_scale_shift(axis_simd_full_ * simd_w_, true);
+
+            add(reg_src, c_src_size);
+            add(reg_diff_dst, c_ddst_size);
+            add(reg_mean, float_size);
+            add(reg_inv_sqrtvar, float_size);
+            jmp(unroll_loop);
+        }
+        L(end);
+
+        postamble();
     }
-    L(end);
+};
 
-    postamble();
+template <cpu_isa_t isa>
+struct jit_diff_ss_kernel_t;
+
+template <>
+struct jit_diff_ss_kernel_t<avx512_core>
+    : jit_diff_ss_base_kernel_t<avx512_core> {
+
+    jit_diff_ss_kernel_t(const layer_normalization_pd_t *pd)
+        : jit_diff_ss_base_kernel_t(pd) {
+        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {
+                src_d_.data_type(), d_dst_d_.data_type(), f32 /* stats */};
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(
+                simd_w_, axis_simd_tail_, tail_opmask, INT_MAX, reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1, bf16_emu_zmm_2,
+                bf16_emu_zmm_3, bf16_emu_gpr, bf16_emu_zmm_4);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
+                this, avx512_core, dts, io_conf, io_tail_conf, io_bf16_conf);
+    }
+
+    const Zmm bf16_emu_zmm_1 = Zmm(28);
+    const Zmm bf16_emu_zmm_2 = Zmm(29);
+    const Zmm bf16_emu_zmm_3 = Zmm(30);
+    const Zmm bf16_emu_zmm_4 = Zmm(31);
+    const Reg64 bf16_emu_gpr = reg_tmp;
+    Opmask tail_opmask = Opmask(1);
+};
+
+template <>
+struct jit_diff_ss_kernel_t<avx2> : jit_diff_ss_base_kernel_t<avx2> {
+
+    jit_diff_ss_kernel_t(const layer_normalization_pd_t *pd)
+        : jit_diff_ss_base_kernel_t(pd) {
+        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {
+                src_d_.data_type(), d_dst_d_.data_type(), f32 /* stats */};
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_, Opmask(),
+                vmm_tail_mask.getIdx(), reg_tmp);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
+                this, avx2, dts, io_conf, io_tail_conf);
+    }
+};
+
+diff_ss_kernel_t *diff_ss_kernel_create(const layer_normalization_pd_t *pd) {
+    if (mayiuse(avx512_core)) {
+        return new jit_diff_ss_kernel_t<avx512_core>(pd);
+    } else if (mayiuse(avx2)) {
+        return new jit_diff_ss_kernel_t<avx2>(pd);
+    } else {
+        return nullptr;
+    }
 }
 
-template <data_type_t data_type>
-struct jit_diff_data_kernel_t : diff_data_kernel_t, public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_diff_data_kernel_t);
-
-    jit_diff_data_kernel_t(const layer_normalization_pd_t *pd);
+template <cpu_isa_t isa>
+struct jit_diff_data_base_kernel_t : diff_data_kernel_t, public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_lnorm_diff_data_kernel_t);
 
     void operator()(const void *src, const void *diff_dst, void *diff_src,
             const float *ss, const float *mean, float *const inv_sqrtvar,
-            const size_t block_size) const override;
+            const size_t block_size) const override {
+        ker_args_t args;
+        args.src = src;
+        args.diff_dst = diff_dst;
+        args.diff_src = diff_src;
+        args.ss = ss;
+        args.mean = mean;
+        args.inv_sqrtvar = inv_sqrtvar;
+        args.block_size
+                = block_size * C_ * types::data_type_size(src_d_.data_type());
+        jit_generator::operator()(&args);
+    }
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-private:
-    jit_transfer_t jit_transfer_;
-    static constexpr int simd_w = data_type == bf16 ? 16 : 8;
-    using Vmm = typename utils::conditional<data_type == bf16, Xbyak::Zmm,
-            Xbyak::Ymm>::type;
+protected:
+    static constexpr int unroll_factor_ = 4;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    const AddressFrame &vmmword
+            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {
         const void *src;
@@ -595,249 +671,255 @@ private:
         size_t block_size;
     };
 
-    void generate() override;
-
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
     const memory_desc_wrapper src_d_, d_dst_d_, d_src_d_;
-    size_t C_;
+    size_t simd_w_;
+    dim_t C_;
+    dim_t axis_simd_full_;
+    dim_t axis_simd_tail_;
     bool use_scaleshift_;
     bool use_scale_;
     bool use_shift_;
     bool calculate_diff_stats_;
 
-    void reduce(Vmm vmm_vec);
-
     const Xbyak::Reg64 reg_param = abi_param1;
     const Xbyak::Reg64 reg_src = rdx;
-    const Xbyak::Reg64 reg_diff_src = rax;
-    const Xbyak::Reg64 reg_diff_dst = rbx;
-    const Xbyak::Reg64 reg_block_end = rbp;
-    const Xbyak::Reg64 reg_mean = r13;
-    const Xbyak::Reg64 reg_inv_sqrtvar = r12;
-    const Xbyak::Reg64 reg_gamma = r11;
-    const Xbyak::Reg64 reg_tmp = r10;
-    const Xbyak::Reg64 reg_dd_gamma = r9;
-    const Xbyak::Reg64 reg_dd_gamma_x = r8;
+    const Xbyak::Reg64 reg_diff_dst = rax;
+    const Xbyak::Reg64 reg_diff_src = r14;
+    const Xbyak::Reg64 reg_mean = rbx;
+    const Xbyak::Reg64 reg_inv_sqrtvar = r13;
+    const Xbyak::Reg64 reg_scale = r8;
+    const Xbyak::Reg64 reg_tmp = r11;
+    const Xbyak::Reg64 reg_dd_scale = r10;
+    const Xbyak::Reg64 reg_dd_scale_x = r12;
+    const Xbyak::Reg64 reg_block_end = r9;
 
-    Xbyak::Xmm xmm_tmp = Xbyak::Xmm(7);
-
-    Vmm vmm_C = Vmm(8);
-    Vmm vmm_gamma = Vmm(9);
+    Vmm vmm_tail_mask = Vmm(0);
+    Vmm vmm_C = Vmm(7);
+    Vmm vmm_scale = Vmm(8);
+    Xmm xmm_tmp = Xmm(9);
+    Vmm vmm_tmp = Vmm(9);
     Vmm vmm_inv_sqrtvar = Vmm(10);
     Vmm vmm_dsrc = Vmm(11);
-    Vmm vmm_dd_gamma_x = Vmm(12);
-    Vmm vmm_dd_gamma = Vmm(13);
+    Vmm vmm_dd_scale_x = Vmm(12);
+    Vmm vmm_dd_scale = Vmm(13);
     Vmm vmm_src = Vmm(14);
     Vmm vmm_mean = Vmm(15);
-};
 
-template <data_type_t data_type>
-jit_diff_data_kernel_t<data_type>::jit_diff_data_kernel_t(
-        const layer_normalization_pd_t *pd)
-    : diff_data_kernel_t(pd)
-    , jit_generator(jit_name())
-    , jit_transfer_(*this, simd_w)
-    , src_d_(pd_->src_md())
-    , d_dst_d_(pd_->diff_dst_md())
-    , d_src_d_(pd_->diff_src_md()) {
-    assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
+    jit_diff_data_base_kernel_t(const layer_normalization_pd_t *pd)
+        : diff_data_kernel_t(pd)
+        , jit_generator(jit_name())
+        , src_d_(pd_->src_md())
+        , d_dst_d_(pd_->diff_dst_md())
+        , d_src_d_(pd_->diff_src_md()) {
+        simd_w_ = vlen / sizeof(float);
+        C_ = pd_->norm_axis();
+        axis_simd_full_ = C_ / simd_w_;
+        axis_simd_tail_ = C_ % simd_w_;
+        calculate_diff_stats_ = !pd_->stats_are_src();
+        use_scaleshift_ = pd_->use_scaleshift();
+        use_scale_ = pd_->use_scale();
+        use_shift_ = pd_->use_shift();
+    }
 
-    C_ = pd_->norm_axis();
-    calculate_diff_stats_ = !pd_->stats_are_src();
-    use_scaleshift_ = pd_->use_scaleshift();
-    use_scale_ = pd_->use_scale();
-    use_shift_ = pd_->use_shift();
-}
+    Address src_ptr(size_t offt = 0) {
+        return vmmword[reg_src + offt * src_d_.data_type_size()];
+    }
 
-template <data_type_t data_type>
-void jit_diff_data_kernel_t<data_type>::operator()(const void *src,
-        const void *diff_dst, void *diff_src, const float *ss,
-        const float *mean, float *const inv_sqrtvar,
-        const size_t block_size) const {
-    ker_args_t args;
-    args.src = src;
-    args.diff_dst = diff_dst;
-    args.diff_src = diff_src;
-    args.ss = ss;
-    args.mean = mean;
-    args.inv_sqrtvar = inv_sqrtvar;
-    args.block_size = block_size * C_ * types::data_type_size(data_type);
-    jit_generator::operator()(&args);
-}
+    Address d_dst_ptr(size_t offt = 0) {
+        return vmmword[reg_diff_dst + offt * d_dst_d_.data_type_size()];
+    }
 
-template <data_type_t data_type>
-void jit_diff_data_kernel_t<data_type>::generate() {
-    const auto c_size = C_ * types::data_type_size(data_type);
-    static const auto float_size = types::data_type_size(f32);
+    Address d_src_ptr(size_t offt = 0) {
+        return vmmword[reg_diff_src + offt * d_src_d_.data_type_size()];
+    }
 
-    preamble();
-    if (jit_transfer_.bf16_emu_) jit_transfer_.bf16_emu_->init_vcvtneps2bf16();
+    Address scale_ptr(size_t offt = 0) {
+        return vmmword[reg_scale + offt * sizeof(float)];
+    }
+
+    virtual void reduce(Vmm vmm_src, Vmm vmm_tmp) = 0;
+
+    void compute_dd_scales(size_t offt_elems, bool tail = false) {
+        Vmm vmm_ddst = vmm_dsrc;
+        io_[d_dst_d_.data_type()]->load(d_dst_ptr(offt_elems), vmm_ddst, tail);
+        if (use_scaleshift_ || use_scale_) {
+            io_[f32]->load(scale_ptr(offt_elems), vmm_scale, tail);
+            uni_vmulps(vmm_ddst, vmm_ddst, vmm_scale);
+        }
+        io_[src_d_.data_type()]->load(src_ptr(offt_elems), vmm_src, tail);
+
+        uni_vaddps(vmm_dd_scale, vmm_dd_scale, vmm_ddst);
+        uni_vsubps(vmm_src, vmm_src, vmm_mean);
+        uni_vfmadd231ps(vmm_dd_scale_x, vmm_ddst, vmm_src);
+    };
+
+    void compute_diff_src(size_t offt_elems, bool tail = false) {
+        Vmm vmm_ddst = vmm_dsrc;
+        io_[d_dst_d_.data_type()]->load(d_dst_ptr(offt_elems), vmm_ddst, tail);
+        if (use_scaleshift_ || use_scale_) {
+            io_[f32]->load(scale_ptr(offt_elems), vmm_scale, tail);
+            uni_vmulps(vmm_dsrc, vmm_dsrc, vmm_scale);
+        }
+        if (calculate_diff_stats_) {
+            io_[src_d_.data_type()]->load(src_ptr(offt_elems), vmm_src, tail);
+            uni_vsubps(vmm_src, vmm_src, vmm_mean);
+            uni_vmulps(vmm_src, vmm_src, vmm_inv_sqrtvar);
+            uni_vfmadd213ps(vmm_src, vmm_dd_scale_x, vmm_dd_scale);
+            uni_vdivps(vmm_src, vmm_src, vmm_C);
+            uni_vsubps(vmm_dsrc, vmm_dsrc, vmm_src);
+        }
+        uni_vmulps(vmm_dsrc, vmm_dsrc, vmm_inv_sqrtvar);
+        io_[d_src_d_.data_type()]->store(vmm_dsrc, d_src_ptr(offt_elems), tail);
+    };
+
+    void generate() override {
+        const size_t c_src_size
+                = C_ * types::data_type_size(src_d_.data_type());
+        const size_t c_ddst_size
+                = C_ * types::data_type_size(d_dst_d_.data_type());
+        const size_t c_dsrc_size
+                = C_ * types::data_type_size(d_src_d_.data_type());
+        static const size_t float_size = types::data_type_size(f32);
+
+        preamble();
+
+        io_.init_bf16();
+        if (axis_simd_tail_) io_.prepare_tail_mask();
+
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
-    mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
-    mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
-    mov(reg_diff_src, ptr[reg_param + PARAM_OFF(diff_src)]);
-    mov(reg_gamma, ptr[reg_param + PARAM_OFF(ss)]);
+        mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
+        mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
+        mov(reg_diff_src, ptr[reg_param + PARAM_OFF(diff_src)]);
+        mov(reg_scale, ptr[reg_param + PARAM_OFF(ss)]);
 
-    if (calculate_diff_stats_) mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
-    mov(reg_inv_sqrtvar, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
-    mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
+        if (calculate_diff_stats_)
+            mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
+        mov(reg_inv_sqrtvar, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
+        mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
 #undef PARAM_OFF
 
-    mov(reg_tmp, float2int(C_));
-    uni_vmovq(xmm_tmp, reg_tmp);
-    uni_vbroadcastss(vmm_C, xmm_tmp);
+        mov(reg_tmp, float2int(C_));
+        uni_vmovq(xmm_tmp, reg_tmp);
+        uni_vbroadcastss(vmm_C, xmm_tmp);
 
-    const int C_vecs = C_ / simd_w;
+        // add block_start to block_size to define block_end
+        add(reg_block_end, reg_src);
 
-    auto compute_dd_gammas = [=](int nelems, size_t offt_elems) {
-        Vmm vmm_ddst = vmm_dsrc;
-        jit_transfer_.load(
-                vmm_ddst, reg_diff_dst, nelems, offt_elems, data_type);
-        if (use_scaleshift_ || use_scale_) {
-            jit_transfer_.load(vmm_gamma, reg_gamma, nelems, offt_elems, f32);
-            vmulps(vmm_ddst, vmm_ddst, vmm_gamma);
+        Label unroll_loop, end;
+        L(unroll_loop);
+        {
+            cmp(reg_block_end, reg_src);
+            jle(end, T_NEAR);
+
+            uni_vmovss(xmm_tmp, dword[reg_inv_sqrtvar]);
+            uni_vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
+
+            if (calculate_diff_stats_) {
+                uni_vmovss(xmm_tmp, dword[reg_mean]);
+                uni_vbroadcastss(vmm_mean, xmm_tmp);
+
+                uni_vpxor(vmm_dd_scale, vmm_dd_scale, vmm_dd_scale);
+                uni_vpxor(vmm_dd_scale_x, vmm_dd_scale_x, vmm_dd_scale_x);
+
+                for (int i = 0; i < axis_simd_full_; i++)
+                    compute_dd_scales(i * simd_w_);
+                if (axis_simd_tail_)
+                    compute_dd_scales(axis_simd_full_ * simd_w_, true);
+
+                reduce(vmm_dd_scale, vmm_tmp);
+                reduce(vmm_dd_scale_x, vmm_tmp);
+                uni_vmulps(vmm_dd_scale_x, vmm_dd_scale_x, vmm_inv_sqrtvar);
+            }
+
+            for (int i = 0; i < axis_simd_full_; i++)
+                compute_diff_src(i * simd_w_);
+            if (axis_simd_tail_)
+                compute_diff_src(axis_simd_full_ * simd_w_, true);
+
+            add(reg_src, c_src_size);
+            add(reg_diff_dst, c_ddst_size);
+            add(reg_diff_src, c_dsrc_size);
+            if (calculate_diff_stats_) add(reg_mean, float_size);
+            add(reg_inv_sqrtvar, float_size);
+            jmp(unroll_loop);
         }
-        jit_transfer_.load(vmm_src, reg_src, nelems, offt_elems, data_type);
-        vaddps(vmm_dd_gamma, vmm_dd_gamma, vmm_ddst);
-        vsubps(vmm_src, vmm_src, vmm_mean);
-        vfmadd231ps(vmm_dd_gamma_x, vmm_ddst, vmm_src);
-    };
+        L(end);
 
-    auto compute_diff_src = [=](int nelems, size_t offt_elems) {
-        jit_transfer_.load(
-                vmm_dsrc, reg_diff_dst, nelems, offt_elems, data_type);
-        if (use_scaleshift_ || use_scale_) {
-            jit_transfer_.load(vmm_gamma, reg_gamma, nelems, offt_elems, f32);
-            vmulps(vmm_dsrc, vmm_dsrc, vmm_gamma);
-        }
-        if (calculate_diff_stats_) {
-            jit_transfer_.load(vmm_src, reg_src, nelems, offt_elems, data_type);
-            vsubps(vmm_src, vmm_src, vmm_mean);
-            vmulps(vmm_src, vmm_src, vmm_inv_sqrtvar);
-            vfmadd213ps(vmm_src, vmm_dd_gamma_x, vmm_dd_gamma);
-            vdivps(vmm_src, vmm_src, vmm_C);
-            vsubps(vmm_dsrc, vmm_dsrc, vmm_src);
-        }
-        vmulps(vmm_dsrc, vmm_dsrc, vmm_inv_sqrtvar);
-        jit_transfer_.store(
-                vmm_dsrc, reg_diff_src, nelems, offt_elems, data_type);
-    };
-
-    // add block_start to block_size to define block_end
-    add(reg_block_end, reg_src);
-
-    Label unroll_loop, end;
-    L(unroll_loop);
-    {
-        cmp(reg_block_end, reg_src);
-        jle(end, T_NEAR);
-
-        vmovss(xmm_tmp, dword[reg_inv_sqrtvar]);
-        vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
-        if (calculate_diff_stats_) {
-            vmovss(xmm_tmp, dword[reg_mean]);
-            vbroadcastss(vmm_mean, xmm_tmp);
-
-            uni_vpxor(vmm_dd_gamma, vmm_dd_gamma, vmm_dd_gamma);
-            uni_vpxor(vmm_dd_gamma_x, vmm_dd_gamma_x, vmm_dd_gamma_x);
-
-            for (int i = 0; i < C_vecs; i++)
-                compute_dd_gammas(simd_w, i * simd_w);
-
-            reduce(vmm_dd_gamma);
-            reduce(vmm_dd_gamma_x);
-
-            for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
-                compute_dd_gammas(1, i);
-
-            vmulps(vmm_dd_gamma_x, vmm_dd_gamma_x, vmm_inv_sqrtvar);
-
-            Xmm xmm_dd_gamma = Xmm(vmm_dd_gamma.getIdx());
-            vbroadcastss(vmm_dd_gamma, xmm_dd_gamma);
-            Xmm xmm_dd_gamma_x = Xmm(vmm_dd_gamma_x.getIdx());
-            vbroadcastss(vmm_dd_gamma_x, xmm_dd_gamma_x);
-        }
-
-        for (int i = 0; i < C_vecs; i++)
-            compute_diff_src(simd_w, i * simd_w);
-
-        for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
-            compute_diff_src(1, i);
-
-        add(reg_src, c_size);
-        add(reg_diff_dst, c_size);
-        add(reg_diff_src, c_size);
-        if (calculate_diff_stats_) add(reg_mean, float_size);
-        add(reg_inv_sqrtvar, float_size);
-
-        jmp(unroll_loop);
+        postamble();
     }
-    L(end);
+};
 
-    postamble();
-}
+template <cpu_isa_t isa>
+struct jit_diff_data_kernel_t;
 
 template <>
-void jit_diff_data_kernel_t<f32>::reduce(
-        jit_diff_data_kernel_t<f32>::Vmm ymm_vec) {
-    vextractf128(xmm_tmp, ymm_vec, 1);
-    Xmm xmm_vec = Xmm(ymm_vec.getIdx());
-    vaddps(xmm_vec, xmm_tmp, xmm_vec);
-    vhaddps(xmm_vec, xmm_vec, xmm_vec);
-    vhaddps(xmm_vec, xmm_vec, xmm_vec);
+struct jit_diff_data_kernel_t<avx512_core>
+    : jit_diff_data_base_kernel_t<avx512_core> {
+
+    jit_diff_data_kernel_t(const layer_normalization_pd_t *pd)
+        : jit_diff_data_base_kernel_t(pd) {
+        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {src_d_.data_type(),
+                d_dst_d_.data_type(), d_src_d_.data_type(), f32 /* stats */};
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(
+                simd_w_, axis_simd_tail_, tail_opmask, INT_MAX, reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1, bf16_emu_zmm_2,
+                bf16_emu_zmm_3, bf16_emu_gpr, bf16_emu_zmm_4);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
+                this, avx512_core, dts, io_conf, io_tail_conf, io_bf16_conf);
+    }
+
+    void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
+        vshuff32x4(vmm_tmp, vmm_src, vmm_src, 0x4E); // 256-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshuff32x4(vmm_tmp, vmm_src, vmm_src, 0xB1); // 128/256-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshufps(vmm_tmp, vmm_src, vmm_src, 0x4E); // 64/128-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshufps(vmm_tmp, vmm_src, vmm_src, 0xB1); // 32/64-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+    }
+
+    const Zmm bf16_emu_zmm_1 = Zmm(28);
+    const Zmm bf16_emu_zmm_2 = Zmm(29);
+    const Zmm bf16_emu_zmm_3 = Zmm(30);
+    const Zmm bf16_emu_zmm_4 = Zmm(31);
+    const Reg64 bf16_emu_gpr = reg_tmp;
+    Opmask tail_opmask = Opmask(1);
 };
 
 template <>
-void jit_diff_data_kernel_t<bf16>::reduce(
-        jit_diff_data_kernel_t<bf16>::Vmm zmm_vec) {
-    Xbyak::Ymm ymm_high = Ymm(xmm_tmp.getIdx());
+struct jit_diff_data_kernel_t<avx2> : jit_diff_data_base_kernel_t<avx2> {
 
-    vextractf32x8(ymm_high, zmm_vec, 1);
-    Ymm ymm_vec = Ymm(zmm_vec.getIdx());
-    vaddps(ymm_vec, ymm_high, ymm_vec);
-    vhaddps(ymm_vec, ymm_vec, ymm_vec);
-    vhaddps(ymm_vec, ymm_vec, ymm_vec);
+    jit_diff_data_kernel_t(const layer_normalization_pd_t *pd)
+        : jit_diff_data_base_kernel_t(pd) {
+        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {src_d_.data_type(),
+                d_dst_d_.data_type(), d_src_d_.data_type(), f32 /* stats */};
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_, Opmask(),
+                vmm_tail_mask.getIdx(), reg_tmp);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
+                this, avx2, dts, io_conf, io_tail_conf);
+    }
 
-    Xmm xmm_high = Xmm(ymm_high.getIdx());
-    Xmm xmm_vec = Xmm(zmm_vec.getIdx());
-    vextractf128(xmm_high, ymm_vec, 1);
-    vaddps(xmm_vec, xmm_high, xmm_vec);
+    void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
+        vperm2f128(vmm_tmp, vmm_src, vmm_src, 0x1); // 128/256-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshufps(vmm_tmp, vmm_src, vmm_src, 0x4E); // 64/128-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+        vshufps(vmm_tmp, vmm_src, vmm_src, 0xB1); // 32/64-bit shuffle
+        vaddps(vmm_src, vmm_src, vmm_tmp);
+    }
 };
-
-stat_and_data_kernel_t *stat_and_data_kernel_create(
-        const layer_normalization_pd_t *pd) {
-    if (pd->src_md()->data_type == f32) {
-        return mayiuse(avx2) ? new jit_stat_and_data_kernel_t<f32>(pd)
-                             : nullptr;
-    } else if (pd->src_md()->data_type == bf16) {
-        return mayiuse(avx512_core) ? new jit_stat_and_data_kernel_t<bf16>(pd)
-                                    : nullptr;
-    } else {
-        assert(!"unexpected data type!");
-        return nullptr;
-    }
-}
-
-diff_ss_kernel_t *diff_ss_kernel_create(const layer_normalization_pd_t *pd) {
-    if (pd->src_md()->data_type == f32) {
-        return mayiuse(avx2) ? new jit_diff_ss_kernel_t<f32>(pd) : nullptr;
-    } else if (pd->src_md()->data_type == bf16) {
-        return mayiuse(avx512_core) ? new jit_diff_ss_kernel_t<bf16>(pd)
-                                    : nullptr;
-    } else {
-        assert(!"unexpected data type!");
-        return nullptr;
-    }
-}
 
 diff_data_kernel_t *diff_data_kernel_create(
         const layer_normalization_pd_t *pd) {
-    if (pd->src_md()->data_type == f32) {
-        return mayiuse(avx2) ? new jit_diff_data_kernel_t<f32>(pd) : nullptr;
-    } else if (pd->src_md()->data_type == bf16) {
-        return mayiuse(avx512_core) ? new jit_diff_data_kernel_t<bf16>(pd)
-                                    : nullptr;
+    if (mayiuse(avx512_core)) {
+        return new jit_diff_data_kernel_t<avx512_core>(pd);
+    } else if (mayiuse(avx2)) {
+        return new jit_diff_data_kernel_t<avx2>(pd);
     } else {
-        assert(!"unexpected data type!");
         return nullptr;
     }
 }
