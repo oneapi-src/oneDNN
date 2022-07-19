@@ -549,7 +549,6 @@ static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
         if (!amx_exclusive
                 || tls.amx_buffer_.cur_palette != brg_desc->palette_) {
             amx_tile_configure(brg_desc->palette_);
-            tls.amx_buffer_.cur_palette = brg_desc->palette_;
         }
         auto &amx_tile_buf = tls.amx_buffer_;
         if (!amx_tile_buf.ptr_) { amx_tile_buf.reset(stream); }
