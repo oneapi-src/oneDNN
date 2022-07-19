@@ -1486,30 +1486,30 @@ reorder_executable_t::desc_t reorder_executable_t::create_desc(
     if (op->has_attr(op_attr::with_runtime_src_zps)
             && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
         // runtime src zps
-        prm_attr.set_zero_points(DNNL_ARG_FROM, mask, {DNNL_RUNTIME_S32_VAL});
+        prm_attr.set_zero_points_mask(DNNL_ARG_FROM, mask);
     } else if (op->has_attr(op_attr::src_zps)) {
         auto zps = op->get_attr<std::vector<int64_t>>(op_attr::src_zps);
         std::vector<int32_t> int32_zps = utils::cast_to_int32(zps);
-        prm_attr.set_zero_points(DNNL_ARG_FROM, mask, int32_zps);
+        prm_attr.set_zero_points_mask(DNNL_ARG_FROM, mask);
     }
 
     if (op->has_attr(op_attr::with_runtime_scales)
             && op->get_attr<bool>(op_attr::with_runtime_scales)) {
         // runtime scales
-        prm_attr.set_output_scales(mask, {DNNL_RUNTIME_F32_VAL});
+        prm_attr.set_output_scales_mask(mask);
     } else if (op->has_attr(op_attr::scales)) {
         auto scales = op->get_attr<std::vector<float>>(op_attr::scales);
-        prm_attr.set_output_scales(mask, scales);
+        prm_attr.set_output_scales_mask(mask);
     }
 
     if (op->has_attr(op_attr::with_runtime_dst_zps)
             && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
         // runtime dst zps
-        prm_attr.set_zero_points(DNNL_ARG_TO, mask, {DNNL_RUNTIME_S32_VAL});
+        prm_attr.set_zero_points_mask(DNNL_ARG_TO, mask);
     } else if (op->has_attr(op_attr::dst_zps)) {
         auto zps = op->get_attr<std::vector<int64_t>>(op_attr::dst_zps);
         std::vector<int32_t> int32_zps = utils::cast_to_int32(zps);
-        prm_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
+        prm_attr.set_zero_points_mask(DNNL_ARG_TO, mask);
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -1671,7 +1671,33 @@ static arg_indices_t get_arg_indices_for_conv_and_matmul(
         arg_indices.insert({DNNL_ARG_BIAS, indice_t {input, indice++}});
     }
 
+    const fusion_info_t &fusion_info
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
+            : fusion_info_t();
+
+    if (fusion_info.with_runtime_output_scales()) {
+        arg_indices.insert(
+                {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, indice++}});
+    }
+
+    if (fusion_info.with_runtime_zero_points(true, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC,
+                indice_t {input, indice++}});
+    }
+
+    if (fusion_info.with_runtime_zero_points(true, 1)) {
+        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS,
+                indice_t {input, indice++}});
+    }
+
     get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
+
+    if (fusion_info.with_runtime_zero_points(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST,
+                indice_t {input, indice++}});
+    }
 
     // add output args
     arg_indices.insert({DNNL_ARG_DST, indice_t {output, 0}});
@@ -1765,6 +1791,17 @@ static arg_indices_t get_arg_indices_for_siso_op(
     // add input args
     size_t indice = 0;
     arg_indices.insert({DNNL_ARG_FROM, indice_t {input, indice++}});
+
+    const fusion_info_t &fusion_info
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
+            : fusion_info_t();
+
+    if (fusion_info.with_runtime_output_scales()) {
+        arg_indices.insert(
+                {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, indice++}});
+    }
 
     get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
 
@@ -2013,6 +2050,17 @@ arg_indices_t layernorm_executable_t::get_arg_indices(
         arg_indices.insert({DNNL_ARG_SHIFT, indice_t {input, in_indice++}});
     }
 
+    const fusion_info_t &fusion_info
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
+            : fusion_info_t();
+
+    if (fusion_info.with_runtime_output_scales()) {
+        arg_indices.insert(
+                {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, in_indice++}});
+    }
+
     size_t out_indice = 0;
     arg_indices.insert({DNNL_ARG_DST, indice_t {output, out_indice++}});
     if (!op->has_attr(op_attr::keep_stats)
@@ -2069,34 +2117,34 @@ arg_indices_t reorder_executable_t::get_arg_indices(
     size_t indice = 0;
     arg_indices.insert({DNNL_ARG_FROM, indice_t {input, indice++}});
 
-    // we always insert the input belonging to input fusion before the input
-    // belonging to output fusion. So, src_zps must be before scales if it
-    // exists
-    if (op->has_attr(op_attr::with_runtime_src_zps)
-            && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
-        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC,
-                indice_t {input, indice}});
-        auto src_zps = op->get_input_value(indice++);
-        assertm(src_zps->get_logical_tensor().data_type == impl::data_type::s32,
-                "oneDNN runtime zps must be s32 type");
-    }
+    const fusion_info_t &fusion_info
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
+            : fusion_info_t();
 
-    if (op->has_attr(op_attr::with_runtime_scales)
-            && op->get_attr<bool>(op_attr::with_runtime_scales)) {
+    if ((op->has_attr(op_attr::with_runtime_scales)
+                && op->get_attr<bool>(op_attr::with_runtime_scales))
+            || fusion_info.with_runtime_output_scales()) {
         arg_indices.insert(
                 {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, indice++}});
     }
 
-    if (op->has_attr(op_attr::with_runtime_dst_zps)
-            && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
-        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST,
-                indice_t {input, indice}});
-        auto dst_zps = op->get_input_value(indice++);
-        assertm(dst_zps->get_logical_tensor().data_type == impl::data_type::s32,
-                "oneDNN runtime zps must be s32 type");
+    if ((op->has_attr(op_attr::with_runtime_src_zps)
+                && op->get_attr<bool>(op_attr::with_runtime_src_zps))
+            || fusion_info.with_runtime_zero_points(true, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC,
+                indice_t {input, indice++}});
     }
 
     get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
+
+    if ((op->has_attr(op_attr::with_runtime_dst_zps)
+                && op->get_attr<bool>(op_attr::with_runtime_dst_zps))
+            || fusion_info.with_runtime_zero_points(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST,
+                indice_t {input, indice++}});
+    }
 
     arg_indices.insert({DNNL_ARG_TO, indice_t {output, 0}});
     if (op->num_outputs() > 1) {

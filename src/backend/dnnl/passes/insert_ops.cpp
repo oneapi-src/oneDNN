@@ -69,13 +69,27 @@ impl::status_t insert_permute_for_conv_or_deconv(
         }
 
         size_t num_post_binary_ops = 0;
+        size_t dw_conv_index = 2;
+        bool with_runtime_dst_points = false;
         const auto &pops = fusion_info.get_post_ops();
         for (size_t n = 0; n < pops.size(); ++n) {
             if (pops[n]->get_op()->get_kind() == op_kind::dnnl_binary)
                 num_post_binary_ops++;
         }
 
-        for (size_t i = 0; i < op->num_inputs(); ++i) {
+        if (fusion_info.with_runtime_output_scales()) { dw_conv_index += 1; }
+        if (fusion_info.with_runtime_zero_points(true, 0)) {
+            dw_conv_index += 1;
+        }
+        if (fusion_info.with_runtime_zero_points(true, 1)) {
+            dw_conv_index += 1;
+        }
+        if (fusion_info.with_runtime_zero_points(false, 0)) {
+            with_runtime_dst_points = true;
+        }
+
+        for (size_t i = 0; i < op->num_inputs() - with_runtime_dst_points;
+                ++i) {
             auto val = op->get_input_value(i);
             auto ndims = val->get_logical_tensor().ndims;
 
@@ -88,9 +102,10 @@ impl::status_t insert_permute_for_conv_or_deconv(
                 std::string filter_format
                         = op->get_attr<std::string>(op_attr::filter_format);
                 perm = get_permutation(ndims, filter_format, "OIX");
-            } else if (i == 2 && need_permute_post_dw_conv_wei) {
+            } else if (i == dw_conv_index && need_permute_post_dw_conv_wei) {
                 perm = get_permutation(ndims, "XIO", "OIX");
             } else if (i >= op->num_inputs() - num_post_binary_ops
+                                    - with_runtime_dst_points
                     && need_permute_src) {
                 // optionally permute post-binary/post-sum inputs
                 perm = get_permutation(ndims, "NXC", "NCX");
@@ -483,6 +498,13 @@ impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
                 axes.emplace_back(-1);
                 squeeze_axes.emplace_back(-1);
             }
+            // skip unsqueeze runtime scales
+            if (op->get_input_value(i)->has_producer()
+                    && impl::utils::one_of(
+                            op->get_input_value(i)->get_producer().get_kind(),
+                            op_kind::dnnl_constant_scales,
+                            op_kind::dnnl_constant_zps))
+                continue;
 
             size_t batch_dim_num = unsqueezed_dst_ndims - axes.size() - ndims;
             for (size_t b = 0; b < batch_dim_num; b++) {
@@ -525,7 +547,124 @@ impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
     return infer_shape(sg);
 }
 
+impl::status_t insert_runtime_u8_to_s8_for_matmul(
+        std::shared_ptr<subgraph_t> &sg) {
+    if (sg->get_engine_kind() != impl::engine_kind::cpu)
+        return impl::status::success;
+    auto &mgr = sg->fusion_info_mgr_;
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
+
+        int32_t new_src0_dtype
+                = cur_op->get_input_value(0)->get_logical_tensor().data_type;
+        int32_t new_src1_dtype
+                = cur_op->get_input_value(1)->get_logical_tensor().data_type;
+        if (!impl::utils::one_of(
+                    new_src0_dtype, impl::data_type::u8, impl::data_type::s8)
+                || new_src1_dtype != impl::data_type::u8)
+            continue;
+
+        bool with_bias = cur_op->has_attr(op_attr::with_bias)
+                && cur_op->get_attr<bool>(op_attr::with_bias);
+        const bool has_runtime_scales = with_runtime_scales(cur_op, mgr);
+        const bool has_runtime_src_zps = with_runtime_zps(cur_op, mgr, true, 0);
+        const bool has_runtime_wei_zps = with_runtime_zps(cur_op, mgr, true, 1);
+
+        size_t index = 2;
+        if (with_bias) index += 1;
+        if (has_runtime_scales) index += 1;
+        if (has_runtime_src_zps) index += 1;
+        if (has_runtime_wei_zps) {
+            if (cur_op->get_input_value(index)->has_producer()
+                    && cur_op->get_input_value(index)->get_producer().get_kind()
+                            == op_kind::dnnl_constant_zps) {
+                auto &const_ops
+                        = cur_op->get_input_value(index)->get_producer();
+                std::vector<int64_t> current_zp
+                        = const_ops.get_attr<std::vector<int64_t>>(
+                                op_attr::zps);
+                if (current_zp.size() != 1) continue;
+                // the equivalent transformation: mm(src_u8, wei_u8) ->
+                // mm(src_u8, wei_u8 - 128 + 128) -> mm(src_u8, wei_s8 + 128),
+                // which wei_s8 = wei_u8 - 128
+                std::vector<int64_t> adjusted_zp {current_zp[0] - 128};
+                const_ops.set_attr<std::vector<int64_t>>(
+                        op_attr::zps, adjusted_zp);
+            } else {
+                // add a binary add here.
+            }
+        } else {
+            assertm(cur_op->num_inputs() == index,
+                    "only support insert input at the end of inputs");
+            std::vector<int64_t> zp {128};
+            auto zps_op = std::make_shared<impl::op_t>(op_kind::dnnl_add_zps);
+            zps_op->set_attr<std::string>(op_attr::qtype, "per_tensor");
+            zps_op->set_attr<int64_t>(op_attr::axis, 0);
+            zps_op->set_attr(op_attr::with_runtime_zps, true);
+            op_ptr const_data_op;
+            const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_zps);
+            const_data_op->set_attr(op_attr::zps, zp);
+            std::vector<int64_t> dst_shape(1, zp.size());
+            const_data_op->set_attr(op_attr::shape, dst_shape);
+            const_data_op->set_attr(op_attr::is_constant, true);
+            impl::logical_tensor_t const_data_dst_lt
+                    = impl::empty_logical_tensor_with_default_id();
+            auto const_data_dst_value = std::make_shared<value_t>(
+                    *const_data_op, 0, const_data_dst_lt, true);
+            const_data_dst_value->set_data_type(impl::data_type::s32);
+            const_data_dst_value->set_layout_type(impl::layout_type::strided);
+            const_data_dst_value->set_property(impl::property_type::constant);
+            const_data_dst_value->set_strides({1});
+            const_data_op->add_output(const_data_dst_value);
+
+            int64_t key = -1;
+            if (cur_op->has_attr(op_attr::fusion_info_key)) {
+                key = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
+            } else {
+                key = mgr.init_info();
+                cur_op->set_attr<int64_t>(op_attr::fusion_info_key, key);
+            }
+
+            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+            fusion_info.set_zero_points(zps_op->shared_from_this(), true, 1);
+
+            // connect add_zp and constant data
+            cur_op->add_input(const_data_dst_value);
+            const_data_dst_value->add_consumer(*cur_op, cur_op->num_inputs());
+            rewriter.to_insert(const_data_op);
+        }
+
+        op_ptr u8_to_s8_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
+
+        // make zps as a constant input
+        op_ptr const_zps_op;
+        const_zps_op = std::make_shared<op_t>(op_kind::dnnl_constant_zps);
+        const_zps_op->set_attr(op_attr::zps, std::vector<int64_t> {-128});
+        const_zps_op->set_attr(op_attr::shape, std::vector<int64_t> {1});
+        impl::logical_tensor_t const_zps_dst_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto const_zps_dst_value = std::make_shared<value_t>(
+                *const_zps_op, 0, const_zps_dst_lt, true);
+        const_zps_dst_value->set_data_type(impl::data_type::s32);
+        const_zps_dst_value->set_layout_type(impl::layout_type::strided);
+        const_zps_dst_value->set_strides({1});
+        const_zps_op->add_output(const_zps_dst_value);
+        u8_to_s8_op->set_attr(op_attr::with_runtime_dst_zps, true);
+        rewriter.insert_op_before(u8_to_s8_op, cur_op, 1);
+        u8_to_s8_op->connect_input(1, const_zps_dst_value);
+        u8_to_s8_op->get_output_value(0)->set_data_type(impl::data_type::s8);
+        insert_empty_scratchpad(u8_to_s8_op);
+        rewriter.to_insert(const_zps_op);
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
+    if (sg->get_engine_kind() == impl::engine_kind::cpu)
+        return impl::status::success;
     auto &mgr = sg->fusion_info_mgr_;
 
     subgraph_rewriter_t rewriter(sg);
@@ -543,7 +682,8 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
             continue;
 
         int64_t key = -1;
-        if (cur_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        if (cur_op->has_attr(op_attr::fusion_info_key)
+                && cur_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
             key = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
         } else {
             key = mgr.init_info();

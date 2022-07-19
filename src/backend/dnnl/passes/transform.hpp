@@ -78,7 +78,9 @@ impl::status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg);
+impl::status_t fuse_src_zero_points(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t fuse_dst_zero_points(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg);
 
@@ -222,6 +224,18 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg);
 // This pass will fold add_zps into the previous sub_zps with new_zps = sub_zps
 // - add_zps
 impl::status_t fold_sub_zps_add_zps(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t convert_to_runtime_scales(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t convert_to_runtime_src_zero_points(
+        std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t convert_to_runtime_dst_zero_points(
+        std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t convert_runtime_mul_scales(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t convert_runtime_zero_points(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace impl

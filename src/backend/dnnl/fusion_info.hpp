@@ -30,6 +30,7 @@
 #include "interface/value.hpp"
 #include "utils/utils.hpp"
 
+#include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/utils.hpp"
 
@@ -190,6 +191,39 @@ public:
                             == op_kind::dnnl_convolution;
                 });
         return *pos;
+    }
+
+    bool with_runtime_output_scales() const {
+        if (!output_scales_) return false;
+        const impl::op_t *scale_op
+                = const_cast<impl::op_t *>(output_scales_->get_op());
+        if (scale_op->has_attr(op_attr::with_runtime_scales)) {
+            return scale_op->get_attr<bool>(op_attr::with_runtime_scales);
+        } else {
+            return false;
+        }
+    }
+
+    bool with_runtime_zero_points(bool is_input, size_t indice) const {
+        if (is_input) {
+            if (input_zps_.find(indice) == input_zps_.end()) return false;
+            const impl::op_t *zp_op
+                    = const_cast<impl::op_t *>(input_zps_.at(indice)->get_op());
+            if (zp_op->has_attr(op_attr::with_runtime_zps)) {
+                return zp_op->get_attr<bool>(op_attr::with_runtime_zps);
+            } else {
+                return false;
+            }
+        } else {
+            if (!output_zps_) return false;
+            const impl::op_t *zp_op
+                    = const_cast<impl::op_t *>(output_zps_->get_op());
+            if (zp_op->has_attr(op_attr::with_runtime_zps)) {
+                return zp_op->get_attr<bool>(op_attr::with_runtime_zps);
+            } else {
+                return false;
+            }
+        }
     }
 
 private:

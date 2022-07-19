@@ -78,6 +78,9 @@ impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
 /// Only valid for below scenarios: src and weight's dtype are both uint8
 impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t insert_runtime_u8_to_s8_for_matmul(
+        std::shared_ptr<subgraph_t> &sg);
+
 /// Insert unsqueeze op to make PReLU input shapes meet DNNL requirements
 ///
 /// unsqueeze inserts 1 at the beginning of the weight dims as many as needed,

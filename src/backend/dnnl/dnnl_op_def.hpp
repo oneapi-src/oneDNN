@@ -1310,7 +1310,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_matmul, 1,
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_softmax, 1,
         op_schema_t()
-                .set_num_inputs(1)
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(2)
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
@@ -1359,7 +1360,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax, 1,
 DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({1, 3}))
+                .set_num_inputs(std::set<size_t>({1, 2, 3, 4}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({2, 4}))
                 .set_input(0, "input", "input tensor")

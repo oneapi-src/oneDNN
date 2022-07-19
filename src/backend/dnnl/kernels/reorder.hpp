@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 
+#include "backend/dnnl/constant_cache.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/op_executable.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
@@ -28,6 +29,7 @@
 #include "backend/dnnl/thread_local_cache.hpp"
 
 #include "backend/dnnl/passes/compile_ops.hpp"
+#include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower.hpp"
@@ -50,10 +52,21 @@ private:
 
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
+    // FIXME(qun) improve the cache key
+    constant_cache_t::key_t constant_key_
+            = reinterpret_cast<constant_cache_t::key_t>(this);
+
+    bool enable_constant_cache_ = is_constant_cache_enabled();
+
 public:
     ~reorder_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+
+        if (enable_constant_cache_) {
+            constant_cache_t constant_cache;
+            constant_cache.remove_if_exist(constant_key_);
+        }
     }
 
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
@@ -82,15 +95,32 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_reorder);
             BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fold_sum_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-        if (quantized) { BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points); }
+        if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_zero_points);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_zero_points);
+        }
+
         // insert_to_group_for_reorder: work for weight prepacking case
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_reorder);
 
         pipeline.reset_visualize_arg(true, false);
+
+        if (enable_constant_cache_) {
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
+        }
+
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        // constant propagation
+        if (enable_constant_cache_) {
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
+        }
 
         // bind the memory for each op
         auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
@@ -158,6 +188,48 @@ public:
                 "no enough scratchpad memory");
         prepare_args_set(res, inputs, outputs, scratchpad);
 
+        if (enable_constant_cache_) {
+            std::promise<constant_cache_t::cached_t> c_promise;
+            constant_cache_t global_constant_cache;
+            constant_cache_t::value_t cached_value
+                    = global_constant_cache.get_or_add(
+                            constant_key_, c_promise.get_future());
+            bool is_from_cache = cached_value.valid();
+            if (is_from_cache) {
+                const constant_cache_t::cached_t &c_buffer = cached_value.get();
+                grantor_t c_grantor
+                        = memory_planner_.internal_persistent_grantor(
+                                c_buffer->data<char>());
+                for (auto &mem_offkey :
+                        res->get_mems_use_internal_persistent()) {
+                    mem_offkey.first.set_data_handle(
+                            c_grantor.get(mem_offkey.second));
+                }
+            } else {
+                constant_cache_t::cached_t c_buffer
+                        = std::make_shared<constant_buffer_t>(
+                                memory_planner_
+                                        .total_internal_persistent_size(),
+                                p_engine_, g_alloc_);
+                grantor_t c_grantor
+                        = memory_planner_.internal_persistent_grantor(
+                                c_buffer->data<char>());
+                for (auto &mem_offkey :
+                        res->get_mems_use_internal_persistent()) {
+                    mem_offkey.first.set_data_handle(
+                            c_grantor.get(mem_offkey.second));
+                }
+
+                for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+                    if (!subgraph_->is_constant_[i]) continue;
+                    subgraph_->execs_[i]->execute(
+                            p_stream, res->get_exec_args()[i]);
+                }
+
+                c_promise.set_value(c_buffer);
+            }
+        }
+
         for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
             subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
@@ -187,6 +259,49 @@ public:
                         >= memory_planner_.total_internal_temporary_size(),
                 "no enough scratchpad memory");
         prepare_args_set(res, inputs, outputs, scratchpad);
+
+        if (enable_constant_cache_) {
+            std::promise<constant_cache_t::cached_t> c_promise;
+            constant_cache_t global_constant_cache;
+            constant_cache_t::value_t cached_value
+                    = global_constant_cache.get_or_add(
+                            constant_key_, c_promise.get_future());
+            bool is_from_cache = cached_value.valid();
+            if (is_from_cache) {
+                const constant_cache_t::cached_t &c_buffer = cached_value.get();
+                grantor_t c_grantor
+                        = memory_planner_.internal_persistent_grantor(
+                                c_buffer->data<char>());
+                for (auto &mem_offkey :
+                        res->get_mems_use_internal_persistent()) {
+                    mem_offkey.first.set_data_handle(
+                            c_grantor.get(mem_offkey.second));
+                }
+            } else {
+                constant_cache_t::cached_t c_buffer
+                        = std::make_shared<constant_buffer_t>(
+                                memory_planner_
+                                        .total_internal_persistent_size(),
+                                p_engine_, g_alloc_);
+                grantor_t c_grantor
+                        = memory_planner_.internal_persistent_grantor(
+                                c_buffer->data<char>());
+                for (auto &mem_offkey :
+                        res->get_mems_use_internal_persistent()) {
+                    mem_offkey.first.set_data_handle(
+                            c_grantor.get(mem_offkey.second));
+                }
+
+                for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+                    if (!subgraph_->is_constant_[i]) continue;
+                    returned_event = subgraph_->execs_[i]->execute_sycl(
+                            p_stream, res->get_exec_args()[i], deps);
+                    deps = {returned_event};
+                }
+
+                c_promise.set_value(c_buffer);
+            }
+        }
 
         for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
             returned_event = subgraph_->execs_[i]->execute_sycl(

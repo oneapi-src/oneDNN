@@ -49,12 +49,17 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
     // convert output scales
     if (fusion_info.output_scales_) {
         const impl::op_t *oscales_op = fusion_info.output_scales_->get_op();
-        auto oscales
-                = oscales_op->get_attr<std::vector<float>>(op_attr::scales);
-        int oscales_mask = oscales.size() == 1
-                ? 0
-                : 1 << oscales_op->get_attr<int64_t>(op_attr::axis);
-        attr.set_output_scales(oscales_mask, oscales);
+        assertm(fusion_info.with_runtime_output_scales(),
+                "only support runtime output scales.\n");
+        int mask = 0;
+        if (oscales_op->has_attr(op_attr::axis)
+                && oscales_op->has_attr(op_attr::qtype)) {
+            int64_t axis = oscales_op->get_attr<int64_t>(op_attr::axis);
+            std::string qtype
+                    = oscales_op->get_attr<std::string>(op_attr::qtype);
+            mask = qtype == "per_tensor" ? 0 : 1 << axis;
+        }
+        attr.set_output_scales_mask(mask);
     }
 
     // convert input zps
@@ -62,26 +67,35 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
         for (const auto &in_zps : fusion_info.input_zps_) {
             size_t in_zps_indice = in_zps.first;
             const impl::op_t *in_zps_op = in_zps.second->get_op();
-            auto zps = in_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
-            int mask = zps.size() == 1
-                    ? 0
-                    : 1 << in_zps_op->get_attr<int64_t>(op_attr::axis);
-            std::vector<int32_t> int32_zps = utils::cast_to_int32(zps);
-            attr.set_zero_points(
-                    in_zps_indice == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS, mask,
-                    int32_zps);
+            assertm(fusion_info.with_runtime_zero_points(true, in_zps_indice),
+                    "only support runtime src zero points.\n");
+            int mask = 0;
+            if (in_zps_op->has_attr(op_attr::axis)
+                    && in_zps_op->has_attr(op_attr::qtype)) {
+                int64_t axis = in_zps_op->get_attr<int64_t>(op_attr::axis);
+                std::string qtype
+                        = in_zps_op->get_attr<std::string>(op_attr::qtype);
+                mask = qtype == "per_tensor" ? 0 : 1 << axis;
+            }
+            attr.set_zero_points_mask(
+                    in_zps_indice == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS, mask);
         }
     }
 
     // convert output zps
     if (fusion_info.output_zps_) {
         const impl::op_t *out_zps_op = fusion_info.output_zps_->get_op();
-        auto zps = out_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
-        int mask = zps.size() == 1
-                ? 0
-                : 1 << out_zps_op->get_attr<int64_t>(op_attr::axis);
-        std::vector<int32_t> int32_zps = utils::cast_to_int32(zps);
-        attr.set_zero_points(DNNL_ARG_DST, mask, int32_zps);
+        assertm(fusion_info.with_runtime_zero_points(false, 0),
+                "only support runtime src zero points.\n");
+        int mask = 0;
+        if (out_zps_op->has_attr(op_attr::axis)
+                && out_zps_op->has_attr(op_attr::qtype)) {
+            int64_t axis = out_zps_op->get_attr<int64_t>(op_attr::axis);
+            std::string qtype
+                    = out_zps_op->get_attr<std::string>(op_attr::qtype);
+            mask = qtype == "per_tensor" ? 0 : 1 << axis;
+        }
+        attr.set_zero_points_mask(DNNL_ARG_DST, mask);
     }
 
     // convert post ops

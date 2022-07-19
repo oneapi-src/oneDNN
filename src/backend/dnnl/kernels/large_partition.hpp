@@ -123,13 +123,19 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, swap_relu_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fold_sum_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
+        // tricky here.
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_runtime_u8_to_s8_for_matmul);
 
         BACKEND_DNNL_ADD_PASS(
                 pipeline, insert_unsqueeze_and_squeeze_for_reduction);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_zero_points);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_zero_points);
 
         BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
         BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
@@ -140,7 +146,8 @@ public:
 
         // fuse those new post-binaries converted from add_zps and mul_scales
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_mul_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_zero_points);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);

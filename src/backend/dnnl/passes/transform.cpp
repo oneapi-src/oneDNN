@@ -161,7 +161,7 @@ impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
     }
 
     rewriter.run();
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 // replace mul_scales and add_zps with binary_mul and binary_add respectively
@@ -345,6 +345,165 @@ impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg) {
                     relu->shared_from_this(), mul_scales->shared_from_this());
         }
     }
+    return infer_shape(sg);
+}
+
+impl::status_t convert_to_runtime_scales(std::shared_ptr<subgraph_t> &sg) {
+    if (sg->get_engine_kind() != impl::engine_kind::cpu)
+        return impl::status::success;
+    std::set<op_t *> visited;
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_mul_scales
+                || cur_op->num_inputs() != 1
+                || !cur_op->get_input_value(0)->has_producer()
+                || !impl::utils::one_of(cur_op->get_input_op(0)->get_kind(),
+                        op_kind::dnnl_matmul, op_kind::dnnl_convolution,
+                        op_kind::dnnl_convtranspose, op_kind::dnnl_softmax,
+                        op_kind::dnnl_layernorm, op_kind::dnnl_reorder)
+                || visited.count(cur_op.get()))
+            continue;
+
+        visited.insert(cur_op.get());
+        // make scales as a constant input
+        op_ptr const_data_op;
+        const auto scales
+                = cur_op->get_attr<std::vector<float>>(op_attr::scales);
+        const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_scales);
+        const_data_op->set_attr(op_attr::scales, scales);
+        std::vector<int64_t> dst_shape(1, scales.size());
+        const_data_op->set_attr(op_attr::shape, dst_shape);
+        impl::logical_tensor_t const_data_dst_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto const_data_dst_value = std::make_shared<value_t>(
+                *const_data_op, 0, const_data_dst_lt, true);
+        const_data_dst_value->set_data_type(impl::data_type::f32);
+        const_data_dst_value->set_layout_type(impl::layout_type::strided);
+        const_data_dst_value->set_strides({1});
+        const_data_op->add_output(const_data_dst_value);
+        cur_op->set_attr(op_attr::with_runtime_scales, true);
+        cur_op->remove_attr(op_attr::scales);
+
+        // connect mul_scale and constant data
+        cur_op->connect_input(1, const_data_dst_value);
+        rewriter.to_insert(const_data_op);
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+impl::status_t convert_to_runtime_src_zero_points(
+        std::shared_ptr<subgraph_t> &sg) {
+    if (sg->get_engine_kind() != impl::engine_kind::cpu)
+        return impl::status::success;
+    std::set<op_t *> visited;
+    std::vector<op_t *> zp_ops;
+
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_sub_zps
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        zp_ops.emplace_back(cur_op.get());
+        visited.insert(cur_op.get());
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &zp_op : zp_ops) {
+        assertm(zp_op->num_outputs() == 1,
+                "zp_op should have only one output value.");
+        auto out_val = zp_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+
+        if (!impl::utils::one_of(consumers[0].get_op().get_kind(),
+                    op_kind::dnnl_matmul, op_kind::dnnl_convolution,
+                    op_kind::dnnl_convtranspose, op_kind::dnnl_reorder))
+            continue;
+
+        // make zps as a constant input
+        op_ptr const_data_op;
+        auto zps = zp_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+        // adjusted zp
+        std::vector<int64_t> adj_zps = {zps[0]};
+        const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_zps);
+        const_data_op->set_attr(op_attr::zps, adj_zps);
+        std::vector<int64_t> dst_shape(1, adj_zps.size());
+        const_data_op->set_attr(op_attr::shape, dst_shape);
+        impl::logical_tensor_t const_data_dst_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto const_data_dst_value = std::make_shared<value_t>(
+                *const_data_op, 0, const_data_dst_lt, true);
+        const_data_dst_value->set_data_type(impl::data_type::s32);
+        const_data_dst_value->set_layout_type(impl::layout_type::strided);
+        const_data_dst_value->set_strides({1});
+        const_data_op->add_output(const_data_dst_value);
+        zp_op->set_attr(op_attr::with_runtime_zps, true);
+        zp_op->remove_attr(op_attr::zps);
+
+        // connect add_zp and constant data
+        zp_op->connect_input(1, const_data_dst_value);
+        rewriter.to_insert(const_data_op);
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+impl::status_t convert_to_runtime_dst_zero_points(
+        std::shared_ptr<subgraph_t> &sg) {
+    if (sg->get_engine_kind() != impl::engine_kind::cpu)
+        return impl::status::success;
+    std::set<op_t *> visited;
+    std::vector<op_t *> zp_ops;
+
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_add_zps
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        zp_ops.emplace_back(cur_op.get());
+        visited.insert(cur_op.get());
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &zp_op : zp_ops) {
+        assertm(zp_op->num_outputs() == 1,
+                "zp_op should have only one output value.");
+        auto in_val = zp_op->get_input_values()[0];
+        bool is_output_zps = in_val->has_producer()
+                && impl::utils::one_of(in_val->get_producer().get_kind(),
+                        op_kind::dnnl_matmul, op_kind::dnnl_convolution,
+                        op_kind::dnnl_convtranspose, op_kind::dnnl_reorder);
+
+        if (!is_output_zps) continue;
+
+        // make scales as a constant input
+        op_ptr const_data_op;
+        auto zps = zp_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+        // adjusted zp
+        std::vector<int64_t> adj_zps = {zps[0]};
+        const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_zps);
+        const_data_op->set_attr(op_attr::zps, adj_zps);
+        std::vector<int64_t> dst_shape(1, adj_zps.size());
+        const_data_op->set_attr(op_attr::shape, dst_shape);
+        impl::logical_tensor_t const_data_dst_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto const_data_dst_value = std::make_shared<value_t>(
+                *const_data_op, 0, const_data_dst_lt, true);
+        const_data_dst_value->set_data_type(impl::data_type::s32);
+        const_data_dst_value->set_layout_type(impl::layout_type::strided);
+        const_data_dst_value->set_strides({1});
+        const_data_op->add_output(const_data_dst_value);
+        zp_op->set_attr(op_attr::with_runtime_zps, true);
+        zp_op->remove_attr(op_attr::zps);
+
+        // connect add_zp and constant data
+        zp_op->connect_input(1, const_data_dst_value);
+        rewriter.to_insert(const_data_op);
+    }
+
+    rewriter.run();
     return infer_shape(sg);
 }
 
@@ -1338,15 +1497,14 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
-impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t fuse_src_zero_points(std::shared_ptr<subgraph_t> &sg) {
     auto &mgr = sg->fusion_info_mgr_;
 
     std::vector<op_t *> zp_ops;
 
     std::set<op_t *> visited;
     for (auto &cur_op : sg->get_ops()) {
-        if ((cur_op->get_kind() != op_kind::dnnl_add_zps
-                    && cur_op->get_kind() != op_kind::dnnl_sub_zps)
+        if (cur_op->get_kind() != op_kind::dnnl_sub_zps
                 || visited.count(cur_op.get()) != 0)
             continue;
 
@@ -1361,53 +1519,114 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
         auto out_val = zp_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
 
-        if (zp_op->get_kind() == op_kind::dnnl_sub_zps) {
-            if (!has_int8_support(consumers[0].get_op().get_kind())) continue;
+        if (!has_int8_support(consumers[0].get_op().get_kind())) continue;
 
-            auto &next_op = consumers[0].get_op();
-            auto offset = consumers[0].get_offset();
-            if (offset == 0 || offset == 1) {
-                int64_t key = -1;
-                if (next_op.has_attr(op_attr::fusion_info_key)) {
-                    key = next_op.get_attr<int64_t>(op_attr::fusion_info_key);
-                } else {
-                    key = mgr.init_info();
-                    next_op.set_attr<int64_t>(op_attr::fusion_info_key, key);
+        auto &next_op = consumers[0].get_op();
+        auto offset = consumers[0].get_offset();
+        if (offset == 0 || offset == 1) {
+            int64_t key = -1;
+            if (next_op.has_attr(op_attr::fusion_info_key)) {
+                key = next_op.get_attr<int64_t>(op_attr::fusion_info_key);
+            } else {
+                key = mgr.init_info();
+                next_op.set_attr<int64_t>(op_attr::fusion_info_key, key);
+            }
+
+            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+
+            bool not_all_zero = true;
+            if (zp_op->has_attr(op_attr::with_runtime_zps)
+                    && zp_op->get_attr<bool>(op_attr::with_runtime_zps)) {
+                if (zp_op->num_inputs() > 1
+                        && zp_op->get_input_value(1)->has_producer()
+                        && zp_op->get_input_op(1)->get_kind()
+                                == op_kind::dnnl_constant_zps) {
+                    auto &const_op = zp_op->get_input_value(1)->get_producer();
+                    auto zps = const_op.get_attr<std::vector<int64_t>>(
+                            op_attr::zps);
+                    not_all_zero = !utils::all_zero(zps);
+                    if (!not_all_zero) {
+                        rewriter.to_remove((&const_op)->shared_from_this());
+                    }
                 }
-
-                fusion_info_t &fusion_info = mgr.get_mutable_info(key);
-
+                value_ptr in0_val = zp_op->get_input_value(0);
+                in0_val->remove_consumer(*zp_op, 0);
+                value_ptr in1_val = zp_op->get_input_value(1);
+                in1_val->remove_consumer(*zp_op, 1);
+                value_ptr out_val = zp_op->get_output_value(0);
+                auto consumers = out_val->get_consumers();
+                in0_val->add_consumer(next_op, offset);
+                next_op.connect_input(offset, in0_val);
+                if (not_all_zero) {
+                    next_op.add_input(in1_val);
+                    in1_val->add_consumer(next_op, next_op.num_inputs() - 1);
+                    fusion_info.set_zero_points(
+                            zp_op->shared_from_this(), true, offset);
+                }
+                rewriter.to_remove(zp_op->shared_from_this());
+            } else {
                 auto zps = zp_op->get_attr<std::vector<int64_t>>(op_attr::zps);
-                if (!utils::all_zero(zps)) {
+                not_all_zero = !utils::all_zero(zps);
+                if (not_all_zero) {
                     assertm(zps.size() == 1,
                             "zp attr only support scalar zp, need to use "
                             "runtime arg to support vector zp");
                     fusion_info.set_zero_points(
                             zp_op->shared_from_this(), true, offset);
                 }
+                rewriter.fuse_op_to_successor(zp_op->shared_from_this());
             }
-
-            rewriter.fuse_op_to_successor(zp_op->shared_from_this());
-        } else {
-            auto in_val = zp_op->get_input_values()[0];
-            auto &prv_op = in_val->get_producer();
-
-            if (!has_int8_support(prv_op.get_kind())) continue;
-
-            int64_t key = -1;
-            if (prv_op.has_attr(op_attr::fusion_info_key)) {
-                key = prv_op.get_attr<int64_t>(op_attr::fusion_info_key);
-            } else {
-                key = mgr.init_info();
-                prv_op.set_attr<int64_t>(op_attr::fusion_info_key, key);
+            if (not_all_zero) {
+                fusion_info.set_zero_points(
+                        zp_op->shared_from_this(), true, offset);
             }
-
-            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
-            fusion_info.set_zero_points(zp_op->shared_from_this(), false, 0);
-            rewriter.fuse_op_to_predecessor(zp_op->shared_from_this());
         }
     }
-    return impl::status::success;
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+impl::status_t fuse_dst_zero_points(std::shared_ptr<subgraph_t> &sg) {
+    auto &mgr = sg->fusion_info_mgr_;
+
+    std::vector<op_t *> zp_ops;
+
+    std::set<op_t *> visited;
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_add_zps
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        zp_ops.emplace_back(cur_op.get());
+        visited.insert(cur_op.get());
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &zp_op : zp_ops) {
+        assertm(zp_op->num_outputs() == 1,
+                "zp_op should have only one output value.");
+        auto out_val = zp_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+
+        auto in_val = zp_op->get_input_values()[0];
+        auto &prv_op = in_val->get_producer();
+
+        if (!has_int8_support(prv_op.get_kind())) continue;
+
+        int64_t key = -1;
+        if (prv_op.has_attr(op_attr::fusion_info_key)) {
+            key = prv_op.get_attr<int64_t>(op_attr::fusion_info_key);
+        } else {
+            key = mgr.init_info();
+            prv_op.set_attr<int64_t>(op_attr::fusion_info_key, key);
+        }
+
+        fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+        fusion_info.set_zero_points(zp_op->shared_from_this(), false, 0);
+        rewriter.fuse_op_to_predecessor(zp_op->shared_from_this());
+    }
+    rewriter.run();
+    return infer_shape(sg);
 }
 
 impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
@@ -2453,6 +2672,10 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
                 return impl::status::success;
             }
 
+            // todo: fuse reorder with runtime args
+            if (op->num_inputs() > 1 || next_op.num_inputs() > 1)
+                return impl::status::success;
+
             // two reorders should have same shape
             auto next_op_out = next_op.get_output_value(0);
             auto lhs = out_val->get_logical_tensor();
@@ -2680,6 +2903,106 @@ impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     }
     rewriter.run();
     return impl::status::success;
+}
+
+impl::status_t convert_runtime_mul_scales(std::shared_ptr<subgraph_t> &sg) {
+    if (sg->get_engine_kind() != impl::engine_kind::cpu)
+        return impl::status::success;
+    std::vector<op_t *> mul_scales;
+    std::set<op_t *> visited;
+    for (const auto &cur_op : sg->get_ops()) {
+        if ((cur_op->get_kind() != op_kind::dnnl_mul_scales)
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        // This pass only handle static quantization
+        bool dync_quantization = cur_op->has_attr(op_attr::with_runtime_scales)
+                && cur_op->get_attr<bool>(op_attr::with_runtime_scales);
+        if (dync_quantization) continue;
+
+        mul_scales.emplace_back(cur_op.get());
+        visited.insert(cur_op.get());
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &mul_scale : mul_scales) {
+        // make scales as a constant input
+        op_ptr const_data_op;
+        const auto scales
+                = mul_scale->get_attr<std::vector<float>>(op_attr::scales);
+        const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_scales);
+        const_data_op->set_attr(op_attr::scales, scales);
+        std::vector<int64_t> dst_shape(1, scales.size());
+        const_data_op->set_attr(op_attr::shape, dst_shape);
+        impl::logical_tensor_t const_data_dst_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto const_data_dst_value = std::make_shared<value_t>(
+                *const_data_op, 0, const_data_dst_lt, true);
+        const_data_dst_value->set_data_type(impl::data_type::f32);
+        const_data_dst_value->set_layout_type(impl::layout_type::strided);
+        const_data_dst_value->set_strides({1});
+        const_data_op->add_output(const_data_dst_value);
+        mul_scale->set_attr(op_attr::with_runtime_scales, true);
+        mul_scale->remove_attr(op_attr::scales);
+
+        // connect mul_scale and constant data
+        mul_scale->connect_input(1, const_data_dst_value);
+        rewriter.to_insert(const_data_op);
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+impl::status_t convert_runtime_zero_points(std::shared_ptr<subgraph_t> &sg) {
+    if (sg->get_engine_kind() != impl::engine_kind::cpu)
+        return impl::status::success;
+    std::vector<op_t *> zps;
+    std::set<op_t *> visited;
+    for (const auto &cur_op : sg->get_ops()) {
+        if ((cur_op->get_kind() != op_kind::dnnl_sub_zps
+                    && cur_op->get_kind() != op_kind::dnnl_add_zps)
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        // This pass only handle static quantization
+        bool dync_quantization = cur_op->has_attr(op_attr::with_runtime_zps)
+                && cur_op->get_attr<bool>(op_attr::with_runtime_zps);
+        if (dync_quantization) continue;
+
+        zps.emplace_back(cur_op.get());
+        visited.insert(cur_op.get());
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &zp_op : zps) {
+        // make zps as a constant input
+        op_ptr const_data_op;
+        auto zps = zp_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+        // adjusted zp
+        std::vector<int64_t> adj_zps = {zps[0]};
+        const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_zps);
+        const_data_op->set_attr(op_attr::zps, adj_zps);
+        std::vector<int64_t> dst_shape(1, adj_zps.size());
+        const_data_op->set_attr(op_attr::shape, dst_shape);
+        impl::logical_tensor_t const_data_dst_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto const_data_dst_value = std::make_shared<value_t>(
+                *const_data_op, 0, const_data_dst_lt, true);
+        const_data_dst_value->set_data_type(impl::data_type::s32);
+        const_data_dst_value->set_layout_type(impl::layout_type::strided);
+        const_data_dst_value->set_strides({1});
+        const_data_op->add_output(const_data_dst_value);
+        zp_op->set_attr(op_attr::with_runtime_zps, true);
+        zp_op->remove_attr(op_attr::zps);
+
+        // connect zp and constant data
+        zp_op->connect_input(1, const_data_dst_value);
+        rewriter.to_insert(const_data_op);
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
 }
 
 impl::status_t fuse_static_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
@@ -2940,17 +3263,17 @@ impl::status_t fuse_dynamic_sub_zps_mul_scales(
         src->remove_consumer(*op1, 0);
         fused_op->connect_input(0, src);
 
-        // fuse src zps
-        auto zps = op1->get_input_value(1);
-        zps->remove_consumer(*op1, 1);
-        fused_op->connect_input(1, zps);
-        fused_op->set_attr<bool>(op_attr::with_runtime_src_zps, true);
-
         // fuse scales as output scales
         auto scales = op2->get_input_value(1);
         scales->remove_consumer(*op2, 1);
-        fused_op->connect_input(2, scales);
+        fused_op->connect_input(1, scales);
         fused_op->set_attr<bool>(op_attr::with_runtime_scales, true);
+
+        // fuse src zps
+        auto zps = op1->get_input_value(1);
+        zps->remove_consumer(*op1, 1);
+        fused_op->connect_input(2, zps);
+        fused_op->set_attr<bool>(op_attr::with_runtime_src_zps, true);
 
         auto dst = op2->get_output_value(0);
         fused_op->add_output(dst);
@@ -2975,6 +3298,12 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         size_t index = 1; // the start index of optional runtime scales and zps
 
+        // optionally skip the runtime scales
+        if (cur_op->has_attr(op_attr::with_runtime_scales)
+                && cur_op->get_attr<bool>(op_attr::with_runtime_scales)) {
+            index++;
+        }
+
         // check runtime src_zps and add typecast if necessary
         if (cur_op->has_attr(op_attr::with_runtime_src_zps)
                 && cur_op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
@@ -2988,11 +3317,6 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                 tc_op->get_output_value(0)->set_data_type(impl::data_type::s32);
                 index++;
             }
-        }
-        // optionally skip the runtime scales
-        if (cur_op->has_attr(op_attr::with_runtime_scales)
-                && cur_op->get_attr<bool>(op_attr::with_runtime_scales)) {
-            index++;
         }
 
         // check runtime dst_zps and add typecast if necessary
