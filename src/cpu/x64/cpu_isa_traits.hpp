@@ -173,6 +173,24 @@ static inline bool is_superset(cpu_isa_t isa_1, cpu_isa_t isa_2) {
     return compare_isa(isa_1, cpu_isa_cmp_t::SUPERSET, isa_2);
 }
 
+template <typename Vmm>
+struct vreg_traits {};
+
+template <>
+struct vreg_traits<Xbyak::Zmm> {
+    static constexpr size_t vlen = 64;
+};
+
+template <>
+struct vreg_traits<Xbyak::Ymm> {
+    static constexpr size_t vlen = 32;
+};
+
+template <>
+struct vreg_traits<Xbyak::Xmm> {
+    static constexpr size_t vlen = 16;
+};
+
 template <cpu_isa_t>
 struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
 

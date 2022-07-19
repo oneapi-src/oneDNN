@@ -80,11 +80,10 @@ size_t binary_kernel_t::get_tail_size() const {
     return nelems % simd_w_;
 }
 
-template <cpu_isa_t isa>
-jit_uni_binary_kernel_t<isa>::jit_uni_binary_kernel_t(
+template <cpu_isa_t isa, typename Vmm>
+jit_uni_binary_kernel_t<isa, Vmm>::jit_uni_binary_kernel_t(
         const binary_pd_t *pd, const jit_binary_conf_t conf, bool tail_kernel)
-    : binary_kernel_t(
-            cpu_isa_traits<isa>::vlen, pd, conf, jit_name(), tail_kernel)
+    : binary_kernel_t(vreg_traits<Vmm>::vlen, pd, conf, jit_name(), tail_kernel)
     , offt_src0_(vlen_ / (conf_.is_bf16 ? 2 : 1))
     , offt_src1_(conf_.use_stride_src1 ? offt_src0_ : 0)
     , io_(this, isa, {conf_.src0_type, conf_.src1_type, conf_.dst_type},
@@ -100,9 +99,9 @@ jit_uni_binary_kernel_t<isa>::jit_uni_binary_kernel_t(
     init();
 }
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, typename Vmm>
 std::map<data_type_t, io::io_saturation_conf_t>
-jit_uni_binary_kernel_t<isa>::create_saturation_vmm_map() const {
+jit_uni_binary_kernel_t<isa, Vmm>::create_saturation_vmm_map() const {
 
     std::map<data_type_t, io::io_saturation_conf_t> saturation_map {};
 
@@ -114,13 +113,13 @@ jit_uni_binary_kernel_t<isa>::create_saturation_vmm_map() const {
     return saturation_map;
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::init() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::init() {
     if (conf_.with_postops) init_post_ops_injector();
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::init_post_ops_injector() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::init_post_ops_injector() {
     const memory_desc_wrapper dst_d(pd_->dst_md(0));
     const auto &po = pd_->attr()->post_ops_;
 
@@ -135,12 +134,12 @@ void jit_uni_binary_kernel_t<isa>::init_post_ops_injector() {
             get_supported_postops_bcast_strategies(), rhs_arg_bsp);
 
     postops_injector_ = utils::make_unique<
-            injector::jit_uni_postops_injector_t<inject_isa>>(
+            injector::jit_uni_postops_injector_t<inject_isa, Vmm>>(
             this, po, bsp, esp);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::apply_postops(int unroll, bool tail) {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::apply_postops(int unroll, bool tail) {
     const auto sum_injector = [&]() {
         for (int i = 0; i < unroll; i++) {
             const int offt = simd_w_ * i;
@@ -184,8 +183,8 @@ void jit_uni_binary_kernel_t<isa>::apply_postops(int unroll, bool tail) {
         postops_injector_->compute_vector_range(1, unroll + vmm_start_idx_);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::load_kernel_params() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::load_kernel_params() {
     mov(reg_tmp_, float2int(conf_.sum_scale));
     uni_vmovq(xreg_sum_scale_, reg_tmp_);
     uni_vbroadcastss(vreg_sum_scale_, xreg_sum_scale_);
@@ -212,24 +211,24 @@ void jit_uni_binary_kernel_t<isa>::load_kernel_params() {
         mov(reg_scales_src1_, ptr[reg_param_ + PARAM_OFF(scales_src1)]);
 }
 
-template <cpu_isa_t isa>
-Address jit_uni_binary_kernel_t<isa>::src0_ptr(size_t offt) {
+template <cpu_isa_t isa, typename Vmm>
+Address jit_uni_binary_kernel_t<isa, Vmm>::src0_ptr(size_t offt) {
     return vmmword[reg_src0_ + reg_offt_src0_ + offt];
 }
 
-template <cpu_isa_t isa>
-Address jit_uni_binary_kernel_t<isa>::src1_ptr(size_t offt) {
+template <cpu_isa_t isa, typename Vmm>
+Address jit_uni_binary_kernel_t<isa, Vmm>::src1_ptr(size_t offt) {
     return vmmword[reg_src1_ + reg_offt_src1_ + offt];
 }
 
-template <cpu_isa_t isa>
-Address jit_uni_binary_kernel_t<isa>::dst_ptr(size_t offt) {
+template <cpu_isa_t isa, typename Vmm>
+Address jit_uni_binary_kernel_t<isa, Vmm>::dst_ptr(size_t offt) {
     const Reg64 &reg_offt_dst = conf_.is_i8 ? reg_offt_dst_ : reg_offt_src0_;
     return vmmword[reg_dst_ + reg_offt_dst + offt];
 }
 
-template <cpu_isa_t isa>
-unsigned int jit_uni_binary_kernel_t<isa>::cmp_predicate(alg_kind_t alg) {
+template <cpu_isa_t isa, typename Vmm>
+unsigned int jit_uni_binary_kernel_t<isa, Vmm>::cmp_predicate(alg_kind_t alg) {
     using namespace alg_kind;
     switch (alg) {
         case binary_ge: return _cmp_nlt_us;
@@ -242,8 +241,8 @@ unsigned int jit_uni_binary_kernel_t<isa>::cmp_predicate(alg_kind_t alg) {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::perform_op(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::perform_op(
         const Vmm &v0, const Vmm &v1, const Vmm &s_src0, const Vmm &s_src1) {
     using namespace alg_kind;
     const auto alg = pd_->desc()->alg_kind;
@@ -279,8 +278,8 @@ void jit_uni_binary_kernel_t<isa>::perform_op(
         assert(!"not supported operation!");
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::prepare_isa_kernel() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::prepare_isa_kernel() {
     if (conf_.is_bf16) io_.init_bf16();
     if (tail_size_ > 0) io_.prepare_tail_mask();
     if (conf_.is_src_different_layouts && is_superset(isa, avx2)) {
@@ -289,8 +288,8 @@ void jit_uni_binary_kernel_t<isa>::prepare_isa_kernel() {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::compute_bcast(bool tail) {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::compute_bcast(bool tail) {
     if (conf_.broadcast_src1_value) {
         if (conf_.is_i8)
             uni_vpxor(xreg_bcast_src1_, xreg_bcast_src1_, xreg_bcast_src1_);
@@ -300,8 +299,8 @@ void jit_uni_binary_kernel_t<isa>::compute_bcast(bool tail) {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::load_src1(
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::load_src1(
         const Vmm &vreg_src1, const int offt, bool tail) {
     if (conf_.is_src_different_layouts) {
         // if different layouts, gather data with strides
@@ -336,8 +335,8 @@ void jit_uni_binary_kernel_t<isa>::load_src1(
                         vreg_src1, tail);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst(int unroll, bool tail) {
     for (int i = 0; i < unroll; i++) {
         const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
         const Vmm vreg_tmp = conf_.is_src_different_layouts
@@ -415,8 +414,8 @@ void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::forward() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::forward() {
     Label unroll_loop, unroll_loop_tail, nelems_tail, end;
 
     const auto src0_type_size = types::data_type_size(conf_.src0_type);
@@ -531,8 +530,8 @@ void jit_uni_binary_kernel_t<isa>::forward() {
     if (conf_.is_src_different_layouts) pop(reg_src1_);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::forward_over_outer_dims() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::forward_over_outer_dims() {
     const auto outer_dims_size
             = conf_.outer_dims * types::data_type_size(conf_.dst_type);
 
@@ -558,8 +557,8 @@ void jit_uni_binary_kernel_t<isa>::forward_over_outer_dims() {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::generate() {
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::generate() {
     preamble();
     load_kernel_params();
     prepare_isa_kernel();
@@ -577,10 +576,15 @@ void jit_uni_binary_kernel_t<isa>::generate() {
 
 #undef PARAM_OFF
 
-template struct jit_uni_binary_kernel_t<avx512_core_bf16>;
-template struct jit_uni_binary_kernel_t<avx512_core>;
-template struct jit_uni_binary_kernel_t<avx2>;
-template struct jit_uni_binary_kernel_t<sse41>;
+template struct jit_uni_binary_kernel_t<avx512_core_bf16, Zmm>;
+template struct jit_uni_binary_kernel_t<avx512_core_bf16, Ymm>;
+template struct jit_uni_binary_kernel_t<avx512_core_bf16, Xmm>;
+template struct jit_uni_binary_kernel_t<avx512_core, Zmm>;
+template struct jit_uni_binary_kernel_t<avx512_core, Ymm>;
+template struct jit_uni_binary_kernel_t<avx512_core, Xmm>;
+template struct jit_uni_binary_kernel_t<avx2, Ymm>;
+template struct jit_uni_binary_kernel_t<avx2, Xmm>;
+template struct jit_uni_binary_kernel_t<sse41, Xmm>;
 
 } // namespace x64
 } // namespace cpu

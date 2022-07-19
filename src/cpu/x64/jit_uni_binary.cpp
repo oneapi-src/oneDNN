@@ -498,25 +498,26 @@ binary_kernel_t *create_binary_kernel(
     const auto &conf = pd->get_conf();
     if (mayiuse(avx512_core_bf16)) {
         if (conf.is_i8) {
-            using kernel_t = jit_uni_binary_kernel_t<avx512_core>;
+            using kernel_t = jit_uni_binary_kernel_t<avx512_core, Xbyak::Zmm>;
             return new kernel_t(pd, conf, false);
         } else {
-            using kernel_t = jit_uni_binary_kernel_t<avx512_core_bf16>;
+            using kernel_t
+                    = jit_uni_binary_kernel_t<avx512_core_bf16, Xbyak::Zmm>;
             return new kernel_t(pd, conf, tail_kernel);
         }
     } else if (mayiuse(avx512_core)) {
         if (conf.is_i8) {
-            using kernel_t = jit_uni_binary_kernel_t<avx512_core>;
+            using kernel_t = jit_uni_binary_kernel_t<avx512_core, Xbyak::Zmm>;
             return new kernel_t(pd, conf, false);
         } else {
-            using kernel_t = jit_uni_binary_kernel_t<avx512_core>;
+            using kernel_t = jit_uni_binary_kernel_t<avx512_core, Xbyak::Zmm>;
             return new kernel_t(pd, conf, tail_kernel);
         }
     } else if (mayiuse(avx2)) {
-        using kernel_t = jit_uni_binary_kernel_t<avx2>;
+        using kernel_t = jit_uni_binary_kernel_t<avx2, Xbyak::Ymm>;
         return new kernel_t(pd, conf, tail_kernel && !conf.is_i8);
     } else {
-        using kernel_t = jit_uni_binary_kernel_t<sse41>;
+        using kernel_t = jit_uni_binary_kernel_t<sse41, Xbyak::Xmm>;
         return new kernel_t(pd, conf, tail_kernel && !conf.is_i8);
     }
 }

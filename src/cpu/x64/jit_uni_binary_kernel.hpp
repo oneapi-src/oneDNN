@@ -66,13 +66,13 @@ protected:
     const size_t padding_tail_size_;
 };
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, typename Vmm>
 struct jit_uni_binary_kernel_t : public binary_kernel_t {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_binary_kernel_t)
 
-    using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : ((isa == avx2) ? yword : zword);
+    const AddressFrame &vmmword = (std::is_same<Vmm, Xmm>::value)
+            ? xword
+            : ((std::is_same<Vmm, Ymm>::value) ? yword : zword);
 
     static constexpr bool is_avx512
             = utils::one_of(isa, avx512_core, avx512_core_bf16);
@@ -131,7 +131,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     static constexpr cpu_isa_t inject_isa
             = isa == avx512_core_bf16 ? avx512_core : isa;
     io::jit_io_multi_dt_helper_t<Vmm> io_;
-    std::unique_ptr<injector::jit_uni_postops_injector_t<inject_isa>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<inject_isa, Vmm>>
             postops_injector_;
     const Opmask elt_inj_opmask_ = k1;
 
