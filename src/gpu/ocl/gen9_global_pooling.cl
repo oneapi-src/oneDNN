@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,67 @@
 
 #define ALG_AVG (ALG_AVG_NP || ALG_AVG_P)
 
+#if IS_FWD
+KERNEL_ATTR
+__kernel void gen9_global_pooling_fwd(
+        __global DATA_T *src, __global int *ws, __global DST_DATA_T *dst) {
+    const int mb = get_global_id(0) / C;
+    const int oc = get_global_id(0) % C;
+
+    const uint dst_off = DST_OFF(mb, oc, 0, 0, 0);
+
+#if ALG_MAX
+#if DT_BF16
+    DEF_ACC_DATA_T dst_val = DATA_TO_REF(src[0]);
+#else
+    float dst_val = src[0];
+#endif
+#if IS_TRAINING
+    int max_idx = -1;
+#endif
+#else
+#if DT_BF16
+    DEF_ACC_DATA_T dst_val = DATA_TO_REF(0.f);
+#else
+    float dst_val = 0.f;
+#endif
+#endif
+
+    for (int id = 0; id < ID; id++) {
+        for (int ih = 0; ih < IH; ih++) {
+            for (int iw = 0; iw < IW; iw++) {
+                uint src_off = SRC_OFF(mb, oc, id, ih, iw);
+#if DT_BF16
+                DEF_ACC_DATA_T val = DATA_TO_REF(src[src_off]);
+#else
+                float val = DATA_TO_REF(src[src_off]);
+#endif
+#if ALG_MAX
+                if (val > dst_val) {
+                    dst_val = val;
+#if IS_TRAINING
+                    max_idx = id * IH * IW + ih * IW + iw;
+#endif
+                }
+#else
+                dst_val += val;
+#endif
+            }
+        }
+    }
+
+#if ALG_MAX
+    dst[dst_off] = TO_DST(dst_val);
+#if IS_TRAINING
+    ws[dst_off] = max_idx;
+#endif
+#else
+    dst[dst_off] = TO_DST(dst_val / ID / IH / IW);
+#endif
+}
+#endif // IS_FWD
+
+#if IS_BWD
 KERNEL_ATTR
 __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
         __global int *ws, __global DATA_T *diff_dst) {
@@ -58,3 +119,4 @@ __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
         diff_src[src_off] = val_to_write;
     }
 }
+#endif // IS_BWD

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_POOLING_P({
     {{forward}, {
+        INSTANCE(ocl::gen9_global_pooling_fwd_t)
         INSTANCE(ocl::gen9_pooling_fwd_t)
         INSTANCE(ocl::ref_pooling_fwd_t)
         nullptr,
