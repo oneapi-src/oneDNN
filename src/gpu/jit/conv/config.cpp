@@ -17,6 +17,7 @@
 #include "gpu/jit/conv/config.hpp"
 
 #include <cctype>
+#include <cstring>
 
 #include "common/type_helpers.hpp"
 #include "gpu/jit/conv/block_2d_utils.hpp"
@@ -160,11 +161,6 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     mb_base_iter_blk = math::gcd(mb_base_iter_divisor, mb_base_iter_blk);
 
     bh->set_base_iter_block("mb", mb_base_iter_blk);
-
-    if (is_small_ic() && !is_dw && is_dp_fma()) {
-        int wei_ic_blk = wei_layout.inner_block(2);
-        if (kw != 1) bh->set_max_iter_dim("ic", wei_ic_blk);
-    }
 
     bool use_sp_blocking = false;
     if (is_compute_nhwc("src")) {
@@ -535,43 +531,49 @@ static std::string build_tag(const std::vector<int> &inner_blocks,
     return tag;
 }
 
-int pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
+int pick_block_impl(bool prefer_rnd_up, int dim, int b0, int b1, int b2) {
     int blocks[3] = {b0, b1, b2};
     int prev_blk = 1;
     for (int i = 0; i < 3; i++) {
         if (blocks[i] == 0) continue;
-        if (dim < blocks[i]) return prev_blk;
+        if (prefer_rnd_up) {
+            if (dim <= blocks[i] / 2) return prev_blk;
+        } else {
+            if (dim < blocks[i]) return prev_blk;
+        }
         prev_blk = blocks[i];
     }
     return prev_blk;
+}
+
+int pick_block_rnd_up(int dim, int b0, int b1 = 0, int b2 = 0) {
+    return pick_block_impl(true, dim, b0, b1, b2);
+}
+
+int pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
+    return pick_block_impl(false, dim, b0, b1, b2);
 }
 
 struct nc_block_t {
     nc_block_t(int n_block, int c_block)
         : n_block_(n_block), c_block_(c_block) {}
 
-    int n_block() { return n_block_; }
-    int c_block() { return c_block_; }
+    int n_block() const { return n_block_; }
+    int c_block() const { return c_block_; }
 
     // Ideally, this should only depend on data type, direction, mb, c, and g to
     // enable the same src/dst formats and avoid reorders between convolutions
-    static nc_block_t get_default_blocking(
-            type_t type, bool is_bwd_d, bool is_dw, int n, int c, int g) {
-
-        // Prefer blk if 2 * blk_dim > blk. Since blk_dim blocking is based on
-        // simd size, computational efficiency is the same.
-        auto small_c_blk = [&]() {
-            if (type.size() >= 4)
-                return 1;
-            else if (is_bwd_d)
-                // Bwd_d implementation does not support small channel block
-                return 1;
-            else
-                return 4 / type.size();
+    static nc_block_t get_default_blocking(type_t type, bool is_dw, int n,
+            int c, int g, bool is_input, bool is_small_ic) {
+        bool is_small_ic_input
+                = (type.size() <= 2 && is_input && !is_dw && is_small_ic);
+        auto c_block = [&]() {
+            // Special case for small input channel shapes with dpas.
+            if (is_small_ic_input) return utils::rnd_up_pow2(c);
+            auto default_c_blk = type.size() == 1 ? 32 : 16;
+            auto blk_dim = is_dw ? g : c;
+            return pick_block_rnd_up(blk_dim, default_c_blk);
         }();
-        auto default_c_blk = type.size() == 1 ? 32 : 16;
-        auto blk_dim = is_dw ? g : c;
-        auto c_block = pick_block(2 * blk_dim - 1, small_c_blk, default_c_blk);
 
         // Non-depthwise convolutions currently require channel is a multiple of
         // c_block. If that implementation restriction is removed, this logic
@@ -582,7 +584,7 @@ struct nc_block_t {
             auto default_n_blk = type.size() < 4 ? 32 : 16;
             if (c_block == 1)
                 return 1;
-            else if (c_block == small_c_blk)
+            else if (is_small_ic_input)
                 return pick_block(n, 8, 16);
             else
                 return pick_block(n, 16, default_n_blk);
@@ -682,10 +684,10 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
         dst_blk = nc_block_t(dst_n_blk, dst_c_blk);
     } else {
         // Set blocks for src/dst layout.
-        src_blk = nc_block_t::get_default_blocking(
-                src_data_type, is_bwd_d, is_dw, mb, ic, g);
+        src_blk = nc_block_t::get_default_blocking(src_data_type, is_dw, mb, ic,
+                g, is_fwd || is_bwd_w, is_small_ic());
         dst_blk = nc_block_t::get_default_blocking(
-                dst_data_type, is_bwd_d, is_dw, mb, oc, g);
+                dst_data_type, is_dw, mb, oc, g, is_bwd_d || is_bwd_w, false);
     }
 
     src_tag = build_tag({src_blk.n_block(), src_blk.c_block()}, {1, 1},
@@ -732,6 +734,23 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
     auto common_wei_tag = build_tag({wei_g_blk, wei_o_blk, wei_i_blk},
             {1, wei_o_blk_outer, wei_i_blk_outer}, wei_letters, wei_idxs);
 
+    // Use OhwIXoYi for small-channel forward convolution to
+    // ensure c-after-w order of reduction blocks to match
+    // the source layout.
+    if (is_small_ic() && !is_dw && is_fwd && is_dp_fma()) {
+        const char *patterns[] = {"ABx", "AxB", "Abx", "Axb", nullptr};
+        bool found = false;
+        for (auto *p = patterns; *p; p += 2) {
+            auto pos = common_wei_tag.find(*p);
+            if (pos == std::string::npos) continue;
+            common_wei_tag
+                    = common_wei_tag.replace(pos, std::strlen(*p), *(p + 1));
+            found = true;
+            break;
+        }
+        ir_assert(found) << common_wei_tag;
+    }
+
     // Backward by data requires flipped ic/oc in weights.
     if (is_bwd_d) {
         if (is_mad) {
@@ -770,6 +789,7 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     // If src/dst is nhwc then set the other one with any to nhwc too (except
     // 1st convolution).
     bool is_small_ic_non_dw = is_small_ic() && !is_dw;
+    bool is_small_oc_non_dw = is_small_oc() && !is_dw;
     bool propagate_nhwc = (matches_tag(src_md, "axb") && !is_small_ic_non_dw)
             || matches_tag(dst_md, "axb");
     if (propagate_nhwc) {
@@ -796,6 +816,14 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     if (allow_src_reorder) {
         if (src_abx) user_src_tag = "abx";
         if (src_axb) user_src_tag = "axb";
+    }
+
+    // Prefer nhwc for small-channel inputs.
+    if (user_src_tag.empty() && is_fwd && is_small_ic_non_dw) {
+        if (!matches_tag(src_md, src_tag)) user_src_tag = "axb";
+    }
+    if (user_dst_tag.empty() && is_bwd_d && is_small_oc_non_dw) {
+        if (!matches_tag(dst_md, dst_tag)) user_dst_tag = "axb";
     }
 
     if (user_src_tag.empty()) user_src_tag = src_tag;
