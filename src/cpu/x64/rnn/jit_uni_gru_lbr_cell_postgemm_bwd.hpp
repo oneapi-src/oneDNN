@@ -169,12 +169,11 @@ protected:
 
             if (is_augru) {
                 // Compute diff_attention
-                // 1. compute tmp2 = dG0 * G
-                uni_vmulps(tmp2, dG0, G0);
-                // 2. Accumulate dAttention
-                uni_vaddps(diff_attn_acc, diff_attn_acc, tmp2);
-                // 3. Compute dG0 *= Attention
-                uni_vmulps(dG0, dG0, attn);
+                // 1. compute dAttention = -dG0 * G
+                uni_vfnmadd231ps(diff_attn_acc, dG0, G0);
+                // 2. Compute dG0 *= 1 - Attention
+                uni_vsubps(tmp1, one_vmm, attn);
+                uni_vmulps(dG0, dG0, tmp1);
             }
             // compute dG2
             uni_vmovups(tmp1, one_vmm);
@@ -289,9 +288,11 @@ protected:
                 uni_vmovss(tmp2, dG0);
                 uni_vmulss(tmp2, tmp2, G0);
                 // 2. Store dAttention
-                uni_vaddss(diff_attn_acc, diff_attn_acc, tmp2);
-                // 4. Compute dG0 *= attention
-                uni_vmulss(dG0, dG0, attn);
+                uni_vsubss(diff_attn_acc, diff_attn_acc, tmp2);
+                // 3. Compute dG0 *= 1 - attention
+                uni_vmovss(tmp1, one_xmm);
+                uni_vsubss(tmp1, tmp1, attn);
+                uni_vmulss(dG0, dG0, tmp1);
             }
 
             // compute dG2

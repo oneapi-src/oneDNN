@@ -212,16 +212,15 @@ protected:
                             scratch_data_t, current_vlen);
                     load(tmp1_vmm, one_addr, scratch_data_t, current_vlen);
                     if (is_augru) {
-                        // for augru there is additional step G01 = 1 - a * G0
+                        // for augru there is additional step G01 = (1 - a) * G0
                         // states_t_l = states_tm1_l * G01 + (1 - G01) * G2
-                        // or
-                        // G01 = a * G0 and
-                        // states_t_l = states_tm1_l * (1 - G01) + G01 * G2
                         const Xmm tmp2s_vmm(tmp2_vmm.getIdx());
                         to_float(tmp2s_vmm, ptr[addr_attn_reg], src_data_t,
                                 scratch_dt_size);
                         uni_vbroadcastss(tmp2_vmm, tmp2s_vmm);
-                        // G01 = a * G0
+                        // G01 = (1 - a) * G0
+                        compute_vsubps(
+                                tmp2_vmm, tmp1_vmm, tmp2_vmm, current_vlen);
                         compute_vmulps(G0(loop_ur_idx), G0(loop_ur_idx),
                                 tmp2_vmm, current_vlen);
                         to_float(tmp2_vmm,
@@ -231,12 +230,12 @@ protected:
                         // tmp1 = 1 - G01
                         compute_vsubps(tmp1_vmm, tmp1_vmm, G0(loop_ur_idx),
                                 current_vlen);
-                        // tmp2 = states_tm1_l * tmp1
-                        compute_vmulps(
-                                tmp2_vmm, tmp2_vmm, tmp1_vmm, current_vlen);
-                        // states_t_l = G01 * G2 + tmp2
-                        compute_vfmadd213ps(G0(loop_ur_idx), G2(loop_ur_idx),
-                                tmp2_vmm, current_vlen);
+                        // tmp1 = G2 * tmp1
+                        compute_vmulps(tmp1_vmm, G2(loop_ur_idx), tmp1_vmm,
+                                current_vlen);
+                        // states_t_l = G01 * states_tm1_l + tmp1
+                        compute_vfmadd213ps(G0(loop_ur_idx), tmp2_vmm, tmp1_vmm,
+                                current_vlen);
                     } else {
                         // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
                         compute_vsubps(tmp1_vmm, tmp1_vmm, G0(loop_ur_idx),
