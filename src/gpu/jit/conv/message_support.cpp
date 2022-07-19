@@ -141,8 +141,10 @@ std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
                 size_t b_sz = b.access_size();
                 // Put block messages first.
                 if (a.is_block() != b.is_block()) return a.is_block();
+                // Prefer messages with a smaller type as they have less strict
+                // alignment requirements.
                 if (a_sz == b_sz)
-                    return a.type.scalar().size() > b.type.scalar().size();
+                    return a.type.scalar().size() < b.type.scalar().size();
                 return a_sz > b_sz;
             });
 
