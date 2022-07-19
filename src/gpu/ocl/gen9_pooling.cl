@@ -28,10 +28,8 @@ inline void write_vect_c_block(int idx, __global DATA_T *ptr, int c,
 inline void write_vect_c_block_int(int idx, __global int *ptr, int c,
         int blocks_stride, int chunks_per_block, VECT_INT_T block);
 
-#if DT_BF16
+#if DT_BF16 || DT_F16
 #define USE_FLOATS true
-#elif DT_F16
-#define USE_FLOATS false
 #else
 #define USE_FLOATS (ALG_AVG_NP || ALG_AVG_P)
 #endif
