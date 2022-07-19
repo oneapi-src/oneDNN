@@ -218,9 +218,11 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         status_t query(query_t what, int idx, void *result) const override {
             switch ((int)what) {
-                case (int)query::preferred_gpu_threads_per_eu:
-                    *(int *)result = 4;
+                case (int)query::preferred_gpu_threads_per_eu: {
+                    int grfs = kernel_desc_.driver_info()->grfCount;
+                    *(int *)result = (grfs > 128) ? 4 : 8;
                     break;
+                }
                 default: return gpu_gemm_pd_t::query(what, idx, result);
             }
             return status::success;
