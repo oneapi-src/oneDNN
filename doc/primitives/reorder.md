@@ -85,10 +85,11 @@ meaning associated with any logical dimensions.
 
 The reorder primitive support the following attributes and post-ops:
 
-| Attributes / Post-ops                                         | Meaning
-| :--                                                           | :--
-| [Output scales](@ref dnnl_primitive_attr_set_output_scales)   | Copy and scale the data according to the scaling factors
-| [Sum post-op](@ref dnnl_post_ops_append_sum)                  | Instead of copy the data accumulate it to the previous data
+| Attributes / Post-ops                                       | Meaning
+| :--                                                         | :--
+| [Output scales](@ref dnnl_primitive_attr_set_output_scales) | Copy and scale the data according to the scaling factors
+| [Zero points](@ref dnnl::primitive_attr::set_zero_points)   | Sets zero point(s) for the corresponding tensors
+| [Sum post-op](@ref dnnl_post_ops_append_sum)                | Instead of copy the data accumulate it to the previous data
 
 For instance, the following pseudo-code
 
@@ -98,6 +99,7 @@ For instance, the following pseudo-code
             dst = {dims={N, C, H, W}, data_type=dt_dst, memory_format=fmt_dst},
             attr ={
                 output_scale=alpha,
+                zero_points= { src={mask=0, value=shift_src}, dst={mask=0, value=shift_dst} }
                 post-ops = { sum={scale=beta} },
             })
 ~~~
@@ -106,8 +108,8 @@ would lead to the following operation:
 
 \f[
     \dst(\overline{x}) =
-            \alpha \cdot \src(\overline{x}) +
-            \beta  \cdot \dst(\overline{x})
+            \alpha \cdot \src(\overline{x} - shift_{src}) +
+            \beta  \cdot \dst(\overline{x}) + shift_{dst}
 \f]
 
 @note The intermediate operations are being done using single precision
