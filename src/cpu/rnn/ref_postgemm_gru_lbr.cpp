@@ -90,7 +90,7 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
             }
             if (rnn.is_augru) {
                 const auto a = to_src(augru_attention(i));
-                G0 = 1.0f - a * G0;
+                G0 = (1.0f - a) * G0;
             }
             const auto tmp = to_src(src_iter(i, j) * G0 + (1.0f - G0) * G2);
             if (dst_layer_ != nullptr) dst_layer(i, j) = tmp;
@@ -206,8 +206,8 @@ void gru_lbr_bwd_postgemm_template(T1 to_src, const rnn_utils::rnn_conf_t &rnn,
                     = ws_Wh_b(i, j) * dG2 * x_m_square(ws_gates(i, 1, j));
 
             if (rnn.is_augru) {
-                diff_attention += dG0 * ws_gates(i, 0, j);
-                dG0 *= augru_attention(i);
+                diff_attention -= dG0 * ws_gates(i, 0, j);
+                dG0 *= 1.0f - augru_attention(i);
             }
 
             diff_src_iter(i, j) = dHt * ws_gates(i, 0, j);

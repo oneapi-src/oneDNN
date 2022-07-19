@@ -130,7 +130,7 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
 
             if (rnn.is_augru) {
                 const auto a = reinterpret_as_float(augru_attention(i));
-                G0 = 1 - a * G0;
+                G0 = (1.0f - a) * G0;
             }
 
             const auto tmp = to_src(
@@ -378,8 +378,8 @@ void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
                     * x_m_square(ws_gates(i, 0, j));
 
             if (rnn.is_augru) {
-                diff_attention += dG0 * ws_gates(i, 0, j);
-                dG0 *= augru_attention(i);
+                diff_attention -= dG0 * ws_gates(i, 0, j);
+                dG0 *= 1.0f - augru_attention(i);
             }
 
             diff_src_iter(i, j) = dHt * ws_gates(i, 0, j);

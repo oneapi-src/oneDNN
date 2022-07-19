@@ -303,7 +303,7 @@ following equation gives the mathematical definition of these gates.
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= \tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
-\tilde u_t &= 1 - a_t * u_t \\
+\tilde u_t &= (1 - a_t) * u_t \\
 h_t &= \tilde u_t * h_{t-1, l} + (1 - \tilde u_t) * o_t
 \end{align}
 \f]
@@ -332,7 +332,7 @@ Linear-Before-Reset AUGRU cell.
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= \tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
-\tilde u_t &= 1 - a_t * u_t \\
+\tilde u_t &= (1 - a_t) * u_t \\
 h_t &= \tilde u_t * h_{t-1, l} + (1 - \tilde u_t) * o_t
 \end{align}
 \f]

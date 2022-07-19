@@ -75,7 +75,7 @@ void gru_fwd_postgemm_part2_template(T func1, const prb_t &prb, float *gates_,
                             + bias(GRU_O, k));
             if (prb.alg == VANILLA_AUGRU) {
                 const double A = src_layer_attention(i);
-                U = 1 - A * U;
+                U = (1 - A) * U;
             }
             dst_layer(i, k) = maybe_q(prb,
                     (float)(U * maybe_deq(prb, src_iter(i, k))
@@ -150,8 +150,8 @@ void gru_bwd_pregemm_part1(const prb_t &prb, const float *src_iter_,
             float du = (h - o) * dh * x_m_square(u);
             float dO = (1.0f - u) * dh * one_m_square(o);
             if (prb.alg == VANILLA_AUGRU) {
-                diff_src_layer_attention(ib) += du * u;
-                du *= src_layer_attention(ib);
+                diff_src_layer_attention(ib) -= du * u;
+                du *= 1 - src_layer_attention(ib);
             }
             b_gates(ib, GRU_U, ih) = du;
             b_gates(ib, GRU_O, ih) = dO;

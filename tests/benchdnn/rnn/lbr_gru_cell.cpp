@@ -59,7 +59,7 @@ void lbr_gru_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &prb,
             double U = gates(i, GRU_U, k);
             if (prb.alg == LBR_AUGRU) {
                 const double A = src_layer_attention(i);
-                U = 1 - A * U;
+                U = (1 - A) * U;
             }
             dst_layer(i, k) = U * src_iter(i, k) + (1 - U) * gates(i, GRU_O, k);
         }
@@ -131,8 +131,8 @@ void lbr_gru_bwd_pregemm(const prb_t &prb, const float *src_iter_,
             float du = (h - o) * dh * x_m_square(u);
             float dO = (1.0f - u) * dh;
             if (prb.alg == LBR_AUGRU) {
-                diff_src_layer_attention(ib) += du * u;
-                du *= src_layer_attention(ib);
+                diff_src_layer_attention(ib) -= du * u;
+                du *= 1 - src_layer_attention(ib);
             }
 
             b_gates(ib, GRU_U, ih) = du;
