@@ -31,7 +31,12 @@
                            8x16x7:8x16
                            12x12:1x12
 
---stag=aBx16b:aBx16b       4x16x5x7:4x16x5x7
+--stag=aBx16b:aBx16b       1x1x1:1x1x1
+                           2x12x3:2x12x3
+                           2x44x3:2x44x3
+                           2x12x3x4:2x12x3x4
+                           2x44x3x4:2x44x3x4
+                           4x16x5x7:4x16x5x7
                            8x15x5x8:8x15x1x1
                            8x15x5x8:8x1x1x8
                            8x15x5x8:8x1x5x8
@@ -42,7 +47,12 @@
                            8x16x12:8x16
                            8x16x14:8x16
 
---stag=aBx8b:aBx8b         4x16x5x7:4x16x5x7
+--stag=aBx8b:aBx8b         1x1x1:1x1x1
+                           2x12x3:2x12x3
+                           2x44x3:2x44x3
+                           2x12x3x4:2x12x3x4
+                           2x44x3x4:2x44x3x4
+                           4x16x5x7:4x16x5x7
                            8x15x5x7:1x15x1x1
                            8x15x5x7:8x1x5x7
                            8x15x5x7:1x1x1x7
