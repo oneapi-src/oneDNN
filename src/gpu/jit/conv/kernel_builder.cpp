@@ -4749,6 +4749,8 @@ private:
         auto a_layout = a_view_.create_vlayout();
         auto b_layout = b_view_.create_vlayout();
 
+        check_k_blocks_order(a_layout, b_layout);
+
         bmnk_block_mapper_t from_bmnk_mapper(bmnk_mapper_);
         from_bmnk_mapper.push_blocks(abc_kind_t::a, a_layout.blocks());
         from_bmnk_mapper.push_blocks(abc_kind_t::b, b_layout.blocks());
@@ -4786,6 +4788,27 @@ private:
             return true;
         }
         return false;
+    }
+
+    void check_k_blocks_order(const layout_t &a, const layout_t &b) const {
+        object_map_t<expr_t, int> k_vars;
+        auto k_sub_layout = [&](abc_kind_t abc_kind, const layout_t &l) {
+            layout_t k_layout = layout_t(type_t::u8(), 0,
+                    std::vector<dim_t>(layout_t::max_ndims, 1));
+            for (auto &b : l.blocks()) {
+                auto bmnk_kind = bmnk_mapper_.bmnk_kind(abc_kind, b.dim_idx);
+                if (bmnk_kind != bmnk_kind_t::k) continue;
+                auto &var = bmnk_mapper_.var(abc_kind, b.dim_idx);
+                auto ret = k_vars.emplace(var, (int)k_vars.size());
+                k_layout = k_layout.add_outer_block(ret.first->second, b.block);
+            }
+            return k_layout;
+        };
+        auto a_k = k_sub_layout(abc_kind_t::a, a);
+        auto b_k = k_sub_layout(abc_kind_t::b, b);
+        ir_assert(a_k == b_k)
+                << "Order of K dimensions doesn't match in A and B. A layout: "
+                << a << ", B layout: " << b;
     }
 
     void build_dpas(const bmnk_block_mapper_t &from_bmnk_mapper,
