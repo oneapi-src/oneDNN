@@ -1258,9 +1258,19 @@ std::string conv_config_t::str() const {
     // clang-format off
     oss << "  HW config:                  " << hw_cfg.str() << std::endl;
     oss << "  Problem:                    " << desc_str() << std::endl;
-    oss << "  Source layout:              " << tensor_config.compute_layout("src") << std::endl;
-    oss << "  Weights layout:             " << tensor_config.compute_layout("wei") << std::endl;
-    oss << "  Destination layout:         " << tensor_config.compute_layout("dst") << std::endl;
+    const char *tags[] = {"src", "wei", "dst"};
+    const char *names[] = {"Source", "Weights", "Destination"};
+    for (int i = 0; i < 3; i++) {
+        std::string desc = std::string(names[i]) + " layout:";
+        desc.insert(desc.size(), 28 - desc.size(), ' ');
+        auto &compute_layout = tensor_config.compute_layout(tags[i]);
+        auto &user_layout = tensor_config.user_layout(tags[i]);
+        oss << "  " << desc << compute_layout;
+        if (user_layout != compute_layout) {
+            oss << " (user: " << user_layout << ")";
+        }
+        oss << std::endl;
+    }
     oss << bh->brief_str();
     oss << "  Kernel grid:                " << make_seq_print_helper(kernel_grid_dim, " x ") << std::endl;
     oss << "  Thread group:               " << make_seq_print_helper(tg_grid_dim, " x ") << std::endl;
