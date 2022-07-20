@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -229,6 +229,31 @@ TEST_F(ocl_stream_test_cpp_t, InteropIncompatibleQueueCpp) {
             dnnl_invalid_arguments);
 
     TEST_OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));
+}
+
+TEST_F(ocl_stream_test_cpp_t, InteropIncompatibleOutOfOrderQueue) {
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
+            "OpenCL GPU devices not found.");
+
+    cl_int err;
+#ifdef CL_VERSION_2_0
+    cl_queue_properties properties[]
+            = {CL_QUEUE_PROPERTIES, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, 0};
+    cl_command_queue interop_ocl_queue = clCreateCommandQueueWithProperties(
+            ocl_ctx, ocl_dev, properties, &err);
+#else
+    cl_command_queue_properties properties
+            = CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    cl_command_queue interop_ocl_queue
+            = clCreateCommandQueue(ocl_ctx, ocl_dev, properties, &err);
+#endif
+    TEST_OCL_CHECK(err);
+
+    catch_expected_failures(
+            [&] { ocl_interop::make_stream(eng, interop_ocl_queue); }, true,
+            dnnl_unimplemented);
+
+    TEST_OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
 }
 
 } // namespace dnnl
