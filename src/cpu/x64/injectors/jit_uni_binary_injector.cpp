@@ -384,14 +384,14 @@ int jit_uni_binary_injector_t<isa, Vmm>::adjust_temp_vmm_hint(
 
 template <typename Vmm>
 static void push_vmm(jit_generator *host, const Vmm &vmm) {
-    host->sub(host->rsp, injector_utils::vmm_size_t<Vmm>::bytes);
+    host->sub(host->rsp, vreg_traits<Vmm>::vlen);
     host->uni_vmovups(host->ptr[host->rsp], vmm);
 }
 
 template <typename Vmm>
 static void pop_vmm(jit_generator *host, const Vmm &vmm) {
     host->uni_vmovups(vmm, host->ptr[host->rsp]);
-    host->add(host->rsp, injector_utils::vmm_size_t<Vmm>::bytes);
+    host->add(host->rsp, vreg_traits<Vmm>::vlen);
 }
 
 static void push_opmask(jit_generator *host, const Xbyak::Opmask &k) {
@@ -414,7 +414,7 @@ static void pop_opmask(jit_generator *host, const Xbyak::Opmask &k) {
 
 template <typename Vmm>
 static void restore_stack(jit_generator *host, const Vmm &vmm) {
-    host->add(host->rsp, injector_utils::vmm_size_t<Vmm>::bytes);
+    host->add(host->rsp, vreg_traits<Vmm>::vlen);
 }
 
 template <cpu_isa_t isa, typename Vmm>

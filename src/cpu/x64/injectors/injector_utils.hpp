@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,23 +32,6 @@ namespace injector_utils {
 
 using vmm_index_set_t = typename std::set<size_t>;
 using vmm_index_set_iterator_t = typename std::set<size_t>::iterator;
-template <typename Vmm>
-struct vmm_size_t;
-
-template <>
-struct vmm_size_t<Xbyak::Zmm> {
-    static constexpr std::size_t bytes = 64u;
-};
-
-template <>
-struct vmm_size_t<Xbyak::Ymm> {
-    static constexpr std::size_t bytes = 32u;
-};
-
-template <>
-struct vmm_size_t<Xbyak::Xmm> {
-    static constexpr std::size_t bytes = 16u;
-};
 
 enum class layout_t { ncsp, c_blocked, nspc, cspn, unsupported };
 

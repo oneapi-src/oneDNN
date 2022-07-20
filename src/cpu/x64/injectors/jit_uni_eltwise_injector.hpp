@@ -163,7 +163,7 @@ private:
     static constexpr bool is_avx512
             = utils::one_of(isa, avx512_core, avx512_core_bf16);
 
-    static constexpr size_t vlen = injector_utils::vmm_size_t<Vmm>::bytes;
+    static constexpr size_t vlen = vreg_traits<Vmm>::vlen;
     static constexpr size_t preserved_vecs_max = 6;
     static constexpr size_t preserved_gprs_max = 5;
     static constexpr size_t vecs_count = is_avx512 ? 32 : 16;
