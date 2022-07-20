@@ -160,13 +160,12 @@ private:
         _op_mxcsr = jit_generator::_op_mxcsr
     };
 
-    static constexpr bool is_avx512
-            = utils::one_of(isa, avx512_core, avx512_core_bf16);
+    const bool is_avx512 = is_superset(isa, avx512_core);
 
     static constexpr size_t vlen = vreg_traits<Vmm>::vlen;
     static constexpr size_t preserved_vecs_max = 6;
     static constexpr size_t preserved_gprs_max = 5;
-    static constexpr size_t vecs_count = is_avx512 ? 32 : 16;
+    static constexpr size_t vecs_count = cpu_isa_traits<isa>::n_vregs;
     static constexpr int n_mantissa_bits = 23;
     static constexpr int k_mask_size = 8;
 
