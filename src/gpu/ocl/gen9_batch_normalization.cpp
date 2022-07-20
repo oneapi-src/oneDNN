@@ -214,12 +214,12 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             = compute_engine->device_info()->threads_per_eu(gpu_arch, false);
     const int max_sp_block_size = get_block_size(conf.is_backward, eu_count,
             conf.nn, utils::rnd_up(conf.ic, 16), conf.sp);
-    const int nhwc_sp_block = get_nhwc_sp_block_size(
-            conf.sp, conf.calc_stat_ic, eu_count, threads_per_eu);
 
     if (conf.nn == 1)
-        conf.stat_sp_block
-                = conf.nhwc_optimized ? nhwc_sp_block : max_sp_block_size;
+        conf.stat_sp_block = conf.nhwc_optimized
+                ? get_nhwc_sp_block_size(
+                        conf.sp, conf.calc_stat_ic, eu_count, threads_per_eu)
+                : max_sp_block_size;
     else
         conf.stat_sp_block
                 = nstl::min(utils::rnd_up(conf.sp, 16), max_sp_block_size);
