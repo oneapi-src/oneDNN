@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -173,6 +173,7 @@ private:
     void load_s32(const Xbyak::Address &src_addr, const Vmm &dst_vmm,
             const bool tail);
     void load_bf16(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
+    void load_f16(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void load_i8(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void saturate(const Vmm &vmm);
     void store_byte_by_byte(const Vmm &src_vmm, const Xbyak::Address &dst_addr,
@@ -180,6 +181,7 @@ private:
     void store_f32(const Vmm &src_vmm, const Xbyak::Address &dst_addr,
             const bool tail);
     void store_bf16(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
+    void store_f16(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
     void store_i8(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
     void convert_to_f32(const Vmm &dst_vmm, const Xbyak::Xmm &src_vmm,
             const data_type_t src_data_type);
@@ -188,6 +190,7 @@ private:
     const cpu_isa_t isa_;
     const data_type_t data_type_;
     const bool bf16_supported_;
+    const bool f16_supported_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
     const io_conf_t io_conf_;
     const utils::optional_t<io_tail_conf_t> tail_conf_;

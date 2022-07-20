@@ -74,7 +74,8 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
     : host_(host)
     , isa_(isa)
     , data_type_(data_type)
-    , bf16_supported_(utils::one_of(isa, avx512_core, avx512_core_bf16))
+    , bf16_supported_(is_superset(isa, avx512_core))
+    , f16_supported_(is_superset(isa, avx512_core_fp16))
     , bf16_emu_(nullptr)
     , io_conf_(io_conf)
     , tail_conf_(tail_conf)
@@ -91,9 +92,9 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
                 bf16_conf->bf16_emu_reserv_4_);
     }
 
-    assert(utils::one_of(data_type_, data_type::bf16, data_type::f32,
-                   data_type::s8, data_type::u8, data_type::s32)
-            && "Supported data types bf16, f32, s8, u8, s32");
+    assert(utils::one_of(data_type_, data_type::f16, data_type::bf16,
+                   data_type::f32, data_type::s8, data_type::u8, data_type::s32)
+            && "Supported data types f16, bf16, f32, s8, u8, s32");
 
     /*
      * vpmovsxbd, vpmovzxbd for AVX are defined only for XMM. Since AVX2
@@ -193,17 +194,21 @@ void jit_io_helper_t<Xbyak::Zmm>::emu_gather(const Xbyak::Reg64 &src_reg,
 
     const Xbyak::Xmm xmm_tmp = Xbyak::Xmm(gather_conf_->full_vmm_mask_idx_);
     const Xbyak::Xmm xmm_dst = Xbyak::Xmm(*gather_conf_->vmm_tmp_idx_);
+    const Xbyak::Ymm dst_ymm;
 
     host_->mov(gather_conf_->reg_tmp_, 0);
     host_->mov(gather_conf_->reg_tmp1_, src_reg);
 
-    constexpr int xmm_size_elem = 4;
-
+    // The conversion of bf16->f32 here is split into two parts.
+    // Here while loading words of bf16, the words are interleaved,
+    // and in convert_to_f32, they are shifted-left to finally convert to f32
+    // For f16 we do not need such interleaving.
+    const int xmm_size_elem = (data_type_ == data_type::f16) ? 8 : 4;
     const int number_of_xmms = tail
             ? utils::div_up(tail_conf_->tail_size_, xmm_size_elem)
             : utils::div_up(gather_conf_->simd_w_, xmm_size_elem);
-    for (int i = 0; i < number_of_xmms; i++) {
-        host_->vextractf32x4(xmm_tmp, indices_vmm, i);
+    const int num_indices_in_xmm = 16 / sizeof(int);
+    for (int i = 0, idx = 0; i < number_of_xmms; i++) {
 
         const int number_of_values_to_load = i == number_of_xmms - 1 && tail
                         && tail_conf_->tail_size_ % xmm_size_elem != 0
@@ -211,9 +216,14 @@ void jit_io_helper_t<Xbyak::Zmm>::emu_gather(const Xbyak::Reg64 &src_reg,
                 : xmm_size_elem;
         for (int j = 0; j < number_of_values_to_load; j++) {
 
+            if (j % num_indices_in_xmm == 0)
+                host_->vextractf32x4(xmm_tmp, indices_vmm, idx++);
             host_->vpextrd(gather_conf_->reg_tmp_.cvt32(), xmm_tmp, j);
             host_->add(src_reg, gather_conf_->reg_tmp_);
             switch (data_type_) {
+                case data_type::f16:
+                    host_->vpinsrw(xmm_dst, xmm_dst, host_->ptr[src_reg], j);
+                    break;
                 case data_type::bf16:
                     host_->vpinsrw(
                             xmm_dst, xmm_dst, host_->ptr[src_reg], j * 2);
@@ -227,14 +237,19 @@ void jit_io_helper_t<Xbyak::Zmm>::emu_gather(const Xbyak::Reg64 &src_reg,
             }
             host_->mov(src_reg, gather_conf_->reg_tmp1_);
         }
-
         if (data_type_ == data_type::bf16) {
             host_->vinsertf32x4(dst_vmm, dst_vmm, xmm_dst, i);
+            host_->vpxord(xmm_dst, xmm_dst, xmm_dst);
+        } else if (data_type_ == data_type::f16) {
+            host_->vinsertf32x4(dst_ymm, dst_ymm, xmm_dst, i);
+            host_->vpxord(xmm_dst, xmm_dst, xmm_dst);
         }
     }
 
     if (data_type_ == data_type::bf16)
         convert_to_f32(dst_vmm, dst_vmm, data_type_);
+    else if (data_type_ == data_type::f16)
+        convert_to_f32(dst_vmm, dst_ymm, data_type_);
     else if (data_type_ == data_type::s8 || data_type_ == data_type::u8)
         convert_to_f32(dst_vmm, xmm_dst, data_type_);
 }
@@ -255,8 +270,11 @@ void jit_io_helper_t<Xbyak::Ymm>::emu_gather(const Xbyak::Reg64 &src_reg,
     host_->mov(gather_conf_->reg_tmp_, 0);
     host_->mov(gather_conf_->reg_tmp1_, src_reg);
 
-    constexpr int xmm_size_elem = 4;
-
+    // The conversion of bf16->f32 here is split into two parts.
+    // Here while loading words of bf16, the words are interleaved,
+    // and in convert_to_f32, they are shifted-left to finally convert to f32
+    // For f16 we do not need such interleaving.
+    const int xmm_size_elem = (data_type_ == data_type::f16) ? 8 : 4;
     const int number_of_xmms = tail
             ? utils::div_up(tail_conf_->tail_size_, xmm_size_elem)
             : utils::div_up(gather_conf_->simd_w_, xmm_size_elem);
@@ -276,6 +294,10 @@ void jit_io_helper_t<Xbyak::Ymm>::emu_gather(const Xbyak::Reg64 &src_reg,
                     host_->vpinsrd(xmm_dst, xmm_dst, host_->ptr[src_reg], j);
                     break;
                 }
+                case data_type::f16:
+                    assert(f16_supported_ && "Unsupported data type.");
+                    host_->vpinsrw(xmm_dst, xmm_dst, host_->ptr[src_reg], j);
+                    break;
                 case data_type::bf16:
                     assert(bf16_supported_ && "Unsupported data type.");
                     host_->vpinsrw(
@@ -299,7 +321,8 @@ void jit_io_helper_t<Xbyak::Ymm>::emu_gather(const Xbyak::Reg64 &src_reg,
 
     if (data_type_ == data_type::s32 || data_type_ == data_type::bf16)
         convert_to_f32(dst_vmm, dst_vmm, data_type_);
-    else if (data_type_ == data_type::s8 || data_type_ == data_type::u8)
+    else if (utils::one_of(
+                     data_type_, data_type::s8, data_type::u8, data_type::f16))
         convert_to_f32(dst_vmm, xmm_dst, data_type_);
 }
 
@@ -314,7 +337,11 @@ void jit_io_helper_t<Xbyak::Xmm>::emu_gather(const Xbyak::Reg64 &src_reg,
     host_->mov(gather_conf_->reg_tmp_, 0);
     host_->mov(gather_conf_->reg_tmp1_, src_reg);
 
-    constexpr unsigned xmm_size_elem = 4;
+    // The conversion of bf16->f32 here is split into two parts.
+    // Here while loading words of bf16, the words are interleaved,
+    // and in convert_to_f32, they are shifted-left to finally convert to f32
+    // For f16 we do not need such interleaving.
+    const unsigned xmm_size_elem = (data_type_ == data_type::f16) ? 8 : 4;
 
     const unsigned number_of_values_to_load
             = tail ? tail_conf_->tail_size_ : xmm_size_elem;
@@ -327,6 +354,10 @@ void jit_io_helper_t<Xbyak::Xmm>::emu_gather(const Xbyak::Reg64 &src_reg,
                 host_->pinsrd(dst_vmm, host_->ptr[src_reg], j);
                 break;
             }
+            case data_type::f16:
+                assert(f16_supported_ && "Unsupported data type.");
+                host_->pinsrw(dst_vmm, host_->ptr[src_reg], j);
+                break;
             case data_type::bf16:
                 assert(bf16_supported_ && "Unsupported data type.");
                 host_->pinsrw(dst_vmm, host_->ptr[src_reg], j * 2);
@@ -363,8 +394,8 @@ template <typename Vmm>
 void jit_io_helper_t<Vmm>::prepare_full_mask() {
     assert(gather_conf_.has_value() && "Config for loading with the use of gather instruction is not set.");
 
-    if (data_type_ == data_type::bf16 || data_type_ == data_type::s8
-            || data_type_ == data_type::u8)
+    if (utils::one_of(data_type_, data_type::f16, data_type::bf16,
+                data_type::s8, data_type::u8))
         return;
 
     if (is_superset(isa_, avx512_core))
@@ -466,6 +497,7 @@ void jit_io_helper_t<Vmm>::load(const Xbyak::Address &src_addr,
             case data_type::f32: load_f32(src_addr, dst_vmm, tail); break;
             case data_type::s32: load_s32(src_addr, dst_vmm, tail); break;
             case data_type::bf16: load_bf16(src_addr, dst_vmm); break;
+            case data_type::f16: load_f16(src_addr, dst_vmm); break;
             case data_type::s8:
             case data_type::u8: load_i8(src_addr, dst_vmm); break;
             default: assert(!"Unsupported data type.");
@@ -524,6 +556,13 @@ void jit_io_helper_t<Vmm>::load_bf16(
 }
 
 template <typename Vmm>
+void jit_io_helper_t<Vmm>::load_f16(
+        const Xbyak::Address &src_addr, const Vmm &dst_vmm) {
+    assert(f16_supported_ && "Unsupported data type.");
+    host_->vcvtph2psx(dst_vmm, src_addr);
+}
+
+template <typename Vmm>
 void jit_io_helper_t<Vmm>::load_i8(
         const Xbyak::Address &src_addr, const Vmm &dst_vmm) {
     if (data_type_ == data_type::s8)
@@ -567,6 +606,7 @@ void jit_io_helper_t<Vmm>::store(const Vmm &src_raw_vmm,
             case data_type::f32:
             case data_type::s32: store_f32(src_vmm, dst_addr, tail); break;
             case data_type::bf16: store_bf16(src_vmm, dst_addr); break;
+            case data_type::f16: store_f16(src_vmm, dst_addr); break;
             case data_type::s8:
             case data_type::u8: store_i8(src_vmm, dst_raw_addr); break;
             default: assert(!"Unsupported data type.");
@@ -642,6 +682,27 @@ void jit_io_helper_t<Vmm>::store_bf16(
 }
 
 template <typename Vmm>
+void jit_io_helper_t<Vmm>::store_f16(
+        const Vmm &src_vmm, const Xbyak::Address &dst_addr) {
+    assert(f16_supported_ && "Unsupported data type.");
+    assert((src_vmm.isZMM() || src_vmm.isYMM())
+            && "Store operation for f16 is not supported for Xmms.");
+    static constexpr bool is_zmm = std::is_same<Vmm, Xbyak::Zmm>::value;
+
+    const Vmm src_raw_vmm(src_vmm.getIdx());
+    const Xbyak::Ymm src_ymm(src_vmm.getIdx());
+    const Xbyak::Xmm src_xmm(src_vmm.getIdx());
+    const Xbyak::Xmm &src = is_zmm ? src_ymm : src_xmm;
+
+    host_->vcvtps2ph(src, src_raw_vmm, host_->_op_mxcsr);
+
+    if (io_conf_.nt_stores_enabled_)
+        host_->uni_vmovntps(dst_addr, src);
+    else
+        host_->vmovdqu16(dst_addr, src);
+}
+
+template <typename Vmm>
 void jit_io_helper_t<Vmm>::store_i8(
         const Vmm &src_vmm, const Xbyak::Address &dst_addr) {
     if (!is_superset(isa_, avx512_core)) {
@@ -683,6 +744,10 @@ void jit_io_helper_t<Vmm>::convert_to_f32(const Vmm &dst_vmm,
             assert(bf16_supported_ && "Unsupported data type.");
             host_->vpslld(dst_vmm, src_vmm, 0x10);
             break;
+        case data_type::f16:
+            assert(f16_supported_ && "Unsupported data type.");
+            host_->vcvtph2ps(dst_vmm, src_vmm);
+            break;
         case data_type::s8: {
             host_->uni_vpmovsxbd(dst_vmm, src_vmm);
             host_->uni_vcvtdq2ps(dst_vmm, dst_vmm);
@@ -706,6 +771,10 @@ void jit_io_helper_t<Vmm>::broadcast(
             assert(bf16_supported_ && "Unsupported data type.");
             host_->vpbroadcastw(dst_vmm, src_addr);
             convert_to_f32(dst_vmm, dst_vmm, data_type_);
+            break;
+        case data_type::f16:
+            assert(f16_supported_ && "Unsupported data type.");
+            host_->vcvtph2psx(dst_vmm, host_->ptr_b[src_addr.getRegExp()]);
             break;
         case data_type::s32: {
             if (is_superset(isa_, avx512_core)) {
