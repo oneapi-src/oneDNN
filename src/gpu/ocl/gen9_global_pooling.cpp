@@ -64,6 +64,11 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
                     != conf.od * conf.oh * conf.ow)
         return status::unimplemented;
 
+    // heuristics: for small shapes, gen9_pooling_fwd provides better perf.
+    if (!conf.is_backward) {
+        if (conf.kd * conf.kh * conf.kw < 128) return status::unimplemented;
+    }
+
     set_offsets(src_mdw, off.src_off);
     set_offsets(dst_mdw, off.dst_off);
 
@@ -128,8 +133,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 }
 
 status_t gen9_global_pooling_fwd_t::pd_t::init_conf(engine_t *engine) {
-    // heuristics: for small shapes, gen9_pooling provides better perf.
-    if (conf.kd * conf.kh * conf.kw < 128) return status::unimplemented;
     return init_conf_common(conf, off, this, engine);
 }
 
