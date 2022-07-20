@@ -274,6 +274,11 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     return data_type::undef;
 }
 
+inline bool is_integral_dt(data_type_t dt) {
+    using namespace data_type;
+    return utils::one_of(dt, s32, s8, u8);
+}
+
 } // namespace types
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {

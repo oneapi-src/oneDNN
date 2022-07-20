@@ -194,8 +194,7 @@ void jit_brdgmm_kernel_base_t::cvt2ps(data_type_t type_in, const Vmm vmm_in,
         case data_type::u8: vpmovzxbd(vmm, op); break;
         default: assert(!"unsupported data type");
     }
-    if (!one_of(type_in, data_type::f32, data_type::bf16))
-        vcvtdq2ps(vmm_in, vmm_in);
+    if (types::is_integral_dt(type_in)) vcvtdq2ps(vmm_in, vmm_in);
 }
 
 void jit_brdgmm_kernel_base_t::apply_post_ops(
