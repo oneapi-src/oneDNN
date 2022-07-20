@@ -80,7 +80,14 @@ static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
     } else if (arg == WEI) {
         const auto q_dt = convert_dt(prb->wei_dt());
         const auto scales = get_scales(prb->attr.oscale, prb->scales, prb->n);
-        const std::vector<int64_t> zps(scales.size(), 0L);
+        std::vector<int64_t> zps(scales.size(), 0L);
+
+        // if zp is not default, copy values and pass it to oneDNN Graph
+        if (!prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
+            const auto &wei_zp_e = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS);
+            if (wei_zp_e.policy == policy_t::COMMON) zps[0] = wei_zp_e.value;
+        }
+
         const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
                 ? "per_tensor"
                 : "per_channel";
