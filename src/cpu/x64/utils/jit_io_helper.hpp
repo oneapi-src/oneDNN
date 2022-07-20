@@ -51,6 +51,9 @@ public:
     io_tail_conf_t(const std::size_t simd_w, const std::size_t tail_size,
             const Xbyak::Opmask &tail_opmask, const int tail_vmm_mask_idx,
             const Xbyak::Reg64 &reg_tmp);
+    io_tail_conf_t(const std::size_t simd_w, const std::size_t tail_size,
+            int tail_opmask_idx, const int tail_vmm_mask_idx,
+            const Xbyak::Reg64 &reg_tmp);
     io_tail_conf_t(const io_tail_conf_t &other) = default;
 
     io_tail_conf_t &operator=(const io_tail_conf_t &other) = default;
@@ -69,6 +72,9 @@ public:
             const Xbyak::Zmm &bf16_emu_reserv_2,
             const Xbyak::Zmm &bf16_emu_reserv_3, const Xbyak::Reg64 &reg_tmp,
             const Xbyak::Zmm &bf16_emu_reserv_4);
+    io_emu_bf16_conf_t(int bf16_emu_reserv_1_idx, int bf16_emu_reserv_2_idx,
+            int bf16_emu_reserv_3_idx, const Xbyak::Reg64 &reg_tmp,
+            int bf16_emu_reserv_4_idx);
     io_emu_bf16_conf_t(const io_emu_bf16_conf_t &other) = default;
 
     io_emu_bf16_conf_t &operator=(const io_emu_bf16_conf_t &other) = default;
@@ -122,6 +128,7 @@ class jit_io_helper_t {
 public:
     friend class jit_io_multi_dt_helper_t<Vmm>;
 
+    jit_io_helper_t() = default;
     jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
             const data_type_t &data_type, const io_conf_t &io_conf,
             const utils::optional_t<io_tail_conf_t> &tail_conf = utils::nullopt,
@@ -203,14 +210,15 @@ template <typename Vmm>
 class jit_io_multi_dt_helper_t {
 public:
     using data_types_t = std::unordered_set<data_type_t, std::hash<int>>;
+    using saturation_map_t = std::map<data_type_t, io_saturation_conf_t>;
 
+    jit_io_multi_dt_helper_t() = default;
     jit_io_multi_dt_helper_t(jit_generator *host, const cpu_isa_t &isa,
             const data_types_t &data_types, const io_conf_t &io_conf,
             const utils::optional_t<io_tail_conf_t> &tail_conf = utils::nullopt,
             const utils::optional_t<io_emu_bf16_conf_t> &bf16_conf
             = utils::nullopt,
-            const std::map<data_type_t, io_saturation_conf_t> &saturation_confs
-            = std::map<data_type_t, io_saturation_conf_t> {},
+            const saturation_map_t &saturation_confs = saturation_map_t {},
             const utils::optional_t<io_gather_conf_t> &gather_conf
             = utils::nullopt);
     ~jit_io_multi_dt_helper_t();
@@ -221,6 +229,8 @@ public:
     void init_bf16();
 
     std::shared_ptr<jit_io_helper_t<Vmm>> at(const data_type_t dt) const;
+    std::shared_ptr<jit_io_helper_t<Vmm>> operator[](
+            const data_type_t dt) const;
 
 private:
     std::unordered_map<data_type_t, std::shared_ptr<jit_io_helper_t<Vmm>>,

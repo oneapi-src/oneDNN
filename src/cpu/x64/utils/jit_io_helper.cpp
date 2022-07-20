@@ -37,6 +37,15 @@ io_tail_conf_t::io_tail_conf_t(const std::size_t simd_w,
     , tail_vmm_mask_idx_(tail_vmm_mask_idx)
     , reg_tmp_(reg_tmp) {}
 
+io_tail_conf_t::io_tail_conf_t(const std::size_t simd_w,
+        const std::size_t tail_size, int tail_opmask_idx,
+        const int tail_vmm_mask_idx, const Xbyak::Reg64 &reg_tmp)
+    : simd_w_(simd_w)
+    , tail_size_(tail_size)
+    , tail_opmask_(Xbyak::Opmask(tail_opmask_idx))
+    , tail_vmm_mask_idx_(tail_vmm_mask_idx)
+    , reg_tmp_(reg_tmp) {}
+
 io_emu_bf16_conf_t::io_emu_bf16_conf_t(const Xbyak::Zmm &bf16_emu_reserv_1,
         const Xbyak::Zmm &bf16_emu_reserv_2,
         const Xbyak::Zmm &bf16_emu_reserv_3, const Xbyak::Reg64 &reg_tmp,
@@ -46,6 +55,15 @@ io_emu_bf16_conf_t::io_emu_bf16_conf_t(const Xbyak::Zmm &bf16_emu_reserv_1,
     , bf16_emu_reserv_3_(bf16_emu_reserv_3)
     , reg_tmp_(reg_tmp)
     , bf16_emu_reserv_4_(bf16_emu_reserv_4) {}
+
+io_emu_bf16_conf_t::io_emu_bf16_conf_t(int bf16_emu_reserv_1_idx,
+        int bf16_emu_reserv_2_idx, int bf16_emu_reserv_3_idx,
+        const Xbyak::Reg64 &reg_tmp, int bf16_emu_reserv_4_idx)
+    : bf16_emu_reserv_1_(Xbyak::Zmm(bf16_emu_reserv_1_idx))
+    , bf16_emu_reserv_2_(Xbyak::Zmm(bf16_emu_reserv_2_idx))
+    , bf16_emu_reserv_3_(Xbyak::Zmm(bf16_emu_reserv_3_idx))
+    , reg_tmp_(reg_tmp)
+    , bf16_emu_reserv_4_(Xbyak::Zmm(bf16_emu_reserv_4_idx)) {}
 
 io_saturation_conf_t::io_saturation_conf_t(const int vreg_zero_saturation_idx,
         const int vreg_saturation_ubound_idx, const Xbyak::Reg64 &reg_tmp)
@@ -834,8 +852,15 @@ std::shared_ptr<jit_io_helper_t<Vmm>> jit_io_multi_dt_helper_t<Vmm>::at(
         const data_type_t dt) const {
     const auto it = storage_.find(dt);
     if (it != storage_.cend()) return it->second;
-
     return nullptr;
+}
+
+template <typename Vmm>
+std::shared_ptr<jit_io_helper_t<Vmm>> jit_io_multi_dt_helper_t<Vmm>::operator[](
+        const data_type_t dt) const {
+    auto res = this->at(dt);
+    if (res == nullptr) { assert(!"data not found in io"); }
+    return res;
 }
 
 template <typename Vmm>
