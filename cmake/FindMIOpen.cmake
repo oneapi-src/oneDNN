@@ -23,6 +23,12 @@ find_package(rocBLAS REQUIRED)
 find_package(amd_comgr REQUIRED CONFIG
     HINTS ${COMGRROOT}/lib/cmake $ENV{COMGRROOT}/lib/cmake /opt/rocm/lib/cmake
 )
+
+# amd_comgr target adds "${COMGRROOT}/include` directory that may contain
+# OpenCL headers causing conflicts with OpenCL headers from the compiler
+# hence remove that path.
+set_target_properties(amd_comgr PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+
 # XXX: find a way to propagate it via target properties.
 list(APPEND EXTRA_SHARED_LIBS amd_comgr)
 
