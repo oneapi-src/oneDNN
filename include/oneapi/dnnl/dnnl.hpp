@@ -3154,12 +3154,15 @@ struct post_ops : public handle<dnnl_post_ops_t> {
                 "could not append depthwise post-op");
     }
 
-    /// Returns the parameters of an depthwise post-op with stride 1.
+    /// Returns the parameters of an depthwise post-op.
     ///
     /// @param index Index of the elementwise post-op.
     /// @param weights_data_type Weights data type of depthwise post-op
     /// @param bias_data_type Bias data type of depthwise post-op
     /// @param dst_data_type Output data type of depthwise post-op
+    /// @param kernel_size Size of kernel of depthwise post-op
+    /// @param stride_size Size of stride of depthwise post-op
+    /// @param padding_l_size Size of left and top paddings of depthwise post-op
     /// @param mask Output scaling factors correspondence mask that defines the
     ///     correspondence between the output tensor dimensions and the
     ///     @p scales array. The set i-th bit indicates that a dedicated output
