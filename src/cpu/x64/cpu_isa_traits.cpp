@@ -256,6 +256,10 @@ int get_max_palette() {
         return 0;
     }
 }
+int get_target_palette() {
+    constexpr int max_supported_palette = 1;
+    return nstl::min(max_supported_palette, get_max_palette());
+}
 
 namespace {
 enum class info_kind_t { max_tiles, max_column_bytes, max_rows };

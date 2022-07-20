@@ -881,7 +881,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::generate() {
 void jit_avx512_core_amx_1x1_fwd_kernel_t::tile_configure(char *tcfg_buff) {
 
     int tile_max_columns_in_bytes
-            = amx::get_max_column_bytes(amx::get_max_palette());
+            = amx::get_max_column_bytes(amx::get_target_palette());
     const int max_palette_size_in_bytes = 64;
 
     auto cfg_tiles = [=](palette_config_t *buff, int Ac) {
@@ -906,7 +906,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::tile_configure(char *tcfg_buff) {
                 tc_configure_tile(buff, get_out_tensor(s, i), Cr, Cc);
             }
 
-        buff->palette_id = amx::get_max_palette();
+        buff->palette_id = amx::get_target_palette();
     };
 
     int Ac = jcp.typesize_in
@@ -1139,7 +1139,7 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic_int = div_up(jcp.ic_without_padding, jcp.ic_block_int_np);
 
-    jcp.max_width = amx::get_max_rows(amx::get_max_palette());
+    jcp.max_width = amx::get_max_rows(amx::get_target_palette());
     if (jcp.max_width <= 0) return status::unimplemented;
 
     const int size_treshold = 32;

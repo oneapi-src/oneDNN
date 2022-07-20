@@ -2128,7 +2128,7 @@ void jit_avx512_core_amx_fwd_kernel_t::tile_configure(char *tcfg_buff) {
                     c_col * jcp.typesize_acc);
     }
 
-    ((palette_config_t *)tcfg_buff)->palette_id = amx::get_max_palette();
+    ((palette_config_t *)tcfg_buff)->palette_id = amx::get_target_palette();
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::set_oh_blk_limits(jit_conv_conf_t &jcp) {
@@ -2505,9 +2505,9 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nb_oc_blocking_thr_chunk = 1;
 
-    const int max_palette = amx::get_max_palette();
-    jcp.max_tiles = amx::get_max_tiles(max_palette);
-    jcp.full_tile_width = amx::get_max_rows(max_palette);
+    const int target_palette = amx::get_target_palette();
+    jcp.max_tiles = amx::get_max_tiles(target_palette);
+    jcp.full_tile_width = amx::get_max_rows(target_palette);
     if (jcp.max_tiles != 8 || jcp.full_tile_width != 16)
         return status::unimplemented;
 
@@ -3627,7 +3627,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::tile_configure(char *tcfg_buff) {
                     get_out_tensor(h, i), c_row, c_col * jcp.typesize_acc);
     }
 
-    ((palette_config_t *)tcfg_buff)->palette_id = amx::get_max_palette();
+    ((palette_config_t *)tcfg_buff)->palette_id = amx::get_target_palette();
 }
 
 status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
@@ -3830,9 +3830,9 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_oc_int = div_up(jcp.oc, jcp.oc_block_int);
 
-    const int max_palette = amx::get_max_palette();
-    jcp.max_tiles = amx::get_max_tiles(max_palette);
-    jcp.full_tile_width = amx::get_max_rows(max_palette);
+    const int target_palette = amx::get_target_palette();
+    jcp.max_tiles = amx::get_max_tiles(target_palette);
+    jcp.full_tile_width = amx::get_max_rows(target_palette);
     if (jcp.max_tiles != 8 || jcp.full_tile_width != 16)
         return status::unimplemented;
 
@@ -3962,7 +3962,7 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::tile_configure(char *tcfg_buff) {
             tc_configure_tile((palette_config_t *)tcfg_buff,
                     get_wei_tensor(ocb, icb), c_row, c_col * jcp.typesize_out);
 
-    ((palette_config_t *)tcfg_buff)->palette_id = amx::get_max_palette();
+    ((palette_config_t *)tcfg_buff)->palette_id = amx::get_target_palette();
 }
 
 void jit_avx512_core_amx_bwd_weights_kernel_t::od_step_comeback_pointers() {
@@ -5222,9 +5222,9 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
     jcp.nb_oc_blocking = (jcp.nb_oc > 1) ? 2 : 1;
     jcp.nb_ic_blocking = (jcp.nb_ic > 1) ? 2 : 1;
 
-    int max_palette = amx::get_max_palette();
-    jcp.max_tiles = amx::get_max_tiles(max_palette);
-    jcp.full_tile_width = amx::get_max_rows(max_palette);
+    const int target_palette = amx::get_target_palette();
+    jcp.max_tiles = amx::get_max_tiles(target_palette);
+    jcp.full_tile_width = amx::get_max_rows(target_palette);
 
     if (jcp.max_tiles != 8 || jcp.full_tile_width != 16)
         return status::unimplemented;

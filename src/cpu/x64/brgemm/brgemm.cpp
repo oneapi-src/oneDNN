@@ -502,7 +502,7 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
             tc_configure_tile(
                     buff, brg.get_C_tensor(m, brg.ld_block2), Cr, Cc_t);
     }
-    buff->palette_id = amx::get_max_palette();
+    buff->palette_id = amx::get_target_palette();
 
     return status::success;
 }

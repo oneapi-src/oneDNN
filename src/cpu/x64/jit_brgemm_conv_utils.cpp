@@ -1624,9 +1624,9 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.isa = isa;
 
     if (is_amx(isa)) {
-        int max_palette = amx::get_max_palette();
-        if (amx::get_max_tiles(max_palette) != 8
-                || amx::get_max_rows(max_palette) != 16)
+        const int target_palette = amx::get_target_palette();
+        if (amx::get_max_tiles(target_palette) != 8
+                || amx::get_max_rows(target_palette) != 16)
             return status::unimplemented;
     }
 

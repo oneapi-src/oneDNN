@@ -291,7 +291,10 @@ inline const Xbyak::util::Cpu &cpu() {
 
 namespace amx {
 
-int get_max_palette();
+// Return the target palette for AMX instructions. Currently this is `0` if AMX
+// instructions are not supported, and `1` if they are.
+int get_target_palette();
+
 int get_max_tiles(int palette);
 int get_max_column_bytes(int palette);
 int get_max_rows(int palette);
