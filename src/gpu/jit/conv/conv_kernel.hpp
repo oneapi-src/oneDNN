@@ -1694,11 +1694,6 @@ private:
         return op;
     }
 
-    ngen_operand_t alloc_tmp(const expr_t &e) {
-        return ngen_operand_t(
-                scope_.alloc_reg_data(e.type()), e.type().elems());
-    }
-
     // Pre-allocates a strided register region for expression `e` if needed.
     ngen_operand_t maybe_alloc_strided_op(
             const type_t &res_type, const expr_t &e) {
