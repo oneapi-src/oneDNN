@@ -1506,6 +1506,9 @@ public:
             return;
         }
 
+        if (try_region_peephole(obj)) return;
+        if (try_packed_int_peephole(obj)) return;
+
         // tuples: <offset, length, idx>
         std::vector<std::tuple<int, int, int>> chunks;
         for (int i = 0; i < elems; i++) {
@@ -1514,100 +1517,6 @@ public:
                 chunks.emplace_back(i, 1, idx);
             } else {
                 std::get<1>(chunks.back())++;
-            }
-        }
-
-        do {
-            auto diff = [](const ngen::RegData &rd0, const ngen::RegData &rd1) {
-                return ((rd1.getByteOffset() - rd0.getByteOffset())
-                        + (rd1.getBase() - rd0.getBase()) * 32);
-            };
-            bool ok_scalar = (elems % 2) == 0;
-            bool ok_vector = (elems % 2) == 0;
-            for (int i = 0; (ok_scalar || ok_vector) && (i < elems / 2); i++) {
-                ok_scalar &= (obj.idx[i] == 0) && (obj.idx[i + elems / 2] == 1);
-                ok_vector &= (i == 0) || (obj.idx[i] == obj.idx[i - 1] + 1);
-                ok_vector &= (obj.idx[i] == obj.idx[i + elems / 2]);
-            }
-            auto scalar1 = eval(obj.vec[1]);
-            auto scalar0 = eval(obj.vec[0]);
-            if (!scalar1.is_reg_buf_data() || !scalar0.is_reg_buf_data()
-                    || (!ok_scalar && !ok_vector))
-                break;
-            auto &rd1 = scalar1.reg_buf_data().reg_data();
-            auto &rd0 = scalar0.reg_buf_data().reg_data();
-            auto vd = diff(rd0, rd1) / rd1.getBytes();
-            if (ok_scalar) {
-                if ((rd1.getBytes() == rd0.getBytes()) && (vd * 2 == elems)) {
-                    const_cast<ngen::RegData &>(rd0).setRegion(vd, vd, 0);
-                    bind(obj, scalar0);
-                    return;
-                }
-            } else if (ok_vector) {
-                for (int i = 2; ok_vector && (i < elems / 2); i++) {
-                    auto scalar1 = eval(obj.vec[i]);
-                    auto scalar0 = eval(obj.vec[i - 1]);
-                    auto &rd1 = scalar1.reg_buf_data().reg_data();
-                    auto &rd0 = scalar0.reg_buf_data().reg_data();
-                    ok_vector &= (rd1.getBytes() == rd0.getBytes())
-                            && (diff(rd0, rd1) / rd1.getBytes() == vd);
-                }
-                if (ok_vector && (rd1.getBytes() == rd0.getBytes())
-                        && (elems * vd * rd1.getBytes() <= 64)) {
-                    const_cast<ngen::RegData &>(rd0).setRegion(
-                            0, elems / 2, vd);
-                    bind(obj, scalar0);
-                    return;
-                }
-            }
-        } while (false);
-
-        auto is_int_imm = [](const shuffle_t &s) {
-            bool retn = true;
-            for (const auto &v : s.vec)
-                retn &= v.is<int_imm_t>();
-            return retn;
-        };
-        if (((obj.elems() == 8) || (obj.elems() == 16)) && obj.type.is_x32()
-                && !is_const_broadcast(obj) && is_int_imm(obj)) {
-            std::vector<int> vec(obj.vec.size(), to_cpp<int>(obj.vec[0]));
-            int imin = vec[0], imax = vec[0];
-            for (int i = 1; i < int(vec.size()); i++) {
-                vec[i] = to_cpp<int>(obj.vec[i]);
-                imin = std::min(imin, vec[i]);
-                imax = std::max(imax, vec[i]);
-            }
-            int mul = utils::div_up(imax - imin + 1, 16);
-            for (int i = 1; mul && (i < int(vec.size())); i++)
-                if ((vec[i - 1] - vec[i]) % mul != 0) mul = 0;
-            if (mul) {
-                for (auto &v : vec)
-                    v = (v - imin) / mul;
-                auto dst = alloc_dst_op(obj);
-                const auto off = obj.elems() * dst.reg_data().getHS() * 4 - 32;
-                for (int i = 0; i < obj.elems(); i += 8) {
-                    auto fmt = dst.reg_buf_data().format(
-                            off + i * 2, ngen::DataType::w, 8, 1);
-                    auto chunk = ngen_operand_t(fmt, 8);
-                    host_->emov(chunk.mod(), chunk,
-                            ngen::Immediate::uv(vec[obj.idx[i + 0]],
-                                    vec[obj.idx[i + 1]], vec[obj.idx[i + 2]],
-                                    vec[obj.idx[i + 3]], vec[obj.idx[i + 4]],
-                                    vec[obj.idx[i + 5]], vec[obj.idx[i + 6]],
-                                    vec[obj.idx[i + 7]]));
-                }
-                auto fmt = dst.reg_buf_data().format(
-                        off, ngen::DataType::w, obj.elems(), 1);
-                auto src = ngen_operand_t(fmt, obj.elems());
-                if (mul > 1) {
-                    host_->emul(dst.mod(), dst.reg_data(), src.reg_data(), mul);
-                    src = dst;
-                }
-                if ((mul == 1) || (imin != 0))
-                    host_->eadd(
-                            dst.mod(), dst.reg_data(), src.reg_data(), imin);
-                bind(obj, dst);
-                return;
             }
         }
 
@@ -1767,6 +1676,165 @@ private:
                 ir_error_not_expected()
                         << "Unknown kind: " << to_string(obj.op_kind);
         }
+    }
+
+    bool try_region_peephole(const shuffle_t &obj) {
+        int elems = obj.elems();
+        if (elems % 2 != 0) return false;
+
+        std::vector<ngen_operand_t> vec(obj.vec.size());
+        ngen::DataType data_type = ngen::DataType::invalid;
+        for (size_t i = 0; i < vec.size(); i++) {
+            if (!obj.vec[i].is<load_t>()) return false;
+            vec[i] = eval(obj.vec[i]);
+            ir_assert(vec[i].is_reg_buf_data()) << obj.vec[i];
+            auto &rbd = vec[i].reg_buf_data();
+            if (data_type == ngen::DataType::invalid) {
+                data_type = rbd.type();
+                continue;
+            }
+            if (data_type != rbd.type()) return false;
+        }
+
+        int grf_size = ngen::GRF::bytes(hw);
+        auto diff_bytes = [&](const ngen_operand_t &a,
+                                  const ngen_operand_t &b) {
+            auto a_rd = a.reg_data();
+            auto b_rd = b.reg_data();
+            int a_off = a_rd.getBase() * grf_size + a_rd.getByteOffset();
+            int b_off = b_rd.getBase() * grf_size + b_rd.getByteOffset();
+            return b_off - a_off;
+        };
+
+        int type_size = ngen::getBytes(data_type);
+        int stride_bytes = diff_bytes(vec[0], vec[1]);
+        if (stride_bytes < 0 || stride_bytes % type_size != 0) return false;
+
+        // Pattern 1: [xxyy]
+        auto is_xxyy = [&]() {
+            for (int i = 0; i < elems / 2; i++) {
+                if (obj.idx[i] != 0) return false;
+                if (obj.idx[i + elems / 2] != 1) return false;
+            }
+            return true;
+        };
+        if (is_xxyy()) {
+            auto &rbd = vec[0].reg_buf_data();
+            auto rd = rbd.reg_data();
+            int regs = utils::div_up(stride_bytes * 2, grf_size);
+            if (regs > 2) return false;
+            rd.setRegion(stride_bytes / type_size, elems / 2, 0);
+            reg_buf_t rb(hw, ngen::GRFRange(rd.getBase(), regs));
+            bind(obj, reg_buf_data_t(rb, rd));
+            return true;
+        }
+
+        // Pattern 2: [xyxy]
+        auto is_xyxy = [&]() {
+            for (int i = 0; i < elems / 2; i++) {
+                if (obj.idx[i] != i) return false;
+                if (obj.idx[i] != obj.idx[i + elems / 2]) return false;
+                if (i > 0 && diff_bytes(vec[i], vec[i - 1]) != stride_bytes)
+                    return false;
+            }
+            return true;
+        };
+        if (is_xyxy()) {
+            auto &rbd = vec[0].reg_buf_data();
+            auto rd = rbd.reg_data();
+            int regs = utils::div_up(stride_bytes * elems / 2, grf_size);
+            if (regs > 2) return false;
+            rd.setRegion(0, elems / 2, stride_bytes / type_size);
+            reg_buf_t rb(hw, ngen::GRFRange(rd.getBase(), regs));
+            bind(obj, reg_buf_data_t(rb, rd));
+            return true;
+        }
+
+        return false;
+    }
+
+    bool try_packed_int_peephole(const shuffle_t &obj) {
+        if (!obj.type.is_x32()) return false;
+        if (!utils::one_of(obj.elems(), 8, 16)) return false;
+
+        int64_t int_min = std::numeric_limits<int>::min();
+        int64_t int_max = std::numeric_limits<int>::max();
+        int vec_size = (int)obj.vec.size();
+        std::vector<int> vec(vec_size);
+        for (int i = 0; i < vec_size; i++) {
+            if (!is_const(obj.vec[i])) return false;
+            int value = to_cpp<int64_t>(obj.vec[i]);
+            if (value < int_min || value > int_max) return false;
+            vec[i] = (int)value;
+        }
+
+        int vec_min = *std::min_element(vec.begin(), vec.end());
+        int vec_max = *std::max_element(vec.begin(), vec.end());
+
+        int factor = vec_max - vec_min;
+        for (int i = 0; i < vec_size; i++)
+            factor = math::gcd(vec[i] - vec_min, factor);
+
+        // XXX: Disabled due to an emulation limitation: vector multiplication
+        // by dword constant is not implemented yet.
+        int64_t s16_min = std::numeric_limits<int16_t>::min();
+        int64_t s16_max = std::numeric_limits<int16_t>::max();
+        if (factor < s16_min || factor > s16_max) return false;
+
+        auto check_range = [&](int f, int a, int b) {
+            for (int i = 0; i < vec_size; i++) {
+                int d = (vec[i] - vec_min) / f;
+                if (d < a || d > b) return false;
+            }
+            return true;
+        };
+
+        bool use_uv = check_range(factor, 0, 15);
+        bool use_v = check_range(factor, -8, 7);
+        if (!use_uv && !use_v) {
+            factor *= -1;
+            use_uv = check_range(factor, 0, 15);
+            use_v = check_range(factor, -8, 7);
+        }
+
+        if (!use_uv && !use_v) return false;
+
+        auto set_packed = [](uint32_t &packed, int8_t value, int idx) {
+            uint32_t v = (value >= 0 ? value : ((value & 0x7) | 0x8));
+            packed = packed | (v << idx * 4);
+        };
+
+        int esize = 8;
+        int uw_size = sizeof(int16_t);
+        int grf_size = ngen::GRF::bytes(hw);
+        int regs = utils::div_up(esize * uw_size, grf_size);
+        auto tmp = scope_.alloc_reg_buf_data(regs).format(
+                0, ngen::DataType::uw, esize);
+
+        auto dst = alloc_dst_op(obj);
+        auto &dst_rbd = dst.reg_buf_data();
+        int dst_stride = dst_rbd.hs();
+        int dst_stride_bytes = dst_stride * ngen::getBytes(dst_rbd.type());
+        for (int i = 0; i < obj.elems(); i += esize) {
+            uint32_t packed = 0;
+            for (int j = 0; j < esize; j++)
+                set_packed(packed, (vec[obj.idx[i + j]] - vec_min) / factor, j);
+            host_->emov(esize, tmp,
+                    use_uv ? ngen::Immediate::uv(packed)
+                           : ngen::Immediate::v(packed));
+            auto d = dst.reg_buf_data().format(i * dst_stride_bytes,
+                    ngen::DataType::invalid, esize, dst_stride);
+            if (factor != 1) {
+                host_->emul(
+                        esize, d, ngen_operand_t(tmp), ngen::Immediate(factor));
+            }
+            if (factor == 1 || vec_min != 0) {
+                host_->eadd(esize, d, factor == 1 ? tmp : d,
+                        ngen::Immediate(vec_min));
+            }
+        }
+        bind(obj, dst);
+        return true;
     }
 
     ir_kernel_t<hw> *host_;
