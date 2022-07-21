@@ -2490,6 +2490,20 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     CHECK(init_jcp(jcp, jcp.isa, cd, src_md, diff_weights_md, diff_dst_md,
             diff_bias_md, attr, nthreads));
 
+    // Process some 1x1 convolutions with small iw as 1d (h=1, w = h*w)
+    // convolutions to make brgemm K dimension bigger for better utilization of
+    // AMX tiles
+    bool neat_1x1_2d = (jcp.kh == 1 && jcp.kw == 1 && jcp.stride_h == 1
+            && jcp.stride_w == 1 && jcp.t_pad == 0 && jcp.b_pad == 0
+            && jcp.l_pad == 0 && jcp.r_pad == 0);
+    bool make_1d = neat_1x1_2d && jcp.iw <= 28;
+    if (make_1d) {
+        jcp.iw *= jcp.ih;
+        jcp.ih = 1;
+        jcp.ow *= jcp.oh;
+        jcp.oh = 1;
+    }
+
     jcp.has_vnni = true; // Needed for transpose routines
 
     jcp.typesize_in = sizeof(bfloat16_t);
