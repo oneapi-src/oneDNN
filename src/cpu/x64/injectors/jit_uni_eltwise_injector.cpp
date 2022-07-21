@@ -860,9 +860,10 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
     // where log(r_i) is table value.
     //
     // If (x == 0) result = -inf;
-    // If (x < 0) result = qnan;
+    // If (x < 0) result = qnan; (qnan value taken from table_val)
     // If (x == inf) result = inf;
-    // If (x == qnan) result = qnan;
+    // If (x == qnan) result = qnan; (qnan value taken from src)
+    // If (x == 1) result = 0;
 
     // set unused register as tmp for avx
     if (isa == avx) {
@@ -1027,8 +1028,16 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
     Xbyak::Label end_log_nan_label;
     test_mask();
     h->jz(end_log_nan_label);
-    blend_with_mask(vmm_src, table_val(log_qnan));
+    blend_with_mask(vmm_src, vmm_aux1);
     h->L(end_log_nan_label);
+
+    // Detect ones and blend with zeros.
+    compute_cmp_mask(vmm_aux1, table_val(one), _cmp_eq_oq);
+    Xbyak::Label end_log_one_label;
+    test_mask();
+    h->jz(end_log_one_label);
+    blend_with_mask(vmm_src, table_val(zero));
+    h->L(end_log_one_label);
 }
 
 template <cpu_isa_t isa, typename Wmm>
