@@ -172,6 +172,10 @@ void ref_deconvolution_fwd_t::compute_fwd_bias(const exec_ctx_t &ctx, void *dst,
 status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
         const float *conv_output, void *original_dst) const {
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+
+    DEFINE_SCALES_BUFFER(scales);
+    const int scale_mask = pd()->attr()->output_scales_.mask_;
+
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
     const bool is_dst_zp_common
             = pd()->attr()->zero_points_.common(DNNL_ARG_DST);
@@ -186,13 +190,12 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
     const auto OCP = dst_d.padded_dims()[1];
     const auto ndims = pd()->desc()->src_desc.ndims;
 
-    const auto maybe_oscale = [=](float &d, dim_t oc) {
-        // scale_idx_mult = 1 for per_oc scales and 0, otherwise
-        const int scale_idx_mult
-                = pd()->attr()->output_scales_.mask_ == (1 << 1);
-        const float *scales = pd()->attr()->output_scales_.scales_;
-        d *= scales[oc * scale_idx_mult];
-    };
+    const auto maybe_oscale
+            = [](float &d, dim_t oc, const float *scales, int mask) {
+                  // scale_idx_mult = 1 for per_oc scales and 0, otherwise
+                  const int scale_idx_mult = mask == (1 << 1);
+                  d *= scales[oc * scale_idx_mult];
+              };
 
     const auto maybe_dst_zero_point = [=](float &result, dim_t oc) {
         if (is_dst_zp_common)
@@ -211,7 +214,7 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
                     dim_t dst_l_off = (mb * OC + ocp) * OD * OH * OW
                             + od * OH * OW + oh * OW + ow;
                     tmp_result = conv_output[dst_off];
-                    maybe_oscale(tmp_result, ocp);
+                    maybe_oscale(tmp_result, ocp, scales, scale_mask);
 
                     ref_post_ops_t::args_t args;
                     if (pd()->attr()->post_ops_.find(primitive_kind::sum) != -1)

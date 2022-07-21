@@ -166,7 +166,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
-                    && attr()->has_default_values(smask_t::oscale
+                    && attr()->has_default_values(smask_t::oscale_runtime
                             | smask_t::post_ops | smask_t::zero_points_runtime)
                     && output_scales_mask_ok() && post_ops_ok()
                     && zero_points_ok();
