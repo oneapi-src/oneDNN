@@ -192,6 +192,12 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         skip_invalid_inplace(res, prb->sdt, prb->ddt, prb->stag, prb->dtag);
         if (res->state == SKIPPED) return;
     }
+
+    // Runtime output scale is not supported.
+    if (is_gpu() && prb->attr.oscale.runtime) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
@@ -267,10 +273,13 @@ int doit(const prb_t *prb, res_t *res) {
         dnn_mem_t &dst_fp = src_fp; // in-place reference
 
         SAFE(fill_data_fwd(prb, src_dt, src_fp), WARN);
+        dnn_mem_t scales;
+        maybe_prepare_runtime_scales(scales, prb->attr.oscale, 1, prb->scales);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
