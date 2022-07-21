@@ -24,6 +24,7 @@
 #include <unordered_map>
 
 #include "gpu/jit/conv/builder_utils.hpp"
+#include "gpu/jit/conv/register_allocator.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
 namespace dnnl {
@@ -76,7 +77,10 @@ public:
 
     bool allocated() const { return allocated_; }
 
-    int size() const { return cse_expr_->cse_var.type().size(); }
+    int size() const {
+        return utils::rnd_up(
+                cse_expr_->cse_var.type().size(), reg_allocator_t::granularity);
+    }
 
     int cost() const { return cost_; }
 
@@ -156,8 +160,10 @@ public:
     }
 
     bool try_allocate(int size, int limit) {
-        if (usage_ + size > limit) return false;
-        propagate_usage_down(size);
+        const auto alloc_size
+                = utils::rnd_up(size, reg_allocator_t::granularity);
+        if (usage_ + alloc_size > limit) return false;
+        propagate_usage_down(alloc_size);
         if (parent_) parent_->propagate_usage_up(this);
         return true;
     }
@@ -227,7 +233,8 @@ private:
             if (alloc->kind == alloc_kind_t::grf)
                 obj_usage = utils::rnd_up(alloc->size, grf_size_);
         } else if (auto *let = obj.template as_ptr<let_t>()) {
-            obj_usage = let->var.type().size();
+            obj_usage = utils::rnd_up(
+                    let->var.type().size(), reg_allocator_t::granularity);
         }
 
         auto guard = grf_usage_guard(obj_usage);

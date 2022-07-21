@@ -20,6 +20,7 @@
 #include "common/optional.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/ir_core.hpp"
+#include "gpu/jit/conv/register_allocator.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -121,7 +122,10 @@ public:
 
     void _visit(const let_t &obj) override {
         // Empty objects are allocated in reserved space
-        int size = obj.value.is_empty() ? 0 : obj.var.type().size();
+        // nGEN only claims subregisters at dword granularity
+        int size = obj.value.is_empty() ? 0
+                                        : utils::rnd_up(obj.var.type().size(),
+                                                reg_allocator_t::granularity);
         auto guard = mem_usage_guard(size);
         print_indent();
         out_ << obj.var << "." << obj.var.type() << " = " << obj.value << "\n";
@@ -552,8 +556,11 @@ public:
 
     void _visit(const let_t &obj) override {
         // Empty objects are allocated in reserved space
-        int size = (skip_let_ || obj.value.is_empty()) ? 0
-                                                       : obj.var.type().size();
+        // nGEN only claims subregisters at dword granularity
+        int size = (skip_let_ || obj.value.is_empty())
+                ? 0
+                : utils::rnd_up(
+                        obj.var.type().size(), reg_allocator_t::granularity);
         auto guard = grf_usage_guard(size);
         ir_visitor_t::_visit(obj);
     }

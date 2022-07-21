@@ -34,6 +34,10 @@ public:
     static const uint64_t warn_large_grf = 1;
     static const uint64_t warn_all = warn_large_grf;
     static const uint64_t warn_default = warn_none;
+
+    // Based on nGEN limitation where subregisters are allocated in dword chunks.
+    static const int granularity = 4;
+
     reg_allocator_t(ngen::HW hw, const std::string &kernel_name_,
             int warn_flags_ = warn_default)
         : ra(hw) {
