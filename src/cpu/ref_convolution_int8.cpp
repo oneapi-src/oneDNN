@@ -31,6 +31,15 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+namespace {
+void maybe_oscale(
+        float &d, dim_t g, dim_t C, dim_t c, const float *scales, int mask) {
+    // scale_idx_mult = 1 for per_channel scales and 0, otherwise
+    const int scale_idx_mult = mask == (1 << 1);
+    d *= scales[(g * C + c) * scale_idx_mult];
+}
+} // namespace
+
 status_t ref_convolution_int8_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
@@ -39,6 +48,9 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
     auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
     CHECK(status);
+
+    DEFINE_SCALES_BUFFER(scales);
+    const int scale_mask = pd()->attr()->output_scales_.mask_;
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -78,14 +90,6 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
     const auto padL = pd()->padL();
 
     const auto ndims = pd()->desc()->src_desc.ndims;
-
-    auto maybe_oscale = [=](float &d, dim_t g, dim_t oc) {
-        // scale_idx_mult = 1 for per_oc scales and 0, otherwise
-        const int scale_idx_mult
-                = pd()->attr()->output_scales_.mask_ == (1 << 1);
-        const float *scales = pd()->attr()->output_scales_.scales_;
-        d *= scales[(g * OC + oc) * scale_idx_mult];
-    };
 
     // zp_idx_mult = 1 for per_dim1 zero points and 0, otherwise
     const int src_zp_idx_mult
@@ -236,7 +240,7 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
                 dim_t dst_l_off = (mb * OC * G + g * OC + oc) * OD * OH * OW
                         + od * OH * OW + oh * OW + ow;
 
-                maybe_oscale(d, g, oc);
+                maybe_oscale(d, g, OC, oc, scales, scale_mask);
 
                 ref_post_ops_t::args_t args;
                 args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
@@ -263,6 +267,9 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
     auto weights = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
+
+    DEFINE_SCALES_BUFFER(scales);
+    const int scale_mask = pd()->attr()->output_scales_.mask_;
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
@@ -298,14 +305,6 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
     const auto padL = pd()->padL();
 
     const auto ndims = pd()->desc()->diff_src_desc.ndims;
-
-    auto maybe_oscale = [=](float &ds, dim_t g, dim_t ic) {
-        /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
-        const int scale_idx_mult
-                = pd()->attr()->output_scales_.mask_ == (1 << 1);
-        const float *scales = pd()->attr()->output_scales_.scales_;
-        ds *= scales[(g * IC + ic) * scale_idx_mult];
-    };
 
     auto ker = [=](dim_t g, dim_t mb, dim_t ic, dim_t id, dim_t ih, dim_t iw) {
         int ds = 0;
@@ -440,7 +439,7 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
                     acc += ker(g, mb, ic, id, ih, iw);
 
                 float ds = static_cast<float>(acc);
-                maybe_oscale(ds, g, ic);
+                maybe_oscale(ds, g, IC, ic, scales, scale_mask);
 
                 const auto diff_src_off = ref_conv_utils::get_data_off(
                         diff_src_d, ndims, mb, g * IC + ic, id, ih, iw);

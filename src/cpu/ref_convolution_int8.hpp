@@ -52,7 +52,7 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
                             utils::one_of(bia_type, f32, bf16, s32, s8, u8))
                     && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
                     && set_default_formats()
-                    && attr()->has_default_values(smask_t::oscale
+                    && attr()->has_default_values(smask_t::oscale_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_type)
@@ -131,7 +131,7 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
                     && utils::one_of(diff_src_type, f32, bf16, s32, s8, u8)
                     && set_default_formats()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale)
+                            primitive_attr_t::skip_mask_t::oscale_runtime)
                     && output_scales_mask_ok();
 
             return ok ? status::success : status::unimplemented;
