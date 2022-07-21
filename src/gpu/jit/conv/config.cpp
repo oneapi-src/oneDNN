@@ -535,7 +535,7 @@ static std::string build_tag(const std::vector<int> &inner_blocks,
     return tag;
 }
 
-auto pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
+int pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
     int blocks[3] = {b0, b1, b2};
     int prev_blk = 1;
     for (int i = 0; i < 3; i++) {
@@ -544,7 +544,7 @@ auto pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
         prev_blk = blocks[i];
     }
     return prev_blk;
-};
+}
 
 struct nc_block_t {
     nc_block_t(int n_block, int c_block)
