@@ -24,6 +24,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
@@ -853,7 +855,8 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     auto scratchpad_ptr = ctx.get_scratchpad_grantor().template get<char>(
             memory_tracking::names::key_softmax_interim_store);
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+
+    DEFINE_SCALES_BUFFER(oscales);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());

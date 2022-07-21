@@ -22,6 +22,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "cpu/ref_io_helper.hpp"
 #include "cpu/ref_softmax.hpp"
 
@@ -40,7 +42,9 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
 
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
-    const float *scales = pd()->attr()->output_scales_.scales_;
+
+    DEFINE_SCALES_BUFFER(scales);
+
     float *scratchpad_int8 = ctx.get_scratchpad_grantor().template get<float>(
             key_softmax_interim_store);
 
@@ -180,7 +184,9 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
 
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
-    const float *scales = pd()->attr()->output_scales_.scales_;
+
+    DEFINE_SCALES_BUFFER(scales);
+
     float *scratchpad_int8 = ctx.get_scratchpad_grantor().template get<float>(
             key_softmax_interim_store);
 

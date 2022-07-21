@@ -82,7 +82,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                                     || utils::one_of(s8, src_dt, dst_dt)
                                     || utils::one_of(u8, src_dt, dst_dt)),
                             is_superset(isa, avx512_core))
-                    && attr()->has_default_values(skip_mask_t::oscale)
+                    && attr()->has_default_values(skip_mask_t::oscale_runtime)
                     && attr_oscale_ok()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
