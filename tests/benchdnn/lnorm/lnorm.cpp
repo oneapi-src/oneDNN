@@ -178,7 +178,7 @@ int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
     return OK;
 }
 
-static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
+int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
     if (prb->c < 2) return FAIL;
 

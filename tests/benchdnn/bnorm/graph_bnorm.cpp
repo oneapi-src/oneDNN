@@ -195,6 +195,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     static const engine_t cpu_engine(dnnl_cpu);
 
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    auto src_add_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto shift_fp = make_dnn_mem(
             is_fwd ? ins[2] : outs[2], dt::f32, use_sh ? tag::x : tag::axb);
     auto mean_fp = make_dnn_mem(ins[3], dt::f32, tag::abx);
@@ -205,6 +206,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
     const auto placeholder_dst_dt = make_dnn_mem(outs[0], tag::abx);
     auto src_dt = make_dnn_mem(ins[0], tag::abx);
+    auto src_add_dt = make_dnn_mem(ins[0], tag::abx);
     auto shift_dt = make_dnn_mem(
             is_fwd ? ins[2] : outs[2], use_sh ? tag::x : tag::axb);
     auto mean_dt = make_dnn_mem(ins[3], tag::abx);
@@ -227,7 +229,8 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
     dnn_mem_t r_mean_dt, r_var_dt, b_mean_dt, b_var_dt;
 
-    if (::bnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, scale_fp, shift_fp)
+    if (::bnorm::prepare_fwd(
+                prb, src_fp, src_add_fp, mean_fp, var_fp, scale_fp, shift_fp)
             != OK) {
         cleanup();
         return res->state = MISTRUSTED, OK;
@@ -241,6 +244,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         }
     }
     SAFE(src_dt.reorder(src_fp), WARN);
+    SAFE(src_add_dt.reorder(src_add_fp), WARN);
     SAFE(scale_dt.reorder(scale_fp), WARN);
     SAFE(shift_dt.reorder(shift_fp), WARN);
     SAFE(mean_dt.reorder(mean_fp), WARN);

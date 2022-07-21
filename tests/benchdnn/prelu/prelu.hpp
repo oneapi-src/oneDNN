@@ -89,9 +89,7 @@ private:
     std::vector<std::string> stag_;
 };
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &ppd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint);
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
 int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem);

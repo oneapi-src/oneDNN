@@ -426,7 +426,7 @@ bool should_stop_ctime(const timer::timer_t &ct);
 template <typename func_t, typename prb_t>
 int measure_prim_create(timer::timer_t &ct,
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
-        const func_t &init_pd_func, prb_t *prb, res_t *res,
+        const func_t &init_pd_func, const prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
     dnnl_primitive_desc_t pd_ {};
     dnnl_primitive_t prim_ {};
@@ -440,7 +440,8 @@ int measure_prim_create(timer::timer_t &ct,
 #else
     engine_t engine(engine_tgt_kind);
 #endif
-    auto status = init_pd_func(engine, prb, pd_, res, dir, hint);
+    init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
+    auto status = init_pd_func(init_pd_args);
     SAFE((status == dnnl_success ? OK : FAIL), WARN);
     DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
     pd.reset(pd_);
@@ -452,7 +453,8 @@ int measure_prim_create(timer::timer_t &ct,
         ct.start();
         // The second (if the cache is enabled) primitive creation using
         // the global test engine.
-        status = init_pd_func(get_test_engine(), prb, pd_, res, dir, hint);
+        init_pd_args_t<prb_t> new_args(res, get_test_engine(), prb, dir, hint);
+        status = init_pd_func(new_args);
         SAFE((status == dnnl_success ? OK : FAIL), WARN);
 
         // This primitive is expected to come from the cache.

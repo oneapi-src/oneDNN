@@ -36,9 +36,7 @@ using dt_conf_t = conv::dt_conf_t;
 
 int doit(const prb_t *prb, res_t *res);
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint);
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 
 std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb);
 std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb);

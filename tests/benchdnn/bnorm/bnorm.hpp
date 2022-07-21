@@ -170,12 +170,10 @@ inline size_t data_off(const prb_t *prb, int64_t mb, int64_t c, int64_t d,
     return (((mb * prb->ic + c) * prb->id + d) * prb->ih + h) * prb->iw + w;
 }
 
-int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &src_add,
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
 int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &bpd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint);
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);

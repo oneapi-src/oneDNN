@@ -122,9 +122,7 @@ bool check_abs_err(const prb_t *prb, const float &s, const float &trh);
 float get_eltwise_zero_trust_percent(const prb_t *prb);
 float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd = true);
 
-dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
-        dnnl_primitive_desc_t &epd, res_t *res, dir_t dir,
-        const_dnnl_primitive_desc_t hint);
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
