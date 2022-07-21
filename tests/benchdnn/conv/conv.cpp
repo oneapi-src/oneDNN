@@ -459,12 +459,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 #endif
-
-        // Runtime output scale is not supported.
-        if (prb->attr.oscale.runtime) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
     }
 
     // Winograd implementation has very limited scope and support. It doesn't
