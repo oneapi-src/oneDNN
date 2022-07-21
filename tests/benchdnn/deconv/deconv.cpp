@@ -462,9 +462,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 #endif
-        if (prb->attr.oscale.runtime) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        }
     }
 }
 
