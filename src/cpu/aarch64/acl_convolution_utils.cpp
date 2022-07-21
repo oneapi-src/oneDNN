@@ -307,10 +307,17 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // General Compute Library checks, memory tags are also set there
     CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
 
-    const bool wino_shape_ok // unit strides only, no dilations
+    const bool shape_ok
+            // only unit strides allowed
             = (acp.padstride_info.stride() == std::pair<uint, uint> {1, 1})
+            // Note: Compute Library supports arbitrary padding for wino kernels
+            // but we only allow small padding to be consistent with oneDNN
+            && (acp.padstride_info.pad().first <= 1) // padding left/right
+            && (acp.padstride_info.pad().second <= 1) // padding top/bottom
+            // only non-dilated convolutions allowed
             && (acp.dilation_info == arm_compute::Size2D(1, 1));
-    if (!wino_shape_ok) return status::unimplemented;
+
+    ACL_CHECK_SUPPORT(!shape_ok, "shape not supported by winograd kernels");
 
     // clang-format off
     // Validate convolution manually to check for return status
