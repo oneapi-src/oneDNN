@@ -192,7 +192,7 @@ op_t jit_uni_binary_t::pd_t::get_op_type(const memory_desc_wrapper &src0_d) {
     const auto &strides = src0_d.blocking_desc().strides;
     const auto ndims = src0_d.ndims();
 
-    if (!src0_d.is_plain())
+    if (!src0_d.is_plain() && src0_d.blocking_desc().inner_idxs[0] == 1)
         return op_t::c_blocked;
     else if (strides[1] == 1)
         return op_t::n_spatial_c;
