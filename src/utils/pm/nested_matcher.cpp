@@ -36,7 +36,24 @@ bool has_commutative_inputs(op_t *op) {
     return commutative_kinds.count(op->get_kind());
 }
 
-// check if a pb_node is optional and its all consumers are optional
+// check if a pb_node is optional and its producers are all optional
+bool check_optional_inputs(pb_node_t *n) {
+    if (n->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
+        return false;
+    repetition_t *rep_node = dynamic_cast<repetition_t *>(n);
+    if (rep_node->get_min_rep() != 0) return false;
+
+    std::vector<std::pair<iport_t, producer_t>> node_inputs = n->get_inputs();
+    if (!node_inputs.empty()) {
+        for (auto &node_input : node_inputs) {
+            bool is_optional = check_optional_inputs(node_input.second.first);
+            if (!is_optional) return false;
+        }
+    }
+    return true;
+}
+
+// check if a pb_node is optional and its consumers are all optional
 // also record the nodes that are likely to be inner producers
 bool get_optional_outputs(
         pb_node_t *n, std::unordered_set<pb_node_t *> &opt_nodes) {
@@ -101,11 +118,7 @@ bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *ctx,
             // pattern node has producer while graph op
             // doesn't have. In this case, only optional
             // can survive
-            if (in_node->get_node_kind()
-                    != pb_node_kind::PB_NODE_KIND_REPETITION)
-                return false;
-            repetition_t *rep_node = dynamic_cast<repetition_t *>(in_node);
-            if (rep_node->get_min_rep() != 0) return false;
+            if (!check_optional_inputs(in_node)) return false;
         } else {
             op_t *in_op = op->get_input_op(op_input_offset);
             size_t in_op_oport = op_in_value->get_offset();
@@ -115,14 +128,7 @@ bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *ctx,
                     BIND_OUT, in_op, in_op_oport, in_node, in_node_oport);
             if (!match_graph_helper(in_bind, ctx, copied_op_map)) {
                 // match failure, check if the node is optional
-                // TODO(Zitian): check not only the direct producer
-                if (in_node->get_node_kind()
-                        == pb_node_kind::PB_NODE_KIND_REPETITION) {
-                    repetition_t *rep_node
-                            = dynamic_cast<repetition_t *>(in_node);
-                    if (rep_node->get_min_rep() == 0) return true;
-                }
-                return false;
+                if (!check_optional_inputs(in_node)) return false;
             }
         }
         return true;

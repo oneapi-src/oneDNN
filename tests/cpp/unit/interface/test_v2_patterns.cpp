@@ -2162,6 +2162,143 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure4) {
     ASSERT_EQ(fusion_ops.size(), 1);
 }
 
+TEST(PatternMatcherV2, ShouldNotMatchIdenticalResblock) {
+    // pattern:
+    //     |               |
+    //   conv              |
+    //     |               |
+    //   opt_bias          |
+    //     |               |
+    //   opt_relu          |
+    //     |  dst0       conv
+    //   conv              |
+    //     |            opt_bias
+    //   opt_bias          |
+    //     |            opt_relu
+    //   opt_relu          |
+    //     |  dst1         |
+    //   conv              |
+    //     |              /
+    //   opt_bias        /
+    //         \        / dst2
+    //          \      /
+    //            add
+    //             |
+    //            relu
+    //             |
+    auto conv_opt_bias_opt_eltwise
+            = [&](const std::shared_ptr<pb_graph_t> &pgraph,
+                      pb_op_t *input) -> pb_op_t * {
+        in_edges_t in_edges;
+        if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
+        pb_op_t *conv = pgraph->append_op(impl::op_kind::Convolution, in_edges);
+
+        // Optional bias_add
+        auto popt_bias_graph = std::make_shared<pb_graph_t>("poptional_bias");
+        pb_op_t *pbias
+                = popt_bias_graph->append_op(impl::op_kind::BiasAdd, "pbias");
+        popt_bias_graph->create_input_port(0, pbias, 0);
+        popt_bias_graph->create_output_port(0, pbias, 0);
+        auto popt_bias = pgraph->append_optional(
+                popt_bias_graph, in_edges_t {in_edge(0, conv, 0)}, "popt_bias");
+
+        // Optional post relu
+        auto popt_eltwise_graph = std::make_shared<pb_graph_t>("popt_eltwise");
+        pb_op_t *peltwise = popt_eltwise_graph->append_op(impl::op_kind::ReLU);
+        popt_eltwise_graph->create_input_port(0, peltwise, 0);
+        popt_eltwise_graph->create_output_port(0, peltwise, 0);
+        auto popt_eltwise = pgraph->append_optional(popt_eltwise_graph,
+                in_edges_t {in_edge(0, popt_bias, 0)}, "popt_eltwise");
+        return reinterpret_cast<pb_op_t *>(popt_eltwise);
+    };
+
+    auto conv_opt_bias_add_relu
+            = [&](const std::shared_ptr<pb_graph_t> &pgraph, pb_op_t *input,
+                      pb_op_t *post_src) -> pb_op_t * {
+        in_edges_t in_edges;
+        if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
+        pb_op_t *conv = pgraph->append_op(impl::op_kind::Convolution, in_edges);
+
+        // Optional bias_add
+        auto popt_bias_graph = std::make_shared<pb_graph_t>("poptional_bias");
+        pb_op_t *pbias
+                = popt_bias_graph->append_op(impl::op_kind::BiasAdd, "pbias");
+        popt_bias_graph->create_input_port(0, pbias, 0);
+        popt_bias_graph->create_output_port(0, pbias, 0);
+        auto popt_bias = pgraph->append_optional(
+                popt_bias_graph, in_edges_t {in_edge(0, conv, 0)}, "popt_bias");
+
+        in_edges_t add_in_edges = in_edges_t {in_edge(0, popt_bias, 0)};
+        if (post_src) { add_in_edges.emplace_back(in_edge(1, post_src, 0)); }
+        pb_op_t *add = pgraph->append_op(impl::op_kind::Add, add_in_edges);
+
+        pb_op_t *relu = pgraph->append_op(
+                impl::op_kind::ReLU, in_edges_t {in_edge(0, add, 0)});
+        return relu;
+    };
+
+    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
+    pb_op_t *dst0 = conv_opt_bias_opt_eltwise(pgraph, nullptr);
+    pb_op_t *dst1 = conv_opt_bias_opt_eltwise(pgraph, dst0);
+    pb_op_t *dst2 = conv_opt_bias_opt_eltwise(pgraph, nullptr);
+    conv_opt_bias_add_relu(pgraph, dst1, dst2);
+
+    // graph:
+    // construct identical bottleneck resblock
+    //     |               |
+    //   conv              |
+    //     |               |
+    //   bias              |
+    //     |               |
+    //   relu              |
+    //     |               |
+    //   conv              |
+    //     |               |
+    //   bias              |
+    //     |               |
+    //   relu              |
+    //     |               |
+    //   conv              |
+    //     |              /
+    //    bias           /
+    //         \        /
+    //          \      /
+    //            add
+    //             |
+    //            relu
+    //             |
+
+    impl::graph_t agraph;
+
+    id_generator id_gen;
+
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    auto src = logical_tensor_init(
+            id_gen.get_id(), src_shape, impl::data_type::f32);
+
+    auto conv0 = create_convolution(id_gen, agraph, src, ic, ks, oc, 1, {1, 1},
+            {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            /*with relu*/ true, /*with biasadd*/ true);
+    auto conv1 = create_convolution(id_gen, agraph, conv0, ic, ks, oc, 1,
+            {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            /*with relu*/ true, /*with biasadd*/ true);
+    auto conv2 = create_convolution(id_gen, agraph, conv1, ic, ks, oc, 1,
+            {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            /*with relu*/ false, /*with biasadd*/ true);
+    auto add0 = create_add(id_gen, agraph, conv2, src);
+    create_relu(id_gen, agraph, add0);
+
+    agraph.build_graph();
+
+    ASSERT_EQ(agraph.get_ops().size(), 10);
+
+    std::vector<op_t *> fusion_ops;
+    // should not match, so should be false
+    EXPECT_FALSE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
+}
+
 TEST(PatternMatcherV2, RepetitionOportExternalOutput) {
     /*
     pattern:
