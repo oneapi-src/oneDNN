@@ -1110,7 +1110,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_post_ops(
     }
 
     postops_injector_->compute_vector_range(
-            32 - bd_block * ld_block2, 32, rhs_arg_params);
+            max_vregs - bd_block * ld_block2, max_vregs, rhs_arg_params);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -2079,7 +2079,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
                 ? brg.ld_block2
                 : ((brg.ldb2_tail > 0) ? brg.ldb2_tail : 1);
         n_bcast_1_load = brg.is_int8
-                && ((brg.bd_block * (ld_block2 + 1) < 32)
+                && ((brg.bd_block * (ld_block2 + 1) < max_vregs)
                         && (bd_blocks_for_rd_tail == 0)
                         && (rows_for_rd_tail == 0));
         if (brg.brgattr.hint_loop_order != brgemm_lo_default)
