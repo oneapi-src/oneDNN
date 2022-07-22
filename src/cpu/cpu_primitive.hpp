@@ -27,24 +27,29 @@
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
-#define DEFINE_SCALES_BUFFER(scales) \
+#define DEFINE_SCALES_BUFFER_ATTR(attr, scales) \
     alignas(16) float CONCAT2(scales, _buf16)[16] = {0}; \
-    const float *scales; \
-    if (pd()->attr()->output_scales_.defined()) { \
-        scales = pd()->attr()->output_scales_.scales_; \
-    } else { \
-        scales = CTX_IN_MEM(const float *, DNNL_ARG_ATTR_OUTPUT_SCALES); \
-        if (scales == nullptr) return status::invalid_arguments; \
-        const auto scales_d = ctx.memory_mdw(DNNL_ARG_ATTR_OUTPUT_SCALES); \
-        bool ok = scales_d.data_type() == data_type::f32 \
-                && scales_d.ndims() == 1; \
-        if (!ok) return status::invalid_arguments; \
-        if (scales_d.dims()[0] == 1) { \
-            utils::array_set(CONCAT2(scales, _buf16), scales[0], 16); \
-            scales = CONCAT2(scales, _buf16); \
+    const float *scales {nullptr}; \
+    if ((attr)) { \
+        if ((attr)->output_scales_.defined()) { \
+            scales = (attr)->output_scales_.scales_; \
+        } else { \
+            scales = CTX_IN_MEM(const float *, DNNL_ARG_ATTR_OUTPUT_SCALES); \
+            if (scales == nullptr) return status::invalid_arguments; \
+            const auto scales_d = ctx.memory_mdw(DNNL_ARG_ATTR_OUTPUT_SCALES); \
+            bool ok = scales_d.data_type() == data_type::f32 \
+                    && scales_d.ndims() == 1; \
+            if (!ok) return status::invalid_arguments; \
+            if (scales_d.dims()[0] == 1) { \
+                utils::array_set(CONCAT2(scales, _buf16), scales[0], 16); \
+                scales = CONCAT2(scales, _buf16); \
+            } \
         } \
     } \
     MAYBE_UNUSED(scales);
+
+#define DEFINE_SCALES_BUFFER(scales) \
+    DEFINE_SCALES_BUFFER_ATTR(pd()->attr(), scales)
 
 #define DEFINE_ZERO_POINTS_BUFFER(zero_points_ptr, mem_arg) \
     const int32_t *zero_points_ptr \

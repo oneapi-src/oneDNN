@@ -52,6 +52,11 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
                     pd()->jcp_.post_ops.entry_.size() + 1)
             : std::vector<const void *> {};
 
+    DEFINE_SCALES_BUFFER(scales);
+    DEFINE_SCALES_BUFFER_ATTR(
+            pd()->dw_conv_pd_.get() ? pd()->dw_conv_pd_->attr() : nullptr,
+            dw_scales);
+
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
@@ -60,7 +65,6 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
     if (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni)) {
         auto local_scales
                 = scratchpad.template get<float>(key_conv_adjusted_scales);
-        auto scales = pd()->attr()->output_scales_.scales_;
         size_t count = pd()->attr()->output_scales_.count_;
         float factor = 1.f / pd()->jcp_.wei_adj_scale;
         if (count == 1) {
@@ -78,25 +82,23 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
             memory_tracking::grantor_t dw_scratchpad(
                     scratchpad, memory_tracking::names::prefix_fusion);
             auto attr_dw = pd()->dw_conv_pd_->attr();
-
             auto local_scales = dw_scratchpad.template get<float>(
                     key_conv_adjusted_scales);
-            auto scales = attr_dw->output_scales_.scales_;
             size_t count = attr_dw->output_scales_.count_;
             float factor = 1.f / jcp_dw->wei_adj_scale;
             if (count == 1) {
-                utils::array_set(
-                        local_scales, scales[0] * factor, pd()->jcp_.ic_block);
+                utils::array_set(local_scales, dw_scales[0] * factor,
+                        pd()->jcp_.ic_block);
             } else {
                 for (size_t c = 0; c < count; c++)
-                    local_scales[c] = scales[c] * factor;
+                    local_scales[c] = dw_scales[c] * factor;
             }
         }
     }
     parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
-                dst, src_zero_point, dst_zero_point, scratchpad,
-                post_ops_binary_rhs_arg_vec.data(),
+                dst, scales, dw_scales, src_zero_point, dst_zero_point,
+                scratchpad, post_ops_binary_rhs_arg_vec.data(),
                 post_ops_binary_rhs_arg_vec_dw.data());
     });
     return status::success;
@@ -105,7 +107,8 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
 void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
         const int ithr, const int nthr, const char *src, const char *weights,
         const char *bias, const char *weights_dw, const char *bias_dw,
-        char *dst, const int32_t *src_zero_point, const int32_t *dst_zero_point,
+        char *dst, const float *oscales, const float *dw_oscales,
+        const int32_t *src_zero_point, const int32_t *dst_zero_point,
         const memory_tracking::grantor_t &scratchpad,
         const void *post_ops_binary_rhs_arg_vec,
         const void *post_ops_binary_rhs_arg_vec_dw) const {
@@ -138,11 +141,8 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
     const int stride_h = pd()->KSH();
     const int stride_w = pd()->KSW();
 
-    float *oscales {nullptr};
     if (jcp.signed_input && (!jcp.has_vnni))
         oscales = scratchpad.get<float>(key_conv_adjusted_scales);
-    else
-        oscales = pd()->attr()->output_scales_.scales_;
 
     auto offset = weights_d.size() - weights_d.additional_buffer_size();
     char *w = const_cast<char *>(weights);
@@ -177,7 +177,6 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
             scratchpad, memory_tracking::names::prefix_fusion);
 
     size_t dw_bia_dt_size = 0;
-    float *dw_oscales {nullptr};
     int32_t *compensation_dw {nullptr};
     if (jcp.with_dw_conv && jcp_dw) {
         if (jcp_dw->with_bias)
@@ -191,8 +190,6 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
                 : nullptr;
         if (jcp_dw->signed_input && (!jcp_dw->has_vnni))
             dw_oscales = dw_scratchpad.get<float>(key_conv_adjusted_scales);
-        else
-            dw_oscales = dw_pd->attr()->output_scales_.scales_;
     }
 
     char *pbuf {nullptr};
