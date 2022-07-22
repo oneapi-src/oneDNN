@@ -39,6 +39,10 @@ inline bool with_typecast(const std::vector<graph_dt> &dtypes) {
             && is_low_precision(dtypes);
 }
 
+inline bool with_typecast_after(const std::vector<graph_dt> &dtypes) {
+    return dtypes[0] == graph_dt::bf16 && dtypes[2] == graph_dt::f32;
+}
+
 inline graph_dt dequantize_dtype(graph_dt dtype) {
     return is_low_precision({dtype}) ? graph_dt::f32 : dtype;
 }

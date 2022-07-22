@@ -34,12 +34,22 @@ namespace conv {
 
 namespace graph = dnnl::graph;
 
+static std::vector<dnnl::graph::logical_tensor::data_type> collect_data_types(
+        const ::conv::prb_t *prb) {
+    return {convert_dt(prb->cfg[SRC].dt), convert_dt(prb->cfg[WEI].dt),
+            convert_dt(prb->cfg[DST].dt)};
+}
+
 static int check_known_skipped_case_graph(
         const ::conv::prb_t *prb, res_t *res) noexcept {
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, ::conv::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
+    const auto orig_dts = collect_data_types(prb);
+    check_post_sum_for_bf16in_f32out(prb->attr, res, orig_dts);
+    if (res->state == SKIPPED) return OK;
 
     auto const_pd = query_pd(prim);
     if (check_mem_size(const_pd) != OK) {
@@ -92,12 +102,6 @@ static quant_data_t get_qdata_for(
 
     printf("warning: returning default quant_data_t for unsupported post op\n");
     return quant_data_t();
-}
-
-static std::vector<dnnl::graph::logical_tensor::data_type> collect_data_types(
-        const ::conv::prb_t *prb) {
-    return {convert_dt(prb->cfg[SRC].dt), convert_dt(prb->cfg[WEI].dt),
-            convert_dt(prb->cfg[DST].dt)};
 }
 
 static std::pair<fill_status_t, size_t> append_graph_with_depthwise(
@@ -156,6 +160,8 @@ fill_status_t append_graph_with_block(const ::conv::prb_t *prb) {
 
     const auto orig_dts = collect_data_types(prb);
     const auto with_dq = is_low_precision(orig_dts);
+    const auto with_tc = with_typecast(orig_dts);
+    const auto with_tc_after = with_typecast_after(orig_dts);
     const auto connect_to_previous_block = !with_dq && graph.has_blocks();
 
     // handle main op
@@ -187,10 +193,12 @@ fill_status_t append_graph_with_block(const ::conv::prb_t *prb) {
     std::transform(dilations.begin(), dilations.end(), dilations.begin(),
             [](const dim_t d) { return d + 1; });
 
-    const auto src_dt = dequantize_dtype(orig_dts[0]);
-    const auto wei_dt = dequantize_dtype(orig_dts[1]);
-    const auto dst_dt = dequantize_dtype(orig_dts[2]);
-    const auto bia_dt = convert_dt(prb->cfg[BIA].dt);
+    const auto change_dt = with_dq || with_tc_after || with_tc;
+    const auto default_dt = (with_tc_after || with_tc) ? dt::bf16 : dt::f32;
+    const auto src_dt = change_dt ? default_dt : orig_dts[0];
+    const auto wei_dt = change_dt ? default_dt : orig_dts[1];
+    const auto dst_dt = change_dt ? default_dt : orig_dts[2];
+    const auto bia_dt = with_tc_after ? dt::bf16 : convert_dt(prb->cfg[BIA].dt);
 
     const auto wei_ptype = prb->dir == BWD_W
             ? dnnl::graph::logical_tensor::property_type::undef
@@ -279,6 +287,12 @@ fill_status_t append_graph_with_block(const ::conv::prb_t *prb) {
             std::tie(status, std::ignore) = append_graph_with_depthwise(prb);
             BENCHDNNEXT_VERIFY(status);
         }
+    }
+
+    // add typecast op after conv
+    if (with_tc_after) {
+        status = insert_typecast_after(graph.get_cur_block_out_id());
+        BENCHDNNEXT_VERIFY(status);
     }
 
     // if required - add quantize op

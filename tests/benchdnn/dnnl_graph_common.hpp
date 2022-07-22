@@ -63,11 +63,14 @@ typedef fill_status fill_status_t;
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res);
+void check_post_sum_for_bf16in_f32out(const attr_t &attr, res_t *res,
+        const std::vector<dnnl::graph::logical_tensor::data_type> &orig_dts);
 void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res);
 void check_graph_scales_and_zps_support(const attr_t &attr, res_t *res);
 void check_graph_eltwise_params(res_t *res,
         const attr_t::post_ops_t::kind_t alg, const float alpha,
         const float beta);
+bool check_has_sum_po(const std::vector<attr_t::post_ops_t::entry_t> &post_ops);
 std::vector<float> get_scales(const attr_t::scale_t &scales_info,
         const float *raw_scales, int64_t channel_size);
 float get_post_eltwise_scale(
@@ -306,6 +309,7 @@ fill_status_t append_graph_with_swish(
 
 std::pair<fill_status_t, size_t> insert_typecast_before(
         size_t dst_id, bool as_constant = false);
+fill_status_t insert_typecast_after(size_t src_id, bool as_constant = false);
 
 fill_status_t insert_dequant_before(
         size_t lt_id, const quant_data_t &qdata, bool as_constant = false);

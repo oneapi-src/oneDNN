@@ -38,6 +38,15 @@ void check_known_skipped_case_graph_common(
     }
 }
 
+void check_post_sum_for_bf16in_f32out(const attr_t &attr, res_t *res,
+        const std::vector<dnnl::graph::logical_tensor::data_type> &orig_dts) {
+    if (orig_dts[0] == graph_dt::bf16 && orig_dts[2] == graph_dt::f32
+            && check_has_sum_po(attr.post_ops.entry)) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+}
+
 void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res) {
     for (const auto &e : attr.post_ops.entry) {
         if (!e.is_eltwise_kind()) continue;
@@ -107,6 +116,14 @@ void check_graph_eltwise_params(res_t *res,
             return;
         }
     }
+}
+
+bool check_has_sum_po(
+        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) {
+    for (const auto &entry : post_ops) {
+        if (entry.is_sum_kind()) return true;
+    }
+    return false;
 }
 
 float get_post_eltwise_scale(
@@ -705,6 +722,37 @@ quant_data_t bin_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
 bool is_dequantize_required_for(const attr_t::post_ops_t::entry_t &e) {
     return e.is_binary_kind()
             && is_low_precision({convert_dt(e.binary.src1_dt)});
+}
+
+fill_status_t insert_typecast_after(size_t src_id, bool as_constant) {
+    graph_t &graph = graph_t::get();
+
+    const auto ptype = as_constant
+            ? dnnl::graph::logical_tensor::property_type::constant
+            : dnnl::graph::logical_tensor::property_type::undef;
+
+    const auto op_id = graph.generate_id_for(entry_kind::TYPECAST);
+    const auto src_lt = graph.get_lt(src_id);
+
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+    const auto dst_dt = dnnl::graph::logical_tensor::data_type::f32;
+
+    // create lt for dst
+    if (src_lt.get_layout_type()
+            == dnnl::graph::logical_tensor::layout_type::strided) {
+        graph.create_lt(
+                dst_id, dst_dt, src_lt.get_dims(), src_lt.get_strides(), ptype);
+    } else {
+        graph.create_lt(dst_id, dst_dt, src_lt.get_dims(),
+                src_lt.get_layout_id(), ptype);
+    }
+
+    dnnl::graph::op tc_op(
+            op_id, dnnl::graph::op::kind::TypeCast, graph.stringify_id(op_id));
+
+    graph.append(op_id, tc_op, {src_id}, {dst_id}, false);
+
+    return fill_status::DONE;
 }
 
 std::pair<fill_status_t, size_t> insert_typecast_before(
