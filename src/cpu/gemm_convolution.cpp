@@ -166,7 +166,7 @@ status_t gemm_convolution_fwd_t::execute_forward_thr_nspc(const exec_ctx_t &ctx,
 
                 for (size_t os = first_os; os < last_os; ++os) {
                     data_t* dst_local = dst + os * dst_os_stride;
-                    (*pp_kernel_)(dst_local, bias, 1, first_oc, last_oc, 1, post_ops_binary_rhs_arg_vec);
+                    (*pp_kernel_)(dst_base, dst_local, bias, 1, first_oc, last_oc, 1, post_ops_binary_rhs_arg_vec);
                 }
             }
         }
@@ -181,6 +181,7 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto dst_orig = dst;
 
     auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
 
@@ -266,7 +267,7 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
             if (st != status::success) return st;
 
             if (pp_kernel_ && curr.ic == jcp.ic - step.ic) {
-                (*pp_kernel_)(_dst, bias, m, curr.g * jcp.oc + curr.oc, step.oc, M, post_ops_binary_rhs_arg_vec);
+                (*pp_kernel_)(dst_orig, _dst, bias, m, curr.g * jcp.oc + curr.oc, step.oc, M, post_ops_binary_rhs_arg_vec);
             }
 
             return status::success;

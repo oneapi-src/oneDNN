@@ -2601,15 +2601,24 @@ template <typename T>
 typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value
         || std::is_same<T, Xbyak::Address>::value>::type
 jit_uni_binary_injector_t<isa, Vmm>::execute_prelu_binary(const Vmm &dst, const Vmm &lhs, const T &rhs) const {
-    const auto &cmp_mask = rhs_arg_static_params_.tail_opmask;
-    const Xbyak::Zmm zmm_aux0
-            = Xbyak::Zmm(rhs_arg_static_params_.rhs_prelu_helper_vmm_idx);
+    Vmm dst_vmm = Vmm(dst.getIdx());
+    Xbyak::Opmask maybe_tail_kmask = Xbyak::Opmask(dst.getOpmaskIdx());
 
-    push_opmask(host_, cmp_mask);
+    auto aux0_idx = rhs_arg_static_params_.rhs_prelu_helper_vmm_idx;
+    if (static_cast<int>(aux0_idx) == lhs.getIdx()) { 
+        aux0_idx = (aux0_idx + 1) % 16;
+    }
+    const Xbyak::Zmm zmm_aux0 = Xbyak::Zmm(aux0_idx);
+    Xbyak::Opmask aux_kmask = get_aux_kmask();
+
+    push_opmask(host_, aux_kmask);
+    push_vmm(host_, zmm_aux0);
+
     host_->uni_vpxor(zmm_aux0, zmm_aux0, zmm_aux0);
-    host_->vcmpps(cmp_mask, lhs, zmm_aux0, jit_generator::_cmp_lt_os);
-    host_->uni_vmulps(dst | cmp_mask, lhs, rhs);
-    pop_opmask(host_, cmp_mask);
+    host_->vcmpps(aux_kmask | maybe_tail_kmask, lhs, zmm_aux0, jit_generator::_cmp_lt_os);
+    pop_vmm(host_, zmm_aux0);
+    host_->uni_vmulps(dst_vmm | aux_kmask, lhs, rhs);
+    pop_opmask(host_, aux_kmask);
 }
 
 
@@ -2639,7 +2648,21 @@ typename std::enable_if<!(std::is_same<T, Xbyak::Zmm>::value
                           || std::is_same<T, Xbyak::Address>::value)>::type
 jit_uni_binary_injector_t<isa, Vmm>::execute_prelu_binary(const Vmm &dst,
                                                         const Vmm &lhs, const T &rhs) const {
-    const Vmm vmm_aux0 = Vmm(rhs_arg_static_params_.rhs_prelu_helper_vmm_idx);
+    int aux0_idx = static_cast<int>(rhs_arg_static_params_.rhs_prelu_helper_vmm_idx);
+    bool changed;
+    // find an used idx
+    do {
+        changed = false;
+        if (aux0_idx == lhs.getIdx()) {
+            aux0_idx = (aux0_idx + 1) % 16;
+            changed = true;
+        }
+        if (aux0_idx == rhs.getIdx()) {
+            aux0_idx = (aux0_idx + 1) % 16;
+            changed = true;
+        }
+    } while (changed == true);
+    const Vmm vmm_aux0 = Vmm(aux0_idx);
 
     push_vmm(host_, vmm_aux0);
     host_->uni_vmulps(rhs, rhs, lhs);

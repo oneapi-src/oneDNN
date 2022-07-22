@@ -96,7 +96,7 @@ struct pp_kernel_t {
 
     virtual ~pp_kernel_t() = default;
 
-    virtual void operator()(float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride,
+    virtual void operator()(float *dst_orig, float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride,
                             const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const = 0;
 
     virtual status_t create_kernel() { return status::success; }

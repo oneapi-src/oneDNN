@@ -39,12 +39,6 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
         if (utils::one_of(isa, avx2, sse41)) {
             idx_compute_vreg_start_ += 1;   //  Vmm(0) - for masks
         }
-        size_t prelu_tmp_vmm_idx = 0;
-        if (post_ops_.find(primitive_kind::prelu))  {
-            // prelu need a temp vmm
-            prelu_tmp_vmm_idx = idx_compute_vreg_start_;
-            idx_compute_vreg_start_++;
-        }
 
         bool only_eltwise = true;
         bool with_binary = false;
@@ -75,7 +69,7 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
                 helper_vmm_idx, r13, r14, r15, preserve_gpr,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
                 PARAM_OFF(dst_orig), memory_desc_wrapper(pd->dst_md()),
-                tail_size, kreg_rem_mask, use_exact_tail_scalar_bcast, prelu_tmp_vmm_idx};
+                tail_size, kreg_rem_mask, use_exact_tail_scalar_bcast};
 #undef PARAM_OFF
             const binary_injector::static_params_t bsp {this->reg_abi_bak, rhs_sp};
             jit_binary_injector_ = utils::make_unique<
@@ -100,12 +94,12 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-    void operator()(float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride,
+    void operator()(float *dst_orig, float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride,
                     const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const override {
         for (int oc = 0; oc < oc_work; oc++) {
             ker_args_t args;
             args.dst = dst + oc * oc_stride;
-            args.dst_orig = dst;
+            args.dst_orig = dst_orig;
             args.bias = bias + oc_start + oc;
             args.len = len;
             args.oc_offset = oc_start + oc;
