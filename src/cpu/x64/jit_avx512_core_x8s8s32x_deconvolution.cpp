@@ -1397,7 +1397,8 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
     const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     const int nb_groups = jcp.nb_ch;
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
+
     if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
@@ -1511,7 +1512,8 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_2d(
     size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
+
     if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
@@ -1689,7 +1691,8 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_3d(
     size_t wht_kd_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 0, 1);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
+
     if (jcp.signed_input && (!jcp.has_vnni)) {
         auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_adjusted_scales);
