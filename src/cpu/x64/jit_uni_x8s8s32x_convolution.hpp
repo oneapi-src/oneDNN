@@ -56,7 +56,7 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
                     && desc()->accum_data_type == s32
-                    && attr()->has_default_values(smask_t::oscale
+                    && attr()->has_default_values(smask_t::oscale_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_md(0)->data_type)
