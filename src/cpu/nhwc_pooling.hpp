@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ struct nhwc_pooling_fwd_t : public primitive_t {
     private:
         void init_scratchpad() {
             using namespace memory_tracking::names;
-            if (src_md()->data_type == data_type::bf16) {
+            if (src_md()->data_type != data_type::f32) {
                 const size_t bf16cvt_sz_ = IC() * nthr_;
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<float>(
@@ -162,7 +162,7 @@ struct nhwc_pooling_bwd_t : public primitive_t {
     private:
         void init_scratchpad() {
             using namespace memory_tracking::names;
-            if (diff_src_md()->data_type == data_type::bf16) {
+            if (diff_src_md()->data_type != data_type::f32) {
                 size_t bf16cvt_sz_ = IC() * nthr_;
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<float>(
