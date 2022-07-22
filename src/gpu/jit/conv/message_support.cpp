@@ -412,7 +412,8 @@ access_builder_t::access_builder_t(const hw_config_t &hw_cfg,
     , mem_type_(mem_view.type())
     , mem_walker_(utils::make_unique<memory_walker_t>(cset, mem_view)) {
     if (send_hint_.hint_2d.enable) {
-        if (try_build_2d()) return;
+        // Do not emit non 2d prefetch when a 2d prefetch is expected
+        if (try_build_2d() || send_op_ == send_op_t::prefetch) return;
     }
     send_hint.hint_2d = send_2d_hint_t();
     build();
