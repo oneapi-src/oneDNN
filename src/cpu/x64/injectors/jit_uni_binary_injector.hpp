@@ -162,7 +162,7 @@ struct rhs_arg_static_params_t {
     Xbyak::Reg64 reg_tail_size;
     bool is_tail;
 
-    mutable std::size_t rhs_prelu_helper_vmm_idx;
+    mutable std::size_t rhs_prelu_helper_vmm_idx = 0;
 
 private:
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
