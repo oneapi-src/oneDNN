@@ -168,7 +168,7 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
     const size_t dst_mb_stride = dst_md.blk_off(1);
     const size_t dst_g_stride = dst_md.blk_off(0, 1) * jcp.oc;
 
-    const float *scales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(scales);
 
     const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
@@ -320,7 +320,7 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data(
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_backward_data_thr(ithr, nthr, diff_dst_base,
-                wei_base, bia_base, diff_src_base, scratchpad);
+                wei_base, bia_base, diff_src_base, scratchpad, ctx);
 
         if (st_thr != status::success) st = st_thr;
     });
@@ -331,7 +331,8 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data(
 status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
         const int ithr, const int nthr, const char *diff_dst_base,
         const int8_t *wei_base, const char *bia_base, char *diff_src_base,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad,
+        const exec_ctx_t &ctx) const {
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const auto diff_dst_md = memory_desc_wrapper(pd()->diff_dst_md());
@@ -351,7 +352,7 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
 
     /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
     const int scale_idx_mult = pd()->attr()->output_scales_.mask_ == (1 << 1);
-    const float *__restrict scales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(scales);
     const dim_t work_amount = jcp.ngroups * jcp.mb;
 
     int *__restrict col = scratchpad.get<int>(key_conv_gemm_col)

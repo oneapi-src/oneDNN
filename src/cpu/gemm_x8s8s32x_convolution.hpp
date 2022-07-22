@@ -63,7 +63,7 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                             utils::one_of(weights_md(1)->data_type, f32, bf16,
                                     s32, s8, u8))
                     && !has_zero_dim_memory()
-                    && attr()->has_default_values(skip_mask_t::oscale
+                    && attr()->has_default_values(skip_mask_t::oscale_runtime
                                     | skip_mask_t::zero_points_runtime
                                     | skip_mask_t::post_ops
                                     | skip_mask_t::sum_dt,
@@ -141,7 +141,7 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
                                     s32, s8, u8))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale)
+                            primitive_attr_t::skip_mask_t::oscale_runtime)
                     && output_scales_mask_ok();
             if (!ok) return status::unimplemented;
 
@@ -173,7 +173,8 @@ private:
     status_t execute_backward_data_thr(const int ithr, const int nthr,
             const char *diff_dst_base, const int8_t *wei_base,
             const char *bia_base, char *diff_src_base,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad,
+            const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
