@@ -186,7 +186,7 @@ struct jit_uni_x8s8s32x_deconvolution_fwd_t : public primitive_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_uni_deconv:",
+                JIT_IMPL_NAME_HELPER("jit_uni_int8:",
                         isa == avx2 && jcp_.has_vnni ? avx2_vnni : isa, ""),
                 jit_uni_x8s8s32x_deconvolution_fwd_t);
 
