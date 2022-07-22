@@ -129,7 +129,8 @@ void set_isa_impl(brgemm_t *brg) {
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_any,
                 is_isa_ok(avx512_core_bf16_amx_int8), avx512_core_bf16_amx_int8,
-                is_isa_ok(avx512_core_vnni), avx512_core_vnni);
+                is_isa_ok(avx512_core_vnni), avx512_core_vnni,
+                is_isa_ok(avx2_vnni), avx2_vnni);
     }
 }
 

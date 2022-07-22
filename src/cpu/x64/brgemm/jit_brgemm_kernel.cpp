@@ -111,7 +111,7 @@ private:
                     Xbyak::Zmm, Wmm>::type;
     using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
     static constexpr cpu_isa_t po_isa_t
-            = utils::map(isa, avx512_core, avx2, avx2);
+            = utils::map(isa, avx512_core, avx2_vnni, avx2, avx2, avx2);
     using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_t, Vmm>;
     std::unique_ptr<po_injector_t> postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
@@ -1661,7 +1661,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
         else if (brg.is_bf16)
             vdpbf16ps(v1, v2, v3);
         else if (brg.is_int8)
-            vpdpbusd(v1, v3, v2);
+            vpdpbusd(v1, v3, v2, isa == avx2_vnni ? VexEncoding : EvexEncoding);
     };
 
     int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
@@ -2348,6 +2348,7 @@ template struct brgemm_kernel_common_t<avx512_core_fp16, Xbyak::Zmm>;
 template struct brgemm_kernel_common_t<avx512_core_bf16, Xbyak::Zmm>;
 template struct brgemm_kernel_common_t<avx512_core_vnni, Xbyak::Zmm>;
 template struct brgemm_kernel_common_t<avx512_core, Xbyak::Zmm>;
+template struct brgemm_kernel_common_t<avx2_vnni, Xbyak::Ymm>;
 template struct brgemm_kernel_common_t<avx2, Xbyak::Ymm>;
 } // namespace x64
 } // namespace cpu

@@ -470,8 +470,14 @@ status_t brgemm_kernel_create(
                                 brg)));
             }
         } else if (brg.is_ymm) {
-            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                    new brgemm_kernel_common_t<avx2, Xbyak::Ymm>(brg)));
+            if (brg.isa_impl == avx2) {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx2, Xbyak::Ymm>(brg)));
+            } else if (brg.isa_impl == avx2_vnni) {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx2_vnni, Xbyak::Ymm>(
+                                brg)));
+            }
         }
     }
     if (!(*brg_kernel)) return status::unimplemented;
