@@ -1435,25 +1435,6 @@ private:
                                          : cfg_.can_use_b_2d_send);
                 regs += mult * load.header_regs();
                 if (cfg_.use_prefetch) {
-                    regs += [&]() {
-                        if (use_2d_send) {
-                            // Catch issues due to how prefetch splits tiles
-                            auto &blocks = layout.blocks();
-                            if (is_a && blocks.size() > 1) {
-                                // Catch restriction in try_build_2d that
-                                // surface_height % h_tstride == 0
-                                if (blocks[1].block % blocks[1].stride)
-                                    return 8;
-                            } else if (!is_a && blocks.size() > 0) {
-                                // Catch restriction in get_send_hint
-                                if (blocks[0].block * layout.type().size()
-                                        >= 128)
-                                    return 2;
-                            }
-                        }
-                        return 0;
-                    }();
-
                     access_grf_usage_helper_t prefetch(layout, per_thr_elems,
                             reg_bytes_, /*is_slm=*/false, use_2d_send);
                     regs += prefetch.header_regs();
