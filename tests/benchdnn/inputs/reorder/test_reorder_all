@@ -65,10 +65,7 @@
 1x4294967296x1
 
 # f16
---reset
---attr-oscale=per_dim_1:0.5
---sdt=f32 --ddt=f16 3x5x7x11
---sdt=f16 --ddt=f32 3x5x7x11
+--batch=test_reorder_float16
 
 # bf16
 --batch=test_reorder_bfloat16
