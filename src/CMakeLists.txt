@@ -117,6 +117,8 @@ if(DNNL_WITH_SYCL)
     add_subdirectory(sycl)
 endif()
 
+add_subdirectory(graph)
+
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
 add_library(${DNNL_LIBRARY_NAME} ${DNNL_LIBRARY_TYPE}
     ${VERSION_RESOURCE_FILE} ${HEADERS_ROOT} ${HEADERS_SUBDIR} ${LIB_DEPS})

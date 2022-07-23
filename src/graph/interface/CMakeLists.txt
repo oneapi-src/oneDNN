@@ -1,0 +1,33 @@
+#===============================================================================
+# Copyright 2021-2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#===============================================================================
+
+if(DNNL_BUILD_GRAPH)
+    file(GLOB SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
+        )
+    add_definitions_with_host_compiler(-DBUILD_GRAPH)
+else()
+    # If graph component is not built, we still need to preserve the symbols.
+    file(GLOB SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/z_symbols.cpp
+        )
+endif()
+
+set(OBJ_LIB ${DNNL_LIBRARY_NAME}_graph_interface)
+add_library(${OBJ_LIB} OBJECT ${SOURCES})
+
+set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)
