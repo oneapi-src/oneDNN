@@ -51,6 +51,14 @@ typedef enum {
     dnnl_runtime_error = 5,
     /// Queried element is not required for given primitive
     dnnl_not_required = 6,
+    /// The graph is not legitimate
+    dnnl_invalid_graph = 7,
+    /// The operation is not legitimate according to op schema
+    dnnl_invalid_graph_op = 8,
+    /// The shape cannot be inferred or compiled
+    dnnl_invalid_shape = 9,
+    /// The data type cannot be inferred or compiled
+    dnnl_invalid_data_type = 10,
 } dnnl_status_t;
 
 /// @} dnnl_api_utils
