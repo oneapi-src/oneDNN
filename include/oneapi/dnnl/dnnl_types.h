@@ -84,6 +84,10 @@ typedef enum {
     dnnl_u8 = 6,
     /// 64-bit/double-precision floating point.
     dnnl_f64 = 7,
+    /// Boolean data type. The tensor element will be interpreted with C++ bool
+    /// type. Note that the size of C++ bool type is language implementation
+    /// defined.
+    dnnl_boolean = 8,
 
     /// Parameter to allow internal only data_types without undefined behavior.
     /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.
