@@ -15,3 +15,8 @@
 #===============================================================================
 
 add_subdirectory(interface)
+
+if (DNNL_BUILD_GRAPH)
+    # add_subdirectory(backend)
+    add_subdirectory(utils)
+endif()
