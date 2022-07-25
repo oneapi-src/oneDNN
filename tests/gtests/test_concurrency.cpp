@@ -303,7 +303,7 @@ const int test_concurrency_t::nthreads = []() {
     // Only OpenMP runtime is affected (probably only GOMP).
     // Error message:
     // libgomp: Thread creation failed: Resource temporarily unavailable
-    res = hc > 100 ? 10 : res;
+    res = hc > 60 ? 10 : res;
 #endif
     return res;
 }();
