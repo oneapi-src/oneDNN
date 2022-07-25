@@ -169,8 +169,8 @@ private:
     void perform_outwork(char *dst_base, char *dst, char *c_buffer,
             const char *bias_w, int od, int oh, int ow, int g_oc,
             bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
-            const void *post_ops_binary_rhs_arg_vec, int32_t src_zp_vals,
-            int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
+            const void *post_ops_binary_rhs_arg_vec, const float *oscales,
+            int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
             int32_t *s8s8_compensation, bool maybe_do_init, bool do_postwork,
             bool do_post_comp) const;
 
@@ -212,7 +212,6 @@ private:
             comp_vpad_pbuffer_;
     std::vector<S_t> brg_kernel_palettes_;
 
-    const float *oscales;
     size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
 
     const memory_desc_wrapper bias_d;
