@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMMON_INTERNAL_DESC_TYPES_HPP
-#define COMMON_INTERNAL_DESC_TYPES_HPP
+#ifndef COMMON_OPDESC_HPP
+#define COMMON_OPDESC_HPP
 
 #include <vector>
 #include "oneapi/dnnl/dnnl_types.h"
@@ -23,7 +23,6 @@
 namespace dnnl {
 namespace impl {
 
-// The types are not exposed
 struct dnnl_reorder_desc_t {
     dnnl_primitive_kind_t primitive_kind;
     const dnnl_memory_desc_t *src_md;
@@ -56,4 +55,4 @@ struct dnnl_zero_pad_desc_t {
 } // namespace impl
 } // namespace dnnl
 
-#endif // INTERNAL_DESC_TYPES
+#endif

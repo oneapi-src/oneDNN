@@ -20,7 +20,7 @@
 #include "oneapi/dnnl/dnnl_types.h"
 
 #include "gemm_types.hpp"
-#include "internal_desc_types.hpp"
+#include "opdesc.hpp"
 
 // These aliases should be in the global namespace as they are intended
 // to give names that better reflects the meaning of the entities
