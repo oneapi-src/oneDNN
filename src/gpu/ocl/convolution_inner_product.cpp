@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,8 +81,7 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
     primitive_attr_t conv_attr(*attr());
     if (!conv_attr.is_initialized()) return status::out_of_memory;
 
-    dnnl_primitive_desc_iterator it(
-            engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+    primitive_desc_iterator_t it(engine, (op_desc_t *)&cd, &conv_attr, nullptr);
     if (!it.is_initialized()) return status::out_of_memory;
     cpd_ = *(++it);
     if (!cpd_) return status::unimplemented;

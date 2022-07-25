@@ -45,8 +45,8 @@ typedef enum {
     dnnl_invalid_arguments = 2,
     /// The operation failed because requested functionality is not implemented
     dnnl_unimplemented = 3,
-    /// Primitive iterator passed over last primitive descriptor
-    dnnl_iterator_ends = 4,
+    /// The last available implementation is reached
+    dnnl_last_impl_reached = 4,
     /// Primitive or engine failed on execution
     dnnl_runtime_error = 5,
     /// Queried element is not required for given primitive
@@ -2639,17 +2639,6 @@ typedef const struct dnnl_engine *const_dnnl_engine_t;
 /// @{
 /// @addtogroup dnnl_api_primitives_common
 /// @{
-
-/// @struct dnnl_primitive_desc_iterator
-/// @brief An opaque structure to describe a primitive descriptor iterator.
-struct dnnl_primitive_desc_iterator;
-
-/// @brief A primitive descriptor iterator handle.
-typedef struct dnnl_primitive_desc_iterator *dnnl_primitive_desc_iterator_t;
-
-/// @brief A constant primitive descriptor iterator handle.
-typedef const struct dnnl_primitive_desc_iterator
-        *const_dnnl_primitive_desc_iterator_t;
 
 /// @struct dnnl_primitive_desc
 /// @brief An opaque structure to describe a primitive descriptor.

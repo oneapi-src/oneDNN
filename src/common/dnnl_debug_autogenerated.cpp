@@ -29,7 +29,7 @@ const char *dnnl_status2str(dnnl_status_t v) {
     if (v == dnnl_out_of_memory) return "out_of_memory";
     if (v == dnnl_invalid_arguments) return "invalid_arguments";
     if (v == dnnl_unimplemented) return "unimplemented";
-    if (v == dnnl_iterator_ends) return "iterator_ends";
+    if (v == dnnl_last_impl_reached) return "last_impl_reached";
     if (v == dnnl_runtime_error) return "runtime_error";
     if (v == dnnl_not_required) return "not_required";
     assert(!"unknown status");

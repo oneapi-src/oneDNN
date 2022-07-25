@@ -50,6 +50,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
+    init_pd_args.is_iterator_supported = false;
     return dnnl_concat_primitive_desc_create(&init_pd_args.pd,
             prb->dtag != tag::undef ? &dst_d : nullptr, prb->n_inputs(),
             prb->axis, src_d.data(), dnnl_attr, init_pd_args.engine);

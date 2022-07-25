@@ -43,7 +43,7 @@ const status_t success = dnnl_success;
 const status_t out_of_memory = dnnl_out_of_memory;
 const status_t invalid_arguments = dnnl_invalid_arguments;
 const status_t unimplemented = dnnl_unimplemented;
-const status_t iterator_ends = dnnl_iterator_ends;
+const status_t last_impl_reached = dnnl_last_impl_reached;
 const status_t runtime_error = dnnl_runtime_error;
 const status_t not_required = dnnl_not_required;
 } // namespace status
@@ -1458,7 +1458,6 @@ struct op_desc_t {
 };
 
 using engine_t = dnnl_engine;
-using primitive_desc_iterator_t = dnnl_primitive_desc_iterator;
 using primitive_attr_t = dnnl_primitive_attr;
 using post_ops_t = dnnl_post_ops;
 using memory_t = dnnl_memory;

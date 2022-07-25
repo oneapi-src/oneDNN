@@ -74,8 +74,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &sd,
-            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &sd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {

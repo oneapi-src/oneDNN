@@ -164,7 +164,7 @@ struct ip_convolution_fwd_t : public primitive_t {
         status_t init_ip(engine_t *engine) {
             inner_product_desc_t ipd;
             CHECK(ip_desc_create(&ipd));
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&ipd, attr(), nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
 
@@ -263,7 +263,7 @@ struct ip_convolution_bwd_data_t : public primitive_t {
         status_t init_ip(engine_t *engine) {
             inner_product_desc_t ipd;
             CHECK(ip_desc_create(&ipd));
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&ipd, attr(), nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
@@ -359,7 +359,7 @@ struct ip_convolution_bwd_weights_t : public primitive_t {
         status_t init_ip(engine_t *engine) {
             inner_product_desc_t ipd;
             CHECK(ip_desc_create(&ipd));
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&ipd, attr(), nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
 

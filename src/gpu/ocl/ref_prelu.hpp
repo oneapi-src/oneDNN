@@ -126,7 +126,7 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
                     diff_weights_md(0), 0, 0);
             primitive_attr_t reduction_attr(*attr());
             if (!reduction_attr.is_initialized()) return status::out_of_memory;
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&rdesc, &reduction_attr, nullptr);
             if (!it.is_initialized()) return status::invalid_arguments;
             reduction_pd_ = *(++it);

@@ -24,30 +24,30 @@
 #include "impl_list_item.hpp"
 #include "primitive_attr.hpp"
 #include "primitive_cache.hpp"
-#include "primitive_desc.hpp"
 #include "primitive_hashing.hpp"
 #include "type_helpers.hpp"
 
-struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
-    dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine,
-            const dnnl::impl::op_desc_t *op_desc,
-            const dnnl::impl::primitive_attr_t *attr,
-            const dnnl::impl::primitive_desc_t *hint_fwd_pd, int skip_idx = -1)
+namespace dnnl {
+namespace impl {
+
+struct primitive_desc_t;
+
+struct primitive_desc_iterator_t : public c_compatible {
+    primitive_desc_iterator_t(engine_t *engine, const op_desc_t *op_desc,
+            const primitive_attr_t *attr, const primitive_desc_t *hint_fwd_pd,
+            int skip_idx = -1)
         : idx_(-1)
         , engine_(engine)
         , op_desc_(nullptr)
-        , attr_(attr ? *attr : dnnl::impl::primitive_attr_t())
+        , attr_(attr ? *attr : primitive_attr_t())
         , hint_fwd_pd_(hint_fwd_pd)
         , impl_list_(nullptr)
         , last_idx_(0)
         , skip_idx_(skip_idx)
         , offset_(-1) {
 
-        // we need to copy the c_op_desc, as we don't know if it is kept
-        // alive while the iterator is in use.
-        op_desc_ = (dnnl::impl::op_desc_t *)std::malloc(
-                sizeof(dnnl::impl::op_desc_t));
-        dnnl::impl::copy_c_op_desc(op_desc_, op_desc);
+        op_desc_ = (op_desc_t *)std::malloc(sizeof(op_desc_t));
+        copy_c_op_desc(op_desc_, op_desc);
 
         impl_list_ = engine_->get_implementation_list(op_desc_);
 
@@ -56,22 +56,22 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         is_initialized_ = is_initialized_ && attr_.is_initialized();
     }
 
-    ~dnnl_primitive_desc_iterator() { std::free(op_desc_); }
+    ~primitive_desc_iterator_t() { std::free(op_desc_); }
 
-    dnnl::impl::engine_t *engine() const { return engine_; }
+    engine_t *engine() const { return engine_; }
 
-    bool operator==(const dnnl::impl::primitive_desc_iterator_t &rhs) const {
+    bool operator==(const primitive_desc_iterator_t &rhs) const {
         return idx_ == rhs.idx_ && engine_ == rhs.engine_;
     }
-    bool operator!=(const dnnl::impl::primitive_desc_iterator_t &rhs) const {
+    bool operator!=(const primitive_desc_iterator_t &rhs) const {
         return !operator==(rhs);
     }
 
-    dnnl::impl::primitive_desc_iterator_t end() const {
-        return dnnl_primitive_desc_iterator(engine_, last_idx_);
+    primitive_desc_iterator_t end() const {
+        return primitive_desc_iterator_t(engine_, last_idx_);
     }
 
-    dnnl::impl::primitive_desc_iterator_t &operator++() {
+    primitive_desc_iterator_t &operator++() {
         // Quick return to preserve state of the iterator that reached the end.
         // The state is equal to the state of the iterator that end() returns.
         if (idx_ == last_idx_) return *this;
@@ -81,18 +81,18 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
 
         std::vector<dnnl::impl::memory_desc_t> hint_mds;
         if (hint_fwd_pd_) hint_mds = hint_fwd_pd_->hint_mds(true /* is_hint */);
-        dnnl::impl::primitive_hashing::key_t key(
+        primitive_hashing::key_t key(
                 engine_, op_desc_, &attr_, offset_, hint_mds);
 
-        pd_ = dnnl::impl::primitive_cache().get_pd(key);
+        pd_ = primitive_cache().get_pd(key);
         if (pd_) { return *this; }
 
         while (++idx_ != last_idx_) {
             if (idx_ == skip_idx_) continue;
-            dnnl::impl::primitive_desc_t *candidate_pd = nullptr;
+            primitive_desc_t *candidate_pd = nullptr;
             auto s = impl_list_[idx_](&candidate_pd, op_desc_, &attr_, engine_,
                     hint_fwd_pd_, offset_);
-            if (s == dnnl::impl::status::success) {
+            if (s == status::success) {
                 pd_.reset(candidate_pd);
                 break;
             }
@@ -100,29 +100,26 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         return *this;
     }
 
-    std::shared_ptr<dnnl::impl::primitive_desc_t> operator*() const {
-        if (*this == end() || pd_ == nullptr) return nullptr;
-        return pd_;
-    }
+    const std::shared_ptr<primitive_desc_t> &operator*() const { return pd_; }
 
-    const dnnl::impl::primitive_attr_t &attr() const { return attr_; }
+    const primitive_attr_t &attr() const { return attr_; }
 
     bool is_initialized() const { return is_initialized_; }
 
 protected:
     int idx_;
-    dnnl::impl::engine_t *engine_;
-    std::shared_ptr<dnnl::impl::primitive_desc_t> pd_;
-    dnnl::impl::op_desc_t *op_desc_;
-    const dnnl::impl::primitive_attr_t attr_;
-    const dnnl::impl::primitive_desc_t *hint_fwd_pd_;
-    const dnnl::impl::impl_list_item_t *impl_list_;
+    engine_t *engine_;
+    std::shared_ptr<primitive_desc_t> pd_;
+    op_desc_t *op_desc_;
+    const primitive_attr_t attr_;
+    const primitive_desc_t *hint_fwd_pd_;
+    const impl_list_item_t *impl_list_;
     int last_idx_;
     int skip_idx_;
     int offset_;
 
 private:
-    dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine, int last_idx)
+    primitive_desc_iterator_t(engine_t *engine, int last_idx)
         : idx_(last_idx)
         , engine_(engine)
         , op_desc_(nullptr)
@@ -132,7 +129,7 @@ private:
         , skip_idx_(-1)
         , offset_(-1) {}
 
-    dnnl_primitive_desc_iterator(dnnl_primitive_desc_iterator &&other)
+    primitive_desc_iterator_t(primitive_desc_iterator_t &&other)
         : idx_(other.idx_)
         , engine_(other.engine_)
         , pd_(std::move(other.pd_))
@@ -143,7 +140,10 @@ private:
         , skip_idx_(other.skip_idx_)
         , offset_(other.offset_) {}
 
-    DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive_desc_iterator);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(primitive_desc_iterator_t);
 };
+
+} // namespace impl
+} // namespace dnnl
 
 #endif

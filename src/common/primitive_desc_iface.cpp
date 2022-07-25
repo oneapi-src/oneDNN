@@ -30,12 +30,41 @@ dnnl_primitive_desc::dnnl_primitive_desc(
         const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine)
     : pd_(pd), engine_(engine) {}
 
+dnnl_primitive_desc::dnnl_primitive_desc(engine_t *engine,
+        const op_desc_t *op_desc, const primitive_attr_t *attr,
+        const primitive_desc_t *hint_fwd_pd) {
+
+    pd_iterator_ = utils::make_unique<primitive_desc_iterator_t>(
+            engine, op_desc, attr, hint_fwd_pd);
+}
+
+status_t dnnl_primitive_desc::init() {
+    if (!pd_iterator_) return status::out_of_memory;
+    if (!pd_iterator_->is_initialized()) return out_of_memory;
+
+    ++(*pd_iterator_);
+    if (*pd_iterator_ == pd_iterator_->end()) return unimplemented;
+
+    pd_ = *(*pd_iterator_);
+    engine_ = pd_iterator_->engine();
+
+    return success;
+}
+
+status_t dnnl_primitive_desc::next_impl() {
+    if (!pd_iterator_) return status::last_impl_reached;
+    ++(*pd_iterator_);
+    if (*pd_iterator_ == pd_iterator_->end()) return last_impl_reached;
+    pd_ = *(*pd_iterator_);
+    return status::success;
+}
+
 status_t dnnl_primitive_desc::create_primitive_iface(
         std::pair<primitive_iface_t *, bool> &primitive_iface,
         const cache_blob_t &cache_blob) const {
     // Step 1: create impl::primitive_t or get it from primitive cache
     std::pair<std::shared_ptr<primitive_t>, bool> p;
-    auto status = pd_->create_primitive(p, engine(), cache_blob);
+    auto status = impl()->create_primitive(p, engine(), cache_blob);
     if (status != status::success) return status;
     // Step 2: create primitive_iface_t, init and return it to user
     primitive_iface_t *p_iface = nullptr;
@@ -57,22 +86,22 @@ dnnl::impl::engine_t *dnnl_primitive_desc::engine() const {
     return engine_;
 }
 const dnnl::impl::primitive_attr_t *dnnl_primitive_desc::attr() const {
-    return pd_->attr();
+    return impl()->attr();
 }
 
 const char *dnnl_primitive_desc::info() const {
-    return pd_->info(engine_);
+    return impl()->info(engine_);
 }
 
 dnnl::impl::engine_t *dnnl_primitive_desc::src_engine() const {
-    return engine_;
+    return engine();
 }
 dnnl::impl::engine_t *dnnl_primitive_desc::dst_engine() const {
-    return engine_;
+    return engine();
 }
 
 dnnl::impl::engine_t *dnnl_primitive_desc::scratchpad_engine() const {
-    return engine_;
+    return engine();
 }
 
 status_t dnnl_primitive_desc::query(query_t what, int idx, void *result) const {
@@ -80,15 +109,17 @@ status_t dnnl_primitive_desc::query(query_t what, int idx, void *result) const {
     switch (what) {
         case query::engine: *(engine_t **)result = engine(); break;
         case query::cache_blob_id_size_s64:
-            *(dim_t *)result = (dim_t)pd_->get_cache_blob_id(engine()).size();
+            *(dim_t *)result
+                    = (dim_t)impl()->get_cache_blob_id(engine()).size();
             break;
         case query::cache_blob_id:
-            *(const uint8_t **)result = pd_->get_cache_blob_id(engine()).empty()
+            *(const uint8_t **)result
+                    = impl()->get_cache_blob_id(engine()).empty()
                     ? nullptr
-                    : pd_->get_cache_blob_id(engine()).data();
+                    : impl()->get_cache_blob_id(engine()).data();
             break;
 
-        default: status = pd_->query(what, idx, result);
+        default: status = impl()->query(what, idx, result);
     }
     return status;
 }
@@ -117,17 +148,35 @@ status_t dnnl_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface,
         const_c_op_desc_t c_op_desc, const primitive_attr_t *attr,
         engine_t *engine, const primitive_desc_iface_t *hint_fwd_pd) {
-    primitive_desc_iterator_t *it;
-    status_t status = dnnl_primitive_desc_iterator_create(
-            &it, c_op_desc, attr, engine, hint_fwd_pd);
-    if (status != status::success) return status;
+    using namespace primitive_kind;
 
-    primitive_desc_iface_t *pd_iface
-            = new primitive_desc_iface_t(*(*it), engine);
-    dnnl_primitive_desc_iterator_destroy(it);
+    auto *op_desc = (const op_desc_t *)c_op_desc;
+
+    const bool known_primitive_kind = utils::one_of(op_desc->kind,
+            batch_normalization, binary, convolution, deconvolution, eltwise,
+            gemm, inner_product, layer_normalization, layer_normalization_v2,
+            lrn, logsoftmax, matmul, pooling, pooling_v2, prelu, reduction,
+            resampling, rnn, shuffle, softmax, softmax_v2);
+    if (!known_primitive_kind) return invalid_arguments;
+
+    auto pd_iface = utils::make_unique<primitive_desc_iface_t>(engine, op_desc,
+            attr, hint_fwd_pd ? hint_fwd_pd->impl().get() : nullptr);
     if (pd_iface == nullptr) return out_of_memory;
+    CHECK(pd_iface->init());
 
-    *primitive_desc_iface = pd_iface;
+    *primitive_desc_iface = pd_iface.release();
 
     return success;
+}
+
+status_t dnnl_primitive_desc_destroy(
+        primitive_desc_iface_t *primitive_desc_iface) {
+    delete primitive_desc_iface;
+    return success;
+}
+
+status_t dnnl_primitive_desc_next_impl(
+        primitive_desc_iface_t *primitive_desc_iface) {
+    if (!primitive_desc_iface) return invalid_arguments;
+    return primitive_desc_iface->next_impl();
 }

@@ -189,7 +189,7 @@ private:
 
     // List of functions/classes that have permissions to create primitive
     // descriptors.
-    friend struct ::dnnl_primitive_desc_iterator;
+    friend struct primitive_desc_iterator_t;
     friend status_t concat_primitive_desc_create(
             std::shared_ptr<primitive_desc_t> &, engine_t *,
             const memory_desc_t *, int, int, const memory_desc_t *,

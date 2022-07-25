@@ -270,8 +270,8 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                 if (status == status::success)
                     reduction_attr.set_gpu_attr(
                             gpu_primitive_attr_t(threads_per_eu));
-                dnnl_primitive_desc_iterator it(engine,
-                        (op_desc_t *)&reduction_d, &reduction_attr, nullptr);
+                primitive_desc_iterator_t it(engine, (op_desc_t *)&reduction_d,
+                        &reduction_attr, nullptr);
                 if (!it.is_initialized()) return status::out_of_memory;
                 reduction_pd_ = *(++it);
                 if (!reduction_pd_) return status::unimplemented;

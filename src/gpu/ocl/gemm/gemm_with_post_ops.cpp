@@ -45,7 +45,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             = impl_list_item_t::find<ocl::gemm_with_post_ops_t::pd_t>(
                     impl_list);
 
-    dnnl_primitive_desc_iterator it_gemm_with_po(engine, op_desc(),
+    primitive_desc_iterator_t it_gemm_with_po(engine, op_desc(),
             attributes_with_po, nullptr,
             current_impl_idx /* skip implementation */);
     if (!it_gemm_with_po.is_initialized()) return status::invalid_arguments;
@@ -62,7 +62,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     primitive_attr_t attributes_without_po;
     attributes_without_po.zero_points_ = attributes_with_po->zero_points_;
 
-    dnnl_primitive_desc_iterator it_gemm_without_po(engine,
+    primitive_desc_iterator_t it_gemm_without_po(engine,
             reinterpret_cast<const op_desc_t *>(&gemm_desc),
             &attributes_without_po, nullptr,
             current_impl_idx /* skip implementation */);

@@ -132,7 +132,7 @@ struct cudnn_deconvolution_fwd_t : public primitive_t {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr = *attr();
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
@@ -261,7 +261,7 @@ struct cudnn_deconvolution_bwd_data_t : public primitive_t {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr = *attr();
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
@@ -361,7 +361,7 @@ struct cudnn_deconvolution_bwd_weights_t : public primitive_t {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr = *attr();
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;

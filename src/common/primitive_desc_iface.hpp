@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "cache_blob.hpp"
+#include "primitive_desc_iterator.hpp"
 
 // dnnl_primitive_desc is a user facing entity that has an alias
 // primitive_desc_iface_t for internal use.
@@ -33,8 +34,15 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     dnnl_primitive_desc(const std::shared_ptr<dnnl::impl::primitive_desc_t> &pd,
             dnnl::impl::engine_t *engine);
 
+    dnnl_primitive_desc(dnnl::impl::engine_t *engine,
+            const dnnl::impl::op_desc_t *op_desc,
+            const dnnl::impl::primitive_attr_t *attr,
+            const dnnl::impl::primitive_desc_t *hint_fwd_pd);
+
     virtual ~dnnl_primitive_desc() = default;
 
+    dnnl::impl::status_t init();
+    dnnl::impl::status_t next_impl();
     const char *info() const;
     dnnl::impl::engine_t *engine() const;
     const dnnl::impl::primitive_attr_t *attr() const;
@@ -53,6 +61,10 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     const std::shared_ptr<dnnl::impl::primitive_desc_t> &impl() const;
 
 protected:
+    std::unique_ptr<dnnl::impl::primitive_desc_iterator_t> pd_iterator_;
+    // TODO: Extend iterator to support concat, sum and reorder primitives.
+    // Until it's done we need to have primitive descriptor (`pd_`) and
+    // engine (engine_) here.
     std::shared_ptr<dnnl::impl::primitive_desc_t> pd_;
     dnnl::impl::engine_t *engine_;
 };

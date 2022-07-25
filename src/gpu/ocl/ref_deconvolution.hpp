@@ -103,7 +103,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
             if (!conv_attr.is_initialized()) return status::out_of_memory;
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             conv_pd_ = *(++it);
@@ -244,7 +244,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
             if (!conv_attr.is_initialized()) return status::out_of_memory;
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             conv_pd_ = *(++it);
@@ -336,7 +336,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
             if (!conv_attr.is_initialized()) return status::out_of_memory;
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             conv_pd_ = *(++it);

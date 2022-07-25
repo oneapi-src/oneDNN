@@ -334,13 +334,6 @@ struct dnnl_api_traits<dnnl_primitive_desc_t> {
 };
 
 template <>
-struct dnnl_api_traits<dnnl_primitive_desc_iterator_t> {
-    static void destroy(dnnl_primitive_desc_iterator_t t) {
-        DNN_SAFE_V(dnnl_primitive_desc_iterator_destroy(t));
-    }
-};
-
-template <>
 struct dnnl_api_traits<dnnl_primitive_attr_t> {
     static void destroy(dnnl_primitive_attr_t t) {
         DNN_SAFE_V(dnnl_primitive_attr_destroy(t));
@@ -395,7 +388,7 @@ struct init_pd_args_t {
     init_pd_args_t(res_t *res, dnnl_engine_t engine, const prb_t *prb,
             dir_t dir, const_dnnl_primitive_desc_t hint)
         : pd(nullptr)
-        , pd_it(nullptr)
+        , is_iterator_supported(true)
         , res(res)
         , engine(engine)
         , prb(prb)
@@ -404,7 +397,8 @@ struct init_pd_args_t {
 
     // Output members
     dnnl_primitive_desc_t pd;
-    dnnl_primitive_desc_iterator_t pd_it;
+
+    bool is_iterator_supported;
 
     // Input members
     res_t *res;
@@ -476,16 +470,12 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
 //     values.
 template <typename prb_t>
 int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
-        benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> &pd_itw,
         init_pd_args_t<prb_t> &init_pd_args, res_t *res, bool is_service_prim) {
-    if (!init_pd_args.pd && !init_pd_args.pd_it) return FAIL;
+    if (!init_pd_args.pd) return FAIL;
 
-    // Wrappers expected to come empty.
+    // Wrapper is expected to come empty.
     assert(!pdw);
-    assert(!pd_itw);
 
-    pd_itw.reset(init_pd_args.pd_it);
-    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
     pdw.reset(init_pd_args.pd);
 
     // Service primitive is not supposed to utilize further logic.
@@ -499,21 +489,21 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
         BENCHDNN_PRINT(6, "Implementation skipped: %s\n", impl_name.c_str());
 
         // Iterator is not supported, further logic is not applicable.
-        if (!pd_itw) {
+        if (!init_pd_args.is_iterator_supported) {
             res->state = SKIPPED;
             res->reason = SKIP_IMPL_HIT;
             return OK;
         }
 
-        auto status = dnnl_primitive_desc_iterator_next(pd_itw);
-        if (status == dnnl_iterator_ends) {
+        auto status = dnnl_primitive_desc_next_impl(pdw);
+        if (status == dnnl_last_impl_reached) {
             BENCHDNN_PRINT(2, "%s\n", "All implementations were skipped!");
             res->state = SKIPPED;
             res->reason = SKIP_IMPL_HIT;
             pdw.reset(nullptr);
             return OK;
         } else if (status == dnnl_success) {
-            pdw.reset(dnnl_primitive_desc_iterator_fetch(pd_itw));
+            return OK;
         } else {
             BENCHDNN_PRINT(0, "%s\n", "Unexpected status from pd iterator.");
             return FAIL;
@@ -534,8 +524,8 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
         bool is_service_prim) {
     dnnl_status_t status = dnnl_success;
     dnnl_primitive_t prim {};
+
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
 
     init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
     status = init_pd_func(init_pd_args);
@@ -544,7 +534,7 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
     if (res->state == SKIPPED) return OK;
 
     // Fetch also checks if user requested to skip certain implementations.
-    SAFE(fetch_impl(pdw, pd_itw, init_pd_args, res, is_service_prim), WARN);
+    SAFE(fetch_impl(pdw, init_pd_args, res, is_service_prim), WARN);
     if (res->state == SKIPPED) return OK;
 
     DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN);

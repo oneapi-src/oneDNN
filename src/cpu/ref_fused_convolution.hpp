@@ -182,8 +182,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             auto &e = attr_1x1.post_ops_.entry_;
             e.erase(e.begin() + po_op_iter, e.end());
 
-            dnnl_primitive_desc_iterator it(
-                    engine, op_desc(), &attr_1x1, nullptr);
+            primitive_desc_iterator_t it(engine, op_desc(), &attr_1x1, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             std::shared_ptr<primitive_desc_t> root_pd = *(++it);
             if (!root_pd) return status::unimplemented;
@@ -243,7 +242,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 primitive_attr_t attr_dw;
                 CHECK(get_depthwise_conv_desc(cd_dw, *(conv_pd->dst_md()),
                         root_attr, attr_dw, po_op_iter));
-                dnnl_primitive_desc_iterator it(
+                primitive_desc_iterator_t it(
                         engine, (op_desc_t *)&cd_dw, &attr_dw, nullptr);
                 if (!it.is_initialized()) return status::out_of_memory;
 

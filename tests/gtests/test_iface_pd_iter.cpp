@@ -47,22 +47,61 @@ TEST_F(pd_iter_test_t, TestReLUImpls) {
                       dnnl_eltwise_relu, &dense_md, 0., 0.),
             ok);
 
-    dnnl_primitive_desc_iterator_t it;
-    dnnl_status_t rc = dnnl_primitive_desc_iterator_create(
-            &it, &ed, nullptr, engine, nullptr);
+    dnnl_primitive_desc_t pd;
+    dnnl_status_t rc
+            = dnnl_primitive_desc_create(&pd, &ed, nullptr, engine, nullptr);
     ASSERT_EQ(rc, ok); /* there should be at least one impl */
 
-    dnnl_primitive_desc_t pd;
-    ASSERT_NE(pd = dnnl_primitive_desc_iterator_fetch(it), nullptr);
-    dnnl_primitive_desc_destroy(pd);
+    while ((rc = dnnl_primitive_desc_next_impl(pd)) == ok)
+        ;
+    ASSERT_EQ(rc, dnnl_last_impl_reached);
 
-    while ((rc = dnnl_primitive_desc_iterator_next(it)) == ok) {
-        ASSERT_NE(pd = dnnl_primitive_desc_iterator_fetch(it), nullptr);
-        dnnl_primitive_desc_destroy(pd);
-    }
+    // Primitive descriptor has to be valid when the iterator
+    // reaches the end.
+    dnnl_primitive_t p;
+    rc = dnnl_primitive_create(&p, pd);
+    ASSERT_EQ(rc, ok);
 
-    ASSERT_EQ(rc, dnnl_iterator_ends);
-    dnnl_primitive_desc_iterator_destroy(it);
+    rc = dnnl_primitive_desc_destroy(pd);
+    ASSERT_EQ(rc, ok);
+    rc = dnnl_primitive_destroy(p);
+    ASSERT_EQ(rc, ok);
+}
+
+TEST_F(pd_iter_test_t, UnsupportedPrimitives) {
+    const float scales[2] = {1.0f, 1.0f};
+    dnnl_memory_desc_t mds[2];
+
+    dnnl_dims_t dims = {1, 16, 16, 16};
+    ASSERT_EQ(
+            dnnl_memory_desc_init_by_tag(&mds[0], 4, dims, dnnl_f32, dnnl_nchw),
+            ok);
+    ASSERT_EQ(
+            dnnl_memory_desc_init_by_tag(&mds[1], 4, dims, dnnl_f32, dnnl_nchw),
+            ok);
+
+    dnnl_primitive_desc_t reorder_pd;
+    dnnl_primitive_desc_t concat_pd;
+    dnnl_primitive_desc_t sum_pd;
+
+    ASSERT_EQ(dnnl_reorder_primitive_desc_create(
+                      &reorder_pd, &mds[0], engine, &mds[1], engine, nullptr),
+            ok);
+    ASSERT_EQ(dnnl_concat_primitive_desc_create(
+                      &concat_pd, nullptr, 2, 0, mds, nullptr, engine),
+            ok);
+    ASSERT_EQ(dnnl_sum_primitive_desc_create(
+                      &sum_pd, &mds[0], 2, scales, mds, nullptr, engine),
+            ok);
+
+    ASSERT_EQ(
+            dnnl_primitive_desc_next_impl(reorder_pd), dnnl_last_impl_reached);
+    ASSERT_EQ(dnnl_primitive_desc_next_impl(concat_pd), dnnl_last_impl_reached);
+    ASSERT_EQ(dnnl_primitive_desc_next_impl(sum_pd), dnnl_last_impl_reached);
+
+    ASSERT_EQ(dnnl_primitive_desc_destroy(reorder_pd), ok);
+    ASSERT_EQ(dnnl_primitive_desc_destroy(concat_pd), ok);
+    ASSERT_EQ(dnnl_primitive_desc_destroy(sum_pd), ok);
 }
 
 TEST(pd_next_impl, TestEltwiseImpl) {

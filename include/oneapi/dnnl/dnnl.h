@@ -37,56 +37,19 @@ extern "C" {
 /// @addtogroup dnnl_api_primitives_common
 /// @{
 
-/// Creates a primitive descriptor iterator.
-///
-/// @param iterator Output primitive descriptor iterator.
-/// @param op_desc Operation descriptor.
-/// @param attr Primitive attributes (can be NULL).
-/// @param engine Engine to use.
-/// @param hint_forward_primitive_desc For backward propagation: primitive
-///     descriptor for a respective forward propagation primitive. Pass NULL
-///     for forward propagation.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_desc_iterator_create(
-        dnnl_primitive_desc_iterator_t *iterator, const_dnnl_op_desc_t op_desc,
-        const_dnnl_primitive_attr_t attr, dnnl_engine_t engine,
-        const_dnnl_primitive_desc_t hint_forward_primitive_desc);
-
-/// Advances the primitive descriptor iterator to point to the next available
+/// Changes the primitive descriptor to point to the next available
 /// implementation.
 ///
-/// @param iterator A primitive descriptor iterator to advance.
+/// @param primitive_desc A primitive descriptor to change.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-/// @returns #dnnl_iterator_ends if no more implementations available.
-dnnl_status_t DNNL_API dnnl_primitive_desc_iterator_next(
-        dnnl_primitive_desc_iterator_t iterator);
+/// @returns #dnnl_last_impl_reached if no more implementations available,
+/// in which case the primitive descriptor itself is kept unchanged.
+dnnl_status_t DNNL_API dnnl_primitive_desc_next_impl(
+        dnnl_primitive_desc_t primitive_desc);
 
-/// Fetches the current primitive descriptor from a primitive descriptor
-/// iterator.
-///
-/// @note
-///     The user is responsible for deleting the resulting primitive
-///     descriptor using dnnl_primitive_desc_destroy().
-///
-/// @param iterator A primitive descriptor iterator.
-/// @returns A primitive descriptor.
-dnnl_primitive_desc_t DNNL_API dnnl_primitive_desc_iterator_fetch(
-        const_dnnl_primitive_desc_iterator_t iterator);
-
-/// Destroys a primitive descriptor iterator.
-///
-/// @param iterator Primitive descriptor iterator to destroy.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_desc_iterator_destroy(
-        dnnl_primitive_desc_iterator_t iterator);
-
-/// Creates a primitive descriptor. This function is equivalent to a sequence
-/// of #dnnl_primitive_desc_iterator_create() and
-/// #dnnl_primitive_desc_iterator_fetch(). In other words, the library will
-/// pick the first suitable implementation.
+/// Creates a primitive descriptor that points to the first available
+/// implementation.
 ///
 /// @param primitive_desc Output primitive descriptor.
 /// @param op_desc Operation descriptor.

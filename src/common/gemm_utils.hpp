@@ -133,7 +133,7 @@ static inline status_t create_gemm_pd(
 
     primitive_attr_t gemm_attr = *attr;
 
-    dnnl_primitive_desc_iterator it(
+    primitive_desc_iterator_t it(
             engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
 
     gemm_pd_ = *(++it);

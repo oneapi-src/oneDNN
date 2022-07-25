@@ -71,7 +71,7 @@ public:
         std::call_once(zero_pad_init_, [&]() -> void {
             zero_pad_desc_t desc;
             desc.primitive_kind = primitive_kind::zero_pad;
-            dnnl_primitive_desc_iterator it(
+            primitive_desc_iterator_t it(
                     this, (op_desc_t *)&desc, nullptr, nullptr);
             std::shared_ptr<primitive_desc_t> zero_pad_pd(*(++it));
             if (zero_pad_pd == nullptr) return;

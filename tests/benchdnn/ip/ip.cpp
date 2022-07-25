@@ -80,8 +80,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &ipd,
-            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
+    return dnnl_primitive_desc_create(&init_pd_args.pd, &ipd, dnnl_attr,
+            init_pd_args.engine, init_pd_args.hint);
 }
 
 int init_prim_ref(
@@ -101,8 +101,7 @@ int init_prim_ref(
     init_pd(init_pd_args);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
-    fetch_impl(pdw, pd_itw, init_pd_args, /* res = */ nullptr,
+    fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
             /* is_service_prim = */ true);
 
     dnnl_primitive_t prim_ref_ {};

@@ -620,7 +620,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
         primitive_attr_t attr;
         attr.post_ops_.append_sum(beta);
-        dnnl_primitive_desc_iterator it(
+        primitive_desc_iterator_t it(
                 engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
         if (!it.is_initialized()) return status::out_of_memory;
 

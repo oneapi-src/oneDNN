@@ -242,12 +242,6 @@ struct handle_traits<dnnl_primitive_t> {
     }
 };
 
-template <>
-struct handle_traits<dnnl_primitive_desc_iterator_t> {
-    static dnnl_status_t destructor(dnnl_primitive_desc_iterator_t p) {
-        return dnnl_primitive_desc_iterator_destroy(p);
-    }
-};
 /// @endcond
 
 /// @} dnnl_api_utils
@@ -4640,43 +4634,28 @@ struct primitive_desc : public primitive_desc_base {
     ///     false.
     primitive_desc(const_dnnl_op_desc_t desc, const primitive_attr *attr,
             const engine &aengine, const_dnnl_primitive_desc_t hint_fwd_pd,
-            bool allow_empty = false)
-        : allow_empty_(allow_empty) {
-        dnnl_primitive_desc_iterator_t iterator = nullptr;
-        dnnl_status_t status = dnnl_primitive_desc_iterator_create(&iterator,
-                desc, attr ? attr->get() : nullptr, aengine.get(), hint_fwd_pd);
+            bool allow_empty = false) {
+
+        dnnl_primitive_desc_t pd = nullptr;
+        dnnl_status_t status = dnnl_primitive_desc_create(&pd, desc,
+                attr ? attr->get() : nullptr, aengine.get(), hint_fwd_pd);
         if (!allow_empty)
             error::wrap_c_api(
                     status, "could not create a primitive descriptor");
-        pd_iterator.reset(iterator);
-        fetch_impl();
-    }
-
-    /// Advances the primitive iterator to the next implementation.
-    ///
-    /// @returns @c true on success, and @c false if the last implementation
-    ///     reached, and the primitive descriptor itself is kept unchanged
-    bool next_impl() {
-        dnnl_status_t status
-                = dnnl_primitive_desc_iterator_next(pd_iterator.get());
-        if (status == dnnl_iterator_ends) return false;
-        error::wrap_c_api(
-                status, "could not advance a primitive descriptor iterator");
-        fetch_impl();
-        return true;
-    }
-
-private:
-    bool allow_empty_ = false;
-    handle<dnnl_primitive_desc_iterator_t> pd_iterator;
-    void fetch_impl() {
-        dnnl_primitive_desc_t pd = dnnl_primitive_desc_iterator_fetch(
-                pd_iterator.get(allow_empty_));
-        error::wrap_c_api(pd != nullptr || allow_empty_ ? dnnl_success
-                                                        : dnnl_out_of_memory,
-                "could not fetch a primitive descriptor from a primitive "
-                "descriptor iterator");
         reset(pd);
+    }
+
+    /// Changes the primitive descriptor to point to the next available
+    /// implementation.
+    ///
+    /// @returns @c true on success and @c false if the last available
+    /// implementation has already been reached. In the latter case, the
+    /// primitive descriptor itself is kept unchanged.
+    bool next_impl() {
+        dnnl_status_t status = dnnl_primitive_desc_next_impl(get());
+        if (status == dnnl_last_impl_reached) return false;
+        error::wrap_c_api(status, "last available implementation is reached");
+        return true;
     }
 };
 
@@ -12987,8 +12966,8 @@ enum class status {
     invalid_arguments = dnnl_invalid_arguments,
     /// @copydoc dnnl_unimplemented
     unimplemented = dnnl_unimplemented,
-    /// @copydoc dnnl_iterator_ends
-    iterator_ends = dnnl_iterator_ends,
+    /// @copydoc dnnl_last_impl_reached
+    last_impl_reached = dnnl_last_impl_reached,
     /// @copydoc dnnl_runtime_error
     runtime_error = dnnl_runtime_error,
     /// @copydoc dnnl_not_required
