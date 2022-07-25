@@ -110,7 +110,24 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                 // post-sum
                 float scale = pop->get_scale();
                 int32_t zp = pop->get_zp();
-                dnnl_pops.append_sum(scale, zp);
+                dnnl::memory::data_type sum_dt = dnnl::memory::data_type::undef;
+                if (op->get_kind() == op_kind::dnnl_convolution) {
+                    const bool with_bias = op->has_attr(op_attr::with_bias)
+                            ? op->get_attr<bool>(op_attr::with_bias)
+                            : false;
+                    const int psrc_idx = with_bias ? 3 : 2;
+                    const auto psrc_dt = op->get_input_value(psrc_idx)
+                                                 ->get_logical_tensor()
+                                                 .data_type;
+                    const auto dst_dt = op->get_output_value(0)
+                                                ->get_logical_tensor()
+                                                .data_type;
+                    if (psrc_dt == impl::data_type::s8
+                            && dst_dt == impl::data_type::u8) {
+                        sum_dt = dnnl::memory::data_type::s8;
+                    }
+                }
+                dnnl_pops.append_sum(scale, zp, sum_dt);
             } else {
                 // post-binary
                 assertm(extra_inputs.size() == 1,
