@@ -113,8 +113,8 @@ private:
             brgemm_batch_element_t *const __restrict brg_batch,
             char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
             int od, int oh, int ow, int icc, int *last_brg_idx,
-            int32_t src_zp_vals, int32_t *src_zp_comp, int32_t *dst_zp_vals,
-            int32_t *s8s8_compensation) const;
+            const float *oscales, int32_t src_zp_vals, int32_t *src_zp_comp,
+            int32_t *dst_zp_vals, int32_t *s8s8_compensation) const;
     status_t execute_forward_all(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
