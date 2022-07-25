@@ -24,6 +24,7 @@
 #include "utils/parser.hpp"
 
 #include "deconv/deconv.hpp"
+#include "deconv/graph_deconv.hpp"
 
 namespace deconv {
 
@@ -54,8 +55,10 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        deconv::doit(&prb, &res);
-
+        if (api_mode == GRAPH)
+            benchdnnext::deconv::doit(&prb, &res);
+        else
+            doit(&prb, &res);
         parse_result(res, pstr);
 
         if (is_bench_mode(PERF)) {

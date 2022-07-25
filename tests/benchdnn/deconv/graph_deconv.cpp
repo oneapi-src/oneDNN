@@ -215,6 +215,7 @@ fill_status_t append_graph_with_block(const ::deconv::prb_t *prb) {
 
     if (prb->dir & FLAG_FWD) {
         src_ids = {src_id, wei_id};
+        dst_ids = {dst_id};
         deconv_kind = dnnl::graph::op::kind::ConvTranspose;
     } else if (prb->dir == BWD_D) {
         src_ids = {dst_id, wei_id};
