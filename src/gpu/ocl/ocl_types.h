@@ -444,6 +444,8 @@
 #define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA_T
 #define CONVERT_VECT_FLOAT_T CONVERT_FLOAT_T
 #define CONVERT_VECTOR_DATA_T CONVERT_DATA_T
+#define CONVERT_VECT_CHAR_T convert_char
+#define CONVERT_VECT_INT_T convert_int
 #define VECT_INT_T int
 #define VECT_UINT_T uint
 #define VECT_FLOAT_T float
@@ -452,6 +454,7 @@
 #define AS_VECT_UINT_T as_uint
 #define AS_VECT_FLOAT_T as_float
 #define AS_VECT_CHAR_T as_char
+#define AS_VECT_UCHAR_T as_uchar
 #elif VECT_DT_N == 2
 #define VECT_DATA_T DATA2_T
 #define VECT_DEF_ACC_DATA_T DEF_ACC_DATA2_T
@@ -466,6 +469,8 @@
 #define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA2_T
 #define CONVERT_VECT_FLOAT_T CONVERT_FLOAT2_T
 #define CONVERT_VECTOR_DATA_T CONVERT_DATA2_T
+#define CONVERT_VECT_CHAR_T convert_char2
+#define CONVERT_VECT_INT_T convert_int2
 #define VECT_INT_T int2
 #define VECT_UINT_T uint2
 #define VECT_FLOAT_T float2
@@ -474,6 +479,7 @@
 #define AS_VECT_UINT_T as_uint2
 #define AS_VECT_FLOAT_T as_float2
 #define AS_VECT_CHAR_T as_char2
+#define AS_VECT_UCHAR_T as_uchar2
 #elif VECT_DT_N == 4
 #define VECT_DATA_T DATA4_T
 #define VECT_DEF_ACC_DATA_T DEF_ACC_DATA4_T
@@ -488,6 +494,8 @@
 #define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA4_T
 #define CONVERT_VECT_FLOAT_T CONVERT_FLOAT4_T
 #define CONVERT_VECTOR_DATA_T CONVERT_DATA4_T
+#define CONVERT_VECT_CHAR_T convert_char4
+#define CONVERT_VECT_INT_T convert_int4
 #define VECT_INT_T int4
 #define VECT_UINT_T uint4
 #define VECT_FLOAT_T float4
@@ -496,6 +504,7 @@
 #define AS_VECT_UINT_T as_uint4
 #define AS_VECT_FLOAT_T as_float4
 #define AS_VECT_CHAR_T as_char4
+#define AS_VECT_UCHAR_T as_uchar4
 #elif VECT_DT_N == 8
 #define VECT_DATA_T DATA8_T
 #define VECT_DEF_ACC_DATA_T DEF_ACC_DATA8_T
@@ -510,6 +519,8 @@
 #define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA8_T
 #define CONVERT_VECT_FLOAT_T CONVERT_FLOAT8_T
 #define CONVERT_VECTOR_DATA_T CONVERT_DATA8_T
+#define CONVERT_VECT_CHAR_T convert_char8
+#define CONVERT_VECT_INT_T convert_int8
 #define VECT_INT_T int8
 #define VECT_UINT_T uint8
 #define VECT_FLOAT_T float8
@@ -518,6 +529,7 @@
 #define AS_VECT_UINT_T as_uint8
 #define AS_VECT_FLOAT_T as_float8
 #define AS_VECT_CHAR_T as_char8
+#define AS_VECT_UCHAR_T as_uchar8
 #endif
 
 #define AS_MMAD_DATA_T CONCAT2(as_, MMAD_DATA_T)
