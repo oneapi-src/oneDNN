@@ -63,9 +63,11 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
             || utils::array_product(padded_dst_dims + 2, conf.ndims - 2)
                     != conf.od * conf.oh * conf.ow)
         return status::unimplemented;
-
-    // heuristics: for small shapes, gen9_pooling_fwd provides better perf.
     if (!conf.is_backward) {
+        // gen9_global_pooling_fwd doesn't support zero padding.
+        if (conf.mb != conf.mb_padded || conf.c != conf.c_padded)
+            return status::unimplemented;
+        // heuristics: for small shapes, gen9_pooling_fwd provides better perf.
         if (conf.kd * conf.kh * conf.kw < 128) return status::unimplemented;
     }
 
