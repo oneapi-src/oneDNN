@@ -40,33 +40,40 @@ int get_nhwc_vect_size(int ic, int simd = 16) {
 int get_nhwc_sp_block_size(
         int sp, int ic_dim, int eu_count, int threads_per_eu, int simd = 16) {
 
-    float efficiency_eus = 0.0f;
-    float efficiency_threads = 0.0f;
-    int block_size_eus = sp;
-    int block_size_threads = sp;
+    float efficiency_thr = 0.0f;
+    float efficiency_peak_eu_thr = 0.0f;
+    int block_size_thr = 1;
+    int block_size_peak_eu_thr = 1;
     int curr_block_size = sp;
+    int nthr_mul = 1;
+    const int ic_nsg = ic_dim / simd; // number of subgroups by ic dim
 
-    while (true) {
-        int nblocks = utils::div_up(sp, curr_block_size);
-        int nthr = nblocks * (ic_dim / simd);
+    // The search is based on threads wave efficiency.
+    // Higher priority for cases with peak EUs utilization.
+    while (nthr_mul <= 32) {
+        const int nthr = nthr_mul * eu_count;
+        curr_block_size = utils::div_up(sp * ic_nsg, nthr);
+        const int nblock = utils::div_up(sp, curr_block_size);
+        const int nthr_gen = nblock * ic_nsg;
 
-        float curr_efficiency_eus = (float)nthr / utils::rnd_up(nthr, eu_count);
-        float curr_efficiency_threads
-                = (float)nthr / utils::rnd_up(nthr, eu_count * threads_per_eu);
+        const float curr_efficiency_eus
+                = (float)nthr_gen / utils::rnd_up(nthr_gen, eu_count);
+        const float curr_efficiency_thr = (float)nthr_gen
+                / utils::rnd_up(nthr_gen, eu_count * threads_per_eu);
 
-        if (curr_efficiency_threads > efficiency_threads) {
-            efficiency_threads = curr_efficiency_threads;
-            block_size_threads = curr_block_size;
+        if (curr_efficiency_thr > efficiency_thr) {
+            efficiency_thr = curr_efficiency_thr;
+            block_size_thr = curr_block_size;
         }
-        if (curr_efficiency_eus >= efficiency_eus) {
-            efficiency_eus = curr_efficiency_eus;
-            block_size_eus = curr_block_size;
+        if (curr_efficiency_eus == 1
+                && curr_efficiency_thr > efficiency_peak_eu_thr) {
+            efficiency_peak_eu_thr = curr_efficiency_thr;
+            block_size_peak_eu_thr = curr_block_size;
         }
-        if (nthr >= eu_count * threads_per_eu && efficiency_eus == 1)
-            return block_size_eus;
-        if (curr_block_size == 1) return block_size_threads;
-        curr_block_size--;
+        nthr_mul++;
     }
+    if (efficiency_peak_eu_thr > 0.0f) return block_size_peak_eu_thr;
+    return block_size_thr;
 }
 
 int get_block_size(bool is_backward, int hw_threads, int nn, int ic,
