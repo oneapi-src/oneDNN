@@ -17,6 +17,8 @@
 #include "common/memory_tracking.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brdgmm_dw_conv.hpp"
 #include <cpu/x64/cpu_isa_traits.hpp>
@@ -87,7 +89,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
                             : (is_int8 ? avx512_core_vnni : avx512_core_bf16);
 
     auto skip_mask = skip_mask_t::post_ops;
-    if (is_int8) skip_mask |= skip_mask_t::oscale;
+    if (is_int8) skip_mask |= skip_mask_t::oscale_runtime;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
             && one_of(true, is_f32, is_int8, is_bf16) && mayiuse(isa)
@@ -330,7 +332,6 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     const char *const __restrict bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     char *const __restrict dst = CTX_OUT_MEM(const char *, DNNL_ARG_DST);
-    const float *oscales = pd()->attr()->output_scales_.scales_;
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     brgemm_batch_element_t *const __restrict brg_batch_global
             = scratchpad.template get<brgemm_batch_element_t>(
@@ -338,6 +339,8 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     const std::vector<const void *> post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(
                     pd()->attr()->post_ops_, ctx);
+
+    DEFINE_SCALES_BUFFER(oscales);
 
     const auto &jcp = pd()->jcp_;
     const int chb_step = jcp.nb_ch_blocking;
