@@ -5789,6 +5789,7 @@ private:
 
                 const auto blk
                         = (size_ > m_blk) ? std::min(m_blk * 2, 16) : m_blk;
+                blk_ = blk;
                 for (int n = 0; n < size_; n += blk) {
                     std::vector<expr_t> e(blk);
                     int ntrue = 0, nfalse = 0;
@@ -5862,7 +5863,9 @@ private:
 
         expr_t word2bool(int off) const {
             auto type = (is_bool()) ? type_t::u16() : type_t::s16();
-            auto m_off = (off / 2) * w_stride() + (off & 1) * 8 * type.size();
+            auto m_off = (off / blk_) * blk_ * type.size()
+                    + ((off % blk_) / 2) * w_stride()
+                    + (off & 1) * 8 * type.size();
             auto load = load_t::make(type, zp_mask_, m_off);
             return (is_bool()) ? cast_t::make(type_t::_bool(16), load) : load;
         }
@@ -5951,6 +5954,7 @@ private:
         bool is_simd_;
         bool is_scalar_;
         int size_;
+        int blk_;
         expr_t ic_start_;
         expr_t var_mask_;
         expr_t zp_mask_;
