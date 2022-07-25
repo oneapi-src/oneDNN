@@ -527,6 +527,17 @@ public:
         }
     }
 
+    void uni_vpbroadcastb(const Xbyak::Ymm &x, const Xbyak::Reg8 &r) {
+        if (is_valid_isa(avx512_core))
+            vpbroadcastb(x, r); // broadcast reg32 directly
+        else if (is_valid_isa(avx2)) {
+            const Xbyak::Xmm t(x.getIdx());
+            uni_vmovd(t, r.cvt32());
+            vpbroadcastb(x, t);
+        }
+        assert(is_valid_isa(avx2) && "avx does not support vpbroadcastb");
+    }
+
     void uni_vpbroadcastd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         if (is_valid_isa(avx2))
             vpbroadcastd(x, op);
@@ -539,6 +550,15 @@ public:
         } else {
             movss(x, op);
             pshufd(x, x, 0x0);
+        }
+    }
+    void uni_vpbroadcastd(const Xbyak::Ymm &x, const Xbyak::Reg32 &r) {
+        if (is_valid_isa(avx512_core))
+            vpbroadcastd(x, r); // broadcast reg32 directly
+        else {
+            const Xbyak::Xmm t(x.getIdx());
+            uni_vmovd(t, r);
+            uni_vpbroadcastd(x, t);
         }
     }
     void uni_vpbroadcastd(const Xbyak::Ymm &x, const Xbyak::Operand &op) {

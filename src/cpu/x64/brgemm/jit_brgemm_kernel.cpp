@@ -596,22 +596,22 @@ void jit_brgemm_kernel_t<isa, Wmm>::cvt2ps(data_type_t type_in,
     } else {
         uni_vpxor(vmm_in, vmm_in, vmm_in);
         load_data_skip_zmm(this, type_in, vmm_in, op.getAddress(), tail_size);
-        if (types::is_integral_dt(type_in)) vcvtdq2ps(vmm_in, vmm_in);
+        if (types::is_integral_dt(type_in)) uni_vcvtdq2ps(vmm_in, vmm_in);
         return;
     }
     switch (type_in) {
         case data_type::f32:
-        case data_type::s32: vmovups(vmm, op); break;
+        case data_type::s32: uni_vmovups(vmm, op); break;
         case data_type::bf16:
-            vpmovzxwd(vmm, op);
-            vpslld(vmm, vmm, 16);
+            uni_vpmovzxwd(vmm, op);
+            uni_vpslld(vmm, vmm, 16);
             break;
         case data_type::f16: vcvtph2ps(vmm, op); break;
-        case data_type::s8: vpmovsxbd(vmm, op); break;
-        case data_type::u8: vpmovzxbd(vmm, op); break;
+        case data_type::s8: uni_vpmovsxbd(vmm, op); break;
+        case data_type::u8: uni_vpmovzxbd(vmm, op); break;
         default: assert(!"unsupported data type");
     }
-    if (types::is_integral_dt(type_in)) vcvtdq2ps(vmm_in, vmm_in);
+    if (types::is_integral_dt(type_in)) uni_vcvtdq2ps(vmm_in, vmm_in);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -994,19 +994,19 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_alpha_beta(
     if (apply_beta && !use_vadd_for_beta) {
         mov(reg_tmp_gpr, float2int(static_cast<float>(brg.beta)));
         movq(Xmm(vmm_beta.getIdx()), reg_tmp_gpr);
-        vbroadcastss(vmm_beta, Xmm(vmm_beta.getIdx()));
+        uni_vbroadcastss(vmm_beta, Xmm(vmm_beta.getIdx()));
     }
     if (apply_alpha) {
         mov(reg_tmp_gpr, float2int(static_cast<float>(brg.alpha)));
         movq(Xmm(vmm_alpha.getIdx()), reg_tmp_gpr);
-        vbroadcastss(vmm_alpha, Xmm(vmm_alpha.getIdx()));
+        uni_vbroadcastss(vmm_alpha, Xmm(vmm_alpha.getIdx()));
     }
     for_(int bd = 0; bd < bd_block; bd++)
     for (int ld = 0; ld < ld_block2; ld++) {
         const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
         auto vmm = accm(ld_block2, bd, ld);
-        if (dq2ps_required) vcvtdq2ps(vmm, vmm);
-        if (apply_alpha) vmulps(vmm, vmm, vmm_alpha);
+        if (dq2ps_required) uni_vcvtdq2ps(vmm, vmm);
+        if (apply_alpha) uni_vmulps(vmm, vmm, vmm_alpha);
         if (apply_beta) {
             auto ptr_C = ptr[reg_aux_C + C_offset(bd, ld)];
             if (use_vadd_for_beta) {
@@ -1014,21 +1014,21 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_alpha_beta(
                             is_tail, is_superset(brg.isa_impl, avx512_core))) {
                     auto vmm_masked = vmm_mask(vmm, is_tail, false, k_mask);
                     if (brg.is_int8)
-                        vpaddd(vmm_masked, vmm, ptr_C);
+                        uni_vpaddd(vmm_masked, vmm, ptr_C);
                     else
-                        vaddps(vmm_masked, vmm, ptr_C);
+                        uni_vaddps(vmm_masked, vmm, ptr_C);
                 } else {
                     load_data_skip_zmm(
                             this, brg.dt_c, vmm_prev_dst, ptr_C, ld_size);
                     if (brg.is_int8)
-                        vpaddd(vmm, vmm, vmm_prev_dst);
+                        uni_vpaddd(vmm, vmm, vmm_prev_dst);
                     else
-                        vaddps(vmm, vmm, vmm_prev_dst);
+                        uni_vaddps(vmm, vmm, vmm_prev_dst);
                 }
             } else {
                 cvt2ps(brg.dt_c, vmm_prev_dst, ptr_C, true, false, k_mask,
                         ld_size);
-                vfmadd231ps(vmm, vmm_prev_dst, vmm_beta);
+                uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_beta);
             }
         }
     }
@@ -1080,7 +1080,12 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_post_ops(
             const auto &vmm_sum_zp = vmm_tmp_2();
             if (p_sum_zp_reg_set) {
                 mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
-                vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+                if (is_superset(brg.isa_impl, avx512_core)) {
+                    vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+                } else {
+                    uni_vpbroadcastd(vmm_sum_zp, ptr[reg_ptr_sum_zp]);
+                    uni_vcvtdq2ps(vmm_sum_zp, vmm_sum_zp);
+                }
             }
 
             const auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
@@ -1093,17 +1098,18 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_post_ops(
                     const auto vmm_prev_dst = vmm_tmp_1();
                     cvt2ps(brg.sum_dt, vmm_prev_dst, addr, true, false, k_mask,
                             ld_size);
-                    if (p_sum_zp_reg_set) vsubps(vmm_prev_dst, vmm_sum_zp);
+                    if (p_sum_zp_reg_set)
+                        uni_vsubps(vmm_prev_dst, vmm_prev_dst, vmm_sum_zp);
                     if (!p_sum_scale_reg_set)
-                        vaddps(vmm, vmm_prev_dst);
+                        uni_vaddps(vmm, vmm, vmm_prev_dst);
                     else {
                         if (is_superset(brg.isa_impl, avx512_core)) {
-                            vfmadd231ps(vmm, vmm_prev_dst,
+                            uni_vfmadd231ps(vmm, vmm_prev_dst,
                                     ptr_b[reg_ptr_sum_scale]);
                         } else {
                             auto vmm_tmp = vmm_tmp_2();
                             uni_vpbroadcastd(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                            vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+                            uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
                         }
                     }
                 }
@@ -1138,13 +1144,13 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
     for_(int bd = 0; bd < bd_block; bd++)
     for (int ld = 0; ld < ld_block2; ld++) {
         auto vmm = accm(ld_block2, bd, ld);
-        if (dq2ps_required) vcvtdq2ps(vmm, vmm);
+        if (dq2ps_required) uni_vcvtdq2ps(vmm, vmm);
         if (brg.with_bias) {
             auto vmm_bias = vmm_tmp_1();
             auto ptr_bias = ptr[reg_aux_bias + bias_offset(ld)];
             cvt2ps(brg.dt_bias, vmm_bias, ptr_bias, true, false, k_mask,
                     ld_size);
-            vaddps(vmm, vmm, vmm_bias);
+            uni_vaddps(vmm, vmm, vmm_bias);
         }
     }
 
@@ -1156,12 +1162,12 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
                 auto vmm = accm(ld_block2, bd, ld);
                 if (is_superset(brg.isa_impl, avx512_core)) {
                     const Vmm vmm_masked = vmm_mask(vmm, true, false, k_mask);
-                    vmulps(vmm_masked, vmm, addr);
+                    uni_vmulps(vmm_masked, vmm, addr);
                 } else {
                     auto vmm_scales = vmm_tmp_1();
                     load_data_skip_zmm(
                             this, data_type::f32, vmm_scales, addr, ld_size);
-                    vmulps(vmm, vmm, vmm_scales);
+                    uni_vmulps(vmm, vmm, vmm_scales);
                 }
             }
         }
@@ -1174,8 +1180,13 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
         mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
         auto vmm_zp_c = vmm_tmp_1();
         if (brg.zp_type_c == brgemm_broadcast_t::per_tensor) {
-            vcvtdq2ps(
-                    vmm_zp_c, EVEX_compress_addr(reg_aux_zp_c_values, 0, true));
+            if (is_superset(brg.isa_impl, avx512_core)) {
+                uni_vcvtdq2ps(vmm_zp_c,
+                        EVEX_compress_addr(reg_aux_zp_c_values, 0, true));
+            } else {
+                uni_vpbroadcastd(vmm_zp_c, ptr[reg_aux_zp_c_values]);
+                uni_vcvtdq2ps(vmm_zp_c, vmm_zp_c);
+            }
         }
         for (int ld = 0; ld < ld_block2; ld++) {
             if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
@@ -1187,7 +1198,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
             }
             for (int bd = 0; bd < bd_block; bd++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                vaddps(vmm, vmm, vmm_zp_c);
+                uni_vaddps(vmm, vmm, vmm_zp_c);
             }
         }
     }
@@ -1208,7 +1219,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
                 saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
-                vcvtps2dq(vmm, vmm);
+                uni_vcvtps2dq(vmm, vmm);
             }
         }
         for (int ld = 0; ld < ld_block2; ld++) {
@@ -1222,7 +1233,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
             if (is_superset(brg.isa_impl, avx512_core)) {
                 switch (brg.dt_d) {
                     case data_type::f32:
-                    case data_type::s32: vmovups(addr, r_vmm); break;
+                    case data_type::s32: uni_vmovups(addr, r_vmm); break;
                     case data_type::bf16: // TODO - clean
                         if (brg.is_bf16_emu) {
                             bf16_emu_->vcvtneps2bf16(vmm_lower, vmm);
@@ -1260,7 +1271,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
     if (!brg.req_cal_comp_pads && brg.zp_type_a != brgemm_broadcast_t::none) {
         auto vmm_zp_a_val = vmm_tmp_2();
         mov(reg_zp_a_val, ptr[rsp + reg_zp_a_val_offs_]);
-        vpbroadcastd(vmm_zp_a_val, reg_zp_a_val.cvt32());
+        uni_vpbroadcastd(vmm_zp_a_val, reg_zp_a_val.cvt32());
 
         mov(reg_aux_zp_comp_a, ptr[rsp + reg_aux_zp_comp_a_offs_]);
         for (int ld = 0; ld < ld_block2; ld++) {
@@ -1272,16 +1283,16 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
             if (is_superset(brg.isa_impl, avx512_core)) {
                 auto vmm_zp_comp_a_masked
                         = vmm_mask(vmm_zp_comp_a, true, false, k_mask);
-                vmovups(vmm_zp_comp_a_masked, zp_comp_a_addr);
+                uni_vmovups(vmm_zp_comp_a_masked, zp_comp_a_addr);
             } else {
                 load_data_skip_zmm(this, data_type::s32, vmm_zp_comp_a,
                         zp_comp_a_addr, ld_size);
             }
-            vpmulld(vmm_zp_comp_a, vmm_zp_comp_a, vmm_zp_a_val);
+            uni_vpmulld(vmm_zp_comp_a, vmm_zp_comp_a, vmm_zp_a_val);
 
             for (int bd = 0; bd < bd_block; bd++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                vpaddd(vmm, vmm, vmm_zp_comp_a);
+                uni_vpaddd(vmm, vmm, vmm_zp_comp_a);
             }
         }
     }
@@ -1294,7 +1305,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
                     reg_aux_zp_comp_b, zp_comp_b_off, true);
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                vpaddd(vmm, vmm, zp_comp_b_addr);
+                uni_vpaddd(vmm, vmm, zp_comp_b_addr);
             }
         }
     }
@@ -1309,14 +1320,14 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
                 vmm_comp = vmm_mask(vmm_comp, true, false, k_mask);
-                vmovups(vmm_comp, comp_addr);
+                uni_vmovups(vmm_comp, comp_addr);
             } else {
                 load_data_skip_zmm(
                         this, data_type::s32, vmm_comp, comp_addr, ld_size);
             }
             for (int bd = 0; bd < bd_block; bd++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                vpaddd(vmm, vmm, vmm_comp);
+                uni_vpaddd(vmm, vmm, vmm_comp);
             }
         }
     }
@@ -1345,7 +1356,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_without_post_ops(
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
                 saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
-                vcvtps2dq(vmm, vmm);
+                uni_vcvtps2dq(vmm, vmm);
             }
         }
         for (int ld = 0; ld < ld_block2; ld++) {
@@ -1353,13 +1364,13 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_without_post_ops(
             const auto addr_c = ptr[reg_aux_C + C_offset(bd, ld)];
             if (is_ld_tail) {
                 if (is_superset(brg.isa_impl, avx512_core)) {
-                    vmovups(addr_c | ld_tail_mask | T_z, vmm);
+                    uni_vmovups(addr_c | ld_tail_mask | T_z, vmm);
                 } else {
                     store_data_skip_zmm(this, brg.dt_c, vmm, reg_aux_C,
                             C_offset(bd, ld), brg.ldb_tail);
                 }
             } else
-                vmovups(ptr[reg_aux_C + C_offset(bd, ld)], vmm);
+                uni_vmovups(ptr[reg_aux_C + C_offset(bd, ld)], vmm);
         }
     }
 }
@@ -1404,7 +1415,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                                 auto vreg_acc = is_ld_tail
                                         ? accm(1, bd, 0) | ld_tail_mask | T_z
                                         : accm(1, bd, 0);
-                                vmovups(vreg_acc, ptr[reg_buf + buf_offset]);
+                                uni_vmovups(
+                                        vreg_acc, ptr[reg_buf + buf_offset]);
                             }
                         }
                         if (need_to_apply_alpha_beta)
@@ -1645,7 +1657,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
     MAYBE_UNUSED(bd_block2);
     auto dot_product = [=](Vmm v1, Vmm v2, Vmm v3) {
         if (brg.is_f32 || brg.is_f16)
-            vfmadd231ps(v1, v2, v3);
+            uni_vfmadd231ps(v1, v2, v3);
         else if (brg.is_bf16)
             vdpbf16ps(v1, v2, v3);
         else if (brg.is_int8)
@@ -1675,21 +1687,21 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
 
     auto broadcast = [=](Vmm v1, size_t offset, bool is_tail, data_type_t dt) {
         if (is_tail) {
-            vpxord(v1, v1, v1);
+            uni_vpxor(v1, v1, v1);
             Xmm xmm_tmp = Xmm(v1.getIdx());
             load_bytes(
                     xmm_tmp, reg_aux_A, offset, rd_tail_size * brg.typesize_A);
-            vpbroadcastd(v1, xmm_tmp);
+            uni_vpbroadcastd(v1, xmm_tmp);
         } else {
             if (dt == data_type::f32)
-                vbroadcastss(v1, ptr[reg_aux_A + offset]);
+                uni_vbroadcastss(v1, ptr[reg_aux_A + offset]);
             else if (one_of(dt, data_type::bf16, data_type::s8, data_type::u8))
-                vpbroadcastd(v1, ptr[reg_aux_A + offset]);
+                uni_vpbroadcastd(v1, ptr[reg_aux_A + offset]);
             else if (dt == data_type::f16)
                 vcvtph2psx(v1, ptr_b[reg_aux_A + offset]);
         }
 
-        if (brg.req_s8s8_compensation) vpaddb(v1, v1, vmm_inp_shift());
+        if (brg.req_s8s8_compensation) uni_vpaddb(v1, v1, vmm_inp_shift());
     };
 
     auto compensation_padding
@@ -1699,14 +1711,14 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
          * accum - inp_shift * conv(1, wei_s32) */
                   if (brg.req_s8s8_compensation) {
                       if (brg.req_cal_comp_pads) {
-                          vpxord(vmm_tmp, vmm_tmp, vmm_tmp);
+                          uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
                           dot_product(vmm_tmp, vmm_load, vmm_inp_shift());
                       }
 
                       for (int bd = bd_b; bd < bd_e; bd++) {
                           auto vmm = accm(ld_block2, bd, ld);
                           if (brg.req_cal_comp_pads) {
-                              vpsubd(vmm, vmm, vmm_tmp);
+                              uni_vpsubd(vmm, vmm, vmm_tmp);
                           } else {
                               dot_product(vmm, vmm_load, vmm_inp_shift());
                           }
@@ -1714,16 +1726,16 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                   }
 
                   if (brg.zp_type_a != brgemm_broadcast_t::none) {
-                      vpxord(vmm_tmp, vmm_tmp, vmm_tmp);
+                      uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
                       dot_product(vmm_tmp, vmm_load, vmm_one_bytes());
-                      vpmulld(vmm_tmp, vmm_tmp, vmm_zp_a_shift());
+                      uni_vpmulld(vmm_tmp, vmm_tmp, vmm_zp_a_shift());
 
                       for (int bd = bd_b; bd < bd_e; bd++) {
                           auto vmm = accm(ld_block2, bd, ld);
                           if (brg.req_cal_comp_pads) {
-                              vpsubd(vmm, vmm, vmm_tmp);
+                              uni_vpsubd(vmm, vmm, vmm_tmp);
                           } else {
-                              vpaddd(vmm, vmm, vmm_tmp);
+                              uni_vpaddd(vmm, vmm, vmm_tmp);
                           }
                       }
                   }
@@ -1734,9 +1746,9 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
             mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
             const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
             mov(reg32_scratch, 0x1010101);
-            vpbroadcastd(vmm_one_bytes(), reg32_scratch);
+            uni_vpbroadcastd(vmm_one_bytes(), reg32_scratch);
             mov(reg32_scratch, ptr[rsp + reg_zp_a_val_offs_]);
-            vpbroadcastd(vmm_zp_a_shift(), reg32_scratch);
+            uni_vpbroadcastd(vmm_zp_a_shift(), reg32_scratch);
             mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
         }
 
@@ -1750,7 +1762,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                 if (brg.is_f16) {
                     vcvtph2psx(vmm_store, addr);
                 } else {
-                    vmovups(vmm_store, addr);
+                    uni_vmovups(vmm_store, addr);
                 }
             } else {
                 load_bytes_skip_zmm(this, brg.dt_b, load(), addr,
@@ -1790,18 +1802,18 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     vcvtph2psx(vmm_load, addr);
                 } else if (is_ld_tail) {
                     if (is_superset(brg.isa_impl, avx512_core)) {
-                        vmovups(vmm_load, addr);
+                        uni_vmovups(vmm_load, addr);
                     } else {
                         load_bytes_skip_zmm(this, brg.dt_b, vmm_load, addr,
                                 brg.ldb_tail * brg.ld_step);
                     }
                 } else {
-                    vmovups(vmm_load, addr);
+                    uni_vmovups(vmm_load, addr);
                 }
                 for (int bd = bd_b; bd < bd_e; bd++) {
                     auto vmm = accm(ld_block2, bd, ld);
                     if (is_emdbd)
-                        vfmadd231ps(vmm, load(),
+                        uni_vfmadd231ps(vmm, load(),
                                 ptr_b[reg_aux_A + A_offset(bd, rd)]);
                     else
                         dot_product(vmm, load(), bcst(bd));
@@ -1819,13 +1831,13 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     vcvtph2psx(vmm_load, addr);
                 } else if (is_ld_tail) {
                     if (is_superset(brg.isa_impl, avx512_core)) {
-                        vmovups(vmm_load, addr);
+                        uni_vmovups(vmm_load, addr);
                     } else {
                         load_bytes_skip_zmm(this, brg.dt_b, vmm_load, addr,
                                 brg.ldb_tail * brg.ld_step);
                     }
                 } else {
-                    vmovups(vmm_load, addr);
+                    uni_vmovups(vmm_load, addr);
                 }
             }
 
@@ -1848,7 +1860,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                 for (int ld = 0; ld < ld_block2; ld++) {
                     auto vmm = accm(ld_block2, bd, ld);
                     if (is_emdbd)
-                        vfmadd231ps(vmm, load(ld),
+                        uni_vfmadd231ps(vmm, load(ld),
                                 ptr_b[reg_aux_A + A_offset(bd, rd)]);
                     else
                         dot_product(vmm, load(ld), bcst());
@@ -1941,16 +1953,16 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
             if (brg.req_s8s8_compensation) {
                 mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
                 mov(reg_s8_input_shift, 128);
-                vpbroadcastb(vmm_inp_shift(), reg_s8_input_shift.cvt8());
+                uni_vpbroadcastb(vmm_inp_shift(), reg_s8_input_shift.cvt8());
                 mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
             }
             if (need_comp_pads && brg.zp_type_a != brgemm_broadcast_t::none) {
                 mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
                 const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
                 mov(reg32_scratch, 0x1010101);
-                vpbroadcastd(vmm_one_bytes(), reg32_scratch);
+                uni_vpbroadcastd(vmm_one_bytes(), reg32_scratch);
                 mov(reg32_scratch, ptr[rsp + reg_zp_a_val_offs_]);
-                vpbroadcastd(vmm_zp_a_shift(), reg32_scratch);
+                uni_vpbroadcastd(vmm_zp_a_shift(), reg32_scratch);
                 mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
             }
 
