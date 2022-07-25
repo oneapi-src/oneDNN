@@ -556,4 +556,18 @@ status_t topo_order_visit(const std::vector<op_t *> &root_ops, const FUN &f) {
 } // namespace impl
 } // namespace dnnl
 
+// inject a specialization of std::hash for op_kind_t in std namespace
+namespace std {
+template <>
+struct hash<dnnl::impl::graph::op_kind_t> {
+    using argument_type = dnnl::impl::graph::op_kind_t;
+    using result_type = size_t;
+
+    result_type operator()(const argument_type &x) const {
+        using type = typename std::underlying_type<argument_type>::type;
+        return std::hash<type>()(static_cast<type>(x));
+    }
+};
+} // namespace std
+
 #endif
