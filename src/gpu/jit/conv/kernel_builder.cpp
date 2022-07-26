@@ -522,7 +522,7 @@ public:
     object_eq_set_t<expr_t> external_vars;
 };
 
-stmt_t inject_external_var_let(const stmt_t &_stmt) {
+stmt_t inject_external_var_let(const stmt_t &_stmt, ir_context_t &ir_ctx) {
     trace_start();
     auto stmt = _stmt;
     external_var_visitor_t v;
@@ -531,7 +531,7 @@ stmt_t inject_external_var_let(const stmt_t &_stmt) {
     for (auto &var : v.external_vars)
         stmt = let_t::make(var, {}, stmt);
 
-    trace_pass("inject_external_var_let", stmt);
+    trace_pass("inject_external_var_let", stmt, ir_ctx);
     return stmt;
 }
 
@@ -605,14 +605,14 @@ private:
 };
 
 // Merges all SLM buffers into a single one.
-stmt_t merge_slm_buffers(const stmt_t &_stmt) {
+stmt_t merge_slm_buffers(const stmt_t &_stmt, ir_context_t &ir_ctx) {
     trace_start();
     stmt_t stmt = _stmt;
     slm_buffer_merger_t merger;
     stmt = merger.mutate(stmt);
     stmt = alloc_t::make(
             merger.slm_base(), merger.slm_size(), alloc_kind_t::slm, stmt);
-    trace_pass("merge_slm_buffers", stmt);
+    trace_pass("merge_slm_buffers", stmt, ir_ctx);
     return stmt;
 }
 
@@ -634,18 +634,18 @@ public:
     }
 };
 
-stmt_t lift_buffer_offsets_in_send(const stmt_t &s) {
+stmt_t lift_buffer_offsets_in_send(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     buffer_offset_lifter_t lifter;
     auto ret = lifter.mutate(s);
-    trace_pass("lift_buffer_offsets_in_send", ret);
+    trace_pass("lift_buffer_offsets_in_send", ret, ir_ctx);
     return ret;
 }
 
-stmt_t simplify_pass(const stmt_t &s, const constraint_set_t &cset) {
+stmt_t simplify_pass(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = simplify(s, cset);
-    trace_pass("simplify_pass", ret);
+    auto ret = simplify(s, ir_ctx.cset());
+    trace_pass("simplify_pass", ret, ir_ctx);
     return ret;
 }
 
@@ -794,8 +794,8 @@ private:
 };
 
 // Replaces some heavy GRF reorders by reorder through SLM (store and load).
-stmt_t inject_slm_reorder(
-        const stmt_t &s, const conv_config_t &cfg, const grid_info_t &tg_grid) {
+stmt_t inject_slm_reorder(const stmt_t &s, ir_context_t &ir_ctx,
+        const conv_config_t &cfg, const grid_info_t &tg_grid) {
     trace_start();
     if (cfg.use_a_slm || cfg.use_b_slm) return s;
     if (cfg.hw() < ngen::HW::XeHPC) return s;
@@ -808,14 +808,13 @@ stmt_t inject_slm_reorder(
     alloc_updater.resize(slm_buf, slm_size);
     ret = alloc_updater.update(ret);
 
-    trace_pass("inject_slm_reorder", ret);
+    trace_pass("inject_slm_reorder", ret, ir_ctx);
     return ret;
 }
 
 class send_injector_t : public ir_mutator_t {
 public:
-    send_injector_t(ir_context_t &ir_ctx, const constraint_set_t &cset)
-        : ir_ctx_(ir_ctx), cset_(cset) {}
+    send_injector_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
 
     object_t _mutate(const func_call_t &obj) {
         auto *send = obj.func.as_ptr<send_t>();
@@ -871,7 +870,7 @@ private:
         auto &store = _store.as<store_t>();
 
         auto value = store.value;
-        value = simplify(value, cset_);
+        value = simplify(value, ir_ctx_.cset());
 
         // Convert to N-ary form and back to expand multiplications. This
         // helps to find more common subexpressions during the pass.
@@ -882,14 +881,12 @@ private:
     }
 
     ir_context_t &ir_ctx_;
-    const constraint_set_t &cset_;
 };
 
-stmt_t inject_send(
-        const stmt_t &s, ir_context_t &ir_ctx, const constraint_set_t &cset) {
+stmt_t inject_send(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = send_injector_t(ir_ctx, cset).mutate(s);
-    trace_pass("inject_send", ret);
+    auto ret = send_injector_t(ir_ctx).mutate(s);
+    trace_pass("inject_send", ret, ir_ctx);
     return ret;
 }
 
@@ -949,10 +946,11 @@ private:
 };
 
 // Lifts alloc statements out of loops.
-stmt_t lift_alloc(const stmt_t &s, const conv_config_t &cfg) {
+stmt_t lift_alloc(
+        const stmt_t &s, ir_context_t &ir_ctx, const conv_config_t &cfg) {
     trace_start();
     auto ret = alloc_lifter_t(s, cfg.reuse_headers).mutate(s);
-    trace_pass("lift_alloc", ret);
+    trace_pass("lift_alloc", ret, ir_ctx);
     return ret;
 }
 
@@ -1004,10 +1002,10 @@ private:
 };
 
 // Lifts loop-invariant header assignments related to block 2D messages.
-stmt_t lift_send_2d_header_store(const stmt_t &s) {
+stmt_t lift_send_2d_header_store(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = send_2d_header_store_lifter_t(s).mutate(s);
-    trace_pass("lift_send_2d_header_store", ret);
+    trace_pass("lift_send_2d_header_store", ret, ir_ctx);
     return ret;
 }
 
@@ -1213,7 +1211,7 @@ private:
 stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = hoist_exprs_mutator_t(ir_ctx).mutate(s);
-    trace_pass("hoist_exprs", ret);
+    trace_pass("hoist_exprs", ret, ir_ctx);
     return ret;
 }
 
@@ -1382,7 +1380,7 @@ stmt_t hoist_send_masks(const stmt_t &s, ir_context_t &ir_ctx,
     hoist_send_masks_mutator_t mutator(ir_ctx, label, split_by_and);
 
     auto ret = mutator.mutate(s);
-    trace_pass("hoist_send_masks", ret);
+    trace_pass("hoist_send_masks", ret, ir_ctx);
     return ret;
 }
 
@@ -1409,11 +1407,11 @@ private:
 
 // Removes redundant u16 casts inside send masks which may appear after
 // previous mask hoisting.
-stmt_t remove_spurious_send_mask_cast(const stmt_t &s) {
+stmt_t remove_spurious_send_mask_cast(const stmt_t &s, ir_context_t &ir_ctx) {
     spurious_send_mask_cast_remover_t mutator;
     trace_start();
     auto ret = mutator.mutate(s);
-    trace_pass("remove_spurious_send_mask_cast", ret);
+    trace_pass("remove_spurious_send_mask_cast", ret, ir_ctx);
     return ret;
 }
 
@@ -1646,10 +1644,10 @@ private:
 //         a[off] = j;
 //         off += K;
 //     }
-stmt_t loop_strength_reduce(const stmt_t &s) {
+stmt_t loop_strength_reduce(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = loop_strength_reducer_t().mutate(s);
-    trace_pass("loop_strength_reduce", ret);
+    trace_pass("loop_strength_reduce", ret, ir_ctx);
     return ret;
 }
 
@@ -1775,10 +1773,10 @@ private:
     object_map_t<expr_t, ref_info_t> refs_;
 };
 
-stmt_t optimize_alloc_let(const stmt_t &s) {
+stmt_t optimize_alloc_let(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = alloc_let_optimizer_t().mutate(s);
-    trace_pass("optimize_alloc_let", ret);
+    trace_pass("optimize_alloc_let", ret, ir_ctx);
     return ret;
 }
 
@@ -1853,11 +1851,12 @@ private:
 //             ...
 //         }
 //     }
-stmt_t update_loops_for_unrolling(const stmt_t &s, const conv_config_t &cfg) {
+stmt_t update_loops_for_unrolling(
+        const stmt_t &s, ir_context_t &ir_ctx, const conv_config_t &cfg) {
     trace_start();
     auto ret = s;
     if (cfg.do_pipeline_unroll) ret = unrolling_updater_t().mutate(s);
-    trace_pass("update_loops_for_unrolling", ret);
+    trace_pass("update_loops_for_unrolling", ret, ir_ctx);
     return ret;
 }
 
@@ -2911,10 +2910,10 @@ private:
 };
 
 stmt_t inject_prefetch_pipeline(
-        const stmt_t &s, const conv_config_t &cfg, ir_context_t &ir_ctx) {
+        const stmt_t &s, ir_context_t &ir_ctx, const conv_config_t &cfg) {
     trace_start();
     auto ret = prefetch_pipeliner_t(s, cfg, ir_ctx).inject();
-    trace_pass("inject_prefetch_pipeline", ret);
+    trace_pass("inject_prefetch_pipeline", ret, ir_ctx);
     return ret;
 }
 
@@ -3118,11 +3117,10 @@ private:
 
 class simple_slm_buffering_injector_t {
 public:
-    simple_slm_buffering_injector_t(ngen::HW hw, const stmt_t &root,
-            const conv_config_t &cfg, ir_context_t &ir_ctx, int ab_slm_size)
-        : hw_(hw)
+    simple_slm_buffering_injector_t(const stmt_t &root, ir_context_t &ir_ctx,
+            const conv_config_t &cfg, int ab_slm_size)
+        : ir_ctx_(ir_ctx)
         , cfg_(cfg)
-        , ir_ctx_(ir_ctx)
         , ab_slm_size_(ab_slm_size)
         , root_(root)
         , alloc_mgr_(root_)
@@ -3287,9 +3285,10 @@ public:
             loop = loop.append(slm_idx_update);
         }
 
-        if (cfg_.assign_sbids) loop = sbid_assigner_t(hw_).assign(loop);
+        if (cfg_.assign_sbids)
+            loop = sbid_assigner_t(ir_ctx_.hw_cfg().hw()).assign(loop);
 
-        const auto grf_size = ngen::GRF::bytes(hw_);
+        const auto grf_size = ir_ctx_.hw_cfg().grf_size();
         loop = alloc_t::make(slm_idx_buf, grf_size, alloc_kind_t::grf, loop);
 
         auto slm_buffers = alloc_mgr_.find_buffers(alloc_kind_t::slm);
@@ -3338,9 +3337,8 @@ public:
         return ret;
     }
 
-    ngen::HW hw_;
-    const conv_config_t &cfg_;
     ir_context_t &ir_ctx_;
+    const conv_config_t &cfg_;
     int ab_slm_size_;
 
     stmt_t root_;
@@ -3351,12 +3349,12 @@ public:
 };
 
 // Injects SLM buffering without unrolling based on the config.
-stmt_t inject_simple_slm_buffering(ngen::HW hw, const stmt_t &s,
-        const conv_config_t &cfg, ir_context_t &ir_ctx, int ab_slm_size) {
+stmt_t inject_simple_slm_buffering(const stmt_t &s, ir_context_t &ir_ctx,
+        const conv_config_t &cfg, int ab_slm_size) {
     trace_start();
-    auto ret = simple_slm_buffering_injector_t(hw, s, cfg, ir_ctx, ab_slm_size)
+    auto ret = simple_slm_buffering_injector_t(s, ir_ctx, cfg, ab_slm_size)
                        .inject();
-    trace_pass("inject_simple_slm_buffering", ret);
+    trace_pass("inject_simple_slm_buffering", ret, ir_ctx);
     return ret;
 }
 
@@ -3861,11 +3859,11 @@ private:
 // - Without preload (no SLM buffering, no prefetch)
 // - With SLM buffering
 // - With prefetch
-stmt_t inject_unrolling(const stmt_t &s, const conv_config_t &cfg,
-        ir_context_t &ir_ctx, int ab_slm_size) {
+stmt_t inject_unrolling(const stmt_t &s, ir_context_t &ir_ctx,
+        const conv_config_t &cfg, int ab_slm_size) {
     trace_start();
     auto ret = unrolling_injector_t(s, cfg, ir_ctx, ab_slm_size).inject();
-    trace_pass("inject_unrolling", ret);
+    trace_pass("inject_unrolling", ret, ir_ctx);
     return ret;
 }
 
@@ -3913,10 +3911,10 @@ private:
 };
 
 // Splits wide GRF stores otherwise unsupported in HW.
-stmt_t split_wide_stores(ngen::HW hw, const stmt_t &s) {
+stmt_t split_wide_stores(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = store_splitter_t(hw).mutate(s);
-    trace_pass("split_wide_stores", ret);
+    auto ret = store_splitter_t(ir_ctx.hw_cfg().hw()).mutate(s);
+    trace_pass("split_wide_stores", ret, ir_ctx);
     return ret;
 }
 
@@ -4007,9 +4005,8 @@ private:
 
 class overflow_fixer_t : public ir_mutator_t {
 public:
-    overflow_fixer_t(const constraint_set_t &cset, ir_context_t &ir_ctx)
-        : ir_ctx_(ir_ctx) {
-        for (auto &kv : cset.relations()) {
+    overflow_fixer_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {
+        for (auto &kv : ir_ctx.cset().relations()) {
             int64_t lo = bound_finder_base_t::unlimited_bound(true);
             int64_t hi = bound_finder_base_t::unlimited_bound(false);
             for (auto &rel : kv.second) {
@@ -4162,11 +4159,10 @@ private:
 //     c.u64 = u64(c_ptr) + a.s32 * b.s32
 // After:
 //     c.u64 = u64(c_ptr) + s64(a.s32) * b.s32
-stmt_t fix_int32_overflow(
-        const stmt_t &s, const constraint_set_t &cset, ir_context_t &ir_ctx) {
+stmt_t fix_int32_overflow(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = overflow_fixer_t(cset, ir_ctx).mutate(s);
-    trace_pass("fix_int32_overflow", ret);
+    auto ret = overflow_fixer_t(ir_ctx).mutate(s);
+    trace_pass("fix_int32_overflow", ret, ir_ctx);
     return ret;
 }
 
@@ -4253,10 +4249,10 @@ private:
     }
 };
 
-stmt_t optimize_peephole(const stmt_t &s) {
+stmt_t optimize_peephole(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = peephole_optimizer_t().mutate(s);
-    trace_pass("optimize_peephole", ret);
+    trace_pass("optimize_peephole", ret, ir_ctx);
     return ret;
 }
 
@@ -4293,10 +4289,10 @@ private:
     bool can_remove_barrier_ = true;
 };
 
-stmt_t optimize_barrier(const stmt_t &s) {
+stmt_t optimize_barrier(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = barrier_optimizer_t().mutate(s);
-    trace_pass("optimize_barrier", ret);
+    trace_pass("optimize_barrier", ret, ir_ctx);
     return ret;
 }
 
@@ -4320,10 +4316,10 @@ private:
 //     if (cond) { ... }
 // After (for SIMD8):
 //     if (bcast8(cond)) { ... }
-stmt_t fixup_if_conditions(const stmt_t &s, const conv_config_t &cfg) {
+stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = if_condition_fixer_t(cfg.simd_size()).mutate(s);
-    trace_pass("fixup_if_conditions", ret);
+    auto ret = if_condition_fixer_t(ir_ctx.hw_cfg().simd_size()).mutate(s);
+    trace_pass("fixup_if_conditions", ret, ir_ctx);
     return ret;
 }
 
@@ -4392,7 +4388,7 @@ private:
 stmt_t unroll_loops(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = loop_unroller_t(ir_ctx).mutate(s);
-    trace_pass("unroll_loops", ret);
+    trace_pass("unroll_loops", ret, ir_ctx);
     return ret;
 }
 
@@ -4499,10 +4495,10 @@ private:
 // Injects an allocation attribute to store information about buffer usages in
 // instructions. This information is used during nGEN lowering to avoid bank
 // conflicts in allocated buffers.
-stmt_t inject_bank_conflict_attribute(const stmt_t &s) {
+stmt_t inject_bank_conflict_attribute(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = bank_conflict_attribute_injector_t().mutate(s);
-    trace_pass("inject_bank_conflict_attribute", ret);
+    trace_pass("inject_bank_conflict_attribute", ret, ir_ctx);
     return ret;
 }
 
@@ -4566,10 +4562,10 @@ private:
 };
 
 // Converts dpas to dp4a.
-stmt_t inject_dp4a(const stmt_t &s) {
+stmt_t inject_dp4a(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = dp4a_injector_t().mutate(s);
-    trace_pass("inject_dp4a", ret);
+    trace_pass("inject_dp4a", ret, ir_ctx);
     return ret;
 }
 
@@ -4668,11 +4664,11 @@ private:
     object_map_t<expr_t, int> buf_sizes_;
 };
 
-void verify_buffer_access(const stmt_t &s) {
+void verify_buffer_access(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     buffer_access_verifier_t verifier;
     verifier.visit(s);
-    trace_pass("verify_buffer_access", s);
+    trace_pass("verify_buffer_access", s, ir_ctx);
 }
 
 class multiply_builder_t {
@@ -5200,8 +5196,8 @@ private:
 
 class b_reduce_context_t {
 public:
-    b_reduce_context_t(const conv_config_t &cfg)
-        : cfg_(cfg), reduce_condition_(true) {
+    b_reduce_context_t(ir_context_t &ir_ctx, const conv_config_t &cfg)
+        : ir_ctx_(ir_ctx), cfg_(cfg), reduce_condition_(true) {
         if (cfg.do_b_reduction) b_reduced_reg_buf_ = make_buffer("b_reduced");
     }
 
@@ -5250,11 +5246,10 @@ public:
         return reduction_stmt;
     }
 
-    stmt_t create_store_stmt(
-            ir_context_t &ir_ctx, const constraint_set_t &cset) const {
-        auto r2g = make_access_builder(cfg_.hw_cfg, ir_ctx, cset,
-                b_reduced_thr_view_, b_reduced_mem_buf_, b_reduced_reg_buf_,
-                send_op_t::atomic_fadd, send_address_t::a64);
+    stmt_t create_store_stmt() const {
+        auto r2g = make_access_builder(ir_ctx_, b_reduced_thr_view_,
+                b_reduced_mem_buf_, b_reduced_reg_buf_, send_op_t::atomic_fadd,
+                send_address_t::a64);
         // TODO: Check that layouts match.
         auto ret = r2g.stmt();
         if (!reduce_condition_.is_empty()) {
@@ -5276,6 +5271,7 @@ private:
         return tensor_t(dims, start);
     }
 
+    ir_context_t &ir_ctx_;
     const conv_config_t &cfg_;
 
     expr_t reduce_condition_;
@@ -5297,16 +5293,13 @@ public:
     using post_load_func_t = std::function<stmt_t(
             const layout_t &, const expr_t &, const tensor_t &)>;
 
-    sub_tile_info_t(const hw_config_t &hw_cfg, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
+    sub_tile_info_t(ir_context_t &ir_ctx, const gemm_schedule_t &gemm_schedule,
             const fma_helper_t &fma_helper, abc_kind_t abc_kind, bool use_slm,
             bool load_buffered, bool allow_2d_load, int idx,
             const view_t &mem_view, const tensor_t &sub_tile,
             const expr_t &mem_buf, const expr_t &slm_buf, const expr_t &reg_buf,
             const expr_t &tmp_buf)
-        : hw_cfg_(hw_cfg)
-        , ir_ctx_(ir_ctx)
-        , cset_(cset)
+        : ir_ctx_(ir_ctx)
         , gemm_schedule_(gemm_schedule)
         , fma_helper_(fma_helper)
         , abc_kind_(abc_kind)
@@ -5328,7 +5321,7 @@ public:
     const view_t &reg_view() const { return reg_view_; }
 
     int reg_buf_size() const {
-        return utils::rnd_up(reg_layout_.size(), hw_cfg_.grf_size());
+        return utils::rnd_up(reg_layout_.size(), ir_ctx_.hw_cfg().grf_size());
     }
 
     int tmp_buf_size() const { return tmp_buf_size_; }
@@ -5373,8 +5366,8 @@ public:
                 stmt = stmt.append(create_reorder_stmt(
                         load_layout, reg_layout_, tmp_buf_, reg_buf_));
                 int load_reg_size = int(load_layout.size());
-                load_reg_size
-                        = utils::rnd_up(load_reg_size, hw_cfg_.grf_size());
+                load_reg_size = utils::rnd_up(
+                        load_reg_size, ir_ctx_.hw_cfg().grf_size());
                 tmp_buf_size_ = std::max(tmp_buf_size_, load_reg_size);
             }
         }
@@ -5388,10 +5381,10 @@ private:
             mem_view_.try_create_buffer_view(mem_view, load_view);
 
         send_op_t send_op = send_op_t::load;
-        send_hint = get_send_hint(hw_cfg_, send_op_t::load,
+        send_hint = get_send_hint(ir_ctx_.hw_cfg(), send_op_t::load,
                 fma_helper_.fma_kind(), abc_kind_, mem_view, gemm_schedule_,
                 allow_2d_load_);
-        auto read = make_access_builder(hw_cfg_, ir_ctx, cset_, mem_view,
+        auto read = make_access_builder(ir_ctx, mem_view,
                 use_slm_ ? slm_buf_ : mem_buf_, reg_buf_, send_op,
                 use_slm_ ? send_address_t::slm : send_address_t::a64,
                 send_hint);
@@ -5408,9 +5401,7 @@ private:
         stmt = read.stmt();
     }
 
-    const hw_config_t hw_cfg_;
     ir_context_t &ir_ctx_;
-    const constraint_set_t &cset_;
     const gemm_schedule_t &gemm_schedule_;
     const fma_helper_t &fma_helper_;
     abc_kind_t abc_kind_;
@@ -5438,14 +5429,13 @@ private:
 class load_multiply_builder_t {
 public:
     load_multiply_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
+            const gemm_schedule_t &gemm_schedule,
             const fma_helper_t &fma_helper, b_reduce_context_t &b_reduce_ctx,
             const expr_t &ap_buf, const expr_t &a_slm_buf, const expr_t &bp_buf,
             const expr_t &b_slm_buf, const view_t &ap_x_view,
             const view_t &bp_x_view, const kernel_info_t &kernel_info)
         : cfg_(cfg)
         , ir_ctx_(ir_ctx)
-        , cset_(cset)
         , gemm_schedule_(gemm_schedule)
         , fma_helper_(fma_helper)
         , b_reduce_ctx_(b_reduce_ctx)
@@ -5613,9 +5603,8 @@ private:
             //   overlapping when applying KW blocking )
             bool load_buffered = cfg_.use_ow_kw_grf_cache && !cfg_.use_a_slm
                     && cfg_.fma_kind == fma_kind_t::mad;
-            a_sub_tiles_.emplace_back(cfg_.hw_cfg, ir_ctx_, cset_,
-                    gemm_schedule_, fma_helper_, abc_kind_t::a, cfg_.use_a_slm,
-                    load_buffered,
+            a_sub_tiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
+                    abc_kind_t::a, cfg_.use_a_slm, load_buffered,
                     allow_2d_load && can_use_2d_load(abc_kind_t::a, a_i_view_),
                     i, view, tile, ap_buf_, a_slm_buf_, a_buf_, ab_tmp_buf_);
             a_sub_tiles_.back().load();
@@ -5631,8 +5620,8 @@ private:
         for (int j = 0; j < cfg_.b_sub_tiles; j++) {
             auto view = b_j_view_.substitute(b_idx_, j);
             auto tile = b_j_tile_.substitute(b_idx_, j);
-            b_sub_tiles_.emplace_back(cfg_.hw_cfg, ir_ctx_, cset_,
-                    gemm_schedule_, fma_helper_, abc_kind_t::b, cfg_.use_b_slm,
+            b_sub_tiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
+                    abc_kind_t::b, cfg_.use_b_slm,
                     /*load_buffered=*/false,
                     allow_2d_load && can_use_2d_load(abc_kind_t::b, b_j_view_),
                     j, view, tile, bp_buf_, b_slm_buf_, b_buf_, ab_tmp_buf_);
@@ -5682,7 +5671,8 @@ private:
             if (size_ == 0) return;
 
             // 1. Get the raw representation of the buffer`s masks
-            auto mask_tensor = a_thr_view.create_mask_tensor(lmb_.cset_);
+            auto mask_tensor
+                    = a_thr_view.create_mask_tensor(lmb_.ir_ctx_.cset());
 
             // 2. Collect the masks, transforming the dimensions as needed
             int channels_blk = std::min(
@@ -6040,7 +6030,7 @@ private:
                 i < m_blk * simd_per_ic; i += dims[0]) {
             const int b = i * d_type.size();
             view_t zpv(layout_t(d_type, 0, dims));
-            auto read = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_, zpv,
+            auto read = make_access_builder(ir_ctx_, zpv,
                     kernel_info_.find_arg("src_zero_points")[offs + b],
                     src_zp[b], send_op_t::load, send_address_t::a64);
             data = data.append(read.stmt());
@@ -6251,8 +6241,7 @@ private:
     }
 
     const conv_config_t &cfg_;
-    ir_context_t ir_ctx_;
-    const constraint_set_t &cset_;
+    ir_context_t &ir_ctx_;
     const gemm_schedule_t &gemm_schedule_;
     const fma_helper_t &fma_helper_;
     b_reduce_context_t &b_reduce_ctx_;
@@ -6304,11 +6293,10 @@ private:
 class compute_builder_t {
 public:
     compute_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
-            constraint_set_t &cset, const kernel_info_t &kernel_info)
+            const kernel_info_t &kernel_info)
         : cfg_(cfg)
         , ir_ctx_(ir_ctx)
-        , cset_(cset)
-        , b_reduce_ctx_(cfg)
+        , b_reduce_ctx_(ir_ctx, cfg)
         , g2s_ctx_(ir_ctx)
         , fma_helper_(cfg.simd_size(), cfg.fma_kind, cfg.a_data_type,
                   cfg.b_data_type, cfg.allow_a_grf_reorder,
@@ -6412,9 +6400,9 @@ public:
             register_compute_buffer(bi.buf, bi.size, alloc_kind_t::grf);
         }
 
-        load_multiply_builder_t load_mul_builder(cfg_, ir_ctx_, cset_,
-                gemm_schedule_, fma_helper_, b_reduce_ctx_, ap_buf_, a_slm_buf,
-                bp_buf_, b_slm_buf, ap_x_view, bp_x_view, kernel_info_);
+        load_multiply_builder_t load_mul_builder(cfg_, ir_ctx_, gemm_schedule_,
+                fma_helper_, b_reduce_ctx_, ap_buf_, a_slm_buf, bp_buf_,
+                b_slm_buf, ap_x_view, bp_x_view, kernel_info_);
 
         load_mul_stmt_ = load_mul_builder.load_mul_stmt();
         compute_allocs_.insert(compute_allocs_.end(),
@@ -6431,7 +6419,7 @@ public:
 
         auto reduce_cond = expr_t();
         if (gemm_schedule_.with_thread_group_k_slicing()) {
-            slm_reduce_builder_t slm_reduce_builder(cfg_.hw_cfg, ir_ctx_, cset_,
+            slm_reduce_builder_t slm_reduce_builder(ir_ctx_,
                     gemm_schedule_.tg_grid(), c_buf, c_thr_reg_layout,
                     thr_tile);
             c_store_stmt_ = c_store_stmt_.append(slm_reduce_builder.stmt());
@@ -6441,22 +6429,22 @@ public:
         }
 
         auto c_thr_mem_view = gemm_schedule_.c_view().create_sub_view(thr_tile);
-        auto c_m2g_stmt = create_epilogue_stmt(cfg_, ir_ctx_, cset_,
-                gemm_schedule_, post_op_ctx_, thr_tile, c_thr_mem_view,
-                c_thr_reg_layout, cp_buf_, c_buf);
+        auto c_m2g_stmt = create_epilogue_stmt(cfg_, ir_ctx_, gemm_schedule_,
+                post_op_ctx_, thr_tile, c_thr_mem_view, c_thr_reg_layout,
+                cp_buf_, c_buf);
         if (!reduce_cond.is_empty())
             c_m2g_stmt = if_t::make(reduce_cond, c_m2g_stmt);
         ir_trace() << "C GRF to GMEM store:\n" << c_m2g_stmt << std::endl;
 
         c_zero_out_stmt_ = stmt_group_t::make(stmt_label_t::c_zero_out(),
-                create_zero_out_stmt(cfg_.hw(), c_buf, c_size));
+                create_zero_out_stmt(ir_ctx_, c_buf, c_size));
         c_store_stmt_ = c_store_stmt_.append(c_m2g_stmt);
 
         if (cfg_.do_b_reduction) {
             auto &ctx = b_reduce_ctx_;
             b_reduced_zero_out_stmt_ = create_zero_out_stmt(
-                    cfg_.hw(), ctx.b_reduced_reg_buf(), ctx.b_reduced_size());
-            b_reduced_store_stmt_ = ctx.create_store_stmt(ir_ctx_, cset_);
+                    ir_ctx_, ctx.b_reduced_reg_buf(), ctx.b_reduced_size());
+            b_reduced_store_stmt_ = ctx.create_store_stmt();
             register_out_buffer(ctx.b_reduced_reg_buf(), ctx.b_reduced_size(),
                     alloc_kind_t::grf);
         }
@@ -6594,8 +6582,8 @@ private:
             }
             g2s_ctx.set_grid_idx_value(grid_idx, grid_idx_value);
 
-            cset_.add_constraint(grid_idx >= 0);
-            cset_.add_constraint(grid_idx < new_load_grid.dim(dim_idx));
+            ir_ctx_.add_constraint(grid_idx >= 0);
+            ir_ctx_.add_constraint(grid_idx < new_load_grid.dim(dim_idx));
 
             load_grid = new_load_grid;
         }
@@ -6659,9 +6647,8 @@ private:
         expr_t x_g2s_reg_buf = g2s_ctx.create_buf("g2s");
 
         // GMEM -> GRF load.
-        auto x_read = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_,
-                x_g2s_view, xp_buf, x_g2s_reg_buf, send_op_t::load,
-                send_address_t::a64);
+        auto x_read = make_access_builder(ir_ctx_, x_g2s_view, xp_buf,
+                x_g2s_reg_buf, send_op_t::load, send_address_t::a64);
         ir_trace() << tag << " GMEM to GRF load:\n"
                    << x_read.str() << std::endl;
 
@@ -6672,9 +6659,9 @@ private:
         g2s_load_stmt_ = g2s_load_stmt_.append(load_stmt);
 
         // GRF -> SLM store.
-        auto x_write = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_,
-                view_t(slm_thr_layout), x_slm_buf, x_g2s_reg_buf,
-                send_op_t::store, send_address_t::slm);
+        auto x_write = make_access_builder(ir_ctx_, view_t(slm_thr_layout),
+                x_slm_buf, x_g2s_reg_buf, send_op_t::store,
+                send_address_t::slm);
         ir_trace() << tag << " GRF to SLM store:\n"
                    << x_write.str() << std::endl;
         auto store_stmt = x_write.stmt();
@@ -6727,9 +6714,8 @@ private:
                 gemm_schedule_);
 
         // GMEM prefetch.
-        auto x_prefetch = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_,
-                thr_view, xp_buf, expr_t(), send_op_t::prefetch,
-                send_address_t::a64, send_hint);
+        auto x_prefetch = make_access_builder(ir_ctx_, thr_view, xp_buf,
+                expr_t(), send_op_t::prefetch, send_address_t::a64, send_hint);
         ir_trace() << tag << " GMEM prefetch:\n"
                    << x_prefetch.str() << std::endl;
 
@@ -6844,7 +6830,6 @@ private:
 
     const conv_config_t &cfg_;
     ir_context_t &ir_ctx_;
-    constraint_set_t &cset_;
     post_op_context_t post_op_ctx_;
     b_reduce_context_t b_reduce_ctx_;
 
@@ -6942,7 +6927,6 @@ void init_kernel_grid(const std::array<int, 3> &kernel_grid_dims,
 }
 
 void kernel_builder_t::build() {
-    ir_context_t ir_ctx;
     constraint_set_t init_cset;
 
     trace_reset();
@@ -6984,8 +6968,9 @@ void kernel_builder_t::build() {
 
     trace_stamp("GEMM Schedule");
 
+    ir_context_t ir_ctx(cfg_.hw_cfg, init_cset);
     post_op_context_t post_op_ctx(pd_, cfg_, gemm_schedule, kernel_info_);
-    compute_builder_t cb(cfg_, ir_ctx, init_cset, kernel_info_);
+    compute_builder_t cb(cfg_, ir_ctx, kernel_info_);
 
     cb.set_gemm_schedule(gemm_schedule);
     cb.set_ap_buf(ap_buf);
@@ -7028,52 +7013,52 @@ void kernel_builder_t::build() {
     stmt_ = inject_alloc_stmts(stmt_, allocs);
     trace_stop("Create Inital IR");
 
-    stmt_ = inject_external_var_let(stmt_);
-    stmt_ = merge_slm_buffers(stmt_);
+    stmt_ = inject_external_var_let(stmt_, ir_ctx);
+    stmt_ = merge_slm_buffers(stmt_, ir_ctx);
     if (!cfg_.do_pipeline_unroll && (cfg_.use_a_slm || cfg_.use_b_slm)) {
         stmt_ = inject_simple_slm_buffering(
-                cfg_.hw(), stmt_, cfg_, ir_ctx, cb.ab_slm_size());
+                stmt_, ir_ctx, cfg_, cb.ab_slm_size());
     } else if (!cfg_.do_pipeline_unroll && cfg_.use_prefetch) {
         // Simplify to remove loops with only 1 iteration
-        stmt_ = simplify_pass(stmt_, init_cset);
-        stmt_ = inject_prefetch_pipeline(stmt_, cfg_, ir_ctx);
+        stmt_ = simplify_pass(stmt_, ir_ctx);
+        stmt_ = inject_prefetch_pipeline(stmt_, ir_ctx, cfg_);
     }
-    stmt_ = inject_slm_reorder(stmt_, cfg_, tg_grid_);
-    stmt_ = lift_buffer_offsets_in_send(stmt_);
-    stmt_ = simplify_pass(stmt_, init_cset);
-    stmt_ = inject_send(stmt_, ir_ctx, init_cset);
-    stmt_ = split_wide_stores(cfg_.hw(), stmt_);
-    stmt_ = lift_alloc(stmt_, cfg_);
-    stmt_ = lift_send_2d_header_store(stmt_);
+    stmt_ = inject_slm_reorder(stmt_, ir_ctx, cfg_, tg_grid_);
+    stmt_ = lift_buffer_offsets_in_send(stmt_, ir_ctx);
+    stmt_ = simplify_pass(stmt_, ir_ctx);
+    stmt_ = inject_send(stmt_, ir_ctx);
+    stmt_ = split_wide_stores(stmt_, ir_ctx);
+    stmt_ = lift_alloc(stmt_, ir_ctx, cfg_);
+    stmt_ = lift_send_2d_header_store(stmt_, ir_ctx);
     stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false);
-    stmt_ = eliminate_common_subexprs(stmt_, cfg_, ir_ctx);
+    stmt_ = eliminate_common_subexprs(stmt_, ir_ctx, cfg_);
     stmt_ = hoist_exprs(stmt_, ir_ctx);
-    if (cfg_.do_pipeline_unroll) stmt_ = loop_strength_reduce(stmt_);
-    stmt_ = optimize_alloc_let(stmt_);
+    if (cfg_.do_pipeline_unroll) stmt_ = loop_strength_reduce(stmt_, ir_ctx);
+    stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     if (cfg_.do_pipeline_unroll) {
-        stmt_ = update_loops_for_unrolling(stmt_, cfg_);
-        stmt_ = inject_unrolling(stmt_, cfg_, ir_ctx, cb.ab_slm_size());
+        stmt_ = update_loops_for_unrolling(stmt_, ir_ctx, cfg_);
+        stmt_ = inject_unrolling(stmt_, ir_ctx, cfg_, cb.ab_slm_size());
     }
     if (cfg_.hoist_masks_from_compute_loop) {
         stmt_ = hoist_send_masks(
                 stmt_, ir_ctx, stmt_label_t::compute_loop(), true);
     }
-    stmt_ = fixup_if_conditions(stmt_, cfg_);
+    stmt_ = fixup_if_conditions(stmt_, ir_ctx);
     stmt_ = unroll_loops(stmt_, ir_ctx);
-    stmt_ = simplify_pass(stmt_, init_cset);
-    stmt_ = optimize_alloc_let(stmt_);
+    stmt_ = simplify_pass(stmt_, ir_ctx);
+    stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     if (cfg_.hoist_masks_from_compute_loop) {
-        stmt_ = remove_spurious_send_mask_cast(stmt_);
+        stmt_ = remove_spurious_send_mask_cast(stmt_, ir_ctx);
     }
-    stmt_ = fix_int32_overflow(stmt_, init_cset, ir_ctx);
-    stmt_ = optimize_peephole(stmt_);
-    stmt_ = optimize_barrier(stmt_);
-    if (cfg_.fma_kind == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_);
-    stmt_ = inject_bank_conflict_attribute(stmt_);
+    stmt_ = fix_int32_overflow(stmt_, ir_ctx);
+    stmt_ = optimize_peephole(stmt_, ir_ctx);
+    stmt_ = optimize_barrier(stmt_, ir_ctx);
+    if (cfg_.fma_kind == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_, ir_ctx);
+    stmt_ = inject_bank_conflict_attribute(stmt_, ir_ctx);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
 #if !defined(NDEBUG) || defined(GEN_CONV_DEBUG)
-    verify_buffer_access(stmt_);
+    verify_buffer_access(stmt_, ir_ctx);
 #endif
 
     ir_trace() << "Convolution kernel body:\n" << stmt_ << std::endl;
@@ -7412,7 +7397,6 @@ void reorder_kernel_builder_t::build() {
 bool reorder_kernel_builder_t::try_build(const std::vector<int> &iter_blocks,
         const std::vector<int> &loop_blocks,
         const std::vector<int> &tg_blocks) {
-    ir_context_t ir_ctx;
     constraint_set_t init_cset;
 
     int ndims = src_layout_.ndims();
@@ -7513,6 +7497,7 @@ bool reorder_kernel_builder_t::try_build(const std::vector<int> &iter_blocks,
     auto src_buf = kernel_info_.arg_var(0);
     auto dst_buf = kernel_info_.arg_var(1);
 
+    ir_context_t ir_ctx(hw_cfg_, init_cset);
     auto reg_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "reg");
 
     std::vector<stmt_t> allocs;
@@ -7522,12 +7507,12 @@ bool reorder_kernel_builder_t::try_build(const std::vector<int> &iter_blocks,
         allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
     }
 
-    auto read = make_access_builder(hw_cfg_, ir_ctx, init_cset, src_thr_view,
-            src_buf, reg_buf, send_op_t::load, send_address_t::a64);
+    auto read = make_access_builder(ir_ctx, src_thr_view, src_buf, reg_buf,
+            send_op_t::load, send_address_t::a64);
     auto read_stmt = read.stmt();
 
-    auto write = make_access_builder(hw_cfg_, ir_ctx, init_cset, dst_thr_view,
-            dst_buf, reg_buf, send_op_t::store, send_address_t::a64);
+    auto write = make_access_builder(ir_ctx, dst_thr_view, dst_buf, reg_buf,
+            send_op_t::store, send_address_t::a64);
     auto write_stmt = write.stmt();
 
     auto read_layout = read.reg_layout();
@@ -7554,16 +7539,16 @@ bool reorder_kernel_builder_t::try_build(const std::vector<int> &iter_blocks,
     stmt_ = schedule.create_bind_stmt(stmt_);
     stmt_ = inject_let_stmts(stmt_, init_stmts);
     stmt_ = inject_alloc_stmts(stmt_, allocs);
-    stmt_ = inject_external_var_let(stmt_);
+    stmt_ = inject_external_var_let(stmt_, ir_ctx);
 
-    stmt_ = simplify_pass(stmt_, init_cset);
-    stmt_ = lift_buffer_offsets_in_send(stmt_);
-    stmt_ = inject_send(stmt_, ir_ctx, init_cset);
-    stmt_ = split_wide_stores(hw_cfg_.hw(), stmt_);
-    stmt_ = eliminate_common_subexprs(stmt_, ir_ctx, hw_cfg_.grf_size(),
-            hw_cfg_.regs() * hw_cfg_.grf_size());
-    stmt_ = simplify_pass(stmt_, init_cset);
-    stmt_ = optimize_alloc_let(stmt_);
+    stmt_ = simplify_pass(stmt_, ir_ctx);
+    stmt_ = lift_buffer_offsets_in_send(stmt_, ir_ctx);
+    stmt_ = inject_send(stmt_, ir_ctx);
+    stmt_ = split_wide_stores(stmt_, ir_ctx);
+    stmt_ = eliminate_common_subexprs(
+            stmt_, ir_ctx, hw_cfg_.regs() * hw_cfg_.grf_size());
+    stmt_ = simplify_pass(stmt_, ir_ctx);
+    stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
     int ir_usage = get_peak_grf_usage(stmt_, hw_cfg_.grf_size());

@@ -809,6 +809,10 @@ bool is_linear_var_transform(const expr_t &e, linear_transform_t &t) {
     return false;
 }
 
+void ir_context_t::add_constraint(const expr_t &e) {
+    cset_.add_constraint(e);
+}
+
 void constraint_set_t::add_constraint(const expr_t &e) {
     auto *shuffle = e.as_ptr<shuffle_t>();
     if (shuffle) {

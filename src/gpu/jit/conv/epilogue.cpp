@@ -31,10 +31,9 @@ class zero_pad_builder_t {
 public:
     zero_pad_builder_t() = default;
 
-    zero_pad_builder_t(const hw_config_t &hw_cfg, const constraint_set_t &cset,
-            const view_t &full_mem_view, const view_t &mem_view)
-        : hw_cfg_(hw_cfg)
-        , cset_(&cset)
+    zero_pad_builder_t(ir_context_t &ir_ctx, const view_t &full_mem_view,
+            const view_t &mem_view)
+        : ir_ctx_(&ir_ctx)
         , full_mem_view_(full_mem_view)
         , mem_view_(mem_view) {}
 
@@ -47,15 +46,15 @@ public:
         mask_tensor_t mask_tensor(layout);
         std::vector<dim_t> args(layout.ndims());
         fill_mask_impl(mask_tensor, 0, args, view, layout);
-        mask_tensor.simplify(*cset_);
+        mask_tensor.simplify(ir_ctx_->cset());
         return mask_tensor.to_expr(tile.elems());
     }
 
     stmt_t build_stmt(const layout_t &reg_layout, const expr_t &reg_buf) const {
         ir_assert(mem_view_.nvdims() == reg_layout.ndims())
                 << "Incompatible view/layout.";
-        int max_step = std::min(
-                16, 2 * hw_cfg_.grf_size() / reg_layout.type().size());
+        int max_step = std::min(16,
+                2 * ir_ctx_->hw_cfg().grf_size() / reg_layout.type().size());
         auto base_tile = reg_layout.split_into_max_tile(
                 max_step, /*is_dense_tile=*/true);
         stmt_t stmt;
@@ -93,8 +92,7 @@ private:
         }
     }
 
-    hw_config_t hw_cfg_;
-    const constraint_set_t *cset_;
+    ir_context_t *ir_ctx_;
 
     view_t full_mem_view_;
     view_t mem_view_;
@@ -124,9 +122,8 @@ private:
 //   - When a post-op is not zero preserving
 class post_op_tensor_t {
 public:
-    post_op_tensor_t(const hw_config_t &hw_cfg, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const post_op_tensor_info_t &info)
-        : hw_cfg_(hw_cfg), ir_ctx_(&ir_ctx), cset_(&cset), info_(info) {
+    post_op_tensor_t(ir_context_t &ir_ctx, const post_op_tensor_info_t &info)
+        : ir_ctx_(&ir_ctx), info_(info) {
         if (!mem_buf().is_empty()) {
             auto &type = mem_buf().type();
             if (!type.is_ptr()) {
@@ -259,8 +256,8 @@ public:
         ir_assert(reg_buf_.is_empty());
 
         reg_buf_ = make_tmp_reg_buffer();
-        auto read = make_access_builder(hw_cfg_, *ir_ctx_, *cset_, mem_view(),
-                mem_buf(), reg_buf_, send_op_t::load, send_address_t::a64);
+        auto read = make_access_builder(*ir_ctx_, mem_view(), mem_buf(),
+                reg_buf_, send_op_t::load, send_address_t::a64);
         reg_layout_ = read.reg_layout();
         register_buffer(reg_buf_, read.reg_buf_size());
         return read.stmt();
@@ -269,9 +266,8 @@ public:
     stmt_t build_prefetch_stmt() const {
         ir_assert(needs_load());
 
-        auto prefetch = make_access_builder(hw_cfg_, *ir_ctx_, *cset_,
-                mem_view(), mem_buf(), expr_t(), send_op_t::prefetch,
-                send_address_t::a64);
+        auto prefetch = make_access_builder(*ir_ctx_, mem_view(), mem_buf(),
+                expr_t(), send_op_t::prefetch, send_address_t::a64);
         return prefetch.stmt();
     }
 
@@ -296,7 +292,7 @@ public:
 
     stmt_t build_zero_out_stmt() const {
         ir_assert(needs_store());
-        return create_zero_out_stmt(hw_cfg_.hw(), reg_buf_, reg_layout_.size());
+        return create_zero_out_stmt(*ir_ctx_, reg_buf_, reg_layout_.size());
     }
 
     stmt_t build_reduce_stmt() {
@@ -315,7 +311,7 @@ public:
         }
 
         // Apply optional scaling.
-        stmt = stmt.append(create_mul_add_stmt(hw_cfg_.hw(), reg_buf_,
+        stmt = stmt.append(create_mul_add_stmt(*ir_ctx_, reg_buf_,
                 reg_layout_.size(), reg_layout_.type(), info_.scale(), 0));
 
         return stmt;
@@ -324,8 +320,8 @@ public:
     stmt_t build_slm_store_stmt(const grid_info_t &tg_grid) {
         ir_assert(needs_store());
         tensor_t tile(mem_view().vdims());
-        slm_reduce_builder_ = slm_reduce_builder_t(hw_cfg_, *ir_ctx_, *cset_,
-                tg_grid, reg_buf_, reg_layout_, tile, 1);
+        slm_reduce_builder_ = slm_reduce_builder_t(
+                *ir_ctx_, tg_grid, reg_buf_, reg_layout_, tile, 1);
         return slm_reduce_builder_.store_stmt();
     }
 
@@ -347,9 +343,8 @@ public:
     stmt_t build_store_stmt() const {
         ir_assert(needs_store());
 
-        auto write = make_access_builder(hw_cfg_, *ir_ctx_, *cset_, mem_view(),
-                mem_buf(), reg_buf(), send_op_t::atomic_fadd,
-                send_address_t::a64);
+        auto write = make_access_builder(*ir_ctx_, mem_view(), mem_buf(),
+                reg_buf(), send_op_t::atomic_fadd, send_address_t::a64);
         ir_assert(write.reg_layout() == reg_layout());
 
         return write.stmt();
@@ -409,9 +404,7 @@ private:
         allocs_.push_back(alloc_t::make(buf, size, alloc_kind_t::grf));
     }
 
-    hw_config_t hw_cfg_;
-    ir_context_t *ir_ctx_;
-    const constraint_set_t *cset_;
+    ir_context_t *ir_ctx_ = nullptr;
 
     post_op_tensor_info_t info_;
 
@@ -597,15 +590,14 @@ private:
 // - S_y    is the stage before storing C to global memory
 class epilogue_builder_t {
 public:
-    epilogue_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
+    epilogue_builder_t(ir_context_t &ir_ctx, const conv_config_t &cfg,
+            const gemm_schedule_t &gemm_schedule,
             const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
             const view_t &c_mem_view, const layout_t &c_reg_layout,
             const expr_t &c_mem_buf, const expr_t &c_reg_buf, int tile_size,
             int preload_max_size, int post_op_blk)
-        : cfg_(cfg)
-        , ir_ctx_(ir_ctx)
-        , cset_(cset)
+        : ir_ctx_(ir_ctx)
+        , cfg_(cfg)
         , gemm_schedule_(gemm_schedule)
         , post_op_ctx_(post_op_ctx)
         , c_mem_view_(c_mem_view)
@@ -617,8 +609,7 @@ public:
 
         int tensor_idx = 0;
         for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
-            post_op_tensor_t po_tensor(
-                    cfg_.hw_cfg, ir_ctx_, cset_, po_tensor_info);
+            post_op_tensor_t po_tensor(ir_ctx_, po_tensor_info);
             po_tensor = po_tensor.create_sub_tensor(thr_tile);
             if (po_tensor_info.buf().is_empty()) {
                 // C tensor.
@@ -666,8 +657,8 @@ private:
                 const stmt_t &stmt = stmt_t())
             : layout(layout), buf(buf), stmt(stmt) {}
 
-        void set_next(ngen::HW hw, ir_context_t &ir_ctx, c_stage_t *next,
-                bool force_reorder) {
+        void set_next(
+                ir_context_t &ir_ctx, c_stage_t *next, bool force_reorder) {
             if (!next) return;
             bool do_reorder
                     = !layout.is_equal(next->layout, /*compare_offset=*/false);
@@ -819,8 +810,8 @@ private:
             }
         }
         if (create_zero_pad_builder) {
-            zero_pad_builder_ = zero_pad_builder_t(cfg_.hw_cfg, cset_,
-                    post_op_ctx_.cp_view(), c_mem_tile_view);
+            zero_pad_builder_ = zero_pad_builder_t(
+                    ir_ctx_, post_op_ctx_.cp_view(), c_mem_tile_view);
         }
 
         // S_y -> GMEM.
@@ -828,9 +819,8 @@ private:
                                              : send_op_t::store;
         auto send_hint = get_send_hint(cfg_.hw_cfg, send_op, abc_kind_t::c,
                 c_mem_tile_view, gemm_schedule_);
-        auto r2g = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_,
-                c_mem_tile_view, c_mem_buf_, tmp_reg_buf, send_op,
-                send_address_t::a64, send_hint);
+        auto r2g = make_access_builder(ir_ctx_, c_mem_tile_view, c_mem_buf_,
+                tmp_reg_buf, send_op, send_address_t::a64, send_hint);
 
         // Initialize C stages.
         std::vector<c_stage_t> c_stages;
@@ -861,7 +851,7 @@ private:
             auto *next_stage = (i + 1 < nstages ? &c_stages[i + 1] : nullptr);
             // Always perform reorder when dpasw is used. This is to ensure
             // that C is properly restored and permuted after dpasw.
-            c_stages[i].set_next(cfg_.hw(), ir_ctx_, next_stage,
+            c_stages[i].set_next(ir_ctx_, next_stage,
                     /*force_reorder=*/i == 0 && is_dpasw);
         }
 
@@ -966,9 +956,8 @@ private:
         return stmt;
     }
 
-    const conv_config_t &cfg_;
     ir_context_t &ir_ctx_;
-    const constraint_set_t &cset_;
+    const conv_config_t &cfg_;
     const gemm_schedule_t &gemm_schedule_;
     const post_op_context_t &post_op_ctx_;
 
@@ -1003,7 +992,7 @@ private:
 };
 
 stmt_t create_epilogue_stmt(const conv_config_t &cfg, ir_context_t &ir_ctx,
-        const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
+        const gemm_schedule_t &gemm_schedule,
         const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
         const view_t &c_mem_view, const layout_t &c_reg_layout,
         const expr_t &c_mem_buf, const expr_t &c_reg_buf) {
@@ -1033,7 +1022,7 @@ stmt_t create_epilogue_stmt(const conv_config_t &cfg, ir_context_t &ir_ctx,
                << ": tile_size = " << tile_size
                << ", preload_max_size = " << preload_max_size
                << ", post_op_blk = " << post_op_blk << std::endl;
-    epilogue_builder_t builder(cfg, ir_ctx, cset, gemm_schedule, post_op_ctx,
+    epilogue_builder_t builder(ir_ctx, cfg, gemm_schedule, post_op_ctx,
             thr_tile, c_mem_view, c_reg_layout, c_mem_buf, c_reg_buf, tile_size,
             preload_max_size, post_op_blk);
     return builder.stmt();

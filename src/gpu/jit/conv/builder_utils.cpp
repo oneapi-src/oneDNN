@@ -26,16 +26,23 @@ ir_utils::debug_profiler_t &get_trace_profiler() {
     static thread_local ir_utils::debug_profiler_t profiler("Trace Profile");
     return profiler;
 }
+
+void trace_pass(
+        const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx) {
+    trace_stop(pass_name);
+    ir_trace() << "=== After " << pass_name << std::endl;
+    ir_trace() << stmt << std::endl;
+}
 #endif
 
 // Performs the following operation:
 //     buf = alpha * buf + beta
-stmt_t create_mul_add_stmt(ngen::HW hw, const expr_t &buf, int size,
+stmt_t create_mul_add_stmt(ir_context_t &ir_ctx, const expr_t &buf, int size,
         const type_t &type, float alpha, float beta) {
     if (alpha == 1 && beta == 0) return stmt_t();
 
     stmt_t ret;
-    int step_bytes = 2 * ngen::GRF::bytes(hw);
+    int step_bytes = 2 * ir_ctx.hw_cfg().grf_size();
     for (int i = 0; i < size; i += step_bytes) {
         auto elems = std::min(step_bytes, size - i) / type.size();
         auto e_alpha = shuffle_t::make_broadcast(alpha, elems);

@@ -23,14 +23,27 @@
 #include <vector>
 
 #include "common/optional.hpp"
+#include "gpu/jit/conv/hw_config.hpp"
 #include "gpu/jit/conv/ir_core.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
 
+class constraint_set_t;
+
 class ir_context_t {
 public:
+    ir_context_t(const hw_config_t &hw_cfg, constraint_set_t &cset)
+        : hw_cfg_(hw_cfg), cset_(cset) {}
+
+    const hw_config_t &hw_cfg() const { return hw_cfg_; }
+
+    const constraint_set_t &cset() { return cset_; }
+
+    void add_constraint(const expr_t &e);
+
     expr_t create_tmp_var(
             const type_t &type, const std::string &prefix = "tmp") {
         int &id = prefix_ids_[prefix];
@@ -40,6 +53,8 @@ public:
     }
 
 private:
+    hw_config_t hw_cfg_;
+    constraint_set_t &cset_;
     std::unordered_map<std::string, int> prefix_ids_;
 };
 

@@ -428,12 +428,10 @@ private:
     int off_bytes_ = 0;
 };
 
-access_builder_t::access_builder_t(const hw_config_t &hw_cfg,
-        ir_context_t &ir_ctx, const constraint_set_t &cset,
-        const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
-        send_op_t send_op, send_address_t send_address, send_hint_t &send_hint)
-    : hw_cfg_(hw_cfg)
-    , cset_(&cset)
+access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
+        const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
+        send_address_t send_address, send_hint_t &send_hint)
+    : ir_ctx_(&ir_ctx)
     , mem_view_(mem_view)
     , mem_buf_(mem_buf)
     , reg_buf_(reg_buf)
@@ -441,7 +439,8 @@ access_builder_t::access_builder_t(const hw_config_t &hw_cfg,
     , send_address_(send_address)
     , send_hint_(send_hint)
     , mem_type_(mem_view.type())
-    , mem_walker_(utils::make_unique<memory_walker_t>(cset, mem_view)) {
+    , mem_walker_(
+              utils::make_unique<memory_walker_t>(ir_ctx.cset(), mem_view)) {
     if (send_hint_.hint_2d.enable) {
         // Do not emit non 2d prefetch when a 2d prefetch is expected
         if (try_build_2d() || send_op_ == send_op_t::prefetch) return;
@@ -552,7 +551,6 @@ bool access_builder_t::try_build_2d() {
     int type_factor = ir_utils::safe_divide(send_type.size(), mem_type_.size());
     surface_width /= type_factor;
 
-    int grf_size = hw_cfg_.grf_size();
     int width = hint.width;
     int height = hint.height;
     int count = 1;
@@ -620,7 +618,7 @@ bool access_builder_t::try_build_2d() {
     }
 
     reg_layout_walker_
-            = utils::make_unique<layout_walker_t>(reg_layout_, grf_size);
+            = utils::make_unique<layout_walker_t>(reg_layout_, grf_size());
 
     // Update user hint.
     hint.type = send_type;
@@ -629,8 +627,9 @@ bool access_builder_t::try_build_2d() {
     hint.transpose = transpose;
     hint.width = w;
     hint.height = h;
-    auto _send = send_t::make_2d(hw_cfg_.hw(), send_hint_.convert(send_op_),
-            send_type, W, H, P, w, h, c, vnni, transpose);
+    auto _send = send_t::make_2d(ir_ctx_->hw_cfg().hw(),
+            send_hint_.convert(send_op_), send_type, W, H, P, w, h, c, vnni,
+            transpose);
     auto &send = _send.as<send_t>();
 
     stmt_ = stmt_t();
@@ -697,18 +696,18 @@ bool access_builder_t::try_build_2d() {
             }
         }
 
-        auto off
-                = simplify(mem_view_.tlayout().offset_in_bytes(tstart), *cset_);
+        auto off = simplify(
+                mem_view_.tlayout().offset_in_bytes(tstart), ir_ctx_->cset());
 
         // Check alignment requirements.
-        int64_t align = get_max_const_factor(off, *cset_);
-        if (align % block_2d_base_alignment(hw_cfg_) != 0) {
+        int64_t align = get_max_const_factor(off, ir_ctx_->cset());
+        if (align % block_2d_base_alignment(ir_ctx_->hw_cfg()) != 0) {
             ok = false;
             return;
         }
 
         if (!skip_send) {
-            if (!cset_->can_prove(
+            if (!ir_ctx_->cset().can_prove(
                         x % block_2d_x_alignment(send_type.size()) == 0)) {
                 ok = false;
                 return;
@@ -732,7 +731,8 @@ bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
     int surface_width_size = W * send_type.size();
     auto whp_ok = [&]() {
         return block_2d_width_ok(W, send_type.size()) && block_2d_height_ok(H)
-                && block_2d_pitch_ok(hw_cfg_, P, send_type.size(), use_xy);
+                && block_2d_pitch_ok(
+                        ir_ctx_->hw_cfg(), P, send_type.size(), use_xy);
     };
 
     // No VNNI permute by default.
@@ -772,7 +772,7 @@ bool access_builder_t::check_2d_mask(const tensor_t &tile,
         bool use_virtual_surface, int w_dim_idx, int h_dim_idx,
         expr_t &mask) const {
     auto sub_view = mem_view_.create_sub_view(tile);
-    auto mask_tensor = sub_view.create_mask_tensor(*cset_);
+    auto mask_tensor = sub_view.create_mask_tensor(ir_ctx_->cset());
     mask = mask_tensor.to_expr(1);
     if (!mask.is_empty()) return true;
 
@@ -793,7 +793,7 @@ bool access_builder_t::check_2d_mask(const tensor_t &tile,
             }
         }
     }
-    mask_tensor = sub_view.create_mask_tensor(*cset_, tmask);
+    mask_tensor = sub_view.create_mask_tensor(ir_ctx_->cset(), tmask);
     mask = mask_tensor.to_expr(1);
     if (!mask.is_empty()) return true;
 
@@ -805,11 +805,10 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
     int reg_stride
             = (try_layout_blocks.empty() ? 0
                                          : (int)try_layout_blocks[0].stride);
-    auto send_list
-            = send_t::get_all(hw_cfg_.hw(), send_op_, send_address_, mem_type_);
-    int grf_size = hw_cfg_.grf_size();
+    auto send_list = send_t::get_all(
+            ir_ctx_->hw_cfg().hw(), send_op_, send_address_, mem_type_);
     reg_layout_walker_
-            = utils::make_unique<layout_walker_t>(try_layout, grf_size);
+            = utils::make_unique<layout_walker_t>(try_layout, grf_size());
     stmt_ = stmt_t();
     mem_walker_->reset();
     // Iterate through the memory view, greedily select messages according to
@@ -882,7 +881,7 @@ std::vector<layout_t> access_builder_t::candidate_payload_layouts() const {
 
     auto &vblocks = vlayout.blocks();
     auto &tblocks = mem_view_.tlayout().blocks();
-    int grf_size = hw_cfg_.grf_size();
+    int grf_size = this->grf_size();
 
     // This is to support layouts that are half-GRF blocked (e.g. u8/s8 32c on
     // XeHPC). In this case we can pad the block to full register and apply GRF

@@ -29,7 +29,7 @@ namespace gpu {
 namespace jit {
 
 stmt_t create_epilogue_stmt(const conv_config_t &cfg, ir_context_t &ir_ctx,
-        const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
+        const gemm_schedule_t &gemm_schedule,
         const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
         const view_t &c_mem_view, const layout_t &c_reg_layout,
         const expr_t &c_mem_buf, const expr_t &c_reg_buf);

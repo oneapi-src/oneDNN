@@ -344,8 +344,7 @@ struct send_hint_t {
 // automatically, according to the decomposition into messages.
 class access_builder_t {
 public:
-    access_builder_t(const hw_config_t &hw_cfg, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const view_t &mem_view,
+    access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
             const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
             send_address_t send_address, send_hint_t &send_hint);
     access_builder_t(access_builder_t &&);
@@ -381,10 +380,9 @@ private:
 
     std::vector<layout_t> candidate_payload_layouts() const;
     stmt_t create_send_stmt(const send_t &send);
-    int grf_size() const { return ngen::GRF::bytes(hw_cfg_.hw()); }
+    int grf_size() const { return ngen::GRF::bytes(ir_ctx_->hw_cfg().hw()); }
 
-    hw_config_t hw_cfg_;
-    const constraint_set_t *cset_ = nullptr;
+    ir_context_t *ir_ctx_ = nullptr;
     view_t mem_view_;
     expr_t mem_buf_;
     expr_t reg_buf_;
@@ -401,22 +399,20 @@ private:
     stmt_t stmt_;
 };
 
-inline access_builder_t make_access_builder(const hw_config_t &hw_cfg,
-        ir_context_t &ir_ctx, const constraint_set_t &cset,
+inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
         send_op_t send_op, send_address_t send_address,
         send_hint_t &send_hint) {
-    return access_builder_t(hw_cfg, ir_ctx, cset, mem_view, mem_buf, reg_buf,
-            send_op, send_address, send_hint);
+    return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf, send_op,
+            send_address, send_hint);
 }
 
-inline access_builder_t make_access_builder(const hw_config_t &hw_cfg,
-        ir_context_t &ir_ctx, const constraint_set_t &cset,
+inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
         send_op_t send_op, send_address_t send_address) {
     send_hint_t send_hint;
-    return access_builder_t(hw_cfg, ir_ctx, cset, mem_view, mem_buf, reg_buf,
-            send_op, send_address, send_hint);
+    return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf, send_op,
+            send_address, send_hint);
 }
 
 send_hint_t get_send_hint(const hw_config_t &hw_cfg, send_op_t send_op,

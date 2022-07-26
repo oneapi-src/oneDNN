@@ -33,8 +33,7 @@ class slm_reduce_builder_t {
 public:
     slm_reduce_builder_t() = default;
 
-    slm_reduce_builder_t(const hw_config_t &hw_cfg, ir_context_t &ir_ctx,
-            const constraint_set_t &cset, const grid_info_t &tg_grid,
+    slm_reduce_builder_t(ir_context_t &ir_ctx, const grid_info_t &tg_grid,
             const expr_t &reg_buf, const layout_t &reg_layout,
             const tensor_t &thr_tile, int dim = 2);
 
@@ -63,7 +62,7 @@ public:
     }
 
 private:
-    void build(ir_context_t &ir_ctx, const constraint_set_t &cset);
+    void build();
 
     uint32_t reduction_mask() const {
         uint32_t mask = 0xFFFFFFFF;
@@ -74,7 +73,7 @@ private:
         return mask;
     }
 
-    hw_config_t hw_cfg_;
+    ir_context_t *ir_ctx_ = nullptr;
     grid_info_t tg_grid_;
 
     expr_t reg_buf_;
