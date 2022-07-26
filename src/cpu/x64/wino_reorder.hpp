@@ -21,6 +21,7 @@
 #include "common/primitive.hpp"
 #include "common/primitive_desc.hpp"
 
+#include "cpu/cpu_primitive.hpp"
 #include "cpu/reorder/cpu_reorder_pd.hpp"
 #include "cpu/simple_q10n.hpp"
 
@@ -43,7 +44,7 @@ struct wino_reorder_t : public primitive_t {
             if (status != status::success) return status;
 
             bool ok = attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::oscale
+                    primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
 
@@ -159,14 +160,13 @@ private:
     const int unsign_val_in_wino_domain_ = 5;
 
     void transform(out_data_t *__restrict tmp_wei,
-            const in_data_t *__restrict input,
-            in_data_t *__restrict wspace) const {
+            const in_data_t *__restrict input, in_data_t *__restrict wspace,
+            const float *__restrict oscales) const {
         const memory_desc_wrapper src_d(pd()->src_md());
 
         const int smask = pd()->attr()->output_scales_.mask_;
         const int ndims_mask = math::ilog2q(smask + 1);
         const size_t D_mask = utils::array_product(src_d.dims(), ndims_mask);
-        const float *__restrict scales = pd()->attr()->output_scales_.scales_;
         assert(D_mask == 1 || D_mask == static_cast<size_t>(oc_));
 
         /* transform weights to winograd domain */
@@ -271,8 +271,8 @@ private:
                                             + ioc];
                         if (type_o == data_type::s8) {
                             const float scale = (D_mask == 1)
-                                    ? scales[0]
-                                    : scales[ob * oc_block_ + ioc];
+                                    ? oscales[0]
+                                    : oscales[ob * oc_block_ + ioc];
                             _out[(i * w_alpha_ + j) * Z + ioc]
                                     = qz_b0<in_data_t, out_data_t>()(
                                             static_cast<in_data_t>(res),
@@ -427,7 +427,9 @@ private:
                                .template get<void>(memory_tracking::names::
                                                key_reorder_wino_plain);
 
-        transform(tmp_wei, input, wspace);
+        DEFINE_SCALES_BUFFER(oscales);
+
+        transform(tmp_wei, input, wspace, oscales);
 
         /* reorder to winograd domain */
         switch (wino_format_) {
