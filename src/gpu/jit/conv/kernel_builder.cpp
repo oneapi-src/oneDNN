@@ -6025,7 +6025,7 @@ private:
         const int m_blk_x2 = std::min(m_blk * 2, 16);
         const int src_zp_size
                 = get_src_zp_size(is_scalar, is_runtime, is_mad, m_blk_x2);
-        auto src_zp = ir_ctx_.create_tmp_var(type_t::byte_ptr());
+        auto src_zp = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "zp_buf");
         if (src_zp_size)
             register_buffer(
                     src_zp, src_zp_size * d_type.size(), alloc_kind_t::grf);
