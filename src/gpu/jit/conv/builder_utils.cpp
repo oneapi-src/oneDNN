@@ -16,6 +16,8 @@
 
 #include "gpu/jit/conv/builder_utils.hpp"
 
+#include "gpu/jit/conv/grf_usage.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -32,6 +34,8 @@ void trace_pass(
     trace_stop(pass_name);
     ir_trace() << "=== After " << pass_name << std::endl;
     ir_trace() << stmt << std::endl;
+    auto grf_usage = get_grf_usage(stmt, ir_ctx.hw_cfg().grf_size());
+    if (!grf_usage.is_empty()) ir_trace() << grf_usage << std::endl;
 }
 #endif
 

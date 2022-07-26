@@ -22,6 +22,7 @@
 #include "gpu/jit/conv/bank_conflict_allocation.hpp"
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/fma_support.hpp"
+#include "gpu/jit/conv/grf_usage.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/kernel_builder.hpp"
 #include "gpu/jit/conv/kernel_info.hpp"
@@ -4210,18 +4211,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 
 #ifdef GEN_CONV_DEBUG
     profile.stop();
-    int grf_size = ngen::GRF::bytes(hw);
-    ir_trace() << "Register usage estimate:         "
-               << cfg_.estimated_peak_grf_usage << std::endl;
-    ir_trace() << "IR register usage:               "
-               << get_peak_grf_usage(
-                          body, grf_size, ra_.get_grf_usage() * grf_size)
-               << std::endl;
-    ir_trace() << "IR register usage (without let): "
-               << get_peak_grf_usage(body, grf_size,
-                          ra_.get_grf_usage() * grf_size,
-                          /*skip_let=*/true)
-               << std::endl;
+    verify_grf_usage(cfg, body, ra_.get_grf_usage());
     profile.start();
 #endif
 

@@ -148,6 +148,7 @@ public:
 
     IR_DEFINE_ARG_GET(mem_buf, 0)
     IR_DEFINE_ARG_GET(mem_off, 1)
+    IR_DEFINE_ARG_GET(header_buf, 1)
     IR_DEFINE_ARG_GET(reg_buf, 2)
     IR_DEFINE_ARG_GET(mask, 3)
     IR_DEFINE_ARG_GET(x, 4)
