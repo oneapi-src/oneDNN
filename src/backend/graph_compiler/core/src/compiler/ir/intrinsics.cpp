@@ -282,6 +282,9 @@ sc_data_type_t arg_types[NUM_FULL_ARGS_STRIDE] = {
         datatypes::pointer, // b_zp_compensations
         datatypes::pointer, // c_zp_values
         datatypes::boolean, // skip_accumulation
+        datatypes::s32, // zp_a_val
+        datatypes::boolean, // do_only_comp
+        datatypes::boolean, // do_only_zp_a_val
         datatypes::pointer, // c_buf
         datatypes::index // bdmask_idx
 };
@@ -311,6 +314,9 @@ sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST] = {
         datatypes::pointer, // b_zp_compensations
         datatypes::pointer, // c_zp_values
         datatypes::boolean, // skip_accumulation
+        datatypes::s32, // zp_a_val
+        datatypes::boolean, // do_only_comp
+        datatypes::boolean, // do_only_zp_a_val
         datatypes::pointer, // c_buf
         datatypes::index // bdmask_idx
 };

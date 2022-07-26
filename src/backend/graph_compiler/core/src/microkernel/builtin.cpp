@@ -430,12 +430,16 @@ func_t get_brgemm_postops_data_init_func() {
                             _arg_("a_zp_compensations", datatypes::pointer),
                             _arg_("b_zp_compensations", datatypes::pointer),
                             _arg_("c_zp_values", datatypes::pointer),
-                            _arg_("skip_accumulation", datatypes::boolean)});
+                            _arg_("skip_accumulation", datatypes::boolean),
+                            _arg_("zp_a_val", datatypes::s32),
+                            _arg_("do_only_comp", datatypes::boolean),
+                            _arg_("do_only_zp_a_val", datatypes::boolean)});
     return data_init_func;
 }
 
 std::vector<expr> create_initialed_postops_data() {
     std::vector<expr> data(brgemm::postops_data_init_func_nargs, get_ir_null());
+    auto false_node = make_expr<constant_node>(UINT64_C(0), datatypes::boolean);
     // oc_logical_off
     data[3] = get_ir_zero_index();
     // dst_row_logical_off
@@ -443,7 +447,13 @@ std::vector<expr> create_initialed_postops_data() {
     // first_mb_matrix_addr_off
     data[6] = get_ir_zero_index();
     // skip_accumulation
-    data[10] = make_expr<constant_node>(UINT64_C(0), datatypes::boolean);
+    data[10] = false_node;
+    // zp_a_val
+    data[11] = make_expr<constant_node>(UINT64_C(0), datatypes::s32);
+    // do_only_comp
+    data[12] = false_node;
+    // do_only_zp_a_val
+    data[13] = false_node;
     return data;
 }
 

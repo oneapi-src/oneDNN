@@ -174,11 +174,9 @@ context_ptr get_default_context() {
             flags.boundary_check_ = true;
             SC_MODULE_WARN << "Enabled boundary check";
         };
-        flags.brgemm_use_amx_
-                = dnnl::impl::cpu::x64::mayiuse(
-                          dnnl::impl::cpu::x64::avx512_core_bf16_amx_int8)
-                || dnnl::impl::cpu::x64::mayiuse(
-                        dnnl::impl::cpu::x64::avx512_core_bf16_amx_bf16);
+        flags.brgemm_use_amx_ = tm.cpu_flags_.fAVX512AMXTILE
+                && (tm.cpu_flags_.fAVX512AMXBF16
+                        || tm.cpu_flags_.fAVX512AMXINT8);
         // todo: this env var is for linux kernels that under 5.15, current left
         // here for compatibility
         if (sc::utils::getenv_string("DNNL_MAX_CPU_ISA") == "AVX512_CORE_AMX") {

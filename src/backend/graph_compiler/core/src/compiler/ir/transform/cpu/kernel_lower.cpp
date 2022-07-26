@@ -198,7 +198,8 @@ static expr get_brgemm_postops_data_arg(
             builder::make_call(builtin::get_brgemm_postops_data_init_func(),
                     {postop_data, in_bufs[0], in_bufs[1], bin_ptr, in_bufs[3],
                             in_bufs[4], in_bufs[5], in_bufs[6], in_bufs[7],
-                            in_bufs[8], in_bufs[9], in_bufs[10]})));
+                            in_bufs[8], in_bufs[9], in_bufs[10], in_bufs[11],
+                            in_bufs[12], in_bufs[13]})));
 
     return postop_data;
 }

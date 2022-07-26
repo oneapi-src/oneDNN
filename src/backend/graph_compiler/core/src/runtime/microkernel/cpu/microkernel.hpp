@@ -70,6 +70,8 @@ SC_API void dnnl_brgemm_postops_data_init(void *dnnl_data = nullptr,
         uint64_t dst_row_logical_off = 0, void *data_C_ptr_ = nullptr,
         uint64_t first_mb_matrix_addr_off = 0,
         void *a_zp_compensations = nullptr, void *b_zp_compensations = nullptr,
-        void *c_zp_values = nullptr, bool skip_accumulation = false);
+        void *c_zp_values = nullptr, bool skip_accumulation = false,
+        int zp_a_val = 1, bool do_only_comp = false,
+        bool do_only_zp_a_val = false);
 }
 #endif

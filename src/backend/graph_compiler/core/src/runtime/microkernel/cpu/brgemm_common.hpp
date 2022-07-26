@@ -69,6 +69,9 @@ enum postop_data_kind : int {
     b_zp_compensations,
     c_zp_values,
     skip_accumulation,
+    zp_a_val,
+    do_only_comp,
+    do_only_zp_a_val,
 };
 
 struct attrs_setting_t {
@@ -197,7 +200,7 @@ struct postops_setting_t {
 };
 
 // nargs inherited from `brgemm_post_ops_data_t` in onednn backend.
-static const int postops_data_init_func_nargs = 11;
+static const int postops_data_init_func_nargs = 14;
 static const int postops_data_size = postops_data_init_func_nargs * 8; // bytes
 } // namespace brgemm
 
