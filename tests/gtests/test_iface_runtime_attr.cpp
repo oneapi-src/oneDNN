@@ -452,7 +452,7 @@ TEST_F(runtime_attr_test_t, TestSoftmax_v2) {
     CHECK_OK(softmax_v2_forward::primitive_desc(op_d, eng));
     CHECK_OK(softmax_v2_forward::primitive_desc(
             op_d, gen_attr_with_oscale(false), eng));
-    CHECK_UNIMPL(softmax_v2_forward::primitive_desc(
+    CHECK_OK(softmax_v2_forward::primitive_desc(
             op_d, gen_attr_with_oscale(true), eng));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
