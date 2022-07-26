@@ -1354,6 +1354,13 @@ private:
     }
 };
 
+inline const expr_t &get_base(const expr_t &e) {
+    if (e.is<var_t>()) return e;
+    if (e.is<ptr_t>()) return e.as<ptr_t>().base;
+    ir_error_not_expected() << e;
+    return e;
+}
+
 class shuffle_t : public expr_impl_t {
 public:
     IR_DECL_EXPR_TYPE_ID(shuffle_t)

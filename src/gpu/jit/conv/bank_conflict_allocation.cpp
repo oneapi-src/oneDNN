@@ -628,13 +628,6 @@ reg_mask_t create_available_reg_mask(
     return reg_mask;
 }
 
-expr_t get_base(const expr_t &e) {
-    if (e.is<var_t>()) return e;
-    if (e.is<ptr_t>()) return e.as<ptr_t>().base;
-    ir_error_not_expected() << e;
-    return expr_t();
-}
-
 } // namespace
 
 bank_conflict_allocation_t bank_conflict_allocation_t::create(
