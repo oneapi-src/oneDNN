@@ -173,6 +173,10 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     const auto jcp_dw = pd()->jcp_dw_;
     const int nb_buffer = jcp.nb_load_blocking;
     std::vector<decltype(pbuf)> addrs;
+    const bool is_dst_layout_nxc = utils::one_of(
+            jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+    const bool is_src_layout_nxc = utils::one_of(
+            jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -224,8 +228,6 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
 
     auto ker_1x1 = [&](int ocb, int ocb_start, int icb, int n, int g, int od,
                            int oh, int ow, int id, int ih, int iw) {
-        const bool is_dst_layout_nxc = utils::one_of(jcp.dst_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
         const int oc_off_idx = is_dst_layout_nxc
                 ? g * jcp.oc + ocb * jcp.oc_block
                 : g * nb_oc + ocb;
@@ -242,8 +244,6 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
                                                : weights_d.blk_off(ocb, icb)];
 
-        const bool is_src_layout_nxc = utils::one_of(jcp.src_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
         const int ic_off_idx = is_src_layout_nxc
                 ? g * jcp.ic + icb * jcp.ic_block
                 : g * nb_ic + icb;
@@ -331,8 +331,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             addrs[i] = pbuf + ((oh_1x1++) % jcp_dw->kh) * row_offset;
 
         const auto ocb_end = ocb_start + load_step;
-        const auto wch_stride
-                = jcp_dw->iw * jcp_dw->nb_ch_blocking * jcp_dw->ch_block;
+        const auto wch_stride = (is_src_layout_nxc ? 1 : jcp_dw->iw)
+                * jcp_dw->nb_ch_blocking * jcp_dw->ch_block;
 
         const int dil_h = jcp_dw->dilate_h + 1;
         const int str_h = jcp_dw->stride_h;
@@ -357,8 +357,13 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             jit_conv_call_s par_conv_dw;
 
             par_conv_dw.src = addrs.data();
-            par_conv_dw.dst = &dst[dst_d.blk_off(n, ch, dw_oh, ow)
-                    * dst_d.data_type_size()];
+
+            const size_t ch_step = is_dst_layout_nxc
+                    ? jcp_dw->ch_block
+                    : dst_d.blk_off(0, 1, 0, 0);
+            par_conv_dw.dst
+                    = &dst[(dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step)
+                            * dst_d.data_type_size()];
 
             par_conv_dw.filt
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];
