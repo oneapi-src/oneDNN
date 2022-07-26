@@ -28,6 +28,7 @@
 #include "interface/backend.hpp"
 #include "interface/c_types_map.hpp"
 #include "interface/partition.hpp"
+#include "interface/thread.hpp"
 
 #include "utils/debug.hpp"
 #include "utils/utils.hpp"
@@ -47,6 +48,14 @@
 
 #ifndef DNNL_GRAPH_VERSION_HASH
 #define DNNL_GRAPH_VERSION_HASH "N/A"
+#endif
+
+#ifndef DNNL_GRAPH_CPU_RUNTIME
+#define DNNL_GRAPH_CPU_RUNTIME UINT_MAX
+#endif
+
+#ifndef DNNL_GRAPH_GPU_RUNTIME
+#define DNNL_GRAPH_GPU_RUNTIME UINT_MAX
 #endif
 
 namespace dnnl {
@@ -83,6 +92,20 @@ int get_verbose() {
         printf("onednn_graph_verbose,info,oneDNN Graph v%d.%d.%d (commit %s)\n",
                 dnnl_graph_version()->major, dnnl_graph_version()->minor,
                 dnnl_graph_version()->patch, dnnl_graph_version()->hash);
+#if DNNL_GRAPH_CPU_RUNTIME != DNNL_GRAPH_RUNTIME_NONE
+        printf("onednn_graph_verbose,info,cpu,runtime:%s,nthr:%d\n",
+                dnnl_graph_runtime2str(dnnl_graph_version()->cpu_runtime),
+                dnnl_graph_get_max_threads());
+#endif
+        printf("onednn_graph_verbose,info,gpu,runtime:%s\n",
+                dnnl_graph_runtime2str(dnnl_graph_version()->gpu_runtime));
+        std::vector<const backend *> &backends
+                = backend_registry_t::get_singleton().get_registered_backends();
+        for (size_t i = 0; i < backends.size() - 1; ++i) {
+            backend *bkd = const_cast<backend *>(backends[i]);
+            printf("onednn_graph_verbose,info,backend,%zu:%s\n", i,
+                    bkd->get_name().c_str());
+        }
         version_printed = true;
     }
 #endif
@@ -290,6 +313,7 @@ void partition_info_t::init(const engine_t *engine,
 const dnnl_graph_version_t *dnnl_graph_version(void) {
     static const dnnl_graph_version_t ver
             = {DNNL_GRAPH_VERSION_MAJOR, DNNL_GRAPH_VERSION_MINOR,
-                    DNNL_GRAPH_VERSION_PATCH, DNNL_GRAPH_VERSION_HASH};
+                    DNNL_GRAPH_VERSION_PATCH, DNNL_GRAPH_VERSION_HASH,
+                    DNNL_GRAPH_CPU_RUNTIME, DNNL_GRAPH_GPU_RUNTIME};
     return &ver;
 }

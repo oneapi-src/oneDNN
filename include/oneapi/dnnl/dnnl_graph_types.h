@@ -699,6 +699,8 @@ typedef struct {
     int minor; ///< Minor version
     int patch; ///< Patch version
     const char *hash; ///< Git hash of the sources (may be absent)
+    unsigned cpu_runtime; ///< CPU runtime
+    unsigned gpu_runtime; ///< GPU runtime
 } dnnl_graph_version_t;
 
 /// No runtime (disabled)

@@ -23,6 +23,20 @@ namespace graph {
 namespace impl {
 namespace utils {
 
+const char *dnnl_graph_runtime2str(unsigned runtime) {
+    switch (runtime) {
+        case DNNL_GRAPH_RUNTIME_NONE: return "none";
+        case DNNL_GRAPH_RUNTIME_SEQ: return "sequential";
+        case DNNL_GRAPH_RUNTIME_OMP: return "OpenMP";
+        case DNNL_GRAPH_RUNTIME_TBB: return "TBB";
+        case DNNL_GRAPH_RUNTIME_THREADPOOL: return "threadpool";
+#ifdef DNNL_GRAPH_WITH_SYCL
+        case DNNL_GRAPH_RUNTIME_SYCL: return "DPC++";
+#endif
+        default: return "unknown";
+    }
+}
+
 const char *data_type2str(data_type_t v) {
     if (v == data_type::undef) return "undef";
     if (v == data_type::f16) return "f16";

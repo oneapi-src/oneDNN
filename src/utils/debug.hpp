@@ -26,6 +26,7 @@ namespace graph {
 namespace impl {
 namespace utils {
 
+const char *dnnl_graph_runtime2str(unsigned runtime);
 const char *data_type2str(data_type_t v);
 const char *engine_kind2str(engine_kind_t v);
 const char *fpmath_mode2str(fpmath_mode_t v);
