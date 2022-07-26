@@ -22,7 +22,8 @@
 inline int dnnl_graph_get_max_threads() {
     return omp_get_max_threads();
 }
-#elif DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_TBB
+#elif DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_TBB \
+        || DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_SYCL
 #include "tbb/task_arena.h"
 inline int dnnl_graph_get_max_threads() {
     return tbb::this_task_arena::max_concurrency();
