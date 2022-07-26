@@ -440,10 +440,6 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
         return false;
     };
     const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
-    const auto is_binary_bf16 = [&](int idx) {
-        return is_binary(idx)
-                && p.entry_[idx].binary.src1_desc.data_type == data_type::bf16;
-    };
     const bool is_avx512_core = mayiuse(avx512_core);
     const bool is_i8 = utils::one_of(dst_d.data_type(), s8, u8);
 
@@ -452,17 +448,19 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
         if (p.contain(primitive_kind::sum, i)) {
             if (p.entry_[i].sum.zero_point != 0) return false;
             if (src0_d.data_type() != dst_d.data_type()) return false;
-        } else if (!(is_eltwise(i) || is_binary(i))
-                || ((is_i8 || !is_avx512_core) && is_binary_bf16(i))) {
-            return false;
         } else if (is_binary(i)) {
             const auto &post_ops_mem = p.entry_[i].binary.src1_desc;
+            const bool is_src1_bf16 = post_ops_mem.data_type == data_type::bf16;
+            if (is_i8 && is_src1_bf16) return false;
+            if (!IMPLICATION(is_src1_bf16, is_avx512_core)) return false;
             if (get_rhs_arg_broadcasting_strategy(
                         post_ops_mem, dst_d, supported_strategies)
                     == broadcasting_strategy_t::no_broadcast) {
                 const memory_desc_wrapper post_op_mem_d(post_ops_mem);
                 if (!post_op_mem_d.similar_to(dst_d, true, false)) return false;
             }
+        } else if (!is_eltwise(i)) {
+            return false;
         }
     }
 
