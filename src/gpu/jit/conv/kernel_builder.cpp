@@ -5686,7 +5686,9 @@ private:
             auto mask_tensor = a_thr_view.create_mask_tensor(lmb_.cset_);
 
             // 2. Collect the masks, transforming the dimensions as needed
-            const auto c_blk = std::min(channels, m_blk);
+            int channels_blk = std::min(
+                    channels, (int)a_thr_view.tlayout().blocks()[0].block);
+            const auto c_blk = std::min(channels_blk, m_blk);
             std::vector<dim_t> a_dims(a_thr_view.vvars().size(), 1);
             mask_tensor_t masks(
                     layout_t(type_t::_bool(), 0, std::vector<dim_t> {size_}));
@@ -5718,7 +5720,7 @@ private:
                             masks.set_mask(off, m.to_expr(c_blk));
                         });
             } else {
-                a_dims[ic_dim] = m_blk;
+                a_dims[ic_dim] = c_blk;
                 std::vector<dim_t> a_dims_crop(a_dims.size(), 1);
                 a_dims_crop[ic_dim] = c_blk;
                 a_thr_view.for_each_tile(
