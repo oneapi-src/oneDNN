@@ -173,6 +173,7 @@ template struct simple_concat_t<data_type::u8>;
 template struct simple_concat_t<data_type::s8>;
 template struct simple_concat_t<data_type::s32>;
 template struct simple_concat_t<data_type::bf16>;
+template struct simple_concat_t<data_type::f16>;
 
 } // namespace cpu
 } // namespace impl

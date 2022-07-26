@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -233,6 +233,8 @@ static auto case_ZeroDim = []() {
 INSTANTIATE_TEST_SUITE_P(TestConcat_ZeroDim, concat_test_float, case_ZeroDim());
 CPU_INSTANTIATE_TEST_SUITE_P(
         TestConcat_ZeroDim_bf16, concat_test_bf16, case_ZeroDim());
+CPU_INSTANTIATE_TEST_SUITE_P(
+        TestConcat_ZeroDim_f16, concat_test_float16, case_ZeroDim());
 
 static auto cases_EF = []() {
     return ::testing::Values(
@@ -272,6 +274,8 @@ static auto cases_EF = []() {
 };
 INSTANTIATE_TEST_SUITE_P(TestConcat_EF, concat_test_float, cases_EF());
 CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_EF_bf16, concat_test_bf16, cases_EF());
+CPU_INSTANTIATE_TEST_SUITE_P(
+        TestConcat_EF_f16, concat_test_float16, cases_EF());
 
 static auto cases_padded = []() {
     return ::testing::Values(
@@ -315,6 +319,8 @@ static auto cases_padded = []() {
 INSTANTIATE_TEST_SUITE_P(TestConcat_padded, concat_test_float, cases_padded());
 CPU_INSTANTIATE_TEST_SUITE_P(
         TestConcat_padded_bf16, concat_test_bf16, cases_padded());
+CPU_INSTANTIATE_TEST_SUITE_P(
+        TestConcat_padded_f16, concat_test_float16, cases_padded());
 
 static auto cases_3D = []() {
     return ::testing::Values(
@@ -345,6 +351,7 @@ static auto cases_3D = []() {
 };
 INSTANTIATE_TEST_SUITE_P(TestConcat3D, concat_test_float, cases_3D());
 CPU_INSTANTIATE_TEST_SUITE_P(TestConcat3D_bf16, concat_test_bf16, cases_3D());
+CPU_INSTANTIATE_TEST_SUITE_P(TestConcat3D_f16, concat_test_float16, cases_3D());
 
 static auto cases_concat = []() {
     return ::testing::Values(
@@ -376,6 +383,8 @@ static auto cases_concat = []() {
 };
 INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_float, cases_concat());
 CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_bf16, concat_test_bf16, cases_concat());
+CPU_INSTANTIATE_TEST_SUITE_P(
+        TestConcat_f16, concat_test_float16, cases_concat());
 
 INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_s8,
         ::testing::Values(
