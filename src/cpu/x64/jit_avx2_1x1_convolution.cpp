@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,6 +130,11 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     std::vector<data_t *> addrs;
     jit_generator *dw_jit_ker = nullptr;
 
+    const bool is_src_layout_nxc = utils::one_of(
+            jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+    const bool is_dst_layout_nxc = utils::one_of(
+            jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
         return remaining < tail_step ? remaining : default_step;
@@ -170,8 +175,6 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
     auto ker_1x1 = [&](int ocb, int icb, int ocb_start, int n, int g, int od,
                            int oh, int ow, int id, int ih, int iw) {
-        const bool is_dst_layout_nxc = utils::one_of(jcp.dst_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
         const int oc_off_idx = is_dst_layout_nxc
                 ? g * jcp.oc + ocb * jcp.oc_block
                 : g * nb_oc + ocb;
@@ -193,8 +196,6 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
                                                : weights_d.blk_off(ocb, icb)];
 
-        const bool is_src_layout_nxc = utils::one_of(jcp.src_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
         const int ic_off_idx = is_src_layout_nxc
                 ? g * jcp.ic + icb * jcp.ic_block
                 : g * nb_ic + icb;
@@ -247,9 +248,9 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         for (int i = 0; i < jcp_dw->kh; ++i)
             addrs[i] = pbuf + ((oh_1x1++) % jcp_dw->kh) * row_offset;
 
+        const ptrdiff_t wch_stride = (is_src_layout_nxc ? 1 : jcp_dw->iw)
+                * jcp_dw->nb_ch_blocking * jcp_dw->ch_block;
         const auto ocb_end = ocb_start + load_step;
-        const auto wch_stride
-                = jcp_dw->iw * jcp_dw->nb_ch_blocking * jcp_dw->ch_block;
         const int dil_h = jcp_dw->dilate_h + 1;
         const int str_h = jcp_dw->stride_h;
         const int ch_num = jcp_dw->nb_ch_blocking;
@@ -273,7 +274,12 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
             jit_conv_call_s par_conv_dw;
 
             par_conv_dw.src = addrs.data();
-            par_conv_dw.dst = &dst[dst_d.blk_off(n, ch, dw_oh, ow)];
+
+            const size_t ch_step = is_dst_layout_nxc
+                    ? jcp_dw->ch_block
+                    : dst_d.blk_off(0, 1, 0, 0);
+            par_conv_dw.dst
+                    = &dst[dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
 
             par_conv_dw.filt
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];
