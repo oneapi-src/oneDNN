@@ -32,6 +32,15 @@ namespace matmul {
 static int check_known_skipped_case_graph(
         const ::matmul::prb_t *prb, res_t *res) noexcept {
 
+    // Not support u8s8u8 with 3 or higher matric dimensions.
+    bool skipped_dt = prb->src_dt() == dnnl_u8 && prb->wei_dt() == dnnl_s8
+            && prb->dst_dt() == dnnl_u8;
+    if (is_gpu() && skipped_dt && prb->src_dims().size() > 2) {
+        res->state = SKIPPED;
+        res->reason = CASE_NOT_SUPPORTED;
+        return OK;
+    }
+
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, ::matmul::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
@@ -43,6 +52,19 @@ static int check_known_skipped_case_graph(
 
     check_graph_eltwise_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return OK;
+
+    // Not support post-sum with zero_points. TODO(xiang): remove after onednn fix this.
+    if (is_gpu()) {
+        const auto &po = prb->attr.post_ops;
+        for (int idx = 0; idx < po.len(); ++idx) {
+            const auto &e = po.entry[idx];
+            if (e.is_sum_kind() && e.sum.zero_point != 0) {
+                res->state = SKIPPED;
+                res->reason = CASE_NOT_SUPPORTED;
+                return OK;
+            }
+        }
+    }
 
     check_graph_scales_and_zps_support(prb->attr, res);
     return OK;

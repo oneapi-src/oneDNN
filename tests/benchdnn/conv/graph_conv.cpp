@@ -57,6 +57,13 @@ static int check_known_skipped_case_graph(
     }
 
     check_graph_eltwise_post_ops(prb->attr, res);
+
+    // TODO(xiang): remove after onednn fix this.
+    if (is_gpu() && !prb->attr.zero_points.is_def(DNNL_ARG_DST)) {
+        res->state = SKIPPED;
+        res->reason = CASE_NOT_SUPPORTED;
+    }
+
     if (res->state == SKIPPED) return OK;
 
     check_graph_scales_and_zps_support(prb->attr, res);
