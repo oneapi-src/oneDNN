@@ -132,12 +132,6 @@ public:
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<impl::logical_tensor_t *> &outputs);
 
-    std::string to_string() const {
-        std::string id_str = "[ Partition ID: " + std::to_string(id()) + "\n";
-        std::string impl_str = pimpl_->to_string();
-        return id_str + impl_str;
-    }
-
 private:
     std::shared_ptr<const impl::partition_impl_t> pimpl_;
 };

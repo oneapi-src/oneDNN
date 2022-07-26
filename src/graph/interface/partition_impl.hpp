@@ -165,9 +165,6 @@ public:
             const std::vector<logical_tensor_t> &outputs,
             const engine_t *aengine) const = 0;
 
-    // dump a partition to string
-    virtual std::string to_string() const = 0;
-
     /// get partition_impl id
     size_t id() const { return id_; }
 
