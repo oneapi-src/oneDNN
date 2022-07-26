@@ -459,7 +459,6 @@ the convolution.)
    limitations including hardware support.
 
 3. **CPU**
-   - Run-time output scales are not supported
    - Integer \dst is not supported for floating point \src and \weights
    - Backward by data convolution with bias is not supported
 
