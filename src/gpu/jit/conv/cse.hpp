@@ -31,13 +31,8 @@ namespace jit {
 stmt_t eliminate_common_subexprs(const stmt_t &_stmt, ir_context_t &ir_ctx,
         int grf_size, int memory_usage_limit);
 
-inline stmt_t eliminate_common_subexprs(
-        const stmt_t &_stmt, const conv_config_t &cfg, ir_context_t &ir_ctx) {
-    int grf_size = cfg.grf_size();
-    int memory_usage_limit = (cfg.regs() - cfg.reserved_regs) * grf_size;
-    return eliminate_common_subexprs(
-            _stmt, ir_ctx, grf_size, memory_usage_limit);
-}
+stmt_t eliminate_common_subexprs(
+        const stmt_t &_stmt, const conv_config_t &cfg, ir_context_t &ir_ctx);
 
 } // namespace jit
 } // namespace gpu

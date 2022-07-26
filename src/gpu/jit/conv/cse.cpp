@@ -24,6 +24,7 @@
 #include <unordered_map>
 
 #include "gpu/jit/conv/builder_utils.hpp"
+#include "gpu/jit/conv/message_support.hpp"
 #include "gpu/jit/conv/register_allocator.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
@@ -759,6 +760,61 @@ stmt_t eliminate_common_subexprs(const stmt_t &_stmt, ir_context_t &ir_ctx,
     }
     trace_pass("eliminate_common_subexprs", stmt);
     return stmt;
+}
+
+class g2s_buf_visitor_t : public ir_visitor_t {
+public:
+    int g2s_buf_size() const {
+        int ret = 0;
+        for (auto &kv : g2s_bufs_) {
+            ir_assert(kv.second != 0);
+            ret += kv.second;
+        }
+        return ret;
+    }
+
+    void _visit(const alloc_t &obj) override {
+        ir_visitor_t::_visit(obj);
+        auto it = g2s_bufs_.find(obj.buf);
+        if (it != g2s_bufs_.end()) it->second = obj.size;
+    }
+
+    void _visit(const func_call_t &obj) override {
+        if (!in_g2s_) {
+            ir_visitor_t::_visit(obj);
+            return;
+        }
+        if (auto *func = obj.func.as_ptr<send_t>()) {
+            ir_assert(func->is_load()) << func;
+            auto &buf = send_t::arg_reg_buf(obj);
+            g2s_bufs_.emplace(get_base(buf), 0);
+        }
+        ir_visitor_t::_visit(obj);
+    }
+
+    void _visit(const stmt_group_t &obj) override {
+        bool is_g2s = obj.label == stmt_label_t::g2s_load();
+        if (is_g2s) in_g2s_ = true;
+        ir_visitor_t::_visit(obj);
+        if (is_g2s) in_g2s_ = false;
+    }
+
+private:
+    object_map_t<expr_t, int> g2s_bufs_;
+    bool in_g2s_ = false;
+};
+
+stmt_t eliminate_common_subexprs(
+        const stmt_t &_stmt, const conv_config_t &cfg, ir_context_t &ir_ctx) {
+    int grf_size = cfg.grf_size();
+    int memory_usage_limit = (cfg.regs() - cfg.reserved_regs) * grf_size;
+    if (cfg.gmem_bufs > 1) {
+        g2s_buf_visitor_t v;
+        v.visit(_stmt);
+        memory_usage_limit -= (cfg.gmem_bufs - 1) * v.g2s_buf_size();
+    }
+    return eliminate_common_subexprs(
+            _stmt, ir_ctx, grf_size, memory_usage_limit);
 }
 
 } // namespace jit
