@@ -5,7 +5,12 @@
 --attr-post-ops=dw_k3s1p1:f32
 --batch=shapes_fused_mobilenet_stride_1
 
+--cfg=f32,bf16bf16bf16
+--stag=axb --dtag=axb
+--batch=shapes_fused_mobilenet_stride_1
+
 --cfg=u8s8u8,s8s8u8
+--stag= --dtag=
 --attr-oscale=per_oc:0.5
 --attr-post-ops=relu+dw_k3s1p1:u8:per_oc:2.5+relu:0.5+add:s8, \
                 add:f32:per_oc+dw_k3s1p1:s8:common:1.5+linear:0.5:1.5, \
@@ -29,7 +34,12 @@
 --attr-post-ops=relu+dw_k3s2p1:f32+tanh
 --batch=shapes_fused_mobilenet_stride_2
 
+--cfg=f32,bf16bf16bf16
+--stag=axb --dtag=axb
+--batch=shapes_fused_mobilenet_stride_2
+
 --cfg=u8s8u8,s8s8u8
+--stag= --dtag=
 --attr-oscale=per_oc:0.5
 --attr-post-ops=relu+dw_k3s2p1:u8:per_oc:2.5+relu:0.5+add:s8, \
                 add:f32:per_oc+dw_k3s2p1:s8:common:1.5+linear:0.5:1.5, \
