@@ -732,8 +732,9 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
 #endif
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    static auto isa = dnnl_get_effective_cpu_isa();
     const bool is_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
-            && dnnl::mayiuse(dnnl_cpu_isa_avx512_core_fp16);
+            && dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_fp16);
     if (is_f16_not_ok) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
