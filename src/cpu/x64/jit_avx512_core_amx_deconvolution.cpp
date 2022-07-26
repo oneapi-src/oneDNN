@@ -59,7 +59,7 @@ void jit_avx512_core_amx_deconvolution_fwd_t::prepare_padded_bias(
     }
 }
 
-void jit_avx512_core_amx_deconvolution_fwd_t::execute_forward(
+status_t jit_avx512_core_amx_deconvolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
@@ -73,13 +73,15 @@ void jit_avx512_core_amx_deconvolution_fwd_t::execute_forward(
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     // The body of bwd/d convolution harness is called with:
     //   1. src as input instead of diff_dst
     //   2. dst as output instead of diff_src
     amx_utils::execute_backward_convolution_body(ctx, pd()->jcp_, kernel_, src,
             weights, bias, oscales, dst, src_d, weights_d, bias_d, dst_d);
+
+    return status::success;
 }
 
 } // namespace x64
