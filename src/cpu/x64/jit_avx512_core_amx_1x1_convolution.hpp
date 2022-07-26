@@ -60,7 +60,7 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(
                                     weights_md(1)->data_type, f32, s32, s8, u8))
-                    && attr()->has_default_values(smask_t::oscale
+                    && attr()->has_default_values(smask_t::oscale_runtime
                                     | smask_t::post_ops
                                     | smask_t::zero_points_runtime
                                     | smask_t::sum_dt,
