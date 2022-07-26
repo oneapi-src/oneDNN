@@ -6746,7 +6746,7 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
     strm.wait();
 
     for (size_t i = 0; i < tc_dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(tc_dst[i], convtc_dst[i]);
+        ASSERT_NEAR(tc_dst[i], convtc_dst[i], 1e-10);
     }
 }
 
