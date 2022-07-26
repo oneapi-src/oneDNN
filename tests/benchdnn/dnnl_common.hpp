@@ -428,11 +428,10 @@ int measure_prim_create(timer::timer_t &ct,
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, const prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
-    dnnl_primitive_desc_t pd_ {};
     dnnl_primitive_t prim_ {};
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_it;
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
@@ -442,10 +441,19 @@ int measure_prim_create(timer::timer_t &ct,
 #endif
     init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
     auto status = init_pd_func(init_pd_args);
+
+    if (!init_pd_args.pd && !init_pd_args.pd_it) {
+        status = dnnl_invalid_arguments;
+    } else if (init_pd_args.pd_it) {
+        init_pd_args.pd
+                = dnnl_primitive_desc_iterator_fetch(init_pd_args.pd_it);
+    }
     SAFE((status == dnnl_success ? OK : FAIL), WARN);
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
-    pd.reset(pd_);
+    DNN_SAFE(dnnl_primitive_create(&prim_, init_pd_args.pd), WARN);
+
+    pd.reset(init_pd_args.pd);
     prim.reset(prim_);
+    pd_it.reset(init_pd_args.pd_it);
 #endif
 
     ct.reset();
@@ -453,17 +461,26 @@ int measure_prim_create(timer::timer_t &ct,
         ct.start();
         // The second (if the cache is enabled) primitive creation using
         // the global test engine.
-        init_pd_args_t<prb_t> new_args(res, get_test_engine(), prb, dir, hint);
-        status = init_pd_func(new_args);
+        init_pd_args_t<prb_t> init_pd_args(
+                res, get_test_engine(), prb, dir, hint);
+        status = init_pd_func(init_pd_args);
+
+        if (!init_pd_args.pd && !init_pd_args.pd_it) {
+            status = dnnl_invalid_arguments;
+        } else if (init_pd_args.pd_it) {
+            init_pd_args.pd
+                    = dnnl_primitive_desc_iterator_fetch(init_pd_args.pd_it);
+        }
         SAFE((status == dnnl_success ? OK : FAIL), WARN);
 
         // This primitive is expected to come from the cache.
-        DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
+        DNN_SAFE(dnnl_primitive_create(&prim_, init_pd_args.pd), WARN);
         ct.stamp();
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-        pd.reset(pd_);
+        pd.reset(init_pd_args.pd);
         prim.reset(prim_);
+        pd_it.reset(init_pd_args.pd_it);
 
         SAFE(check_pd_cache(pd), WARN);
         SAFE(check_primitive_cache(prim), WARN);
