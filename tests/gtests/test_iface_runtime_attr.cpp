@@ -132,13 +132,8 @@ TEST_F(runtime_attr_test_t, TestConv) {
     CHECK_OK(convolution_forward::primitive_desc(op_d, eng));
     CHECK_OK(convolution_forward::primitive_desc(
             op_d, gen_attr_with_oscale(false), eng));
-    if (get_test_engine_kind() == engine::kind::gpu) {
-        CHECK_OK(convolution_forward::primitive_desc(
-                op_d, gen_attr_with_oscale(true), eng));
-    } else {
-        CHECK_UNIMPL(convolution_forward::primitive_desc(
-                op_d, gen_attr_with_oscale(true), eng));
-    }
+    CHECK_OK(convolution_forward::primitive_desc(
+            op_d, gen_attr_with_oscale(true), eng));
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
