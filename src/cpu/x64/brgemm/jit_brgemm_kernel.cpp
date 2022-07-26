@@ -106,15 +106,10 @@ struct jit_brgemm_kernel_t : public jit_generator {
     brgemm_t brg;
 
 private:
-    constexpr static bool is_tmm_ = std::is_same<Wmm, Xbyak::Tmm>::value;
-    constexpr static bool is_tmm_zmm_ = is_tmm_;
-    constexpr static bool is_zmm_ = std::is_same<Wmm, Xbyak::Zmm>::value;
-    constexpr static bool is_ymm_ = std::is_same<Wmm, Xbyak::Ymm>::value;
-    constexpr static bool is_xmm_ = std::is_same<Wmm, Xbyak::Xmm>::value;
-    using Vmm = typename utils::conditional<is_tmm_, Xbyak::Zmm, Wmm>::type;
-    using Vmm_lower_t = typename utils::conditional<is_tmm_zmm_, Xbyak::Ymm,
-            Xbyak::Xmm>::type;
-    const AddressFrame &vword_b = is_tmm_zmm_ ? zword_b : yword_b;
+    using Vmm =
+            typename utils::conditional<std::is_same<Wmm, Xbyak::Tmm>::value,
+                    Xbyak::Zmm, Wmm>::type;
+    using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
     static constexpr cpu_isa_t po_isa_t
             = utils::map(isa, avx512_core, avx2, avx2);
     using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_t, Vmm>;
@@ -276,8 +271,8 @@ private:
 
     Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
-    Xbyak::Ymm ymm_mask(const Xbyak::Ymm ymm_in, bool mask_flag, bool store,
-            Xbyak::Opmask ktail_mask) const;
+    Vmm_lower_t vmm_lower_mask(const Vmm_lower_t vmm_lower_in, bool mask_flag,
+            bool store, Xbyak::Opmask ktail_mask) const;
 
     void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Xbyak::Operand &op,
             bool mask_flag, bool store, Xbyak::Opmask ktail_mask,
@@ -571,11 +566,13 @@ jit_brgemm_kernel_t<isa, Wmm>::vmm_mask(const Vmm vmm_in, bool mask_flag,
 }
 
 template <cpu_isa_t isa, typename Wmm>
-Xbyak::Ymm jit_brgemm_kernel_t<isa, Wmm>::ymm_mask(const Xbyak::Ymm ymm_in,
+typename jit_brgemm_kernel_t<isa, Wmm>::Vmm_lower_t
+jit_brgemm_kernel_t<isa, Wmm>::vmm_lower_mask(const Vmm_lower_t vmm_lower_in,
         bool mask_flag, bool store, Xbyak::Opmask ktail_mask) const {
     return mask_flag && is_superset(brg.isa_impl, avx512_core)
-            ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
-            : ymm_in;
+            ? (store ? vmm_lower_in | ktail_mask
+                     : vmm_lower_in | ktail_mask | T_z)
+            : vmm_lower_in;
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1092,7 +1089,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_post_ops(
                     else {
                         if (is_superset(brg.isa_impl, avx512_core)) {
                             vfmadd231ps(vmm, vmm_prev_dst,
-                                    vword_b[reg_ptr_sum_scale]);
+                                    ptr_b[reg_ptr_sum_scale]);
                         } else {
                             auto vmm_tmp = vmm_tmp_2();
                             uni_vpbroadcastd(vmm_tmp, ptr[reg_ptr_sum_scale]);
@@ -1207,20 +1204,21 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
         for (int ld = 0; ld < ld_block2; ld++) {
             auto addr = ptr[reg_aux_D + D_offset(bd, ld)];
             auto vmm = accm(ld_block2, bd, ld);
-            auto ymm = Xbyak::Ymm(vmm.getIdx());
+            auto vmm_lower = Vmm_lower_t(vmm.getIdx());
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             const Vmm r_vmm = vmm_mask(vmm, is_tail, true, k_mask);
-            const Xbyak::Ymm r_ymm = ymm_mask(ymm, is_tail, true, k_mask);
+            const Vmm_lower_t r_ymm
+                    = vmm_lower_mask(vmm_lower, is_tail, true, k_mask);
             if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
                 switch (brg.dt_d) {
                     case data_type::f32:
                     case data_type::s32: vmovups(addr, r_vmm); break;
                     case data_type::bf16: // TODO - clean
                         if (brg.is_bf16_emu) {
-                            bf16_emu_->vcvtneps2bf16(ymm, vmm);
+                            bf16_emu_->vcvtneps2bf16(vmm_lower, vmm);
                             vmovdqu16(addr, r_ymm);
                         } else {
-                            vcvtneps2bf16(ymm, vmm);
+                            vcvtneps2bf16(vmm_lower, vmm);
                             vmovdqu16(addr, r_ymm);
                         }
                         break;
@@ -1778,7 +1776,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     auto vmm = accm(ld_block2, bd, ld);
                     if (is_emdbd)
                         vfmadd231ps(vmm, load(),
-                                vword_b[reg_aux_A + A_offset(bd, rd)]);
+                                ptr_b[reg_aux_A + A_offset(bd, rd)]);
                     else
                         dot_product(vmm, load(), bcst(bd));
                 }
@@ -1821,7 +1819,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     auto vmm = accm(ld_block2, bd, ld);
                     if (is_emdbd)
                         vfmadd231ps(vmm, load(ld),
-                                vword_b[reg_aux_A + A_offset(bd, rd)]);
+                                ptr_b[reg_aux_A + A_offset(bd, rd)]);
                     else
                         dot_product(vmm, load(ld), bcst());
                 }
