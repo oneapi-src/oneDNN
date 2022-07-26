@@ -23,6 +23,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_primitive.hpp"
 #include "cpu/platform.hpp"
 
 #include "cpu/x64/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
@@ -1046,8 +1047,8 @@ jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::
         = default;
 
 const float *jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::adjust_oscales(
-        const memory_tracking::grantor_t &scratchpad) const {
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+        const memory_tracking::grantor_t &scratchpad,
+        const float *oscales) const {
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
     size_t count = pd()->attr()->output_scales_.count_;
     float factor = 1.f / (adj_src_scale * adj_wei_scale);
@@ -1059,29 +1060,35 @@ const float *jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::adjust_oscales(
     return loc_scales;
 }
 
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t ::execute_forward(
+status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t ::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
+    DEFINE_SCALES_BUFFER(oscales);
+
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
         execute_forward_small_mb(
-                src, weights, bias, dst, ctx.get_scratchpad_grantor());
+                src, weights, bias, dst, oscales, ctx.get_scratchpad_grantor());
     else
         execute_forward_mbN(
-                src, weights, bias, dst, ctx.get_scratchpad_grantor());
+                src, weights, bias, dst, oscales, ctx.get_scratchpad_grantor());
+
+    return status::success;
 }
 
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::execute_forward_mbN(
         const src_data_t *src, const wei_data_t *wei, const char *bia,
-        char *dst, const memory_tracking::grantor_t &scratchpad) const {
+        char *dst, const float *oscales,
+        const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
-    const float *oscales = adjust_oscales(scratchpad);
+
+    const float *adj_oscales = adjust_oscales(scratchpad, oscales);
 
     auto dst_bias = (const acc_data_t *)(wei + jcp.size_wino_wei);
     auto wino_src_base = scratchpad.template get<src_data_t>(key_wino_V);
@@ -1185,7 +1192,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::execute_forward_mbN(
                                         * (y * jcp.ow * jcp.oc + x * jcp.oc);
                         auto local_w = wino_dst + m * jcp.oc;
 
-                        auto scales = oscales;
+                        auto scales = adj_oscales;
                         dst_trans_p.dst = local_d;
                         dst_trans_p.wino_dst = local_w;
                         dst_trans_p.v_y_masks = v_y_masks;
@@ -1202,11 +1209,12 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::execute_forward_mbN(
 
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::execute_forward_small_mb(
         const src_data_t *src, const wei_data_t *wei, const char *bia,
-        char *dst, const memory_tracking::grantor_t &scratchpad) const {
+        char *dst, const float *oscales,
+        const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
-    const float *oscales = adjust_oscales(scratchpad);
+    const float *adj_oscales = adjust_oscales(scratchpad, oscales);
 
     auto dst_bias = (const acc_data_t *)(wei + jcp.size_wino_wei);
     auto wino_src = scratchpad.template get<src_data_t>(key_wino_V);
@@ -1308,7 +1316,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::execute_forward_small_mb(
                                             + y * jcp.ow * jcp.oc + x * jcp.oc);
                     auto local_w = wino_dst + m * jcp.oc;
 
-                    auto scales = oscales;
+                    auto scales = adj_oscales;
                     dst_trans_p.dst = local_d;
                     dst_trans_p.wino_dst = local_w;
                     dst_trans_p.v_y_masks = v_y_masks;

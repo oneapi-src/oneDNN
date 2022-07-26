@@ -64,7 +64,7 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
                     && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
                     && desc()->accum_data_type == s32
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
+                            primitive_attr_t::skip_mask_t::oscale_runtime
                                     | primitive_attr_t::skip_mask_t::post_ops
                                     | primitive_attr_t::skip_mask_t::sum_dt,
                             dst_md(0)->data_type)
@@ -105,19 +105,18 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    const float *adjust_oscales(
-            const memory_tracking::grantor_t &scratchpad) const;
-    void execute_forward(const exec_ctx_t &ctx) const;
+    const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad,
+            const float *oscales) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     void execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
-            const char *bia, char *dst,
+            const char *bia, char *dst, const float *oscales,
             const memory_tracking::grantor_t &scratchpad) const;
     void execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
-            const char *bia, char *dst,
+            const char *bia, char *dst, const float *oscales,
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
