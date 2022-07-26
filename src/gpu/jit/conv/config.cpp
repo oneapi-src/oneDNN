@@ -1498,6 +1498,7 @@ public:
         int slm_load_usage = estimate_slm_load_usage(max_reuse_header_regs);
         int reorder_usage = estimate_reorder_usage(
                 a_slm_store_payload_regs, b_slm_store_payload_regs);
+        int zp_usage = estimate_zero_point_usage();
 
         // clang-format off
         ir_trace() << "GRF estimate:" << std::endl;
@@ -1506,6 +1507,7 @@ public:
         ir_trace() << "   slm_store_usage:       " << slm_store_usage << std::endl;
         ir_trace() << "   slm_load_usage:        " << slm_load_usage << std::endl;
         ir_trace() << "   reorder_usage:         " << reorder_usage << std::endl;
+        ir_trace() << "   zp_usage:              " << zp_usage << std::endl;
         ir_trace() << "   max_reuse_header_regs: " << max_reuse_header_regs << std::endl;
         // clang-format on
 
@@ -1514,6 +1516,7 @@ public:
         regs += slm_store_usage;
         regs += slm_load_usage;
         regs += reorder_usage;
+        regs += zp_usage;
         regs += max_reuse_header_regs;
         regs += cfg_.reserved_regs;
 
@@ -1636,6 +1639,27 @@ private:
         }
 
         return regs;
+    }
+
+    int estimate_zero_point_usage() const {
+        if (!cfg_.zp_cfg.do_src_compensation) return 0;
+        int sp_iter_dim = 1;
+        for (auto *name : {"ow", "iw", "osp"}) {
+            if (cfg_.bh->has_dim(name)) {
+                sp_iter_dim = cfg_.bh->iter_dim(name);
+                break;
+            }
+        }
+        int sub_tiles = cfg_.a_sub_tiles * cfg_.b_sub_tiles;
+        int zp_mask0_regs
+                = 2 * utils::div_up(sp_iter_dim * sizeof(uint32_t), reg_bytes_);
+        int zp_mask1_regs = sub_tiles
+                * utils::div_up(sp_iter_dim * sizeof(uint16_t), reg_bytes_);
+        int zp_buf_regs = sub_tiles * utils::div_up(128, reg_bytes_);
+        int zp_header_regs = sub_tiles;
+        int zp_let_regs = 4;
+        return zp_mask0_regs + zp_mask1_regs + zp_buf_regs + zp_header_regs
+                + zp_let_regs;
     }
 
     layout_t get_gmem_layout(bool is_a) const {
