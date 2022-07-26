@@ -40,7 +40,7 @@ namespace graph {
 // register dnnl backend
 // void register_dnnl_backend();
 // register fake backend
-// void register_fake_backend();
+void register_fake_backend();
 // #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
 // register graph compiler backend
 // void register_compiler_backend();
@@ -201,7 +201,7 @@ private:
     inline void invoke_backend_registration() {
         std::call_once(register_flag_, []() {
             //             register_dnnl_backend();
-            //             register_fake_backend();
+            register_fake_backend();
             // #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
             //             register_compiler_backend();
             // #endif
