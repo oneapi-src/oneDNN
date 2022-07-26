@@ -1541,7 +1541,7 @@ private:
                     = (is_a ? cfg_.can_use_a_2d_send : cfg_.can_use_b_2d_send);
             access_grf_usage_helper_t load(layout, load_elems, reg_bytes_,
                     /*is_slm=*/false, use_2d_send);
-            if (is_a && !use_slm && cfg_.fma_kind == fma_kind_t::dpasw)
+            if (is_a && !use_slm && can_reliably_use_dpasw())
                 load.enable_fused_eus_sharing();
             int mult = (use_slm ? cfg_.gmem_bufs : 1);
             regs += mult * load.payload_regs();
@@ -1596,7 +1596,7 @@ private:
             auto slm_layout = dummy_slm_layout(bytes);
             access_grf_usage_helper_t load(slm_layout, bytes, reg_bytes_,
                     /*is_slm=*/true, /*use_2d_send=*/false);
-            if (is_a && cfg_.fma_kind == fma_kind_t::dpasw)
+            if (is_a && can_reliably_use_dpasw())
                 load.enable_fused_eus_sharing();
             regs += load.payload_regs();
             if (cfg_.reuse_headers) {
@@ -1707,6 +1707,21 @@ private:
 
     int ab_use_slm(bool is_a) const {
         return is_a ? cfg_.use_a_slm : cfg_.use_b_slm;
+    }
+
+    bool can_reliably_use_dpasw() const {
+        if (cfg_.fma_kind != fma_kind_t::dpasw) return false;
+        if (!cfg_.use_a_slm) return false;
+        int m_tg_bytes = cfg_.m_tg_blk * cfg_.a_data_type_size;
+        int m_thr_bytes
+                = ir_utils::safe_divide(m_tg_bytes, cfg_.tg_grid_dim[1]);
+        int owordx16_size = 256;
+        if (cfg_.a_layout().innermost_block_layout().size() < owordx16_size)
+            return false;
+        if (m_thr_bytes * cfg_.k_blk % owordx16_size != 0) return false;
+        int nmsgs = m_thr_bytes * cfg_.k_blk / owordx16_size;
+        if (nmsgs % 2 != 0) return false;
+        return true;
     }
 
     layout_t dummy_slm_layout(int size) const {
