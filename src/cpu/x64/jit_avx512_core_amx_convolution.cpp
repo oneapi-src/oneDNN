@@ -95,7 +95,7 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
     assert(jcp.is_relo);
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_inp_buffer); // fix the template
@@ -444,7 +444,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
     const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     // TODO: use block offset instead of hand-calculated one
     //size_t wei_oc_shift = wht_blk_off(weights_d, 0, 1);
@@ -799,7 +799,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
 
 template <data_type_t diff_src_type, data_type_t wei_type,
         data_type_t diff_dst_type>
-void jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
+status_t jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
         diff_dst_type>::execute_backward(const exec_ctx_t &ctx) const {
     const auto diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
     const auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
@@ -811,12 +811,13 @@ void jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
 
     // unused in kernel for bf16, but attributes have scales buffer by default
     // and using it here simplifies the shared `execute_backward_loop`.
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     amx_utils::execute_backward_convolution_body(ctx, pd()->jcp_, kernel_,
             diff_dst, weights, nullptr /* no bias */, oscales, diff_src,
             diff_dst_d, weights_d, memory_desc_wrapper(nullptr) /* no bias */,
             diff_src_d);
+    return status::success;
 }
 
 template struct jit_avx512_core_amx_convolution_bwd_data_t<data_type::bf16,

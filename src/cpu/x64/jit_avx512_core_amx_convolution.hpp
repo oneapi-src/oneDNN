@@ -63,7 +63,7 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(
                                     weights_md(1)->data_type, f32, s32, s8, u8))
-                    && attr()->has_default_values(smask_t::oscale
+                    && attr()->has_default_values(smask_t::oscale_runtime
                                     | smask_t::post_ops
                                     | smask_t::zero_points_runtime
                                     | smask_t::sum_dt,
@@ -188,12 +188,11 @@ struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
             assert(!"_pd->jcp_.is_depthwise not implemented");
             return status::unimplemented;
         } else
-            execute_backward(ctx);
-        return status::success;
+            return execute_backward(ctx);
     }
 
 private:
-    void execute_backward(const exec_ctx_t &ctx) const;
+    status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_avx512_core_amx_bwd_data_kernel_t> kernel_;
