@@ -128,6 +128,10 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
     const int nb_load_blocking_max = jcp.with_dw_conv
             ? jcp.nb_load_blocking
             : jcp.nb_load_blocking_max;
+    const bool is_dst_layout_nxc = utils::one_of(
+            jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+    const bool is_src_layout_nxc = utils::one_of(
+            jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
 
     // Begin: declare Variables needed for dw conv.
     memory_tracking::grantor_t dw_scratchpad(
@@ -183,8 +187,6 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
     auto ker_1x1 = [&](int ocb, int ocb_start, int icb, int n, int g, int od,
                            int oh, int ow, int id, int ih, int iw) {
-        const bool is_dst_layout_nxc = utils::one_of(jcp.dst_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
         const int oc_off_idx = is_dst_layout_nxc
                 ? g * jcp.oc + ocb * jcp.oc_block
                 : g * nb_oc + ocb;
@@ -200,8 +202,6 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         p.load_data
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
                                                : weights_d.blk_off(ocb, icb)];
-        const bool is_src_layout_nxc = utils::one_of(jcp.src_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
         const int ic_off_idx = is_src_layout_nxc
                 ? g * jcp.ic + icb * jcp.ic_block
                 : g * nb_ic + icb;
@@ -322,8 +322,8 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
             addrs[i] = pbuf + ((oh_1x1++) % jcp_dw.kh) * row_offset;
 
         const auto ocb_end = ocb_start + load_step;
-        const auto wch_stride
-                = jcp_dw.iw * jcp_dw.nb_ch_blocking * jcp_dw.ch_block;
+        const auto wch_stride = (is_src_layout_nxc ? 1 : jcp_dw.iw)
+                * jcp_dw.nb_ch_blocking * jcp_dw.ch_block;
         const int dil_h = jcp_dw.dilate_h + 1;
         const int str_h = jcp_dw.stride_h;
         const int ch_num = jcp_dw.nb_ch_blocking;
@@ -347,7 +347,12 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
             jit_conv_call_s par_conv_dw;
 
             par_conv_dw.src = addrs.data();
-            par_conv_dw.dst = &dst[dst_d.blk_off(n, ch, dw_oh, ow)];
+
+            const size_t ch_step = is_dst_layout_nxc
+                    ? jcp_dw.ch_block
+                    : dst_d.blk_off(0, 1, 0, 0);
+            par_conv_dw.dst
+                    = &dst[dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
 
             par_conv_dw.filt
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];
