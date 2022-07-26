@@ -236,8 +236,6 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                         ok = args.got == ceil_val;
                     } else if (args.exp == ceil_val) {
                         ok = args.got == floor_val;
-                    } else {
-                        assert(!"unexpected scenario");
                     }
                 }
             }
