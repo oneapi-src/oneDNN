@@ -178,16 +178,19 @@ struct vreg_traits {};
 
 template <>
 struct vreg_traits<Xbyak::Zmm> {
+    typedef Xbyak::Ymm Vmm_lower_t;
     static constexpr size_t vlen = 64;
 };
 
 template <>
 struct vreg_traits<Xbyak::Ymm> {
+    typedef Xbyak::Xmm Vmm_lower_t;
     static constexpr size_t vlen = 32;
 };
 
 template <>
 struct vreg_traits<Xbyak::Xmm> {
+    typedef Xbyak::Xmm Vmm_lower_t;
     static constexpr size_t vlen = 16;
 };
 
