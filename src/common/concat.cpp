@@ -23,6 +23,7 @@
 #include "engine.hpp"
 #include "impl_list_item.hpp"
 #include "primitive_cache.hpp"
+#include "primitive_desc_iface.hpp"
 #include "primitive_hashing.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"

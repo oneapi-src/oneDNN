@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 
 #include "common/dnnl_traits.hpp"
 #include "common/nstl.hpp"
-#include "common/primitive.hpp"
+#include "common/primitive_iface.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"

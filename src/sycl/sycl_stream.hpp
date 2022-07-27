@@ -18,8 +18,8 @@
 #define SYCL_STREAM_HPP
 
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
 #include "common/primitive_exec_types.hpp"
+#include "common/primitive_iface.hpp"
 #include "common/stream.hpp"
 #include "common/thread_local_storage.hpp"
 #include "common/utils.hpp"

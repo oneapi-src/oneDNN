@@ -34,6 +34,14 @@
 namespace dnnl {
 namespace impl {
 
+static int po_inputs(const post_ops_t &post_ops, const primitive_kind_t kind) {
+    int n_inputs = 0;
+    for (int idx = 0; idx < post_ops.len(); ++idx) {
+        if (post_ops.contain(kind, idx)) n_inputs++;
+    }
+    return n_inputs;
+}
+
 struct impl_list_item_t;
 struct primitive_t;
 // Primitive descriptor implementation
@@ -214,8 +222,13 @@ struct primitive_desc_t : public c_compatible {
 
     virtual int n_inputs() const { return 0; }
     virtual int n_outputs() const { return 0; }
-    int n_binary_po_inputs() const;
-    int n_prelu_po_inputs() const;
+    int n_binary_po_inputs() const {
+        return po_inputs(attr()->post_ops_, primitive_kind::binary);
+    }
+
+    int n_prelu_po_inputs() const {
+        return po_inputs(attr()->post_ops_, primitive_kind::prelu);
+    }
     // The `hint_mds(bool is_hint)` returns a vector of memory descriptors
     // that might affect the equality of primitive descriptors for backward pass.
     //
@@ -333,41 +346,6 @@ protected:
 
 } // namespace impl
 } // namespace dnnl
-
-// dnnl_primitive_desc is a user facing entity that has an alias
-// primitive_desc_iface_t for internal use.
-// The primitive_desc_iface_t is responsible for holding:
-// 1. impl::primitive_desc_t - a primitive descriptor implementation that
-// can be stored in the primitive cache as part of the primitive implementation
-// to which it belongs
-// 2. engine_t - a dnnl engine
-struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
-    dnnl_primitive_desc(const std::shared_ptr<dnnl::impl::primitive_desc_t> &pd,
-            dnnl::impl::engine_t *engine);
-
-    virtual ~dnnl_primitive_desc() = default;
-
-    const char *info() const;
-    dnnl::impl::engine_t *engine() const;
-    const dnnl::impl::primitive_attr_t *attr() const;
-    virtual dnnl::impl::engine_t *scratchpad_engine() const;
-
-    virtual dnnl::impl::engine_t *src_engine() const;
-    virtual dnnl::impl::engine_t *dst_engine() const;
-
-    virtual dnnl::impl::status_t query(
-            dnnl::impl::query_t what, int idx, void *result) const;
-
-    virtual dnnl::impl::status_t create_primitive_iface(
-            std::pair<primitive_iface_t *, bool> &primitive_iface,
-            const dnnl::impl::cache_blob_t &cache_blob) const;
-
-    const std::shared_ptr<dnnl::impl::primitive_desc_t> &impl() const;
-
-protected:
-    std::shared_ptr<dnnl::impl::primitive_desc_t> pd_;
-    dnnl::impl::engine_t *engine_;
-};
 
 #define DECLARE_COMMON_PD_t(impl_name, impl_type, use_global_scratchpad) \
     pd_t *clone() const override { \

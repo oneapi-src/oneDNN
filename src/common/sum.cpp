@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 #include "engine.hpp"
 #include "impl_list_item.hpp"
 #include "primitive_cache.hpp"
-#include "primitive_desc.hpp"
+#include "primitive_desc_iface.hpp"
 #include "primitive_hashing.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"

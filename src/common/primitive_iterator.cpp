@@ -20,7 +20,7 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
-#include "primitive_desc.hpp"
+#include "primitive_desc_iface.hpp"
 #include "primitive_iterator.hpp"
 #include "type_helpers.hpp"
 
@@ -79,39 +79,9 @@ primitive_desc_iface_t *dnnl_primitive_desc_iterator_fetch(
     return pd;
 }
 
-status_t dnnl_primitive_desc_clone(
-        primitive_desc_iface_t **primitive_desc_iface,
-        const primitive_desc_iface_t *existing_primitive_desc_iface) {
-    if (utils::any_null(primitive_desc_iface, existing_primitive_desc_iface))
-        return invalid_arguments;
-
-    return safe_ptr_assign(*primitive_desc_iface,
-            new primitive_desc_iface_t(existing_primitive_desc_iface->impl(),
-                    existing_primitive_desc_iface->engine()));
-}
-
 status_t dnnl_primitive_desc_iterator_destroy(
         primitive_desc_iterator_t *iterator) {
     delete iterator;
-    return success;
-}
-
-status_t dnnl_primitive_desc_create(
-        primitive_desc_iface_t **primitive_desc_iface,
-        const_c_op_desc_t c_op_desc, const primitive_attr_t *attr,
-        engine_t *engine, const primitive_desc_iface_t *hint_fwd_pd) {
-    primitive_desc_iterator_t *it;
-    status_t status = dnnl_primitive_desc_iterator_create(
-            &it, c_op_desc, attr, engine, hint_fwd_pd);
-    if (status != status::success) return status;
-
-    primitive_desc_iface_t *pd_iface
-            = new primitive_desc_iface_t(*(*it), engine);
-    dnnl_primitive_desc_iterator_destroy(it);
-    if (pd_iface == nullptr) return out_of_memory;
-
-    *primitive_desc_iface = pd_iface;
-
     return success;
 }
 

@@ -26,6 +26,7 @@
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
+#include "common/resource.hpp"
 #include "common/verbose.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/dispatch.hpp"

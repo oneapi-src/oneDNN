@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -186,69 +186,6 @@ private:
     std::unique_ptr<memory_tracking::grantor_t> grantor_;
 };
 
-// The resource_t abstraction is a base class for all resource classes.
-// Those are responsible for holding a part of a primitive implementation that
-// cannot be stored in the primitive cache as part of the implementation.
-// Currently, there are two such things:
-// 1. Any memory (memory_t, memory_storage_t, etc...), because it contains
-// an engine.
-// 2. (for GPU only) compiled kernels, because they are context dependent.
-//
-// The idea is that each primitive implementation should be able to create
-// a resource and put there everything it needs to run, which cannot be stored
-// in the cache as part of the primitive implementation. To create the resource
-// each primitive implementation can override a function `create_resource`.
-//
-// This abstraction takes ownership of all content it holds hence it should be
-// responsible for destroying it as well.
-struct resource_t : public c_compatible {
-    virtual ~resource_t() = default;
-};
-
-// The resource_mapper_t is an abstraction for holding resources for
-// a particular primitive implementation and providing corresponding mapping.
-//
-// Interacting with the mapper happens in two steps:
-// 1. Initialization. Each derived from impl::primitive_t class may define
-// `create_resource` member function that is responsible for creating a
-// certain derived from resource_t object and filling it with some content,
-// e.g. memory for scales, OpenCL kernels etc...
-// 2. Passing it to the execution function which extracts needed resources and
-// uses them at execution time. The mapper is passed to the execution function
-// with the execution context.
-//
-// The resource_mapper_t takes ownership of all resources hence it should be
-// responsible for destroying them as well.
-struct resource_mapper_t {
-    using key_t = const primitive_t;
-    using mapped_t = std::unique_ptr<resource_t>;
-
-    resource_mapper_t() = default;
-
-    bool has_resource(const primitive_t *p) const {
-        return primitive_to_resource_.count(p);
-    }
-
-    void add(key_t *p, mapped_t &&r) {
-        assert(primitive_to_resource_.count(p) == 0);
-        primitive_to_resource_.emplace(p, std::move(r));
-    }
-
-    template <typename T>
-    const T *get(key_t *p) const {
-        assert(primitive_to_resource_.count(p));
-        return utils::downcast<T *>(primitive_to_resource_.at(p).get());
-    }
-
-    DNNL_DISALLOW_COPY_AND_ASSIGN(resource_mapper_t);
-
-private:
-    std::unordered_map<key_t *, mapped_t> primitive_to_resource_;
-};
-
-status_t primitive_execute(
-        const primitive_iface_t *primitive_iface, exec_ctx_t &ctx);
-
 } // namespace impl
 } // namespace dnnl
 
@@ -267,58 +204,4 @@ status_t primitive_execute(
 #define CTX_OUT_CLEAN_MEM(type, arg, status) \
     static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg, true, &status))
 
-// dnnl_primitive is a user facing entity that has an alias primitive_iface_t
-// for internal use.
-// The primitive_iface_t is responsible for holding:
-// 1. impl::primitive_t - a primitive implementation that can be
-// stored in the primitive cache. Other data members are NOT stored in
-// the cache
-// 2. scratchpad_t - a memory for scratchpad
-// 3. primitive_desc_iface_t - an alias for dnnl_primitive_desc and is
-// a user facing primitive descriptor (the one a user should create prior
-// creating a primitive)
-// 4. resource_mapper_t - a resource mapper that provides a mapping between
-// impl::primitive_t and its resource
-//
-// Note: primitive_desc_iface_t and impl::primitive_t share the same
-// impl::primitive_desc_t
-struct dnnl_primitive : public dnnl::impl::c_compatible {
-    dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
-            dnnl::impl::engine_t *engine);
-
-    // This is a ctor for reorder
-    dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
-            dnnl::impl::engine_t *engine, dnnl::impl::engine_t *src_engine,
-            dnnl::impl::engine_t *dst_engine);
-
-    dnnl::impl::status_t init();
-    dnnl::impl::engine_t *engine() const;
-    const primitive_desc_iface_t *pd() const;
-    dnnl::impl::status_t get_cache_blob_size(size_t *size) const;
-    dnnl::impl::status_t get_cache_blob(
-            dnnl::impl::cache_blob_t cache_blob) const;
-    dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
-
-    void retain() { counter_++; }
-
-    void release() {
-        if (--counter_ == 0) { delete this; }
-    }
-
-protected:
-    ~dnnl_primitive();
-
-private:
-    std::atomic<int> counter_;
-    std::shared_ptr<dnnl::impl::primitive_t> primitive_;
-    std::unique_ptr<dnnl::impl::scratchpad_t> scratchpad_;
-    std::unique_ptr<primitive_desc_iface_t> pd_;
-    dnnl::impl::resource_mapper_t resource_mapper_;
-
-    dnnl_primitive() = delete;
-    DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive);
-};
-
 #endif
-
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
