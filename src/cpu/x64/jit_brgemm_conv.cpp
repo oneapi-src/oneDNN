@@ -916,7 +916,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
         brgemm_batch_element_t *const __restrict brg_batch = brg_batch_global
                 + static_cast<size_t>(ithr) * jcp.adjusted_batch_size;
         char *const __restrict c_buffer = (jcp.use_buffer)
-                ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M
+                ? c_buffer_global + ithr * acc_dsz * jcp.buffer_size
                 : nullptr;
         char *inp_buffer = (jcp.exec_type == exec_trans)
                 ? inp_p_buffer + src_dsz * ithr * jcp.inp_buffer_size
@@ -1291,10 +1291,10 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(int ithr,
         end = saturate(0, i, cur_start + i_bs);
     };
     get_start_end(id_start, id_end, virt_id_start, virt_id_end, odb,
-            jcp.od_block, nstl::min(ID, IDP - FP), OD, SD, FP, EXT_KD, DD - 1,
+            jcp.od_block, nstl::min(ID, IDP - FP), OD, SD, FP, KD, DD - 1,
             prev_odb && prev_odb_ohb);
     get_start_end(ih_start, ih_end, virt_ih_start, virt_ih_end, ohb,
-            jcp.oh_block, nstl::min(IH, IHP - TP), OH, SH, TP, EXT_KH, DH - 1,
+            jcp.oh_block, nstl::min(IH, IHP - TP), OH, SH, TP, KH, DH - 1,
             prev_ohb && prev_odb_ohb);
 
     // how many real data rows to copy (including padding)
