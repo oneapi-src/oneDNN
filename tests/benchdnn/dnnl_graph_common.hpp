@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
@@ -178,9 +179,17 @@ const dnnl::graph::engine &get_test_engine();
 const dnnl::graph::stream &get_test_stream();
 
 #if DNNL_GRAPH_WITH_SYCL
-void *sycl_alloc(
-        size_t size, size_t alignment, const void *dev, const void *ctx);
-void sycl_free(void *ptr, const void *ctx);
+struct scratchpad_mm_mgr {
+    void *sycl_alloc_mm(
+            size_t size, size_t alignment, const void *dev, const void *ctx);
+    void sycl_free_mm(
+            void *ptr, const void *device, const void *context, void *event);
+
+private:
+    std::unordered_multimap<size_t, std::shared_ptr<void>> map_size_ptr_;
+    std::unordered_set<void *> free_ptr_;
+};
+bool is_sycl_engine();
 dnnl::graph::engine &get_engine();
 #endif // DNNL_GRAPH_WITH_SYCL
 
@@ -213,8 +222,10 @@ int measure_perf(timer::timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &outputs);
 
 int measure_perf(timer::timer_t &t, dnnl::graph::compiled_partition &cp,
-        const std::vector<dnnl::graph::tensor> &inputs,
-        const std::vector<dnnl::graph::tensor> &outputs);
+        std::vector<dnnl::graph::tensor> &inputs,
+        std::vector<dnnl::graph::tensor> &outputs,
+        const std::vector<dnnl::graph::logical_tensor> &lt_inputs = {},
+        const std::vector<dnnl::graph::logical_tensor> &lt_outputs = {});
 
 int measure_perf(timer::timer_t &t, dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,

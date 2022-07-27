@@ -532,23 +532,150 @@ inline int measure_perf_individual(timer::timer_t &t,
     return OK;
 }
 
+inline int measure_perf_aggregate(timer::timer_t &t,
+        dnnl::graph::stream &stream, perf_function_t &perf_func,
+        const std::vector<dnnl::graph::tensor> &inputs,
+        const std::vector<dnnl::graph::tensor> &outputs) {
+    const int max_batch_times = 10000;
+
+    // Warm-up run, this is not measured due to possibility the associated
+    // kernel has not been built and skews the results.
+    BENCHDNNEXT_SAFE(perf_func(stream, inputs, outputs), WARN);
+    BENCHDNNEXT_SAFE(stream.wait(), WARN);
+
+    int cur_batch_times
+            = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
+
+    t.reset();
+    maybe_reset_profiling();
+
+    bool is_first_loop = true;
+    while (true) {
+        for (int i = 0; i < cur_batch_times; i++) {
+            BENCHDNNEXT_SAFE(perf_func(stream, inputs, outputs), WARN);
+        }
+        BENCHDNNEXT_SAFE(stream.wait(), WARN);
+
+        uint64_t ticks = 0;
+        maybe_reset_profiling(&ticks);
+        t.stamp(cur_batch_times, (unsigned long long)ticks);
+
+        if (should_stop(t)) break;
+
+        // Adjust cur_batch_times after the first batch run
+        if (is_first_loop) {
+            double ms_min = t.ms(timer::timer_t::min);
+            // Heuristic: try to use ~5 batch runs for the whole benchmark
+            int batch_times_heuristic = (ms_min == 0.0)
+                    ? INT_MAX
+                    : MAX2(1,
+                            (int)((max_ms_per_prb - t.total_ms()) / ms_min
+                                    / 5));
+            cur_batch_times = MIN2(max_batch_times, batch_times_heuristic);
+            is_first_loop = false;
+        }
+    }
+    return OK;
+}
+
 int measure_perf(timer::timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
+    int ret = OK;
     if (is_bench_mode(PERF)) {
         dnnl::graph::stream stream = get_test_stream();
-        return measure_perf_individual(t, stream, perf_func, inputs, outputs);
+
+        // For non-DPCPP CPU: measure individual iterations.
+        // For DPCPP CPU and GPU: measure iterations in batches to hide driver
+        // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
+        if (is_cpu() && !is_sycl_engine())
+            ret = measure_perf_individual(
+                    t, stream, perf_func, inputs, outputs);
+        else
+            ret = measure_perf_aggregate(t, stream, perf_func, inputs, outputs);
+        return ret;
     } else {
-        return OK;
+        return ret;
     }
 }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+// used as deallocator for shared_ptr
+struct sycl_deletor {
+    sycl_deletor() = delete;
+    ::sycl::context ctx_;
+    sycl_deletor(const ::sycl::context &ctx) : ctx_(ctx) {}
+    void operator()(void *ptr) {
+        if (ptr) ::sycl::free(ptr, ctx_);
+    }
+};
+
+std::shared_ptr<void> alloc_sycl_mem_for_tensor(
+        dnnl::graph::tensor &ts, const dnnl::graph::logical_tensor &lt) {
+    dnnl::engine test_eng {::get_test_engine()};
+    size_t mem_size = lt.get_mem_size();
+    std::shared_ptr<void> ts_buff(
+            cl::sycl::malloc_shared(mem_size,
+                    dnnl::sycl_interop::get_device(test_eng),
+                    dnnl::sycl_interop::get_context(test_eng)),
+            sycl_deletor {dnnl::sycl_interop::get_context(test_eng)});
+    ts.set_data_handle(ts_buff.get());
+    return ts_buff;
+}
+
+void replace_memory_for_tensor(std::vector<dnnl::graph::tensor> &ts_in,
+        std::vector<dnnl::graph::tensor> &ts_out,
+        const std::vector<dnnl::graph::logical_tensor> &lt_in,
+        const std::vector<dnnl::graph::logical_tensor> &lt_out,
+        std::vector<std::shared_ptr<void>> &data_buffers,
+        const std::vector<std::pair<size_t, size_t>> &v_pairs) {
+    // allocate memory for input tensors
+    for (size_t i = 0; i < lt_in.size(); i++) {
+        auto ts_buff_ptr = alloc_sycl_mem_for_tensor(ts_in[i], lt_in[i]);
+        data_buffers.emplace_back(ts_buff_ptr);
+    }
+
+    // allocate memory for output tensors, do not allocate for inplace tensors
+    for (size_t i = 0; i < lt_out.size(); i++) {
+        size_t lt_id = lt_out[i].get_id();
+        // check whether output tensor is inplace with input tensor
+        auto iter_inplace_pair = std::find_if(v_pairs.begin(), v_pairs.end(),
+                // inplace is pair<size_t lt_id_in, size_t lt_id_out>
+                [lt_id](const std::pair<size_t, size_t> &inplace) {
+                    return inplace.second == lt_id;
+                });
+        // when find inplaced tensors, should share mem with input tensor
+        if (iter_inplace_pair != v_pairs.end()) {
+            for (size_t offset = 0; offset < lt_in.size(); offset++) {
+                if (lt_in[offset].get_id() == iter_inplace_pair->first) {
+                    ts_out[i].set_data_handle(data_buffers[offset].get());
+                }
+            }
+        } else {
+            auto ts_buff_ptr = alloc_sycl_mem_for_tensor(ts_out[i], lt_out[i]);
+            data_buffers.emplace_back(ts_buff_ptr);
+        }
+    }
+}
+#endif
+
 int measure_perf(timer::timer_t &t, dnnl::graph::compiled_partition &cp,
-        const std::vector<dnnl::graph::tensor> &inputs,
-        const std::vector<dnnl::graph::tensor> &outputs) {
+        std::vector<dnnl::graph::tensor> &inputs,
+        std::vector<dnnl::graph::tensor> &outputs,
+        const std::vector<dnnl::graph::logical_tensor> &lt_inputs,
+        const std::vector<dnnl::graph::logical_tensor> &lt_outputs) {
     perf_function_t perf_func
             = std::bind(&compiled_partition_executor, cp, std::placeholders::_1,
                     std::placeholders::_2, std::placeholders::_3);
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    std::vector<std::shared_ptr<void>> data_buffers;
+    const auto v_pairs = cp.get_inplace_ports();
+    if (is_bench_mode(PERF) && is_sycl_engine()) {
+        replace_memory_for_tensor(
+                inputs, outputs, lt_inputs, lt_outputs, data_buffers, v_pairs);
+    }
+#endif
 
     return measure_perf(t, perf_func, inputs, outputs);
 }
@@ -838,10 +965,70 @@ fill_status_t handle_quant_dequant(size_t existing_lt_id,
 }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
+void *scratchpad_mm_mgr::sycl_alloc_mm(
+        size_t size, size_t alignment, const void *dev, const void *ctx) {
+    // fake malloc for 0 size
+    if (size == 0) return nullptr;
+
+    void *ptr {nullptr};
+    bool need_alloc_new_mm = true;
+    // find alloc mm with same size
+    const auto cnt = map_size_ptr_.count(size);
+    if (cnt > 0) {
+        const auto Iter = map_size_ptr_.equal_range(size);
+        for (auto it = Iter.first; it != Iter.second; ++it) {
+            // check if same size mm is free
+            if (free_ptr_.find(it->second.get()) != free_ptr_.end()) {
+                ptr = it->second.get();
+                free_ptr_.erase(ptr);
+                need_alloc_new_mm = false;
+            }
+        }
+    }
+
+    if (need_alloc_new_mm) {
+        auto sh_ptr = std::shared_ptr<void> {
+                malloc_shared(size, *static_cast<const ::sycl::device *>(dev),
+                        *static_cast<const ::sycl::context *>(ctx)),
+                sycl_deletor {*static_cast<const ::sycl::context *>(ctx)}};
+        ptr = sh_ptr.get();
+        // record the map of mm size and its ptr for reuse
+        map_size_ptr_.emplace(std::make_pair(size, sh_ptr));
+    }
+    return ptr;
+}
+
+void scratchpad_mm_mgr::sycl_free_mm(
+        void *ptr, const void *device, const void *context, void *event) {
+    free_ptr_.insert(ptr);
+}
+
+static scratchpad_mm_mgr s_mm_mgr;
+
+void *sycl_malloc_wrapper(
+        size_t size, size_t alignment, const void *dev, const void *ctx) {
+    void *ptr = is_bench_mode(CORR)
+            ? dnnl::graph::testing::sycl_malloc_wrapper(
+                    size, alignment, dev, ctx)
+            : s_mm_mgr.sycl_alloc_mm(size, alignment, dev, ctx);
+
+    return ptr;
+}
+
+// perf mode, mem will be finally released in s_mm_mgr ~shared_ptr when
+// test finished.
+void sycl_free_wrapper(
+        void *ptr, const void *device, const void *context, void *event) {
+    if (is_bench_mode(CORR)) {
+        dnnl::graph::testing::sycl_free_wrapper(ptr, device, context, event);
+    } else {
+        s_mm_mgr.sycl_free_mm(ptr, device, context, event);
+    }
+}
+
 const dnnl::graph::engine &get_graph_engine() {
     static auto sycl_allocator {dnnl::graph::sycl_interop::make_allocator(
-            dnnl::graph::testing::sycl_malloc_wrapper,
-            dnnl::graph::testing::sycl_free_wrapper)};
+            sycl_malloc_wrapper, sycl_free_wrapper)};
     static dnnl::engine test_eng {::get_test_engine()};
     static ::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
     static ::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
@@ -862,6 +1049,17 @@ dnnl::graph::stream &get_graph_stream() {
     return strm;
 }
 #endif // DNNL_GRAPH_WITH_SYCL
+
+bool is_sycl_engine() {
+#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_SYCL
+    if (is_cpu()) return true;
+#endif
+
+#if DNNL_GRAPH_GPU_RUNTIME == DNNL_GRAPH_RUNTIME_SYCL
+    if (!is_cpu()) return true;
+#endif
+    return false;
+}
 
 // Engine used to run oneDNN fusion patterns for testing.
 const dnnl::graph::engine &get_test_engine() {

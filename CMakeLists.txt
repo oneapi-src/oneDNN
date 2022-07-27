@@ -207,6 +207,13 @@ elseif (DNNL_GRAPH_CPU_RUNTIME STREQUAL "DPCPP")
     add_definitions(-DDNNL_GRAPH_CPU_RUNTIME=512)
 endif()
 
+# Add pre-processor definition for GPU runtime.
+message(STATUS "Compiling oneDNN Graph with GPU runtime ${DNNL_GRAPH_GPU_RUNTIME} support")
+# only "NONE" and "DPCPP" are supported, which will be checked in options.cmake
+if (DNNL_GRAPH_GPU_RUNTIME STREQUAL "DPCPP")
+    add_definitions(-DDNNL_GRAPH_GPU_RUNTIME=512)
+endif()
+
 add_subdirectory(src)
 add_subdirectory(tests)
 add_subdirectory(examples/c)

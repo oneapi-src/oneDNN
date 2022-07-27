@@ -507,7 +507,8 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             SAFE(FAIL, CRIT);
         }
     }
-    SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
+    SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out,
+                 ins, outs),
             WARN);
 
     cleanup();

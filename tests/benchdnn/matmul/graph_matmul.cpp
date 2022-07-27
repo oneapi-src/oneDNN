@@ -390,7 +390,8 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         check_correctness(prb, {DST}, args, ref_args, ::matmul::setup_cmp, res);
     }
 
-    SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
+    SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out,
+                 ins, outs),
             WARN);
 
     cleanup();
