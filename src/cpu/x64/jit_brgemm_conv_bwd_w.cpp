@@ -538,6 +538,11 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         const int icb_work = icb_e - icb_s;
         const int ocb_work = ocb_e - ocb_s;
 
+        // The barrier should stay outside of work condition to avoid
+        // possible hang
+        if (jcp.nthr_oc_b > 1)
+            barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
+
         if (icb_work > 0) {
             const auto id_s = nstl::max(0, -jcp.f_pad + od_s * jcp.stride_d);
             const auto ih_s = nstl::max(0, -jcp.t_pad + oh_s * jcp.stride_h);
@@ -559,8 +564,6 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
             nd_iterator_init(tr_start, g, g_work, ic_b, icb_work, jd,
                     idb_e - idb_s, jh, ihb_e - ihb_s);
 
-            if (jcp.nthr_oc_b > 1)
-                barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
             while (tr_start < tr_end) {
                 int g_ = g + g_start;
                 int ic_b_ = ic_b + icb_s;
@@ -587,9 +590,14 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
                 nd_iterator_jump(tr_start, tr_end, g, g_work, ic_b, icb_work,
                         jd, idb_e - idb_s, jh, ihb_e - ihb_s);
             }
-            if (jcp.nthr_oc_b > 1)
-                barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
         }
+        if (jcp.nthr_oc_b > 1)
+            barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
+
+        // The barrier should stay outside of work condition to avoid
+        // possible hang
+        if (jcp.nthr_ic_b > 1)
+            barrier(&tr_diff_dst_bctx[ithr_but_ic], jcp.nthr_ic_b);
 
         if (ocb_work > 0) {
             int jd = 0;
@@ -605,8 +613,6 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
             nd_iterator_init(tr_start, g, g_work, oc_b, ocb_work, jd,
                     odb_e - odb_s, jh, ohb_e - ohb_s);
 
-            if (jcp.nthr_ic_b > 1)
-                barrier(&tr_diff_dst_bctx[ithr_but_ic], jcp.nthr_ic_b);
             while (tr_start < tr_end) {
                 int g_ = g + g_start;
                 int oc_b_ = oc_b + ocb_s;
@@ -633,9 +639,9 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
                 nd_iterator_jump(tr_start, tr_end, g, g_work, oc_b, ocb_work,
                         jd, odb_e - odb_s, jh, ohb_e - ohb_s);
             }
-            if (jcp.nthr_ic_b > 1)
-                barrier(&tr_diff_dst_bctx[ithr_but_ic], jcp.nthr_ic_b);
         }
+        if (jcp.nthr_ic_b > 1)
+            barrier(&tr_diff_dst_bctx[ithr_but_ic], jcp.nthr_ic_b);
     }
 
     void maybe_local_traspose(void *&p_src, void *&p_dst, int img, int g,

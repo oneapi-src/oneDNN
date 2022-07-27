@@ -2452,6 +2452,7 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
             nthr_oc_b = more_oc ? 14 : 1;
         }
         nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
+        nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
     }
 
     jcp.nthr = nthr;
