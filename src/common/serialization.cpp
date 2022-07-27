@@ -113,9 +113,11 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
 
     if (md.extra.flags != dnnl_memory_extra_flag_none) {
         sstream.write(&md.extra.flags);
-        if (md.extra.flags
-                & (dnnl_memory_extra_flag_compensation_conv_s8s8
-                        | dnnl_memory_extra_flag_rnn_u8s8_compensation)) {
+        if ((md.extra.flags
+                    & (dnnl_memory_extra_flag_compensation_conv_s8s8
+                            | dnnl_memory_extra_flag_rnn_u8s8_compensation))
+                && !types::extra_flag_rnn_s8s8_compensation_is_set(
+                        md.extra.flags)) {
             sstream.write(&md.extra.compensation_mask);
         }
 

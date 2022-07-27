@@ -158,15 +158,28 @@ inline format_kind_t format_tag_to_kind(format_tag_t tag) {
     return format_kind::undef;
 }
 
+// Currently rnn_s8s8_compensation has common bits with rnn_u8s8_compensation
+// and scale_adjust constants so we have to perform additional checks to
+// separate these two cases
+inline bool extra_flag_rnn_s8s8_compensation_is_set(uint64_t flags) {
+    return ((flags & memory_extra_flags::rnn_s8s8_compensation)
+                   ^ memory_extra_flags::rnn_s8s8_compensation)
+            == 0;
+}
+
 inline bool memory_extra_desc_is_equal(
         const memory_extra_desc_t &lhs, const memory_extra_desc_t &rhs) {
     using namespace memory_extra_flags;
     return true && lhs.flags == rhs.flags
             && IMPLICATION(lhs.flags & compensation_conv_s8s8,
                     lhs.compensation_mask == rhs.compensation_mask)
-            && IMPLICATION(lhs.flags & rnn_u8s8_compensation,
+            && IMPLICATION((lhs.flags & rnn_u8s8_compensation)
+                            && !extra_flag_rnn_s8s8_compensation_is_set(
+                                    lhs.flags),
                     lhs.compensation_mask == rhs.compensation_mask)
-            && IMPLICATION(lhs.flags & scale_adjust,
+            && IMPLICATION((lhs.flags & scale_adjust)
+                            && !extra_flag_rnn_s8s8_compensation_is_set(
+                                    lhs.flags),
                     lhs.scale_adjust == rhs.scale_adjust)
             && IMPLICATION(lhs.flags & compensation_conv_asymmetric_src,
                     lhs.asymm_compensation_mask == rhs.asymm_compensation_mask);

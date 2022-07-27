@@ -756,6 +756,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                 const memory_desc_t *dst_md) {
             using namespace status;
             using namespace format_tag;
+            using namespace memory_extra_flags;
 
             const memory_desc_wrapper id(src_md), od(dst_md);
 
@@ -782,15 +783,16 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                 return unimplemented;
 
             // Check the proper memory desc has been passed to u8s8 and s8s8
-            const bool check_u8s8
-                    = (od.extra().flags
-                              & memory_extra_flags::rnn_u8s8_compensation)
+            // Note: currently rnn_u8s8_compensation and rnn_s8s8_compensation
+            // have common bit so we have to perform additional checks to
+            // separate these two cases
+            const bool check_u8s8 = (od.extra().flags & rnn_u8s8_compensation)
+                    && !types::extra_flag_rnn_s8s8_compensation_is_set(
+                            od.extra().flags)
                     && od.extra().compensation_mask
                             == ((id.ndims() == 5) ? 27 /* 11011 */
                                                   : 13 /* 1101 */);
-            const bool check_s8s8
-                    = (od.extra().flags
-                              & memory_extra_flags::rnn_s8s8_compensation)
+            const bool check_s8s8 = od.extra().flags & rnn_s8s8_compensation
                     && od.extra().compensation_mask == 0;
             if (!(check_u8s8 || check_s8s8)) return invalid_arguments;
 
@@ -855,6 +857,7 @@ private:
         using namespace format_tag;
         using namespace data_type;
         using namespace utils;
+        using namespace memory_extra_flags;
 
         auto src = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
         auto dst = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
@@ -891,8 +894,9 @@ private:
                           .template get<void>(memory_tracking::names::
                                           key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(dst + compensation_offset);
-        const bool req_s8s8_comp = dst_d.extra().flags
-                & memory_extra_flags::rnn_u8s8_compensation;
+        const bool req_s8s8_comp = (dst_d.extra().flags & rnn_u8s8_compensation)
+                && !types::extra_flag_rnn_s8s8_compensation_is_set(
+                        dst_d.extra().flags);
         const auto mask_ok = [&](int mask) {
             return mask
                     == ((src_d.ndims() == 5) ? 27 /* 11011 */
