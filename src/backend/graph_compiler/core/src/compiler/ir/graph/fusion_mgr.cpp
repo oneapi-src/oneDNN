@@ -37,6 +37,7 @@
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <runtime/config.hpp>
+#include <unordered_set>
 #include <util/any_map.hpp>
 
 SC_MODULE(graph.fusion);
@@ -235,6 +236,12 @@ fusion_manager::fusion_manager(fusion_manager &&other)
     , input_idx_map_(std::move(other.input_idx_map_))
     , output_idx_map_(std::move(other.output_idx_map_)) {}
 
+void fusion_manager::bind_graph(sc_graph_t *graph) {
+    COMPILE_ASSERT(graph_.empty(),
+            "current graph in fmgr is not empty, could not bind new graph")
+    graph_ = copy_graph(*graph);
+}
+
 /**
  * This function pre-allocate tensor, whether used indeedly is decided in
  * schedule tensor pass
@@ -313,12 +320,15 @@ std::vector<sc_op_ptr> fusion_manager::dispatch_fusion_anchor(
         if (stat_map.is_ok()) return {};
     }
     auto &retry_ops = stat_map.get_ops_by_status(infer_status_code::RETRY);
-    assert(!retry_ops.empty());
+    auto &unknown_ops = stat_map.get_ops_by_status(infer_status_code::UNKNOWN);
+    std::unordered_set<sc_op_ptr> ret_ops = retry_ops;
+    ret_ops.insert(unknown_ops.begin(), unknown_ops.end());
+    assert(!ret_ops.empty());
+
     SC_MODULE_INFO << "Could not find suitable anchor for "
-                   << retry_ops.begin()->get()->op_name_
-                   << " to commit in total " << fanchor_list_.size()
-                   << " anchors";
-    return infer_status_map_t::stat_map_to_vector(retry_ops);
+                   << ret_ops.begin()->get()->op_name_ << " to commit in total "
+                   << fanchor_list_.size() << " anchors";
+    return infer_status_map_t::stat_map_to_vector(ret_ops);
 }
 
 void fusion_manager::do_infer_slice_ranges(
@@ -381,11 +391,7 @@ void fusion_manager::do_infer_slice_ranges(
         if (stat_map.is_unknown()) {
             auto &unknown_list
                     = stat_map.get_ops_by_status(infer_status_code::UNKNOWN);
-            if (unknown_list.end() != unknown_list.find(cur)) {
-                COMPILE_ASSERT(0,
-                        "Op with unknown status still get unknown slice status "
-                        "in second round infer.");
-            }
+            if (unknown_list.end() != unknown_list.find(cur)) { continue; }
         }
         stat_map.append_ops_by_status(cur.get(), infer_status_code::OK);
     }
@@ -1305,6 +1311,22 @@ void fusion_manager::create_output_fusion_anchor(
     auto fanchor = fuse_anchor_t(s, std::make_pair(src, dst));
     // append to fuse anchor
     fanchor_list_.emplace_back(std::move(fanchor));
+}
+
+std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>
+fusion_manager::unpack_src_anchor() {
+    std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>
+            anchor_map_list;
+    for (auto &anchor : fanchor_list_) {
+        std::unordered_map<expr, slice_range_list> anchor_map;
+        for (auto &src_tsr_slice : anchor.anchor_slice_.first) {
+            anchor_map[src_tsr_slice.get_real_tensor()]
+                    = slice_range_list {src_tsr_slice.get_ranges()};
+        }
+        anchor_map_list.emplace_back(
+                std::make_pair(anchor.anchor_position_, anchor_map));
+    }
+    return anchor_map_list;
 }
 
 void fusion_manager::clear_anchor() {

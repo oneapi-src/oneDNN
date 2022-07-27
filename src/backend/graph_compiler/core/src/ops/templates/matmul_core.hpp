@@ -29,6 +29,19 @@ struct matmul_core_config_t {
   int N_block;
   int K_block;
 };
+
+struct blocking_axes_t {
+  std::vector<int> A_bs;
+  std::vector<int> A_m;
+  std::vector<int> A_k;
+  std::vector<int> B_bs;
+  std::vector<int> B_k;
+  std::vector<int> B_n;
+  std::vector<int> C_bs;
+  std::vector<int> C_m;
+  std::vector<int> C_n;
+};
+
 class gen_matmul_core_t : public body_generator_t<matmul_core_config_t> {
 public:
   struct op_params_t {
@@ -66,19 +79,18 @@ public:
       in_tensors_[1].get_plain_dims().end()};
   };
 
-  static void get_and_check_blocks(const logical_tensor_t &ta,
-    const logical_tensor_t &tb, const matmul_core_config_t &config,
-    int &M_num_blocks, int &K_num_blocks, int &M_block, int &K_block,
-    int &N_block, int &B_K_num_blocks, int &N_num_blocks);
+  void get_and_check_blocks(const std::vector<expr> &inputs,
+    const matmul_core_config_t &config, int &M_num_blocks, int &K_num_blocks,
+    int &M_block, int &K_block, int &N_block, int &B_K_num_blocks,
+    int &N_num_blocks) const;
 
-  static void get_brgemm_and_fusion_params(const logical_tensor_t &ta,
-    const logical_tensor_t &tb, const logical_tensor_t &tc, const int &M_block,
-    const int &K_block, const int &N_block, std::vector<expr> &aidx,
-    std::vector<expr> &bidx, std::vector<expr> &cidx, int &LDA, int &LDB,
-    int &LDC, int &stride_a, int &stride_b,
-    std::vector<std::pair<expr, expr>> &fidx1,
+  void get_brgemm_and_fusion_params(const std::vector<expr> &inputs,
+    const std::vector<expr> &outputs, const int &M_block, const int &K_block,
+    const int &N_block, std::vector<expr> &aidx, std::vector<expr> &bidx,
+    std::vector<expr> &cidx, int &LDA, int &LDB, int &LDC, int &stride_a,
+    int &stride_b, std::vector<std::pair<expr, expr>> &fidx1,
     std::vector<std::pair<expr, expr>> &fidx2,
-    std::vector<std::pair<expr, expr>> &fidx3);
+    std::vector<std::pair<expr, expr>> &fidx3) const;
 
   sc_data_type_t get_A_dtype() const { return in_tensors_[0].dtype_; }
   sc_data_type_t get_B_dtype() const { return in_tensors_[1].dtype_; }
@@ -92,6 +104,10 @@ public:
 
   void schedule_loops(context_ptr ctx, const matmul_core_config_t &config,
     stmt body, std::vector<for_loop> &fors) const override;
+  void init_axes();
+
+private:
+  blocking_axes_t blocking_axes_;
 };
 } // namespace ops
 } // namespace sc

@@ -44,6 +44,8 @@ struct scflags_t {
     std::string dump_graph_;
     std::string graph_dump_results_;
     bool value_check_ = false;
+    bool mixed_fusion_ = true;
+    bool use_cost_model_ = true;
 };
 
 struct context_t {

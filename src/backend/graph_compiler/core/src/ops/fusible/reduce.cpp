@@ -30,7 +30,7 @@
 
 namespace sc {
 
-static bool slice_full_on_axes(
+bool slice_full_on_axes(
         const sc_dims &dim, slice_range ranges, const std::vector<int> &axes) {
     for (auto &ax : axes) {
         if (!ranges[ax].first.isa<constant>()
@@ -44,30 +44,6 @@ static bool slice_full_on_axes(
         }
     }
     return true;
-}
-
-std::vector<int> transform_axis_plain2blocking(
-        const graph_tensor_ptr &gt, const std::vector<int> &plain_axis) {
-    auto fmt = gt->details_.get_format();
-    int bs_ndim = 0;
-    // If format is any, just return.
-    if (fmt.is_any()) { return plain_axis; }
-    std::vector<int> real_axis;
-    auto p2bmp = fmt.format_code_.collect_p2b_mapping();
-    for (auto &i : plain_axis) {
-        if (i < bs_ndim) {
-            real_axis.emplace_back(i);
-        } else {
-            std::vector<int> res;
-            res.resize(p2bmp[i - bs_ndim].size());
-            std::transform(p2bmp[i - bs_ndim].begin(), p2bmp[i - bs_ndim].end(),
-                    res.begin(),
-                    [&bs_ndim](const int &v) { return v + bs_ndim; });
-            real_axis.insert(real_axis.end(), res.begin(), res.end());
-        }
-    }
-    std::sort(real_axis.begin(), real_axis.end());
-    return real_axis;
 }
 
 // compute the output data format after reduction given the plain reduction
@@ -284,6 +260,7 @@ void reduce_op_t::infer_slice_ranges(
     auto real_rd_axis = get_rd_axis();
     update_reduce_op_fsmap(
             this, get_inputs()[0], fsmap, stat_map, real_rd_axis);
+    if (!stat_map.is_recursive_mode() && stat_map.is_retry()) return;
     fsmap.get(get_outputs()[0]) = infer_output_slice_range(
             false, 0, known_ranges_list, real_rd_axis, keep_dims_, 1);
 }
@@ -588,7 +565,7 @@ bool reduce_op_t::can_split_op() const {
     return true;
 }
 
-void reduce_op_t::split_op(
+graph_tensor_ptr reduce_op_t::split_op(
         const context_ptr &ctx, sc_graph_t &graph, int num_threads) {
     auto rd_ax = get_rd_axis();
 
@@ -661,6 +638,7 @@ void reduce_op_t::split_op(
 
     get_outputs()[0]->replace_with(second_out);
     remove();
+    return second_out;
 }
 
 OP_REGISTER(reduce_op_t, reduce)
@@ -861,6 +839,12 @@ reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
     }
 }
 
+sc_op_ptr reduce_collect_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
+    return mgr.make<reduce_collect_op_t>(ins.at(0), outs.at(0), rd_name_,
+            real_rd_axis_, rd_op_, keep_dims_, need_mean_, reduce_mean_num_);
+}
+
 void reduce_collect_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     slice_range_map known_ranges_map
@@ -872,6 +856,7 @@ void reduce_collect_op_t::infer_slice_ranges(
     auto &input = get_inputs()[0]->producer_owner_->get_inputs().at(0);
     auto &real_rd_axis = get_rd_axis();
     update_reduce_op_fsmap(this, input, fsmap, stat_map, real_rd_axis);
+    if (!stat_map.is_recursive_mode() && stat_map.is_retry()) return;
     if (!is_place_holder_op()) {
         // if is not placeholder op, and don't keep dims, we will add an
         // additional axis at the end, when in reduce_compute. need to drop

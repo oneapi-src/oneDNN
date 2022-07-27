@@ -51,6 +51,8 @@ enum key {
     SC_JIT_PROFILE,
     SC_DUMP_GRAPH_JSON,
     SC_TUNING_IMPORT,
+    SC_MIXED_FUSION,
+    SC_COST_MODEL,
     NUM_KEYS
 };
 } // namespace env_key

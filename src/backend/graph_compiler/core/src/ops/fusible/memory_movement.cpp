@@ -159,9 +159,7 @@ size_t transpose_op_t::compute_workload(
 }
 
 sc_dims tensor_view_op_t::get_shapes() const {
-    // if `shapes_` is empty, it needs to get dynamically in need.
-    return shapes_.empty() ? info_.outputs_[0]->details_.get_blocking_dims()
-                           : shapes_;
+    return info_.outputs_[0]->details_.get_blocking_dims();
 }
 
 tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -468,7 +466,7 @@ void tensor_view_op_t::infer_slice_ranges(
         auto tv_slice
                 = infer_tensor_view_slice(known_ranges_list, src_dims, shapes);
         if (tv_slice.empty()) {
-            stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
         fsmap.get(get_outputs()[0]) = tv_slice;
@@ -491,7 +489,7 @@ void tensor_view_op_t::pre_slice_ranges(
         auto tv_slice
                 = infer_tensor_view_slice(known_ranges_list, shapes, src_dims);
         if (tv_slice.empty()) {
-            stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
         fsmap.get(get_inputs()[0]) = tv_slice;

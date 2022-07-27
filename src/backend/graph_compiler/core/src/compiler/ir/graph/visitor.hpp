@@ -75,6 +75,8 @@ public:
     // visited. Used in topology sort
     static updater_func create_DAG_updater(size_t total_nodes_hint);
     static updater_func create_DAG_updater_post(size_t total_nodes_hint);
+    static updater_func create_DAG_updater_speculate_tuneop(
+            size_t total_nodes_hint);
     // create_DAG_updatater_post;
     // post order traversing
     void post_visit_graph(
@@ -95,6 +97,8 @@ public:
     // constructs a topology sort visitor in DFS order, using
     // create_DAG_updater and pop_back_selector
     static op_visitor_t dfs_topology_sort(size_t total_nodes_hint = 30);
+    static op_visitor_t dfs_topology_speculative_sort(
+            size_t total_nodes_hint = 30);
 };
 
 /** Op Depenency Matrix
@@ -206,6 +210,36 @@ public:
     static rule_func create_preop_fusion_rule();
 };
 
+sc_op_ptr search_tuneop_linearly(sc_op_ptr start_node, int max_step = 5);
+
+/**
+ * What is bypass: it starts from the certain op which has more than one user
+ * ops, and one of them is tunable op. it means fuse op pass will reparition
+ * fused graph starting that tunable op.
+ * E.g.
+ *       in_a  in_b
+ *         \    /
+ *        matmul2d   in_c
+ *           |      /
+ *          bias
+ *           |
+ *    in_d  quan
+ *      \    |       \
+ *        matmul2d   dequan
+ *           |       /
+ *          add
+ *           |
+ *         output
+ *
+ * In graph above, `deq` or `cast+sub+mul`(after graph inline) is the bypass
+ * what we want to search. For each op found in bypsas, it can be fused either
+ * previous or post op, global reschedule is aimed to mark suitable fuse attr
+ * (break pre/post fuse or even no fused) for each op them according several
+ * different rules.
+ * */
+std::vector<sc_op_ptr> search_tuneop_bypass(const context_ptr &ctx,
+        const sc_op_ptr &tuneop, sc_op_ptr start_node,
+        const op_dep_matrix_t &dep, int max_step = 10);
 } // namespace sc
 
 #endif

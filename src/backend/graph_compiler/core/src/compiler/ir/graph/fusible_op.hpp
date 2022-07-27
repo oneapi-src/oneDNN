@@ -37,7 +37,9 @@ using fslice_map = gt_map_t<slice_range_list>;
  * A fuser will do actual code injection on the fusion point. It will be managed
  * by the fusion manager.
  * */
-class fusible_op_t : public sc_op, public op_traits::workload_computable_t {
+class fusible_op_t : public sc_op,
+                     public op_traits::workload_computable_t,
+                     public op_traits::mixed_partition_acceptable {
 public:
     // when fusible_op_t is as a started op in the graph/subgraph, query_format
     // return certain format.
@@ -64,6 +66,8 @@ public:
     virtual void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map)
             = 0;
+
+    void search_anchor(mixed_parti_t *parti) override;
 
     /**
      * 'pre_slice_ranges' is used to infer slice ranges especially
@@ -96,6 +100,12 @@ public:
     virtual size_t compute_fusible_workload(const context_ptr &ctx,
             const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs);
+
+    void create_mixed_partition(mixed_parti_t *parti) override;
+
+    void append_mixed_partition(mixed_parti_t *parti) override;
+
+    void commit_into_anchor(mixed_parti_t *parti) override;
 
     ~fusible_op_t() override = default;
 

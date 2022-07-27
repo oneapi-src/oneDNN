@@ -21,6 +21,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/trait/configurable.hpp>
 #include <compiler/ir/graph/traits.hpp>
@@ -28,11 +29,13 @@
 #include <util/utils.hpp>
 
 namespace sc {
-class SC_INTERNAL_API tunable_op_t : public sc_op,
-                                     public op_traits::copyable_t,
-                                     public op_traits::may_quantize_t,
-                                     public op_traits::post_fusion_acceptable_t,
-                                     public op_traits::configurable_t {
+class SC_INTERNAL_API tunable_op_t
+    : public sc_op,
+      public op_traits::copyable_t,
+      public op_traits::may_quantize_t,
+      public op_traits::post_fusion_acceptable_t,
+      public op_traits::configurable_t,
+      public op_traits::mixed_partition_acceptable {
 public:
     tunable_op_t(const std::string &op_name,
             const std::vector<graph_tensor_ptr> &ins,
@@ -51,6 +54,9 @@ public:
     }
     ir_module_ptr get_func(context_ptr ctx) override;
 
+    func_t get_func(mixed_parti_t *parti, const std::vector<expr> &ins,
+            const std::vector<expr> &outs);
+
     config_ptr get_config() override { return config_data_; }
 
     void set_config(const config_ptr &config) override;
@@ -58,7 +64,19 @@ public:
 
     config_ptr get_default_config(context_ptr ctx) override;
 
+    void search_anchor(mixed_parti_t *parti) override;
+
+    void commit_into_anchor(mixed_parti_t *parti) override;
+
     virtual body_generator_ptr create_generator() = 0;
+
+    void create_mixed_partition(mixed_parti_t *parti) override;
+
+    void append_mixed_partition(mixed_parti_t *parti) override;
+
+    virtual void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map)
+            = 0;
 
 protected:
     config_ptr config_data_;

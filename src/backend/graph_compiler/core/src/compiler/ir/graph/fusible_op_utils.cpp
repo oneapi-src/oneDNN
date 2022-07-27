@@ -27,6 +27,7 @@
 #include "outer_loop_generator.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <runtime/config.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
@@ -473,7 +474,7 @@ bool loop_can_be_fused(const for_loop &loop) {
 }
 
 slice_range_map search_known_slice_ranges(
-        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
+        sc_op *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     slice_range_map known_ranges_map;
     auto input_size = cur->get_inputs().size();
     COMPILE_ASSERT(input_size > 0,
@@ -505,11 +506,161 @@ void set_unknown_slice_ranges(fusible_op_t *cur,
         } else {
             if (inp_slice.empty()) {
                 inp_slice = known_ranges_map.find(i)->second;
-                input->producer_owner_->dyn_cast<fusible_op_t>()
-                        ->pre_slice_ranges(fsmap, stat_map);
+                if (!stat_map.is_recursive_mode()) continue;
+                if (auto inp_op
+                        = input->producer_owner_->dyn_cast<fusible_op_t>()) {
+                    inp_op->pre_slice_ranges(fsmap, stat_map);
+                }
             }
         }
     }
 }
 
+std::vector<int> transform_axis_plain2blocking(
+        const logical_tensor_t &lt, const std::vector<int> &plain_axes) {
+    auto fmt = lt.get_format();
+    int bs_ndim = 0;
+    // If format is any, just return.
+    if (fmt.is_any()) { return plain_axes; }
+    std::vector<int> real_axis;
+    auto p2bmp = fmt.format_code_.collect_p2b_mapping();
+    for (auto &i : plain_axes) {
+        if (i < bs_ndim) {
+            real_axis.emplace_back(i);
+        } else {
+            std::vector<int> res;
+            res.resize(p2bmp[i - bs_ndim].size());
+            std::transform(p2bmp[i - bs_ndim].begin(), p2bmp[i - bs_ndim].end(),
+                    res.begin(),
+                    [&bs_ndim](const int &v) { return v + bs_ndim; });
+            real_axis.insert(real_axis.end(), res.begin(), res.end());
+        }
+    }
+    std::sort(real_axis.begin(), real_axis.end());
+    return real_axis;
+}
+
+std::vector<int> transform_axis_plain2blocking(
+        const graph_tensor_ptr &gt, const std::vector<int> &plain_axes) {
+    return transform_axis_plain2blocking(gt->details_, plain_axes);
+}
+
+/**
+ * Compare left and right fsmap
+ * */
+cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
+        const slice_range_list &right_slice_range_list) {
+    COMPILE_ASSERT(
+            !left_slice_range_list.empty() && !right_slice_range_list.empty(),
+            "slice range should be set");
+    auto left_slice_range = left_slice_range_list[0],
+         right_slice_range = right_slice_range_list[0];
+    auto left_slice_shape = get_expr_to_dims(get_slice_shape(left_slice_range)),
+         right_slice_shape
+            = get_expr_to_dims(get_slice_shape(right_slice_range));
+    auto left_slice_size = get_dims_product(left_slice_shape),
+         right_slice_size = get_dims_product(right_slice_shape);
+    // if right anchor is more smaller than the leftrent one
+    if (left_slice_size == right_slice_size) {
+        return cmp_res::equal;
+    } else if (left_slice_size < right_slice_size) {
+        return cmp_res::l_less_r;
+    } else {
+        return cmp_res::l_larger_r;
+    }
+}
+
+bool is_reshaped_tensor(const expr &tsr) {
+    COMPILE_ASSERT(tsr.isa<tensorptr>(),
+            "except for tensor node, only tensorptr node is expected, but "
+            "got " << tsr);
+    if (tsr.static_as<tensorptr>()->is_slice_) return false;
+    auto base = tsr.static_as<tensorptr>()->base_;
+    COMPILE_ASSERT(base.isa<indexing>(),
+            "tensor_ptr base should be indexing, but got: " << base);
+    for (auto &idx : base.static_as<indexing>()->idx_) {
+        if (!idx.isa<constant>() || get_expr_as_int(idx) != 0) return false;
+    }
+    auto base_tensor = base.static_as<indexing>()->ptr_;
+    COMPILE_ASSERT(base_tensor.isa<tensor>(), "Tensor type is expected")
+    auto base_dims = base_tensor.static_as<tensor>()->dims_;
+    auto new_dims = tsr.static_as<tensorptr>()->shape_;
+    return get_dims_product(get_expr_to_dims(base_dims))
+            == get_dims_product(get_expr_to_dims(new_dims));
+}
+
+static std::vector<expr> get_dense_stride(const std::vector<expr> &shape) {
+    std::vector<expr> result(shape.size(), 1);
+    for (int i = shape.size() - 2; i >= 0; --i) {
+        result[i] = result[i + 1] * shape[i + 1];
+    }
+    return result;
+}
+
+expr transform_tsr2stsr_with_range(const expr &tsr, const slice_range &range) {
+    auto new_dims = get_slice_shape(range);
+    std::vector<expr> new_strides;
+    tensor t;
+    if (tsr.isa<tensor>()) {
+        t = tsr.static_as<tensor>();
+        new_strides = t->strides_;
+    } else {
+        COMPILE_ASSERT(is_reshaped_tensor(tsr), "reshaped tensor is expected");
+        t = tsr.static_as<tensorptr>()
+                    ->base_.static_as<indexing>()
+                    ->ptr_.static_as<tensor>();
+        new_strides = get_dense_stride(tsr.static_as<tensorptr>()->shape_);
+    }
+    return builder::make_stensor(
+            t->name_ + "_strd", new_dims, new_strides, t->elem_dtype_);
+}
+
+expr transform_tsl2stsr(const tensor_slice &tsl) {
+    return transform_tsr2stsr_with_range(
+            tsl.get_real_tensor(), tsl.get_ranges());
+}
+
+expr transform_tsr2tptr_with_range(const expr &tsr, const slice_range &range) {
+    auto new_dims = get_slice_shape(range);
+    return builder::tensor_ptr(
+            tsr, get_slice_idx(range), get_slice_shape(range), true);
+}
+
+expr transform_tptr2stsr(const expr &tptr) {
+    COMPILE_ASSERT(tptr.isa<tensorptr>(),
+            "tensort pointer node is expected, but got " << tptr);
+    auto tp = tptr.static_as<tensorptr>();
+    COMPILE_ASSERT(tp->base_.isa<indexing>(), "indexing node is expected");
+    auto tsr = tp->base_->ptr_;
+    COMPILE_ASSERT(
+            tsr.isa<tensor>(), "tensor node is expected, but got " << tsr);
+    auto t = tsr.static_as<tensor>();
+    return builder::make_stensor(
+            t->name_ + "_strd", tp->shape_, t->strides_, t->elem_dtype_);
+}
+
+float evaluate_loop_parallel_balance(const sc_dims &loop_ranges) {
+    sc_dim prod = get_dims_product(loop_ranges);
+    const int run_threads = runtime_config_t::get().get_num_threads();
+    bool parallelism = (prod / run_threads > 12)
+            || (prod % run_threads == 0 && prod >= run_threads);
+    return parallelism ? 1.0f : ((prod % run_threads) / float(run_threads));
+}
+
+float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops) {
+    sc_dims loop_ranges;
+    for (auto &loop : loops) {
+        if (!(loop->iter_begin_.isa<constant_c>()
+                    && loop->iter_end_.isa<constant_c>())) {
+            loop_ranges.emplace_back(0);
+        } else {
+            auto begin = get_expr_as_int(loop->iter_begin_),
+                 end = get_expr_as_int(loop->iter_end_);
+            COMPILE_ASSERT(
+                    end > begin, "loop end is expected to larger than begin")
+            loop_ranges.emplace_back(end - begin);
+        }
+    }
+    return evaluate_loop_parallel_balance(loop_ranges);
+}
 } // namespace sc

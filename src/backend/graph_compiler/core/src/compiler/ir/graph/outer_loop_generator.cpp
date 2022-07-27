@@ -34,7 +34,7 @@ namespace sc {
 
 SC_MODULE(graph.outer_loop_gen);
 
-static for_loop get_next_inner_loop(const for_loop &cur_loop) {
+for_loop get_next_inner_loop(const for_loop &cur_loop) {
     if (cur_loop->body_.isa<for_loop>()) {
         return cur_loop->body_.checked_as<for_loop>();
     } else if (cur_loop->body_.isa<stmts>()
@@ -72,8 +72,11 @@ static void fuse_outer_loops(for_loop outer_loop) {
     }
 }
 
-outer_loop_generator_t::outer_loop_generator_t(size_t base_inp_idx)
-    : body_generator_base_t({}, {}), base_inp_idx_(base_inp_idx) {}
+outer_loop_generator_t::outer_loop_generator_t(
+        size_t base_tsr_idx, bool use_output_mode)
+    : body_generator_base_t({}, {})
+    , base_tsr_idx_(base_tsr_idx)
+    , use_output_mode_(use_output_mode) {}
 
 typedef std::vector<int> (*loop_sort_rule_func)(
         const std::vector<int> &, sc_graph_t &, const tensor &);
@@ -219,15 +222,23 @@ static std::vector<loop_sort_rule_func> loop_sort_rules
 bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
         fusion_manager *fusion, const std::vector<expr> &inputs,
         const std::vector<expr> &outputs, std::vector<for_loop> &loops) const {
-    COMPILE_ASSERT(inputs.size() > base_inp_idx_,
-            "Expecting at least " << base_inp_idx_ + 1
-                                  << " input(s) for outer_loop_generator_t");
+    if (!use_output_mode_) {
+        COMPILE_ASSERT(inputs.size() > base_tsr_idx_,
+                "Expecting at least " << base_tsr_idx_
+                                + 1 << " input(s) for outer_loop_generator_t");
+    } else {
+        COMPILE_ASSERT(outputs.size() > base_tsr_idx_,
+                "Expecting at least " << base_tsr_idx_
+                                + 1 << " output(s) for outer_loop_generator_t");
+    }
     // If loop conflict found, return.
     if (detect_loop_conflict(fusion)) return false;
-    tensor in_tsr = inputs[base_inp_idx_].as<tensor>();
-    COMPILE_ASSERT(in_tsr.defined(), "Expecting a tensor");
+    tensor base_tsr = (use_output_mode_ ? outputs[base_tsr_idx_]
+                                        : inputs[base_tsr_idx_])
+                              .as<tensor>();
+    COMPILE_ASSERT(base_tsr.defined(), "Expecting a tensor");
     auto bld = builder::get_current_builder();
-    auto numdims = in_tsr->dims_.size();
+    auto numdims = base_tsr->dims_.size();
     assert(numdims > 0);
     std::vector<expr> loop_vars;
     slice_range cur_tsr_slice;
@@ -247,7 +258,7 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
     }
     // sort loop axis with rules
     for (auto sort_rule : loop_sort_rules) {
-        loop_axis = sort_rule(loop_axis, fusion->get_graph(), in_tsr);
+        loop_axis = sort_rule(loop_axis, fusion->get_graph(), base_tsr);
         // check whether need to repartition
         if (fusion->get_graph().attrs_.get_or_else(
                     "temp.need_repartition", false)) {
@@ -255,6 +266,7 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
             return false;
         }
     }
+
     // generate anchors from inner to outer
     for (size_t i = 0; i < numdims - 1; i++) {
         // loop num is current dimension index
@@ -262,19 +274,76 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
         // upper loop num
         auto upper_loop_num = loop_axis[numdims - i - 2];
         // set full tensor range for loop_num dimension
-        cur_tsr_slice[loop_num] = std::make_pair(0, in_tsr->dims_[loop_num]);
+        cur_tsr_slice[loop_num] = std::make_pair(0, base_tsr->dims_[loop_num]);
         fusion->create_output_fusion_anchor(
-                {tensor_slice(in_tsr, slice_range(cur_tsr_slice))});
+                {tensor_slice(base_tsr, slice_range(cur_tsr_slice))});
         auto body = bld->pop_scope();
         auto loop = bld->push_for_loop(loop_vars[upper_loop_num], 0,
-                in_tsr->dims_[upper_loop_num], 1, body, true, for_type::NORMAL);
+                base_tsr->dims_[upper_loop_num], 1, body, true,
+                for_type::NORMAL);
         loops.emplace_back(loop.checked_as<for_loop>());
     }
     cur_tsr_slice[loop_axis[0]]
-            = std::make_pair(0, in_tsr->dims_[loop_axis[0]]);
+            = std::make_pair(0, base_tsr->dims_[loop_axis[0]]);
     fusion->create_output_fusion_anchor(
-            {tensor_slice(in_tsr, slice_range(cur_tsr_slice))});
+            {tensor_slice(base_tsr, slice_range(cur_tsr_slice))});
     return true;
+}
+
+anchor_loop_generator_t::anchor_loop_generator_t(
+        const graph_tensor_ptr &gt, const fuse_anchor_map_ptr &parent_fanchor)
+    : body_generator_base_t({}, {}), gt_(gt), parent_fanchor_(parent_fanchor) {}
+
+size_t anchor_loop_generator_t::create_inner_anchor(
+        std::vector<fuse_anchor_map_ptr> &fanchor_map) {
+    if (parent_fanchor_->fsmap_.get(gt_).size() != 1) return 0;
+    auto bld = builder::get_current_builder();
+    std::vector<expr> loop_vars;
+    std::vector<int> inner_anchor_axis;
+    slice_range inner_slice;
+    // will create numdims loop vars but uses numdims - 1 because user may sort
+    // loop axis
+    auto range = parent_fanchor_->fsmap_.get(gt_)[0];
+    size_t valid_range_end = 0;
+    for (int64_t i = range.size() - 1; i >= 0; --i) {
+        if (range[i].second.isa<constant_c>()
+                && get_expr_as_int(range[i].second) > 1) {
+            valid_range_end = i;
+            break;
+        }
+    }
+    for (size_t i = 0; i < (range.size() - 1); i++) {
+        if (range[i].second.isa<constant_c>()
+                && get_expr_as_int(range[i].second) > 1
+                && (i < valid_range_end)) {
+            bld->push_scope();
+            loop_vars.emplace_back(builder::make_var(datatypes::index,
+                    std::string("__inner_itr_") + std::to_string(i)));
+            inner_slice.emplace_back(
+                    std::make_pair(range[i].first + loop_vars.back(), expr(1)));
+            inner_anchor_axis.emplace_back(i);
+        } else {
+            inner_slice.emplace_back(range[i]);
+        }
+    }
+    inner_slice.emplace_back(range.back());
+
+    auto inner_anchor_num = inner_anchor_axis.size();
+    if (!inner_anchor_num) return 0;
+    // generate anchors from inner to outer
+    for (int64_t i = static_cast<int64_t>(inner_anchor_num) - 1; i >= 0; i--) {
+        auto loop_num = inner_anchor_axis[i];
+        fslice_map fsmap;
+        fsmap.get(gt_) = slice_range_list {inner_slice};
+        auto s = bld->push_anchor();
+        fanchor_map.emplace_back(
+                std::make_shared<fuse_anchor_map_t>(s, fsmap, parent_fanchor_));
+        auto body = bld->pop_scope();
+        bld->push_for_loop(loop_vars[i], 0, range[loop_num].second, 1, body,
+                true, for_type::NORMAL);
+        inner_slice[loop_num] = range[loop_num];
+    }
+    return inner_anchor_num;
 }
 
 static void schedule_outer_anchor_loops(
@@ -414,11 +483,11 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
     // =======================
     // End of building function body
     // =======================
-    // the additional arguments for fmgr, according base_inp_idx_ of gen
-    auto base_inp_idx = gen->get_base_inp_idx();
+    // the additional arguments for fmgr, according base_tsr_idx_ of gen
+    auto base_tsr_idx = gen->get_base_tsr_idx();
     std::vector<expr> additional_args;
     for (size_t i = 0; i < ins.size(); i++) {
-        if (i == base_inp_idx) continue;
+        if (i == base_tsr_idx) continue;
         additional_args.emplace_back(ins[i]);
     }
     if (!just_check) { fmgr->transform_graph(ctx, false); }

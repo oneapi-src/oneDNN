@@ -24,6 +24,8 @@
 namespace sc {
 namespace ops {
 
+struct blocking_axes_t;
+
 class SC_INTERNAL_API matmul_core_op_t
     : public tunable_op_t,
       public op_traits::batchwise_shrinkable_t {
@@ -52,7 +54,14 @@ public:
 
     void collect_shrinked_axes_map(
             int bw_size, gt2axes_map &bw_axes_map) override;
+
+    void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override;
 };
+
+blocking_axes_t get_mm_blocking_axes(const logical_tensor_t &inp,
+        const logical_tensor_t &wei, const logical_tensor_t &out);
+
 } // namespace ops
 } // namespace sc
 #endif

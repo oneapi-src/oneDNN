@@ -25,7 +25,11 @@
 #include "fusible_op.hpp"
 #include "fusion_mgr.hpp"
 #include "outer_loop_generator.hpp"
+#include "utils.hpp"
+#include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
+#include <ops/fusible/memory_movement.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -39,6 +43,164 @@ ir_module_ptr fusible_op_t::get_func(context_ptr ctx) {
     }
     outer_loop_generator_t gen(base_idx);
     return fusible_op_get_func(this, gen, ctx, true);
+}
+
+void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
+    parti->buf_alloc_.allocate_buffer(this);
+    std::vector<expr> ins, outs;
+    std::tie(ins, outs) = parti->buf_alloc_.get_buffer(this);
+    fusion_manager fmgr;
+    builder::ir_builder_t bld;
+    bld.push_scope();
+    std::vector<for_loop> loops;
+    int base_idx = 0;
+    if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
+        // if bc side (smaller side) is the lhs, we need to set base_idx to 1
+        if (!binary_node->get_broadcast_input()) { base_idx = 1; }
+    }
+    bool use_output_mode = false;
+    if (auto reo_op = this->dyn_cast<reorder_op_t>()) {
+        use_output_mode = reo_op->support_output_loop();
+        if (use_output_mode) {
+            reo_op->attrs_.set(op_attr_key::break_pre_fuse, true);
+        }
+    }
+    outer_loop_generator_t gen(base_idx, use_output_mode);
+    if (attrs_.has_key("temp.mixed_partition_hint.sub_graph_ptr")) {
+        fmgr.bind_graph(attrs_.get<sc_graph_t *>(
+                "temp.mixed_partition_hint.sub_graph_ptr"));
+    }
+    bool status = gen.generate(parti->ctx_, nullptr, &fmgr, ins, outs, loops);
+    COMPILE_ASSERT(status, "generate outer loops failed, please check");
+    auto body = bld.pop_scope();
+    parti->func_ = builder::make_func(std::string(""), std::vector<expr> {},
+            std::move(body), datatypes::boolean);
+    extract_anchor_from_fmgr_to_parti(&fmgr, parti,
+            use_output_mode ? outs : ins,
+            use_output_mode ? get_outputs() : get_inputs());
+    append_mixed_partition(parti);
+    // if last fanchor used, mark break post fusion, otherwise remove the last
+    // fanchor
+    if (parti->lookup_anchor_map(this) == parti->fanchors_.back()) {
+        attrs_.set(op_attr_key::break_post_fuse, true);
+        for (auto iter = parti->fanchors_.begin();
+                iter < parti->fanchors_.end(); iter++) {
+            if (iter == (parti->fanchors_.end() - 1)) continue;
+            parti->clear_fanchor(*iter);
+        }
+        auto last_anchor = parti->fanchors_.back();
+        parti->fanchors_.clear();
+        parti->fanchors_ = {last_anchor};
+    } else {
+        parti->clear_fanchor(parti->fanchors_.back());
+        parti->fanchors_.pop_back();
+    }
+}
+
+void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
+    search_anchor(parti);
+    COMPILE_ASSERT(parti->ready_for_op(this),
+            "Not suitable anchor found for " << op_name_);
+
+    if (!parti->empty()) {
+        parti->buf_alloc_.allocate_buffer(this);
+        parti->buf_alloc_.update_input_buffer_info(this, parti);
+    }
+
+    if (!parti->empty()) {
+        int base_idx = 0;
+        if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
+            // if bc side (smaller side) is the lhs, we need to set base_idx to
+            // 1
+            if (!binary_node->get_broadcast_input()) { base_idx = 1; }
+        }
+        auto base_gt = get_inputs()[base_idx];
+        auto committed_anchor = parti->lookup_anchor_map(this);
+        auto &fsmap = committed_anchor->fsmap_;
+        auto slice_list = fsmap.get(base_gt);
+        if (slice_list.size() == 1) {
+            builder::ir_builder_t bld;
+            bld.push_scope();
+            anchor_loop_generator_t gen(base_gt, committed_anchor);
+            // create_inner_anchor
+            auto inner_anchor_num = gen.create_inner_anchor(parti->fanchors_);
+            auto inner_ss = bld.pop_scope().checked_as<stmts>();
+            // search inner anchor again
+            search_anchor(parti);
+            if (committed_anchor != parti->lookup_anchor_map(this)) {
+                committed_anchor->commit_stmts(inner_ss);
+            } else {
+                // erase unused inner anchor
+                parti->fanchors_.erase(
+                        parti->fanchors_.end() - inner_anchor_num,
+                        parti->fanchors_.end());
+            }
+        }
+    }
+    // update output buffer info after inner anchor created
+    parti->buf_alloc_.update_output_buffer_info(this, parti);
+    commit_into_anchor(parti);
+}
+
+void fusible_op_t::search_anchor(mixed_parti_t *parti) {
+    search_op_anchor_in_parti(this, parti);
+}
+
+void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
+    std::vector<expr> in_tsrs, out_tsrs;
+    std::tie(in_tsrs, out_tsrs) = parti->buf_alloc_.get_buffer(this);
+    std::vector<std::vector<tensor_slice>> inputs(in_tsrs.size()),
+            outputs(out_tsrs.size());
+
+    auto committed_anchor = parti->lookup_anchor_map(this);
+    std::transform(get_inputs().begin(), get_inputs().end(), in_tsrs.begin(),
+            inputs.begin(),
+            [&committed_anchor](const graph_tensor_ptr &gt, const expr &tsr) {
+                std::vector<tensor_slice> multi_tsl;
+                for (auto &range : committed_anchor->fsmap_.get(gt)) {
+                    multi_tsl.emplace_back(
+                            tensor_slice(tsr, slice_range(range)));
+                }
+                return multi_tsl;
+            });
+    std::transform(get_outputs().begin(), get_outputs().end(), out_tsrs.begin(),
+            outputs.begin(),
+            [&committed_anchor](const graph_tensor_ptr &gt, const expr &tsr) {
+                std::vector<tensor_slice> multi_tsl;
+                if (!committed_anchor->fsmap_.get(gt).empty()) {
+                    for (auto &range : committed_anchor->fsmap_.get(gt)) {
+                        multi_tsl.emplace_back(
+                                tensor_slice(tsr, slice_range(range)));
+                    }
+                } else {
+                    COMPILE_ASSERT(gt->producer_owner_->isa<reorder_op_t>(),
+                            "only reorder op support this case")
+                    multi_tsl.emplace_back(tensor_slice(tsr));
+                }
+                return multi_tsl;
+            });
+    auto in_slice_size = inputs[0].size();
+    COMPILE_ASSERT(in_slice_size, "No input slice found for " << op_name_);
+
+    // generate IR
+    builder::ir_builder_t bld;
+    bld.push_scope();
+    // unwrapper tensor slice, for compute_block, it just accpet single
+    // tensor_slice
+    for (size_t i = 0; i < in_slice_size; i++) {
+        std::vector<const tensor_slice *> new_inputs_ptr(inputs.size());
+        std::vector<tensor_slice *> new_outputs_ptr(outputs.size());
+        std::transform(inputs.begin(), inputs.end(), new_inputs_ptr.begin(),
+                [&i](std::vector<tensor_slice> &ins) { return &ins[i]; });
+
+        std::transform(outputs.begin(), outputs.end(), new_outputs_ptr.begin(),
+                [&i](std::vector<tensor_slice> &out) { return &out[i]; });
+        compute_block(parti->ctx_, new_outputs_ptr, new_inputs_ptr);
+    }
+    auto ss = bld.pop_scope().checked_as<stmts>();
+
+    // commit into anchor
+    committed_anchor->commit_stmts(ss);
 }
 
 void fusible_op_t::query_format(context_ptr ctx,

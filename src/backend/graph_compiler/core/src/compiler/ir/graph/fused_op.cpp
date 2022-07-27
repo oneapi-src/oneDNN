@@ -26,6 +26,7 @@
 #include "tunable_op.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
@@ -97,8 +98,12 @@ void mark_read_or_write_buffers(std::vector<expr> &args, bool is_read) {
 
 func_t create_func_decl_for_op(
         sc_op *op, std::vector<expr> &ins, std::vector<expr> &outs) {
-    ins = graph::tensor_detail_to_ir_tensor("__ins_", op->get_inputs());
-    outs = graph::tensor_detail_to_ir_tensor("__outs_", op->get_outputs());
+    ins = ins.empty()
+            ? graph::tensor_detail_to_ir_tensor("__ins_", op->get_inputs())
+            : ins;
+    outs = outs.empty()
+            ? graph::tensor_detail_to_ir_tensor("__outs_", op->get_outputs())
+            : outs;
     graph::mark_read_or_write_buffers(ins, true);
     graph::mark_read_or_write_buffers(outs, false);
     std::vector<expr> args = outs;
@@ -884,6 +889,95 @@ batchwise_fused_op_t::batchwise_fused_op_t(const std::string &name,
     attrs_ = attrs;
 }
 
+mixed_fuse_op_t::mixed_fuse_op_t(const std::string &name,
+        std::shared_ptr<mixed_parti_t> parti, const sc_graph_t &graph,
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    info_.inputs_ = ins;
+    info_.outputs_ = outs;
+    parti_ = std::move(parti);
+    sub_graph_ = copy_graph(graph);
+    op_name_ = name;
+    attrs_ = attrs;
+}
+
+ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
+    auto func = parti_->func_;
+    func->name_ += "_" + std::to_string(logical_op_id_);
+    func->decl_->name_ += "_" + std::to_string(logical_op_id_);
+    auto core_body = func->body_.checked_as<stmts>()->seq_[0];
+    schedule_loops(core_body);
+    auto modu = std::make_shared<ir_module_t>(ctx);
+    modu->add_func({func});
+    modu->set_entry_func_idx(0);
+    return modu;
+}
+
+void schedule_loop_body(
+        const stmt &body, std::unordered_map<expr, expr> *expr_remap) {
+    stmt target_loop = body;
+    if (target_loop.isa<stmts>()) {
+        auto ss = target_loop.static_as<stmts>();
+        COMPILE_ASSERT(ss->seq_.size() == 1 && ss->seq_[0].isa<for_loop>(),
+                "for loop node is expected");
+        target_loop = ss->seq_[0];
+    }
+    COMPILE_ASSERT(target_loop.isa<for_loop>(), "for loop node is expected");
+    for_loop outer_most_loop = target_loop.checked_as<for_loop>();
+    outer_most_loop->kind_ = for_type::PARALLEL;
+    assert(outer_most_loop.defined());
+    const int run_threads = runtime_config_t::get().get_num_threads();
+    for_loop cur_loop = outer_most_loop;
+    std::vector<for_loop> loops;
+    auto fused_number = 1;
+    while (true) {
+        fused_number *= (get_expr_as_int(cur_loop->iter_end_)
+                - get_expr_as_int(cur_loop->iter_begin_));
+        if (fused_number / run_threads > 8
+                || (fused_number >= run_threads
+                        && (fused_number % run_threads) == 0))
+            break;
+        auto inner_loop = get_inner_for_loop(cur_loop.get());
+        if (inner_loop.defined()) {
+            std::unordered_map<expr, expr> cur_remap;
+            outer_most_loop->fuse(
+                    inner_loop, expr_remap ? &cur_remap : nullptr);
+            cur_loop = inner_loop;
+            if (expr_remap) {
+                for (auto &exp_m : (*expr_remap)) {
+                    auto iter = cur_remap.find(exp_m.second);
+                    if (iter != cur_remap.end()) {
+                        exp_m.second = iter->second;
+                        cur_remap.erase(iter);
+                    }
+                }
+                expr_remap->insert(cur_remap.begin(), cur_remap.end());
+            }
+        } else {
+            if (cur_loop->body_->attr().has_key("builder.parent_node")) {
+                std::weak_ptr<stmt_base_t> owner = outer_most_loop.impl;
+                cur_loop->body_->attr()["builder.parent_node"] = owner;
+            }
+            break;
+        }
+    }
+}
+
+void mixed_fuse_op_t::schedule_loops(const stmt &body) {
+    if (body.isa<for_loop>())
+        schedule_loop_body(body);
+    else if (body.isa<stmts>()) {
+        for (auto &st : body.checked_as<stmts>()->seq_) {
+            if (st.isa<for_loop>()) { schedule_loop_body(st); }
+        }
+    }
+}
+
+std::shared_ptr<sc_graph_t> mixed_fuse_op_t::get_graph_impl() {
+    throw std::runtime_error("mixed_fuse_op_t::get_graph Not implemented");
+    return nullptr;
+}
+
 ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
     gt2gt_map lt_map;
     gt2axes_map axes_map;
@@ -1076,25 +1170,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
 }
 
 void batchwise_fused_op_t::schedule_loops(const stmt &body) {
-    COMPILE_ASSERT(body.isa<for_loop>(), "for loop node is expected");
-    for_loop outer_most_loop = body.checked_as<for_loop>();
-    outer_most_loop->kind_ = for_type::PARALLEL;
-    assert(outer_most_loop.defined());
-    const int run_threads = runtime_config_t::get().get_num_threads();
-    for_loop cur_loop = outer_most_loop;
-    std::vector<for_loop> loops;
-    auto fused_number = 1;
-    while (true) {
-        fused_number *= (get_expr_as_int(cur_loop->iter_end_)
-                - get_expr_as_int(cur_loop->iter_begin_));
-        if (fused_number >= run_threads && (fused_number % run_threads) == 0)
-            break;
-        cur_loop = get_inner_for_loop(cur_loop.get());
-        if (cur_loop.defined())
-            outer_most_loop->fuse(cur_loop);
-        else
-            break;
-    }
+    schedule_loop_body(body);
 }
 
 std::shared_ptr<sc_graph_t> batchwise_fused_op_t::get_graph_impl() {

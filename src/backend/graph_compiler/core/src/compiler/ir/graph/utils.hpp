@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,14 @@ namespace sc {
 namespace graph {
 expr tensor_detail_to_ir_tensor(
         const std::string &name, const logical_tensor_t &);
+expr tensor_detail_to_ir_tensor(
+        const std::string &name, const graph_tensor_ptr &, gt2buf_map &);
 std::vector<expr> tensor_detail_to_ir_tensor(
         const std::string &name_prefix, const std::vector<logical_tensor_t> &);
 std::vector<expr> tensor_detail_to_ir_tensor(
         const std::string &name_prefix, const std::vector<graph_tensor_ptr> &);
+std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,
+        const std::vector<graph_tensor_ptr> &tsrs, gt2buf_map &g2b_map);
 std::string decay_quantized_op_name(const std::string &op_name);
 
 // get logical_tensor_t from logical_tensor_t

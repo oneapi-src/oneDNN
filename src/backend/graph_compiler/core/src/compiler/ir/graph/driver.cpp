@@ -48,7 +48,7 @@ basic_graph_pass_ptr create_graph_pass(const std::string &name,
 
 static std::tuple<std::vector<basic_graph_pass_ptr>,
         std::vector<basic_graph_pass_ptr>>
-create_default_graph_flow() {
+create_default_graph_flow(const context_ptr &ctx) {
     std::vector<basic_graph_pass_ptr> pre_tune_passes, post_tune_passes;
     pre_tune_passes.push_back(create_graph_pass("analysis_quantized",
             analysis_quantized, {}, pass_type::analysis, true));
@@ -88,17 +88,23 @@ create_default_graph_flow() {
             partial_reduce_replace, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("const_folding",
             graph_constant_input_folding, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass(
-            "fuse_ops", fuse_ops, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("horizontal_merge",
-            horizontal_merge, {}, pass_type::post_tune, true));
+    if (!ctx->flags_.mixed_fusion_) {
+        post_tune_passes.push_back(create_graph_pass(
+                "fuse_ops", fuse_ops, {}, pass_type::post_tune, true));
+        post_tune_passes.push_back(create_graph_pass("horizontal_merge",
+                horizontal_merge, {}, pass_type::post_tune, true));
+    }
     post_tune_passes.push_back(create_graph_pass("const_folding",
             graph_constant_input_folding, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("inplace_transform",
             inplace_transform, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("batchwise_merge",
-            batchwise_merge, {}, pass_type::post_tune, true));
-
+    if (!ctx->flags_.mixed_fusion_) {
+        post_tune_passes.push_back(create_graph_pass("batchwise_merge",
+                batchwise_merge, {}, pass_type::post_tune, true));
+    } else {
+        post_tune_passes.push_back(create_graph_pass("mixed_partition",
+                mixed_partition, {}, pass_type::post_tune, true));
+    }
     // get passes map
     std::unordered_map<std::string, basic_graph_pass_ptr> passes_map;
     std::transform(pre_tune_passes.begin(), pre_tune_passes.end(),
@@ -125,8 +131,8 @@ create_default_graph_flow() {
 
 const std::tuple<std::vector<basic_graph_pass_ptr>,
         std::vector<basic_graph_pass_ptr>> &
-get_graph_passes() {
-    static auto passes = create_default_graph_flow();
+get_graph_passes(const context_ptr &ctx) {
+    static auto passes = create_default_graph_flow(ctx);
     return passes;
 }
 
@@ -220,7 +226,7 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         SC_MODULE_INFO << "Use default config";
     }
 
-    auto &passes_tuple = get_graph_passes();
+    auto &passes_tuple = get_graph_passes(ctx);
     const std::vector<basic_graph_pass_ptr> *prepass
             = pre_tune_pass ? pre_tune_pass : &std::get<0>(passes_tuple);
     const std::vector<basic_graph_pass_ptr> *postpass

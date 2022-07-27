@@ -14,23 +14,31 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_MAP_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_MAP_HPP
-
-#include <unordered_map>
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_COST_MODEL_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_COST_MODEL_HPP
+#include <functional>
+#include <utility>
+#include <vector>
+#include <unordered_set>
 
 namespace sc {
-// the map based on graph_tensor key
-template <typename valT>
-struct gt_map_t {
-    std::unordered_map<graph_tensor *, valT> datamap_;
-    valT &get(graph_tensor *);
-    valT &get(const graph_tensor_ptr &);
-    bool haskey(const graph_tensor_ptr &) const;
-    bool haskey(graph_tensor *) const;
-    void clear() { datamap_.clear(); }
-    bool empty() const { return datamap_.empty(); }
-    gt_map_t &operator=(const gt_map_t &other) = delete;
+
+struct mixed_parti_t;
+
+using cost_eval = std::function<int(mixed_parti_t *)>;
+
+struct cost_model {
+private:
+    float max_scores_; // cache the top scores
+    std::vector<std::pair<float, cost_eval>> evaluators_;
+
+public:
+    cost_model();
+    // evaluate current mixed partition by several evaluator
+    float evaluate(mixed_parti_t *parti);
+    // append new defined evaluator
+    void append_evaluator(float weight, const cost_eval &eval);
 };
+
 } // namespace sc
 #endif

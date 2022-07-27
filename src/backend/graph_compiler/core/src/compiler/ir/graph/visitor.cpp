@@ -18,6 +18,7 @@
 #include <utility>
 #include "fusible_op.hpp"
 #include "fusion_mgr.hpp"
+#include "tunable_op.hpp"
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <unordered_map>
@@ -416,6 +417,61 @@ op_visitor_t::updater_func op_visitor_t::create_DAG_updater_post(
     };
 }
 
+op_visitor_t::updater_func op_visitor_t::create_DAG_updater_speculate_tuneop(
+        size_t total_hint) {
+    struct count_t {
+        int count = -1;
+    };
+    // the count of pending depending logical tensors for each node
+    std::vector<count_t> pending_count;
+    return [pending_count, total_hint](
+                   op_visitor_t *v, const sc_op_ptr &cur) mutable {
+        v->set_visited(cur->logical_op_id_);
+        for (auto &lt : cur->get_outputs()) {
+            std::vector<int> non_tun_index, tun_index, visit_index;
+            // one of its use is tunable op
+            for (size_t i = 0; i < lt->uses_.size(); i++) {
+                auto u = lt->uses_[i];
+                if (search_tuneop_linearly(u.second)) {
+                    tun_index.emplace_back(i);
+                } else {
+                    non_tun_index.emplace_back(i);
+                }
+            }
+            visit_index = tun_index;
+            visit_index.insert(visit_index.end(), non_tun_index.begin(),
+                    non_tun_index.end());
+
+            for (auto &idx : visit_index) {
+                auto user = lt->uses_[idx];
+                auto id = user.second->logical_op_id_;
+                assert(id >= 0);
+                if ((unsigned)id >= pending_count.size()) {
+                    // need to extend pending_count
+                    if ((unsigned)id < total_hint) {
+                        pending_count.resize(total_hint);
+                    } else {
+                        pending_count.resize((id + 1) * 1.5f);
+                    }
+                }
+                if (pending_count[id].count == -1) {
+                    // we have not met it before, initialize the dependency
+                    // count
+                    pending_count[id].count = user.second->get_inputs().size();
+                }
+                // the pending count is decreased by 1 because current node is
+                // done
+                --pending_count[id].count;
+                assert(pending_count[id].count >= 0);
+                // all dependencies resolved, we can visit it now
+                if (pending_count[id].count == 0) {
+                    v->to_visit_.emplace_back(user.second);
+                }
+            }
+        }
+    };
+}
+
 sc_op_ptr op_visitor_t::pop_back_selector(op_visitor_t *v) {
     auto ret = v->to_visit_.back();
     v->to_visit_.pop_back();
@@ -443,6 +499,12 @@ op_visitor_t op_visitor_t::dfs_topology_sort(size_t total_nodes_hint) {
             pop_back_selector, create_DAG_updater(total_nodes_hint));
 }
 
+op_visitor_t op_visitor_t::dfs_topology_speculative_sort(
+        size_t total_nodes_hint) {
+    return op_visitor_t(pop_back_selector,
+            create_DAG_updater_speculate_tuneop(total_nodes_hint));
+}
+
 void op_visitor_t::post_visit_graph(
         const sc_graph_t &mgr, const std::function<void(sc_op_ptr)> &f) {
     for (auto &v : mgr.ops_) {
@@ -452,5 +514,42 @@ void op_visitor_t::post_visit_graph(
         }
     }
     visit(f);
+}
+
+sc_op_ptr search_tuneop_linearly(sc_op_ptr start_node, int max_step) {
+    sc_op_ptr next_node = std::move(start_node);
+    if (next_node->isa<tunable_op_t>()) return next_node;
+    int step = 1;
+    while (next_node->is_single_output_single_use()) {
+        next_node = next_node->get_outputs()[0]->uses_[0].second;
+        if (next_node->isa<tunable_op_t>()) return next_node;
+        if (step >= max_step) return nullptr;
+        ++step;
+    }
+    return nullptr;
+}
+
+std::vector<sc_op_ptr> search_tuneop_bypass(const context_ptr &ctx,
+        const sc_op_ptr &tuneop, sc_op_ptr start_node,
+        const op_dep_matrix_t &dep, int max_step) {
+    if (!tuneop) return {};
+    sc_op_ptr next_node = std::move(start_node);
+    int step = 1;
+    std::vector<sc_op_ptr> bypass_ops;
+    bool found = false;
+    while (next_node->is_single_output_single_use()) {
+        // This is input fusion, rather than pre-op fusion
+        if (next_node == tuneop) break;
+        // found bypass
+        if (dep.lookup(tuneop, next_node) == 1) {
+            found = true;
+            break;
+        }
+        bypass_ops.emplace_back(next_node);
+        next_node = next_node->get_outputs()[0]->uses_[0].second;
+        if ((step++) >= max_step) break;
+    }
+    if (found) { return bypass_ops; }
+    return {};
 }
 } // namespace sc

@@ -20,11 +20,13 @@
 #include <utility>
 #include "templates/matmul_core.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
+#include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/graph_map.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <runtime/config.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -49,6 +51,43 @@ static sc_data_type_t infer_out_dtype(
         return datatypes::s32;
     }
     return datatypes::f32;
+}
+
+blocking_axes_t get_mm_blocking_axes(const logical_tensor_t &inp,
+        const logical_tensor_t &wei, const logical_tensor_t &out) {
+    auto generate_axes_by_num = [](int num) {
+        std::vector<int> ret;
+        ret.reserve(num);
+        for (int i = 0; i < num; i++)
+            ret.emplace_back(i);
+        return ret;
+    };
+    int A_dim_size = inp.get_plain_dims().size(),
+        B_dim_size = wei.get_plain_dims().size(),
+        C_dim_size = out.get_plain_dims().size();
+
+    blocking_axes_t blocking_axes;
+    // add init function here
+    blocking_axes.A_bs = transform_axis_plain2blocking(
+            inp, generate_axes_by_num(A_dim_size - 2));
+    blocking_axes.A_m = transform_axis_plain2blocking(
+            inp, std::vector<int> {A_dim_size - 2});
+    blocking_axes.A_k = transform_axis_plain2blocking(
+            inp, std::vector<int> {A_dim_size - 1});
+    blocking_axes.B_bs = transform_axis_plain2blocking(
+            wei, generate_axes_by_num(B_dim_size - 2));
+    blocking_axes.B_k = transform_axis_plain2blocking(
+            wei, std::vector<int> {B_dim_size - 2});
+    blocking_axes.B_n = transform_axis_plain2blocking(
+            wei, std::vector<int> {B_dim_size - 1});
+    blocking_axes.C_bs = transform_axis_plain2blocking(
+            out, generate_axes_by_num(C_dim_size - 2));
+    blocking_axes.C_m = transform_axis_plain2blocking(
+            out, std::vector<int> {C_dim_size - 2});
+    blocking_axes.C_n = transform_axis_plain2blocking(
+            out, std::vector<int> {C_dim_size - 1});
+
+    return blocking_axes;
 }
 
 matmul_core_op_t::matmul_core_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -646,6 +685,170 @@ void matmul_core_op_t::collect_shrinked_axes_map(
             bw_axes_map, wei, BKN_idx);
     op_traits::batchwise_shrinkable_t::record_shrinked_axes(
             bw_axes_map, out, bw_size);
+}
+
+void matmul_core_op_t::infer_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+
+    // assume input is known
+    if (known_ranges_map[0].empty() && known_ranges_map[1].empty()) {
+        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+        return;
+    }
+
+    auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size(),
+         wei_plain_size = get_inputs()[1]->details_.get_plain_dims().size();
+    auto inp_dims = get_inputs()[0]->details_.get_blocking_dims(),
+         wei_dims = get_inputs()[1]->details_.get_blocking_dims(),
+         out_dims = get_outputs()[0]->details_.get_blocking_dims();
+
+    auto batch_dims_size = get_batch_dims().size();
+
+    slice_range inp_slice, wei_slice, out_slice;
+    blocking_axes_t blocking_axes
+            = get_mm_blocking_axes(get_inputs()[0]->details_,
+                    get_inputs()[1]->details_, get_outputs()[0]->details_);
+    if (!known_ranges_map[0].empty()) {
+        if (known_ranges_map[0].size() > 1) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+        inp_slice = known_ranges_map[0][0];
+        // check whether do M-axis fusion
+        bool M_axis_fuse = false;
+        if (get_inputs()[0]->details_.get_format().is_blocking()
+                && (blocking_axes.A_m.size() == blocking_axes.C_m.size())) {
+            auto ctx = stat_map.get_context();
+            if (ctx && ctx->flags_.use_cost_model_
+                    && get_batch_dims().empty()) {
+                const int run_threads
+                        = runtime_config_t::get().get_num_threads();
+                int prod = 1;
+                for (int i = 0; i < std::min(blocking_axes.A_k.front(),
+                                        (*(blocking_axes.A_m.begin() + 1)));
+                        i++) {
+                    prod *= inp_dims[i];
+                }
+                if (prod != 1 && run_threads != 1) {
+                    M_axis_fuse = (prod / run_threads > 8
+                            || (prod % run_threads == 0
+                                    && prod >= run_threads));
+                }
+            } else
+                M_axis_fuse = true;
+        }
+        std::vector<int> required_axes = M_axis_fuse
+                ? std::vector<int> {blocking_axes.A_m.begin() + 1,
+                        blocking_axes.A_m.end()}
+                : blocking_axes.A_m;
+        required_axes.insert(required_axes.end(), blocking_axes.A_k.begin(),
+                blocking_axes.A_k.end());
+        // Currently, support fuse batch dims and outer-most m_o
+        if (!slice_full_on_axes(inp_dims, inp_slice, required_axes)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+    }
+    if (!known_ranges_map[1].empty()) {
+        if (known_ranges_map[1].size() > 1) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+        wei_slice = known_ranges_map[1][0];
+        auto required_axes = blocking_axes.B_k;
+        required_axes.insert(required_axes.end(), blocking_axes.B_n.begin(),
+                blocking_axes.B_n.end());
+        // Currently, only fuse batch dims
+        if (!slice_full_on_axes(wei_dims, wei_slice, required_axes)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+    }
+
+    if (!known_ranges_map[0].empty() && known_ranges_map[1].empty()) {
+        if (inp_plain_size < wei_plain_size) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+        auto wei_size = wei_dims.size();
+        wei_slice.resize(wei_size);
+        int bs_cnt = 0;
+        for (int64_t i = static_cast<int64_t>(wei_size) - 1; i >= 0; i--) {
+            if (std::find(
+                        blocking_axes.B_bs.begin(), blocking_axes.B_bs.end(), i)
+                    != blocking_axes.B_bs.end()) {
+                wei_slice[i]
+                        = inp_slice[blocking_axes.A_bs[blocking_axes.A_bs.size()
+                                - 1 - bs_cnt]];
+                bs_cnt++;
+            } else {
+                wei_slice[i]
+                        = std::make_pair(expr(0), dim2unsigned(wei_dims[i]));
+            }
+        }
+    }
+    if (known_ranges_map[0].empty() && !known_ranges_map[1].empty()) {
+        if (inp_plain_size > wei_plain_size) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+        auto inp_size = inp_dims.size();
+        inp_slice.resize(inp_size);
+        int bs_cnt = 0;
+        for (int64_t i = static_cast<int64_t>(inp_size) - 1; i >= 0; i--) {
+            if (std::find(
+                        blocking_axes.A_bs.begin(), blocking_axes.A_bs.end(), i)
+                    != blocking_axes.A_bs.end()) {
+                inp_slice[i]
+                        = wei_slice[blocking_axes.B_bs[blocking_axes.B_bs.size()
+                                - 1 - bs_cnt]];
+                bs_cnt++;
+            } else {
+                inp_slice[i]
+                        = std::make_pair(expr(0), dim2unsigned(inp_dims[i]));
+            }
+        }
+    }
+
+    // set output slice
+    for (size_t i = batch_dims_size; i < out_dims.size(); i++) {
+        auto ref_slice
+                = (inp_plain_size > wei_plain_size) ? inp_slice : wei_slice;
+        auto ref_bs_axes = (inp_plain_size > wei_plain_size)
+                ? blocking_axes.A_bs
+                : blocking_axes.B_bs;
+        auto out_size = out_dims.size();
+        out_slice.resize(out_size);
+        int bs_cnt = 0;
+        int m_cnt = 0;
+        for (size_t i = 0; i < out_size; i++) {
+            if (std::find(
+                        blocking_axes.C_bs.begin(), blocking_axes.C_bs.end(), i)
+                    != blocking_axes.C_bs.end()) {
+                out_slice[i] = ref_slice[ref_bs_axes[bs_cnt]];
+                bs_cnt++;
+            } else if (std::find(blocking_axes.C_m.begin(),
+                               blocking_axes.C_m.end(), i)
+                    != blocking_axes.C_m.end()) {
+                if (blocking_axes.A_m.size() == blocking_axes.C_m.size()) {
+                    out_slice[i] = inp_slice[blocking_axes.A_m[m_cnt]];
+                    m_cnt++;
+                } else {
+                    out_slice[i] = std::make_pair(
+                            expr(0), dim2unsigned(out_dims[i]));
+                }
+            } else {
+                out_slice[i]
+                        = std::make_pair(expr(0), dim2unsigned(out_dims[i]));
+            }
+        }
+    }
+
+    fsmap.get(get_inputs()[0]) = slice_range_list {inp_slice};
+    fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
+    fsmap.get(get_outputs()[0]) = slice_range_list {out_slice};
 }
 
 } // namespace ops

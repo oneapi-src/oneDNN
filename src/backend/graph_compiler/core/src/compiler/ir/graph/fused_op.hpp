@@ -29,6 +29,7 @@ namespace horizontal_merge_type {
 constexpr int no_merge = 0;
 }
 class fusion_manager;
+struct mixed_parti_t;
 
 struct fusion_partition_t : std::enable_shared_from_this<fusion_partition_t> {
     // the fusible ops in the partition. Not including base tunable op
@@ -134,6 +135,22 @@ public:
     std::shared_ptr<sc_graph_t> get_graph_impl() override;
     void schedule_loops(const stmt &body);
 };
+
+class mixed_fuse_op_t : public graph_op_t {
+public:
+    mixed_fuse_op_t(const std::string &name,
+            std::shared_ptr<mixed_parti_t> parti, const sc_graph_t &graph,
+            const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+    sc_graph_t sub_graph_;
+    std::shared_ptr<mixed_parti_t> parti_;
+    ir_module_ptr get_func(context_ptr ctx) override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void schedule_loops(const stmt &body);
+};
+
+void schedule_loop_body(
+        const stmt &body, std::unordered_map<expr, expr> *expr_remap = nullptr);
 } // namespace sc
 
 #endif

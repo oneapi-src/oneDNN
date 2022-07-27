@@ -15,8 +15,12 @@
  *******************************************************************************/
 #include <utility>
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <compiler/ir/transform/func_inline.hpp>
+#include <unordered_map>
 
 namespace sc {
 
@@ -70,6 +74,112 @@ ir_module_ptr tunable_op_t::get_func(context_ptr ctx) {
     ret->add_func({func});
     ret->set_entry_func_idx(0);
     return ret;
+}
+
+func_t tunable_op_t::get_func(mixed_parti_t *parti,
+        const std::vector<expr> &ins, const std::vector<expr> &outs) {
+    auto gen_ptr = create_generator();
+    set_config_if_empty(parti->ctx_, gen_ptr.get());
+    fusion_manager fmgr;
+    builder::ir_builder_t bld;
+    bld.push_scope();
+    std::vector<for_loop> loops;
+    bool status = gen_ptr->generate(
+            parti->ctx_, config_data_.data_.get(), &fmgr, ins, outs, loops);
+    assert(status);
+    auto body = bld.pop_scope();
+
+    auto func = builder::make_func(std::string(""), std::vector<expr> {},
+            std::move(body), datatypes::boolean);
+    // record anchor
+    extract_anchor_from_fmgr_to_parti(&fmgr, parti, outs, get_outputs(),
+            parti->ready_for_op(this) ? parti->lookup_anchor_map(this)
+                                      : nullptr);
+    return func;
+}
+
+void tunable_op_t::create_mixed_partition(mixed_parti_t *parti) {
+    parti->buf_alloc_.allocate_buffer(this);
+    std::vector<expr> ins, outs;
+    std::tie(ins, outs) = parti->buf_alloc_.get_buffer(this);
+    parti->func_ = get_func(parti, ins, outs);
+}
+
+void tunable_op_t::append_mixed_partition(mixed_parti_t *parti) {
+    search_anchor(parti);
+    COMPILE_ASSERT(parti->ready_for_op(this),
+            "not suitable anchor found for " << op_name_);
+    parti->buf_alloc_.allocate_buffer(this);
+    commit_into_anchor(parti);
+}
+
+void tunable_op_t::search_anchor(mixed_parti_t *parti) {
+    search_op_anchor_in_parti(this, parti);
+}
+
+void tunable_op_t::commit_into_anchor(mixed_parti_t *parti) {
+    std::vector<expr> ins, outs;
+    std::tie(ins, outs) = parti->buf_alloc_.get_buffer(this);
+    // prepare slice
+    std::vector<slice_range> ins_slice(get_inputs().size()),
+            outs_slice(get_outputs().size());
+
+    auto committed_anchor = parti->lookup_anchor_map(this);
+    std::transform(get_inputs().begin(), get_inputs().end(), ins_slice.begin(),
+            [&committed_anchor](const graph_tensor_ptr &gt) {
+                auto slice_list = committed_anchor->fsmap_.get(gt);
+                COMPILE_ASSERT(slice_list.size() == 1,
+                        "multi-slice is not expected to tunable op");
+                return slice_list[0];
+            });
+    std::transform(get_outputs().begin(), get_outputs().end(),
+            outs_slice.begin(),
+            [&committed_anchor](const graph_tensor_ptr &gt) {
+                auto slice_list = committed_anchor->fsmap_.get(gt);
+                COMPILE_ASSERT(slice_list.size() == 1,
+                        "multi-slice is not expected to tunable op");
+                return slice_list[0];
+            });
+
+    // prepare tptr for function call
+    std::vector<expr> tptr_ins(ins.size()), tptr_outs(outs.size());
+    std::transform(ins.begin(), ins.end(), ins_slice.begin(), tptr_ins.begin(),
+            [&](const expr &tsr, const slice_range &range) {
+                return transform_tsr2tptr_with_range(tsr, range);
+            });
+    std::transform(outs.begin(), outs.end(), outs_slice.begin(),
+            tptr_outs.begin(), [&](const expr &tsr, const slice_range &range) {
+                return transform_tsr2tptr_with_range(tsr, range);
+            });
+
+    // prepare strided tsr for function definition
+    std::vector<expr> strd_ins(ins.size()), strd_outs(outs.size());
+    std::transform(ins.begin(), ins.end(), ins_slice.begin(), strd_ins.begin(),
+            [&](const expr &tsr, const slice_range &range) {
+                return transform_tsr2stsr_with_range(tsr, range);
+            });
+    std::transform(outs.begin(), outs.end(), outs_slice.begin(),
+            strd_outs.begin(), [&](const expr &tsr, const slice_range &range) {
+                return transform_tsr2stsr_with_range(tsr, range);
+            });
+
+    std::unordered_map<expr, expr> def_to_call_map;
+    for (size_t i = 0; i < ins.size(); i++) {
+        def_to_call_map[strd_ins[i]] = tptr_ins[i];
+    }
+    for (size_t i = 0; i < outs.size(); i++) {
+        def_to_call_map[strd_outs[i]] = tptr_outs[i];
+    }
+
+    parti->buf_alloc_.update_input_buffer_info(this, parti);
+    auto func = get_func(parti, strd_ins, strd_outs);
+    // update output buffer info after inner anchor created
+    parti->buf_alloc_.update_output_buffer_info(this, parti);
+
+    mxp_replacer_t rep(def_to_call_map);
+    // replace strided tensor with tensorptr
+    rep.dispatch_impl(func);
+    committed_anchor->commit_stmt(func->body_);
 }
 
 void tunable_op_t::set_config(const config_ptr &config) {

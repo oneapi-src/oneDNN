@@ -46,6 +46,19 @@ static bool is_reshaped_and_should_shrink(const expr &e) {
                     tensor_shrinker_attrs::should_shrink);
 }
 
+static tensor get_real_tensor(const expr &buffer) {
+    auto tsr = buffer;
+    while (!tsr.isa<tensor>()) {
+        COMPILE_ASSERT(
+                tsr.isa<tensorptr>(), "Only tensor or tensorptr is accepted")
+        auto base = tsr.static_as<tensorptr>()->base_;
+        COMPILE_ASSERT(base.isa<indexing>(),
+                "tensor_ptr base should be indexing, but got: " << base);
+        tsr = base.static_as<indexing>()->ptr_;
+    }
+    return tsr.static_as<tensor>();
+}
+
 static constexpr const char *temp_shrink_tag = "tensor_shrinker.def";
 
 /**
@@ -62,12 +75,8 @@ bool check_brgemm_LDX(
                     << args.size() << " args with LDX idx: " << LD_arg_idx);
     COMPILE_ASSERT(buffer.isa<tensor>() || buffer.isa<tensorptr>(),
             "tensor or tensorptr is expected for the buffer of brgemm");
-    if (is_tensor_and_should_shrink(buffer)
-            || is_tensorptr_and_should_shrink(buffer)) {
-        auto tsr = buffer.isa<tensor>()
-                ? buffer.static_as<tensor>()
-                : buffer.static_as<tensorptr>()
-                          ->base_->ptr_.static_as<tensor>();
+    auto tsr = get_real_tensor(buffer);
+    if (is_tensor_and_should_shrink(tsr)) {
         auto &shrink_info = tsr->attr_->get<tensor_shrinker_t::shrink_info_t>(
                 tensor_shrinker_attrs::should_shrink);
         COMPILE_ASSERT(shrink_info.shape_.size() == tsr->dims_.size(),

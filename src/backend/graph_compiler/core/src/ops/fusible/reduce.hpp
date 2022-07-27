@@ -63,7 +63,8 @@ public:
     // reduce_collect
     bool can_split_op() const;
     // split into reduce_compute + reduce_collect
-    void split_op(const context_ptr &ctx, sc_graph_t &graph, int num_threads);
+    graph_tensor_ptr split_op(
+            const context_ptr &ctx, sc_graph_t &graph, int num_threads);
 
 private:
     // the axis which need reduction
@@ -162,7 +163,8 @@ public:
             sc_graph_t &mgr) override;
 };
 
-class reduce_collect_op_t : public reduce_impl_op_t {
+class reduce_collect_op_t : public reduce_impl_op_t,
+                            public op_traits::copyable_t {
 public:
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
@@ -173,6 +175,9 @@ public:
             const std::vector<int> &rd_axis, reduce_operator rd_op,
             bool keep_dims, bool need_mean, uint64_t reduce_mean_num);
     bool is_place_holder_op() const;
+    sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
+            const std::vector<graph_tensor_ptr> &outs,
+            sc_graph_t &mgr) override;
 };
 } // namespace sc
 #endif

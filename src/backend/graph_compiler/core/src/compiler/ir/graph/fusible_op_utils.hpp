@@ -27,9 +27,16 @@
 
 namespace sc {
 
+enum class cmp_res : int {
+    unknown = -1,
+    equal = 0,
+    l_less_r = 1,
+    l_larger_r = 2,
+};
+
 using slice_range_map = std::unordered_map<int, slice_range_list>;
 slice_range_map search_known_slice_ranges(
-        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
+        sc_op *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
 void set_unknown_slice_ranges(fusible_op_t *cur,
         const slice_range_map &known_ranges_map, fslice_map &fsmap,
         infer_status_map_t &stat_map);
@@ -37,6 +44,9 @@ void infer_binary_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
 sc_dims get_expr_to_dims(const std::vector<expr> &dims);
 size_t get_dims_product(const sc_dims &dims);
+
+bool slice_full_on_axes(
+        const sc_dims &dim, slice_range ranges, const std::vector<int> &axes);
 
 inline uint32_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
     return std::min(16U, ctx->get_max_vector_lanes(detype));
@@ -82,7 +92,10 @@ void compute_block_elemwise(const std::vector<const tensor_slice *> &src,
         fusion_compute_func_t compute);
 
 std::vector<int> transform_axis_plain2blocking(
-        const graph_tensor_ptr &gt, const std::vector<int> &plain_axis);
+        const logical_tensor_t &lt, const std::vector<int> &plain_axes);
+
+std::vector<int> transform_axis_plain2blocking(
+        const graph_tensor_ptr &gt, const std::vector<int> &plain_axes);
 
 std::string fusion_create_var_idx();
 std::string fusion_create_idx();
@@ -91,6 +104,9 @@ void create_fusible_output_anchor(stmt &parent, const tensor_slice &dst,
         const std::vector<expr> &loop_vars,
         const std::vector<int> &anchor_pos_in_loop,
         const vectorized_info_t &vx_info, any_map_t &attrs);
+
+cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
+        const slice_range_list &right_slice_range_list);
 
 // workload penalty coefficient for transpose/reorder measured by
 // for(i, 0, 128){
@@ -101,6 +117,9 @@ void create_fusible_output_anchor(stmt &parent, const tensor_slice &dst,
 // TODO(xxx): currently we mark this penalty on op, we will add loop analysis
 // pass for tensor sequential access analysis in future
 static constexpr size_t workload_penalty_coefficient = 16UL;
+
+float evaluate_loop_parallel_balance(const sc_dims &loop_ranges);
+float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops);
 
 } // namespace sc
 

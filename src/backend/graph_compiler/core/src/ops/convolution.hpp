@@ -46,6 +46,16 @@ public:
     sc_op_ptr get_weight_compensation(sc_graph_t &g);
     sc_op_ptr get_constant_compensation(sc_graph_t &g);
 
+    void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override {
+        /** TODO(XXX)
+         * Please override this function, if planned to support commiting
+         * convolution op like fusible op. Meanwhile, it is also required to
+         * refactor current template implementation to tensor-slice based.
+         * */
+        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+    }
+
 private:
     int ndims_ = 0;
 };
@@ -60,6 +70,12 @@ public:
             override;
     body_generator_ptr create_generator() override;
     float get_gflop() override;
+
+    void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override {
+        // TODO(XXX)
+        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+    }
 };
 } // namespace ops
 } // namespace sc

@@ -36,7 +36,8 @@ const char *env_names[] = {"SC_CPU_JIT", "SC_TRACE", "SC_DUMP_GRAPH",
         "SC_VERBOSE", "SC_RUN_THREADS", "SC_TRACE_INIT_CAP",
         "SC_EXECUTION_VERBOSE", "SC_LOGGING_FILTER", "SC_HOME", "SC_SSA_PASSES",
         "SC_PRINT_PASS_TIME", "SC_PRINT_PASS_RESULT", "SC_JIT_PROFILE",
-        "SC_DUMP_GRAPH_JSON", "SC_TUNING_IMPORT"};
+        "SC_DUMP_GRAPH_JSON", "SC_TUNING_IMPORT", "SC_MIXED_FUSION",
+        "SC_COST_MODEL"};
 
 namespace utils {
 // TODO(xxx): Copied from onednn, should be removed when merge

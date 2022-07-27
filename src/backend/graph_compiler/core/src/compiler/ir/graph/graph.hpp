@@ -48,12 +48,15 @@ using sc_op_ptr = std::shared_ptr<sc_op>;
 struct tensor_slice;
 struct fusion_data_t;
 struct fuse_state_t;
+struct fuse_anchor_map_t;
 
 template <typename valT>
 struct gt_map_t;
 using fdata_map = gt_map_t<fusion_data_t>;
 using gt2gt_map = gt_map_t<graph_tensor_ptr>;
 using gt2axes_map = gt_map_t<std::vector<int>>;
+using gt2buf_map = gt_map_t<expr>;
+using gt2anchor_map = gt_map_t<fuse_anchor_map_t *>;
 using format_stride_pair = std::pair<sc_data_format_t, sc_dims>;
 
 /** VConst struct record possible varible in constant value, e.g.

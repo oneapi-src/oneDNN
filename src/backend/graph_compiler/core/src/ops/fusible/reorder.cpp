@@ -711,7 +711,7 @@ void reorder_op_t::pre_slice_ranges(
         infer_reorder_slice(known_ranges_list, output_format_, input_format_,
                 input_slice_list);
         if (input_slice_list.size() != 1) {
-            stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
         fsmap.get(get_inputs()[0]) = input_slice_list;
@@ -2142,6 +2142,10 @@ bool reorder_op_t::use_output_loop() const {
         return inp->is_arg_input();
     }
     return false;
+}
+
+bool reorder_op_t::support_output_loop() const {
+    return output_format_.is_blocking();
 }
 
 void reorder_op_t::compute_block(context_ptr ctx,

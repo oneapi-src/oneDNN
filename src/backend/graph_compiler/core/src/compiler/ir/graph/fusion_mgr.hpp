@@ -169,6 +169,7 @@ public:
     fusion_manager() = default;
     fusion_manager(const fusion_manager &other) = delete;
     fusion_manager(fusion_manager &&other);
+    void bind_graph(sc_graph_t *graph);
     fusion_manager &operator=(const fusion_manager &other) = delete;
     // get real tensors list vector in input logical tensors
     std::vector<std::vector<tensor_slice>> get_input_tsr_slices_list(
@@ -180,6 +181,8 @@ public:
     // copy fusion mgr, return shared_ptr of fusion_mgr
     std::shared_ptr<fusion_manager> copy() const;
 
+    std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>
+    unpack_src_anchor();
     /**
      * transform the graph if necessary before really committing code
      * @param has_main_op if the fusion happens after another main op

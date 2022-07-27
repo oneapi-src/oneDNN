@@ -168,6 +168,8 @@ context_ptr get_default_context() {
                 flags.dead_write_elimination_);
         parse_bool(env_names[SC_INDEX2VAR], flags.index2var_);
         parse_bool(env_names[SC_PRINT_IR], flags.print_ir_);
+        parse_bool(env_names[SC_MIXED_FUSION], flags.mixed_fusion_);
+        parse_bool(env_names[SC_COST_MODEL], flags.use_cost_model_);
         parse_bool(env_names[SC_SSA_PASSES], flags.ssa_passes_);
 
         if (sc::utils::getenv_int(env_names[SC_BOUNDARY_CHECK])) {

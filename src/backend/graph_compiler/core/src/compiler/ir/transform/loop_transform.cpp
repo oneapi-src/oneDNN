@@ -335,7 +335,8 @@ for_loop get_inner_for_loop(const for_loop_node_t *f) {
     return for_loop();
 }
 
-for_loop for_loop_node_t::fuse(const for_loop &ax) {
+for_loop for_loop_node_t::fuse(
+        const for_loop &ax, std::unordered_map<expr, expr> *expr_remap) {
     COMPILE_ASSERT(ax->isvalid(), "Transforming an invalid for-loop: ax");
     COMPILE_ASSERT(isvalid(), "Transforming an invalid for-loop: this");
     if (!get_inner_for_loop(this).ptr_same(ax)) {
@@ -366,12 +367,13 @@ for_loop for_loop_node_t::fuse(const for_loop &ax) {
         outer = outer + make_expr<constant_node>(min1, vout->dtype_);
     }
     var_remap.insert(std::make_pair(var1.get(), outer));
-
+    if (expr_remap) { expr_remap->insert(std::make_pair(var1, outer)); }
     expr inner = vout % make_expr<constant_node>(loop_len2, vout->dtype_);
     if (min2 != 0) {
         inner = inner + make_expr<constant_node>(min2, vout->dtype_);
     }
     var_remap.insert(std::make_pair(var2.get(), inner));
+    if (expr_remap) { expr_remap->insert(std::make_pair(var2, inner)); }
     var_inplace_replacer_t pass(&var_remap);
     auto newbody = pass.dispatch_impl(ax->body_);
 

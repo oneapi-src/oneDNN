@@ -19,24 +19,32 @@
 #include <memory>
 #include <vector>
 #include "fusible_op.hpp"
+#include "fusion_data.hpp"
+#include "graph.hpp"
 #include <ops/body_generator.hpp>
 
 namespace sc {
+
+struct fuse_anchor_map_t;
 
 // generates the outer loops for an op. By default it will generates N-1 outer
 // loops for the first input N-D tensor from higher dims to lower
 class outer_loop_generator_t : public body_generator_base_t {
 private:
     // decide which one is base input
-    size_t base_inp_idx_;
+    size_t base_tsr_idx_;
+    bool use_output_mode_;
 
 public:
-    outer_loop_generator_t(size_t base_inp_idx = 0);
+    outer_loop_generator_t(
+            size_t base_tsr_idx = 0, bool use_output_mode = false);
     config_ptr get_default_config(context_ptr ctx) const override {
         return nullptr;
     }
 
-    size_t get_base_inp_idx() const { return base_inp_idx_; }
+    size_t get_base_tsr_idx() const { return base_tsr_idx_; }
+
+    bool use_output_mode() const { return use_output_mode_; }
 
     bool generate(context_ptr ctx, const void *config, fusion_manager *fusion,
             const std::vector<expr> &inputs, const std::vector<expr> &outputs,
@@ -55,6 +63,35 @@ class top_level_anchor_generator_t : public outer_loop_generator_t {
     void schedule_loops(context_ptr ctx, const void *config, stmt body,
             std::vector<for_loop> &fors) const override;
 };
+
+class anchor_loop_generator_t : public body_generator_base_t {
+private:
+    // decide which one is base input
+    graph_tensor_ptr gt_;
+    fuse_anchor_map_ptr parent_fanchor_;
+
+public:
+    anchor_loop_generator_t(const graph_tensor_ptr &gt,
+            const fuse_anchor_map_ptr &parent_fanchor);
+    config_ptr get_default_config(context_ptr ctx) const override {
+        return nullptr;
+    }
+
+    bool generate(context_ptr ctx, const void *config, fusion_manager *fusion,
+            const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+            std::vector<for_loop> &loops) const override {
+        return false;
+    };
+
+    size_t create_inner_anchor(
+            std::vector<std::shared_ptr<fuse_anchor_map_t>> &);
+
+    void schedule_loops(context_ptr ctx, const void *config, stmt body,
+            std::vector<for_loop> &fors) const override {};
+    float get_gflop() const override { return 0; }
+};
+
+for_loop get_next_inner_loop(const for_loop &cur_loop);
 
 // generates the fused function for the ops in fmgr. The order of function
 // args will be out tensors followed by in tensors. In the arg list of

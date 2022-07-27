@@ -29,6 +29,7 @@ namespace sc {
 
 class fusion_manager;
 struct brgemm_fusion_register;
+struct mixed_parti_t;
 
 namespace op_traits {
 struct may_broadcast_t : public virtual op_base_trait_t {
@@ -212,6 +213,16 @@ struct batchwise_shrinkable_t : public virtual op_base_trait_t {
      * */
     static int get_shrinkable_offset(
             const graph_tensor_ptr &gt, bool aggresive_mode = true);
+};
+
+struct mixed_partition_acceptable : public virtual op_base_trait_t {
+    virtual void create_mixed_partition(mixed_parti_t *parti) = 0;
+
+    virtual void append_mixed_partition(mixed_parti_t *parti) = 0;
+
+    virtual void search_anchor(mixed_parti_t *parti) = 0;
+
+    virtual void commit_into_anchor(mixed_parti_t *parti) = 0;
 };
 
 struct data_compensation_t : public virtual op_base_trait_t {};

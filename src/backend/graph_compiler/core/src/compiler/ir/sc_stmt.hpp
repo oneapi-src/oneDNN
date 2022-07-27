@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 #include <type_traits>
+#include <unordered_map>
 
 #include "sc_expr.hpp"
 
@@ -356,7 +357,8 @@ public:
      * @param ax the for-loop node_ptr to fuse. Should be the next nested-loop
      * @return The fused for-loop. Should have the same ptr of `this`
      * */
-    ptr_type fuse(const ptr_type &ax);
+    ptr_type fuse(const ptr_type &ax,
+            std::unordered_map<expr, expr> *expr_remap = nullptr);
 
     /**
      * Do in-place reordering on some nested loops. Except the most inner loop,

@@ -47,14 +47,21 @@ valT &gt_map_t<valT>::get(const graph_tensor_ptr &v) {
 }
 
 template <typename valT>
+bool gt_map_t<valT>::haskey(graph_tensor *v) const {
+    return datamap_.find(v) != datamap_.end();
+}
+
+template <typename valT>
 bool gt_map_t<valT>::haskey(const graph_tensor_ptr &v) const {
-    return datamap_.find(v.get()) != datamap_.end();
+    return haskey(v.get());
 }
 
 template struct gt_map_t<fusion_data_t>;
 template struct gt_map_t<slice_range_list>;
 template struct gt_map_t<graph_tensor_ptr>;
 template struct gt_map_t<std::vector<int>>;
+template struct gt_map_t<expr>;
+template struct gt_map_t<fuse_anchor_map_t *>;
 
 sc_op_ptr op_traits::auto_copyable_t::copy(
         const std::vector<graph_tensor_ptr> &ins,
@@ -620,6 +627,13 @@ expr tensor_detail_to_ir_tensor(
             dims_to_expr(strides), tsrd.dtype_);
 }
 
+expr tensor_detail_to_ir_tensor(const std::string &name,
+        const graph_tensor_ptr &gt, gt2buf_map &g2b_map) {
+    if (!g2b_map.haskey(gt))
+        g2b_map.get(gt) = tensor_detail_to_ir_tensor(name, gt->details_);
+    return g2b_map.get(gt);
+}
+
 std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,
         const std::vector<logical_tensor_t> &tsrs) {
     std::vector<expr> ret;
@@ -638,6 +652,18 @@ std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,
     for (size_t i = 0; i < tsrs.size(); i++) {
         ret.emplace_back(tensor_detail_to_ir_tensor(
                 name_prefix + std::to_string(i), tsrs[i]->details_));
+    }
+    return ret;
+}
+
+std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,
+        const std::vector<graph_tensor_ptr> &tsrs, gt2buf_map &g2b_map) {
+    std::vector<expr> ret;
+    ret.reserve(tsrs.size());
+    for (size_t i = 0; i < tsrs.size(); i++) {
+        auto ir_tsr = tensor_detail_to_ir_tensor(
+                name_prefix + std::to_string(i), tsrs[i], g2b_map);
+        ret.emplace_back(ir_tsr);
     }
     return ret;
 }
