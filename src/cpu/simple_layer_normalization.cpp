@@ -24,6 +24,7 @@
 
 #include "cpu/cpu_batch_normalization_utils.hpp"
 #include "cpu/cpu_engine.hpp"
+#include "cpu/ref_io_helper.hpp"
 
 #include "cpu/simple_layer_normalization.hpp"
 
@@ -33,21 +34,6 @@ namespace cpu {
 
 using namespace memory_tracking::names;
 using namespace data_type;
-
-namespace {
-/* Stats and src here are compatible if
- * stat_strides[:] == data_strides[:] / last_data_dimension
- * i.e. abcd & abc, bacd & bac - compatible */
-status_t fill_compatible_stats_md(
-        const memory_desc_t &src_md, memory_desc_t &stat_md) {
-    stat_md = src_md;
-    stat_md.data_type = dnnl_f32;
-    stat_md.ndims -= 1;
-    return memory_desc_init_by_blocking_desc(
-            stat_md, src_md.format_desc.blocking);
-}
-
-} // namespace
 
 status_t simple_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
@@ -115,7 +101,14 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const dim_t N = pd()->across_axis();
+    const dim_t C = pd()->norm_axis();
     const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
+
+    const auto calculate_stats = !pd()->stats_are_src();
+    const auto src_dt = pd()->src_md()->data_type;
+    const auto dst_dt = pd()->dst_md()->data_type;
+    const auto eps = pd()->desc()->layer_norm_epsilon;
+    const auto save_stats = pd()->is_training();
 
     parallel(0, [&](const int ithr, const int nthr) {
         dim_t N_start = 0, N_end = 0;
@@ -125,9 +118,80 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                 + N_start * C_padded * src_d.data_type_size();
         char *const __restrict dst_ptr = reinterpret_cast<char *>(dst)
                 + N_start * C_padded * dst_d.data_type_size();
-        const int block_size = N_end - N_start;
-        (*stat_and_data_kernel_)(src_ptr, dst_ptr, scale, shift, &mean[N_start],
-                &variance[N_start], block_size);
+        float *const __restrict mean_ptr = &mean[N_start];
+        float *const __restrict var_ptr = &variance[N_start];
+        const size_t block_size = N_end - N_start;
+        // Note: manual unrolling for use_scaleshift due to clang issue.
+        //       see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
+        for (size_t offset = 0; offset < block_size; offset++) {
+            float v_mean = 0, v_variance = 0;
+            if (calculate_stats) {
+                PRAGMA_OMP_SIMD(reduction(+ : v_mean))
+                for (dim_t c = 0; c < C; ++c) {
+                    float s = io::load_float_value(
+                            src_dt, src_ptr, c + C * offset);
+                    v_mean += s;
+                }
+                v_mean /= C;
+
+                PRAGMA_OMP_SIMD(reduction(+ : v_variance))
+                for (dim_t c = 0; c < C; ++c) {
+                    float s = io::load_float_value(
+                            src_dt, src_ptr, c + C * offset);
+                    float src_sub_mean = s - v_mean;
+                    v_variance += src_sub_mean * src_sub_mean;
+                }
+                v_variance /= C;
+            } else {
+                v_mean = mean_ptr[offset];
+                v_variance = var_ptr[offset];
+            }
+
+            const float inv_sqrtvar = 1.f / sqrtf(v_variance + eps);
+            if (use_ss || (use_scale && use_shift)) {
+                PRAGMA_OMP_SIMD()
+                for (dim_t c = 0; c < C; ++c) {
+                    const float sm = scale[c] * inv_sqrtvar;
+                    const float sv = shift[c];
+                    const size_t off = c + C * offset;
+                    float s = io::load_float_value(src_dt, src_ptr, off);
+                    float d = sm * (s - v_mean) + sv;
+                    io::store_float_value(dst_dt, d, dst_ptr, off);
+                }
+            } else if (use_scale) {
+                PRAGMA_OMP_SIMD()
+                for (dim_t c = 0; c < C; ++c) {
+                    const float sm = scale[c] * inv_sqrtvar;
+                    const size_t off = c + C * offset;
+                    float s = io::load_float_value(src_dt, src_ptr, off);
+                    float d = sm * (s - v_mean);
+                    io::store_float_value(dst_dt, d, dst_ptr, off);
+                }
+            } else if (use_shift) {
+                PRAGMA_OMP_SIMD()
+                for (dim_t c = 0; c < C; ++c) {
+                    const float sm = 1.f * inv_sqrtvar;
+                    const float sv = shift[c];
+                    const size_t off = c + C * offset;
+                    float s = io::load_float_value(src_dt, src_ptr, off);
+                    float d = sm * (s - v_mean) + sv;
+                    io::store_float_value(dst_dt, d, dst_ptr, off);
+                }
+            } else {
+                PRAGMA_OMP_SIMD()
+                for (dim_t c = 0; c < C; ++c) {
+                    const float sm = 1.f * inv_sqrtvar;
+                    const size_t off = c + C * offset;
+                    float s = io::load_float_value(src_dt, src_ptr, off);
+                    float d = sm * (s - v_mean);
+                    io::store_float_value(dst_dt, d, dst_ptr, off);
+                }
+            }
+            if (calculate_stats && save_stats) {
+                mean_ptr[offset] = v_mean;
+                var_ptr[offset] = v_variance;
+            }
+        }
     });
     return status::success;
 }
@@ -223,26 +287,48 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
 
     const int max_nthr = pd()->nthr_;
 
+    const auto src_dt = pd()->src_md()->data_type;
+    const auto diff_dst_dt = pd()->diff_dst_md()->data_type;
+    const auto diff_src_dt = pd()->diff_src_md()->data_type;
+    const auto eps = pd()->desc()->layer_norm_epsilon;
+    const auto calculate_diff_stats = !pd()->stats_are_src();
+
     parallel(max_nthr, [&](int ithr, int nthr) {
         dim_t N_start = 0, N_end = 0;
         balance211(N, nthr, ithr, N_start, N_end);
-        const int block_size = N_end - N_start;
+        const size_t block_size = N_end - N_start;
         const char *const __restrict src_ptr
                 = reinterpret_cast<const char *>(src)
                 + N_start * C_padded * src_d.data_type_size();
         const char *const __restrict diff_dst_ptr
                 = reinterpret_cast<const char *>(diff_dst)
                 + N_start * C_padded * diff_dst_d.data_type_size();
+        const float *mean_ptr = &mean[N_start];
+        const float *var_ptr = &variance[N_start];
+        float *const inv_sqrtvar_ptr = &inv_sqrtvar[N_start];
 
         float *my_diff_gamma = reduce + C * ithr;
         float *my_diff_beta = reduce + C * nthr + C * ithr;
+
+        PRAGMA_OMP_SIMD()
         for (dim_t c = 0; c < C; c++) {
             my_diff_gamma[c] = 0.;
             my_diff_beta[c] = 0.;
         }
-        (*diff_ss_kernel_)(src_ptr, diff_dst_ptr, my_diff_gamma, my_diff_beta,
-                &mean[N_start], &variance[N_start], &inv_sqrtvar[N_start],
-                block_size);
+
+        for (size_t offset = 0; offset < block_size; offset++) {
+            inv_sqrtvar_ptr[offset] = 1. / sqrtf(var_ptr[offset] + eps);
+
+            PRAGMA_OMP_SIMD()
+            for (dim_t c = 0; c < C; c++) {
+                const size_t off = c + C * offset;
+                float s = io::load_float_value(src_dt, src_ptr, off);
+                float dd = io::load_float_value(diff_dst_dt, diff_dst_ptr, off);
+                my_diff_gamma[c] += (s - mean_ptr[offset]) * dd
+                        * inv_sqrtvar_ptr[offset];
+                my_diff_beta[c] += dd;
+            }
+        }
     });
 
     parallel_nd(C, [&](dim_t c) {
@@ -258,7 +344,7 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
     parallel(max_nthr, [&](int ithr, int nthr) {
         dim_t N_start = 0, N_end = 0;
         balance211(N, nthr, ithr, N_start, N_end);
-        const int block_size = N_end - N_start;
+        const size_t block_size = N_end - N_start;
         const char *const __restrict src_ptr
                 = reinterpret_cast<const char *>(src)
                 + N_start * C_padded * src_d.data_type_size();
@@ -267,9 +353,75 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
                 + N_start * C_padded * diff_dst_d.data_type_size();
         char *const __restrict diff_src_ptr = reinterpret_cast<char *>(diff_src)
                 + N_start * C_padded * diff_src_d.data_type_size();
+        const float *mean_ptr = &mean[N_start];
+        float *const inv_sqrtvar_ptr = &inv_sqrtvar[N_start];
 
-        (*diff_data_kernel_)(src_ptr, diff_dst_ptr, diff_src_ptr, scale,
-                &mean[N_start], &inv_sqrtvar[N_start], block_size);
+        // Note: manual unrolling for use_ss due to clang issue.
+        //       see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
+        float dd_gamma, dd_gamma_x;
+        for (size_t offset = 0; offset < block_size; offset++) {
+            // reduce gamma
+            dd_gamma = dd_gamma_x = 0;
+            if (calculate_diff_stats) {
+                if (use_ss || use_scale) {
+                    PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
+                    for (dim_t c = 0; c < C; c++) {
+                        const size_t off = c + C * offset;
+                        float s = io::load_float_value(src_dt, src_ptr, off);
+                        float dd = io::load_float_value(
+                                diff_dst_dt, diff_dst_ptr, off);
+                        dd_gamma += dd * scale[c];
+                        dd_gamma_x += dd * scale[c] * (s - mean_ptr[offset]);
+                    }
+                } else {
+                    PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
+                    for (dim_t c = 0; c < C; c++) {
+                        const size_t off = c + C * offset;
+                        float s = io::load_float_value(src_dt, src_ptr, off);
+                        float dd = io::load_float_value(
+                                diff_dst_dt, diff_dst_ptr, off);
+                        dd_gamma += dd;
+                        dd_gamma_x += dd * (s - mean_ptr[offset]);
+                    }
+                }
+                dd_gamma_x *= inv_sqrtvar_ptr[offset];
+            }
+
+            // calculate diff_dst
+            if (use_ss || use_scale) {
+                PRAGMA_OMP_SIMD()
+                for (dim_t c = 0; c < C; c++) {
+                    const size_t off = c + C * offset;
+                    float dd = io::load_float_value(
+                            diff_dst_dt, diff_dst_ptr, off);
+                    float ds = dd * scale[c];
+                    if (calculate_diff_stats) {
+                        float s = io::load_float_value(src_dt, src_ptr, off);
+                        ds -= dd_gamma / C;
+                        ds -= (s - mean_ptr[offset]) * dd_gamma_x
+                                * inv_sqrtvar_ptr[offset] / C;
+                    }
+                    ds *= inv_sqrtvar_ptr[offset];
+                    io::store_float_value(diff_src_dt, ds, diff_src_ptr, off);
+                }
+            } else {
+                PRAGMA_OMP_SIMD()
+                for (dim_t c = 0; c < C; c++) {
+                    const size_t off = c + C * offset;
+                    float dd = io::load_float_value(
+                            diff_dst_dt, diff_dst_ptr, off);
+                    float ds = dd;
+                    if (calculate_diff_stats) {
+                        float s = io::load_float_value(src_dt, src_ptr, off);
+                        ds -= dd_gamma / C;
+                        ds -= (s - mean_ptr[offset]) * dd_gamma_x
+                                * inv_sqrtvar_ptr[offset] / C;
+                    }
+                    ds *= inv_sqrtvar_ptr[offset];
+                    io::store_float_value(diff_src_dt, ds, diff_src_ptr, off);
+                }
+            }
+        }
     });
     return status::success;
 }

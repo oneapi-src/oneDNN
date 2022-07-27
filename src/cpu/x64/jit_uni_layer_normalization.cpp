@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,19 +14,28 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/x64/jit_uni_layer_normalization_kernels.hpp"
+#include <assert.h>
+#include <math.h>
+
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/reorder.hpp"
+#include "common/type_helpers.hpp"
+
+#include "cpu/cpu_batch_normalization_utils.hpp"
+#include "cpu/cpu_engine.hpp"
+
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
+#include "cpu/x64/jit_uni_layer_normalization.hpp"
 #include "cpu/x64/utils/jit_io_helper.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
-namespace lnorm_utils {
 
-using namespace dnnl::impl::cpu::lnorm_utils;
-using namespace dnnl::impl::cpu::x64;
+using namespace memory_tracking::names;
 using namespace data_type;
 using namespace Xbyak;
 
@@ -399,7 +408,7 @@ struct jit_stat_and_data_kernel_t<avx2>
     }
 };
 
-stat_and_data_kernel_t *stat_and_data_kernel_create(
+stat_and_data_kernel_t *stat_and_data_kernel_t::create(
         const layer_normalization_pd_t *pd) {
     if (mayiuse(avx512_core)) {
         return new jit_stat_and_data_kernel_t<avx512_core>(pd);
@@ -623,7 +632,7 @@ struct jit_diff_ss_kernel_t<avx2> : jit_diff_ss_base_kernel_t<avx2> {
     }
 };
 
-diff_ss_kernel_t *diff_ss_kernel_create(const layer_normalization_pd_t *pd) {
+diff_ss_kernel_t *diff_ss_kernel_t::create(const layer_normalization_pd_t *pd) {
     if (mayiuse(avx512_core)) {
         return new jit_diff_ss_kernel_t<avx512_core>(pd);
     } else if (mayiuse(avx2)) {
@@ -913,7 +922,7 @@ struct jit_diff_data_kernel_t<avx2> : jit_diff_data_base_kernel_t<avx2> {
     }
 };
 
-diff_data_kernel_t *diff_data_kernel_create(
+diff_data_kernel_t *diff_data_kernel_t::create(
         const layer_normalization_pd_t *pd) {
     if (mayiuse(avx512_core)) {
         return new jit_diff_data_kernel_t<avx512_core>(pd);
@@ -924,7 +933,170 @@ diff_data_kernel_t *diff_data_kernel_create(
     }
 }
 
-} // namespace lnorm_utils
+status_t jit_uni_layer_normalization_fwd_t::execute_forward(
+        const exec_ctx_t &ctx) const {
+    const bool use_ss = pd()->use_scaleshift();
+    const bool use_scale = pd()->use_scale();
+    const bool use_shift = pd()->use_shift();
+
+    auto scratchpad = ctx.get_scratchpad_grantor();
+    const auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+
+    const memory_desc_wrapper ss_d(pd()->weights_md());
+    const size_t shift_off
+            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
+
+    auto scale = CTX_IN_MEM(
+            const float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto shift = use_shift ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
+                           : use_ss ? &scale[shift_off] : nullptr;
+
+    float *mean, *variance;
+    if (pd()->use_tmp_stats()) {
+        mean = scratchpad.template get<float>(key_lnorm_tmp_mean);
+        variance = scratchpad.template get<float>(key_lnorm_tmp_var);
+    } else {
+        mean = pd()->stats_are_src()
+                ? const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
+                : CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
+        variance = pd()->stats_are_src()
+                ? const_cast<float *>(
+                        CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE))
+                : CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
+    }
+
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+
+    const dim_t N = pd()->across_axis();
+    const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
+
+    parallel(0, [&](const int ithr, const int nthr) {
+        dim_t N_start = 0, N_end = 0;
+        balance211(N, nthr, ithr, N_start, N_end);
+        const char *const __restrict src_ptr
+                = reinterpret_cast<const char *>(src)
+                + N_start * C_padded * src_d.data_type_size();
+        char *const __restrict dst_ptr = reinterpret_cast<char *>(dst)
+                + N_start * C_padded * dst_d.data_type_size();
+        const int block_size = N_end - N_start;
+        (*stat_and_data_kernel_)(src_ptr, dst_ptr, scale, shift, &mean[N_start],
+                &variance[N_start], block_size);
+    });
+    return status::success;
+}
+
+status_t jit_uni_layer_normalization_bwd_t::execute_backward(
+        const exec_ctx_t &ctx) const {
+    status_t status = status::success;
+
+    const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
+
+    const bool use_ss = pd()->use_scaleshift();
+    const bool use_scale = pd()->use_scale();
+    const bool use_shift = pd()->use_shift();
+
+    auto scratchpad = ctx.get_scratchpad_grantor();
+    auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
+    auto scale = CTX_IN_MEM(
+            float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
+
+    const size_t diff_shift_off
+            = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
+
+    auto diff_scale = CTX_OUT_CLEAN_MEM(float *,
+            use_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
+            status);
+    CHECK(status);
+    auto diff_shift = use_shift
+            ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status)
+            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+    CHECK(status);
+
+    const float *mean, *variance;
+    if (pd()->use_tmp_stats()) {
+        mean = scratchpad.template get<float>(key_lnorm_tmp_mean);
+        variance = scratchpad.template get<float>(key_lnorm_tmp_var);
+    } else {
+        mean = CTX_IN_MEM(const float *, DNNL_ARG_MEAN);
+        variance = CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE);
+    }
+
+    float *const inv_sqrtvar
+            = scratchpad.template get<float>(key_lnorm_inv_sqrtvar);
+
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
+
+    const dim_t N = pd()->across_axis();
+    const dim_t C = pd()->norm_axis();
+    const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
+
+    float *reduce = scratchpad.template get<float>(key_lnorm_reduction);
+    if (diff_scale == nullptr)
+        diff_scale = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
+    if (diff_shift == nullptr) {
+        diff_shift = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
+        if (diff_shift == diff_scale) diff_shift = &diff_shift[diff_shift_off];
+    }
+
+    const int max_nthr = pd()->nthr_;
+
+    parallel(max_nthr, [&](int ithr, int nthr) {
+        dim_t N_start = 0, N_end = 0;
+        balance211(N, nthr, ithr, N_start, N_end);
+        const int block_size = N_end - N_start;
+        const char *const __restrict src_ptr
+                = reinterpret_cast<const char *>(src)
+                + N_start * C_padded * src_d.data_type_size();
+        const char *const __restrict diff_dst_ptr
+                = reinterpret_cast<const char *>(diff_dst)
+                + N_start * C_padded * diff_dst_d.data_type_size();
+
+        float *my_diff_gamma = reduce + C * ithr;
+        float *my_diff_beta = reduce + C * nthr + C * ithr;
+        for (dim_t c = 0; c < C; c++) {
+            my_diff_gamma[c] = 0.;
+            my_diff_beta[c] = 0.;
+        }
+        (*diff_ss_kernel_)(src_ptr, diff_dst_ptr, my_diff_gamma, my_diff_beta,
+                &mean[N_start], &variance[N_start], &inv_sqrtvar[N_start],
+                block_size);
+    });
+
+    parallel_nd(C, [&](dim_t c) {
+        float diff_gamma = 0, diff_beta = 0;
+        for (dim_t n = 0; n < max_nthr; n++) {
+            diff_gamma += reduce[C * n + c];
+            diff_beta += reduce[C * max_nthr + C * n + c];
+        }
+        diff_scale[c] = diff_gamma;
+        diff_shift[c] = diff_beta;
+    });
+
+    parallel(max_nthr, [&](int ithr, int nthr) {
+        dim_t N_start = 0, N_end = 0;
+        balance211(N, nthr, ithr, N_start, N_end);
+        const int block_size = N_end - N_start;
+        const char *const __restrict src_ptr
+                = reinterpret_cast<const char *>(src)
+                + N_start * C_padded * src_d.data_type_size();
+        const char *const __restrict diff_dst_ptr
+                = reinterpret_cast<const char *>(diff_dst)
+                + N_start * C_padded * diff_dst_d.data_type_size();
+        char *const __restrict diff_src_ptr = reinterpret_cast<char *>(diff_src)
+                + N_start * C_padded * diff_src_d.data_type_size();
+
+        (*diff_data_kernel_)(src_ptr, diff_dst_ptr, diff_src_ptr, scale,
+                &mean[N_start], &inv_sqrtvar[N_start], block_size);
+    });
+    return status::success;
+}
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

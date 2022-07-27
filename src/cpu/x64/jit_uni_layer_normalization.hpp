@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_SIMPLE_LAYER_NORMALIZATION_HPP
-#define CPU_SIMPLE_LAYER_NORMALIZATION_HPP
+#ifndef CPU_X64_JIT_UNI_LAYER_NORMALIZATION_HPP
+#define CPU_X64_JIT_UNI_LAYER_NORMALIZATION_HPP
 
 #include <memory>
 
@@ -23,24 +23,106 @@
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
-#include "common/reorder_pd.hpp"
+#include "common/reorder.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/cpu_layer_normalization_pd.hpp"
 
+#include "cpu/x64/cpu_isa_traits.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
-struct simple_layer_normalization_fwd_t : public primitive_t {
+struct stat_and_data_kernel_t {
+    static stat_and_data_kernel_t *create(const layer_normalization_pd_t *pd);
+    virtual ~stat_and_data_kernel_t() = default;
+
+    virtual void operator()(const void *src, void *dst, const float *scale,
+            const float *shift, float *mean, float *var,
+            const size_t block_size) const {};
+
+    virtual status_t create_kernel() { return status::success; }
+
+protected:
+    stat_and_data_kernel_t(const layer_normalization_pd_t *pd) : pd_(pd) {}
+
+    const layer_normalization_pd_t *pd_;
+};
+
+struct diff_ss_kernel_t {
+    static diff_ss_kernel_t *create(const layer_normalization_pd_t *pd);
+    virtual ~diff_ss_kernel_t() = default;
+
+    virtual void operator()(const void *src, const void *diff_dst,
+            float *diff_gamma, float *diff_beta, const float *mean,
+            const float *var, float *const inv_sqrtvar,
+            const size_t block_size) const {};
+
+    virtual status_t create_kernel() { return status::success; }
+
+protected:
+    diff_ss_kernel_t(const layer_normalization_pd_t *pd) : pd_(pd) {}
+
+    const layer_normalization_pd_t *pd_;
+};
+
+struct diff_data_kernel_t {
+    static diff_data_kernel_t *create(const layer_normalization_pd_t *pd);
+    virtual ~diff_data_kernel_t() = default;
+
+    virtual void operator()(const void *src, const void *diff_dst,
+            void *diff_src, const float *ss, const float *mean,
+            float *const inv_sqrtvar, const size_t block_size) const {};
+
+    virtual status_t create_kernel() { return status::success; }
+
+protected:
+    diff_data_kernel_t(const layer_normalization_pd_t *pd) : pd_(pd) {}
+
+    const layer_normalization_pd_t *pd_;
+};
+
+struct jit_uni_layer_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
         using cpu_layer_normalization_fwd_pd_t::
                 cpu_layer_normalization_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("simple:any", simple_layer_normalization_fwd_t);
+        DECLARE_COMMON_PD_T("jit:uni", jit_uni_layer_normalization_fwd_t);
 
-        status_t init(engine_t *engine);
+        status_t init(engine_t *engine) {
+            using namespace data_type;
+            const memory_desc_wrapper src_d(src_md());
+
+            const bool ok = is_fwd() && !has_zero_dim_memory()
+                    && mayiuse(avx2) // sse41 is not supported yet
+                    && utils::one_of(src_md()->data_type, f32, bf16)
+                    && utils::one_of(dst_md()->data_type, f32, bf16)
+                    && platform::has_data_type_support(src_md()->data_type)
+                    && platform::has_data_type_support(dst_md()->data_type)
+                    && src_md()->data_type == dst_md()->data_type
+                    && stat_md()->data_type == f32
+                    && check_scale_shift_data_type()
+                    && attr()->has_default_values()
+                    && set_default_formats_common()
+                    && src_d.is_blocking_desc()
+                    // plain format, last logical dim is last physical
+                    && src_d.blocking_desc().strides[ndims() - 1] == 1;
+            if (!ok) return status::unimplemented;
+
+            CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
+
+            if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
+                CHECK(reorder_primitive_desc_create(reorder_pd_, engine,
+                        stats_are_src() ? stat_md() : &reordered_stat_md_,
+                        stats_are_src() ? &reordered_stat_md_ : stat_md()));
+            }
+
+            init_scratchpad();
+            return status::success;
+        }
 
         bool use_tmp_stats() const { return reorder_pd_ || stats_are_tmp(); }
 
@@ -66,10 +148,15 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
+        CHECK(safe_ptr_assign(
+                stat_and_data_kernel_, stat_and_data_kernel_t::create(pd())));
+        if (stat_and_data_kernel_)
+            CHECK(stat_and_data_kernel_->create_kernel());
         return status::success;
     }
 
-    simple_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_uni_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    virtual ~jit_uni_layer_normalization_fwd_t() = default;
 
     void reorder_stat(const exec_ctx_t &ctx, engine_t *engine,
             const memory_arg_t &in, const memory_arg_t &out) const {
@@ -122,17 +209,51 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
+    std::unique_ptr<stat_and_data_kernel_t> stat_and_data_kernel_;
     std::shared_ptr<primitive_t> reorder_;
 };
 
-struct simple_layer_normalization_bwd_t : public primitive_t {
+struct jit_uni_layer_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
         using cpu_layer_normalization_bwd_pd_t::
                 cpu_layer_normalization_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T("simple:any", simple_layer_normalization_bwd_t);
+        DECLARE_COMMON_PD_T("jit:uni", jit_uni_layer_normalization_bwd_t);
 
-        status_t init(engine_t *engine);
+        status_t init(engine_t *engine) {
+            using namespace data_type;
+            const memory_desc_wrapper src_d(src_md());
+
+            const bool ok = is_bwd() && !has_zero_dim_memory()
+                    && mayiuse(avx2) // sse41 is not supported yet
+                    && utils::one_of(src_md()->data_type, f32, bf16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16)
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16)
+                    && platform::has_data_type_support(src_md()->data_type)
+                    && platform::has_data_type_support(diff_dst_md()->data_type)
+                    && platform::has_data_type_support(diff_src_md()->data_type)
+                    && src_md()->data_type == diff_dst_md()->data_type
+                    && diff_src_md()->data_type == diff_dst_md()->data_type
+                    && stat_md()->data_type == f32
+                    && check_scale_shift_data_type()
+                    && attr()->has_default_values()
+                    && set_default_formats_common()
+                    && src_d.is_blocking_desc()
+                    // plain format, last logical dim is last physical
+                    && src_d.blocking_desc().strides[ndims() - 1] == 1;
+            if (!ok) return status::unimplemented;
+
+            CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
+
+            if (reordered_stat_md_ != *stat_md()) {
+                CHECK(reorder_primitive_desc_create(
+                        reorder_pd_, engine, stat_md(), &reordered_stat_md_));
+            }
+
+            nthr_ = dnnl_get_max_threads();
+            init_scratchpad();
+            return status::success;
+        }
 
         bool use_tmp_stats() const { return reorder_pd_.get(); }
 
@@ -165,10 +286,16 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
+        CHECK(safe_ptr_assign(diff_ss_kernel_, diff_ss_kernel_t::create(pd())));
+        CHECK(safe_ptr_assign(
+                diff_data_kernel_, diff_data_kernel_t::create(pd())));
+        if (diff_ss_kernel_) CHECK(diff_ss_kernel_->create_kernel());
+        if (diff_data_kernel_) CHECK(diff_data_kernel_->create_kernel());
         return status::success;
     }
 
-    simple_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_uni_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    virtual ~jit_uni_layer_normalization_bwd_t() = default;
 
     void reorder_stat(const exec_ctx_t &ctx, engine_t *engine,
             const memory_arg_t &in, const memory_arg_t &out) const {
@@ -213,9 +340,12 @@ private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
+    std::unique_ptr<diff_ss_kernel_t> diff_ss_kernel_;
+    std::unique_ptr<diff_data_kernel_t> diff_data_kernel_;
     std::shared_ptr<primitive_t> reorder_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

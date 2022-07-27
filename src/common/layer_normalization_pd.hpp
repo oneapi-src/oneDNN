@@ -122,6 +122,18 @@ protected:
                 == status::success;
     }
 
+    // Stats and src here are compatible if:
+    // `stat_strides[:] == data_strides[:] / last_data_dimension`
+    // i.e. abcd & abc, bacd & bac - compatible
+    status_t fill_compatible_stats_md(
+            const memory_desc_t &src_md, memory_desc_t &stat_md) {
+        stat_md = src_md;
+        stat_md.data_type = dnnl_f32;
+        stat_md.ndims -= 1;
+        return memory_desc_init_by_blocking_desc(
+                stat_md, src_md.format_desc.blocking);
+    }
+
 private:
     const memory_desc_t &data_desc() const { return desc_.data_desc; }
 };

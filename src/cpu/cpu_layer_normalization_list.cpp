@@ -19,6 +19,11 @@
 #include "cpu/ref_layer_normalization.hpp"
 #include "cpu/simple_layer_normalization.hpp"
 
+#if DNNL_X64
+#include "cpu/x64/jit_uni_layer_normalization.hpp"
+using namespace dnnl::impl::cpu::x64;
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -31,11 +36,13 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_LNORM_P({
         {{forward}, {
+            CPU_INSTANCE_X64(jit_uni_layer_normalization_fwd_t)
             CPU_INSTANCE(simple_layer_normalization_fwd_t)
             CPU_INSTANCE(ref_layer_normalization_fwd_t)
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
+            CPU_INSTANCE_X64(jit_uni_layer_normalization_bwd_t)
             CPU_INSTANCE(simple_layer_normalization_bwd_t)
             CPU_INSTANCE(ref_layer_normalization_bwd_t)
             nullptr,
