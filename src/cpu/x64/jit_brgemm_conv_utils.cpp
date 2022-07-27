@@ -1848,9 +1848,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 && IMPLICATION(with_groups, is_groups_ok(jcp)))
             return status::unimplemented;
 
-        if (jcp.f_pad >= jcp.kd || jcp.t_pad >= jcp.kh || jcp.r_pad >= jcp.kw)
-            return status::unimplemented;
-        if (jcp.dilate_d > 0 || jcp.dilate_h > 0 || jcp.dilate_w > 0)
+        if (jcp.f_pad >= jcp.ext_kd || jcp.t_pad >= jcp.ext_kh
+                || jcp.r_pad >= jcp.ext_kw)
             return status::unimplemented;
     }
 
