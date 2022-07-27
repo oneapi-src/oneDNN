@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,12 +101,12 @@ private:
         dim_t offset;
         if (utils::one_of(jcp.src_tag, format_tag::ncw, format_tag::nchw,
                     format_tag::ncdhw)) {
-            offset = i_ic * jcp.id * jcp.ih * jcp.iw + i_iw;
+            offset = static_cast<dim_t>(i_ic) * jcp.id * jcp.ih * jcp.iw + i_iw;
         } else if (utils::one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc,
                            format_tag::ndhwc)) {
-            offset = i_iw * jcp.ic * jcp.ngroups + i_ic;
+            offset = static_cast<dim_t>(i_iw) * jcp.ic * jcp.ngroups + i_ic;
         } else {
-            offset = i_iw * jcp.ic_block + i_ic;
+            offset = static_cast<dim_t>(i_iw) * jcp.ic_block + i_ic;
         }
         return sizeof(float) * offset;
     }
@@ -115,9 +115,11 @@ private:
         dim_t offset;
         if (utils::one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc,
                     format_tag::ndhwc)) {
-            offset = i_ow * jcp.oc * jcp.ngroups + i_oc_block * jcp.oc_block;
+            offset = static_cast<dim_t>(i_ow) * jcp.oc * jcp.ngroups
+                    + i_oc_block * jcp.oc_block;
         } else {
-            offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
+            offset = static_cast<dim_t>(i_oc_block) * jcp.od * jcp.oh * jcp.ow
+                            * jcp.oc_block
                     + i_ow * jcp.oc_block;
         }
         return sizeof(float) * offset;
@@ -125,10 +127,12 @@ private:
 
     inline dim_t get_kernel_offset(int i_oc_block, int ki, int i_ic) {
         dim_t block_step_size = jcp.ic_block * jcp.oc_block;
-        dim_t ic_block_step_size = jcp.kd * jcp.kh * jcp.kw * block_step_size;
-        dim_t oc_block_step_size = jcp.nb_ic * ic_block_step_size;
-        dim_t offset = i_oc_block * oc_block_step_size + ki * block_step_size
-                + i_ic * jcp.oc_block;
+        dim_t ic_block_step_size = static_cast<dim_t>(jcp.kd) * jcp.kh * jcp.kw
+                * block_step_size;
+        dim_t oc_block_step_size
+                = static_cast<dim_t>(jcp.nb_ic) * ic_block_step_size;
+        dim_t offset = static_cast<dim_t>(i_oc_block) * oc_block_step_size
+                + ki * block_step_size + i_ic * jcp.oc_block;
         return sizeof(float) * offset;
     }
 
@@ -213,10 +217,11 @@ private:
         dim_t offset;
         if (utils::one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc,
                     format_tag::ndhwc)) {
-            offset = i_ow * jcp.oc * jcp.ngroups + i_oc_block * jcp.oc_block
-                    + i_oc;
+            offset = static_cast<dim_t>(i_ow) * jcp.oc * jcp.ngroups
+                    + i_oc_block * jcp.oc_block + i_oc;
         } else {
-            offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
+            offset = static_cast<dim_t>(i_oc_block) * jcp.od * jcp.oh * jcp.ow
+                            * jcp.oc_block
                     + i_ow * jcp.oc_block + i_oc;
         }
         return sizeof(float) * offset;
@@ -226,9 +231,11 @@ private:
         dim_t offset;
         if (utils::one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc,
                     format_tag::ndhwc)) {
-            offset = i_iw * jcp.ic * jcp.ngroups + i_ic_block * jcp.ic_block;
+            offset = static_cast<dim_t>(i_iw) * jcp.ic * jcp.ngroups
+                    + i_ic_block * jcp.ic_block;
         } else {
-            offset = i_ic_block * jcp.id * jcp.ih * jcp.iw * jcp.ic_block
+            offset = static_cast<dim_t>(i_ic_block) * jcp.id * jcp.ih * jcp.iw
+                            * jcp.ic_block
                     + i_iw * jcp.ic_block;
         }
         return sizeof(float) * offset;
@@ -237,9 +244,11 @@ private:
     inline dim_t get_kernel_offset(
             int i_oc_block, int i_ic_block, int ki, int i_oc) {
         dim_t block_step_size = jcp.ic_block * jcp.oc_block;
-        dim_t ic_block_step_size = jcp.kd * jcp.kh * jcp.kw * block_step_size;
-        dim_t oc_block_step_size = jcp.nb_ic * ic_block_step_size;
-        dim_t offset = i_oc_block * oc_block_step_size
+        dim_t ic_block_step_size = static_cast<dim_t>(jcp.kd) * jcp.kh * jcp.kw
+                * block_step_size;
+        dim_t oc_block_step_size
+                = static_cast<dim_t>(jcp.nb_ic) * ic_block_step_size;
+        dim_t offset = static_cast<dim_t>(i_oc_block) * oc_block_step_size
                 + i_ic_block * ic_block_step_size + ki * block_step_size
                 + i_oc * jcp.ic_block;
         return sizeof(float) * offset;
@@ -294,12 +303,12 @@ private:
         dim_t offset;
         if (utils::one_of(jcp.src_tag, format_tag::ncw, format_tag::nchw,
                     format_tag::ncdhw)) {
-            offset = i_ic * jcp.id * jcp.ih * jcp.iw + i_iw;
+            offset = static_cast<dim_t>(i_ic) * jcp.id * jcp.ih * jcp.iw + i_iw;
         } else if (utils::one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc,
                            format_tag::ndhwc)) {
-            offset = i_iw * jcp.ic * jcp.ngroups + i_ic;
+            offset = static_cast<dim_t>(i_iw) * jcp.ic * jcp.ngroups + i_ic;
         } else {
-            offset = i_iw * jcp.ic_block + i_ic;
+            offset = static_cast<dim_t>(i_iw) * jcp.ic_block + i_ic;
         }
         return sizeof(float) * offset;
     }
@@ -308,9 +317,11 @@ private:
         dim_t offset;
         if (utils::one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc,
                     format_tag::ndhwc)) {
-            offset = i_ow * jcp.oc * jcp.ngroups + i_oc_block * jcp.oc_block;
+            offset = static_cast<dim_t>(i_ow) * jcp.oc * jcp.ngroups
+                    + i_oc_block * jcp.oc_block;
         } else {
-            offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
+            offset = static_cast<dim_t>(i_oc_block) * jcp.od * jcp.oh * jcp.ow
+                            * jcp.oc_block
                     + i_ow * jcp.oc_block;
         }
         return sizeof(float) * offset;
@@ -318,7 +329,8 @@ private:
 
     inline dim_t get_kernel_offset(int ki, int i_ic) {
         dim_t block_step_size = jcp.ic_block * jcp.oc_block;
-        dim_t offset = ki * block_step_size + i_ic * jcp.oc_block;
+        dim_t offset = static_cast<dim_t>(ki) * block_step_size
+                + i_ic * jcp.oc_block;
         return sizeof(float) * offset;
     }
     void generate() override;
