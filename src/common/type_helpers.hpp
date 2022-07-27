@@ -797,7 +797,9 @@ inline status_t memory_desc_init_by_blocking_desc(
     for (int _d = ndims - 1; _d >= 0; --_d) {
         const int d = perm[_d];
         md.format_desc.blocking.strides[d] = stride;
-        stride *= md.padded_dims[d] / blocks[d];
+        if (md.padded_dims[d] != 0) { // Keep same stride for zero dim
+            stride *= md.padded_dims[d] / blocks[d];
+        }
     }
 
     md.extra = utils::zero<memory_extra_desc_t>();
