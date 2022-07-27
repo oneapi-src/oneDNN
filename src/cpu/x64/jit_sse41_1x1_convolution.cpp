@@ -98,6 +98,10 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     const int nb_load_blocking_max = jcp.with_dw_conv
             ? jcp.nb_load_blocking
             : jcp.nb_load_blocking_max;
+    const bool is_dst_layout_nxc = utils::one_of(
+            jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+    const bool is_src_layout_nxc = utils::one_of(
+            jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
 
     // Begin: declare Variables needed for dw conv.
     data_t *pbuf {nullptr};
@@ -141,8 +145,6 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const size_t _ocb = g * nb_oc + ocb;
         const size_t _icb = g * nb_ic + icb;
 
-        const bool is_dst_layout_nxc = utils::one_of(jcp.dst_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
         const int oc_off_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * _ocb;
 
         par_conv.output_data = jcp.with_dw_conv
@@ -157,8 +159,6 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         par_conv.reduce_dim = this_block_size(
                 icb * jcp.ic_block, jcp.ic, nb_ic_blocking * jcp.ic_block);
 
-        const bool is_src_layout_nxc = utils::one_of(jcp.src_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
         const int ic_off_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * _icb;
 
         const size_t src_off = data_blk_off(src_d, n, ic_off_idx, ih, iw);
@@ -204,8 +204,8 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
             addrs[i] = pbuf + ((oh_1x1++) % jcp_dw.kh) * row_offset;
 
         const auto ocb_end = ocb_start + load_step;
-        const auto wch_stride
-                = jcp_dw.iw * jcp_dw.nb_ch_blocking * jcp_dw.ch_block;
+        const auto wch_stride = (is_src_layout_nxc ? 1 : jcp_dw.iw)
+                * jcp_dw.nb_ch_blocking * jcp_dw.ch_block;
         const int dil_h = jcp_dw.dilate_h + 1;
         const int str_h = jcp_dw.stride_h;
         const int ch_num = jcp_dw.nb_ch_blocking;
@@ -229,8 +229,12 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
             jit_conv_call_s par_conv_dw;
 
             par_conv_dw.src = addrs.data();
-            par_conv_dw.dst = &dst[dst_d.blk_off(n, ch, dw_oh, ow)];
 
+            const size_t ch_step = is_dst_layout_nxc
+                    ? jcp_dw.ch_block
+                    : dst_d.blk_off(0, 1, 0, 0);
+            par_conv_dw.dst
+                    = &dst[dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
             par_conv_dw.filt
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];
             if (bias)

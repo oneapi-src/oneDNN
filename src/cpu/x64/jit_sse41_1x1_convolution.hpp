@@ -209,8 +209,14 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
 
             jcp_dw.dw_conv_buffer_oc
                     = jcp_1x1.nb_load_blocking * jcp_1x1.oc_block;
-            jcp_1x1.bcast_loop_output_step
-                    = jcp_1x1.ur * jcp_1x1.load_block * jcp_1x1.typesize_out;
+
+            const auto dat_tag_nxc = utils::pick(ndims() - 3, format_tag::nwc,
+                    format_tag::nhwc, format_tag::ndhwc);
+            const bool is_data_nxc = utils::everyone_is(
+                    dat_tag_nxc, jcp_1x1.src_tag, jcp_1x1.dst_tag);
+            if (!is_data_nxc)
+                jcp_1x1.bcast_loop_output_step = jcp_1x1.ur * jcp_1x1.load_block
+                        * jcp_1x1.typesize_out;
 
             registrar_t scratchpad(scratchpad_registry_);
             registrar_t dw_scratchpad(scratchpad, names::prefix_fusion);
