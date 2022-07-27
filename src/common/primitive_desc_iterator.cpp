@@ -21,7 +21,7 @@
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "primitive_desc_iface.hpp"
-#include "primitive_iterator.hpp"
+#include "primitive_desc_iterator.hpp"
 #include "type_helpers.hpp"
 
 using namespace dnnl::impl;

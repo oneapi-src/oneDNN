@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include "common/gemm_types.hpp"
 #include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"
-#include "common/primitive_iterator.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gemm/gpu_gemm_utils.hpp"

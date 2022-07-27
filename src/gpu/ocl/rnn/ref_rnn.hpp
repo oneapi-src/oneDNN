@@ -22,7 +22,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "common/primitive_iterator.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"

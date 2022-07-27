@@ -22,7 +22,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
-#include "common/primitive_iterator.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 

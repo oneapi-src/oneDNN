@@ -19,7 +19,7 @@
 
 #include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"
-#include "common/primitive_iterator.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
 #include "gpu/gpu_primitive.hpp"

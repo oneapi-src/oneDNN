@@ -21,7 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
-#include "common/primitive_iterator.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "common/utils.hpp"
 
 namespace dnnl {

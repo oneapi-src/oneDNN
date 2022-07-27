@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/deconvolution_pd.hpp"
-#include "common/primitive_iterator.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "gpu/nvidia/cudnn_convolution.hpp"
 #include "gpu/nvidia/cudnn_deconvolution_impl.hpp"
 

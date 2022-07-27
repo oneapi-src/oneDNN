@@ -20,8 +20,8 @@
 
 #include "engine.hpp"
 #include "primitive_desc_iface.hpp"
+#include "primitive_desc_iterator.hpp"
 #include "primitive_iface.hpp"
-#include "primitive_iterator.hpp"
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::status;

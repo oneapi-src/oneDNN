@@ -19,7 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
-#include "common/primitive_iterator.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
