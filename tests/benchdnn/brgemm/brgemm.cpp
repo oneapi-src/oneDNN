@@ -202,7 +202,32 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_sum_po(prb->attr, res, prb->dst_dt());
 }
 
-void skip_invalid_prb(const prb_t *prb, res_t *res) {}
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    const bool is_src_zp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
+    const bool is_dst_zp = !prb->attr.zero_points.is_def(DNNL_ARG_DST);
+
+    // Only runtime zero points are supported by this driver
+    const bool is_runtime_src_zp = prb->attr.zero_points.runtime(DNNL_ARG_SRC);
+    const bool is_runtime_dst_zp = prb->attr.zero_points.runtime(DNNL_ARG_DST);
+    const bool is_static_zp = (is_src_zp && !is_runtime_src_zp)
+            || (is_dst_zp && !is_runtime_dst_zp);
+    if (is_static_zp) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
+    // AMX kernel only supports SRC zero points in unrolled kernel,
+    // and only for values of 0 or 1.
+    // Note: this check must be done here due to the fact that zero point value
+    // in brgemm API is a runtime argument.
+    // TODO: remove once AMX kernel fully supports zero points.
+    const bool is_amx = dnnl::mayiuse(dnnl_cpu_isa_avx512_core_amx);
+    const int src_zp_value = prb->attr.zero_points.get(DNNL_ARG_SRC).value;
+    if (is_amx && is_src_zp && src_zp_value != 0 && src_zp_value != 1) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+}
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
@@ -216,6 +241,10 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     skip_start(res);
+    if (res->state == SKIPPED) return OK;
+
+    // Need this here as brgemm has no primitive creation step
+    skip_invalid_prb(prb, res);
     if (res->state == SKIPPED) return OK;
 
     bool use_dst_as_acc = false;
