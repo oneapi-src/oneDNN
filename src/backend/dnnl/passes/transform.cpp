@@ -3235,6 +3235,55 @@ impl::status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
+    while (true) {
+        std::vector<std::pair<impl::op_t *, impl::op_t *>> to_be_swapped;
+        for (auto &op : sg->get_ops()) {
+            bool ok = impl::utils::one_of(op->get_kind(),
+                              op_kind::dnnl_mul_scales, op_kind::dnnl_add_zps)
+                    && op->get_input_value(0)->has_producer();
+            if (!ok) continue;
+
+            ok = op->has_attr(op_attr::qtype)
+                    && op->get_attr<std::string>(op_attr::qtype)
+                            == "per_tensor";
+            if (!ok) continue;
+
+            impl::op_t *producer = op->get_input_op(0);
+            ok = producer->get_kind() == op_kind::dnnl_reshape
+                    || producer->get_kind() == op_kind::dnnl_transpose;
+            if (!ok) continue;
+
+            to_be_swapped.emplace_back(
+                    std::pair<impl::op_t *, impl::op_t *> {producer, op.get()});
+        }
+
+        if (to_be_swapped.empty()) break;
+
+        for (auto &pair : to_be_swapped) {
+            impl::op_t *producer = pair.first;
+            impl::op_t *quant = pair.second;
+
+            auto producer_src = producer->get_input_value(0);
+            auto producer_dst = producer->get_output_value(0);
+
+            producer_src->remove_consumer(*producer, 0);
+            quant->connect_input(0, producer_src);
+
+            auto quant_dst = quant->get_output_value(0);
+            producer->connect_output(0, quant_dst);
+
+            impl::logical_tensor_t new_lt
+                    = impl::empty_logical_tensor_with_default_id();
+            auto new_val = std::make_shared<value_t>(*quant, 0, new_lt, true);
+            new_val->set_data_type(quant_dst->get_logical_tensor().data_type);
+            quant->connect_output(0, new_val);
+            producer->connect_input(0, new_val);
+        }
+    }
+    return infer_shape(sg);
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

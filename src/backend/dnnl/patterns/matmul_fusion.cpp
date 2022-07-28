@@ -824,6 +824,68 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<quantized_matmul>();
         });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_matmul_reshape_transpose_fusion)
+        .set_priority(10.f)
+        .set_kind(impl::partition_kind::quantized_matmul_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op_t *pquant = popt_graph->append_op(
+                            impl::op_kind::Quantize, "pquant");
+                    pquant->append_decision_function(check_if_constant_weight);
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op_t *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
+
+                    pm::pb_op_t *pmatmul
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "matmul");
+
+                    // Optional bias_add
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
+                            impl::op_kind::BiasAdd, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, pmatmul, 0)}, "popt_bias");
+
+                    // reshape
+                    auto preshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape,
+                            in_edges_t {in_edge(0, popt_bias, 0)}, "preshape");
+
+                    // transpose
+                    auto ptranspose = pgraph->append_op(
+                            impl::op_kind::StaticTranspose,
+                            in_edges_t {in_edge(0, preshape, 0)}, "ptranspose");
+
+                    // quant_out
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, ptranspose, 0)},
+                            "pquant_out");
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
+        });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::quantized_mha)

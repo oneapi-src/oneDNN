@@ -197,6 +197,10 @@ impl::status_t remove_quant_data_with_no_effect(
 
 impl::status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg);
 
+// This pass will move per_tensor quantize before Reshape and Transpose. So that
+// it can have the opportunity to be fused into computation operators
+impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
