@@ -62,6 +62,33 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
+    jit_stat_and_data_base_kernel_t(const layer_normalization_pd_t *pd)
+        : stat_and_data_kernel_t(pd)
+        , jit_generator(jit_name())
+        , src_d_(pd_->src_md())
+        , dst_d_(pd_->dst_md()) {
+        simd_w_ = vlen / sizeof(float);
+        C_ = pd_->norm_axis();
+        axis_simd_full_ = C_ / simd_w_;
+        axis_simd_tail_ = C_ % simd_w_;
+        eps_ = pd_->desc()->layer_norm_epsilon;
+        calculate_stats_ = !pd_->stats_are_src();
+        use_scaleshift_ = pd_->use_scaleshift();
+        use_scale_ = pd_->use_scale();
+        use_shift_ = pd_->use_shift();
+        save_stats_ = pd_->is_training();
+
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
+                tail_opmask_idx, vmm_tail_mask.getIdx(), reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx,
+                bf16_emu_zmm_2_idx, bf16_emu_zmm_3_idx, reg_tmp,
+                bf16_emu_zmm_4_idx);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, isa,
+                {src_d_.data_type(), dst_d_.data_type(), f32 /* stats */},
+                io_conf, io_tail_conf, io_bf16_conf);
+    }
+
 protected:
     static constexpr int unroll_factor_ = 4;
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
@@ -116,22 +143,11 @@ protected:
     Vmm vmm_tmp = Vmm(15);
     Xmm xmm_tmp = Xmm(15);
 
-    jit_stat_and_data_base_kernel_t(const layer_normalization_pd_t *pd)
-        : stat_and_data_kernel_t(pd)
-        , jit_generator(jit_name())
-        , src_d_(pd_->src_md())
-        , dst_d_(pd_->dst_md()) {
-        simd_w_ = vlen / sizeof(float);
-        C_ = pd_->norm_axis();
-        axis_simd_full_ = C_ / simd_w_;
-        axis_simd_tail_ = C_ % simd_w_;
-        eps_ = pd_->desc()->layer_norm_epsilon;
-        calculate_stats_ = !pd_->stats_are_src();
-        use_scaleshift_ = pd_->use_scaleshift();
-        use_scale_ = pd_->use_scale();
-        use_shift_ = pd_->use_shift();
-        save_stats_ = pd_->is_training();
-    }
+    const int bf16_emu_zmm_1_idx = 28;
+    const int bf16_emu_zmm_2_idx = 29;
+    const int bf16_emu_zmm_3_idx = 30;
+    const int bf16_emu_zmm_4_idx = 31;
+    const int tail_opmask_idx = 1;
 
     Address src_ptr(size_t offt = 0) {
         return vmmword[reg_src + offt * src_d_.data_type_size()];
@@ -319,20 +335,9 @@ struct jit_stat_and_data_kernel_t;
 
 template <>
 struct jit_stat_and_data_kernel_t<avx512_core>
-    : jit_stat_and_data_base_kernel_t<avx512_core> {
+    : public jit_stat_and_data_base_kernel_t<avx512_core> {
 
-    jit_stat_and_data_kernel_t(const layer_normalization_pd_t *pd)
-        : jit_stat_and_data_base_kernel_t(pd) {
-        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {
-                src_d_.data_type(), dst_d_.data_type(), f32 /* stats */};
-        io::io_conf_t io_conf;
-        io::io_tail_conf_t io_tail_conf(
-                simd_w_, axis_simd_tail_, tail_opmask, INT_MAX, reg_tmp);
-        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1, bf16_emu_zmm_2,
-                bf16_emu_zmm_3, bf16_emu_gpr, bf16_emu_zmm_4);
-        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
-                this, avx512_core, dts, io_conf, io_tail_conf, io_bf16_conf);
-    }
+    using jit_stat_and_data_base_kernel_t::jit_stat_and_data_base_kernel_t;
 
     void compute_var() override {
         compute(vmm_inv_sqrtvar, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
@@ -340,7 +345,8 @@ struct jit_stat_and_data_kernel_t<avx512_core>
             if (!need_tail)
                 uni_vsubps(vmm_src, vmm_src, vmm_mean);
             else
-                uni_vsubps(vmm_src | tail_opmask | T_z, vmm_src, vmm_mean);
+                uni_vsubps(vmm_src | Opmask(tail_opmask_idx) | T_z, vmm_src,
+                        vmm_mean);
             uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
         });
         if (save_stats_)
@@ -357,29 +363,13 @@ struct jit_stat_and_data_kernel_t<avx512_core>
         vshufps(vmm_tmp, vmm_src, vmm_src, 0xB1); // 32/64-bit shuffle
         vaddps(vmm_src, vmm_src, vmm_tmp);
     }
-
-    const Zmm bf16_emu_zmm_1 = Zmm(28);
-    const Zmm bf16_emu_zmm_2 = Zmm(29);
-    const Zmm bf16_emu_zmm_3 = Zmm(30);
-    const Zmm bf16_emu_zmm_4 = Zmm(31);
-    const Reg64 bf16_emu_gpr = reg_tmp;
-    Opmask tail_opmask = Opmask(1);
 };
 
 template <>
 struct jit_stat_and_data_kernel_t<avx2>
     : jit_stat_and_data_base_kernel_t<avx2> {
 
-    jit_stat_and_data_kernel_t(const layer_normalization_pd_t *pd)
-        : jit_stat_and_data_base_kernel_t(pd) {
-        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {
-                src_d_.data_type(), dst_d_.data_type(), f32 /* stats */};
-        io::io_conf_t io_conf;
-        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_, Opmask(),
-                vmm_tail_mask.getIdx(), reg_tmp);
-        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
-                this, avx2, dts, io_conf, io_tail_conf);
-    }
+    using jit_stat_and_data_base_kernel_t::jit_stat_and_data_base_kernel_t;
 
     void compute_var() override {
         compute(vmm_inv_sqrtvar, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
@@ -408,19 +398,54 @@ struct jit_stat_and_data_kernel_t<avx2>
     }
 };
 
+template <>
+struct jit_stat_and_data_kernel_t<sse41>
+    : jit_stat_and_data_base_kernel_t<sse41> {
+
+    using jit_stat_and_data_base_kernel_t::jit_stat_and_data_base_kernel_t;
+
+    void compute_var() override {
+        compute(vmm_inv_sqrtvar, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
+            // Need to preserve zeros after subtract for correct answer.
+            if (!need_tail)
+                uni_vsubps(vmm_src, vmm_src, vmm_mean);
+            else {
+                // We need to call tail version once, it's fine to use `vmm_tmp`
+                uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
+                uni_vblendvps(vmm_tmp, vmm_tmp, vmm_mean, vmm_tail_mask);
+                uni_vsubps(vmm_src, vmm_src, vmm_mean);
+            }
+            uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
+        });
+        if (save_stats_)
+            uni_vmovss(ptr[reg_var], Xmm(vmm_inv_sqrtvar.getIdx()));
+    }
+
+    void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
+        uni_vmovups(vmm_tmp, vmm_src);
+        shufps(vmm_tmp, vmm_tmp, 0x4E); // 64/128-bit shuffle
+        uni_vaddps(vmm_src, vmm_src, vmm_tmp);
+        uni_vmovups(vmm_tmp, vmm_src);
+        shufps(vmm_tmp, vmm_tmp, 0xB1); // 32/64-bit shuffle
+        uni_vaddps(vmm_src, vmm_src, vmm_tmp);
+    }
+};
+
 stat_and_data_kernel_t *stat_and_data_kernel_t::create(
         const layer_normalization_pd_t *pd) {
     if (mayiuse(avx512_core)) {
         return new jit_stat_and_data_kernel_t<avx512_core>(pd);
     } else if (mayiuse(avx2)) {
         return new jit_stat_and_data_kernel_t<avx2>(pd);
+    } else if (mayiuse(sse41)) {
+        return new jit_stat_and_data_kernel_t<sse41>(pd);
     } else {
         return nullptr;
     }
 }
 
 template <cpu_isa_t isa>
-struct jit_diff_ss_base_kernel_t : diff_ss_kernel_t, public jit_generator {
+struct jit_diff_ss_kernel_t : diff_ss_kernel_t, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_lnorm_diff_ss_kernel_t);
 
     void operator()(const void *src, const void *diff_dst, float *diff_scale,
@@ -449,6 +474,28 @@ struct jit_diff_ss_base_kernel_t : diff_ss_kernel_t, public jit_generator {
     }
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    jit_diff_ss_kernel_t(const layer_normalization_pd_t *pd)
+        : diff_ss_kernel_t(pd)
+        , jit_generator(jit_name())
+        , src_d_(pd_->src_md())
+        , d_dst_d_(pd_->diff_dst_md()) {
+        simd_w_ = vlen / sizeof(float);
+        C_ = pd_->norm_axis();
+        axis_simd_full_ = C_ / simd_w_;
+        axis_simd_tail_ = C_ % simd_w_;
+        eps_ = pd_->desc()->layer_norm_epsilon;
+
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
+                tail_opmask_idx, vmm_tail_mask.getIdx(), reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx,
+                bf16_emu_zmm_2_idx, bf16_emu_zmm_3_idx, reg_tmp,
+                bf16_emu_zmm_4_idx);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, isa,
+                {src_d_.data_type(), d_dst_d_.data_type(), f32 /* stats */},
+                io_conf, io_tail_conf, io_bf16_conf);
+    }
 
 protected:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
@@ -493,17 +540,11 @@ protected:
     Vmm vmm_src = Vmm(14);
     Vmm vmm_mean = Vmm(15);
 
-    jit_diff_ss_base_kernel_t(const layer_normalization_pd_t *pd)
-        : diff_ss_kernel_t(pd)
-        , jit_generator(jit_name())
-        , src_d_(pd_->src_md())
-        , d_dst_d_(pd_->diff_dst_md()) {
-        simd_w_ = vlen / sizeof(float);
-        C_ = pd_->norm_axis();
-        axis_simd_full_ = C_ / simd_w_;
-        axis_simd_tail_ = C_ % simd_w_;
-        eps_ = pd_->desc()->layer_norm_epsilon;
-    }
+    const int bf16_emu_zmm_1_idx = 28;
+    const int bf16_emu_zmm_2_idx = 29;
+    const int bf16_emu_zmm_3_idx = 30;
+    const int bf16_emu_zmm_4_idx = 31;
+    const int tail_opmask_idx = 1;
 
     Address src_ptr(size_t offt = 0) {
         return vmmword[reg_src + offt * src_d_.data_type_size()];
@@ -589,49 +630,6 @@ protected:
     }
 };
 
-template <cpu_isa_t isa>
-struct jit_diff_ss_kernel_t;
-
-template <>
-struct jit_diff_ss_kernel_t<avx512_core>
-    : jit_diff_ss_base_kernel_t<avx512_core> {
-
-    jit_diff_ss_kernel_t(const layer_normalization_pd_t *pd)
-        : jit_diff_ss_base_kernel_t(pd) {
-        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {
-                src_d_.data_type(), d_dst_d_.data_type(), f32 /* stats */};
-        io::io_conf_t io_conf;
-        io::io_tail_conf_t io_tail_conf(
-                simd_w_, axis_simd_tail_, tail_opmask, INT_MAX, reg_tmp);
-        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1, bf16_emu_zmm_2,
-                bf16_emu_zmm_3, bf16_emu_gpr, bf16_emu_zmm_4);
-        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
-                this, avx512_core, dts, io_conf, io_tail_conf, io_bf16_conf);
-    }
-
-    const Zmm bf16_emu_zmm_1 = Zmm(28);
-    const Zmm bf16_emu_zmm_2 = Zmm(29);
-    const Zmm bf16_emu_zmm_3 = Zmm(30);
-    const Zmm bf16_emu_zmm_4 = Zmm(31);
-    const Reg64 bf16_emu_gpr = reg_tmp;
-    Opmask tail_opmask = Opmask(1);
-};
-
-template <>
-struct jit_diff_ss_kernel_t<avx2> : jit_diff_ss_base_kernel_t<avx2> {
-
-    jit_diff_ss_kernel_t(const layer_normalization_pd_t *pd)
-        : jit_diff_ss_base_kernel_t(pd) {
-        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {
-                src_d_.data_type(), d_dst_d_.data_type(), f32 /* stats */};
-        io::io_conf_t io_conf;
-        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_, Opmask(),
-                vmm_tail_mask.getIdx(), reg_tmp);
-        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
-                this, avx2, dts, io_conf, io_tail_conf);
-    }
-};
-
 diff_ss_kernel_t *diff_ss_kernel_t::create(const layer_normalization_pd_t *pd) {
     if (mayiuse(avx512_core)) {
         return new jit_diff_ss_kernel_t<avx512_core>(pd);
@@ -662,6 +660,33 @@ struct jit_diff_data_base_kernel_t : diff_data_kernel_t, public jit_generator {
     }
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    jit_diff_data_base_kernel_t(const layer_normalization_pd_t *pd)
+        : diff_data_kernel_t(pd)
+        , jit_generator(jit_name())
+        , src_d_(pd_->src_md())
+        , d_dst_d_(pd_->diff_dst_md())
+        , d_src_d_(pd_->diff_src_md()) {
+        simd_w_ = vlen / sizeof(float);
+        C_ = pd_->norm_axis();
+        axis_simd_full_ = C_ / simd_w_;
+        axis_simd_tail_ = C_ % simd_w_;
+        calculate_diff_stats_ = !pd_->stats_are_src();
+        use_scaleshift_ = pd_->use_scaleshift();
+        use_scale_ = pd_->use_scale();
+        use_shift_ = pd_->use_shift();
+
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
+                tail_opmask_idx, vmm_tail_mask.getIdx(), reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx,
+                bf16_emu_zmm_2_idx, bf16_emu_zmm_3_idx, reg_tmp,
+                bf16_emu_zmm_4_idx);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, isa,
+                {src_d_.data_type(), d_dst_d_.data_type(), d_src_d_.data_type(),
+                        f32 /* stats */},
+                io_conf, io_tail_conf, io_bf16_conf);
+    }
 
 protected:
     static constexpr int unroll_factor_ = 4;
@@ -715,21 +740,11 @@ protected:
     Vmm vmm_src = Vmm(14);
     Vmm vmm_mean = Vmm(15);
 
-    jit_diff_data_base_kernel_t(const layer_normalization_pd_t *pd)
-        : diff_data_kernel_t(pd)
-        , jit_generator(jit_name())
-        , src_d_(pd_->src_md())
-        , d_dst_d_(pd_->diff_dst_md())
-        , d_src_d_(pd_->diff_src_md()) {
-        simd_w_ = vlen / sizeof(float);
-        C_ = pd_->norm_axis();
-        axis_simd_full_ = C_ / simd_w_;
-        axis_simd_tail_ = C_ % simd_w_;
-        calculate_diff_stats_ = !pd_->stats_are_src();
-        use_scaleshift_ = pd_->use_scaleshift();
-        use_scale_ = pd_->use_scale();
-        use_shift_ = pd_->use_shift();
-    }
+    const int bf16_emu_zmm_1_idx = 28;
+    const int bf16_emu_zmm_2_idx = 29;
+    const int bf16_emu_zmm_3_idx = 30;
+    const int bf16_emu_zmm_4_idx = 31;
+    const int tail_opmask_idx = 1;
 
     Address src_ptr(size_t offt = 0) {
         return vmmword[reg_src + offt * src_d_.data_type_size()];
@@ -864,20 +879,9 @@ struct jit_diff_data_kernel_t;
 
 template <>
 struct jit_diff_data_kernel_t<avx512_core>
-    : jit_diff_data_base_kernel_t<avx512_core> {
+    : public jit_diff_data_base_kernel_t<avx512_core> {
 
-    jit_diff_data_kernel_t(const layer_normalization_pd_t *pd)
-        : jit_diff_data_base_kernel_t(pd) {
-        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {src_d_.data_type(),
-                d_dst_d_.data_type(), d_src_d_.data_type(), f32 /* stats */};
-        io::io_conf_t io_conf;
-        io::io_tail_conf_t io_tail_conf(
-                simd_w_, axis_simd_tail_, tail_opmask, INT_MAX, reg_tmp);
-        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1, bf16_emu_zmm_2,
-                bf16_emu_zmm_3, bf16_emu_gpr, bf16_emu_zmm_4);
-        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
-                this, avx512_core, dts, io_conf, io_tail_conf, io_bf16_conf);
-    }
+    using jit_diff_data_base_kernel_t::jit_diff_data_base_kernel_t;
 
     void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
         vshuff32x4(vmm_tmp, vmm_src, vmm_src, 0x4E); // 256-bit shuffle
@@ -889,28 +893,12 @@ struct jit_diff_data_kernel_t<avx512_core>
         vshufps(vmm_tmp, vmm_src, vmm_src, 0xB1); // 32/64-bit shuffle
         vaddps(vmm_src, vmm_src, vmm_tmp);
     }
-
-    const Zmm bf16_emu_zmm_1 = Zmm(28);
-    const Zmm bf16_emu_zmm_2 = Zmm(29);
-    const Zmm bf16_emu_zmm_3 = Zmm(30);
-    const Zmm bf16_emu_zmm_4 = Zmm(31);
-    const Reg64 bf16_emu_gpr = reg_tmp;
-    Opmask tail_opmask = Opmask(1);
 };
 
 template <>
-struct jit_diff_data_kernel_t<avx2> : jit_diff_data_base_kernel_t<avx2> {
+struct jit_diff_data_kernel_t<avx2> : public jit_diff_data_base_kernel_t<avx2> {
 
-    jit_diff_data_kernel_t(const layer_normalization_pd_t *pd)
-        : jit_diff_data_base_kernel_t(pd) {
-        io::jit_io_multi_dt_helper_t<Vmm>::data_types_t dts {src_d_.data_type(),
-                d_dst_d_.data_type(), d_src_d_.data_type(), f32 /* stats */};
-        io::io_conf_t io_conf;
-        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_, Opmask(),
-                vmm_tail_mask.getIdx(), reg_tmp);
-        io_ = io::jit_io_multi_dt_helper_t<Vmm>(
-                this, avx2, dts, io_conf, io_tail_conf);
-    }
+    using jit_diff_data_base_kernel_t::jit_diff_data_base_kernel_t;
 
     void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
         vperm2f128(vmm_tmp, vmm_src, vmm_src, 0x1); // 128/256-bit shuffle

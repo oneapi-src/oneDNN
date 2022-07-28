@@ -97,7 +97,6 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
             const memory_desc_wrapper src_d(src_md());
 
             const bool ok = is_fwd() && !has_zero_dim_memory()
-                    && mayiuse(avx2) // sse41 is not supported yet
                     && utils::one_of(src_md()->data_type, f32, bf16)
                     && utils::one_of(dst_md()->data_type, f32, bf16)
                     && platform::has_data_type_support(src_md()->data_type)
