@@ -6417,7 +6417,8 @@ public:
 
         auto c_buf = load_mul_builder.c_buf();
         int c_size = load_mul_builder.c_reg_layout().size();
-        register_out_buffer(c_buf, c_size, alloc_kind_t::grf);
+        int c_size_grf_rounded = utils::rnd_up(c_size, cfg_.hw_cfg.grf_size());
+        register_out_buffer(c_buf, c_size_grf_rounded, alloc_kind_t::grf);
 
         auto c_thr_reg_layout = load_mul_builder.c_reg_layout();
         auto thr_tile = gemm_schedule_.c_thr_tile(/*is_relative=*/false);
