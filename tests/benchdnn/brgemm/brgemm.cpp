@@ -298,11 +298,16 @@ int doit(const prb_t *prb, res_t *res) {
     // TODO: re-consider enabling isa values.
     const auto isa_any = cpu_isa_t::isa_any;
 
+    // Create BRGeMM descriptor, analogous to primitive descriptor creation
     const auto status_init = brgemm_desc_init(&brgemm_desc, isa_any, batch_kind,
             prb->src_dt(), prb->wei_dt(), false /* transA */,
             false /* transB */, layout, prb->alpha, prb->beta, prb->get_lda(),
             prb->get_ldb(), prb->get_ldc(use_dst_as_acc), prb->m, prb->n,
             prb->k, nullptr /* strides */);
+    check_dnnl_status(status_init, prb, res);
+    if (res->state == SKIPPED) return OK;
+    // Unconditionally skip remaining unimplemented cases.
+    // TODO: remove this and add a SAFE check above.
     if (status_init != dnnl_success)
         return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
 
@@ -311,14 +316,20 @@ int doit(const prb_t *prb, res_t *res) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    DNN_SAFE(brgemm_desc_set_postops(&brgemm_desc, dnnl_attr, &dst_md,
-                     prb->get_ldd(), prb->bia_dt),
+    SAFE(check_dnnl_status(brgemm_desc_set_postops(&brgemm_desc, dnnl_attr,
+                                   &dst_md, prb->get_ldd(), prb->bia_dt),
+                 prb, res),
             WARN);
+    if (res->state == SKIPPED) return OK;
 
     brgemm_attr_t brgemm_attr;
     DNN_SAFE(brgemm_attr_init(&brgemm_attr, prb), WARN);
-    DNN_SAFE(brgemm_desc_set_attr(&brgemm_desc, brgemm_attr), WARN);
+    SAFE(check_dnnl_status(
+                 brgemm_desc_set_attr(&brgemm_desc, brgemm_attr), prb, res),
+            WARN);
+    if (res->state == SKIPPED) return OK;
 
+    // Create BRGeMM kernel, analogous to primitive creation
     brgemm_kernel_t *brgemm_kernel_;
     DNN_SAFE(brgemm_kernel_create(&brgemm_kernel_, brgemm_desc), WARN);
     auto brgemm_kernel = make_benchdnn_dnnl_wrapper(brgemm_kernel_);
