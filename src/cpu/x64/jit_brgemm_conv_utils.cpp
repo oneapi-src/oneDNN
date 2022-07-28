@@ -2434,7 +2434,7 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
     // empiric balancing for some shapes
     bool neat_1x1 = (jcp.id == 1 && jcp.kh == 1 && jcp.kw == 1
             && jcp.ngroups == 1 && jcp.stride_h == 1);
-    if (neat_1x1 && jcp.nthr >= 56) {
+    if (neat_1x1 && jcp.nthr >= 56 && jcp.mb >= jcp.nthr) {
         const bool more_oc = (jcp.ic < jcp.oc);
         if (jcp.ih * jcp.iw >= 56 * 56 && jcp.ic >= 64 && jcp.oc >= 64) {
             nthr_mb = 56;
