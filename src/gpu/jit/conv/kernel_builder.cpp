@@ -7073,6 +7073,18 @@ void kernel_builder_t::build() {
     trace_perf();
 }
 
+template <typename T>
+bool try_update_blocks(std::vector<int> &blocks,
+        const std::vector<T> &_new_blocks, int max_elems) {
+    std::vector<int> new_blocks(blocks.size());
+    for (int i = 0; i < (int)blocks.size(); i++) {
+        new_blocks[i] = std::max(blocks[i], (int)_new_blocks[i]);
+    }
+    if (utils::array_product(new_blocks) > max_elems) return false;
+    blocks = new_blocks;
+    return true;
+}
+
 void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
         const layout_t &dst, std::vector<int> &iter_blocks,
         std::vector<int> &loop_blocks, std::vector<int> &tg_blocks,
@@ -7115,17 +7127,6 @@ void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
 
     std::vector<int> thr_blocks(ndims, 1);
     iter_blocks.resize(ndims, 1);
-    auto try_update_blocks
-            = [&](const tensor_t &t, std::vector<int> &blocks, int max_elems) {
-                  auto new_blocks = blocks;
-                  for (int i = 0; i < ndims; i++) {
-                      new_blocks[i] = std::max(new_blocks[i], (int)t(i));
-                  }
-                  if (utils::array_product(new_blocks) > max_elems)
-                      return false;
-                  blocks = new_blocks;
-                  return true;
-              };
 
     // Incrementally increase the tile. In the end:
     //   S = src.map(tile) -> [src_outer]*[src_inner]
@@ -7153,8 +7154,10 @@ void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
         int max_step = (int)std::sqrt(
                 max_thr_tile_elems / utils::array_product(thr_blocks));
         it.next(max_step);
-        try_update_blocks(it.tile(), iter_blocks, max_iter_tile_elems);
-        if (!try_update_blocks(it.tile(), thr_blocks, max_thr_tile_elems)) {
+        if (try_update_blocks(
+                    thr_blocks, it.tile().dims(), max_thr_tile_elems)) {
+            try_update_blocks(iter_blocks, thr_blocks, max_iter_tile_elems);
+        } else {
             it = prev_it;
             stop = true;
         }
