@@ -420,6 +420,28 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 
     const pd_t *pd() const { return self->pd(); }
 
+    inline int get_inp_start(int out_s, int pad, int str) const {
+        return nstl::max(0, -pad + out_s * str);
+    }
+
+    inline int get_inp_end(int out_e, int is, int pad, int str, int ek) const {
+        return nstl::min(is, -pad + (out_e - 1) * str + ek);
+    }
+
+    inline int get_id_start(int od_s) const {
+        return get_inp_start(od_s, jcp.f_pad, jcp.stride_d);
+    }
+    inline int get_ih_start(int oh_s) const {
+        return get_inp_start(oh_s, jcp.t_pad, jcp.stride_h);
+    }
+
+    inline int get_id_end(int od_e) const {
+        return get_inp_end(od_e, jcp.id, jcp.f_pad, jcp.stride_d, jcp.ext_kd);
+    }
+    inline int get_ih_end(int oh_e) const {
+        return get_inp_end(oh_e, jcp.ih, jcp.t_pad, jcp.stride_h, jcp.ext_kh);
+    }
+
     size_t tr_src_buf_number(int g, int icb) const {
         return jcp.global_transpose
                 ? ithr_mb * jcp.nb_ic * jcp.ngroups + g * jcp.nb_ic + icb
@@ -544,16 +566,14 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
             barrier(&tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
 
         if (icb_work > 0) {
-            const auto id_s = nstl::max(0, -jcp.f_pad + od_s * jcp.stride_d);
-            const auto ih_s = nstl::max(0, -jcp.t_pad + oh_s * jcp.stride_h);
+            const auto id_s = get_id_start(od_s);
+            const auto ih_s = get_ih_start(oh_s);
 
-            const auto idb_s = nstl::max(0, -jcp.f_pad + odb_s * jcp.stride_d);
-            const auto idb_e = nstl::min(jcp.id,
-                    -jcp.f_pad + (odb_e - 1) * jcp.stride_d + jcp.ext_kd);
+            const auto idb_s = get_id_start(odb_s);
+            const auto idb_e = get_id_end(odb_e);
 
-            const auto ihb_s = nstl::max(0, -jcp.t_pad + ohb_s * jcp.stride_h);
-            const auto ihb_e = nstl::min(jcp.ih,
-                    -jcp.t_pad + (ohb_e - 1) * jcp.stride_h + jcp.ext_kh);
+            const auto ihb_s = get_ih_start(ohb_s);
+            const auto ihb_e = get_ih_end(ohb_e);
 
             int work_amount
                     = g_work * icb_work * (idb_e - idb_s) * (ihb_e - ihb_s);
@@ -648,16 +668,14 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
             int ic_b, int oc_b, int od_s, int odb_s, int odb_e, int oh_s,
             int ohb_s, int ohb_e) const {
 
-        const int idb_s = nstl::max(0, -jcp.f_pad + odb_s * jcp.stride_d);
-        const int ihb_s = nstl::max(0, -jcp.t_pad + ohb_s * jcp.stride_h);
+        const int idb_s = get_id_start(odb_s);
+        const int ihb_s = get_ih_start(ohb_s);
 
-        const int idb_e = nstl::min(
-                jcp.id, -jcp.f_pad + (odb_e - 1) * jcp.stride_d + jcp.ext_kd);
-        const int ihb_e = nstl::min(
-                jcp.ih, -jcp.t_pad + (ohb_e - 1) * jcp.stride_h + jcp.ext_kh);
+        const int idb_e = get_id_end(odb_e);
+        const int ihb_e = get_ih_end(ohb_e);
 
-        const int id_s = nstl::max(0, -jcp.f_pad + od_s * jcp.stride_d);
-        const int ih_s = nstl::max(0, -jcp.t_pad + oh_s * jcp.stride_h);
+        const int id_s = get_id_start(od_s);
+        const int ih_s = get_ih_start(oh_s);
 
         if (jcp.global_transpose) {
             p_src = &tr_src[tr_src_off(g, ic_b, 0, 0)];
@@ -815,13 +833,13 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
                                   int bs_ih_s, const void *p_src,
                                   const void *p_dst, int kh, int kw,
                                   bool do_init) {
-        const int ihb_s = nstl::max(0, -jcp.t_pad + ohb_s * jcp.stride_h);
+        const int ihb_s = ti->get_ih_start(ohb_s);
 
         const int bs_oh_s = utils::saturate(0, jcp.oh,
                 (bs_ih_s + jcp.t_pad - kh * (jcp.dilate_h + 1)) / jcp.stride_h);
 
-        auto ocb_end = nstl::min(oc_b + jcp.nb_oc_blocking, ti->oc_b_end);
-        auto icb_end = nstl::min(ic_b + jcp.nb_ic_blocking, ti->ic_b_end);
+        auto ocb_end = get_end(oc_b, jcp.nb_oc_blocking, ti->oc_b_end);
+        auto icb_end = get_end(ic_b, jcp.nb_ic_blocking, ti->ic_b_end);
         const int src_stride_w_shift = jcp.tr_iw / jcp.stride_w;
         const void *ptr_A = ((src_data_t *)p_src)
                 + _pd->filter_w_to_src(kw) / jcp.stride_w
@@ -859,13 +877,13 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
 
     while (start < end) {
         const int oh_e = _pd->get_finish_oh(
-                oh_s, start, nstl::min(end, start + jcp.oh_block));
+                oh_s, start, get_end(start, jcp.oh_block, end));
         int height_block = jcp.global_transpose ? oh_e - oh_s : optimal_spblock;
 
         // loop by ohb_s have only one iteration for global_transpose case
         // because height_block = oh_e - oh_s
         for (int ohb_s = oh_s; ohb_s < oh_e; ohb_s += height_block) {
-            const int ohb_e = nstl::min(ohb_s + height_block, oh_e);
+            const int ohb_e = get_end(ohb_s, height_block, oh_e);
             assert(ohb_e <= jcp.oh);
 
             ti->maybe_global_transpose(img,
@@ -879,7 +897,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
             for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end;
                     oc_b += jcp.nb_oc_blocking) {
                 const int oc_b_e
-                        = nstl::min(oc_b + jcp.nb_oc_blocking, ti->oc_b_end);
+                        = get_end(oc_b, jcp.nb_oc_blocking, ti->oc_b_end);
 
                 if (jcp.tr_ocb_chunk)
                     ti->maybe_global_transpose(img, oc_b, oc_b_e, 0, 0, 0, 0, 1,
@@ -888,8 +906,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
                 for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
                         ic_b += jcp.nb_ic_blocking) {
 
-                    const int ic_b_e = nstl::min(
-                            ic_b + jcp.nb_ic_blocking, ti->ic_b_end);
+                    const int ic_b_e
+                            = get_end(ic_b, jcp.nb_ic_blocking, ti->ic_b_end);
 
                     if (oc_b == ti->oc_b_start && jcp.tr_icb_chunk)
                         ti->maybe_global_transpose(img, 0, 0, ic_b, ic_b_e, 0,
@@ -942,8 +960,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
             }
         }
 
-        nd_iterator_jump(start, nstl::min(end, start + jcp.oh_block), img,
-                jcp.mb, oh_s, jcp.oh);
+        nd_iterator_jump(start, get_end(start, jcp.oh_block, end), img, jcp.mb,
+                oh_s, jcp.oh);
     }
 }
 
@@ -989,8 +1007,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
                                   int od_s, int oh_s, int bs_id_s, int bs_ih_s,
                                   const void *p_src, const void *p_dst, int kd,
                                   int kh, int kw, bool do_init) {
-        const int id_s = nstl::max(0, -jcp.f_pad + od_s * jcp.stride_d);
-        const int ih_s = nstl::max(0, -jcp.t_pad + oh_s * jcp.stride_h);
+        const int id_s = ti->get_id_start(od_s);
+        const int ih_s = ti->get_ih_start(oh_s);
 
         const int bs_od_s = utils::saturate(0, jcp.od,
                 (bs_id_s + jcp.f_pad - kd * (jcp.dilate_d + 1)) / jcp.stride_d);
@@ -998,8 +1016,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
         const int bs_oh_s = utils::saturate(0, jcp.oh,
                 (bs_ih_s + jcp.t_pad - kh * (jcp.dilate_h + 1)) / jcp.stride_h);
 
-        auto ocb_end = nstl::min(oc_b + jcp.nb_oc_blocking, ti->oc_b_end);
-        auto icb_end = nstl::min(ic_b + jcp.nb_ic_blocking, ti->ic_b_end);
+        auto ocb_end = get_end(oc_b, jcp.nb_oc_blocking, ti->oc_b_end);
+        auto icb_end = get_end(ic_b, jcp.nb_ic_blocking, ti->ic_b_end);
         const int src_stride_w_shift = jcp.tr_iw / jcp.stride_w;
         const void *ptr_A = ((src_data_t *)p_src)
                 + _pd->filter_w_to_src(kw) / jcp.stride_w
@@ -1046,17 +1064,17 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
 
     while (start < end) {
         const int od_e = _pd->get_finish_od(
-                od_s, start, nstl::min(end, start + jcp.od_block));
+                od_s, start, get_end(start, jcp.od_block, end));
         int sp_block = jcp.global_transpose ? od_e - od_s : optimal_spblock;
 
         // loop by odb_s have only one iteration for global_transpose case
         // because sp_block = od_e - od_s
         for (int odb_s = od_s; odb_s < od_e; odb_s += sp_block) {
-            const int odb_e = nstl::min(odb_s + sp_block, od_e);
+            const int odb_e = get_end(odb_s, sp_block, od_e);
             assert(odb_e <= jcp.od);
 
             for (int ohb_s = oh_s; ohb_s < oh_e; ohb_s += jcp.oh_block) {
-                const auto ohb_e = nstl::min(jcp.oh, ohb_s + jcp.oh_block);
+                const auto ohb_e = get_end(ohb_s, jcp.oh_block, jcp.oh);
 
                 ti->maybe_global_transpose(img,
                         jcp.tr_ocb_chunk ? 0 : ti->oc_b_start,
@@ -1068,8 +1086,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
                 for_(int g = ti->g_start; g < ti->g_end; ++g)
                 for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end;
                         oc_b += jcp.nb_oc_blocking) {
-                    const int oc_b_e = nstl::min(
-                            oc_b + jcp.nb_oc_blocking, ti->oc_b_end);
+                    const int oc_b_e
+                            = get_end(oc_b, jcp.nb_oc_blocking, ti->oc_b_end);
                     if (jcp.tr_ocb_chunk)
                         ti->maybe_global_transpose(img, oc_b, oc_b_e, 0, 0,
                                 od_s, odb_s, odb_e, oh_s, ohb_s, ohb_e);
@@ -1077,8 +1095,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
                     for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
                             ic_b += jcp.nb_ic_blocking) {
 
-                        const int ic_b_e = nstl::min(
-                                ic_b + jcp.nb_ic_blocking, ti->ic_b_end);
+                        const int ic_b_e = get_end(
+                                ic_b, jcp.nb_ic_blocking, ti->ic_b_end);
 
                         if (oc_b == ti->oc_b_start && jcp.tr_icb_chunk)
                             ti->maybe_global_transpose(img, 0, 0, ic_b, ic_b_e,
@@ -1156,8 +1174,8 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
             }
         }
 
-        nd_iterator_jump(start, nstl::min(end, start + jcp.od_block), img,
-                jcp.mb, od_s, jcp.od);
+        nd_iterator_jump(start, get_end(start, jcp.od_block, end), img, jcp.mb,
+                od_s, jcp.od);
     }
 }
 

@@ -220,6 +220,10 @@ private:
                 * jcp.kw * jcp.ic_block * jcp.oc_block * 2
                 + extra_offset;
     }
+
+    inline int get_end(int start, int step, int limit) const {
+        return nstl::min(start + step, limit);
+    }
 };
 
 } // namespace x64
