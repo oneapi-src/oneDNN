@@ -29,7 +29,7 @@ namespace jit {
 inline int block_2d_base_alignment(const hw_config_t &hw_cfg) {
     ir_assert(hw_cfg.hw() >= ngen::HW::XeHPC);
     // XXX: A steppings require 128 byte alignment due to a HW bug.
-    if (hw_cfg.stepping_id() < 5) return 128;
+    if (hw_cfg.stepping_id() <= 6) return 128;
     return 64;
 }
 
