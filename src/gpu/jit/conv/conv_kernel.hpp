@@ -2274,6 +2274,7 @@ private:
             int max_stride = int(last.stride * last.block);
             if (last.stride > 4) return false;
             if ((int)last.stride == 4 && type.size() <= 2) return false;
+            if (!math::is_pow2(last.stride)) return false;
             int max_stride_bytes = max_stride * type.size();
             int grf_size = ngen::GRF::bytes(hw);
             if (max_stride_bytes > 2 * grf_size) return false;
@@ -2390,6 +2391,8 @@ private:
         std::vector<edge_t> edges;
         for (int a = 1; a <= tile_a; a *= 2) {
             for (int b = 1; b <= tile_b; b *= 2) {
+                if (src.dim(0) % a != 0) continue;
+                if (src.dim(1) % b != 0) continue;
                 int idx = int(edges.size());
                 edges.emplace_back(idx, a, b);
             }
