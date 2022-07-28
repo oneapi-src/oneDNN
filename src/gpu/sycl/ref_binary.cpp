@@ -35,13 +35,7 @@ status_t ref_binary_t::pd_t::init_conf() {
     // XXX: should probably be tuned.
     conf_.block_size = 16;
     conf_.wg_size = 32;
-
-    // TODO: uniform work groups are not supported for CUDA backend.
-    // Need to find a way to circumvent it.
-    if ((memory_desc_wrapper(src_md(0)).nelems() / conf_.block_size)
-                    % conf_.wg_size
-            != 0)
-        return status::unimplemented;
+    conf_.wk_size = memory_desc_wrapper(src_md(0)).nelems();
 
     conf_.alg_kind = desc()->alg_kind;
     // Limitations:
@@ -77,14 +71,17 @@ status_t ref_binary_t::execute(const exec_ctx_t &ctx) const {
         auto src1_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_1);
         auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
 
-        auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
-
         binary_kernel_vec_t binary_kernel(
                 pd()->conf_, src0_mem_arg, src1_mem_arg, dst_mem_arg);
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;
-        cgh.parallel_for(::sycl::nd_range<1>(nelems_A / block_size, wg_size),
-                binary_kernel);
+        const int t_work = pd()->conf_.wk_size;
+
+        const int wg_work = wg_size * block_size;
+        const int wg_cnt = (t_work + wg_work - 1) / wg_work;
+
+        cgh.parallel_for(
+                ::sycl::nd_range<1>(wg_cnt * wg_size, wg_size), binary_kernel);
     });
 
     return status::success;

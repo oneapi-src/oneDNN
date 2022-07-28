@@ -38,29 +38,66 @@ struct binary_kernel_vec_t {
 
     [[sycl::reqd_sub_group_size(32)]] void operator()(
             ::sycl::nd_item<1> item) const {
+
         auto sg = item.get_sub_group();
+        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
+        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
+        size_t wi_offset_t = sg.get_local_id();
+        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
 
-        size_t base = ((item.get_group(0) * conf_.wg_size
-                               + sg.get_group_id()[0] * sg.get_local_range()[0])
-                                      * conf_.block_size
-                              + sg.get_local_id() * conf_.block_size)
-                / vec_len;
+        size_t base_idx = offset_t * conf_.block_size;
+        size_t vec_base_idx = base_idx / vec_len;
 
-        for (int i = 0; i < conf_.block_size / vec_len; i++) {
-            auto src0_vec = load_float_vec<vec_len>(
-                    src0_md().data_type(), src0_ptr(), base + i);
-            auto src1_vec = load_float_vec<vec_len>(
-                    src1_md().data_type(), src1_ptr(), base + i);
+        size_t wg_base_idx = wg_offset_t * conf_.block_size;
+        size_t sg_base_idx = (wg_offset_t + sg_offset_t) * conf_.block_size;
 
-            auto dst_vec = load_float_vec<vec_len>(
-                    dst_md().data_type(), dst_ptr(), base + i);
+        if (sg_base_idx + (sg.get_local_range()[0] * conf_.block_size)
+                < conf_.wk_size) {
+            for (int i = 0; i < conf_.block_size / vec_len; i++) {
+                auto src0_vec = load_float_vec<vec_len>(
+                        src0_md().data_type(), src0_ptr(), vec_base_idx + i);
+                auto src1_vec = load_float_vec<vec_len>(
+                        src1_md().data_type(), src1_ptr(), vec_base_idx + i);
+                auto dst_vec = load_float_vec<vec_len>(
+                        dst_md().data_type(), dst_ptr(), vec_base_idx + i);
 
-            auto acc_vec = compute_alg(src0_vec, src1_vec, conf_.alg_kind);
-            // TODO: Adding post-ops seems to be interfering with compiler's
-            // optimizations. Figure out how to make the compiler to generate
-            // the right code.
-            acc_vec = conf_.post_ops.apply(acc_vec, dst_vec);
-            store_float_vec(dst_md().data_type(), acc_vec, dst_ptr(), base + i);
+                if (conf_.do_scale_src0)
+                    src0_vec *= ::sycl::vec<float, vec_len>(conf_.src0_scale);
+                if (conf_.do_scale_src1)
+                    src1_vec *= ::sycl::vec<float, vec_len>(conf_.src1_scale);
+
+                auto acc_vec = compute_alg(src0_vec, src1_vec, conf_.alg_kind);
+                // TODO: Adding post-ops seems to be interfering with compiler's
+                // optimizations. Figure out how to make the compiler to generate
+                // the right code.
+                acc_vec = conf_.post_ops.apply(acc_vec, dst_vec);
+                store_float_vec(dst_md().data_type(), acc_vec, dst_ptr(),
+                        vec_base_idx + i);
+            }
+        } else {
+            auto src0_p = reinterpret_cast<float *>(src0_ptr());
+            auto src1_p = reinterpret_cast<float *>(src1_ptr());
+            auto dst_p = reinterpret_cast<float *>(dst_ptr());
+
+            for (int i = 0; i < conf_.block_size; i++) {
+                int idx = base_idx + i;
+                if (idx < conf_.wk_size) {
+                    auto src0 = load_float_value(
+                            src0_md().data_type(), src0_ptr(), idx);
+                    auto src1 = load_float_value(
+                            src1_md().data_type(), src1_ptr(), idx);
+                    auto dst = load_float_value(
+                            dst_md().data_type(), dst_ptr(), idx);
+
+                    if (conf_.do_scale_src0) src0 *= conf_.src0_scale;
+                    if (conf_.do_scale_src1) src1 *= conf_.src1_scale;
+
+                    auto acc = compute_alg_n(src0, src1, conf_.alg_kind);
+                    acc = conf_.post_ops.apply(acc, dst);
+                    store_float_value(
+                            dst_md().data_type(), acc, dst_ptr(), idx);
+                }
+            }
         }
     }
 
@@ -96,6 +133,25 @@ private:
             case alg_kind::binary_ne:
                 return ((src0 != src1) * -1).template convert<float>();
             default: return ::sycl::vec<float, width> {NAN};
+        }
+    }
+
+    template <typename T>
+    T compute_alg_n(T src0, T src1, alg_kind_t alg) const {
+        switch (alg) {
+            case alg_kind::binary_add: return src0 + src1;
+            case alg_kind::binary_div: return src0 / src1;
+            case alg_kind::binary_max: return std::max(src0, src1);
+            case alg_kind::binary_min: return std::min(src0, src1);
+            case alg_kind::binary_mul: return src0 * src1;
+            case alg_kind::binary_sub: return src0 - src1;
+            case alg_kind::binary_ge: return ((src0 >= src1));
+            case alg_kind::binary_gt: return ((src0 > src1));
+            case alg_kind::binary_le: return ((src0 <= src1));
+            case alg_kind::binary_lt: return ((src0 < src1));
+            case alg_kind::binary_eq: return ((src0 == src1));
+            case alg_kind::binary_ne: return ((src0 != src1));
+            default: return (T)(999);
         }
     }
 

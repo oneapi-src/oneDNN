@@ -96,7 +96,7 @@ inline ::sycl::vec<float, width> relu_fwd(
     if (alpha == 0.0f) {
         return max_vec(src_vec, zero_vec);
     } else {
-        ::sycl::vec<float, 8> alpha_vec(alpha);
+        ::sycl::vec<float, width> alpha_vec(alpha);
         auto src_copy_vec = src_vec;
         // Mask to nullify elements that are greater than 0 in src_vec.
         auto src_vec_mask = (src_vec < zero_vec) * -1;
