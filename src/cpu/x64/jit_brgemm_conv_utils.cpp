@@ -2331,10 +2331,11 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
 
         const auto wei_ks = jcp.kh * jcp.kw * jcp.kd;
 
-        dim_t src_size = (dim_t)jcp.mb * jcp.ic * jcp.id * jcp.ih * jcp.tr_iw
-                * src_type_size;
-        dim_t dst_size = (dim_t)jcp.mb * jcp.oc * jcp.od * jcp.oh * jcp.tr_ow
-                * src_type_size;
+        const auto src_spatial = (dim_t)jcp.mb * jcp.id * jcp.ih * jcp.tr_iw;
+        const auto dst_spatial = (dim_t)jcp.mb * jcp.od * jcp.oh * jcp.tr_ow;
+
+        dim_t src_size = src_spatial * jcp.ic * src_type_size;
+        dim_t dst_size = dst_spatial * jcp.oc * src_type_size;
         dim_t wei_size = (dim_t)jcp.oc * jcp.ic * wei_ks * wei_type_size;
 
         float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
@@ -2360,8 +2361,8 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
         const auto nb_oc_job = jcp.oc_block * jcp.nb_oc_blocking;
         const auto nb_ic_job = jcp.ic_block * jcp.nb_ic_blocking;
 
-        const auto src_chunk = jcp.mb * jcp.id * jcp.ih * jcp.tr_iw / os_chunks;
-        const auto dst_chunk = jcp.mb * jcp.od * jcp.oh * jcp.tr_ow / os_chunks;
+        const auto src_chunk = src_spatial / os_chunks;
+        const auto dst_chunk = dst_spatial / os_chunks;
 
         const auto thr_g = div_up(jcp.ngroups, nthr_g);
         const auto thr_ic_b = div_up(ic_chunks, nthr_ic_b);
