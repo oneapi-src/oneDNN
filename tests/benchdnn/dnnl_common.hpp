@@ -504,7 +504,7 @@ void skip_invalid_inplace(res_t *res, dnnl_data_type_t sdt,
 void skip_unimplemented_arg_scale(const attr_t &attr, res_t *res);
 
 // `check_dnnl_status` function is called to validate the result of primitive
-// descriptor creation. Based on the status, it prodices additional checks:
+// descriptor creation. Based on the status, it produces additional checks:
 // * For `invalid_arguments` it just updates the `res` object with it.
 // * For `unimplemented` it checks whether the lack of support is expected or
 //   not. It relies on `skip_unimplemented_prb` function declared and defined
