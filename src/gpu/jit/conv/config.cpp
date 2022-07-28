@@ -555,11 +555,14 @@ int pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
 }
 
 struct nc_block_t {
-    nc_block_t(int n_block, int c_block)
-        : n_block_(n_block), c_block_(c_block) {}
+    nc_block_t(int n_block, int c_block, bool nc_order = true)
+        : n_block_(n_block), c_block_(c_block), nc_order_(nc_order) {}
 
-    int n_block() const { return n_block_; }
-    int c_block() const { return c_block_; }
+    std::string tag() const {
+        std::vector<int> idxs = {1, 0};
+        if (!nc_order_) std::swap(idxs[0], idxs[1]);
+        return build_tag({n_block_, c_block_}, {1, 1}, {'a', 'b'}, idxs);
+    }
 
     // Ideally, this should only depend on data type, direction, mb, c, and g to
     // enable the same src/dst formats and avoid reorders between convolutions
@@ -596,6 +599,92 @@ struct nc_block_t {
 private:
     int n_block_;
     int c_block_;
+    bool nc_order_;
+};
+
+struct goi_block_t {
+    goi_block_t(fma_kind_t fma_kind, bool is_dw, bool is_bwd_d, int g_block,
+            int o_block, int i_block, int o_block_outer, int i_block_outer)
+        : fma_kind_(fma_kind)
+        , is_dw_(is_dw)
+        , is_bwd_d_(is_bwd_d)
+        , g_block_(g_block)
+        , o_block_(o_block)
+        , i_block_(i_block)
+        , o_block_outer_(o_block_outer)
+        , i_block_outer_(i_block_outer) {}
+
+    std::string tag() const {
+        std::vector<char> wei_letters(3, ' ');
+        char wei_letter = 'a';
+        for (int i = (is_dw_ ? 0 : 1); i < 3; i++) {
+            wei_letters[i] = wei_letter++;
+        }
+        std::vector<int> wei_idxs = {0, 1, 2}; // g, ic, oc
+        // dpas requires ic to go before oc in innermost blocks for weights.
+        if (fma_kind_ != fma_kind_t::mad) std::swap(wei_idxs[1], wei_idxs[2]);
+        if (is_bwd_d_) std::swap(wei_idxs[1], wei_idxs[2]);
+        return build_tag({g_block_, o_block_, i_block_},
+                {1, o_block_outer_, i_block_outer_}, wei_letters, wei_idxs);
+    }
+
+    static goi_block_t get_default_blocking(type_t type, int vec_size,
+            fma_kind_t fma_kind, bool is_bwd_d, bool is_small_ic, int g, int o,
+            int i) {
+        int x = o;
+        int y = i;
+        int g_block = 1;
+        int o_block = 1;
+        int i_block = 1;
+        int o_block_outer = 1;
+        int i_block_outer = 1;
+        int *x_block = &o_block;
+        int *y_block = &i_block;
+        int *x_block_outer = &o_block_outer;
+        int *y_block_outer = &i_block_outer;
+        // Backward by data requires flipped ic/oc in weights.
+        if (is_bwd_d) {
+            std::swap(x, y);
+            std::swap(x_block, y_block);
+            std::swap(x_block_outer, y_block_outer);
+        }
+        get_default_blocking(type, vec_size, fma_kind, is_bwd_d, is_small_ic, g,
+                x, y, g_block, *x_block, *y_block, *x_block_outer,
+                *y_block_outer);
+        return goi_block_t(fma_kind, is_dw(g, o, i), is_bwd_d, g_block, o_block,
+                i_block, o_block_outer, i_block_outer);
+    }
+
+    static void get_default_blocking(type_t type, int vec_size,
+            fma_kind_t fma_kind, bool is_bwd_d, bool is_small_ic, int g, int x,
+            int y, int &g_block, int &x_block, int &y_block, int &x_block_outer,
+            int &y_block_outer) {
+        if (is_dw(g, x, y)) {
+            g_block = type.is_x8() ? 32 : 16;
+        } else if (fma_kind == fma_kind_t::mad) {
+            x_block = vec_size;
+            y_block = pick_block(y, 8, 16);
+        } else {
+            int packed_dword_elems = 4 / type.size();
+            x_block = vec_size;
+            y_block = packed_dword_elems;
+            if (is_bwd_d || !is_small_ic) y_block_outer = 8;
+        }
+    }
+
+private:
+    static bool is_dw(int g, int o, int i) {
+        return (g > 1 && o == 1 && i == 1);
+    }
+
+    fma_kind_t fma_kind_;
+    bool is_dw_;
+    bool is_bwd_d_;
+    int g_block_;
+    int o_block_;
+    int i_block_;
+    int o_block_outer_;
+    int i_block_outer_;
 };
 
 void conv_config_t::init_data_tags(bool allow_src_reorder,
@@ -615,18 +704,6 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
     bool is_mad = (fma_kind == fma_kind_t::mad);
     int vec_size = hw_cfg.vec_size();
 
-    // Set order and letters for blocking dimensions.
-    std::vector<int> src_idxs = {1, 0};
-    std::vector<int> dst_idxs = {1, 0};
-    std::vector<char> wei_letters(3, ' ');
-    char wei_letter = 'a';
-    for (int i = (is_dw ? 0 : 1); i < 3; i++) {
-        wei_letters[i] = wei_letter++;
-    }
-    std::vector<int> wei_idxs = {0, 1, 2}; // g, ic, oc
-    // dpas requires ic to go before oc in innermost blocks for weights.
-    if (!is_mad) std::swap(wei_idxs[1], wei_idxs[2]);
-
     nc_block_t src_blk(1, 1), dst_blk(1, 1);
     if (is_bwd_w) {
         // The BWD_W implementation has some issues that prevent using
@@ -637,11 +714,12 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
         // Set blocks for source layout.
         int src_n_blk = 1;
         int src_c_blk = 1;
+        bool src_nc_order = true;
         if (is_small_ic() && !is_dw) {
             if (is_dp_fma() && allow_src_reorder) {
                 src_c_blk = 4;
                 src_n_blk = pick_block(mb, 32 / src_type_size);
-                std::swap(src_idxs[0], src_idxs[1]);
+                src_nc_order = false;
             } else if (is_dp_fma()) {
                 src_c_blk = 4 / src_type_size;
                 src_n_blk = pick_block(mb, 8, 16);
@@ -680,7 +758,7 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
         if (src_c_blk == 1) src_n_blk = 1;
         if (dst_c_blk == 1) dst_n_blk = 1;
 
-        src_blk = nc_block_t(src_n_blk, src_c_blk);
+        src_blk = nc_block_t(src_n_blk, src_c_blk, src_nc_order);
         dst_blk = nc_block_t(dst_n_blk, dst_c_blk);
     } else {
         // Set blocks for src/dst layout.
@@ -690,87 +768,36 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
                 dst_data_type, is_dw, mb, oc, g, is_bwd_d || is_bwd_w, false);
     }
 
-    src_tag = build_tag({src_blk.n_block(), src_blk.c_block()}, {1, 1},
-            {'a', 'b'}, src_idxs);
-    dst_tag = build_tag({dst_blk.n_block(), dst_blk.c_block()}, {1, 1},
-            {'a', 'b'}, dst_idxs);
+    auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type, vec_size,
+            fma_kind, is_bwd_d, is_small_ic(), g, oc, ic);
 
-    // Set blocks for weights layout.
-    int wei_g_blk = 1;
-    int wei_o_blk = 1;
-    int wei_o_blk_outer = 1;
-    int wei_i_blk = 1;
-    int wei_i_blk_outer = 1;
-    bool is_wei_byte
-            = utils::one_of(wei_compute_type, data_type::s8, data_type::u8);
-    auto init_mad_wei_oi_blocks = [&](bool block_by_o, int &o, int &i) {
-        if (block_by_o) {
-            o = vec_size;
-            i = pick_block(ic, 8, 16);
-        } else {
-            o = pick_block(oc, 8, 16);
-            i = vec_size;
-        }
-    };
-    if (is_dw) {
-        wei_g_blk = (is_wei_byte ? 32 : 16);
-    } else if (is_mad) {
-        init_mad_wei_oi_blocks(true, wei_o_blk, wei_i_blk);
-    } else {
-        // Set dpas blocks.
-        int packed_dword_elems = 4 / types::data_type_size(wei_compute_type);
-        wei_o_blk = vec_size;
-        wei_i_blk = packed_dword_elems;
-        if (!is_small_ic()) {
-            wei_i_blk_outer = 8;
+    src_tag = src_blk.tag();
+    wei_tag = wei_blk.tag();
+    dst_tag = dst_blk.tag();
 
-            // XXX: This is to keep compatibility with the current implementation
-            // of zero points. Other than that the outer oc block doesn't affect
-            // performance/correctness.
-            if (is_src_byte) wei_o_blk_outer = 32 / vec_size;
-        }
-    }
-
-    auto common_wei_tag = build_tag({wei_g_blk, wei_o_blk, wei_i_blk},
-            {1, wei_o_blk_outer, wei_i_blk_outer}, wei_letters, wei_idxs);
-
-    // Use OhwIXoYi for small-channel forward convolution to
-    // ensure c-after-w order of reduction blocks to match
-    // the source layout.
+    // Use OhwIXoYi weights for small-channel forward convolution to ensure
+    // c-after-w order of reduction blocks to match the source layout.
     if (is_small_ic() && !is_dw && is_fwd && is_dp_fma()) {
         const char *patterns[] = {"ABx", "AxB", "Abx", "Axb", nullptr};
         bool found = false;
         for (auto *p = patterns; *p; p += 2) {
-            auto pos = common_wei_tag.find(*p);
+            auto pos = wei_tag.find(*p);
             if (pos == std::string::npos) continue;
-            common_wei_tag
-                    = common_wei_tag.replace(pos, std::strlen(*p), *(p + 1));
+            wei_tag = wei_tag.replace(pos, std::strlen(*p), *(p + 1));
             found = true;
             break;
         }
-        ir_assert(found) << common_wei_tag;
+        ir_assert(found) << wei_tag;
     }
 
-    // Backward by data requires flipped ic/oc in weights.
-    if (is_bwd_d) {
-        if (is_mad) {
-            init_mad_wei_oi_blocks(false, wei_o_blk, wei_i_blk);
-        } else {
-            std::swap(wei_o_blk, wei_i_blk);
-        }
-        std::swap(wei_o_blk_outer, wei_i_blk_outer);
-        std::swap(wei_idxs[1], wei_idxs[2]);
-        wei_tag = build_tag({wei_g_blk, wei_o_blk, wei_i_blk},
-                {1, wei_o_blk_outer, wei_i_blk_outer}, wei_letters, wei_idxs);
-        if ((wei_i_blk * wei_i_blk_outer) != (wei_o_blk * wei_o_blk_outer))
-            allow_wei_reorder = false;
-
-    } else {
-        wei_tag = common_wei_tag;
+    // Align weights layout between forward/backward by data in some cases via
+    // internal reorder to eliminate user-side reorder.
+    auto fwd_wei_blk = goi_block_t::get_default_blocking(wei_compute_type,
+            vec_size, fma_kind, /*is_bwd_d=*/false, is_small_ic(), g, oc, ic);
+    auto fwd_wei_tag = fwd_wei_blk.tag();
+    if (fwd_wei_tag != wei_tag && allow_wei_reorder) {
+        user_wei_tag = fwd_wei_tag;
     }
-
-    if (common_wei_tag != wei_tag && allow_wei_reorder)
-        user_wei_tag = common_wei_tag;
 }
 
 status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
@@ -801,7 +828,7 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     // Allow internal weights reorder in some cases. The goal is to have
     // aligned weights layouts between fwd/bwd_d/bwd_w to reduce potential
     // weights reorders during training. In general it's more efficient than
-    // the external reorder but it has a number of restrictions.
+    // the external reorder.
     bool allow_wei_reorder = is_ge_xe_hpc() && is_dp_fma();
     bool allow_dst_reorder = false;
     bool src_abx = matches_tag(src_md, "abx");
@@ -810,7 +837,7 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
         allow_src_reorder = true;
     }
 
-    init_data_tags(allow_src_reorder, allow_dst_reorder, allow_wei_reorder,
+    init_data_tags(allow_src_reorder, allow_wei_reorder, allow_dst_reorder,
             src_tag, wei_tag, dst_tag, user_wei_tag);
 
     if (allow_src_reorder) {
