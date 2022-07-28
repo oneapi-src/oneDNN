@@ -33,6 +33,10 @@ inline int block_2d_base_alignment(const hw_config_t &hw_cfg) {
     return 64;
 }
 
+inline int block_2d_x_alignment(int type_size) {
+    return std::max(4, type_size) / type_size;
+}
+
 inline bool block_2d_width_ok(int width, int type_size) {
     int width_bytes = width * type_size;
     if (width_bytes < 64) return false;

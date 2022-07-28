@@ -695,6 +695,11 @@ bool access_builder_t::try_build_2d() {
         }
 
         if (!skip_send) {
+            if (!cset_->can_prove(
+                        x % block_2d_x_alignment(send_type.size()) == 0)) {
+                ok = false;
+                return;
+            }
             auto reg_buf = (send.is_prefetch_2d()
                             ? expr_t()
                             : reg_buf_ + reg_layout_walker_->offset_bytes());
