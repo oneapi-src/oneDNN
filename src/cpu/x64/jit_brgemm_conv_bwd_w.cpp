@@ -428,7 +428,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 
     size_t tr_diff_dst_buf_number(int g, int ocb) const {
         // for current loop order (xoi) if jcp.tr_ocb_chunk then we can reuse
-        // same area in  tr_diff_dst buffer
+        // same area in tr_diff_dst buffer
         if (jcp.tr_ocb_chunk)
             return jcp.global_transpose
                     ? ((ithr_mb * jcp.ngroups + g) * jcp.nthr_oc_b + ithr_oc_b)
@@ -472,7 +472,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         const int ic_tail_work = jcp.ic_tail ? jcp.ic_tail : jcp.ic_block;
         while (work_rest > 0) {
             for (int iwork = 0; iwork < sp_work; iwork++) {
-                //For 1x1 convolutions with strides we transpose only
+                // For 1x1 convolutions with strides we transpose only
                 // needed lines
                 if (IMPLICATION(jcp.kh == 1, iwork % jcp.stride_h == 0)) {
                     auto ctx = jit_trans_src_t::ctx_t();
@@ -721,7 +721,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         if (start < end || g_start >= g_end || oc_b_start >= oc_b_end
                 || ic_b_start >= ic_b_end)
             return false;
-        // for rare case if thread has now work by spatial dimension then we
+        // for rare case if thread has no work by spatial dimension then we
         // need to initialize the output at least
         if (jcp.with_bias) {
             for_(int g = g_start; g < g_end; ++g)

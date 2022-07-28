@@ -2674,8 +2674,10 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     if (one_of(jcp.harness, harness_2d_reduction, harness_3d_reduction)) {
         jcp.K = jcp.tr_ow;
     }
-
-    jcp.tr_ocb_chunk = (jcp.oh * jcp.ow > 38 * 38) ? true : false;
+    // for convolutions with big spatial: transpose only chunk
+    // (oc_block * nb_oc_blocking) of diff_dst on each iteration by oc blocks
+    // for better cache utilization
+    jcp.tr_ocb_chunk = (jcp.oh * jcp.ow > 38 * 38);
     jcp.tr_icb_chunk = false;
 
     jcp.K_tail = 0;
