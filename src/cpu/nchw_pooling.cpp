@@ -227,7 +227,6 @@ status_t nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
     auto src = CTX_IN_MEM(const bfloat16_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(bfloat16_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
-    memory_desc_wrapper dst_d(pd()->dst_md());
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *bf16cvt_wsp = scratchpad.template get<float>(
