@@ -2432,8 +2432,8 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
     balance(nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b);
 
     // empiric balancing for some shapes
-    bool neat_1x1 = (jcp.id == 1 && jcp.kh == 1 && jcp.kw == 1
-            && jcp.ngroups == 1 && jcp.stride_h == 1);
+    bool neat_1x1
+            = everyone_is(1, jcp.id, jcp.kh, jcp.kw, jcp.ngroups, jcp.stride_h);
     if (neat_1x1 && jcp.nthr >= 56 && jcp.mb >= jcp.nthr) {
         const bool more_oc = (jcp.ic < jcp.oc);
         if (jcp.ih * jcp.iw >= 56 * 56 && jcp.ic >= 64 && jcp.oc >= 64) {
@@ -2494,9 +2494,9 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     // Process some 1x1 convolutions with small iw as 1d (h=1, w = h*w)
     // convolutions to make brgemm K dimension bigger for better utilization of
     // AMX tiles
-    bool neat_1x1_2d = (jcp.kh == 1 && jcp.kw == 1 && jcp.stride_h == 1
-            && jcp.stride_w == 1 && jcp.t_pad == 0 && jcp.b_pad == 0
-            && jcp.l_pad == 0 && jcp.r_pad == 0);
+    bool neat_1x1_2d = (everyone_is(
+                                1, jcp.kh, jcp.kw, jcp.stride_h, jcp.stride_w)
+            && everyone_is(0, jcp.t_pad, jcp.b_pad, jcp.l_pad, jcp.r_pad));
     bool make_1d = neat_1x1_2d && jcp.iw <= 28;
     if (make_1d) {
         jcp.iw *= jcp.ih;
