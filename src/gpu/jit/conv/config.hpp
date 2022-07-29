@@ -488,10 +488,13 @@ public:
         if (is_bwd_d) return true;
         if (is_bwd_w) {
             bool ok = true;
-            ok &= (src_data_type == data_type::bf16
-                    || src_data_type == data_type::f32);
+            data_type_t default_acc_type = src_data_type == data_type::f64
+                    ? data_type::f64
+                    : data_type::f32;
+            ok &= utils::one_of(src_data_type, data_type::bf16, data_type::f32,
+                    data_type::f64);
             ok &= (dst_data_type == src_data_type);
-            ok &= utils::one_of(wei_data_type, src_data_type, data_type::f32);
+            ok &= utils::one_of(wei_data_type, src_data_type, default_acc_type);
 
             if (with_bias) {
                 ok &= utils::one_of(
