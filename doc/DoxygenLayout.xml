@@ -10,6 +10,7 @@
     <tab type="usergroup" title="Programming Model">
       <tab type="user" title="Basic Concepts" url="@ref dev_guide_basic_concepts"/>
       <tab type="user" title="CPU Programming" url="@ref dev_guide_cpu_programming"/>
+      <tab type="user" title="Data Types" url="@ref dev_guide_data_types"/>
       <tab type="user" title="Environmental Variables" url="@ref dev_guide_environmental_variables"/>
       <tab type="user" title="SYCL Programming" url="@ref dev_guide_sycl_programming"/>
       <tab type="user" title="OPs and Patterns" url="@ref dev_guide_ops_and_patterns"/>
