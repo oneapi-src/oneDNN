@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -306,8 +306,11 @@ protected:
         auto set_to_zero = [](memory &m) {
             if (m) {
                 auto p = map_memory<char>(m);
-                GTEST_EXPECT_NE(p, nullptr);
-                memset(p, 0, m.get_desc().get_size());
+                auto size = m.get_desc().get_size();
+                if (size > 0) {
+                    GTEST_EXPECT_NE(p, nullptr);
+                    memset(p, 0, size);
+                }
             }
         };
         set_to_zero(src_m);
@@ -474,9 +477,62 @@ static auto cases_ef = []() {
                              {{16, 16}, data_type::f32, tag::AB8a4b}},
             {}, true, dnnl_unimplemented});
 
+    // broken broadcast case
+    cases.push_back(
+            {{{{1, 10, 2}, data_type::f32, tag::abc},
+                     {{1, 2, 20}, data_type::f32, tag::abc},
+                     {{0, 10, 20}, data_type::f32, tag::abc}, data_type::undef},
+                    {}, true, dnnl_invalid_arguments});
+
+    // broken broadcast case
+    cases.push_back(
+            {{{{0, 10, 2}, data_type::f32, tag::abc},
+                     {{2, 2, 20}, data_type::f32, tag::abc},
+                     {{0, 10, 20}, data_type::f32, tag::abc}, data_type::undef},
+                    {}, true, dnnl_invalid_arguments});
+
+    // broken broadcast case
+    cases.push_back(
+            {{{{1, 10, 2}, data_type::f32, tag::abc},
+                     {{0, 2, 20}, data_type::f32, tag::abc},
+                     {{1, 10, 20}, data_type::f32, tag::abc}, data_type::undef},
+                    {}, true, dnnl_invalid_arguments});
+
     return ::testing::ValuesIn(cases);
 };
 INSTANTIATE_TEST_SUITE_P(EF, iface, cases_ef());
+
+static auto cases_zd = [](memory::data_type dt) {
+    std::vector<matmul_test_params_t> cases;
+
+    // simple case M=0
+    cases.push_back({{{{0, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
+                             {{0, 20}, dt, tag::ab}, data_type::undef},
+            {}});
+    // simple case K=0
+    cases.push_back({{{{10, 0}, dt, tag::ab}, {{0, 20}, dt, tag::ab},
+                             {{10, 20}, dt, tag::ab}, data_type::undef},
+            {}});
+    // simple case N=0
+    cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 0}, dt, tag::ab},
+                             {{10, 0}, dt, tag::ab}, data_type::undef},
+            {}});
+    // broadcast case all MB=0
+    cases.push_back({{{{0, 10, 2}, dt, tag::abc}, {{0, 2, 20}, dt, tag::abc},
+                             {{0, 10, 20}, dt, tag::abc}, data_type::undef},
+            {}});
+    // broadcast case wei MB!=0
+    cases.push_back({{{{0, 10, 2}, dt, tag::abc}, {{1, 2, 20}, dt, tag::abc},
+                             {{0, 10, 20}, dt, tag::abc}, data_type::undef},
+            {}});
+    // broadcast case src MB!=0
+    cases.push_back({{{{1, 10, 2}, dt, tag::abc}, {{0, 2, 20}, dt, tag::abc},
+                             {{0, 10, 20}, dt, tag::abc}, data_type::undef},
+            {}});
+
+    return ::testing::ValuesIn(cases);
+};
+INSTANTIATE_TEST_SUITE_P(ZeroDim_f32, iface, cases_zd(data_type::f32));
 
 static auto cases_f = [](memory::data_type dt) {
     std::vector<matmul_test_params_t> cases;

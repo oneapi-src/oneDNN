@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,9 @@ struct matmul_pd_t : public primitive_desc_t {
     int n_outputs() const override { return 1; }
 
     bool has_zero_dim_memory() const {
-        return memory_desc_wrapper(dst_md(0)).has_zero_dim();
+        return memory_desc_wrapper(src_md(0)).has_zero_dim()
+                || memory_desc_wrapper(weights_md(0)).has_zero_dim()
+                || memory_desc_wrapper(dst_md(0)).has_zero_dim();
     }
 
     bool has_runtime_dims_or_strides() const {

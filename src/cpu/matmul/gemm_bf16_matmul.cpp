@@ -49,7 +49,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
                         && is_bias_1xN());
     };
 
-    bool ok = src_md()->data_type == src_type
+    bool ok = !has_zero_dim_memory() && src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type
             && dst_md()->data_type == dst_type
@@ -165,6 +165,10 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+
+    if (src_d.has_zero_dim() || weights_d.has_zero_dim()
+            || dst_d.has_zero_dim())
+        return status::success;
 
     matmul_helper_t helper(src_d, weights_d, dst_d);
     const int ndims = pd()->ndims();

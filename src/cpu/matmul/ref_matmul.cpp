@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,10 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
     const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
+
+    if (src_d.has_zero_dim() || weights_d.has_zero_dim()
+            || dst_d.has_zero_dim())
+        return status::success;
 
     const bool non_default_attrs = !pd()->attr()->has_default_values();
 

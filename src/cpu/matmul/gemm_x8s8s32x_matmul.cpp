@@ -89,7 +89,7 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
                                 *this));
     };
 
-    bool ok = one_of(src_md()->data_type, s8, u8)
+    bool ok = !has_zero_dim_memory() && one_of(src_md()->data_type, s8, u8)
             && weights_md()->data_type == s8 && desc()->accum_data_type == s32
             && one_of(dst_md()->data_type, f32, s32, s8, u8)
             && IMPLICATION(with_bias(),
@@ -178,6 +178,10 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+
+    if (src_d.has_zero_dim() || weights_d.has_zero_dim()
+            || dst_d.has_zero_dim())
+        return status::success;
 
     int8_t gemm_off_a_int8 = static_cast<int8_t>(src_zero_point);
     uint8_t gemm_off_a_uint8 = static_cast<uint8_t>(src_zero_point);

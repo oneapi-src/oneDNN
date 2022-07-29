@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,9 +75,11 @@ status_t dnnl_matmul_desc_init(matmul_desc_t *matmul_desc,
                                 with_bias, b_dim == DNNL_RUNTIME_DIM_VAL)))
                 return status::invalid_arguments;
         } else {
-            ok = s_dim > 0 && w_dim > 0 && d_dim > 0
-                    && IMPLICATION(s_dim != 1, w_dim == s_dim || w_dim == 1)
-                    && (d_dim == nstl::max(s_dim, w_dim))
+            // This follows numpy semantics of broadcasting when 0 is involved.
+            ok = IMPLICATION(!everyone_is(s_dim, w_dim, d_dim),
+                         one_of(1, s_dim, w_dim))
+                    && IMPLICATION(s_dim == 1, d_dim == w_dim)
+                    && IMPLICATION(w_dim == 1, d_dim == s_dim)
                     && IMPLICATION(with_bias, one_of(b_dim, 1, d_dim));
             if (!ok) return status::invalid_arguments;
         }

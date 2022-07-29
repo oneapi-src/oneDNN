@@ -28,8 +28,14 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int64_t M = prb->m;
     const int64_t N = prb->n;
     const int64_t K = prb->k;
-    const int64_t MB = dst_m.nelems() / (M * N);
+    const int64_t MB = prb->mb;
     const int batch_ndims = dst_m.ndims() - 2;
+
+    // Fast return if any dim is zero. Common logic doesn't apply because of
+    // broadcast semantics.
+    for (int d = 0; d < dst_m.ndims(); d++) {
+        if (prb->src_dims()[d] == 0 || prb->weights_dims()[d] == 0) return;
+    }
 
     const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
 
