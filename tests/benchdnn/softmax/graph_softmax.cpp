@@ -34,13 +34,6 @@ static int check_known_skipped_case_graph(
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    // oneDNN calculation error, deprecated this case temporarily.
-    if (is_gpu() && prb->stag == tag::axb && prb->axis == 2
-            && prb->dir == FWD_I) {
-        res->state = SKIPPED;
-        res->reason = CASE_NOT_SUPPORTED;
-    }
-
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     check_known_skipped_case_graph_common(
