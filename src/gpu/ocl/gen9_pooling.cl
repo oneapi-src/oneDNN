@@ -85,8 +85,10 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
     const int ih = oh * SH - PH;
     const int iw = ow * SW - PW;
 #if USE_FLOATS
-    VECT_FLOAT_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
-    VECT_FLOAT_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+    // Convert DATA_MIN to float instead of using -FLT_MAX to avoid -inf
+    // Can use 0.0f safely, however
+    VECT_FLOAT_T D0 = ALG_MAX ? CONVERT_FLOAT_T(DATA_MIN) : 0.0f;
+    VECT_FLOAT_T D1 = ALG_MAX ? CONVERT_FLOAT_T(DATA_MIN) : 0.0f;
 #else // USE_FLOATS
     VECT_DATA_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
     VECT_DATA_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;

@@ -57,7 +57,7 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
     float d = 0;
 #endif
 #if ALG_MAX && DT_BF16
-    DEF_ACC_DATA_T d = DST_DATA_MIN;
+    DEF_ACC_DATA_T d = TO_DEF_ACC_DATA_T(DST_DATA_MIN);
 #elif ALG_MAX // DT_BF16
     float d = DST_DATA_MIN;
 #endif
