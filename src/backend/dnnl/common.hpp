@@ -117,6 +117,8 @@ bool is_format(const memory::desc &adesc, const std::string &tag);
 
 bool is_4c_blocked(const memory::desc &adesc);
 
+bool is_plain(const memory::desc &adesc);
+
 memory::desc to_ncx_format(const memory::desc &adesc);
 
 void set_all_layout_to_any(std::vector<std::shared_ptr<impl::op_t>> &subgraph);

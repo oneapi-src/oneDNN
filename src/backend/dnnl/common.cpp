@@ -508,6 +508,13 @@ bool is_4c_blocked(const memory::desc &adesc) {
             && blk.inner_blks[0] == 4;
 }
 
+bool is_plain(const memory::desc &adesc) {
+    if (adesc.data.format_kind != dnnl_blocked) return false;
+
+    const auto &blk = adesc.data.format_desc.blocking;
+    return blk.inner_nblks == 0;
+}
+
 memory::desc to_ncx_format(const memory::desc &adesc) {
     return memory::desc(
             adesc.dims(), adesc.data_type(), get_ncx_format(adesc.data.ndims));
@@ -555,8 +562,8 @@ impl::status_t fill_layout_info(
             lt->layout_type = impl::layout_type::strided;
         }
 
-        if (lt->id != std::numeric_limits<size_t>::max()
-                && (is_format(md, "ncx") || is_format(md, "nxc"))) {
+        // use shape and stride to descripe plain layout
+        if (lt->id != std::numeric_limits<size_t>::max() && is_plain(md)) {
             lt->layout_type = impl::layout_type::strided;
             impl::utils::array_copy(lt->layout.strides,
                     md.data.format_desc.blocking.strides, md.data.ndims);
@@ -599,8 +606,8 @@ impl::status_t fill_layout_info(
             val->set_strides({});
         }
 
-        if (ltw.id() != std::numeric_limits<size_t>::max()
-                && (is_format(md, "ncx") || is_format(md, "nxc"))) {
+        // use shape and stride to descripe plain layout
+        if (ltw.id() != std::numeric_limits<size_t>::max() && is_plain(md)) {
             const auto &strides = md.data.format_desc.blocking.strides;
             val->set_strides({strides, strides + lt_ndims});
         } else {
