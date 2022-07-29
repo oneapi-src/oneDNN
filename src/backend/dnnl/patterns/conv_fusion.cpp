@@ -1050,7 +1050,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_3_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, f32_resnet50_stage_1_4_fusion)
         .set_priority(22.f) // high priority to support itex
-        .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
