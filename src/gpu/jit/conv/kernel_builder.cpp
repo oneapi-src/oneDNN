@@ -5821,9 +5821,9 @@ private:
                         zp_mask_, size_ * w_stride(), alloc_kind_t::grf);
                 for (int i = 0; i < size_ / blk; i++) {
                     auto expr = cast_t::make(type_t::s16(blk), exprs[i]);
+                    if (is_simd_) expr = cast(-expr, type_t::s16(blk));
                     stmt_ = stmt_.append(store_t::make(zp_mask_,
-                            i * blk * type_t::s16().size(),
-                            (is_simd_) ? -expr : expr, w_stride()));
+                            i * blk * type_t::s16().size(), expr, w_stride()));
                 }
                 for (auto &v : vars)
                     stmt_ = let_t::make(v.second, v.first, stmt_);
@@ -5831,8 +5831,8 @@ private:
                 lmb_.register_buffer(
                         zp_mask_, type_t::s16().size(), alloc_kind_t::grf);
                 auto expr = cast_t::make(type_t::s16(), masks.mask(0));
-                stmt_ = stmt_.append(
-                        store_t::make(zp_mask_, 0, (is_simd_) ? -expr : expr));
+                if (is_simd_) expr = cast(-expr, type_t::s16());
+                stmt_ = stmt_.append(store_t::make(zp_mask_, 0, expr));
             }
         }
 
