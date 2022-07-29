@@ -1991,8 +1991,7 @@ private:
                 host->store.ugm(mod, *lsc_spec, host->A64, header, data);
             } else if (send_.is_atomic()) {
                 *lsc_spec |= ngen::CacheSettingsLSC::L1UC_L3WB;
-                host->atomic.ugm(ngen::AtomicOp::fadd, mod,
-                        ngen::scattered(ngen::DataSizeLSC::D32, 1),
+                host->atomic.ugm(ngen::AtomicOp::fadd, mod, *lsc_spec,
                         to_address_base(send_.address, surf_bti), header, data);
             }
         } else {
@@ -2034,6 +2033,8 @@ private:
                     return std::make_pair(ngen::DataSizeLSC::D16U32, 1);
                 if (type.elems() == 4)
                     return std::make_pair(ngen::DataSizeLSC::D32, 1);
+                if (type.elems() == 8)
+                    return std::make_pair(ngen::DataSizeLSC::D64, 1);
                 break;
             }
             case 2: {
@@ -2041,6 +2042,8 @@ private:
                     return std::make_pair(ngen::DataSizeLSC::D16U32, 1);
                 if (type.elems() == 2)
                     return std::make_pair(ngen::DataSizeLSC::D32, 1);
+                if (type.elems() == 4)
+                    return std::make_pair(ngen::DataSizeLSC::D64, 1);
                 break;
             }
             case 4: return std::make_pair(ngen::DataSizeLSC::D32, type.elems());

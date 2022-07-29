@@ -95,11 +95,6 @@ bool send_t::is_supported() const {
     // No hword stores before XeHPC.
     if (is_store() && type.is_hword() && !is_xe_hpc_plus()) return false;
 
-    // Enable qword for scalar f64
-    if (type.is_qword()
-            && (!is_xe_hp_plus() || slots != 1 || type.elems() != 1))
-        return false;
-
     // XXX: Half-GRF stores result in correctness issues on XeHPC.
     if (is_store() && is_block() && is_xe_hpc_plus()
             && type.size() % grf_size() != 0)
@@ -108,13 +103,14 @@ bool send_t::is_supported() const {
     // Skip transposing messages, they need additional logic in message
     // decomposition to handle layouts.
     if (type.is_dword() && type.elems() != 1) return false;
+    if (type.is_qword() && type.elems() != 1) return false;
 
     // XXX: Allow only hword x {1,2,4,8} prefetch for now.
     if (is_prefetch() && !type.is_hword()) return false;
     if (is_prefetch() && type.elems() > 8) return false;
 
     // Expect only float atomics.
-    if (is_atomic() && !type.is_dword()) return false;
+    if (is_atomic() && !(type.is_dword() || type.is_qword())) return false;
 
     if (is_atomic() && !is_xe_hpc_plus() && is_a64() && slots > 8) return false;
 
@@ -122,7 +118,8 @@ bool send_t::is_supported() const {
     if (is_scattered() && !is_atomic() && !type.is_byte() && !type.is_qword())
         return false;
 
-    if (is_scattered() && !is_atomic() && !utils::one_of(type.elems(), 1, 2, 4))
+    if (is_scattered() && !is_atomic()
+            && !utils::one_of(type.elems(), 1, 2, 4, 8))
         return false;
 
     return true;
