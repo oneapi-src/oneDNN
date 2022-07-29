@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "tests/test_isa_common.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -449,6 +450,18 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
     } else if (is_cpu()) {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+        static auto isa = dnnl_get_effective_cpu_isa();
+        const bool is_f16_src = prb->get_dt_conf(SRC).dt == dnnl_f16;
+        const bool is_f16_wei = prb->get_dt_conf(WEI).dt == dnnl_f16;
+        const bool is_f16_dst = prb->get_dt_conf(DST).dt == dnnl_f16;
+        const bool is_f16_not_ok = (is_f16_src || is_f16_wei || is_f16_dst)
+                && dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_fp16);
+        if (is_f16_not_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+#endif
         if (prb->attr.oscale.runtime) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         }

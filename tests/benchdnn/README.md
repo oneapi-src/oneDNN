@@ -14,6 +14,7 @@ drivers.
 
 where `DRIVER` is one of:
 * [binary](doc/driver_binary.md)
+* [brgemm](doc/driver_brgemm.md)
 * [bnorm](doc/driver_bnorm.md)
 * [concat](doc/driver_concat.md)
 * [conv](doc/driver_conv.md)

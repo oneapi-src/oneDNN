@@ -23,6 +23,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "tests/test_isa_common.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -725,6 +726,16 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     // FIXME: this will disable int8 RNN testing if the library is built with
     //        Intel MKL that does have packed IGEMM
     if (prb.is_int8()) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+#endif
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    static auto isa = dnnl_get_effective_cpu_isa();
+    const bool is_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
+            && dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_fp16);
+    if (is_f16_not_ok) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }

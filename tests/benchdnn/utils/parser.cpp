@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cctype>
+
 #include "utils/parser.hpp"
 
 #include "dnnl_common.hpp"
@@ -359,9 +361,19 @@ bool parse_main_help(
 // prb_dims_t type
 void parse_prb_vdims(
         prb_vdims_t &prb_vdims, const std::string &str, size_t min_inputs) {
+    assert(!str.empty());
+
     size_t start_pos = 0;
     // `n` is an indicator for a name supplied with dims_t object.
     std::string vdims_str = get_substr(str, start_pos, 'n');
+    // Sanity check that dims start with a digit.
+    if (!std::isdigit(vdims_str[0])) {
+        BENCHDNN_PRINT(0, "%s\n%s \'%s\'\n",
+                "ERROR: dims are expected to start with an integer value.",
+                "Given input:", str.c_str());
+        exit(1);
+    }
+
     parse_multivector_str(
             prb_vdims.vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
 
@@ -398,7 +410,7 @@ void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {
         try {
             value = std::stoll(s_);
         } catch (const std::invalid_argument &) {
-            BENCHDNN_PRINT(0, "%s\n%s \'%s\';\n",
+            BENCHDNN_PRINT(0, "%s\n%s \'%s\'\n",
                     "Error: dims value is expected to be an integer value.",
                     "Given input:", s_.c_str());
             exit(1);
@@ -718,10 +730,19 @@ bool parse_bench_settings(const char *str) {
 void catch_unknown_options(const char *str) {
     last_parsed_is_problem = true; // if reached, means problem parsing
 
-    const std::string pattern = "--";
+    std::string pattern = "--";
     if (pattern.find(str, 0, pattern.size()) != eol) {
-        fprintf(stderr, "%s driver: ERROR: unknown option: `%s`, exiting...\n",
-                driver_name.c_str(), str);
+        BENCHDNN_PRINT(0, "%s %s \'%s\'\n",
+                "driver: ERROR: unknown option:", driver_name.c_str(), str);
+        exit(2);
+    }
+
+    // Must stay after `--` check.
+    pattern = "-";
+    if (pattern.find(str, 0, pattern.size()) != eol) {
+        BENCHDNN_PRINT(0, "%s\n%s \'%s\'\n",
+                "ERROR: options should be passed with `--` prefix.",
+                "Given input:", str);
         exit(2);
     }
 }

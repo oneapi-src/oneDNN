@@ -4,5 +4,5 @@
 --bia_dt=undef,f32
 --alpha=1,2
 --beta=0,1
---attr-post-ops=,sum:2
+--attr-post-ops=,sum:2,relu
 --batch=option_set_f32
