@@ -53,7 +53,10 @@
 #define DEF_ACC_DATA8_T float8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) (float)(v)
-#define TO_DEF_ACC_DATA_T(v) (float)(v)
+#define TO_DEF_ACC_DATA_T convert_float
+#define TO_DEF_ACC_DATA2_T convert_float2
+#define TO_DEF_ACC_DATA4_T convert_float4
+#define TO_DEF_ACC_DATA8_T convert_float8
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_float
 #define CONVERT_DATA2_T convert_float2
@@ -142,13 +145,16 @@
 #define DATA_MIN -DATA_MAX
 #define DATA_ZERO 0.0h
 #define DATA_ONE 1.0h
-#define DEF_ACC_DATA_T half
-#define DEF_ACC_DATA2_T half2
-#define DEF_ACC_DATA4_T half4
-#define DEF_ACC_DATA8_T half8
+#define DEF_ACC_DATA_T float
+#define DEF_ACC_DATA2_T float2
+#define DEF_ACC_DATA4_T float4
+#define DEF_ACC_DATA8_T float8
 #define POST_OP_DATA_T float
-#define TO_DATA_T(v) (half)(v)
-#define TO_DEF_ACC_DATA_T(v) (half)(v)
+#define TO_DATA_T convert_half
+#define TO_DEF_ACC_DATA_T convert_float
+#define TO_DEF_ACC_DATA2_T convert_float2
+#define TO_DEF_ACC_DATA4_T convert_float4
+#define TO_DEF_ACC_DATA8_T convert_float8
 #define DATA_TO_REF convert_half
 #define CONVERT_DATA_T convert_half
 #define CONVERT_DATA2_T convert_half2
@@ -199,21 +205,24 @@
 #define DATA4_T ushort4
 #define DATA8_T ushort8
 #define DATA16_T ushort16
-#define DATA_MAX as_float(0x7f7f0000)
-#define DATA_MIN (-DATA_MAX)
-#define DATA_ZERO 0.0f
-#define DATA_ONE 1.0f
+#define DATA_MAX (ushort)0x7F7F
+#define DATA_MIN (ushort)0xFF7F
+#define DATA_ZERO (ushort)0x0000
+#define DATA_ONE (ushort)0x3F80
 #define DEF_ACC_DATA_T float
 #define DEF_ACC_DATA2_T float2
 #define DEF_ACC_DATA4_T float4
 #define DEF_ACC_DATA8_T float8
-#define TO_DATA_T(v) cvt_f32_to_bf16(v)
-#define TO_DEF_ACC_DATA_T(v) cvt_bf16_to_f32(v)
+#define TO_DATA_T cvt_f32_to_bf16
+#define TO_DEF_ACC_DATA_T cvt_bf16_to_f32
+#define TO_DEF_ACC_DATA2_T cvt_bf16_to_f32
+#define TO_DEF_ACC_DATA4_T cvt_bf16_to_f32
+#define TO_DEF_ACC_DATA8_T cvt_bf16_to_f32
 #define DATA_TO_REF cvt_bf16_to_f32
-#define CONVERT_DATA_T cvt_f32_to_bf16
-#define CONVERT_DATA2_T cvt_f32_to_bf16
-#define CONVERT_DATA4_T cvt_f32_to_bf16
-#define CONVERT_DATA8_T cvt_f32_to_bf16
+#define CONVERT_DATA_T(v) cvt_f32_to_bf16(convert_float(v))
+#define CONVERT_DATA2_T(v) cvt_f32_to_bf16(convert_float2(v))
+#define CONVERT_DATA4_T(v) cvt_f32_to_bf16(convert_float4(v))
+#define CONVERT_DATA8_T(v) cvt_f32_to_bf16(convert_float8(v))
 #define CONVERT_FLOAT_T cvt_bf16_to_f32
 #define CONVERT_FLOAT2_T cvt_bf16_to_f32
 #define CONVERT_FLOAT4_T cvt_bf16_to_f32
@@ -268,7 +277,10 @@
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) convert_char_sat_rte(v)
-#define TO_DEF_ACC_DATA_T(v) (float)(v)
+#define TO_DEF_ACC_DATA_T convert_int_sat_rte
+#define TO_DEF_ACC_DATA2_T convert_int2_sat_rte
+#define TO_DEF_ACC_DATA4_T convert_int4_sat_rte
+#define TO_DEF_ACC_DATA8_T convert_int8_sat_rte
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_char_sat_rte
 #define CONVERT_DATA2_T convert_char2_sat_rte
@@ -330,7 +342,10 @@
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) convert_uchar_sat_rte(v)
-#define TO_DEF_ACC_DATA_T(v) (float)(v)
+#define TO_DEF_ACC_DATA_T convert_int_sat_rte
+#define TO_DEF_ACC_DATA2_T convert_int2_sat_rte
+#define TO_DEF_ACC_DATA4_T convert_int4_sat_rte
+#define TO_DEF_ACC_DATA8_T convert_int8_sat_rte
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_uchar_sat_rte
 #define CONVERT_DATA2_T convert_uchar2_sat_rte
@@ -433,6 +448,7 @@
 #if VECT_DT_N == 1
 #define VECT_DATA_T DATA_T
 #define VECT_DEF_ACC_DATA_T DEF_ACC_DATA_T
+#define AS_VECT_DEF_ACC_DATA_T TO_DEF_ACC_DATA_T
 #define AS_VECT_DATA_T AS_DATA_T
 #define VECT_BLOCK_READ BLOCK_READ
 #define VECT_BLOCK_WRITE BLOCK_WRITE
@@ -458,6 +474,7 @@
 #elif VECT_DT_N == 2
 #define VECT_DATA_T DATA2_T
 #define VECT_DEF_ACC_DATA_T DEF_ACC_DATA2_T
+#define AS_VECT_DEF_ACC_DATA_T TO_DEF_ACC_DATA2_T
 #define AS_VECT_DATA_T AS_DATA2_T
 #define VECT_BLOCK_READ BLOCK_READ2
 #define VECT_BLOCK_WRITE BLOCK_WRITE2
@@ -483,6 +500,7 @@
 #elif VECT_DT_N == 4
 #define VECT_DATA_T DATA4_T
 #define VECT_DEF_ACC_DATA_T DEF_ACC_DATA4_T
+#define AS_VECT_DEF_ACC_DATA_T TO_DEF_ACC_DATA4_T
 #define AS_VECT_DATA_T AS_DATA4_T
 #define VECT_BLOCK_READ BLOCK_READ4
 #define VECT_BLOCK_WRITE BLOCK_WRITE4
@@ -508,6 +526,7 @@
 #elif VECT_DT_N == 8
 #define VECT_DATA_T DATA8_T
 #define VECT_DEF_ACC_DATA_T DEF_ACC_DATA8_T
+#define AS_VECT_DEF_ACC_DATA_T TO_DEF_ACC_DATA8_T
 #define AS_VECT_DATA_T AS_DATA8_T
 #define VECT_BLOCK_READ BLOCK_READ8
 #define VECT_BLOCK_WRITE BLOCK_WRITE8
