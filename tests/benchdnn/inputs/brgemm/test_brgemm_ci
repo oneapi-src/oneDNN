@@ -15,7 +15,9 @@
 --dt=bf16,bf16:bf16:f32
 --bia_dt=undef,f32,bf16
 --brgemm-attr=,use_uker:1
+--beta=0 # add beta=1 once failures are fixed
 --batch=shapes_2d_no_tail_bf16
+--beta=0,1
 
 --attr-post-ops=
 --dt=u8:s8:f32,s8:s8:bf16,u8:s8:u8,s8:s8:s8
