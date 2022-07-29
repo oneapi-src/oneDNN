@@ -176,9 +176,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
                 && simple_impl_desc_init(p, nullptr) && mayiuse(sse41)
                 && IMPLICATION(utils::one_of(bf16, p.itype, p.otype),
-                        mayiuse(avx512_core))
+                        mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
                 && IMPLICATION(utils::one_of(f16, p.itype, p.otype),
-                        mayiuse(avx512_core_fp16))
+                        mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2))
                 && prb_has_small_strides(p);
 
         return ok;
@@ -265,10 +265,18 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                               vpslld(dst, dst, 0x10);
                               break;
                           case f16:
-                              if (src.isMEM())
-                                  vcvtph2psx(dst, src);
-                              else
-                                  vcvtph2psx(dst, Xmm(src.getIdx()));
+                              if (is_superset(isa_, avx512_core_fp16)) {
+                                  if (src.isMEM())
+                                      vcvtph2psx(dst, src);
+                                  else
+                                      vcvtph2psx(dst, Xmm(src.getIdx()));
+                              } else if (is_superset(isa_, avx2_vnni_2)) {
+                                  if (src.isMEM())
+                                      vcvtph2ps(dst, src);
+                                  else
+                                      vcvtph2ps(dst, Xmm(src.getIdx()));
+                              } else
+                                  assert(!"invalid isa");
                               break;
                           case s32: vcvtdq2ps(dst, src); break;
                           case s8:
@@ -290,7 +298,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 case bf16:
                     if (utils::one_of(idt, f32, f16, s8, u8)) {
                         if (idt != f32) cvt2ps(ymm, ymm, idt);
-                        if (mayiuse(avx512_core_bf16)) {
+                        if (is_superset(isa_, avx2_vnni_2)) {
+                            vcvtneps2bf16(
+                                    Xmm(ymm.getIdx()), ymm, Xbyak::VexEncoding);
+                        } else if (mayiuse(avx512_core_bf16)) {
                             vcvtneps2bf16(Xmm(ymm.getIdx()), ymm);
                         } else {
                             bf16_emu_->vcvtneps2bf16(
@@ -585,7 +596,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     if (!mayiuse(avx)) assert(!"unreachable");
                     if (utils::one_of(idt, f32, f16, s8, u8)) {
                         if (idt != f32) cvt2ps(xmm, xmm, idt);
-                        if (mayiuse(avx512_core_bf16)) {
+                        if (is_superset(isa_, avx2_vnni_2)) {
+                            vcvtneps2bf16(xmm, xmm, Xbyak::VexEncoding);
+                        } else if (mayiuse(avx512_core_bf16)) {
                             vcvtneps2bf16(xmm, xmm);
                         } else {
                             bf16_emu_->vcvtneps2bf16(
@@ -1379,11 +1392,16 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     jit_uni_reorder_kernel_f32_t(const desc_t &desc)
-        : kernel_t(desc), jit_generator(jit_name()), bf16_emu_(nullptr) {
+        : kernel_t(desc)
+        , jit_generator(jit_name())
+        , isa_(get_max_cpu_isa())
+        , bf16_emu_(nullptr) {
+        assert(!utils::one_of(isa_, isa_undef, isa_all));
         itype_sz_ = data_type_size(prb_.itype);
         otype_sz_ = data_type_size(prb_.otype);
         stype_sz_ = sizeof(float);
-        if (prb_.otype == data_type::bf16 && !mayiuse(avx512_core_bf16)) {
+        if (prb_.otype == data_type::bf16 && !mayiuse(avx512_core_bf16)
+                && !mayiuse(avx2_vnni_2)) {
             bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                     bf16_emu_reserv_1_, bf16_emu_reserv_2_, bf16_emu_reserv_3_,
                     bf16_emu_scratch_, bf16_emu_reserv_4_);
@@ -1473,6 +1491,8 @@ private:
     int itype_sz_;
     int otype_sz_;
     int stype_sz_;
+
+    const cpu_isa_t isa_;
 
     const Reg64 reg_ptr_in_ = rsi;
     const Reg64 reg_ptr_out_ = rdx;
