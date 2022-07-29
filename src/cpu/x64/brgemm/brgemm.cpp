@@ -198,13 +198,15 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     const bool ldx_check = (LDA < N || LDC < N);
     if (ldx_check) return status::invalid_arguments;
 
-    if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
+    if (utils::everyone_is(
+                false, brg->is_int8, brg->is_bf16, brg->is_f32, brg->is_f16))
         return status::unimplemented;
 
-    brg->isa_impl = brg->is_f32
-            ? avx512_core
-            : (brg->is_int8 ? avx512_core_vnni : avx512_core_bf16);
-    if (!(is_superset(isa, brg->isa_impl) && mayiuse(brg->isa_impl)))
+    brg->isa_impl = utils::map(true, isa_any, brg->is_f32, avx512_core,
+            brg->is_int8, avx512_core_vnni, brg->is_bf16, avx512_core_bf16,
+            brg->is_f16, avx512_core_fp16);
+    if (brg->isa_impl == isa_any
+            || !(is_superset(isa, brg->isa_impl) && mayiuse(brg->isa_impl)))
         return status::unimplemented;
 
     const int requires_permute_dst_zmm = brg->isa_impl == avx512_core_vnni
@@ -247,6 +249,11 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     if ((brg->dt_a == data_type::f32 && brg->dt_b == data_type::f32)
             && (!one_of(dt_d, data_type::f32))
             && (!one_of(dt_bias, data_type::undef, data_type::f32)))
+        return status::unimplemented;
+    if (!IMPLICATION(brg->is_f16,
+                one_of(dt_d, data_type::f32, data_type::f16)
+                        && one_of(dt_bias, data_type::undef, data_type::f32,
+                                data_type::f16)))
         return status::unimplemented;
 
     brg->dt_d = dt_d;
@@ -413,7 +420,10 @@ status_t brgemm_kernel_create(
     *brg_kernel = nullptr;
 
     if (brg.is_dgmm) {
-        if (brg.isa_impl == avx512_core_bf16) {
+        if (brg.isa_impl == avx512_core_fp16) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                    new brdgmm_kernel_t<avx512_core_fp16, Xbyak::Zmm>(brg)));
+        } else if (brg.isa_impl == avx512_core_bf16) {
             CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
                     new brdgmm_kernel_t<avx512_core_bf16, Xbyak::Zmm>(brg)));
         } else if (brg.isa_impl == avx512_core_vnni) {

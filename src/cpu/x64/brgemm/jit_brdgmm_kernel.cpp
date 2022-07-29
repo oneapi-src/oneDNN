@@ -202,6 +202,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::cvt2ps(data_type_t type_in,
             vpmovzxwd(vmm, op);
             vpslld(vmm, vmm, 16);
             break;
+        case data_type::f16: vcvtph2ps(vmm, op); break;
         case data_type::s8: vpmovsxbd(vmm, op); break;
         case data_type::u8: vpmovzxbd(vmm, op); break;
         default: assert(!"unsupported data type");
@@ -364,6 +365,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
                         vcvtneps2bf16(vmm_low, vmm);
                     vmovdqu16(addr, r_vmm_low);
                     break;
+                case data_type::f16: vcvtps2ph(addr, r_vmm, _op_mxcsr); break;
                 case data_type::s8: vpmovsdb(addr, r_vmm); break;
                 case data_type::u8: vpmovusdb(addr, r_vmm); break;
                 default: assert(!"unknown dst_dt");
@@ -448,6 +450,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
         } else if (brg.is_bf16) {
             vpmovzxwd(vmma, addr);
             if (brg.is_bf16_tmm) vpslld(vmma, vmma, 16);
+        } else if (brg.is_f16) {
+            vcvtph2ps(vmma, addr);
         } else if (brg.is_int8) {
             if (is_fast_vnni_int8()) {
                 assert(!mask_flag);
@@ -470,6 +474,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
             } else {
                 vpmovsxbd(vmmb, addr);
             }
+        } else if (brg.is_f16) {
+            vcvtph2ps(vmmb, addr);
         } else if (brg.is_bf16) {
             vpmovzxwd(vmmb, addr);
             if (brg.is_bf16_tmm) vpslld(vmmb, vmmb, 16);
@@ -493,6 +499,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
                 vfmadd231ps(vmm_acc, vmma, vmmb);
             else
                 vdpbf16ps(vmm_acc, vmma, vmmb);
+        } else if (brg.is_f16) {
+            vfmadd231ps(vmm_acc, vmma, vmmb);
         } else if (brg.is_int8) {
             vpdpbusd(vmm_acc, vmma, vmmb);
         }

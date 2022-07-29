@@ -85,20 +85,21 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             && one_of(dst_type, s32, f32, u8, s8, bf16);
     const bool is_bf16 = everyone_is(bf16, src_type, wei_type)
             && one_of(dst_type, bf16, f32);
-    const auto isa = is_f32 ? avx512_core
-                            : (is_int8 ? avx512_core_vnni : avx512_core_bf16);
+    const bool is_f16 = everyone_is(f16, src_type, wei_type)
+            && one_of(dst_type, f16, f32);
+    const cpu_isa_t isa
+            = utils::map(true, avx512_core, is_int8, avx512_core_vnni, is_bf16,
+                    avx512_core_bf16, is_f16, avx512_core_fp16);
 
     auto skip_mask = skip_mask_t::post_ops;
     if (is_int8) skip_mask |= skip_mask_t::oscale_runtime;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
-            && one_of(true, is_f32, is_int8, is_bf16) && mayiuse(isa)
-            && IMPLICATION(with_bias(),
-                    ((one_of(src_type, u8, s8)
-                             && one_of(bia_type, f32, s32, s8, u8))
-                            || (one_of(src_type, bf16)
-                                    && one_of(bia_type, f32, bf16))
-                            || everyone_is(f32, src_type, bia_type)))
+            && one_of(true, is_f32, is_int8, is_bf16, is_f16) && mayiuse(isa)
+            && IMPLICATION(is_int8,
+                    one_of(bia_type, data_type::undef, f32, s32, s8, u8))
+            && IMPLICATION(!is_int8,
+                    one_of(bia_type, data_type::undef, src_type, dst_type))
             && attr()->has_default_values(skip_mask) && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
@@ -147,8 +148,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const int simd_w = 16;
     const auto def_data_tag = format_tag::nhwc;
     const auto def_wei_tag = format_tag::hwioG16g;
-    const bool any_eligible
-            = (cd.prop_kind == prop_kind::forward_inference || is_int8);
+    const bool any_eligible = (cd.prop_kind == prop_kind::forward_inference
+            || is_int8 || is_f16);
     CHECK(init_tag(src_md_, src_d, def_data_tag, any_eligible));
     CHECK(init_tag(dst_md_, dst_d, def_data_tag, any_eligible));
     CHECK(init_tag(weights_md_, weights_d, def_wei_tag, true));

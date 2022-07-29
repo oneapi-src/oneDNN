@@ -145,12 +145,14 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             nullptr,
         }},
         {{forward, f16, f16, f32}, {
+            CPU_INSTANCE_AVX512(brdgmm_dw_convolution_fwd_t)
             CPU_INSTANCE_AVX512(brgemm_1x1_convolution_fwd_t<avx512_core_fp16>)
             CPU_INSTANCE_AVX512(brgemm_convolution_fwd_t<avx512_core_fp16>)
             CPU_INSTANCE(ref_convolution_fwd_t)
             nullptr,
         }},
         {{forward, f16, f16, f16}, {
+            CPU_INSTANCE_AVX512(brdgmm_dw_convolution_fwd_t)
             CPU_INSTANCE_AVX512(brgemm_1x1_convolution_fwd_t<avx512_core_fp16>)
             CPU_INSTANCE_AVX512(brgemm_convolution_fwd_t<avx512_core_fp16>)
             CPU_INSTANCE(ref_convolution_fwd_t)
