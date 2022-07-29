@@ -59,6 +59,20 @@ static int check_known_skipped_case_graph(
         if (!valid_wei_fmt_tag)
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
     }
+    if (res->state == SKIPPED) return OK;
+
+    // TODO(xiang): remove after onednn fix this.
+    // GPU only support deconv with per_tensor output scale=1
+    bool oscale_support = prb->attr.oscale.is_def()
+            || (prb->attr.oscale.policy == policy_t::PER_OC
+                    && prb->attr.oscale.scale == 1);
+    // GPU doesn't support deconv with zero points
+    bool zp_support = prb->attr.zero_points.is_def();
+    if (is_gpu() && (!oscale_support || !zp_support)) {
+        res->state = SKIPPED;
+        res->reason = CASE_NOT_SUPPORTED;
+    }
+    if (res->state == SKIPPED) return OK;
 
     check_graph_scales_and_zps_support(prb->attr, res);
     return OK;
