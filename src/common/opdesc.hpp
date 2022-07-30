@@ -22,40 +22,34 @@
 namespace dnnl {
 namespace impl {
 
-struct dnnl_reorder_desc_t {
-    dnnl_primitive_kind_t primitive_kind;
-    const dnnl_memory_desc_t *src_md;
-    const dnnl_memory_desc_t *dst_md;
-    dnnl_engine_kind_t src_engine_kind;
-    dnnl_engine_kind_t dst_engine_kind;
+struct reorder_desc_t {
+    primitive_kind_t primitive_kind;
+    const memory_desc_t *src_md;
+    const memory_desc_t *dst_md;
+    engine_kind_t src_engine_kind;
+    engine_kind_t dst_engine_kind;
     bool is_cross_engine;
 };
 
-struct dnnl_concat_desc_t {
-    dnnl_primitive_kind_t primitive_kind;
-    const dnnl_memory_desc_t *dst_md;
-    dnnl_dim_t n;
-    dnnl_dim_t concat_dimension;
-    const dnnl_memory_desc_t *src_mds;
+struct concat_desc_t {
+    primitive_kind_t primitive_kind;
+    const memory_desc_t *dst_md;
+    dim_t n;
+    dim_t concat_dimension;
+    const memory_desc_t *src_mds;
 };
 
-struct dnnl_sum_desc_t {
-    dnnl_primitive_kind_t primitive_kind;
-    const dnnl_memory_desc_t *dst_md;
-    dnnl_dim_t n;
+struct sum_desc_t {
+    primitive_kind_t primitive_kind;
+    const memory_desc_t *dst_md;
+    dim_t n;
     const float *scales;
-    const dnnl_memory_desc_t *src_mds;
+    const memory_desc_t *src_mds;
 };
 
-struct dnnl_zero_pad_desc_t {
-    dnnl_primitive_kind_t primitive_kind;
+struct zero_pad_desc_t {
+    primitive_kind_t primitive_kind;
 };
-
-/* Internal types, for the primitives which don't have descs */
-using concat_desc_t = dnnl_concat_desc_t;
-using reorder_desc_t = dnnl_reorder_desc_t;
-using sum_desc_t = dnnl_sum_desc_t;
-using zero_pad_desc_t = dnnl_zero_pad_desc_t;
 
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;

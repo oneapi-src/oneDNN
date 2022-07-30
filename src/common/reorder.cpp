@@ -90,8 +90,8 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
             && utils::one_of(
                     engine_kind::gpu, src_engine->kind(), dst_engine->kind());
 
-    dnnl_reorder_desc_t desc = {primitive_kind::reorder, src_md, dst_md, s_ek,
-            d_ek, is_cross_engine};
+    reorder_desc_t desc = {primitive_kind::reorder, src_md, dst_md, s_ek, d_ek,
+            is_cross_engine};
     primitive_hashing::key_t key(
             engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {});
     pd = primitive_cache().get_pd(key);
