@@ -81,10 +81,10 @@ jit_brdgmm_kernel_base_t::Vmm jit_brdgmm_kernel_base_t::vmm_mask(
                      : vmm_in;
 }
 
-jit_brdgmm_kernel_base_t::Wmm jit_brdgmm_kernel_base_t::wmm_mask(
-        const Wmm wmm_in, bool mask_flag, bool store) {
-    return mask_flag ? (store ? wmm_in | k_mask : wmm_in | k_mask | T_z)
-                     : wmm_in;
+jit_brdgmm_kernel_base_t::Vmm_low_t jit_brdgmm_kernel_base_t::vmm_low_mask(
+        const Vmm_low_t vmm_low_in, bool mask_flag, bool store) {
+    return mask_flag ? (store ? vmm_low_in | k_mask : vmm_low_in | k_mask | T_z)
+                     : vmm_low_in;
 }
 
 void jit_brdgmm_kernel_base_t::read_params() {
@@ -336,19 +336,19 @@ void jit_brdgmm_kernel_base_t::store_accumulators_apply_post_ops(
         for (int n = 0; n < n_blocks; n++) {
             auto addr = ptr[reg_aux_D + D_offset(m, n)];
             auto vmm = accm(m_blocks, n_blocks, m, n);
-            auto wmm = Wmm(vmm.getIdx());
+            auto vmm_low = Vmm_low_t(vmm.getIdx());
             const bool mask_flag = n + 1 == n_blocks && has_n_tail;
             const Vmm r_vmm = vmm_mask(vmm, mask_flag, true);
-            const Wmm r_wmm = wmm_mask(wmm, mask_flag, true);
+            const Vmm_low_t r_vmm_low = vmm_low_mask(vmm_low, mask_flag, true);
             switch (brg.dt_d) {
                 case data_type::f32:
                 case data_type::s32: vmovups(addr, r_vmm); break;
                 case data_type::bf16:
                     if (brg.is_bf16_emu)
-                        bf16_emu_->vcvtneps2bf16(wmm, vmm);
+                        bf16_emu_->vcvtneps2bf16(vmm_low, vmm);
                     else
-                        vcvtneps2bf16(wmm, vmm);
-                    vmovdqu16(addr, r_wmm);
+                        vcvtneps2bf16(vmm_low, vmm);
+                    vmovdqu16(addr, r_vmm_low);
                     break;
                 case data_type::s8: vpmovsdb(addr, r_vmm); break;
                 case data_type::u8: vpmovusdb(addr, r_vmm); break;

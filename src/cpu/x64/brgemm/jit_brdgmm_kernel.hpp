@@ -46,7 +46,7 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
 private:
     // using alias for Zmm and Ymm. useful for future avx2 support.
     using Vmm = Xbyak::Zmm;
-    using Wmm =
+    using Vmm_low_t =
             typename utils::conditional<std::is_same<Vmm, Xbyak::Zmm>::value,
                     Xbyak::Ymm, Xbyak::Xmm>::type;
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
@@ -155,7 +155,8 @@ private:
         return Vmm(idx);
     }
     Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store);
-    Wmm wmm_mask(const Wmm wmm_in, bool mask_flag, bool store);
+    Vmm_low_t vmm_low_mask(
+            const Vmm_low_t vmm_low_in, bool mask_flag, bool store);
 
     void read_params();
     void load_accumulators(int m_blocks, int n_blocks);
