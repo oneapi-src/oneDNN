@@ -28,7 +28,7 @@ namespace impl {
 
 bool try_cvt_float_to_float16(float16_t *out, const float *inp) {
 #if DNNL_X64
-    if (cpu::platform::has_data_type_support(data_type::f16)) {
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core_fp16)) {
         cpu::x64::f16_support::jit_call_t p;
         p.inp = (void *)inp;
         p.out = (void *)out;
@@ -43,7 +43,7 @@ bool try_cvt_float_to_float16(float16_t *out, const float *inp) {
 
 void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems) {
 #if DNNL_X64
-    if (cpu::platform::has_data_type_support(data_type::f16)) {
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core_fp16)) {
         cpu::x64::f16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
@@ -62,7 +62,7 @@ void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems) {
 
 void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems) {
 #if DNNL_X64
-    if (cpu::platform::has_data_type_support(data_type::f16)) {
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core_fp16)) {
         static const cpu::x64::jit_avx512_core_fp16_cvt_f16_to_ps_t kernel(
                 false);
         return kernel(out, inp, nelems);
@@ -77,7 +77,7 @@ void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems) {
 void add_floats_and_cvt_to_float16(
         float16_t *out, const float *inp0, const float *inp1, size_t nelems) {
 #if DNNL_X64
-    if (cpu::platform::has_data_type_support(data_type::f16)) {
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core_fp16)) {
         cpu::x64::f16_support::jit_call_t p_;
         p_.inp = (void *)inp0;
         p_.add = (void *)inp1;
