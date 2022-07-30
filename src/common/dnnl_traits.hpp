@@ -26,6 +26,7 @@
 #include "c_types_map.hpp"
 #include "float16.hpp"
 #include "nstl.hpp"
+#include "opdesc.hpp"
 #include "utils.hpp"
 #include "z_magic.hpp"
 

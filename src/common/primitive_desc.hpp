@@ -26,6 +26,7 @@
 #include "cache_blob_id.hpp"
 #include "memory_tracking.hpp"
 #include "nstl.hpp"
+#include "opdesc.hpp"
 #include "primitive_attr.hpp"
 #include "primitive_cache.hpp"
 #include "type_helpers.hpp"
