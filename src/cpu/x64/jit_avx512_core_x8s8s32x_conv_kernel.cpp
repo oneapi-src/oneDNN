@@ -101,7 +101,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::prepare_output(int ur_w) {
             Vmm vmm = vmm_out(j, k);
             vpxord(vmm, vmm, vmm);
         }
-    if (jcp.apply_compensation) {
+    if (apply_signed_compensation(jcp)) {
         mov(reg_scratch, 128);
         if (jcp.is_depthwise && !jcp.is_fast_depthwise)
             vpbroadcastd(vmm_shift, reg_scratch.cvt32());
@@ -247,7 +247,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
 
     mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
-    if (jcp.apply_compensation)
+    if (apply_signed_compensation(jcp))
         mov(reg_compensation, ptr[param1 + GET_OFF(compensation)]);
 
     if (jcp.src_zero_point) {
@@ -265,7 +265,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
         p_sum_zp = &p_entry.sum.zero_point;
     }
 
-    if (jcp.apply_scale_adjust) {
+    if (apply_scale_adjust(jcp)) {
         /* put 'wei_adj_scale = 0.5' for bias calculation */
         mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
         vmovq(xmm_bias_alpha(), reg_bias_alpha);
@@ -280,10 +280,10 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
             auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
 
             cvt2ps(jcp.bia_dt, vmm_bias, bias_addr, mask_flag);
-            if (jcp.apply_scale_adjust) /* bias *= 0.5 */
+            if (apply_scale_adjust(jcp)) /* bias *= 0.5 */
                 vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
         }
-        if (jcp.apply_compensation) {
+        if (apply_signed_compensation(jcp)) {
             int comp_offset = sizeof(int32_t) * k * oc_block;
             Vmm vmm_comp_ = vmm_mask(vmm_comp, mask_flag);
             vmovups(vmm_comp_,
@@ -307,7 +307,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
             /* add comp in s32 to avoid loss of precision
                when convert s32 to f32 in integer(2^24)
                TODO: do the same to bias */
-            if (jcp.apply_compensation) vpaddd(vmm, vmm, vmm_comp);
+            if (apply_signed_compensation(jcp)) vpaddd(vmm, vmm, vmm_comp);
             if (jcp.src_zero_point) vpaddd(vmm, vmm, vmm_zp);
             vcvtdq2ps(vmm, vmm);
 
@@ -590,7 +590,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker_force_be(int ur_w, i
 template <>
 void _jit_avx512_core_x8s8s32x_fwd_kernel<Zmm>::compute_ker_force_be(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag) {
-    assert((!jcp.src_zero_point) && (!jcp.apply_compensation));
+    assert((!jcp.src_zero_point) && (!apply_signed_compensation(jcp)));
 
     int kw = jcp.kw;
     int stride_w = jcp.stride_w;
@@ -693,9 +693,9 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
         return compute_ker_force_be(ur_w, pad_l, pad_r, last_ic_block_flag);
     }
 
-    const bool compute_kernel = IMPLICATION(h_padded, jcp.apply_compensation);
+    const bool compute_kernel = IMPLICATION(h_padded, apply_signed_compensation(jcp));
 
-    assert(IMPLICATION(h_padded, jcp.src_zero_point || jcp.apply_compensation));
+    assert(IMPLICATION(h_padded, jcp.src_zero_point || apply_signed_compensation(jcp)));
 
     if (jcp.src_zero_point) {
         push(aux_reg_ker_d);
@@ -736,8 +736,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
         int jj_start = get_ow_start(ki, pad_l);
         int jj_end = get_ow_end(ur_w, ki, pad_r);
         int ic_tail_size = jcp.ic_without_padding % ic_sub_step;
-        int _start = jcp.apply_compensation ? 0 : jj_start;
-        int _end = jcp.apply_compensation ? ur_w : jj_end;
+        int _start = apply_signed_compensation(jcp) ? 0 : jj_start;
+        int _end = apply_signed_compensation(jcp) ? ur_w : jj_end;
         /* Skip the last loads of input
             if (ic%16)/ic_sub_step < ic_block/ic_sub_step */
         int icb = (last_ic_block_flag != no_last_block)
@@ -767,13 +767,13 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
                                         EVEX_compress_addr(
                                                 aux_reg_inp, aux_input_offset));
                             }
-                            if (jcp.apply_compensation)
+                            if (apply_signed_compensation(jcp))
                                 vpaddb(vmm_inp(jj, nb_oc_block),
                                         vmm_inp(jj, nb_oc_block), vmm_shift);
                         } else {
                             // fill padded area with shifted value in
                             // first iteration
-                            if (jcp.apply_compensation && ic == 0) {
+                            if (apply_signed_compensation(jcp) && ic == 0) {
                                 Vmm inp = vmm_inp(jj, nb_oc_block);
                                 vmovups(inp, vmm_shift);
                             }
@@ -845,7 +845,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
     if (jcp.ndims == 5) {
         mov(aux_reg_ker_d, reg_ker);
         mov(aux_reg_inp_d, reg_inp);
-        if (jcp.apply_compensation || jcp.src_zero_point) {
+        if (apply_signed_compensation(jcp) || jcp.src_zero_point) {
             //TODO: May be avoided when f_pad=0 and dd0
             //TODO: Potential optimization by precomputing, when kd <<< od?
             mov(reg_ki, ptr[param1 + GET_OFF(f_overflow)]);
@@ -870,8 +870,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         }
 
         mov(reg_ki, ptr[param1 + GET_OFF(kd_padding)]);
-        if ((jcp.apply_compensation || jcp.src_zero_point) || (jcp.dilate_d >= jcp.id)
-                || (!(jcp.apply_compensation || jcp.src_zero_point)
+        if ((apply_signed_compensation(jcp) || jcp.src_zero_point) || (jcp.dilate_d >= jcp.id)
+                || (!(apply_signed_compensation(jcp) || jcp.src_zero_point)
                         && (jcp.kd - 1) * (jcp.dilate_d + 1)
                                 < nstl::max(jcp.f_pad, jcp.back_pad))) {
             cmp(reg_ki, 0);
@@ -889,7 +889,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         mov(aux_reg_ker, reg_ker);
     }
 
-    if ((jcp.apply_compensation || jcp.src_zero_point) && jcp.ndims > 3) {
+    if ((apply_signed_compensation(jcp) || jcp.src_zero_point) && jcp.ndims > 3) {
         mov(reg_overflow, ptr[param1 + GET_OFF(t_overflow)]);
         cmp(reg_overflow, 0);
         je(no_t_overflow_label, T_NEAR);
@@ -905,8 +905,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         L(no_t_overflow_label);
     }
     mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
-    if (jcp.apply_compensation || jcp.src_zero_point || (jcp.dilate_h >= jcp.ih)
-            || (!(jcp.apply_compensation || jcp.src_zero_point)
+    if (apply_signed_compensation(jcp) || jcp.src_zero_point || (jcp.dilate_h >= jcp.ih)
+            || (!(apply_signed_compensation(jcp) || jcp.src_zero_point)
                     && (jcp.kh - 1) * (jcp.dilate_h + 1)
                             < nstl::max(jcp.t_pad, jcp.b_pad))) {
         cmp(reg_kj, 0);
@@ -931,7 +931,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         jg(kh_label, T_NEAR);
     }
     L(skip_kh_loop);
-    if ((jcp.apply_compensation || jcp.src_zero_point) && jcp.ndims > 3) {
+    if ((apply_signed_compensation(jcp) || jcp.src_zero_point) && jcp.ndims > 3) {
         mov(reg_overflow, ptr[param1 + GET_OFF(b_overflow)]);
         cmp(reg_overflow, 0);
         je(no_b_overflow_label, T_NEAR);
@@ -954,7 +954,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         jne(kd_label, T_NEAR);
 
         L(skip_kd_loop);
-        if (jcp.apply_compensation || jcp.src_zero_point) {
+        if (apply_signed_compensation(jcp) || jcp.src_zero_point) {
             mov(reg_ki, ptr[param1 + GET_OFF(back_overflow)]);
             cmp(reg_ki, 0);
             je(no_back_overflow_label, T_NEAR);
@@ -1577,9 +1577,6 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (jcp.force_be && (!force_be_supported))
         return status::unimplemented;
 
-    jcp.apply_compensation = jcp.signed_input && (!jcp.force_be); // apply compensation for signed input
-    jcp.apply_scale_adjust = jcp.signed_input && (!jcp.has_vnni) && (!jcp.force_be);
-
     const bool bf16_req_extra_regs = cd.dst_desc.data_type == data_type::bf16
             && !isa_has_bf16(jcp.isa);
     jcp.is_fast_depthwise = true && jcp.is_depthwise && jcp.has_vnni
@@ -1634,14 +1631,14 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
 
-        if (jcp.apply_compensation)
+        if (apply_signed_compensation(jcp))
         {
             assert(jcp.signed_input);
             want_wei_md.extra.flags = 0 | compensation_conv_s8s8;
             want_wei_md.extra.compensation_mask = (1 << 0)
                     + (with_groups && !jcp.is_depthwise ? (1 << 1) : 0);
         }
-        if (jcp.apply_scale_adjust)
+        if (apply_scale_adjust(jcp))
         {
             assert(jcp.signed_input && !jcp.has_vnni);
             want_wei_md.extra.flags |= scale_adjust;
@@ -1870,7 +1867,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 void jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    if (jcp.apply_scale_adjust) {
+    if (apply_scale_adjust(jcp)) {
         dim_t count = attr.output_scales_.count_ == 1
                 ? (dim_t)16
                 : attr.output_scales_.count_;

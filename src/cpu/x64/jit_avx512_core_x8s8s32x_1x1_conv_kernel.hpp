@@ -91,7 +91,7 @@ private:
     const Vmm vmm_shift = Vmm(30);
     const Vmm vmm_bcast = Vmm(31);
 
-    /* force bit exsact */
+    /* force bit exact */
     const Xbyak::Ymm ymm_bcast = Xbyak::Ymm(31);
     const Xbyak::Zmm zmm_wei_i16 = Xbyak::Zmm(29);
     const Xbyak::Zmm zmm_src_i16 = Xbyak::Zmm(28);

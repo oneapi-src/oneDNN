@@ -254,9 +254,15 @@ struct jit_conv_conf_t {
 
     // force bit exactness
     bool force_be; // force bit exact (has_vnni must be false)
-    bool apply_compensation;
-    bool apply_scale_adjust;
 };
+
+inline bool apply_signed_compensation(const jit_conv_conf_t& jcp) {
+    return jcp.signed_input && (!jcp.force_be);
+}
+
+inline bool apply_scale_adjust(const jit_conv_conf_t& jcp) {
+    return jcp.signed_input && (!jcp.has_vnni) && (!jcp.force_be);
+}
 
 // calculates filter size taking into account dilation
 inline int calculate_extended_filter_size(int filter_size, int dilation) {
@@ -610,6 +616,14 @@ struct jit_1x1_conv_conf_t {
     bool apply_compensation;
     bool apply_scale_adjust;
 };
+
+inline bool apply_signed_compensation(const jit_1x1_conv_conf_t& jcp) {
+    return jcp.signed_input && (!jcp.force_be);
+}
+
+inline bool apply_scale_adjust(const jit_1x1_conv_conf_t& jcp) {
+    return jcp.signed_input && (!jcp.has_vnni) && (!jcp.force_be);
+}
 
 struct jit_1x1_conv_call_s {
     const void *bcast_data;
