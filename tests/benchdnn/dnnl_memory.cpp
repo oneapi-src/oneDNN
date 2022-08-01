@@ -246,7 +246,7 @@ dnn_mem_t dnn_mem_t::create_from_host_ptr(
 size_t dnn_mem_t::pad_memory_size(
         size_t sz, dnnl_engine_kind_t engine_kind, bool *was_padded) {
     if (was_padded) *was_padded = false;
-    if (sz == 0 || !is_bench_mode(CORR) || engine_kind == dnnl_cpu) return 0;
+    if (sz == 0 || !is_bench_mode(CORR) || engine_kind == dnnl_cpu) return sz;
 
     const int pad_size = 4096;
     if (was_padded) *was_padded = true;
@@ -374,11 +374,10 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
         return OK;
     }
 
+    auto md_padded = pad_memory_desc(md_, engine_kind_, &is_canary_protected_);
     switch (memory_kind) {
         case memory_kind_ext_t::usm:
         case memory_kind_ext_t::buffer: {
-            auto md_padded
-                    = pad_memory_desc(md_, engine_kind_, &is_canary_protected_);
             dnnl_sycl_interop_memory_kind_t mem_kind
                     = (memory_kind == memory_kind_ext_t::usm
                                     ? dnnl_sycl_interop_usm
@@ -393,8 +392,7 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
         case memory_kind_ext_t::usm_shared: {
             SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
             is_data_owner_ = true;
-            size_t sz = pad_memory_size(dnnl_memory_desc_get_size(&md_),
-                    engine_kind_, &is_canary_protected_);
+            size_t sz = dnnl_memory_desc_get_size(&md_padded);
             auto eng = dnnl::engine(engine_, true);
             auto dev = dnnl::sycl_interop::get_device(eng);
             auto ctx = dnnl::sycl_interop::get_context(eng);
@@ -405,9 +403,10 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
             }
             DNN_SAFE((sz > 0 && !data_) ? dnnl_out_of_memory : dnnl_success,
                     CRIT);
-            DNN_SAFE(dnnl_sycl_interop_memory_create(
-                             &m_, &md_, engine_, dnnl_sycl_interop_usm, data_),
+            DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, &md_padded,
+                             engine_, dnnl_sycl_interop_usm, data_),
                     CRIT);
+            SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
         }
         default: assert(!"not expected");
@@ -431,11 +430,10 @@ int dnn_mem_t::initialize_memory_create_opencl(
 
     SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
 
+    auto md_padded = pad_memory_desc(md_, engine_kind_, &is_canary_protected_);
     switch (memory_kind) {
         case memory_kind_ext_t::usm:
         case memory_kind_ext_t::buffer: {
-            auto md_padded
-                    = pad_memory_desc(md_, engine_kind_, &is_canary_protected_);
             dnnl_ocl_interop_memory_kind_t mem_kind
                     = (memory_kind == memory_kind_ext_t::usm
                                     ? dnnl_ocl_interop_usm
@@ -449,8 +447,7 @@ int dnn_mem_t::initialize_memory_create_opencl(
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared: {
             is_data_owner_ = true;
-            size_t sz = pad_memory_size(dnnl_memory_desc_get_size(&md_),
-                    engine_kind_, &is_canary_protected_);
+            size_t sz = dnnl_memory_desc_get_size(&md_padded);
             if (memory_kind == memory_kind_ext_t::usm_device) {
                 data_ = dnnl::impl::gpu::ocl::usm::malloc_device(engine_, sz);
             } else {
@@ -458,9 +455,10 @@ int dnn_mem_t::initialize_memory_create_opencl(
             }
             DNN_SAFE((sz > 0 && !data_) ? dnnl_out_of_memory : dnnl_success,
                     CRIT);
-            DNN_SAFE(dnnl_ocl_interop_memory_create(
-                             &m_, &md_, engine_, dnnl_ocl_interop_usm, data_),
+            DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, &md_padded,
+                             engine_, dnnl_ocl_interop_usm, data_),
                     CRIT);
+            SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
         }
         default: assert(!"not expected");
