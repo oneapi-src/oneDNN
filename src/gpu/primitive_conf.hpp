@@ -619,7 +619,7 @@ struct reduction_conf_t {
     data_type_t src_type, dst_type;
     alg_kind_t alg;
     compute::dispatch_t dispatch;
-    compute::dispatch_t finilize_dispatch;
+    compute::dispatch_t finalize_dispatch;
     memory_desc_info_t src_md_info, dst_md_info;
     offsets_t off;
     attr_info_t attr_info;
