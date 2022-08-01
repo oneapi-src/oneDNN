@@ -44,6 +44,13 @@ append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_CXX_NOWARN_FLAGS}")
 file(GLOB_RECURSE sources *.cpp *.c)
 file(GLOB_RECURSE headers *.hpp *.h)
 
+if(DNNL_BUILD_GRAPH)
+    include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/examples/graph/include)
+else()
+    # Remove graph examples
+    list(REMOVE_ITEM sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_graph_getting_started.cpp)
+endif()
 
 # Remove tests for CUDA which use unimplemented primitives
 if(DNNL_SYCL_CUDA)
