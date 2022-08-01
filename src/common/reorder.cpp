@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,6 +76,15 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
     if (!s_mdw.consistent_with(d_mdw)) return invalid_arguments;
 
     if (attr == nullptr) attr = &default_attr();
+
+    // Zero points are only allowed for integral data types
+    auto zero_points = attr->zero_points_;
+    const bool is_src_zp_ok = types::is_integral_dt(src_md->data_type)
+            || zero_points.has_default_values(DNNL_ARG_SRC);
+    if (!is_src_zp_ok) return status::unimplemented;
+    const bool is_dst_zp_ok = types::is_integral_dt(dst_md->data_type)
+            || zero_points.has_default_values(DNNL_ARG_DST);
+    if (!is_dst_zp_ok) return status::unimplemented;
 
     bool is_cross_engine = src_engine != dst_engine
             && utils::one_of(
