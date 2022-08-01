@@ -5116,7 +5116,11 @@ TEST(PassSystem, FuseToInt8Conv) {
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
-        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        if (engine_kind == engine_kind::cpu) {
+            ASSERT_EQ(agraph.get_num_partitions(), 1);
+        } else {
+            ASSERT_EQ(agraph.get_num_partitions(), 2);
+        }
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
                 impl::partition_kind::quantized_convolution_post_ops);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
@@ -5213,8 +5217,8 @@ TEST(PassPriority, TestInt8) {
     pass::pass_base_ptr pass1
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
     pass::pass_base_ptr pass2 = get_pass("conv_pass");
-    pass::pass_base_ptr pass3 = get_pass("quant_pass_cpu");
-    pass::pass_base_ptr pass4 = get_pass("dequant_pass_cpu");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
@@ -5363,8 +5367,8 @@ TEST(PassPriority, TestInt8ConvBias) {
     pass::pass_base_ptr pass1
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
     pass::pass_base_ptr pass2 = get_pass("conv_bias_post_ops_fusion");
-    pass::pass_base_ptr pass3 = get_pass("quant_pass_cpu");
-    pass::pass_base_ptr pass4 = get_pass("dequant_pass_cpu");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
@@ -5542,8 +5546,8 @@ TEST(PassPriority, TestInt8ConvRelu) {
     pass::pass_base_ptr pass1
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
     pass::pass_base_ptr pass2 = get_pass("conv_post_ops_fusion");
-    pass::pass_base_ptr pass3 = get_pass("quant_pass_cpu");
-    pass::pass_base_ptr pass4 = get_pass("dequant_pass_cpu");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
@@ -5640,8 +5644,8 @@ TEST(PassPriority, TestInt8ConvBiasRelu) {
     pass::pass_base_ptr pass1
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
     pass::pass_base_ptr pass2 = get_pass("conv_bias_post_ops_fusion");
-    pass::pass_base_ptr pass3 = get_pass("quant_pass_cpu");
-    pass::pass_base_ptr pass4 = get_pass("dequant_pass_cpu");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
@@ -5971,8 +5975,8 @@ TEST(PassPriority, TestInt8ConvBiasAdd) {
     pass::pass_base_ptr pass1
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
     pass::pass_base_ptr pass2 = get_pass("conv_bias_post_ops_fusion");
-    pass::pass_base_ptr pass3 = get_pass("quant_pass_cpu");
-    pass::pass_base_ptr pass4 = get_pass("dequant_pass_cpu");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
@@ -6300,8 +6304,8 @@ TEST(PassPriority, TestInt8ConvBiasAddRelu) {
     pass::pass_base_ptr pass1
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
     pass::pass_base_ptr pass2 = get_pass("conv_bias_post_ops_fusion");
-    pass::pass_base_ptr pass3 = get_pass("quant_pass_cpu");
-    pass::pass_base_ptr pass4 = get_pass("dequant_pass_cpu");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
@@ -8052,8 +8056,8 @@ TEST(PassPriority, TestInt8MaxpoolPasPriority) {
     */
     pass::pass_base_ptr pass1 = get_pass("int8_pool_binary_fusion_cpu");
     pass::pass_base_ptr pass2 = get_pass("max_pool_pass");
-    pass::pass_base_ptr pass3 = get_pass("quant_pass_cpu");
-    pass::pass_base_ptr pass4 = get_pass("dequant_pass_cpu");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
@@ -8219,13 +8223,13 @@ TEST(PassSystem, FuseToInt8PoolAdd) {
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
                     impl::partition_kind::quantized_pooling_post_ops);
         } else {
-            ASSERT_EQ(agraph.get_num_partitions(), 3);
+            ASSERT_EQ(agraph.get_num_partitions(), 4);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
                     impl::partition_kind::pooling_post_ops);
             ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-                    impl::partition_kind::misc_quantized_post_ops);
+                    impl::partition_kind::misc_post_ops);
             ASSERT_EQ((agraph.get_partitions()[2])->get_kind(),
-                    impl::partition_kind::misc_quantized_post_ops);
+                    impl::partition_kind::misc_post_ops);
         }
     }
 }
@@ -8247,8 +8251,8 @@ TEST(PassPriority, TestInt8PoolAdd) {
     */
     pass::pass_base_ptr pass1 = get_pass("int8_pool_binary_fusion_cpu");
     pass::pass_base_ptr pass2 = get_pass("pool_post_ops_fusion");
-    pass::pass_base_ptr pass3 = get_pass("quant_pass_cpu");
-    pass::pass_base_ptr pass4 = get_pass("dequant_pass_cpu");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());
     ASSERT_GT(pass1->get_priority(), pass3->get_priority());
     ASSERT_GT(pass1->get_priority(), pass4->get_priority());
@@ -8279,11 +8283,7 @@ TEST(PassSystem, Quantize) {
                 backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
-        if (engine_kind == engine_kind::cpu) {
-            ASSERT_EQ(agraph.get_num_partitions(), 1);
-        } else {
-            ASSERT_EQ(agraph.get_num_partitions(), 0);
-        }
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
     }
 }
 
@@ -13039,7 +13039,7 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
                     impl::partition_kind::quantized_convtranspose_post_ops);
             ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-                    impl::partition_kind::misc_quantized_post_ops);
+                    impl::partition_kind::misc_post_ops);
         }
     }
 }

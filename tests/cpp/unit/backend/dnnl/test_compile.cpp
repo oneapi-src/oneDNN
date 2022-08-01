@@ -4716,9 +4716,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     g.add_op(&maxpool);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass1 = get_pass(
-            eng.kind() == impl::engine_kind::gpu ? "dequant_pass_gpu"
-                                                 : "dequant_pass_cpu");
+    impl::pass::pass_base_ptr apass1 = get_pass("dequant_pass");
     impl::pass::pass_base_ptr apass2 = get_pass("max_pool_pass");
     apass1->run(g);
     apass2->run(g);
@@ -10370,9 +10368,7 @@ TEST(Execute, QuantizePerTensor) {
     g.add_op(&quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass(
-            engine.kind() == impl::engine_kind::cpu ? "quant_pass_cpu"
-                                                    : "quant_pass_gpu");
+    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10431,9 +10427,7 @@ TEST(Execute, QuantizePerTensorAnyLayout) {
     g.add_op(&quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass(
-            engine.kind() == impl::engine_kind::cpu ? "quant_pass_cpu"
-                                                    : "quant_pass_gpu");
+    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10489,9 +10483,7 @@ TEST(Execute, QuantizePerChannelSymmetric) {
     g.add_op(&quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass(
-            engine.kind() == impl::engine_kind::cpu ? "quant_pass_cpu"
-                                                    : "quant_pass_gpu");
+    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10609,9 +10601,7 @@ TEST(Execute, DequantizePerTensor) {
     g.add_op(&dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass(
-            engine.kind() == impl::engine_kind::cpu ? "dequant_pass_cpu"
-                                                    : "dequant_pass_gpu");
+    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10670,9 +10660,7 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
     g.add_op(&dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass(
-            engine.kind() == impl::engine_kind::cpu ? "dequant_pass_cpu"
-                                                    : "dequant_pass_gpu");
+    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10729,9 +10717,7 @@ TEST(Execute, DequantizePerChannelSymmetric) {
     g.add_op(&dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass(
-            engine.kind() == impl::engine_kind::cpu ? "dequant_pass_cpu"
-                                                    : "dequant_pass_gpu");
+    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -23894,7 +23880,7 @@ TEST(Execute, DynamicQuantizeS32ZpsPerTensor) {
     g.add_op(&dync_quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass_cpu");
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -23971,7 +23957,7 @@ TEST(Execute, DynamicQuantizeS32ZpsPerChannel) {
     g.add_op(&dync_quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass_cpu");
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24042,7 +24028,7 @@ TEST(Execute, DynamicQuantizeS8ZpsPerTensor) {
     g.add_op(&dync_quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass_cpu");
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24109,7 +24095,7 @@ TEST(Execute, DynamicQuantizeNoZpsPerTensor) {
     g.add_op(&dync_quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass_cpu");
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24178,7 +24164,7 @@ TEST(Execute, DynamicDequantizeS32ZpsPerTensor) {
     g.add_op(&dync_dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass_cpu");
+    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24245,7 +24231,7 @@ TEST(Execute, DynamicDequantizeNoZpsPerTensor) {
     g.add_op(&dync_dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass_cpu");
+    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
