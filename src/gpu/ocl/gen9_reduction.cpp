@@ -106,7 +106,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.power = pd->desc()->p;
     conf.eps = pd->desc()->eps;
     conf.dispatch = compute_engine->create_dispatch(src_mdw.md_);
-    conf.finilize_dispatch = compute_engine->create_dispatch();
+    conf.finalize_dispatch = compute_engine->create_dispatch();
 
     auto is_c_blocked_by
             = [](const memory_desc_wrapper &mdw, const int blockSize) {
@@ -265,17 +265,17 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
             = utils::rnd_up(conf.final_n_dim, conf.n_block_size);
     const int final_n_chunks_padded
             = utils::div_up(final_n_padded, conf.final_n_chunk_size);
-    conf.finilize_dispatch.define_dim("FINAL_N", 0, final_n_chunks_padded);
+    conf.finalize_dispatch.define_dim("FINAL_N", 0, final_n_chunks_padded);
     const int final_c_padded
             = utils::rnd_up(conf.final_c_dim, conf.c_block_size);
     const int final_c_chunks_padded
             = utils::div_up(final_c_padded, conf.final_c_chunk_size);
-    conf.finilize_dispatch.define_dim(
+    conf.finalize_dispatch.define_dim(
             "FINAL_C", std::min(ndims - 1, 1), final_c_chunks_padded);
-    conf.finilize_dispatch.define_dim("FINAL_HWD", std::min(ndims - 1, 2),
+    conf.finalize_dispatch.define_dim("FINAL_HWD", std::min(ndims - 1, 2),
             conf.final_hwd_dim / conf.final_hwd_chunk_size);
-    conf.finilize_dispatch.set_kernel_attr_suffix("FINAL");
-    conf.finilize_dispatch.generate();
+    conf.finalize_dispatch.set_kernel_attr_suffix("FINAL");
+    conf.finalize_dispatch.generate();
 
     return status::success;
 }
@@ -347,7 +347,7 @@ static status_t init_kernel_ctx_common(
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
     def_dispatch(kernel_ctx, conf.dispatch);
-    def_dispatch(kernel_ctx, conf.finilize_dispatch);
+    def_dispatch(kernel_ctx, conf.finalize_dispatch);
 
     return status::success;
 }
@@ -388,7 +388,7 @@ status_t gen9_reduction_t::execute_gen9(const exec_ctx_t &ctx) const {
         compute::kernel_arg_list_t final_reduction_arg_list;
         final_reduction_arg_list.set(0, *temp_reduce);
         final_reduction_arg_list.set(1, dst);
-        auto final_nd_range = conf.finilize_dispatch.nd_range();
+        auto final_nd_range = conf.finalize_dispatch.nd_range();
         return parallel_for(
                 ctx, final_nd_range, final_kernel, final_reduction_arg_list);
     } else {

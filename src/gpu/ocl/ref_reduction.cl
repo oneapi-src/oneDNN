@@ -18,19 +18,27 @@
 #include "gpu/ocl/ocl_types.h"
 
 #if defined(IS_MAX)
-#define INIT_ACC -INFINITY
+#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_MIN)
 #elif defined(IS_MIN)
-#define INIT_ACC INFINITY
+#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_MAX)
 #elif defined(IS_MUL)
-#define INIT_ACC 1.0f
+#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_ONE)
 #else
-#define INIT_ACC 0.0f
+#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_ZERO)
 #endif
 
 #if defined(IS_MAX)
-#define ACCUMULATE(x, y) fmax(x, y)
+    #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+        #define ACCUMULATE(x, y) max(x, y)
+    #else
+        #define ACCUMULATE(x, y) fmax(x, y)
+    #endif
 #elif defined(IS_MIN)
-#define ACCUMULATE(x, y) fmin(x, y)
+    #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+        #define ACCUMULATE(x, y) min(x, y)
+    #else
+        #define ACCUMULATE(x, y) fmin(x, y)
+    #endif
 #elif defined(IS_MEAN) || defined(IS_SUM)
 #define ACCUMULATE(x, y) (x + y)
 #elif defined(IS_MUL)
@@ -106,7 +114,7 @@ __kernel void ref_reduce(
     const int d4 = GWS_GET_D4();
     const int d5 = GWS_GET_D5();
 
-    float acc = INIT_ACC;
+    DEF_ACC_DATA_T acc = INIT_ACC;
     for_(int d0_off = 0; d0_off < REDUCTION_D0; d0_off++)
     for_(int d1_off = 0; d1_off < REDUCTION_D1; d1_off++)
     ITERATE_OVER_REDUCTION_D2
@@ -116,10 +124,11 @@ __kernel void ref_reduce(
     {
         const int src_off = _SRC_OFF(d0 + d0_off, d1 + d1_off, d2 + D2_OFF,
                 d3 + d3_off, d4 + d4_off, d5 + d5_off);
-        acc = ACCUMULATE(acc, CONVERT_FLOAT_T(src[src_off]));
+        acc = ACCUMULATE(acc, TO_DEF_ACC_DATA_T(src[src_off]));
     }
 
-    acc = FINALIZE(acc);
+    float res = convert_float(acc);
+    res = FINALIZE(res);
 
     const int dst_off = _DST_OFF_MODULO_DIM(d0, d1, d2, d3, d4, d5);
     const int dst_off_pd = _DST_OFF(d0, d1, d2, d3, d4, d5);
@@ -128,9 +137,9 @@ __kernel void ref_reduce(
 #if WITH_SUM
     dst_val = DST_TO_REF(dst[dst_off]);
 #endif
-    APPLY_POST_OPS_SERIAL(acc, float, dst_val, float, d0, 1, d1, 1, d2, 1, d3,
+    APPLY_POST_OPS_SERIAL(res, float, dst_val, float, d0, 1, d1, 1, d2, 1, d3,
             1, d4, 1, d5, 1);
 
-    if (dst_off_pd != dst_off) acc = 0.f;
-    dst[dst_off_pd] = TO_DST(acc);
+    if (dst_off_pd != dst_off) res = 0.f;
+    dst[dst_off_pd] = TO_DST(res);
 }

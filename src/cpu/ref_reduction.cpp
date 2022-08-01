@@ -166,10 +166,10 @@ template struct ref_reduction_t<f16, f16, f32>;
 template struct ref_reduction_t<f16, f32, f32>;
 template struct ref_reduction_t<s8, s8, s32>;
 template struct ref_reduction_t<s8, s32, s32>;
-template struct ref_reduction_t<s8, f32, f32>;
+template struct ref_reduction_t<s8, f32, s32>;
 template struct ref_reduction_t<u8, u8, s32>;
 template struct ref_reduction_t<u8, s32, s32>;
-template struct ref_reduction_t<u8, f32, f32>;
+template struct ref_reduction_t<u8, f32, s32>;
 
 } // namespace cpu
 } // namespace impl

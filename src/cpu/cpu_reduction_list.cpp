@@ -41,10 +41,10 @@ constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
     CPU_INSTANCE(ref_reduction_t<f16, f32, f32>)
     CPU_INSTANCE(ref_reduction_t<s8, s8, s32>)
     CPU_INSTANCE(ref_reduction_t<s8, s32, s32>)
-    CPU_INSTANCE(ref_reduction_t<s8, f32, f32>)
+    CPU_INSTANCE(ref_reduction_t<s8, f32, s32>)
     CPU_INSTANCE(ref_reduction_t<u8, u8, s32>)
     CPU_INSTANCE(ref_reduction_t<u8, s32, s32>)
-    CPU_INSTANCE(ref_reduction_t<u8, f32, f32>)
+    CPU_INSTANCE(ref_reduction_t<u8, f32, s32>)
     /* eol */
     nullptr,
 });
