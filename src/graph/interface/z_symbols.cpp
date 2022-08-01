@@ -117,7 +117,7 @@ status_t DNNL_API dnnl_graph_logical_tensor_has_same_layout(
 }
 
 status_t DNNL_API dnnl_graph_op_create(
-        op_t **op, size_t id, op_kind_t kind, const char *const verbose_name) {
+        op_t **op, size_t id, op_kind_t kind, const char *verbose_name) {
     return status::unimplemented;
 }
 

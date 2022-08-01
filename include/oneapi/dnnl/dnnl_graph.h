@@ -223,7 +223,7 @@ dnnl_status_t DNNL_API dnnl_graph_tensor_get_engine(
 /// @returns #dnnl_success on success or a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_graph_op_create(dnnl_graph_op_t *op, size_t id,
-        dnnl_graph_op_kind_t kind, const char *const verbose_name);
+        dnnl_graph_op_kind_t kind, const char *verbose_name);
 
 /// Destroys an op.
 ///
