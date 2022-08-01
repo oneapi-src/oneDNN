@@ -569,7 +569,10 @@ struct nc_block_t {
                 = (type.size() <= 2 && is_input && !is_dw && is_small_ic);
         auto c_block = [&]() {
             // Special case for small input channel shapes with dpas.
-            if (is_small_ic_input) return utils::rnd_up_pow2(c);
+            if (is_small_ic_input) {
+                int packed_dword_elems = 4 / type.size();
+                return std::max(packed_dword_elems, utils::rnd_up_pow2(c));
+            }
             auto default_c_blk = type.size() == 1 ? 32 : 16;
             auto blk_dim = is_dw ? g : c;
             return pick_block_rnd_up(blk_dim, default_c_blk);
