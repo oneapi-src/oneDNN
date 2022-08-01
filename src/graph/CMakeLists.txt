@@ -14,6 +14,15 @@
 # limitations under the License.
 #===============================================================================
 
+if(DNNL_BUILD_GRAPH)
+    message(STATUS "Graph component is enabled")
+    add_definitions_with_host_compiler(-DBUILD_GRAPH)
+    if(DNNL_ENABLE_GRAPH_DUMP)
+        message(STATUS "Graph artifacts dump is enabled")
+        add_definitions_with_host_compiler(-DDNNL_ENABLE_GRAPH_DUMP)
+    endif()
+endif()
+
 add_subdirectory(interface)
 
 if (DNNL_BUILD_GRAPH)

@@ -334,7 +334,7 @@ public:
         }
 
         graph::pass::pass_manager_t pm(filtered_registry);
-#ifdef DNNL_GRAPH_ENABLE_DUMP
+#ifdef DNNL_ENABLE_GRAPH_DUMP
         std::string pass_config_json = "dnnl_graph_passes.json";
         std::ifstream fs(pass_config_json.c_str());
         if (fs) {

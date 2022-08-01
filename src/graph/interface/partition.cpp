@@ -517,7 +517,7 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
     ret = pre_process(tmp_outputs, outputs, backend);
     if (status::success != ret) return ret;
 
-#ifdef DNNL_GRAPH_ENABLE_DUMP
+#ifdef DNNL_ENABLE_GRAPH_DUMP
     if (utils::getenv_int_user("DUMP", 0) > 1
             || utils::check_verbose_string_user("DUMP", "subgraph")) {
         if (!is_supported()) return status::unimplemented;

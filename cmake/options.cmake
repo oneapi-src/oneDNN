@@ -51,6 +51,12 @@ option(DNNL_ENABLE_CPU_ISA_HINTS
     "enables control of CPU ISA specific hints by oneDNN via DNNL_CPU_ISA_HINTS
     environment variable and dnnl_set_cpu_isa_hints() function" ON)
 
+option(DNNL_BUILD_GRAPH "builds graph component" OFF)
+
+option(DNNL_ENABLE_GRAPH_DUMP "enables control of dumping grpah artifacts via
+    DNNL_GRAPH_DUMP environment variable. The option and feature are valid only
+    when DNNL_BUILD_GRAPH is ON" OFF)
+
 # =============================
 # Building properties and scope
 # =============================
@@ -64,7 +70,6 @@ option(DNNL_BUILD_FOR_CI
     internal testing processes"
     OFF)
 option(DNNL_WERROR "treat warnings as errors" OFF)
-option(DNNL_BUILD_GRAPH "builds graph component" OFF)
 
 set(DNNL_TEST_SET "CI" CACHE STRING
     "specifies testing targets coverage. Supports CI, CI_NO_CORR, NIGHTLY.

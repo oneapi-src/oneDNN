@@ -366,7 +366,7 @@ status_t DNNL_API dnnl_graph_graph_filter(
     auto status = graph->build_graph();
     if (status != status::success) return status::invalid_graph;
 
-#ifdef DNNL_GRAPH_ENABLE_DUMP
+#ifdef DNNL_ENABLE_GRAPH_DUMP
     if (utils::getenv_int_user("DUMP", 0) > 0
             || utils::check_verbose_string_user("DUMP", "graph")) {
         // deep copy for graph serialization. note that this is for
@@ -414,7 +414,7 @@ status_t DNNL_API dnnl_graph_graph_get_partitions(
     if (graph == nullptr) { return status::invalid_graph; }
     std::vector<partition_t *> partitions {partition, partition + num};
     graph->get_ordered_partitions(partitions);
-#ifdef DNNL_GRAPH_ENABLE_DUMP
+#ifdef DNNL_ENABLE_GRAPH_DUMP
     if (utils::getenv_int_user("DUMP", 0) > 0
             || utils::check_verbose_string_user("DUMP", "graph")) {
         // graph serialization after partitioning. note that this is for

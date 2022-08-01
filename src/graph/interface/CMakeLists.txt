@@ -18,7 +18,6 @@ if(DNNL_BUILD_GRAPH)
     file(GLOB SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
         )
-    add_definitions_with_host_compiler(-DBUILD_GRAPH)
 else()
     # If graph component is not built, we still need to preserve the symbols.
     file(GLOB SOURCES
