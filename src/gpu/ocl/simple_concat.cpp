@@ -85,12 +85,14 @@ static status_t init_conf_common(
     // is_same_axis_order.
     dim_t extern_axis = 1;
     int extern_dim = -1;
+    bool equal_strides_ok = dst_mdw.padded_dims()[concat_dim] == 1;
     std::vector<dim_t> blocks(ndims, 1);
     for (int i = 0; i < blk.inner_nblks; ++i)
         blocks[blk.inner_idxs[i]] *= blk.inner_blks[i];
     for (int i = 0; i < ndims; ++i) {
         const auto &stride = blk.strides[i];
-        if (stride > blk.strides[concat_dim]) {
+        if (stride > blk.strides[concat_dim]
+                || (equal_strides_ok && stride == blk.strides[concat_dim])) {
             if (extern_dim == -1 || stride < blk.strides[extern_dim])
                 extern_dim = i;
             extern_axis *= dst_mdw.padded_dims()[i] / blocks[i];
