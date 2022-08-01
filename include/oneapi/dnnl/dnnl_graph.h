@@ -502,7 +502,7 @@ dnnl_status_t DNNL_API dnnl_graph_compiled_partition_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_graph_compiled_partition_execute(
         const_dnnl_graph_compiled_partition_t compiled_partition,
-        const_dnnl_stream_t stream, size_t num_inputs,
+        dnnl_stream_t stream, size_t num_inputs,
         const_dnnl_graph_tensor_t *inputs, size_t num_outputs,
         const_dnnl_graph_tensor_t *outputs);
 
