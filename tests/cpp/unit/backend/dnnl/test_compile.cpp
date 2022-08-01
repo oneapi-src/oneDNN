@@ -11542,8 +11542,8 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -13401,8 +13401,8 @@ void quantized_conv2d_eltwise(
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -13641,8 +13641,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -13860,8 +13860,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -14033,8 +14033,8 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -14201,8 +14201,8 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -14405,8 +14405,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -14616,8 +14616,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -14830,8 +14830,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -17409,8 +17409,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
 
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
 
@@ -18519,8 +18519,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                                ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                                : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -24636,8 +24636,8 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
             = get_pass("int8_identical_bottleneck_resblock_fusion");
     impl::pass::pass_base_ptr apass2
             = get_pass(eng.kind() == impl::engine_kind::gpu
-                            ? "int8_conv_post_ops_fusion_gpu"
-                            : "int8_conv_post_ops_fusion_cpu");
+                            ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                            : "int8_conv_post_ops_int8_add_fusion_cpu");
     apass1->run(g);
     apass2->run(g);
     ASSERT_EQ(g.get_num_partitions(), 2);
