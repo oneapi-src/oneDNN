@@ -201,14 +201,15 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
         return status::unimplemented;
 
-    const cpu_isa_t req_isa = brg->is_f32
+    brg->isa_impl = brg->is_f32
             ? avx512_core
             : (brg->is_int8 ? avx512_core_vnni : avx512_core_bf16);
-    if (!(is_superset(isa, req_isa) && mayiuse(req_isa)))
+    if (!(is_superset(isa, brg->isa_impl) && mayiuse(brg->isa_impl)))
         return status::unimplemented;
 
-    const int requires_permute_dst_zmm
-            = jit_brdgmm_kernel_base_t::is_fast_vnni_int8(*brg);
+    const int requires_permute_dst_zmm = brg->isa_impl == avx512_core_vnni
+            && jit_brdgmm_kernel_base_t<avx512_core_vnni,
+                    Xbyak::Zmm>::is_fast_vnni_int8(*brg);
     const int max_acc_zmms = 32 - 2 /*zmma, zmmb, post-ops, saturation*/
             - requires_permute_dst_zmm;
     CHECK(brdgmm_blocking(brg, max_acc_zmms));
@@ -261,8 +262,9 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     // Rerun blocking heuristic due to reduced zmm register count
     if (brg->is_bf16_emu && brg->is_dgmm) {
         constexpr int bf16_emu_zmm_count = 4;
-        const int requires_permute_dst_zmm
-                = jit_brdgmm_kernel_base_t::is_fast_vnni_int8(*brg);
+        const int requires_permute_dst_zmm = brg->isa_impl == avx512_core_vnni
+                && jit_brdgmm_kernel_base_t<avx512_core_vnni,
+                        Xbyak::Zmm>::is_fast_vnni_int8(*brg);
         const int max_acc_zmms
                 = 32 - bf16_emu_zmm_count - requires_permute_dst_zmm;
         CHECK(brdgmm_blocking(brg, max_acc_zmms));
@@ -411,8 +413,16 @@ status_t brgemm_kernel_create(
     *brg_kernel = nullptr;
 
     if (brg.is_dgmm) {
-        CHECK(safe_ptr_assign<brgemm_kernel_t>(
-                *brg_kernel, new brdgmm_kernel_t(brg)));
+        if (brg.isa_impl == avx512_core_bf16) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                    new brdgmm_kernel_t<avx512_core_bf16, Xbyak::Zmm>(brg)));
+        } else if (brg.isa_impl == avx512_core_vnni) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                    new brdgmm_kernel_t<avx512_core_vnni, Xbyak::Zmm>(brg)));
+        } else {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                    new brdgmm_kernel_t<avx512_core, Xbyak::Zmm>(brg)));
+        }
     } else if (can_dispatch_uker(&brg)) {
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));

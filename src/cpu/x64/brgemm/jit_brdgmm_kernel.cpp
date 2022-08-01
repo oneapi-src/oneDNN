@@ -36,9 +36,10 @@ namespace x64 {
 using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
-jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core)
-    , brg(abrd) {
+template <cpu_isa_t isa, typename Wmm>
+jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
+        const brgemm_t &abrd)
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa), brg(abrd) {
 
     if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
@@ -59,8 +60,7 @@ jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
         const binary_injector::static_params_t bsp {
                 this->param1, enabled_bcast_strategy, rhs_sp};
 
-        postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<avx512_core>>(
+        postops_injector_ = utils::make_unique<po_injector_t>(
                 this, brg.attr->post_ops_, bsp);
 
         using namespace dnnl::impl::cpu::binary_injector_utils;
@@ -75,19 +75,24 @@ jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
                 bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_4);
 }
 
-jit_brdgmm_kernel_base_t::Vmm jit_brdgmm_kernel_base_t::vmm_mask(
+template <cpu_isa_t isa, typename Wmm>
+typename jit_brdgmm_kernel_base_t<isa, Wmm>::Vmm
+jit_brdgmm_kernel_base_t<isa, Wmm>::vmm_mask(
         const Vmm vmm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? vmm_in | k_mask : vmm_in | k_mask | T_z)
                      : vmm_in;
 }
 
-jit_brdgmm_kernel_base_t::Vmm_low_t jit_brdgmm_kernel_base_t::vmm_low_mask(
+template <cpu_isa_t isa, typename Wmm>
+typename jit_brdgmm_kernel_base_t<isa, Wmm>::Vmm_low_t
+jit_brdgmm_kernel_base_t<isa, Wmm>::vmm_low_mask(
         const Vmm_low_t vmm_low_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? vmm_low_in | k_mask : vmm_low_in | k_mask | T_z)
                      : vmm_low_in;
 }
 
-void jit_brdgmm_kernel_base_t::read_params() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::read_params() {
     Label label_done;
 
     mov(reg_BS, ptr[param1 + GET_OFF(BS)]);
@@ -130,7 +135,9 @@ void jit_brdgmm_kernel_base_t::read_params() {
     }
 }
 
-void jit_brdgmm_kernel_base_t::load_accumulators(int m_blocks, int n_blocks) {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::load_accumulators(
+        int m_blocks, int n_blocks) {
     for_(int m = 0; m < m_blocks; ++m)
     for (int n = 0; n < n_blocks; ++n) {
         auto vmm = accm(m_blocks, n_blocks, m, n);
@@ -138,7 +145,8 @@ void jit_brdgmm_kernel_base_t::load_accumulators(int m_blocks, int n_blocks) {
     }
 }
 
-void jit_brdgmm_kernel_base_t::restore_A_B_matrices() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::restore_A_B_matrices() {
     if (brg.brgattr.max_bs > 1
             && (one_of(brg.type, brgemm_addr, brgemm_offs) || has_vpad()))
         mov(reg_aux_batch_addr, ptr[rsp + reg_batch0_addr_offs_]);
@@ -149,7 +157,8 @@ void jit_brdgmm_kernel_base_t::restore_A_B_matrices() {
     }
 }
 
-void jit_brdgmm_kernel_base_t::set_A_B_matrices() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::set_A_B_matrices() {
 
     if (brg.type == brgemm_addr) {
         mov(reg_aux_A, ptr[reg_aux_batch_addr + GET_OFF_BATCH_ELEMENT(ptr.A)]);
@@ -174,14 +183,17 @@ void jit_brdgmm_kernel_base_t::set_A_B_matrices() {
     lea(reg_aux_B, ptr[reg_aux_B + reg_aux_N * brg.typesize_B]);
 }
 
-void jit_brdgmm_kernel_base_t::advance_A_B_matrices() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::advance_A_B_matrices() {
     if (brg.brgattr.max_bs > 1
             && (one_of(brg.type, brgemm_addr, brgemm_offs) || has_vpad()))
         add(reg_aux_batch_addr, sizeof(brgemm_batch_element_t));
 }
 
-void jit_brdgmm_kernel_base_t::cvt2ps(data_type_t type_in, const Vmm vmm_in,
-        const Xbyak::Operand &op, bool mask_flag, bool store) {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::cvt2ps(data_type_t type_in,
+        const Vmm vmm_in, const Xbyak::Operand &op, bool mask_flag,
+        bool store) {
     const Vmm vmm = vmm_mask(vmm_in, mask_flag, store);
     switch (type_in) {
         case data_type::f32:
@@ -197,7 +209,8 @@ void jit_brdgmm_kernel_base_t::cvt2ps(data_type_t type_in, const Vmm vmm_in,
     if (types::is_integral_dt(type_in)) vcvtdq2ps(vmm_in, vmm_in);
 }
 
-void jit_brdgmm_kernel_base_t::apply_post_ops(
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
         int m_blocks, int n_blocks, bool has_n_tail) {
 
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
@@ -269,7 +282,8 @@ void jit_brdgmm_kernel_base_t::apply_post_ops(
             32 - m_blocks * n_blocks, 32, rhs_arg_params);
 }
 
-void jit_brdgmm_kernel_base_t::store_accumulators_apply_post_ops(
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
         int m_blocks, int n_blocks, bool has_n_tail) {
 
     if (brg.with_bias) {
@@ -358,7 +372,8 @@ void jit_brdgmm_kernel_base_t::store_accumulators_apply_post_ops(
     }
 }
 
-void jit_brdgmm_kernel_base_t::store_accumulators_without_post_ops(
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_without_post_ops(
         int m_blocks, int n_blocks, bool has_n_tail) {
 
     const bool dt_requires_saturation
@@ -384,7 +399,8 @@ void jit_brdgmm_kernel_base_t::store_accumulators_without_post_ops(
     }
 }
 
-void jit_brdgmm_kernel_base_t::store_accumulators(
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
         int m_blocks, int n_blocks, bool has_n_tail) {
 
     if (is_fast_vnni_int8() && brg.is_bf16_emu) {
@@ -414,8 +430,10 @@ void jit_brdgmm_kernel_base_t::store_accumulators(
     }
 }
 
-void jit_brdgmm_kernel_base_t::brdgmm_microkernel(int m_blocks, int n_blocks,
-        bool has_top_padding, bool has_bottom_padding, bool has_tail) {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
+        int n_blocks, bool has_top_padding, bool has_bottom_padding,
+        bool has_tail) {
 
     const bool has_padding = has_top_padding || has_bottom_padding;
     const int max_bvmms
@@ -542,7 +560,8 @@ void jit_brdgmm_kernel_base_t::brdgmm_microkernel(int m_blocks, int n_blocks,
     }
 }
 
-void jit_brdgmm_kernel_base_t::batch_loop(
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::batch_loop(
         const int m_blocks, const int n_blocks, bool has_n_tail) {
 
     auto get_padding_info = [&]() {
@@ -633,7 +652,8 @@ void jit_brdgmm_kernel_base_t::batch_loop(
     store_accumulators(m_blocks, n_blocks, has_n_tail);
 }
 
-void jit_brdgmm_kernel_base_t::compute_loop() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
 
     const bool has_m_blocking_tail = m_blocking_tail() > 0;
     const int loop_m = (nb_m_blocking() - has_m_blocking_tail);
@@ -733,7 +753,8 @@ void jit_brdgmm_kernel_base_t::compute_loop() {
     m_loop();
 }
 
-void jit_brdgmm_kernel_base_t::generate() {
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::generate() {
 
     preamble();
     sub(rsp, stack_space_needed_);
@@ -784,21 +805,31 @@ void jit_brdgmm_kernel_base_t::generate() {
     }
 }
 
-brdgmm_kernel_t::brdgmm_kernel_t(const brgemm_t abrd) {
-    brgemm_kernel_ = new jit_brdgmm_kernel_base_t(abrd);
+template <cpu_isa_t isa, typename Wmm>
+brdgmm_kernel_t<isa, Wmm>::brdgmm_kernel_t(const brgemm_t abrd) {
+    brgemm_kernel_ = new jit_brdgmm_kernel_base_t<isa, Wmm>(abrd);
 }
 
-status_t brdgmm_kernel_t::create_kernel() {
+template <cpu_isa_t isa, typename Wmm>
+status_t brdgmm_kernel_t<isa, Wmm>::create_kernel() {
     return brgemm_kernel_->create_kernel();
 }
 
-void brdgmm_kernel_t::operator()(brgemm_kernel_params_t *params) const {
+template <cpu_isa_t isa, typename Wmm>
+void brdgmm_kernel_t<isa, Wmm>::operator()(
+        brgemm_kernel_params_t *params) const {
     (*brgemm_kernel_)(params);
 }
 
-brdgmm_kernel_t::~brdgmm_kernel_t() {
+template <cpu_isa_t isa, typename Wmm>
+brdgmm_kernel_t<isa, Wmm>::~brdgmm_kernel_t() {
     delete brgemm_kernel_;
 }
+
+template struct brdgmm_kernel_t<avx512_core_fp16, Xbyak::Zmm>;
+template struct brdgmm_kernel_t<avx512_core_bf16, Xbyak::Zmm>;
+template struct brdgmm_kernel_t<avx512_core_vnni, Xbyak::Zmm>;
+template struct brdgmm_kernel_t<avx512_core, Xbyak::Zmm>;
 
 } // namespace x64
 } // namespace cpu

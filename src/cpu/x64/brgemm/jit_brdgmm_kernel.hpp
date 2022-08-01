@@ -32,6 +32,8 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
+
+template <cpu_isa_t isa, typename Wmm>
 struct jit_brdgmm_kernel_base_t : public jit_generator {
     jit_brdgmm_kernel_base_t(const brgemm_t &abrd);
 
@@ -49,8 +51,10 @@ private:
     using Vmm_low_t =
             typename utils::conditional<std::is_same<Vmm, Xbyak::Zmm>::value,
                     Xbyak::Ymm, Xbyak::Xmm>::type;
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
-            postops_injector_;
+    static constexpr cpu_isa_t po_isa_t
+            = utils::map(isa, avx512_core, avx512_core_fp16, avx512_core_fp16);
+    using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_t, Vmm>;
+    std::unique_ptr<po_injector_t> postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     Xbyak::Label permute_index_table;
