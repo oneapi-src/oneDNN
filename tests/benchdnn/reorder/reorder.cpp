@@ -215,6 +215,16 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         return;
     }
 
+    // only integral data types can have zero points
+    const bool is_src_zp_ok = is_integral_dt(prb->sdt)
+            || prb->attr.zero_points.is_def(DNNL_ARG_SRC);
+    const bool is_dst_zp_ok = is_integral_dt(prb->ddt)
+            || prb->attr.zero_points.is_def(DNNL_ARG_DST);
+    if (!(is_src_zp_ok && is_dst_zp_ok)) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
+
     if (prb->is_reorder_with_compensation(FLAG_ANY)) {
         // Compensation is supported for s8 dst data type.
         const bool dt_ok = ddt == dnnl_s8;
