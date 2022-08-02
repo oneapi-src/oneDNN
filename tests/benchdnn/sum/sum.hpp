@@ -63,14 +63,20 @@ struct prb_t : public prb_dims_t {
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
-        , input_scales(sdt.size())
+        , input_scales(input_scales)
         , inplace(inplace)
         , attr(attr) {
-        // if there is a single scale then broadcast it
-        for (int i_input = 0; i_input < n_inputs(); i_input++)
-            this->input_scales[i_input] = ((int)input_scales.size() == 1)
-                    ? input_scales[0]
-                    : input_scales[i_input];
+        // Broadcast tag if needed
+        if (stag.size() == 1) {
+            const auto val = stag[0]; // Need a copy here.
+            this->stag.assign(n_inputs(), val);
+        }
+
+        // Broadcast input_scale if needed
+        if (input_scales.size() == 1) {
+            const auto val = input_scales[0]; // Need a copy here.
+            this->input_scales.assign(n_inputs(), val);
+        }
     }
     ~prb_t() {}
 
