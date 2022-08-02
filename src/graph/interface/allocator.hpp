@@ -23,11 +23,12 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
+#include "common/rw_mutex.hpp"
+
 #include "graph/interface/c_types_map.hpp"
 
 #include "graph/utils/allocator.hpp"
 #include "graph/utils/id.hpp"
-#include "graph/utils/rw_mutex.hpp"
 #include "graph/utils/utils.hpp"
 #include "graph/utils/verbose.hpp"
 
@@ -157,7 +158,7 @@ public:
         // Since the memory operation will be performaed from multiple threads,
         // so we use the rw lock to guarantee the thread safety of the global
         // persistent memory monitoring.
-        static dnnl::impl::graph::utils::rw_mutex_t rw_mutex_;
+        static dnnl::impl::utils::rw_mutex_t rw_mutex_;
 
     public:
         static void record_allocate(const dnnl_graph_allocator *alloc,

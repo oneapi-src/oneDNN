@@ -25,7 +25,7 @@
 #include <type_traits>
 #include <unordered_map>
 
-#include "graph/utils/rw_mutex.hpp"
+#include "common/rw_mutex.hpp"
 
 #include "graph/backend/dnnl/common.hpp"
 
@@ -106,7 +106,7 @@ private:
     // an element*, since it invokes the copy constructor of std::atomic, which
     // is deleted.
     static std::unordered_map<key_t, timed_entry_t> constant_map_;
-    static graph::utils::rw_mutex_t rw_mutex_;
+    static impl::utils::rw_mutex_t rw_mutex_;
     size_t capacity_ = std::numeric_limits<size_t>::max();
 };
 

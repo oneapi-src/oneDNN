@@ -28,7 +28,7 @@
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/partition_hashing.hpp"
 
-#include "graph/utils/rw_mutex.hpp"
+#include "common/rw_mutex.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -59,8 +59,8 @@ struct compiled_partition_cache_t {
     virtual const partition_t *get_partition(const key_t &key) = 0;
 
 protected:
-    static utils::rw_mutex_t &rw_mutex() {
-        static utils::rw_mutex_t mutex;
+    static impl::utils::rw_mutex_t &rw_mutex() {
+        static impl::utils::rw_mutex_t mutex;
         return mutex;
     }
 

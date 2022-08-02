@@ -17,13 +17,13 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 
+#include "common/engine.hpp"
+#include "common/rw_mutex.hpp"
+
 #include "graph/interface/allocator.hpp"
 #include "graph/interface/c_types_map.hpp"
 
-#include "graph/utils/rw_mutex.hpp"
 #include "graph/utils/utils.hpp"
-
-#include "common/engine.hpp"
 
 #ifdef DNNL_WITH_SYCL
 #include "dnnl_sycl.h"
@@ -119,7 +119,7 @@ std::unordered_map<std::thread::id,
                         dnnl_graph_allocator::mem_info_t>>>
         dnnl_graph_allocator::monitor_t::temp_mem_infos_;
 
-utils::rw_mutex_t dnnl_graph_allocator::monitor_t::rw_mutex_;
+dnnl::impl::utils::rw_mutex_t dnnl_graph_allocator::monitor_t::rw_mutex_;
 
 void dnnl_graph_allocator::monitor_t::record_allocate(
         const dnnl_graph_allocator *alloc, const void *buf, size_t size,

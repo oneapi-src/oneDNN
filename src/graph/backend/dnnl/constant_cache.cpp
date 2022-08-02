@@ -31,7 +31,7 @@ using value_t = constant_cache_t::value_t;
 
 std::unordered_map<key_t, constant_cache_t::timed_entry_t>
         constant_cache_t::constant_map_;
-graph::utils::rw_mutex_t constant_cache_t::rw_mutex_;
+impl::utils::rw_mutex_t constant_cache_t::rw_mutex_;
 
 static size_t get_timestamp() {
     return std::chrono::steady_clock::now().time_since_epoch().count();
@@ -50,7 +50,7 @@ status_t constant_cache_t::set_capacity(size_t capacity) {
 }
 
 size_t constant_cache_t::get_capacity() const {
-    utils::lock_read_t lock_r(rw_mutex_);
+    impl::utils::lock_read_t lock_r(rw_mutex_);
     return capacity_;
 }
 

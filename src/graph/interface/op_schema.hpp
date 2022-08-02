@@ -27,11 +27,12 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "common/rw_mutex.hpp"
+
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/op.hpp"
 
 #include "graph/utils/attribute_value.hpp"
-#include "graph/utils/rw_mutex.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -294,7 +295,7 @@ private:
     /* !@brief Returns the static op_kind_version_schema_map.*/
     static op_kind_version_schema_map &get_map_without_ensuring_registration();
     static op_kind_version_schema_map &get_map();
-    static utils::rw_mutex_t &get_rw_mutex();
+    static impl::utils::rw_mutex_t &get_rw_mutex();
 };
 
 #ifdef GNUC

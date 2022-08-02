@@ -395,8 +395,8 @@ op_schema_registry_t::get_map_without_ensuring_registration() {
     return op_map;
 }
 
-utils::rw_mutex_t &op_schema_registry_t::get_rw_mutex() {
-    static utils::rw_mutex_t mutex;
+impl::utils::rw_mutex_t &op_schema_registry_t::get_rw_mutex() {
+    static impl::utils::rw_mutex_t mutex;
     return mutex;
 }
 

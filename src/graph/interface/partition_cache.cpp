@@ -23,7 +23,7 @@
 #include "graph/interface/partition.hpp"
 #include "graph/interface/partition_cache.hpp"
 
-#include "graph/utils/rw_mutex.hpp"
+#include "common/rw_mutex.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -82,7 +82,7 @@ bool is_compiled_partition_in_cache(const compiled_partition_t *cp) {
 }
 
 status_t lru_compiled_partition_cache_t::set_capacity(int capacity) {
-    utils::lock_write_t lock_w(rw_mutex());
+    impl::utils::lock_write_t lock_w(rw_mutex());
     capacity_ = static_cast<size_t>(capacity);
     if (cache_mapper().size() > capacity_) {
         // Evict excess entries
@@ -93,12 +93,12 @@ status_t lru_compiled_partition_cache_t::set_capacity(int capacity) {
 }
 
 int lru_compiled_partition_cache_t::get_capacity() const {
-    utils::lock_read_t lock_r(rw_mutex());
+    impl::utils::lock_read_t lock_r(rw_mutex());
     return static_cast<int>(capacity_);
 }
 
 int lru_compiled_partition_cache_t::get_size() const {
-    utils::lock_read_t lock_r(rw_mutex());
+    impl::utils::lock_read_t lock_r(rw_mutex());
     return static_cast<int>(cache_mapper().size());
 }
 
@@ -208,7 +208,7 @@ void lru_compiled_partition_cache_t::update_entry(const key_t &key,
         const partition_t *partition,
         const std::vector<const logical_tensor_t *> &ins,
         const std::vector<const logical_tensor_t *> &outs) {
-    utils::lock_write_t lock_w(rw_mutex());
+    impl::utils::lock_write_t lock_w(rw_mutex());
     auto it = cache_mapper().find(key);
 
     // There is nothing to do in two cases:
