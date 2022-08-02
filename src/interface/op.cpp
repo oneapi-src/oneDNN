@@ -29,8 +29,8 @@ dnnl_graph_op::dnnl_graph_op(
     if (name_.empty()) { name_ = kind2str(kind_) + "_" + std::to_string(id_); }
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **op, uint64_t id,
-        op_kind_t kind, const char *const verbose_name) {
+status_t DNNL_GRAPH_API dnnl_graph_op_create(
+        op_t **op, size_t id, op_kind_t kind, const char *verbose_name) {
     if (utils::any_null(op, verbose_name)) return status::invalid_arguments;
 
     *op = new op_t {id, kind, verbose_name};
