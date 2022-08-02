@@ -52,7 +52,7 @@ extern "C" dnnl_status_t dnnl_impl_gpu_reset_profiling();
 extern "C" dnnl_status_t dnnl_impl_gpu_get_profiling_time(uint64_t *time);
 #endif
 
-int check_pd_cache(dnnl_primitive_desc_t pd) {
+int check_pd_cache(const_dnnl_primitive_desc_t pd) {
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     int capacity = 0;
     DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), CRIT);
@@ -88,7 +88,7 @@ size_t set_primitive_cache_capacity_without_clearing(size_t capacity) {
 }
 
 int get_cache_blob_id(
-        std::vector<uint8_t> &cache_blob_id, dnnl_primitive_desc_t pd) {
+        std::vector<uint8_t> &cache_blob_id, const_dnnl_primitive_desc_t pd) {
     dnnl_dim_t count;
     const uint8_t *c_id;
     DNN_SAFE(dnnl_primitive_desc_query(
@@ -159,7 +159,7 @@ lru_cache_t &get_test_cache() {
 }
 
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
-        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd, res_t *res) {
+        const_dnnl_primitive_desc_t pd, res_t *res) {
     if (!is_gpu() || (is_gpu() && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL)) {
         return OK;
     }
