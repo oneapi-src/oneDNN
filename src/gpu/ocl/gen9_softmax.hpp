@@ -52,9 +52,15 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
 
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
+            is_nhwc = (src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
+                    != format_tag::undef);
+            is_blocked = (src_d.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c)
+                    != format_tag::undef);
+
             bool ok = is_fwd() && axis_size() % buffer_size == 0
                     && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && axis() == src_d.ndims() - 1 && src_d.is_plain()
+                    && axis() == src_d.ndims() - 1
+                    && (src_d.is_plain() || is_blocked || is_nhwc)
                     && utils::one_of(src_dt, f32, f16, bf16, u8, s8)
                     && utils::one_of(dst_dt, f32, f16, bf16, u8, s8)
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
@@ -66,10 +72,11 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     && compute_engine->mayiuse_sub_group(subgroup_size);
             if (!ok) return status::unimplemented;
 
-            is_nhwc = (src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
-                    != format_tag::undef);
+            if (is_blocked && src_md()->dims[1] % subgroup_size != 0) {
+                return status::unimplemented;
+            }
 
-            if (is_nhwc) {
+            if (is_nhwc || is_blocked) {
                 group_size = subgroup_size * (axis_size() / buffer_size);
             } else {
                 group_size = subgroup_size;
@@ -80,19 +87,20 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             gws[0] = utils::array_product(&src_md()->dims[0], ndims() - 1)
                     * group_size;
             gws[1] = gws[2] = 1;
-            auto src_padded_dims = src_d.padded_dims();
-            batches = src_padded_dims[0] * src_padded_dims[2]
-                    * src_padded_dims[3] * src_padded_dims[4];
 
+            auto src_padded_dims = src_d.padded_dims();
+            mb = src_padded_dims[0] * src_padded_dims[2] * src_padded_dims[3]
+                    & src_padded_dims[4];
             return status::success;
         }
 
         bool is_nhwc = false;
+        bool is_blocked = false;
         size_t gws[3] = {};
         size_t lws[3] = {};
         size_t block[3] = {};
         size_t group_size = 0;
-        size_t batches = 0;
+        size_t mb = 0;
         const int subgroup_size = 16;
         // 8x16 load and store commands (Vector_Size x Sub_Group_Size)
         const int buffer_size = 128;
@@ -108,10 +116,13 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("SOFTMAX_BUF", pd()->buffer_size);
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
         kernel_ctx.define_int("SUB_GROUP_SIZE", pd()->subgroup_size);
-        kernel_ctx.define_int("BATCH", pd()->batches);
-        kernel_ctx.define_int("OC", pd()->src_md()->dims[1]);
+        kernel_ctx.define_int("MB", pd()->mb);
         kernel_ctx.define_int("OC_PADDED", pd()->src_md()->padded_dims[1]);
+        kernel_ctx.define_int("OC",
+                pd()->is_blocked ? pd()->subgroup_size
+                                 : pd()->src_md(0)->padded_dims[1]);
         kernel_ctx.define_int("IS_NHWC", pd()->is_nhwc);
+        kernel_ctx.define_int("IS_BLOCKED", pd()->is_blocked);
         kernel_ctx.define_int("IS_FWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());

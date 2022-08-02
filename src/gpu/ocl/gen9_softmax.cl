@@ -35,7 +35,7 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 gen9_softmax_fwd(
         __global SRC_DATA_T *src, __global DST_DATA_T *dst, float scale) {
-#if IS_NHWC
+#if IS_NHWC || IS_BLOCKED
     // gws is the combination of mb and axis size
     const int group = get_global_id(0) / GROUP_SIZE;
     const int mb = group / OC_PADDED;
@@ -45,16 +45,25 @@ gen9_softmax_fwd(
     const int axis_chunk = (local_id / SUB_GROUP_SIZE) * SOFTMAX_BUF;
 
     const int subgroup_id = get_sub_group_local_id();
-    const int oc_chunk = OC_PADDED * VECT_SIZE * subgroup_id;
+    const int oc_chunk = OC * VECT_SIZE * subgroup_id;
+
+#if IS_BLOCKED
+    const int oc_block_id = local_oc / OC;
+    const int oc_in_block = local_oc % OC;
+
+    int data_off = (MB * oc_block_id + mb) * OC * SOFTMAX_AXIS_SIZE + oc_chunk
+            + oc_in_block;
+#else
     int data_off = mb * OC_PADDED * SOFTMAX_AXIS_SIZE + oc_chunk + local_oc;
+#endif
 
     float d[VECT_SIZE];
     float max_ = -FLT_MAX;
     float denom_ = 0.f;
 
     src += data_off;
-    for (int k = 0, axis_channel_id = OC_PADDED * axis_chunk; k < VECT_SIZE;
-            ++k, axis_channel_id += OC_PADDED) {
+    for (int k = 0, axis_channel_id = OC * axis_chunk; k < VECT_SIZE;
+            ++k, axis_channel_id += OC) {
         d[k] = DATA_TO_FLOAT(SRC, src[axis_channel_id]);
         max_ = max(d[k], max_);
     }
@@ -88,8 +97,8 @@ gen9_softmax_fwd(
 
     dst += data_off;
 
-    for (int k = 0, axis_channel_id = OC_PADDED * axis_chunk; k < VECT_SIZE;
-            ++k, axis_channel_id += OC_PADDED) {
+    for (int k = 0, axis_channel_id = OC * axis_chunk; k < VECT_SIZE;
+            ++k, axis_channel_id += OC) {
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;
 #else
