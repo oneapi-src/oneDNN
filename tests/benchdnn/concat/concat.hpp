@@ -63,6 +63,15 @@ struct prb_t : public prb_vdims_t {
         , dtag(dtag)
         , axis(axis)
         , attr(attr) {
+        // If dst is omitted by `dtag = tag::undef`, omit `ddt` as well.
+        if (dtag == tag::undef) this->ddt = dnnl_data_type_undef;
+
+        // Broadcast tag if needed
+        if (stag.size() == 1) {
+            const auto val = stag[0]; // Need a copy here.
+            this->stag.assign(prb_vdims.n_inputs(), val);
+        }
+
         dst_dims[axis] = axis_size();
     }
     ~prb_t() {}
