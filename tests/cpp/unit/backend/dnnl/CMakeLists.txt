@@ -17,17 +17,35 @@
 set(OBJ_LIB ${LIB_NAME}_backend_dnnl_unit_test)
 
 add_library(${OBJ_LIB} OBJECT
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_batch_norm.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_binary_op.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_bmm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_concat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_conv.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_convtranspose.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_dequantize.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_eltwise.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_interpolate.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_large_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_layer_norm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_id.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_matmul.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_prelu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_quantize.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_reduce.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_reorder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_scratchpad.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_softmax.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_subgraph_pass.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_typecast.cpp
     ${GRAPH_TEST_THREAD}
     ${TEST_ALLOCATOR}
 )
