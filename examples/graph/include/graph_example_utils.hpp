@@ -126,13 +126,18 @@ void fill_buffer(
      }).wait();
 }
 
-void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr) {
+void *sycl_malloc_wrapper(
+        size_t n, size_t alignment, const void *dev, const void *ctx) {
     return malloc_device(n, *static_cast<const cl::sycl::device *>(dev),
             *static_cast<const cl::sycl::context *>(ctx));
 }
 
-void sycl_free_wrapper(void *ptr, const void *context) {
+void sycl_free_wrapper(
+        void *ptr, const void *dev, const void *context, void *event) {
+    (void)(dev);
+    if (event) {
+        static_cast<cl::sycl::event *>(const_cast<void *>(event))->wait();
+    }
     free(ptr, *static_cast<const cl::sycl::context *>(context));
 }
 #endif

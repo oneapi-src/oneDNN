@@ -25,6 +25,10 @@
 
 #include "common/engine.hpp"
 
+#ifdef DNNL_WITH_SYCL
+#include "dnnl_sycl.h"
+#endif
+
 using namespace dnnl::impl::graph;
 
 status_t DNNL_API dnnl_graph_allocator_create(allocator_t **allocator,
