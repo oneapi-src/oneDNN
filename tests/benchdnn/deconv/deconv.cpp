@@ -421,14 +421,18 @@ int init_prim_ref(
             /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
             /* hint = */ nullptr);
     init_pd(init_pd_args);
-    auto pd_ref = make_benchdnn_dnnl_wrapper(init_pd_args.pd);
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
+    fetch_impl(pdw, pd_itw, init_pd_args, /* res = */ nullptr,
+            /* is_service_prim = */ true);
 
     dnnl_primitive_t prim_ref_ {};
-    if (pd_ref) {
-        if (query_impl_info(pd_ref) == "ref:any") return OK;
-        DNN_SAFE(dnnl_primitive_create(&prim_ref_, pd_ref), WARN);
+    if (pdw) {
+        if (query_impl_info(pdw) == "ref:any") return OK;
+        DNN_SAFE(dnnl_primitive_create(&prim_ref_, pdw), WARN);
         BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
-                query_impl_info(pd_ref).c_str());
+                query_impl_info(pdw).c_str());
     }
     prim_ref.reset(prim_ref_);
     return OK;
