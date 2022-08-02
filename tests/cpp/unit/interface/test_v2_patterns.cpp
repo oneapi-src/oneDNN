@@ -2161,3 +2161,81 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure4) {
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
     ASSERT_EQ(fusion_ops.size(), 1);
 }
+
+TEST(PatternMatcherV2, RepetitionOportExternalOutput) {
+    /*
+    pattern:
+        matmul                     \
+          |                         |  * [1,10)
+         relu                      /
+          |  \(external_output)
+        sigmoid
+    graph:
+         matmul
+           |
+          relu
+           |  \
+        matmul relu_bwd
+           |
+          relu
+           |  \
+       sigmoid relu_bwd
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto grep = std::make_shared<pb_graph_t>("grep");
+    auto pmatmul = grep->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto prelu = grep->append_op(
+            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    prelu->allow_external_output(0);
+    grep->create_input_port(0, pmatmul, 0);
+    grep->create_output_port(0, prelu, 0);
+    auto prep = graphp->append_repetition(grep, {0, 0}, 1, 10, "prep");
+
+    auto psigmoid = graphp->append_op(
+            impl::op_kind::Sigmoid, {in_edge(0, prep, 0)}, "psigmoid");
+
+    UNUSED(psigmoid);
+
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t relu {1, ReLU, "relu"};
+    op_t relu_bwd {2, ReLUBackprop, "relu_bwd"};
+    op_t matmul2 {3, MatMul, "matmul2"};
+    op_t relu2 {4, ReLU, "relu2"};
+    op_t relu_bwd2 {5, ReLUBackprop, "relu_bwd2"};
+    op_t sigmoid {6, Sigmoid, "sigmoid"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(12);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+    relu_bwd.add_input(lt_vec[3]);
+    relu_bwd.add_input(lt_vec[4]);
+    relu_bwd.add_output(lt_vec[5]);
+    matmul2.add_input(lt_vec[3]);
+    matmul2.add_input(lt_vec[6]);
+    matmul2.add_output(lt_vec[7]);
+    relu2.add_input(lt_vec[7]);
+    relu2.add_output(lt_vec[8]);
+    sigmoid.add_input(lt_vec[8]);
+    sigmoid.add_output(lt_vec[9]);
+    relu_bwd2.add_input(lt_vec[8]);
+    relu_bwd2.add_input(lt_vec[10]);
+    relu_bwd2.add_output(lt_vec[11]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&relu_bwd), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul2), status::success);
+    ASSERT_EQ(agraph.add_op(&relu2), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&relu_bwd2), status::success);
+
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    EXPECT_EQ(fusion_ops.size(), 5);
+}

@@ -275,16 +275,13 @@ bool match_node_outputs(op_t *op, pb_node_t *node, match_context_t *ctx,
                         && copied_op_map.count(out_op))
                     continue;
                 //if it's the allow_external_output case, then it's fine
-                if (node->get_node_kind() == pb_node_kind::PB_NODE_KIND_OP) {
-                    // check external_output
-                    pb_op_t *p_op = dynamic_cast<pb_op_t *>(node);
-                    const std::unordered_set<oport_t> &external_outputs
-                            = p_op->get_allowed_external_outputs();
-                    if (!external_outputs.empty()
-                            && external_outputs.find(node_oport)
-                                    != external_outputs.end()) {
-                        continue;
-                    }
+                pb_op_t *p_op = copied_op_map[op];
+                const std::unordered_set<oport_t> &external_outputs
+                        = p_op->get_allowed_external_outputs();
+                if (!external_outputs.empty()
+                        && external_outputs.find(node_oport)
+                                != external_outputs.end()) {
+                    continue;
                 }
 
                 // the consumer op not matched,
