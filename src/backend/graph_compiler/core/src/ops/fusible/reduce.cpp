@@ -226,8 +226,9 @@ static slice_range_list infer_output_slice_range(bool is_reduce_compute,
             }
         }
         // reduce all and keep_dims = false;
-        if (reduce_range.empty())
-            reduce_range.emplace_back(std::pair<expr, expr> {0, 1});
+        if ((known_ranges.size() == real_rd_axis.size()) && !keep_dims)
+            reduce_range.emplace(
+                    reduce_range.begin(), std::pair<expr, expr> {0, 1});
         reduce_ranges_list.emplace_back(reduce_range);
     }
     return reduce_ranges_list;
@@ -699,7 +700,10 @@ reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
         attrs_[op_attr_key::break_post_fuse] = true;
     }
     // if no keep dims
-    if (!keep_dims_) { expected_dims -= real_rd_axis_.size(); }
+    if (!keep_dims_) {
+        expected_dims
+                = std::max((size_t)1, (expected_dims - real_rd_axis_.size()));
+    }
     // if last axis reduction
     if (real_rd_axis_.back() == static_cast<int>(in_dims) - 1) {
         expected_dims += 1;

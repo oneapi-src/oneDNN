@@ -45,7 +45,7 @@ namespace runtime {
 
 static void write_json_traces(FILE *outf,
         const std::list<thread_local_buffer_t *> &tls_buffers, int64_t min_val,
-        size_t trace_size) {
+        size_t trace_size, bool main_thread_found) {
     fputs(R"({
 "traceEvents": [
 )",
@@ -54,7 +54,7 @@ static void write_json_traces(FILE *outf,
     for (auto *tlb : tls_buffers) {
         if (sc::runtime_config_t::get().trace_mode_
                 < sc::runtime_config_t::trace_mode_t::MULTI_THREAD) {
-            if (!tlb->is_main_thread_) {
+            if (!tlb->additional_->is_main_thread_ && main_thread_found) {
                 tlb->additional_->trace_.trace_logs_.clear();
                 continue;
             }
@@ -79,7 +79,7 @@ static void write_json_traces(FILE *outf,
 
 static void write_compact_traces(FILE *outf,
         const std::list<thread_local_buffer_t *> &tls_buffers, int64_t min_val,
-        size_t trace_size) {
+        size_t trace_size, bool main_thread_found) {
     fprintf(outf, "symbols:");
     for (size_t i = 0; i < env.names_.size(); i++) {
         fprintf(outf, "%zu-%s,", i, env.names_[i].c_str());
@@ -102,8 +102,10 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
     if (tracep.empty()) { return; }
     size_t trace_size = 0;
     int64_t min_val = std::numeric_limits<uint64_t>::max();
+    bool main_thread_found = false;
     for (auto v : tls_buffers) {
         trace_size += v->additional_->trace_.trace_logs_.size();
+        if (v->additional_->is_main_thread_) { main_thread_found = true; }
         for (auto &log : v->additional_->trace_.trace_logs_) {
             min_val = std::min(log.tick_, min_val);
         }
@@ -122,9 +124,11 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
     }
     SC_WARN << "Generating traces to " << filename << " ...";
     if (compact) {
-        write_compact_traces(outf, tls_buffers, min_val, trace_size);
+        write_compact_traces(
+                outf, tls_buffers, min_val, trace_size, main_thread_found);
     } else {
-        write_json_traces(outf, tls_buffers, min_val, trace_size);
+        write_json_traces(
+                outf, tls_buffers, min_val, trace_size, main_thread_found);
     }
     if (outf != stderr) { fclose(outf); }
 }

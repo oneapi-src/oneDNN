@@ -518,23 +518,17 @@ thread_local brg_desc_safe_t::thread_local_cache
 namespace sc {
 namespace runtime {
 
-amx_buffer_t::~amx_buffer_t() {
-    release();
-}
 void amx_buffer_t::reset(sc::runtime::stream_t *stream) {
-    if (!stream) stream = sc::runtime::get_default_stream();
-    engine_ = stream->engine_;
     // Based on jit_brgemm_conv_utils.cpp:2121
     const size_t amx_buf_size = 2 * runtime::get_os_page_size();
     ptr_ = stream->engine_->vtable_->persistent_alloc(
             stream->engine_, amx_buf_size);
 }
-void amx_buffer_t::release() {
+void amx_buffer_t::release(engine_t *engine) {
     if (ptr_) {
-        assert(engine_);
-        engine_->vtable_->persistent_dealloc(engine_, ptr_);
+        assert(engine);
+        engine->vtable_->persistent_dealloc(engine, ptr_);
         ptr_ = nullptr;
-        engine_ = nullptr;
     }
 }
 } // namespace runtime
@@ -544,7 +538,7 @@ static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
         sc::runtime::stream_t *stream, bool &amx_exclusive) {
     void *tmp_amx_tile_buf = nullptr;
     if (brg_desc->is_amx_) {
-        auto &tls = sc::runtime::thread_local_buffer_t::tls_buffer_;
+        auto &tls = sc::runtime::get_tls(stream);
         amx_exclusive = false;
         if (!amx_exclusive
                 || tls.amx_buffer_.cur_palette != brg_desc->palette_) {

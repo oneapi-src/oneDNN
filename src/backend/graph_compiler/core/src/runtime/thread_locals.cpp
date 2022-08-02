@@ -44,7 +44,7 @@ struct thread_local_registry_t {
             if (engine == nullptr || node->engine_ == engine) {
                 node->main_memory_pool_.release();
                 node->thread_memory_pool_.release();
-                node->amx_buffer_.release();
+                node->amx_buffer_.release(node->engine_);
                 node->engine_ = nullptr;
             }
         }
@@ -81,6 +81,7 @@ thread_local_buffer_t::thread_local_buffer_t()
 // destructed
 thread_local_buffer_t::~thread_local_buffer_t() {
     if (runtime::registry_destroyed) { return; }
+    amx_buffer_.release(engine_);
     // C++ compiler will call ~thread_local_buffer_t() first and then call dtor
     // of its fields. Note that after ~thread_local_buffer_t() returns, the
     // lock will be released and dtors of member fields will not be protected by

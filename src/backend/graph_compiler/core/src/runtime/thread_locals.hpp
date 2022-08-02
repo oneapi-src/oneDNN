@@ -27,13 +27,18 @@
 namespace sc {
 namespace runtime {
 
+// the thread-local AMX-related data
 struct amx_buffer_t {
+    // AMX scratch pad
     void *ptr_ = nullptr;
-    engine_t *engine_ = nullptr;
+    // the pointer to the current configured palette
     const char *cur_palette = nullptr;
-    ~amx_buffer_t();
+    // alloc memory for AMX scratch pad at ptr_ using the allocator in the
+    // stream(engine)
     void reset(stream_t *stream);
-    void release();
+    // release memory for AMX scratch pad at ptr_. Destructor of this class will
+    // not call this function. It must be manually called.
+    void release(engine_t *engine);
 };
 
 struct thread_local_registry_t;
@@ -41,12 +46,14 @@ struct thread_local_registry_t;
 // sc::release_runtime_memory to manually release all thread local memory
 // managed by this struct
 struct thread_local_buffer_t {
+    // the additional thread local data. Referenced via a pointer in
+    // thread_local_buffer_t to reduce TLS size and improve performance
     struct additional_t {
         int linear_thread_id_ = 0;
         int instance_id_ = 0;
+        bool is_main_thread_ = false;
         trace_manager_t trace_;
     };
-    bool is_main_thread_;
     engine_t *engine_ = nullptr;
     amx_buffer_t amx_buffer_;
 

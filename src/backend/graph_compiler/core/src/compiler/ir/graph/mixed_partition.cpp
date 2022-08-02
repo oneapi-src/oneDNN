@@ -136,9 +136,14 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                         == in->details_.get_blocking_dims())
                 && (out->details_.dtype_ == in->details_.dtype_)
                 && (out->details_.get_format() == in->details_.get_format())
-                && (b2g_map_.find(g2b_map_.get(in))
-                        != b2g_map_.end()); // inputs of partition should not be
-        // inplaced
+                && (!binded_mxp_->is_parti_inp(
+                        in)) // inputs of partition should not be inplaced
+                && (!in->producer_owner_->isa<tunable_op_t>())
+                && (!(g2b_map_.get(in).isa<tensor>()
+                        && g2b_map_.get(in)
+                                   .static_as<tensor>()
+                                   ->init_value_)); // TODO(XXX): inplace inited
+        // tensor
     };
 
     for (auto &out : op->get_outputs()) {
@@ -1023,6 +1028,7 @@ void mixed_parti_t::merge(const ptr &other, const op_dep_matrix_t &g) const {
 
 mixed_parti_t::mixed_parti_t(const sc_op_ptr &op, const context_ptr &ctx)
     : ctx_(ctx) {
+    buf_alloc_.binded_mxp_ = this;
     if (!op->isa<constant_op_t>() && !op->isa<tensor_view_op_t>()) {
         SC_MODULE_INFO << "================  create new partition: "
                        << op->op_name_ << "_" << op->logical_op_id_
@@ -1032,7 +1038,6 @@ mixed_parti_t::mixed_parti_t(const sc_op_ptr &op, const context_ptr &ctx)
         func_->name_ = op->op_name_ + std::to_string(op->logical_op_id_);
         SC_MODULE_INFO << func_;
     }
-    buf_alloc_.binded_mxp_ = this;
     ops.insert(op);
 }
 
@@ -1438,6 +1443,13 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
         } else {
             return false;
         }
+    } else if (runtime_config_t::get().get_num_threads() == 1) {
+        auto old_ops = g.ops_;
+        for (auto &op : old_ops) {
+            if (auto rd = op->dyn_cast<reduce_op_t>()) {
+                if (rd->can_split_op()) { rd->split_op(ctx, g, 1); }
+            }
+        }
     }
 
     if (std::all_of(g.ops_.begin(), g.ops_.end(), [](const sc_op_ptr &op) {
@@ -1445,12 +1457,12 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
                     || op->isa<constant_op_t>()
                     || op->isa<unary_elementwise_op_t>()
                     || op->isa<binary_elementwise_op_t>()
-                    || op->isa<reduce_op_t>();
+                    || op->isa<reduce_op_t>() || op->isa<reduce_impl_op_t>();
         })) {
         std::for_each(g.ops_.begin(), g.ops_.end(), [&g](const sc_op_ptr &op) {
             if (op->isa<unary_elementwise_op_t>()
                     || op->isa<binary_elementwise_op_t>()
-                    || op->isa<reduce_op_t>()) {
+                    || op->isa<reduce_op_t>() || op->isa<reduce_impl_op_t>()) {
                 op->attrs_["temp.mixed_partition_hint.sub_graph_ptr"] = &g;
             }
         });
@@ -1759,6 +1771,7 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
 }
 
 void mixed_partition(sc_graph_t &graph, const context_ptr &ctx) {
+    if (!graph.attrs_.get_or_else("temp.fuse", 1)) { return; }
     SC_MODULE_INFO << "Starting Mixed Partition...";
     do_mixed_partition(ctx, graph);
     // print_graph(graph, std::cout, 1);

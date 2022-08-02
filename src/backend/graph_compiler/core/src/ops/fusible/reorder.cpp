@@ -690,10 +690,14 @@ void reorder_op_t::infer_slice_ranges(
             if (user.second->isa<output_op>()) {
                 continue;
             } else {
-                user.second->attrs_.set(op_attr_key::fused_mode_hint,
-                        op_attr_key::break_pre_fuse);
-                stat_map.get_ops_by_status(infer_status_code::FAIL)
-                        .insert(user.second);
+                if (stat_map.is_recursive_mode()) {
+                    user.second->attrs_.set(op_attr_key::fused_mode_hint,
+                            op_attr_key::break_pre_fuse);
+                    stat_map.append_ops_by_status(
+                            user.second.get(), infer_status_code::FAIL);
+                } else {
+                    user.second->attrs_.set(op_attr_key::break_pre_fuse, true);
+                }
                 return;
             }
         }

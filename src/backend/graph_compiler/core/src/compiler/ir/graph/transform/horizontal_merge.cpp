@@ -85,6 +85,7 @@ static void do_horizontal_merge(
 }
 
 void horizontal_merge(sc_graph_t &graph, const context_ptr &ctx) {
+    if (!graph.attrs_.get_or_else("temp.fuse", 1)) { return; }
     auto to_merge = get_merge_map(graph);
     for (auto &merge_list : to_merge) {
         do_horizontal_merge(graph, merge_list.second);

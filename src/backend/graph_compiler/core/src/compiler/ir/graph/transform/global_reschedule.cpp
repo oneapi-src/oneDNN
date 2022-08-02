@@ -59,36 +59,8 @@ static void collect_bypass(sc_graph_t &graph, const context_ptr &ctx,
     });
 }
 
-static void collect_tensorview_nearby_input(sc_graph_t &graph,
-        const context_ptr &ctx,
-        std::vector<std::vector<sc_op_ptr>> &target_ops_list) {
-    auto vis = op_visitor_t::bfs();
-    constexpr int max_step = 5;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
-        if (!node->isa<input_op>()) return;
-        sc_op_ptr next_node = node;
-        int step = 1;
-        std::vector<sc_op_ptr> target_ops;
-        bool found = false;
-        while (next_node->is_single_output_single_use()
-                && (next_node->attrs_.get_or_else(
-                            "constant", const_kind::not_const)
-                        == const_kind::not_const)) {
-            next_node = next_node->get_outputs()[0]->uses_[0].second;
-            target_ops.emplace_back(next_node);
-            if (next_node->isa<tensor_view_op_t>()) {
-                found = true;
-                break;
-            }
-            if ((step++) >= max_step) return;
-        }
-        if (found && target_ops.size() > 1) {
-            target_ops_list.emplace_back(target_ops);
-        }
-    });
-}
-
-static void collect_reorder_nearby_input(sc_graph_t &graph,
+template <typename opT>
+static void collect_linked_ops_nearby_input_until_opT(sc_graph_t &graph,
         const context_ptr &ctx,
         std::vector<std::vector<sc_op_ptr>> &target_ops_list) {
     auto vis = op_visitor_t::bfs();
@@ -101,17 +73,19 @@ static void collect_reorder_nearby_input(sc_graph_t &graph,
             std::vector<sc_op_ptr> target_ops;
             bool found = false;
             while (next_node->is_single_output_single_use()
+                    && (!next_node->get_outputs()[0]
+                                    ->uses_[0]
+                                    .second->isa<output_op>())
                     && (next_node->attrs_.get_or_else(
                                 "constant", const_kind::not_const)
                             == const_kind::not_const)) {
                 target_ops.emplace_back(next_node);
-                next_node = next_node->get_outputs()[0]->uses_[0].second;
-                if (next_node->isa<reorder_op_t>()) {
-                    target_ops.emplace_back(next_node);
+                if (next_node->isa<opT>()) {
                     found = true;
                     break;
                 }
                 if ((step++) >= max_step) return;
+                next_node = next_node->get_outputs()[0]->uses_[0].second;
             }
             if (found && target_ops.size() > 1) {
                 target_ops_list.emplace_back(target_ops);
@@ -404,7 +378,8 @@ static void bypass_preop_fusion_rule(
 static void nearby_input_tensorview_rule(
         sc_graph_t &graph, const context_ptr &ctx) {
     std::vector<std::vector<sc_op_ptr>> target_ops_list;
-    collect_tensorview_nearby_input(graph, ctx, target_ops_list);
+    collect_linked_ops_nearby_input_until_opT<tensor_view_op_t>(
+            graph, ctx, target_ops_list);
     // reschedule all bypass ops
     for (auto &target_ops : target_ops_list) {
         reschedule_tensorview_nearby_input(target_ops);
@@ -414,7 +389,8 @@ static void nearby_input_tensorview_rule(
 static void nearby_input_reorder_rule(
         sc_graph_t &graph, const context_ptr &ctx) {
     std::vector<std::vector<sc_op_ptr>> target_ops_list;
-    collect_reorder_nearby_input(graph, ctx, target_ops_list);
+    collect_linked_ops_nearby_input_until_opT<reorder_op_t>(
+            graph, ctx, target_ops_list);
     // reschedule all bypass ops
     for (auto &target_ops : target_ops_list) {
         reschedule_reorder_nearby_input(target_ops);
@@ -424,6 +400,7 @@ static void nearby_input_reorder_rule(
 using gr_rule = std::function<void(sc_graph_t &graph, const context_ptr &ctx)>;
 
 void global_reschedule(sc_graph_t &graph, const context_ptr &ctx) {
+    if (!graph.attrs_.get_or_else("temp.fuse", 1)) { return; }
     std::vector<gr_rule> gr_rule_list
             = std::vector<gr_rule> {bypass_preop_fusion_rule};
     if (ctx->flags_.mixed_fusion_) {
