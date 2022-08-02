@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,9 +92,8 @@ protected:
     void SetUp() override {
         SKIP_IF_CUDA(true, "Shuffle primitive not supported by CUDA");
         data_type = data_traits<data_t>::data_type;
-        SKIP_IF(data_type == memory::data_type::f16
-                        && get_test_engine_kind() == engine::kind::cpu,
-                "CPU does not support f16 data type.");
+        SKIP_IF(unsupported_data_type(data_type),
+                "Engine does not support this data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
