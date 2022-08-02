@@ -61,15 +61,14 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #elif ALG_MAX // DT_BF16
     float d = DST_DATA_MIN;
 #endif
-    for (int kd = 0; kd < KD; ++kd)
+    for (int kd = 0; kd < KD; ++kd) {
+        const int id = od * SD - PD + kd * (DD + 1);
+        if (id < 0 || id >= ID) continue;
         for (int kh = 0; kh < KH; ++kh) {
+            const int ih = oh * SH - PH + kh * (DH + 1);
+            if (ih < 0 || ih >= IH) continue;
             for (int kw = 0; kw < KW; ++kw) {
-                const int id = od * SD - PD + kd * (DD + 1);
-                const int ih = oh * SH - PH + kh * (DH + 1);
                 const int iw = ow * SW - PW + kw * (DW + 1);
-
-                if (id < 0 || id >= ID) continue;
-                if (ih < 0 || ih >= IH) continue;
                 if (iw < 0 || iw >= IW) continue;
 
                 int src_off = SRC_OFF(mb, oc, id, ih, iw);
@@ -93,6 +92,7 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif
             }
         }
+    }
 #if ALG_MAX
 #if IS_TRAINING
     if (ws[dst_off] < 0) ws[dst_off] = 0;
@@ -174,20 +174,22 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
     const int iw = GWS_GET_IW();
 
     float s = 0;
-    for (int kd = 0; kd < KD; ++kd)
-        for (int kh = 0; kh < KH; ++kh)
+    for (int kd = 0; kd < KD; ++kd) {
+        int _od = id + PD - kd * (DD + 1);
+        if (_od % SD != 0) continue;
+        int od = _od / SD;
+        if (od < 0 || od >= OD) continue;
+
+        for (int kh = 0; kh < KH; ++kh) {
+            int _oh = ih + PH - kh * (DH + 1);
+            if (_oh % SH != 0) continue;
+            int oh = _oh / SH;
+            if (oh < 0 || oh >= OH) continue;
+
             for (int kw = 0; kw < KW; ++kw) {
-                int _od = id + PD - kd * (DD + 1);
-                int _oh = ih + PH - kh * (DH + 1);
                 int _ow = iw + PW - kw * (DW + 1);
-                if (_od % SD != 0 || _oh % SH != 0 || _ow % SW != 0) continue;
-
-                int od = _od / SD;
-                int oh = _oh / SH;
+                if (_ow % SW != 0) continue;
                 int ow = _ow / SW;
-
-                if (od < 0 || od >= OD) continue;
-                if (oh < 0 || oh >= OH) continue;
                 if (ow < 0 || ow >= OW) continue;
 
                 const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
@@ -233,6 +235,8 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
 #endif
                 s += DATA_TO_REF(diff_dst[dst_off]) / denom;
             }
+        }
+    }
     uint diff_src_offset = SRC_OFF(mb, oc, id, ih, iw);
     diff_src[diff_src_offset] = CONVERT_DATA_T(s);
 }

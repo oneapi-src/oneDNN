@@ -95,11 +95,11 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif // USE_FLOATS
     VECT_INT_T WS0 = 0, WS1 = 0;
 
-    for (int kd = 0; kd < KD; ++kd)
+    for (int kd = 0; kd < KD; ++kd) {
+        if (id + kd < 0 || id + kd >= ID) continue;
         for (int kh = 0; kh < KH; ++kh) {
+            if (ih + kh < 0 || ih + kh >= IH) continue;
             for (int kw = 0; kw < KW; ++kw) {
-                if (id + kd < 0 || id + kd >= ID) continue;
-                if (ih + kh < 0 || ih + kh >= IH) continue;
                 if (iw + kw < 0 || iw + kw >= IW) continue;
 
                 int src_off = SRC_OFF(mb, c, id + kd, ih + kh, iw + kw);
@@ -135,6 +135,7 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif // ALG_MAX
             }
         }
+    }
 
 #if ALG_AVG_P
     D0 = D0 / (KD * KH * KW);
@@ -266,17 +267,21 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
 
     VECT_FLOAT_T S0 = 0, S1 = 0;
     for (int kd = 0; kd < KD; kd++) {
+        int od = (id + PD - kd);
+        if (od % SD != 0) continue;
+        od /= SD;
+        if (od < 0 || od >= OD) continue;
+
         for (int kh = 0; kh < KH; kh++) {
+            int oh = (ih + PH - kh);
+            if (oh % SH != 0) continue;
+            oh /= SH;
+            if (oh < 0 || oh >= OH) continue;
+
             for (int kw = 0; kw < KW; kw++) {
-                int od = (id + PD - kd);
-                int oh = (ih + PH - kh);
                 int ow = (iw + PW - kw);
-                if (od % SD != 0 || oh % SH != 0 || ow % SW != 0) continue;
-                od /= SD;
-                oh /= SH;
+                if (ow % SW != 0) continue;
                 ow /= SW;
-                if (od < 0 || od >= OD) continue;
-                if (oh < 0 || oh >= OH) continue;
                 if (ow < 0 || ow >= OW) continue;
 
                 const int dst_off = DST_OFF(mb, c, od, oh, ow);
