@@ -45,6 +45,11 @@ file(GLOB_RECURSE sources *.cpp *.c)
 file(GLOB_RECURSE headers *.hpp *.h)
 
 if(ONEDNN_BUILD_GRAPH)
+    # workaround for icx cannot init constexpr with dllimport symbols(detail::handle)
+    # also, suppose it's unnecessary for users to link the library with the flag.
+    if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
+        remove_definitions(-DDNNL_DLL)
+    endif()
     include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/examples/graph/include)
 else()
     # Remove graph examples

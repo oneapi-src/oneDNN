@@ -265,5 +265,9 @@ if(NOT DNNL_ENABLE_STACK_CHECKER)
     if(DNNL_WITH_SYCL)
         add_subdirectory(sycl)
     endif()
+
+    if(ONEDNN_BUILD_GRAPH)
+        add_subdirectory(graph)
+    endif()
 endif()
 # vim: et ts=4 sw=4
