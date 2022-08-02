@@ -40,7 +40,7 @@ enum {
 impl::data_type_t get_accum_datatype(brgemm_t *brg) {
     // this assert should check if 'init_kernel_datatype()' was previously
     // called.
-    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32);
+    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
     return brg->is_int8 ? data_type::s32 : data_type::f32;
 }
 
@@ -51,7 +51,8 @@ void init_kernel_datatype(
             && (dt_b == data_type::s8);
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
     brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
-    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32);
+    brg->is_f16 = (dt_a == data_type::f16) && (dt_b == data_type::f16);
+    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
 }
 
 void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
@@ -118,6 +119,9 @@ void set_isa_impl(brgemm_t *brg) {
         brg->isa_impl = utils::map(true, isa_any,
                 is_isa_ok(avx512_core_bf16_amx_bf16), avx512_core_bf16_amx_bf16,
                 is_isa_ok(avx512_core_bf16), avx512_core_bf16);
+    } else if (brg->is_f16) {
+        brg->isa_impl = utils::map(
+                true, isa_any, is_isa_ok(avx512_core_fp16), avx512_core_fp16);
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_any,
                 is_isa_ok(avx512_core_bf16_amx_int8), avx512_core_bf16_amx_int8,
@@ -152,7 +156,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->ldb2_tail = brg->ldb % brg->ld_block2;
 
         if (brg->ldb2 == 0) brg->ld_block2 = nstl::max(1, brg->ldb2_tail);
-        brg->embd_bcst = !brg->is_int8 && !brg->is_bf16
+        brg->embd_bcst = brg->is_f32
                 && (brg->ldb2_tail <= 1 && brg->ldb2 == 0)
                 /*only avx512 or more can bcast*/
                 && is_superset(brg->isa_impl, avx512_core);
@@ -205,7 +209,9 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->bdb = brg->bcast_dim / brg->bd_block;
         brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
-        brg->rd_block = simd_w / brg->typesize_A;
+        // f16 doesn't support vnni.
+        const int size_per_element_at_vnni = brg->is_f16 ? 4 : brg->typesize_A;
+        brg->rd_block = 16 / size_per_element_at_vnni;
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
@@ -472,7 +478,9 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
 
-    brg->ld_step = brg->rd_step = 4 / brg->typesize_A;
+    // f16 doesn't support vnni.
+    brg->ld_step = brg->rd_step
+            = brg->is_f16 ? 1 : data_type_vnni_granularity(brg->dt_a);
 }
 
 void init_brdgmm_conf(brgemm_t *brg, brgemm_batch_kind_t type,

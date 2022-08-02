@@ -50,20 +50,19 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     const auto src_type = src_md(0)->data_type;
     const auto wei_type = weights_md(0)->data_type;
     const auto dst_type = dst_md(0)->data_type;
+    const bool is_int8 = one_of(src_type, u8, s8);
 
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
             | skip_mask_t::zero_points_runtime;
-    if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::oscale_runtime;
+    if (is_int8) skip_mask |= skip_mask_t::oscale_runtime;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
-            && IMPLICATION(with_bias(),
-                    ((one_of(src_type, u8, s8)
-                             && one_of(bias_md_.data_type, f32, s32, s8, u8))
-                            || (one_of(src_type, bf16)
-                                    && one_of(bias_md_.data_type, f32, bf16))
-                            || (one_of(src_type, f32)
-                                    && one_of(bias_md_.data_type, f32))))
+            && IMPLICATION(is_int8,
+                    one_of(bias_md_.data_type, data_type::undef, f32, s32, s8,
+                            u8))
+            && IMPLICATION(!is_int8,
+                    one_of(bias_md_.data_type, data_type::undef, f32, src_type))
             && attr()->has_default_values(skip_mask, dst_type)
             && attr()->post_ops_.check_sum_consistent_dt(dst_type)
             && !has_zero_dim_memory() && zero_points_ok();
@@ -383,7 +382,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_po_kernel(
             = (!is_init && IMPLICATION(jcp.with_sum, jcp.use_buffer)) ? 1 : 0;
     bcfg->beta = is_init ? 0 : 1;
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
-            new jit_brgemm_kernel_post_ops(jcp, *bcfg, *_pd->attr())));
+            new jit_brgemm_kernel_post_ops<isa>(jcp, *bcfg, *_pd->attr())));
     kernels_po_[ker_idx]->create_kernel();
     return status::success;
 }
@@ -1907,6 +1906,7 @@ template struct brgemm_convolution_fwd_t<avx512_core, true>;
 template struct brgemm_convolution_fwd_t<avx512_core_vnni>;
 template struct brgemm_convolution_fwd_t<avx512_core_bf16>;
 template struct brgemm_convolution_fwd_t<avx512_core_bf16, true>;
+template struct brgemm_convolution_fwd_t<avx512_core_fp16>;
 template struct brgemm_convolution_fwd_t<avx512_core_bf16_amx_int8>;
 template struct brgemm_convolution_fwd_t<avx512_core_bf16_amx_bf16>;
 template struct brgemm_convolution_fwd_t<avx512_core_bf16_amx_bf16, true>;

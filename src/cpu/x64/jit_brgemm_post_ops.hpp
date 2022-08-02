@@ -277,6 +277,7 @@ struct brgemm_kernel_post_ops_t {
     const void *dst_orig;
 };
 
+template <cpu_isa_t isa>
 struct jit_brgemm_kernel_post_ops : public jit_generator {
 
     jit_brgemm_kernel_post_ops(const jit_brgemm_conv_conf_t &ajcp,
@@ -314,7 +315,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     save_state, reserved_eltwise_gpr, reserved_eltwise_maskr};
 
             postops_injector_ = utils::make_unique<
-                    injector::jit_uni_postops_injector_t<avx512_core>>(
+                    injector::jit_uni_postops_injector_t<po_isa_t>>(
                     this, attr.post_ops_, bsp, esp);
         }
         if (brg.is_bf16_emu)
@@ -348,8 +349,9 @@ private:
     data_type_t inp_dt_;
     data_type_t out_dt_;
     data_type_t bia_dt_;
-
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+    static constexpr cpu_isa_t po_isa_t = utils::map(
+            isa, avx512_core, avx2, avx2, avx512_core_fp16, avx512_core_fp16);
+    std::unique_ptr<injector::jit_uni_postops_injector_t<po_isa_t>>
             postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
@@ -466,10 +468,10 @@ private:
                 vpmovzxwd(zmm, op);
                 vpslld(zmm, zmm, 16);
                 break;
+            case data_type::f16: vcvtph2ps(zmm, op); break;
             default: assert(!"unsupported data type");
         }
-        if (!utils::one_of(type_in, data_type::f32, data_type::bf16))
-            vcvtdq2ps(zmm_in, zmm_in);
+        if (types::is_integral_dt(type_in)) vcvtdq2ps(zmm_in, zmm_in);
     }
 
     Xbyak::Zmm vector(int m, int n, int n_block) {
@@ -692,10 +694,12 @@ private:
             auto addr = ptr[aux_reg_out
                     + out_typesize_ * (m * LDD_ + n * brg.ld_block)];
 
-            if (out_dt_ == data_type::bf16) {
+            if (utils::one_of(out_dt_, data_type::bf16, data_type::f16)) {
                 Xbyak::Ymm ymm = Xbyak::Ymm(zmm.getIdx());
                 if (brg.alpha != 0 || (sum_idx != -1 && brg.beta != 0)) {
-                    if (brg.is_bf16_emu)
+                    if (brg.is_f16)
+                        vcvtps2ph(ymm, zmm, _op_mxcsr);
+                    else if (brg.is_bf16_emu)
                         bf16_emu_->vcvtneps2bf16(ymm, zmm);
                     else
                         vcvtneps2bf16(ymm, zmm);

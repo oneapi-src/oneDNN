@@ -203,7 +203,7 @@ private:
     }
 
     std::vector<std::unique_ptr<brgemm_kernel_t>> brg_kernels_;
-    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops>> kernels_po_;
+    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops<isa>>> kernels_po_;
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_trans_kernel_t>
             copy_to_pbuffer_;

@@ -106,6 +106,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
+    const bool is_not_vnni_tag = one_of(jcp.wei_dt, f32, f16);
 
     const bool is_1d = jcp.ndims == 3;
     const bool is_2d = jcp.ndims == 4;
@@ -114,7 +115,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
     if (jcp.wei_plain) {
         jcp.LDB = jcp.oc;
         if (is_3d) {
-            if (jcp.wei_dt == f32)
+            if (is_not_vnni_tag)
                 wei_tag = with_groups ? gdhwio : dhwio;
             else if (jcp.wei_dt == s8)
                 wei_tag = with_groups ? gdhwIo4i : dhwIo4i;
@@ -123,7 +124,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             } else
                 return status::unimplemented;
         } else if (is_1d) {
-            if (jcp.wei_dt == f32)
+            if (is_not_vnni_tag)
                 wei_tag = with_groups ? gwio : wio;
             else if (jcp.wei_dt == s8)
                 wei_tag = with_groups ? gwIo4i : wIo4i;
@@ -134,7 +135,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
         } else {
             assert(is_2d);
             UNUSED(is_2d);
-            if (jcp.wei_dt == f32)
+            if (is_not_vnni_tag)
                 wei_tag = with_groups ? ghwio : hwio;
             else if (jcp.wei_dt == s8)
                 wei_tag = with_groups ? ghwIo4i : hwIo4i;
@@ -147,7 +148,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
         jcp.LDB = jcp.oc_block;
         if (jcp.oc_block == 64) {
             if (is_3d) {
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOdhwi64o : Odhwi64o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -162,7 +163,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOwi64o : Owi64o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -179,7 +180,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOhwi64o : Ohwi64o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -196,7 +197,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             }
         } else if (jcp.oc_block == 48) {
             if (is_3d) {
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOdhwi48o : Odhwi48o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -211,7 +212,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOwi48o : Owi48o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -228,7 +229,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOhwi48o : Ohwi48o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -245,7 +246,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             }
         } else if (jcp.oc_block == 32) {
             if (is_3d) {
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOdhwi32o : Odhwi32o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -260,7 +261,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOwi32o : Owi32o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -277,7 +278,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOhwi32o : Ohwi32o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -294,7 +295,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             }
         } else {
             if (is_3d) {
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOdhwi16o : Odhwi16o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -309,7 +310,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOwi16o : Owi16o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -327,7 +328,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 assert(is_2d);
                 UNUSED(is_2d);
 
-                if (jcp.wei_dt == f32)
+                if (is_not_vnni_tag)
                     wei_tag = with_groups ? gOhwi16o : Ohwi16o;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_ic_padded)
@@ -348,7 +349,8 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
     src_tag = dst_tag;
 
     const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
-            || jcp.wei_dt == data_type::s8 || is_amx(jcp.isa));
+            || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
+            || is_amx(jcp.isa));
     CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
     CHECK(init_tag(jcp.dst_tag, dst_md, dst_d, dst_tag, any_eligible));
     CHECK(init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag, true));
@@ -1686,7 +1688,9 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             && attr.fpmath_mode_ == fpmath_mode::bf16
             && isa == avx512_core_bf16_amx_bf16;
 
-    brg_blocking_t::last_ic_block_size = data_type_vnni_granularity(jcp.wei_dt);
+    const bool is_not_vnni_tag = one_of(jcp.wei_dt, f32, f16);
+    brg_blocking_t::last_ic_block_size
+            = is_not_vnni_tag ? 1 : data_type_vnni_granularity(jcp.wei_dt);
 
     // TODO: optimize depthwise convolutions (for now direct approach is faster)
     const bool is_depthwise
@@ -1727,6 +1731,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         return status::unimplemented;
     if (!IMPLICATION(jcp.wei_dt == bf16, mayiuse(avx512_core_bf16)))
         return status::unimplemented;
+    if (!IMPLICATION(jcp.wei_dt == f16, mayiuse(avx512_core_fp16)))
+        return status::unimplemented;
     const bool is_f32
             = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
     if (!IMPLICATION(is_f32, isa == avx512_core || jcp.is_bf32))
@@ -1734,7 +1740,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (one_of(jcp.src_dt, u8, s8)) {
         jcp.acc_dt = s32;
-    } else if (one_of(jcp.src_dt, f32, bf16)) {
+    } else if (one_of(jcp.src_dt, f32, bf16, f16)) {
         jcp.acc_dt = f32;
     } else
         return status::unimplemented;
@@ -1795,7 +1801,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // fast check data layout before spending time for blocking selection
         format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
         const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
-                || jcp.wei_dt == data_type::s8 || is_amx(jcp.isa));
+                || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
+                || is_amx(jcp.isa));
         CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
     }
     if (jcp.with_bias) {
@@ -1958,7 +1965,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // keep it memory
         if (jcp.loop_order == loop_ndhwgc) { jcp.copy_block_only = true; }
 
-        jcp.is_ic_padded = one_of(jcp.wei_dt, bf16, s8)
+        jcp.is_ic_padded = one_of(jcp.wei_dt, bf16, f16, s8)
                 && jcp.ic * jcp.kw_sets > ic_padded_block;
 
         if (is_amx(isa) && (/* heuristic*/ jcp.kw_sets == 1 && jcp.ow < 256)) {

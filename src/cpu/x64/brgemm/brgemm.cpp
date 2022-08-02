@@ -173,7 +173,8 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
                                            : (LDA < M || LDB < K || LDC < M);
     if (ldx_check) return status::invalid_arguments;
 
-    if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
+    if (utils::everyone_is(
+                false, brg->is_int8, brg->is_bf16, brg->is_f32, brg->is_f16))
         return status::unimplemented;
 
     CHECK(brgemm_blocking(brg));
@@ -423,7 +424,11 @@ status_t brgemm_kernel_create(
         } else if (brg.is_zmm) {
             // isa specific instantiations are required because
             // post-ops require template isa param.
-            if (brg.isa_impl == avx512_core_bf16) {
+            if (brg.isa_impl == avx512_core_fp16) {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx512_core_fp16,
+                                Xbyak::Zmm>(brg)));
+            } else if (brg.isa_impl == avx512_core_bf16) {
                 CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
                         new brgemm_kernel_common_t<avx512_core_bf16,
                                 Xbyak::Zmm>(brg)));
