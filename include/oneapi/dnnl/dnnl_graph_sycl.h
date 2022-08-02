@@ -94,7 +94,7 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 dnnl_graph_status_t DNNL_GRAPH_API
 dnnl_graph_sycl_interop_compiled_partition_execute(
         const_dnnl_graph_compiled_partition_t compiled_partition,
-        const_dnnl_graph_stream_t stream, size_t num_inputs,
+        dnnl_graph_stream_t stream, size_t num_inputs,
         const_dnnl_graph_tensor_t *inputs, size_t num_outputs,
         const_dnnl_graph_tensor_t *outputs, const void *deps, void *sycl_event);
 

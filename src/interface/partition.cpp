@@ -294,7 +294,7 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_create(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
-        const compiled_partition_t *compiled_partition, const stream_t *stream,
+        const compiled_partition_t *compiled_partition, stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
         const tensor_t **outputs) {
     if (utils::any_null(stream, compiled_partition, inputs, outputs)) {
@@ -342,7 +342,7 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
-        const compiled_partition_t *compiled_partition, const stream_t *stream,
+        const compiled_partition_t *compiled_partition, stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
         const tensor_t **outputs, const void *deps, void *sycl_event) {
 #ifdef DNNL_GRAPH_WITH_SYCL
