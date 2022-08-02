@@ -26,7 +26,7 @@
 #include "graph/utils/utils.hpp"
 
 #ifdef DNNL_WITH_SYCL
-#include "dnnl_sycl.h"
+#include "oneapi/dnnl/dnnl_sycl.h"
 #endif
 
 using namespace dnnl::impl::graph;

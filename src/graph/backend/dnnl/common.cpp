@@ -36,12 +36,12 @@ const size_t DNNL_CPU_MEMALIGNMENT = 64;
 #endif
 
 #ifdef DNNL_WITH_SYCL
-#include "dnnl_sycl.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 const size_t DNNL_SYCL_MEMALIGNMENT = 64;
 #endif
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool.hpp"
+#include "oneapi/dnnl/dnnl_threadpool.hpp"
 #endif
 
 namespace dnnl {
