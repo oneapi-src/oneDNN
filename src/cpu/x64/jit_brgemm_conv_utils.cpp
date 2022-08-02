@@ -2060,6 +2060,19 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
     }
 
+    // disables the shape with small ic but large spatial for int8 conv
+    const auto is_ok_large_spatial
+            = IMPLICATION(!is_amx(jcp.isa) && jcp.ic <= 128,
+                      jcp.od * jcp.oh < 100
+                              || jcp.ic * jcp.oc_block * jcp.ow_block > 8192)
+            && IMPLICATION(is_amx(jcp.isa) && jcp.ic <= 16,
+                    jcp.ow < 2048
+                            || div_up(jcp.ow_block, selected_ur) * jcp.kd
+                                            * jcp.kh * jcp.kw
+                                    > 8192);
+    if (one_of(jcp.src_dt, u8, s8) && !is_ok_large_spatial)
+        return status::unimplemented;
+
     // For padding shapes, we calculate the comp along with the computation
     // inside brgemm kernel when output size is small to get optimal perf
     // Or we calculate the comp using brgemm_coomp_pad kernel
