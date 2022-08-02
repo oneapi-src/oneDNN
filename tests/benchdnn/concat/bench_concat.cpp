@@ -30,28 +30,25 @@ namespace concat {
 void check_correctness(const settings_t &s) {
     for_(const auto &i_sdt : s.sdt)
     for_(const auto &i_ddt : s.ddt)
-    for_(const auto &i_stag_ : s.stag)
+    for_(const auto &i_stag : s.stag)
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_axis : s.axis)
     for_(const auto &i_scales : s.scales)
     for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
-        // if dst is omitted by dtag = tag::undef, omit ddt as well
-        auto ddt = i_dtag == tag::undef ? dnnl_data_type_undef : i_ddt;
-
-        // broadcast tag if needed
-        auto i_stag = i_stag_;
-        if (i_stag.size() == 1) {
-            const auto val = i_stag_[0];
-            i_stag.assign(s.prb_vdims.n_inputs(), val);
-        }
-
-        // want 1:1 match of vdims and tag
-        if (s.prb_vdims.n_inputs() != static_cast<int>(i_stag.size()))
+        const int n_stags = static_cast<int>(i_stag.size());
+        const int n_inputs = s.prb_vdims.n_inputs();
+        if (n_stags != n_inputs && n_stags != 1) {
+            BENCHDNN_PRINT(0,
+                    "ERROR: Expected number of stag arguments is `1` or `%d`, "
+                    "provided `%d`.\n",
+                    n_inputs, n_stags);
             SAFE_V(FAIL);
+        }
 
         auto attr = settings_t::get_attr(i_scales, i_scratchpad_mode);
 
-        const prb_t prb(s.prb_vdims, i_sdt, ddt, i_stag, i_dtag, i_axis, attr);
+        const prb_t prb(
+                s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_axis, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
