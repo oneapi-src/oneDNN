@@ -28,7 +28,7 @@
 #include "src/common/float16.hpp"
 #include "src/common/nstl.hpp"
 
-int check_pd_cache(dnnl_primitive_desc_t pd);
+int check_pd_cache(const_dnnl_primitive_desc_t pd);
 int check_primitive_cache(dnnl_primitive_t p);
 
 #include "common.hpp"
@@ -416,7 +416,7 @@ bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
-        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd, res_t *res);
+        const_dnnl_primitive_desc_t pd, res_t *res);
 int check_pd_w_and_wo_attr(
         const_dnnl_primitive_desc_t pd, const attr_t &attr, res_t *res);
 
@@ -550,6 +550,10 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
         init_pd_args_t<prb_t> &init_pd_args, res_t *res, bool is_service_prim) {
     if (!init_pd_args.pd && !init_pd_args.pd_it) return FAIL;
 
+    // Wrappers expected to come empty.
+    assert(!pdw);
+    assert(!pd_itw);
+
     pd_itw.reset(init_pd_args.pd_it);
     if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
     pdw.reset(init_pd_args.pd);
@@ -589,12 +593,12 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
 // remove code duplication and keep all the logic in a single place.
 template <typename func_t, typename prb_t>
 int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
-        benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
         dnnl_engine_t engine, const func_t &init_pd_func, const prb_t *prb,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint,
         bool is_service_prim) {
     dnnl_status_t status = dnnl_success;
     dnnl_primitive_t prim {};
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
 
     init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
@@ -618,7 +622,6 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, const prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr,
         bool is_service_prim = false) {
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> primw;
 
     skip_start(res);
@@ -651,7 +654,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     engine_t engine(engine_tgt_kind);
 #endif
 
-    SAFE(create_primitive(primw, pdw, engine, init_pd_func, prb, res, dir, hint,
+    SAFE(create_primitive(primw, engine, init_pd_func, prb, res, dir, hint,
                  is_service_prim),
             WARN);
     if (res->state == SKIPPED) return OK;
@@ -659,8 +662,8 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
 #endif
     // The second (if the cache is enabled) primitive creation using the global
     // test engine. This primitive is expected to come from the cache.
-    SAFE(create_primitive(primw, pdw, get_test_engine(), init_pd_func, prb, res,
-                 dir, hint, is_service_prim),
+    SAFE(create_primitive(primw, get_test_engine(), init_pd_func, prb, res, dir,
+                 hint, is_service_prim),
             WARN);
     if (res->state == SKIPPED) return OK;
 
@@ -670,18 +673,19 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         return OK;
     }
 
-    res->impl_name = query_impl_info(pdw);
+    auto pd = query_pd(primw);
+    res->impl_name = query_impl_info(pd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     // Check that adding attributes doesn't cause a fall back to another impl.
-    SAFE(check_pd_w_and_wo_attr(pdw, prb->attr, res), WARN);
+    SAFE(check_pd_w_and_wo_attr(pd, prb->attr, res), WARN);
     // Check primitive descriptor is picked up from the cache, if applicable.
-    SAFE(check_pd_cache(pdw), WARN);
+    SAFE(check_pd_cache(pd), WARN);
     // Check primitive is picked up from the cache, if applicable.
     SAFE(check_primitive_cache(primw), WARN);
     // Collect memory footprint for a given primitive descriptor.
-    SAFE(get_memory_footprint(pdw, res), WARN);
+    SAFE(get_memory_footprint(pd, res), WARN);
 
-    SAFE(test_persistent_cache_api(primw, pdw, res), WARN);
+    SAFE(test_persistent_cache_api(primw, pd, res), WARN);
 
     user_prim.reset(primw.release());
     return OK;
