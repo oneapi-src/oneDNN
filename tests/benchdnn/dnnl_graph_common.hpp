@@ -179,17 +179,21 @@ typedef std::function<void(dnnl::graph::stream &,
 const dnnl::graph::engine &get_test_engine();
 const dnnl::graph::stream &get_test_stream();
 
-#if DNNL_GRAPH_WITH_SYCL
 struct scratchpad_mm_mgr {
+#if DNNL_GRAPH_WITH_SYCL
     void *sycl_alloc_mm(
             size_t size, size_t alignment, const void *dev, const void *ctx);
     void sycl_free_mm(
             void *ptr, const void *device, const void *context, void *event);
+#endif // DNNL_GRAPH_WITH_SYCL
+    void *cpu_alloc_mm(size_t size, size_t alignment);
+    void cpu_free_mm(void *ptr);
 
 private:
     std::unordered_multimap<size_t, std::shared_ptr<void>> map_size_ptr_;
     std::unordered_set<void *> free_ptr_;
 };
+#if DNNL_GRAPH_WITH_SYCL
 bool is_sycl_engine();
 dnnl::graph::engine &get_engine();
 #endif // DNNL_GRAPH_WITH_SYCL

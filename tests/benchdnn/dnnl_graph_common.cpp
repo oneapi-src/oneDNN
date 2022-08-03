@@ -1074,6 +1074,8 @@ fill_status_t handle_quant_dequant(size_t existing_lt_id,
     return fill_status::DONE;
 }
 
+static scratchpad_mm_mgr s_mm_mgr;
+
 #ifdef DNNL_GRAPH_WITH_SYCL
 void *scratchpad_mm_mgr::sycl_alloc_mm(
         size_t size, size_t alignment, const void *dev, const void *ctx) {
@@ -1112,8 +1114,6 @@ void scratchpad_mm_mgr::sycl_free_mm(
         void *ptr, const void *device, const void *context, void *event) {
     free_ptr_.insert(ptr);
 }
-
-static scratchpad_mm_mgr s_mm_mgr;
 
 void *sycl_malloc_wrapper(
         size_t size, size_t alignment, const void *dev, const void *ctx) {
@@ -1171,6 +1171,64 @@ bool is_sycl_engine() {
     return false;
 }
 
+void *scratchpad_mm_mgr::cpu_alloc_mm(size_t size, size_t alignment) {
+    // fake malloc for 0 size
+    if (size == 0) return nullptr;
+
+    void *ptr {nullptr};
+    bool need_alloc_new_mm = true;
+    // find alloc mm with same size
+    const auto cnt = map_size_ptr_.count(size);
+    if (cnt > 0) {
+        const auto Iter = map_size_ptr_.equal_range(size);
+        for (auto it = Iter.first; it != Iter.second; ++it) {
+            // check if same size mm is free
+            if (free_ptr_.find(it->second.get()) != free_ptr_.end()) {
+                ptr = it->second.get();
+                free_ptr_.erase(ptr);
+                need_alloc_new_mm = false;
+            }
+        }
+    }
+
+    if (need_alloc_new_mm) {
+        auto sh_ptr = std::shared_ptr<void> {
+                dnnl::graph::testing::allocate(size, alignment),
+                dnnl::graph::testing::deallocate};
+        ptr = sh_ptr.get();
+        // record the map of mm size and its ptr for reuse
+        map_size_ptr_.emplace(std::make_pair(size, sh_ptr));
+    }
+    return ptr;
+}
+
+void scratchpad_mm_mgr::cpu_free_mm(void *ptr) {
+    free_ptr_.insert(ptr);
+}
+
+void *cpu_malloc_wrapper(size_t size, size_t alignment) {
+    void *ptr = s_mm_mgr.cpu_alloc_mm(size, alignment);
+    return ptr;
+}
+
+void cpu_free_wrapper(void *ptr) {
+    s_mm_mgr.cpu_free_mm(ptr);
+}
+
+const dnnl::graph::engine &get_graph_cpu_engine() {
+    if (is_bench_mode(CORR)) {
+        static dnnl::graph::engine eng(
+                dnnl::graph::engine::kind::cpu, engine_index);
+        return eng;
+    } else {
+        static dnnl::graph::allocator alloc {
+                cpu_malloc_wrapper, cpu_free_wrapper};
+        static dnnl::graph::engine eng {
+                dnnl::graph::engine::kind::cpu, engine_index, alloc};
+        return eng;
+    }
+}
+
 // Engine used to run oneDNN fusion patterns for testing.
 const dnnl::graph::engine &get_test_engine() {
     using engine = dnnl::graph::engine;
@@ -1178,7 +1236,7 @@ const dnnl::graph::engine &get_test_engine() {
 #ifdef DNNL_GRAPH_CPU_SYCL
         static engine eng(get_graph_engine());
 #else
-        static engine eng(engine::kind::cpu, static_cast<int>(engine_index));
+        static engine eng(get_graph_cpu_engine());
 #endif
         return eng;
     } else {
