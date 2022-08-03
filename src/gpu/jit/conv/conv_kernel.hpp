@@ -3637,8 +3637,7 @@ public:
             if (all_of(mask, expr_t(false))) {
                 if (send_func.is_load() || send_func.is_load_2d()) {
                     auto reg_buf_op = eval(send_t::arg_reg_buf(args), scope);
-                    zero_out_data_payload(send_func, send_func.nmasks(),
-                            reg_buf_op.reg_buf_data());
+                    zero_out_data_payload(send_func, reg_buf_op.reg_buf_data());
                 }
                 return;
             }
@@ -3994,37 +3993,17 @@ private:
                 host_, scope, src_op.reg_buf_data(), dst_op.reg_buf_data());
     }
 
-    void zero_out_data_payload(const send_t &send_func,
-            const ngen::InstructionModifier &_mod, const reg_buf_data_t &rd) {
-        bool is_per_slot = (send_func.nmasks() > 1);
-
-        auto get_modifier = [&](int exec_size) {
-            if (is_per_slot) {
-                ir_assert(_mod.getExecSize() == exec_size);
-                auto mod = _mod;
-                mod = ~mod;
-                mod.setSWSB({});
-                return mod;
-            }
-            return ngen::InstructionModifier(exec_size);
-        };
-
-        int ud_size = sizeof(uint32_t);
+    void zero_out_data_payload(
+            const send_t &send_func, const reg_buf_data_t &rd) {
+        type_t type = type_t::f32();
         int send_size = send_func.payload_size();
         int grf_size = ngen::GRF::bytes(hw);
-        int step = (is_per_slot ? send_func.nmasks() * ud_size : 2 * grf_size);
+        int step = 2 * grf_size;
         for (int i = 0; i < send_size; i += step) {
-            int exec_size;
-            if (is_per_slot) {
-                exec_size = send_func.nmasks();
-            } else {
-                exec_size = std::min(step, send_size - i) / ud_size;
-            }
-            auto sub_rd_mov
-                    = rd.format(i, ngen::DataType::f, exec_size).reg_data();
+            int exec_size = std::min(step, send_size - i) / type.size();
+            auto sub_rd_mov = rd.format(i, to_ngen(type), exec_size).reg_data();
             ir_assert(math::is_pow2(exec_size));
-            host_->emov(
-                    get_modifier(exec_size), sub_rd_mov, ngen::Immediate(0.0f));
+            host_->emov(exec_size, sub_rd_mov, ngen::Immediate(0.0f));
         }
     }
 
@@ -4061,7 +4040,7 @@ private:
         // Zero-out inactive channels.
         if ((send_func.is_load() || send_func.is_load_2d())
                 && mod.getPredCtrl() != ngen::PredCtrl::None) {
-            zero_out_data_payload(send_func, mod, reg_buf_op.reg_buf_data());
+            zero_out_data_payload(send_func, reg_buf_op.reg_buf_data());
         }
 
         // Emit send instruction.
