@@ -162,7 +162,10 @@ private:
 
         bool require_pow_2 = false;
         if (level == tile_level_t::tg) require_pow_2 = true;
-        if (level == tile_level_t::iter && utils::one_of(bmnk_dim_.bmnk(), 'N'))
+        if (level == tile_level_t::iter
+                && (bmnk_dim_.bmnk() == 'N'
+                        || (bmnk_dim_.bmnk() == 'M'
+                                && bmnk_dim_.inner_dims() == 1)))
             require_pow_2 = true;
 
         int step = 1;
@@ -470,6 +473,8 @@ void block_helper_t::init_bmnk_blocks() {
     }
 
     m_blk = compute_block(m_dim().size(), m_blk, m_dim().base_iter_block());
+    // Require pow2 when only one m dim is non-trivial
+    if (m_dim().inner_dims() == 1) utils::rnd_down_pow2(m_blk);
     k_blk = compute_block(k_dim().size(), k_blk, k_dim().base_iter_block());
     bn_blk = compute_block(bn_dim.size(), bn_blk, bn_dim.base_iter_block());
 
