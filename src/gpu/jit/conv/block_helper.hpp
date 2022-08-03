@@ -196,6 +196,9 @@ public:
         max_tile_dims_[idx] = value;
     }
 
+    int inner_dims() const { return inner_dims_; }
+    void incr_inner_dims() { inner_dims_++; }
+
     int iter_blk() const { return iter_dim(); }
     int thr_blk() const { return thr_dim() * iter_blk(); }
     int tg_blk() const { return tg_dim() * thr_blk(); }
@@ -273,6 +276,9 @@ private:
 
     // Dimension kind in terms of BMNK notation.
     char bmnk_ = ' ';
+
+    // Number of prb dims for a BMNK dim
+    int inner_dims_ = 0;
 
     // Whether the dimension can be blocked. Dimensions without blocking are
     // implicitly tiled on the grid level (handle one element per thread
@@ -637,6 +643,7 @@ private:
             auto &bmnk_d = bmnk_dim(d.bmnk());
             if (d.pref_tg_block()) bmnk_d.set_pref_tg_block();
             bmnk_d.set_size(bmnk_d.size() * d.size());
+            bmnk_d.incr_inner_dims();
             bmnk_d.set_base_iter_block(
                     bmnk_d.base_iter_block() * d.base_iter_block());
         }
