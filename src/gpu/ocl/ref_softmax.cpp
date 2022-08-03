@@ -26,12 +26,15 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    float scale = pd()->attr()->output_scales_.scales_[0];
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
-    arg_list.set(2, scale);
+
+    const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
+            ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES)
+            : &CTX_GPU_RES_STORAGE(SCALES_);
+    arg_list.set(2, *scales);
 
     auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);
     return parallel_for(ctx, nd_range, kernel_, arg_list);
