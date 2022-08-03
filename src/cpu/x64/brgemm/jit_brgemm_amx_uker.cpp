@@ -1218,6 +1218,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
 
 void jit_brgemm_amx_uker_base_t::set_A_B_matrices(int bs) {
     assert(brg.type == brgemm_addr);
+    if (brg.brgattr.max_bs == 1) return;
     auto batch_offset = (size_t)bs * sizeof(brgemm_batch_element_t);
     if (brg.layout == brgemm_row_major) {
         mov(reg_aux_A,
@@ -1827,9 +1828,11 @@ void jit_brgemm_amx_uker_base_t::generate() {
 
     // if beta == 1 and C datatype is f32 it is better to perform addition by
     // reading tiles directly from C instead of by reading/writing by vectors
-    may_load_accumulators_ = (brg.beta == 1.f
-            && (((brg.is_f32 || brg.is_bf16) && brg.dt_c == data_type::f32)
-                    || (brg.is_int8 && brg.dt_c == data_type::s32)));
+    may_load_accumulators_ = one_of(brg.alpha, 0, 1) && brg.beta == 1.f
+            && brg.dt_c == brg.dt_d && !brg.is_bf32
+            && IMPLICATION(
+                    brg.is_f32 || brg.is_bf16, brg.dt_c == data_type::f32)
+            && IMPLICATION(brg.is_int8, brg.dt_c == data_type::s32);
     need_to_apply_alpha_beta_
             = (brg.beta != 0.f && !may_load_accumulators_) || brg.alpha != 1.f;
     const bool has_zero_points = !everyone_is(brgemm_broadcast_t::none,
@@ -1839,7 +1842,6 @@ void jit_brgemm_amx_uker_base_t::generate() {
             has_zero_points);
 
     // second level blocking eligible only if we don't use store by vectors for now
-
     assert(IMPLICATION(are_post_ops_applicable_ || need_to_apply_alpha_beta_
                     || brg.brgattr.bd_mask_level,
             !brg.is_blocked && !brg.brgattr.var_bs));
