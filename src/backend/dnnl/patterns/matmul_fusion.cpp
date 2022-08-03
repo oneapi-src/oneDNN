@@ -34,9 +34,22 @@ using pb_graph_t = pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
-template <bool FLAG>
-bool check_has_producer(op_t *op) {
-    return op->get_input_value(0)->has_producer() == FLAG;
+// Optional Quantize for weight will only be fused
+// when:
+// 1. input logical tensor has constant property type
+// 2. the optional Quantize has a Wildcard producer
+// 3. the optional Quantize has no producer
+bool check_if_constant_weight(op_t *op) {
+    const auto &in_value = op->get_input_value(0);
+    if (in_value->get_logical_tensor().property
+            == impl::property_type::constant) {
+        return true;
+    }
+    if (in_value->has_producer()) {
+        return in_value->get_producer().get_kind() == impl::op_kind::Wildcard;
+    } else {
+        return true;
+    }
 }
 
 /*!
@@ -309,6 +322,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             "poptional_quant_weight");
                     pm::pb_op_t *pquant = popt_graph->append_op(
                             impl::op_kind::Quantize, "pquant");
+                    pquant->append_decision_function(check_if_constant_weight);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph, "popt");
@@ -407,6 +421,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             "poptional_quant_weight");
                     pm::pb_op_t *pquant = popt_graph->append_op(
                             impl::op_kind::Quantize, "pquant");
+                    pquant->append_decision_function(check_if_constant_weight);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph, "popt");
@@ -612,7 +627,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             "poptional_quant_weight");
                     pm::pb_op_t *pquant = popt_quant_wei_graph->append_op(
                             impl::op_kind::Quantize, "pquant");
-                    pquant->append_decision_function(check_has_producer<false>);
+                    pquant->append_decision_function(check_if_constant_weight);
                     popt_quant_wei_graph->create_input_port(0, pquant, 0);
                     popt_quant_wei_graph->create_output_port(0, pquant, 0);
                     auto popt_quant_wei = pgraph->append_optional(
@@ -730,7 +745,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             "poptional_quant_weight");
                     pm::pb_op_t *pquant = popt_quant_wei_graph->append_op(
                             impl::op_kind::Quantize, "pquant");
-                    pquant->append_decision_function(check_has_producer<false>);
+                    pquant->append_decision_function(check_if_constant_weight);
                     popt_quant_wei_graph->create_input_port(0, pquant, 0);
                     popt_quant_wei_graph->create_output_port(0, pquant, 0);
                     auto popt_quant_wei = pgraph->append_optional(
