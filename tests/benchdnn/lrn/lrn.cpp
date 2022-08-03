@@ -35,7 +35,13 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     const int range = 16;
-    const int f_min = prb->dt == dnnl_u8 ? 0 : -range / 2;
+    // LRN in MIOpen 2.17 and older doesn't support negative input. The support
+    // was added in https://github.com/ROCmSoftwarePlatform/MIOpen/pull/1562.
+    // The plan is to use only positive input at this point but bump the
+    // minimum required MIOpen version to 2.18 once it's released and enable
+    // negative input back.
+    const int f_min
+            = prb->dt == dnnl_u8 ? 0 : (is_amd_gpu() ? range : -range) / 2;
 
     benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const int64_t gen = kind == SRC ? 1091 * i + 1637 : 1279 * i + 1009;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,7 +95,10 @@ void check_lrn_fwd(const lrn_params_t &p, const memory::desc &src_d,
 
         memory::data_type data_type = data_traits<data_t>::data_type;
         if (data_type == dnnl::memory::data_type::f16)
-            eps = static_cast<acc_data_t>(1.e-4f * 2 * summands);
+            // MIOpen LRN implementation can slightly exceed eps (~0.000003).
+            eps = is_amd_gpu(get_test_engine())
+                    ? static_cast<acc_data_t>(1.e-4f * 3 * summands)
+                    : static_cast<acc_data_t>(1.e-4f * 2 * summands);
         else if (data_type == dnnl::memory::data_type::bf16)
             eps = static_cast<acc_data_t>(1.e-3f * 2 * summands);
 
@@ -124,8 +127,10 @@ protected:
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         SKIP_IF_CUDA(
                 !cuda_check_format_tags(p.format), "Unsupported format tag");
+        SKIP_IF_HIP(!hip_check_format_tags(p.format), "Unsupported format tag");
         SKIP_IF_CUDA(p.aalgorithm != algorithm::lrn_across_channels,
                 "Unsupported algorithm");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -135,6 +140,12 @@ protected:
                 || format == memory::format_tag::nhwc
                 || format == memory::format_tag::ncw
                 || format == memory::format_tag::nwc
+                || format == memory::format_tag::any;
+        return ok;
+    }
+
+    bool hip_check_format_tags(memory::format_tag format) {
+        bool ok = format == memory::format_tag::nchw
                 || format == memory::format_tag::any;
         return ok;
     }

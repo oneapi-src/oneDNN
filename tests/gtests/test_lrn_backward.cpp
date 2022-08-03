@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -215,6 +215,8 @@ protected:
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         SKIP_IF_CUDA(!cuda_check_format_tags(p.data_format, p.diff_data_format),
                 "Unsupported format tag");
+        SKIP_IF_HIP(!hip_check_format_tags(p.data_format, p.diff_data_format),
+                "Unsupported format tag");
         SKIP_IF_CUDA(p.aalgorithm != algorithm::lrn_across_channels,
                 "Unsupported algorithm");
         ASSERT_TRUE(p.aalgorithm == algorithm::lrn_across_channels
@@ -237,6 +239,13 @@ protected:
                 || diff_data_format == memory::format_tag::ncw
                 || diff_data_format == memory::format_tag::nwc
                 || diff_data_format == memory::format_tag::any;
+
+        return data_ok && diff_data_ok;
+    }
+    bool hip_check_format_tags(memory::format_tag data_format,
+            memory::format_tag diff_data_format) {
+        bool data_ok = data_format == memory::format_tag::nchw;
+        bool diff_data_ok = diff_data_format == memory::format_tag::nchw;
 
         return data_ok && diff_data_ok;
     }
