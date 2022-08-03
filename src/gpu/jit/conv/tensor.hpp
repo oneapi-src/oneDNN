@@ -84,6 +84,14 @@ public:
         return true;
     }
 
+    bool is_divisible(const tensor_t &other) const {
+        if (ndims() != other.ndims()) return false;
+        for (int i = 0; i < ndims(); i++) {
+            if (dims_[i] % other.dims_[i] != 0) return false;
+        }
+        return true;
+    }
+
     std::string str() const {
         using ir_utils::operator<<;
 
