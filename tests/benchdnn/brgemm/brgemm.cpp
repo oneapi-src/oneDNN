@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <float.h>
+#include <functional>
 #include <math.h>
 #include <random>
 #include <stdio.h>
@@ -235,6 +236,20 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const float trh = dt == dnnl_f32 ? 1e-6f : epsilon_dt(dt);
     cmp.set_threshold(trh);
     cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
+}
+
+// A special wrapper needed to match internal infrastructure.
+dnnl_status_t brgemm_kernel_execute_postops_wrapper(
+        const dnnl::impl::cpu::x64::brgemm_kernel_t *brgemm_kernel,
+        int batch_size,
+        const dnnl::impl::cpu::x64::brgemm_batch_element_t *batch_element,
+        void *acc_ptr, void *dst_ptr,
+        const dnnl::impl::cpu::x64::brgemm_post_ops_data_t &post_ops_data,
+        void *scratchpad_ptr, const dnnl_stream_t &stream,
+        const std::vector<dnnl_exec_arg_t> &dnnl_args) {
+    brgemm_kernel_execute_postops(brgemm_kernel, batch_size, batch_element,
+            acc_ptr, dst_ptr, post_ops_data, scratchpad_ptr);
+    return dnnl_success;
 }
 
 int doit(const prb_t *prb, res_t *res) {
@@ -527,6 +542,13 @@ int doit(const prb_t *prb, res_t *res) {
 
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
+
+    // Create a bind to match internals to run performance measurements.
+    perf_function_t perf_func = std::bind(brgemm_kernel_execute_postops_wrapper,
+            brgemm_kernel_, prb->batch_size, v_batch_element.data(), acc_ptr,
+            dst_ptr, post_ops_data, scratchpad_ptr, std::placeholders::_1,
+            std::placeholders::_2);
+    measure_perf(res, perf_func, args);
 
     if (init_tile_status == dnnl_success) DNN_SAFE(amx_tile_release(), WARN);
 
