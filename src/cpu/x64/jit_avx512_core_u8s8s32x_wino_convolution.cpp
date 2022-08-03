@@ -579,6 +579,13 @@ bool jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::post_ops_ok(
 
     auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
 
+    // check for unsupported zero_point in sum post_op
+    for (int i = 0; i < p.len(); i++) {
+        const auto &entry = p.entry_[i];
+        if (entry.is_sum(false, false) && entry.sum.zero_point != 0)
+            return false;
+    }
+
     switch (p.len()) {
         case 0: return true;
         case 1: return is_relu(0) || p.contain(sum, 0);
