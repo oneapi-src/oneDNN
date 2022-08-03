@@ -1739,7 +1739,7 @@ private:
             for (int i = 0; i < elems / 2; i++) {
                 if (obj.idx[i] != i) return false;
                 if (obj.idx[i] != obj.idx[i + elems / 2]) return false;
-                if (i > 0 && diff_bytes(vec[i], vec[i - 1]) != stride_bytes)
+                if (i > 0 && diff_bytes(vec[i - 1], vec[i]) != stride_bytes)
                     return false;
             }
             return true;
