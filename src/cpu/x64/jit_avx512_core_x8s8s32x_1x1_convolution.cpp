@@ -65,13 +65,14 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
     if (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni)) {
         auto local_scales
                 = scratchpad.template get<float>(key_conv_adjusted_scales);
-        size_t count = pd()->attr()->output_scales_.count_;
+        int mask = pd()->attr()->output_scales_.mask_;
+        dim_t count = mask == 0 ? 1 : pd()->OC();
         float factor = 1.f / pd()->jcp_.wei_adj_scale;
         if (count == 1) {
             utils::array_set(
                     local_scales, scales[0] * factor, pd()->jcp_.ic_block);
         } else {
-            for (size_t c = 0; c < count; c++)
+            for (dim_t c = 0; c < count; c++)
                 local_scales[c] = scales[c] * factor;
         }
     }
@@ -84,13 +85,14 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
             auto attr_dw = pd()->dw_conv_pd_->attr();
             auto local_scales = dw_scratchpad.template get<float>(
                     key_conv_adjusted_scales);
-            size_t count = attr_dw->output_scales_.count_;
+            int mask = attr_dw->output_scales_.mask_;
+            dim_t count = mask == 0 ? 1 : pd()->dw_conv_pd_->OC();
             float factor = 1.f / jcp_dw->wei_adj_scale;
             if (count == 1) {
                 utils::array_set(local_scales, dw_scales[0] * factor,
                         pd()->jcp_.ic_block);
             } else {
-                for (size_t c = 0; c < count; c++)
+                for (dim_t c = 0; c < count; c++)
                     local_scales[c] = dw_scales[c] * factor;
             }
         }
