@@ -1023,9 +1023,10 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::pd_t::init_scratchpad() {
     scratchpad.template book<acc_data_t>(
             key_wino_M, jcp_.size_wino_dst * nthr_multiplier, PAGE_4K);
 
-    dim_t scale_count = attr()->output_scales_.count_;
+    const int mask = attr()->output_scales_.mask_;
+    const dim_t scales_count = mask == 0 ? 1 : OC();
     scratchpad.template book<float>(
-            key_conv_adjusted_scales, nstl::max<dim_t>(scale_count, 16));
+            key_conv_adjusted_scales, nstl::max<dim_t>(scales_count, 16));
 }
 
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::
@@ -1057,13 +1058,16 @@ const float *jit_avx512_core_u8s8s32x_wino_convolution_fwd_t::adjust_oscales(
         const memory_tracking::grantor_t &scratchpad,
         const float *oscales) const {
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
-    size_t count = pd()->attr()->output_scales_.count_;
+    const int mask = pd()->attr()->output_scales_.mask_;
     float factor = 1.f / (adj_src_scale * adj_wei_scale);
-    if (count == 1)
+    if (mask == 0)
         utils::array_set(loc_scales, oscales[0] * factor, 16);
-    else
-        for (size_t c = 0; c < count; c++)
+    else {
+        assert(mask == 1 << 1);
+        for (dim_t c = 0; c < pd()->OC(); c++) {
             loc_scales[c] = oscales[c] * factor;
+        }
+    }
     return loc_scales;
 }
 
