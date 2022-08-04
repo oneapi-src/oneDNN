@@ -37,8 +37,8 @@ inline void write_vect_c_block_int(int idx, __global int *ptr, int c,
 #if IS_FWD
 KERNEL_ATTR
 __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
-        __global DATA_T *dst POST_OP_ARGS) {
-    const int mb = GWS_GET_MB();
+        __global DATA_T *dst, const int batch_id POST_OP_ARGS) {
+    const int mb = MB_BLOCK_SIZE * batch_id + GWS_GET_MB();
     const int c = GWS_GET_C();
     const int od = GWS_GET_OD();
     const int oh = GWS_GET_OH();

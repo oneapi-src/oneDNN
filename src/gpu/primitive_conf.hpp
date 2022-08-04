@@ -374,6 +374,8 @@ struct pool_conf_t {
     compute::dispatch_t dispatch;
     int sub_group_size;
     int global_pool_spatial_chunk;
+    int num_batches = 1;
+    int mb_block_size = 16;
 
     attr_info_t attr_info;
     memory_desc_info_t src_md_info;
