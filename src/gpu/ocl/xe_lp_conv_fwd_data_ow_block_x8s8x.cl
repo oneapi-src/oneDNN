@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,8 +82,25 @@ DECLARE_MMAD_EMU(mmad_tail, idot4, IC_NBLOCKS_TAIL, 8, SRC_DATA_BLOCK_T, int8,
 #endif
 
 #define BLOCK_READ_SCALES(data, idx) \
-    data = as_float4(intel_sub_group_block_read4( \
-            (__global uint *)&scales_per_oc[idx]));
+    if (OC >= idx + (SUB_GROUP_SIZE * 4)) { \
+        data = as_float4(intel_sub_group_block_read4( \
+                (__global uint *)&scales_per_oc[idx])); \
+    } else { \
+        float local_dat[4] = {}; \
+        for (int i = 0; i < 4; ++i) \
+            if (idx + ((i + 1) * SUB_GROUP_SIZE) <= OC) { \
+                local_dat[i] = as_float(intel_sub_group_block_read( \
+                        (__global uint *)&scales_per_oc[idx \
+                                + (SUB_GROUP_SIZE * i)])); \
+            } else if (idx + (i * SUB_GROUP_SIZE) + subg_local_id < OC) { \
+                local_dat[i] = scales_per_oc[idx + (SUB_GROUP_SIZE * i) \
+                        + subg_local_id]; \
+            } \
+        data.s0 = local_dat[0]; \
+        data.s1 = local_dat[1]; \
+        data.s2 = local_dat[2]; \
+        data.s3 = local_dat[3]; \
+    }
 
 #if SCALES_PER_OC
 #define SCALE scales
@@ -391,7 +408,7 @@ conv_fwd_ow_block_x8s8x(const __global SRC_DATA_T *src,
         DST_DATA4_T D0[BLOCK];
 
 #if SCALES_PER_OC
-        float4 scales;
+        float4 scales = 1;
         BLOCK_READ_SCALES(scales, (group_oc + oc) * OC_BLOCK);
 #endif
 
@@ -429,10 +446,10 @@ conv_fwd_ow_block_x8s8x(const __global SRC_DATA_T *src,
 
 #define PACK(C0, C1, C2, C3, idx) \
     do { \
-        tmp[0] = C0[idx]; \
-        tmp[1] = C1[idx]; \
-        tmp[2] = C2[idx]; \
-        tmp[3] = C3[idx]; \
+        tmp[0] = convert_float(C0[idx]); \
+        tmp[1] = convert_float(C1[idx]); \
+        tmp[2] = convert_float(C2[idx]); \
+        tmp[3] = convert_float(C3[idx]); \
     } while (0)
 
 #define CONVERT_PACK(idx) \
