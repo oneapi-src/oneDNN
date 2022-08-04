@@ -44,6 +44,7 @@ cpu_isa_t init_max_cpu_isa() {
         ELSEIF_HANDLE_CASE(avx);
         ELSEIF_HANDLE_CASE(avx2);
         ELSEIF_HANDLE_CASE(avx2_vnni);
+        ELSEIF_HANDLE_CASE(avx2_vnni_2);
         ELSEIF_HANDLE_CASE(avx512_core);
         ELSEIF_HANDLE_CASE(avx512_core_vnni);
         ELSEIF_HANDLE_CASE(avx512_core_bf16);
@@ -96,6 +97,7 @@ struct isa_info_t {
             case avx512_core_bf16: return dnnl_cpu_isa_avx512_core_bf16;
             case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
             case avx512_core: return dnnl_cpu_isa_avx512_core;
+            case avx2_vnni_2: return dnnl_cpu_isa_avx2_vnni_2;
             case avx2_vnni: return dnnl_cpu_isa_avx2_vnni;
             case avx2: return dnnl_cpu_isa_avx2;
             case avx: return dnnl_cpu_isa_avx;
@@ -122,6 +124,9 @@ struct isa_info_t {
             case avx512_core:
                 return "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ "
                        "extensions";
+            case avx2_vnni_2:
+                return "Intel AVX2 with Intel DL Boost, float16 and bfloat16 "
+                       "support";
             case avx2_vnni: return "Intel AVX2 with Intel DL Boost";
             case avx2: return "Intel AVX2";
             case avx: return "Intel AVX";
@@ -144,6 +149,7 @@ static isa_info_t get_isa_info_t(void) {
     HANDLE_CASE(avx512_core_bf16);
     HANDLE_CASE(avx512_core_vnni);
     HANDLE_CASE(avx512_core);
+    HANDLE_CASE(avx2_vnni_2);
     HANDLE_CASE(avx2_vnni);
     HANDLE_CASE(avx2);
     HANDLE_CASE(avx);
@@ -194,6 +200,7 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
         HANDLE_CASE(avx);
         HANDLE_CASE(avx2);
         HANDLE_CASE(avx2_vnni);
+        HANDLE_CASE(avx2_vnni_2);
         HANDLE_CASE(avx512_core);
         HANDLE_CASE(avx512_core_vnni);
         HANDLE_CASE(avx512_core_bf16);
