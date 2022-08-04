@@ -924,7 +924,9 @@ void jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_scratchpad(
     using namespace dnnl::impl::memory_tracking::names;
 
     if (jcp.signed_input && (!jcp.has_vnni)) {
-        dim_t count = nstl::max<dim_t>(attr.output_scales_.count_, 8);
+        const int mask = attr.output_scales_.mask_;
+        const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+        const dim_t count = nstl::max<dim_t>(scales_count, 8);
         scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
 }
