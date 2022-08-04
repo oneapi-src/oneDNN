@@ -119,6 +119,8 @@ private:
     status_t execute_forward_2d_dw(const exec_ctx_t &ctx) const;
     status_t execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad,
+            const float *oscales) const;
 
     std::unique_ptr<jit_avx512_core_x8s8s32x_fwd_kernel> kernel_;
 };

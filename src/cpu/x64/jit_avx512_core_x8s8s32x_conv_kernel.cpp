@@ -1743,9 +1743,9 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
     if (jcp.signed_input && (!jcp.has_vnni)) {
-        dim_t count = attr.output_scales_.count_ == 1
-                ? (dim_t)16
-                : attr.output_scales_.count_;
+        const int mask = attr.output_scales_.mask_;
+        const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+        dim_t count = mask == 0 ? (dim_t)16 : scales_count;
         scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
 }
