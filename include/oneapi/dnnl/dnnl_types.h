@@ -2130,40 +2130,6 @@ typedef struct {
 /// @} dnnl_api_binary
 
 
-/// @addtogroup dnnl_api_reduction
-/// @{
-
-/// A descriptor of reduction operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_reduction.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of reduction algorithm. Possible values:
-    /// #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
-    /// #dnnl_reduction_mul, #dnnl_reduction_mean, #dnnl_reduction_norm_lp_max,
-    /// #dnnl_reduction_norm_lp_sum, #dnnl_reduction_norm_lp_power_p_max,
-    /// #dnnl_reduction_norm_lp_power_p_sum.
-    dnnl_alg_kind_t alg_kind;
-    /// Source memory descriptor.
-    dnnl_memory_desc_t src_desc;
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-    /// Algorithm specific parameters.
-    /// Accordance table:
-    /// #dnnl_reduction_max: @p p and @p eps are ignored
-    /// #dnnl_reduction_min: @p p and @p eps are ignored
-    /// #dnnl_reduction_norm_lp_max: @p p -- power, @p eps -- epsilon
-    /// #dnnl_reduction_norm_lp_sum: @p p -- power, @p eps -- epsilon
-    /// #dnnl_reduction_norm_lp_power_p_max: @p p -- power, @p eps -- epsilon
-    /// #dnnl_reduction_norm_lp_power_p_sum: @p p -- power, @p eps -- epsilon
-    /// #dnnl_reduction_sum: @p p and @p eps are ignored
-    /// #dnnl_reduction_mul: @p p and @p eps are ignored
-    /// #dnnl_reduction_mean: @p p and @p eps are ignored
-    float p, eps;
-} dnnl_reduction_desc_t;
-
-/// @} dnnl_api_reduction
-
 /// @} dnnl_api_primitives
 
 /// @addtogroup dnnl_api_engine

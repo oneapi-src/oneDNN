@@ -12696,20 +12696,20 @@ struct prelu_backward : public primitive {
 
 /// Reduction.
 struct reduction : public primitive {
-    /// Descriptor for reduction.
-    struct desc {
-        dnnl_reduction_desc_t data;
-
+    /// Primitive descriptor for a reduction primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
-        desc() = default;
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for a reduction primitive using algorithm
-        /// specific parameters, source and destination memory descriptors.
+        /// Constructs a primitive descriptor for a reduction primitive using
+        ///     algorithm specific parameters, source and destination memory
+        ///     descriptors.
         ///
         /// @note
         ///     Destination memory descriptor may be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
+        /// @param aengine Engine to use.
         /// @param aalgorithm reduction algorithm kind. Possible values:
         ///     #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
         ///     #dnnl_reduction_mul, #dnnl_reduction_mean,
@@ -12720,46 +12720,28 @@ struct reduction : public primitive {
         /// @param eps algorithm specific parameter.
         /// @param src_desc Source memory descriptor.
         /// @param dst_desc Destination memory descriptor.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &dst_desc, float p, float eps) {
-            error::wrap_c_api(
-                    dnnl_reduction_desc_init(&data, convert_to_c(aalgorithm),
-                            &src_desc.data, &dst_desc.data, p, eps),
-                    "could not create a reduction descriptor");
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                float p, float eps, const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_reduction_primitive_desc_create(&pd,
+                    aengine.get(), convert_to_c(aalgorithm), &src_desc.data,
+                    &dst_desc.data, p, eps, attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "reduction primitive descriptor");
+            reset(pd);
         }
-    };
-
-    /// Primitive descriptor for a reduction primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a reduction primitive.
-        ///
-        /// @param adesc Descriptor for a reduction primitive.
-        /// @param aengine Engine to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
-
-        /// Constructs a primitive descriptor for a reduction primitive.
-        ///
-        /// @param adesc Descriptor for a reduction primitive.
-        /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a reduction primitive from a C
         /// API primitive descriptor that must have a matching kind.

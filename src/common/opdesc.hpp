@@ -331,6 +331,35 @@ struct lrn_desc_t {
     float lrn_k;
 };
 
+// A descriptor of reduction operation.
+struct reduction_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_reduction.
+    primitive_kind_t primitive_kind;
+    // The kind of reduction algorithm. Possible values:
+    // #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
+    // #dnnl_reduction_mul, #dnnl_reduction_mean, #dnnl_reduction_norm_lp_max,
+    // #dnnl_reduction_norm_lp_sum, #dnnl_reduction_norm_lp_power_p_max,
+    // #dnnl_reduction_norm_lp_power_p_sum.
+    alg_kind_t alg_kind;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Algorithm specific parameters.
+    // Accordance table:
+    // #dnnl_reduction_max: @p p and @p eps are ignored
+    // #dnnl_reduction_min: @p p and @p eps are ignored
+    // #dnnl_reduction_norm_lp_max: @p p -- power, @p eps -- epsilon
+    // #dnnl_reduction_norm_lp_sum: @p p -- power, @p eps -- epsilon
+    // #dnnl_reduction_norm_lp_power_p_max: @p p -- power, @p eps -- epsilon
+    // #dnnl_reduction_norm_lp_power_p_sum: @p p -- power, @p eps -- epsilon
+    // #dnnl_reduction_sum: @p p and @p eps are ignored
+    // #dnnl_reduction_mul: @p p and @p eps are ignored
+    // #dnnl_reduction_mean: @p p and @p eps are ignored
+    float p, eps;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

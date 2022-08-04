@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "common/reduction_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
@@ -121,9 +122,8 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
             reduction_desc_t rdesc;
             dnnl_memory_desc_t red_diff_mem_desc(*src_md(0));
             red_diff_mem_desc.data_type = dnnl_f32;
-            dnnl_reduction_desc_init(&rdesc,
-                    dnnl_alg_kind_t::dnnl_reduction_sum, &red_diff_mem_desc,
-                    diff_weights_md(0), 0, 0);
+            reduction_desc_init(&rdesc, dnnl_alg_kind_t::dnnl_reduction_sum,
+                    &red_diff_mem_desc, diff_weights_md(0), 0, 0);
             primitive_attr_t reduction_attr(*attr());
             if (!reduction_attr.is_initialized()) return status::out_of_memory;
             primitive_desc_iterator_t it(

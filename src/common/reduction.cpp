@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,19 +15,25 @@
 *******************************************************************************/
 
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "utils.hpp"
 
-dnnl_status_t dnnl_reduction_desc_init(dnnl_reduction_desc_t *desc,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *dst_desc, float p, float eps) {
-    using namespace dnnl::impl;
-    using namespace dnnl::impl::status;
-    using namespace dnnl::impl::utils;
-    using namespace dnnl::impl::alg_kind;
+using namespace dnnl::impl;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::alg_kind;
 
-    bool args_ok = !any_null(desc, src_desc, dst_desc)
+namespace dnnl {
+namespace impl {
+
+status_t reduction_desc_init(reduction_desc_t *reduction_desc,
+        alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *dst_desc, float p, float eps) {
+
+    bool args_ok = !any_null(src_desc, dst_desc)
             && src_desc->format_kind != format_kind::any
             && one_of(alg_kind, reduction_max, reduction_min, reduction_sum,
                     reduction_mul, reduction_mean, reduction_norm_lp_max,
@@ -73,10 +79,25 @@ dnnl_status_t dnnl_reduction_desc_init(dnnl_reduction_desc_t *desc,
 
     rd.src_desc = *src_desc;
     rd.dst_desc = *dst_desc;
-
     rd.p = p;
     rd.eps = eps;
 
-    *desc = rd;
+    (*reduction_desc) = rd;
     return success;
+}
+
+} // namespace impl
+} // namespace dnnl
+
+dnnl_status_t dnnl_reduction_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *dst_desc, float p, float eps,
+        const primitive_attr_t *attr) {
+
+    auto reduction_desc = reduction_desc_t();
+    CHECK(reduction_desc_init(
+            &reduction_desc, alg_kind, src_desc, dst_desc, p, eps));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&reduction_desc, nullptr, attr);
 }

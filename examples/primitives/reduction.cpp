@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,12 +75,9 @@ void reduction_example(dnnl::engine::kind engine_kind) {
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), src_mem);
 
-    // Create operation descriptor.
-    auto reduction_d = reduction::desc(
-            algorithm::reduction_sum, src_md, dst_md, 0.f, 0.f);
-
     // Create primitive descriptor.
-    auto reduction_pd = reduction::primitive_desc(reduction_d, engine);
+    auto reduction_pd = reduction::primitive_desc(
+            engine, algorithm::reduction_sum, src_md, dst_md, 0.f, 0.f);
 
     // Create the primitive.
     auto reduction_prim = reduction(reduction_pd);

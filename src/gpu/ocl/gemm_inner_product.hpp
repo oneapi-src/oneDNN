@@ -259,7 +259,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                         diff_dst_md_.data_type,
                         use_blocked ? format_tag::aBc16b : format_tag::abc));
                 reduction_desc_t reduction_d;
-                CHECK(dnnl_reduction_desc_init(&reduction_d,
+                CHECK(reduction_desc_init(&reduction_d,
                         dnnl::impl::alg_kind::reduction_sum, &reduction_dst_md,
                         &reduction_bias_md, 0.0f, 0.0f));
                 primitive_attr_t reduction_attr;
