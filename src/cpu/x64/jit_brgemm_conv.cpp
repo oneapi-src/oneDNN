@@ -554,10 +554,13 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
             kernels_po_[get_ker_po_idx(i, i_init, i_N)] = nullptr;
     }
 
-    CHECK(safe_ptr_assign(copy_to_pbuffer_,
-            new jit_avx512_core_brgemm_conv_trans_kernel_t(jcp)));
-    CHECK(copy_to_pbuffer_->create_kernel());
+    if (jcp.exec_type == exec_trans) {
+        CHECK(safe_ptr_assign(copy_to_pbuffer_,
+                new jit_avx512_core_brgemm_conv_trans_kernel_t(jcp)));
+        CHECK(copy_to_pbuffer_->create_kernel());
+    }
     if (jcp.copy_block_only) {
+        assert(jcp.exec_type == exec_trans && "Missing copy kernel");
         const auto iw_block = copy_to_pbuffer_->dst_w(jcp.ow_block);
         const auto ih_block = get_inp_size(IHP, jcp.oh_block, KH, SH, DH - 1);
         const auto id_block = get_inp_size(IDP, jcp.od_block, KD, SD, DD - 1);
@@ -572,9 +575,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
         pbuf_d_sz = pbuf_h_sz * jcp.idp;
     }
 
-    CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
-            new jit_avx512_core_brgemm_conv_comp_pad_kernel_t(jcp)));
-    CHECK(comp_vpad_pbuffer_->create_kernel());
+    if (jcp.req_cal_comp_pad) {
+        CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
+                new jit_avx512_core_brgemm_conv_comp_pad_kernel_t(jcp)));
+        CHECK(comp_vpad_pbuffer_->create_kernel());
+    }
 
     is_amx = brgemm_convolution_utils::is_amx(isa);
 
