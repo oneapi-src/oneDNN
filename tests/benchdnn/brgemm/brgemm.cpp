@@ -360,13 +360,13 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Create BRGeMM kernel, analogous to primitive creation
     brgemm_kernel_t *brgemm_kernel_;
-    DNN_SAFE_STATUS(brgemm_kernel_create(&brgemm_kernel_, brgemm_desc));
+    DNN_SAFE(brgemm_kernel_create(&brgemm_kernel_, brgemm_desc), WARN);
     auto brgemm_kernel = make_benchdnn_dnnl_wrapper(brgemm_kernel_);
 
     char palette[AMX_PALETTE_SIZE] = {};
     const auto init_tile_status = brgemm_init_tiles(brgemm_desc, palette);
     if (init_tile_status == dnnl_success)
-        DNN_SAFE_STATUS(amx_tile_configure(palette));
+        DNN_SAFE(amx_tile_configure(palette), WARN);
 
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
@@ -528,7 +528,7 @@ int doit(const prb_t *prb, res_t *res) {
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
-    if (init_tile_status == dnnl_success) DNN_SAFE_STATUS(amx_tile_release());
+    if (init_tile_status == dnnl_success) DNN_SAFE(amx_tile_release(), WARN);
 
     return OK;
 }
