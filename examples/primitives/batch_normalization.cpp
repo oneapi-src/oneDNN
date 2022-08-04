@@ -102,15 +102,11 @@ void batch_normalization_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(src_data.data(), src_mem);
     write_to_dnnl_memory(scale_shift_data.data(), scale_shift_mem);
 
-    // Create operation descriptor.
-    auto bnorm_d = batch_normalization_forward::desc(
+    // Create primitive descriptor.
+    auto bnorm_pd = batch_normalization_forward::primitive_desc(engine,
             prop_kind::forward_training, src_md, 1.e-10f,
             normalization_flags::use_scale_shift
                     | normalization_flags::fuse_norm_relu);
-
-    // Create primitive descriptor.
-    auto bnorm_pd
-            = batch_normalization_forward::primitive_desc(bnorm_d, engine);
 
     // Create memory objects using memory descriptors created by the primitive
     // descriptor: mean, variance, workspace.

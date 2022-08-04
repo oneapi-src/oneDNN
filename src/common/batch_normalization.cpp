@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
@@ -106,22 +108,33 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
 }
 } // namespace
 
-status_t dnnl_batch_normalization_forward_desc_init(
-        batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *data_desc, float epsilon, unsigned flags) {
+status_t dnnl_batch_normalization_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        prop_kind_t prop_kind, const memory_desc_t *data_desc, float epsilon,
+        unsigned flags, const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return bnrm_desc_init(
-            bnrm_desc, prop_kind, data_desc, nullptr, epsilon, flags);
+
+    auto bnrm_desc = batch_normalization_desc_t();
+    CHECK(bnrm_desc_init(
+            &bnrm_desc, prop_kind, data_desc, nullptr, epsilon, flags));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&bnrm_desc, nullptr, attr);
 }
 
-status_t dnnl_batch_normalization_backward_desc_init(
-        batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
-        float epsilon, unsigned flags) {
+status_t dnnl_batch_normalization_backward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        prop_kind_t prop_kind, const memory_desc_t *diff_data_desc,
+        const memory_desc_t *data_desc, float epsilon, unsigned flags,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
     if (!one_of(prop_kind, backward, backward_data)) return invalid_arguments;
-    return bnrm_desc_init(
-            bnrm_desc, prop_kind, data_desc, diff_data_desc, epsilon, flags);
+
+    auto bnrm_desc = batch_normalization_desc_t();
+    CHECK(bnrm_desc_init(
+            &bnrm_desc, prop_kind, data_desc, diff_data_desc, epsilon, flags));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&bnrm_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

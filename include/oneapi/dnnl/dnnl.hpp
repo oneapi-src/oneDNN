@@ -7333,35 +7333,6 @@ struct softmax_backward : public primitive {
 
 /// Batch normalization forward propagation primitive.
 struct batch_normalization_forward : public primitive {
-    /// Descriptor for a batch normalization forward propagation primitive.
-    struct desc {
-        dnnl_batch_normalization_desc_t data;
-
-        /// Constructs a batch normalization descriptor for forward
-        /// propagation.
-        ///
-        /// @note
-        ///     In-place operation is supported: the dst can refer to the same
-        ///     memory as the src.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param data_desc Source and destination memory descriptors.
-        /// @param epsilon Batch normalization epsilon parameter.
-        /// @param flags Batch normalization flags (@ref
-        ///     dnnl::normalization_flags).
-        desc(prop_kind aprop_kind, const memory::desc &data_desc, float epsilon,
-                normalization_flags flags) {
-            error::wrap_c_api(
-                    dnnl_batch_normalization_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind), &data_desc.data,
-                            epsilon, convert_to_c(flags)),
-                    "could not create a descriptor for a batch normalization "
-                    "forward propagation primitive");
-        }
-    };
-
     /// Primitive descriptor for a batch normalization forward propagation
     /// primitive.
     struct primitive_desc : public dnnl::primitive_desc {
@@ -7371,33 +7342,42 @@ struct batch_normalization_forward : public primitive {
         /// Constructs a primitive descriptor for a batch normalization forward
         /// propagation primitive.
         ///
-        /// @param adesc Descriptor for a batch normalization forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
-
-        /// Constructs a primitive descriptor for a batch normalization forward
-        /// propagation primitive.
+        /// @note
+        ///     In-place operation is supported: the dst can refer to the same
+        ///     memory as the src.
         ///
-        /// @param adesc Descriptor for a batch normalization forward propagation
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
         /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param data_desc Source and destination memory descriptors.
+        /// @param epsilon Batch normalization epsilon parameter.
+        /// @param flags Batch normalization flags (@ref
+        ///     dnnl::normalization_flags).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &data_desc, float epsilon,
+                normalization_flags flags,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_batch_normalization_forward_primitive_desc_create(
+                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            &data_desc.data, epsilon, convert_to_c(flags),
+                            attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a batch "
+                        "normalization forward propagation primitive");
+            reset(pd);
+        }
 
         /// Constructs a primitive descriptor for a batch normalization
         /// forward propagation primitive from a C API primitive descriptor
@@ -7477,34 +7457,6 @@ struct batch_normalization_forward : public primitive {
 
 /// Batch normalization backward propagation primitive.
 struct batch_normalization_backward : public primitive {
-    /// Descriptor for a batch normalization backward propagation primitive.
-    struct desc {
-        dnnl_batch_normalization_desc_t data;
-
-        /// Constructs a batch normalization descriptor for backward
-        /// propagation.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
-        ///     (diffs for all parameters are computed in this case).
-        /// @param diff_data_desc Diff source and diff destination memory
-        ///     descriptor.
-        /// @param data_desc Source memory descriptor.
-        /// @param epsilon Batch normalization epsilon parameter.
-        /// @param flags Batch normalization flags (@ref
-        ///     dnnl::normalization_flags).
-        desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
-                const memory::desc &data_desc, float epsilon,
-                normalization_flags flags) {
-            error::wrap_c_api(dnnl_batch_normalization_backward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      &diff_data_desc.data, &data_desc.data,
-                                      epsilon, convert_to_c(flags)),
-                    "could not create a descriptor for a batch normalization "
-                    "backward propagation primitive");
-        }
-    };
-
     /// Primitive descriptor for a batch normalization backward propagation
     /// primitive.
     struct primitive_desc : public dnnl::primitive_desc {
@@ -7514,42 +7466,45 @@ struct batch_normalization_backward : public primitive {
         /// Constructs a primitive descriptor for a batch normalization backward
         /// propagation primitive.
         ///
-        /// @param adesc Descriptor for a batch normalization backward
-        ///     propagation primitive.
         /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
+        ///     (diffs for all parameters are computed in this case).
+        /// @param diff_data_desc Diff source and diff destination memory
+        ///     descriptor.
+        /// @param data_desc Source memory descriptor.
+        /// @param epsilon Batch normalization epsilon parameter.
+        /// @param flags Batch normalization flags (@ref
+        ///     dnnl::normalization_flags).
         /// @param hint_fwd_pd Primitive descriptor for a batch normalization
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &diff_data_desc,
+                const memory::desc &data_desc, float epsilon,
+                normalization_flags flags,
                 const batch_normalization_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_batch_normalization_backward_primitive_desc_create(
+                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            &diff_data_desc.data, &data_desc.data, epsilon,
+                            convert_to_c(flags), hint_fwd_pd.get(), attr.get());
 
-        /// Constructs a primitive descriptor for a batch normalization backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a batch normalization backward
-        ///     propagation primitive.
-        /// @param attr Primitive attributes to use.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a batch normalization
-        ///     forward propagation primitive. It is used as a hint for
-        ///     deciding which memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
-                const batch_normalization_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a batch "
+                        "normalization backward propagation primitive");
+            reset(pd);
+        }
 
         /// Constructs a primitive descriptor for a batch normalization
         /// backward propagation primitive from a C API primitive descriptor

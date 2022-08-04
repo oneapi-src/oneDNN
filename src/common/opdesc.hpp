@@ -241,6 +241,34 @@ struct eltwise_desc_t {
     float alpha, beta;
 };
 
+// A descriptor of a Batch Normalization operation.
+struct batch_normalization_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_batch_normalization.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
+    prop_kind_t prop_kind;
+    // Source and destination memory descriptor.
+    memory_desc_t data_desc;
+    // Source and destination gradient memory descriptor.
+    memory_desc_t diff_data_desc;
+    // Scale and shift data and gradient memory descriptors.
+    //
+    // Scaleshift memory descriptor uses 2D #dnnl_nc format[2,Channels]. 1-st
+    // dimension contains gamma parameter, 2-nd dimension contains beta
+    // parameter.
+    memory_desc_t data_scaleshift_desc;
+    memory_desc_t diff_data_scaleshift_desc;
+    // Statistics memory descriptor.
+    //
+    // Statistics (mean or variance) descriptor use 1D #dnnl_x format[Channels].
+    memory_desc_t stat_desc;
+    // Batch normalization epsilon parameter.
+    float batch_norm_epsilon;
+    unsigned flags;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

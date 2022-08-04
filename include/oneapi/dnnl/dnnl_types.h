@@ -2033,39 +2033,6 @@ typedef struct {
 
 /// @} dnnl_api_lrn
 
-/// @addtogroup dnnl_api_batch_normalization
-/// @{
-
-/// A descriptor of a Batch Normalization operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_batch_normalization.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
-    dnnl_prop_kind_t prop_kind;
-    /// Source and destination memory descriptor.
-    dnnl_memory_desc_t data_desc;
-    /// Source and destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_data_desc;
-    /// Scale and shift data and gradient memory descriptors.
-    ///
-    /// Scaleshift memory descriptor uses 2D #dnnl_nc format[2,Channels]. 1-st
-    /// dimension contains gamma parameter, 2-nd dimension contains beta
-    /// parameter.
-    dnnl_memory_desc_t data_scaleshift_desc;
-    dnnl_memory_desc_t diff_data_scaleshift_desc;
-    /// Statistics memory descriptor.
-    ///
-    /// Statistics (mean or variance) descriptor use 1D #dnnl_x format[Channels].
-    dnnl_memory_desc_t stat_desc;
-    /// Batch normalization epsilon parameter.
-    float batch_norm_epsilon;
-    unsigned flags;
-} dnnl_batch_normalization_desc_t;
-
-/// @} dnnl_api_batch_normalization
-
 /// @addtogroup dnnl_api_layer_normalization
 /// @{
 
