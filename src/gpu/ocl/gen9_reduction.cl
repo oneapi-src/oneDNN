@@ -27,17 +27,17 @@
 #endif
 
 #if defined(IS_MAX)
-    #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
-        #define ACCUMULATE(x, y) max(x, y)
-    #else
-        #define ACCUMULATE(x, y) fmax(x, y)
-    #endif
+#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+#define ACCUMULATE(x, y) max(x, y)
+#else
+#define ACCUMULATE(x, y) fmax(x, y)
+#endif
 #elif defined(IS_MIN)
-    #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
-        #define ACCUMULATE(x, y) min(x, y)
-    #else
-        #define ACCUMULATE(x, y) fmin(x, y)
-    #endif
+#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+#define ACCUMULATE(x, y) min(x, y)
+#else
+#define ACCUMULATE(x, y) fmin(x, y)
+#endif
 #elif defined(IS_MEAN) || defined(IS_SUM)
 #define ACCUMULATE(x, y) (x + y)
 #elif defined(IS_MUL)
@@ -270,7 +270,8 @@ __kernel void gen9_initial_reduce(
 
 // Finalizes reduction by reducing results of initial reduction
 NAMED_KERNEL_ATTR(FINAL)
-__kernel void gen9_final_reduce(__global DEF_ACC_DATA_T *src, __global DST_DATA_T *dst) {
+__kernel void gen9_final_reduce(
+        __global DEF_ACC_DATA_T *src, __global DST_DATA_T *dst) {
     const int n_start = GWS_GET_FINAL_N() * FINAL_N_CHUNK_SIZE;
     const int c_start = GWS_GET_FINAL_C() * FINAL_C_CHUNK_SIZE;
     const int hwd_start = GWS_GET_FINAL_HWD() * FINAL_HWD_CHUNK_SIZE;

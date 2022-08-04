@@ -194,8 +194,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
     // Runtime output scale is not supported.
     if (is_gpu() && prb->attr.oscale.runtime) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
     }
 }
 

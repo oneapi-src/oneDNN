@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,17 +28,17 @@
 #endif
 
 #if defined(IS_MAX)
-    #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
-        #define ACCUMULATE(x, y) max(x, y)
-    #else
-        #define ACCUMULATE(x, y) fmax(x, y)
-    #endif
+#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+#define ACCUMULATE(x, y) max(x, y)
+#else
+#define ACCUMULATE(x, y) fmax(x, y)
+#endif
 #elif defined(IS_MIN)
-    #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
-        #define ACCUMULATE(x, y) min(x, y)
-    #else
-        #define ACCUMULATE(x, y) fmin(x, y)
-    #endif
+#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+#define ACCUMULATE(x, y) min(x, y)
+#else
+#define ACCUMULATE(x, y) fmin(x, y)
+#endif
 #elif defined(IS_MEAN) || defined(IS_SUM)
 #define ACCUMULATE(x, y) (x + y)
 #elif defined(IS_MUL)
