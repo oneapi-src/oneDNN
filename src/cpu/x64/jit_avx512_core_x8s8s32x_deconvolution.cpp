@@ -374,7 +374,9 @@ void _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
     if (jcp.signed_input && (!jcp.has_vnni)) {
-        dim_t count = nstl::max<dim_t>(attr.output_scales_.count_, 16);
+        const int mask = attr.output_scales_.mask_;
+        const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+        const dim_t count = nstl::max<dim_t>(scales_count, 16);
         scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
 
@@ -1366,6 +1368,21 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
     if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
+const float *jit_avx512_core_x8s8s32x_deconvolution_fwd_t::adjust_oscales(
+        const memory_tracking::grantor_t &scratchpad,
+        const float *oscales) const {
+    auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
+    const int mask = pd()->attr()->output_scales_.mask_;
+    const float factor = 1.f / pd()->jcp_.wei_adj_scale;
+    if (mask == 0) {
+        utils::array_set(loc_scales, oscales[0] * factor, 16);
+    } else {
+        for (dim_t c = 0; c < pd()->OC(); c++)
+            loc_scales[c] = oscales[c] * factor;
+    }
+    return loc_scales;
+}
+
 status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
         const exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
@@ -1399,19 +1416,9 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
 
     DEFINE_SCALES_BUFFER(oscales);
 
-    if (jcp.signed_input && (!jcp.has_vnni)) {
-        auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
-                key_conv_adjusted_scales);
-        size_t count = pd()->attr()->output_scales_.count_;
-        float factor = 1.f / pd()->jcp_.wei_adj_scale;
-        if (count == 1) {
-            utils::array_set(local_scales, oscales[0] * factor, 16);
-        } else {
-            for (size_t c = 0; c < count; c++)
-                local_scales[c] = oscales[c] * factor;
-        }
-        oscales = local_scales;
-    }
+    if (jcp.signed_input && (!jcp.has_vnni))
+        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (jcp.signed_input)
@@ -1514,19 +1521,9 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_2d(
 
     DEFINE_SCALES_BUFFER(oscales);
 
-    if (jcp.signed_input && (!jcp.has_vnni)) {
-        auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
-                key_conv_adjusted_scales);
-        size_t count = pd()->attr()->output_scales_.count_;
-        float factor = 1.f / pd()->jcp_.wei_adj_scale;
-        if (count == 1) {
-            utils::array_set(local_scales, oscales[0] * factor, 16);
-        } else {
-            for (size_t c = 0; c < count; c++)
-                local_scales[c] = oscales[c] * factor;
-        }
-        oscales = local_scales;
-    }
+    if (jcp.signed_input && (!jcp.has_vnni))
+        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (jcp.signed_input)
@@ -1693,19 +1690,9 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_3d(
 
     DEFINE_SCALES_BUFFER(oscales);
 
-    if (jcp.signed_input && (!jcp.has_vnni)) {
-        auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
-                key_conv_adjusted_scales);
-        size_t count = pd()->attr()->output_scales_.count_;
-        float factor = 1.f / pd()->jcp_.wei_adj_scale;
-        if (count == 1) {
-            utils::array_set(local_scales, oscales[0] * factor, 16);
-        } else {
-            for (size_t c = 0; c < count; c++)
-                local_scales[c] = oscales[c] * factor;
-        }
-        oscales = local_scales;
-    }
+    if (jcp.signed_input && (!jcp.has_vnni))
+        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (jcp.signed_input)

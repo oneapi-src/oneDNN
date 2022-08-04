@@ -318,6 +318,8 @@ private:
     std::unique_ptr<_jit_avx512_core_x8s8s32x_deconv_fwd_kernel> kernel_;
     std::unique_ptr<zp::jit_uni_deconv_zp_pad_str_kernel_base_t>
             zp_src_pad_comp_kernel_;
+    const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad,
+            const float *oscales) const;
 };
 
 } // namespace x64
