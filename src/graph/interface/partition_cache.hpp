@@ -122,13 +122,6 @@ private:
 
 compiled_partition_cache_t &compiled_partition_cache();
 
-// Undocumented API for testing
-status_t DNNL_API get_compiled_partition_cache_size(int *size);
-bool DNNL_API is_compiled_partition_in_cache(const compiled_partition_t *cp);
-bool DNNL_API is_partition_in_cache(const partition_t *partition,
-        const std::vector<const logical_tensor_t *> &ins,
-        const std::vector<const logical_tensor_t *> &outs);
-
 } // namespace graph
 } // namespace impl
 } // namespace dnnl

@@ -39,14 +39,6 @@ size_t get_timestamp() {
     return std::chrono::steady_clock::now().time_since_epoch().count();
 }
 
-std::vector<const logical_tensor_t *> get_raw_ptrs(
-        const std::vector<logical_tensor_t> &ports) {
-    std::vector<const logical_tensor_t *> ret(ports.size(), nullptr);
-    std::transform(ports.begin(), ports.end(), ret.begin(),
-            [](const logical_tensor_t &lt) { return &lt; });
-    return ret;
-}
-
 } // namespace
 
 compiled_partition_cache_t &compiled_partition_cache() {
@@ -58,27 +50,6 @@ compiled_partition_cache_t &compiled_partition_cache() {
 #endif
     static lru_compiled_partition_cache_t cache(capacity);
     return cache;
-}
-
-status_t get_compiled_partition_cache_size(int *size) {
-    if (size == nullptr) return status::invalid_arguments;
-    *size = 0;
-#ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
-    *size = compiled_partition_cache().get_size();
-#endif
-    return status::success;
-}
-
-bool is_partition_in_cache(const partition_t *partition,
-        const std::vector<const logical_tensor_t *> &ins,
-        const std::vector<const logical_tensor_t *> &outs) {
-    partition_hashing::key_t key(partition, ins, outs);
-    return bool(compiled_partition_cache().get_partition(key));
-}
-
-bool is_compiled_partition_in_cache(const compiled_partition_t *cp) {
-    return is_partition_in_cache(&(cp->src_partition()),
-            get_raw_ptrs(cp->get_inputs()), get_raw_ptrs(cp->get_outputs()));
 }
 
 status_t lru_compiled_partition_cache_t::set_capacity(int capacity) {

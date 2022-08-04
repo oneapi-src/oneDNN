@@ -135,8 +135,9 @@ using vector = std::vector<T>;
 
 inline int get_compiled_partition_cache_size() {
     int result = 0;
-    auto status = dnnl::impl::graph::get_compiled_partition_cache_size(&result);
-    if (status != dnnl::impl::graph::status::success) return -1;
+#ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
+    result = dnnl::impl::graph::compiled_partition_cache().get_size();
+#endif
     return result;
 }
 
