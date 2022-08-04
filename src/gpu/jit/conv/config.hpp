@@ -464,14 +464,10 @@ public:
                 if (rhs_layout.blocks().empty()) return true;
 
                 auto rhs0 = rhs_layout.blocks()[0];
-                int block_bytes = rhs0.block * rhs_layout.type().size();
                 // Innermost block must:
                 // - be across output channels
                 // - be dense
-                // - aligned to 32 bytes (for HWord loads)
-                if (rhs0.dim_idx != 1 || dim_t(rhs0.stride) != 1
-                        || block_bytes % 32 != 0)
-                    return false;
+                if (rhs0.dim_idx != 1 || dim_t(rhs0.stride) != 1) return false;
             }
         }
         return true;
