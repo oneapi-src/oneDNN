@@ -1,6 +1,6 @@
 --reset
 
---batch=test_brgemm_f32
+--batch=harness_brgemm_f32
 
 --batch=test_brgemm_bf16
 

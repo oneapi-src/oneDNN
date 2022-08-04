@@ -17,3 +17,6 @@
 
 # bf16
 --batch=test_sum_bfloat16
+
+# f16
+--batch=test_sum_float16
