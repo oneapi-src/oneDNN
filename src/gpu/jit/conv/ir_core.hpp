@@ -29,7 +29,7 @@
 #include "gpu/jit/conv/ngen_proxy.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(GEN_CONV_DEBUG)
 #define SANITY_CHECK 1
 #endif
 

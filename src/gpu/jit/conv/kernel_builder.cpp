@@ -7072,7 +7072,7 @@ void kernel_builder_t::build() {
     stmt_ = inject_bank_conflict_attribute(stmt_);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(GEN_CONV_DEBUG)
     verify_buffer_access(stmt_);
 #endif
 

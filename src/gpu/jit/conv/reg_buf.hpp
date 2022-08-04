@@ -65,7 +65,7 @@ public:
     int regs() const { return blocks() * block_regs(); }
 
     void set_grf_permutation(const grf_permutation_t &grf_perm) {
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(GEN_CONV_DEBUG)
         // Check that it's a valid permutation.
         std::unordered_set<int> seen;
         for (int i = 0; i < regs(); i++) {

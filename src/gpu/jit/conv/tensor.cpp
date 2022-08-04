@@ -420,7 +420,7 @@ std::vector<std::pair<int, dim_t>> layout_t::parse_format(
 }
 
 void layout_t::sanity_check() const {
-#ifdef NDEBUG
+#if !defined(NDEBUG) || defined(GEN_CONV_DEBUG)
     return;
 #endif
     if (is_empty()) return;

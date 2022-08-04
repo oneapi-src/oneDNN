@@ -215,7 +215,7 @@ private:
 // related messages. Usage:
 //     ir_assert(condition) << "Error message" << ...;
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(GEN_CONV_DEBUG)
 #define ir_assert(cond) \
     !(cond) \
             && dnnl::impl::gpu::jit::ir_utils::error_stream_t( \
