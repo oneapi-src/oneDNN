@@ -121,6 +121,8 @@ private:
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
+    const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad,
+            const float *oscales) const;
 
     std::unique_ptr<jit_uni_x8s8s32x_fwd_kernel<isa>> kernel_;
 };

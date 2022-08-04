@@ -1596,9 +1596,9 @@ void jit_uni_x8s8s32x_fwd_kernel<isa>::init_scratchpad(
         const primitive_attr_t &attr) {
 
     if (jcp.signed_input && (!jcp.has_vnni)) {
-        dim_t count = attr.output_scales_.count_ == 1
-                ? (dim_t)8
-                : attr.output_scales_.count_;
+        const int mask = attr.output_scales_.mask_;
+        const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+        dim_t count = scales_count == 1 ? (dim_t)8 : scales_count;
         scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
 }
