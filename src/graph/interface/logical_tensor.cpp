@@ -149,11 +149,11 @@ bool logical_tensor_wrapper_t::is_similar(const logical_tensor_t &lhs,
 
 size_t logical_tensor_wrapper_t::hash() const noexcept {
     size_t seed = 0;
-    seed = utils::hash_combine(seed, this->id());
+    seed = hash_combine(seed, this->id());
     const int32_t nd = this->ndims();
     seed = nd > 0 ? partition_hashing::get_array_hash(seed, this->dims(), nd)
-                  : utils::hash_combine(seed, nd);
-    seed = utils::hash_combine(seed, static_cast<size_t>(this->data_type()));
+                  : hash_combine(seed, nd);
+    seed = hash_combine(seed, static_cast<size_t>(this->data_type()));
     // layout type
     switch (this->layout_type()) {
         case layout_type::undef:
@@ -164,7 +164,7 @@ size_t logical_tensor_wrapper_t::hash() const noexcept {
                         seed, this->strides(), nd);
             break;
         case layout_type::opaque:
-            seed = utils::hash_combine(seed, this->layout_id());
+            seed = hash_combine(seed, this->layout_id());
             break;
         default: assertm(false, "unknown layout_type");
     }

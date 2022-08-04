@@ -230,7 +230,7 @@ protected:
     size_t id_ = std::numeric_limits<size_t>::max();
 
 private:
-    DNNL_GRAPH_DISALLOW_COPY_AND_ASSIGN(partition_impl_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(partition_impl_t);
 };
 
 class compiled_partition_impl_t {

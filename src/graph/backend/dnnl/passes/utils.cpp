@@ -433,7 +433,7 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
 
             std::string str;
             str += std::to_string(dims[0]);
-            for (int d = 1; d < dims.size(); ++d)
+            for (size_t d = 1; d < dims.size(); ++d)
                 str += ("x" + std::to_string(dims[d]));
             return str;
         };

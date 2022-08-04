@@ -80,7 +80,7 @@ size_t get_op_hash(const op_t &op);
 template <typename T>
 size_t get_array_hash(size_t seed, const T *v, size_t size) {
     for (size_t i = 0; i < size; i++) {
-        seed = utils::hash_combine(seed, v[i]);
+        seed = hash_combine(seed, v[i]);
     }
     return seed;
 }
@@ -88,8 +88,7 @@ size_t get_array_hash(size_t seed, const T *v, size_t size) {
 template <typename Array>
 size_t get_unordered_array_hash(size_t seed, const Array &array) {
     for (auto &&e : array) {
-        seed = utils::hash_combine(
-                seed, std::hash<typename Array::value_type> {}(e));
+        seed = hash_combine(seed, std::hash<typename Array::value_type> {}(e));
     }
     return seed;
 }
@@ -98,7 +97,7 @@ template <>
 inline size_t get_array_hash<logical_tensor_t>(
         size_t seed, const logical_tensor_t *v, size_t size) {
     for (size_t i = 0; i < size; i++) {
-        seed = utils::hash_combine(seed, logical_tensor_wrapper_t(v[i]).hash());
+        seed = hash_combine(seed, logical_tensor_wrapper_t(v[i]).hash());
     }
     return seed;
 }
@@ -106,7 +105,7 @@ inline size_t get_array_hash<logical_tensor_t>(
 template <>
 inline size_t get_array_hash<op_t>(size_t seed, const op_t *v, size_t size) {
     for (size_t i = 0; i < size; i++) {
-        seed = utils::hash_combine(seed, get_op_hash(v[i]));
+        seed = hash_combine(seed, get_op_hash(v[i]));
     }
     return seed;
 }
@@ -114,7 +113,7 @@ inline size_t get_array_hash<op_t>(size_t seed, const op_t *v, size_t size) {
 template <>
 inline size_t get_array_hash<float>(size_t seed, const float *v, size_t size) {
     for (size_t i = 0; i < size; i++) {
-        seed = utils::hash_combine(seed, utils::float2int(v[i]));
+        seed = hash_combine(seed, float2int(v[i]));
     }
     return seed;
 }
@@ -123,7 +122,7 @@ template <>
 inline size_t get_unordered_array_hash<std::unordered_set<logical_tensor_t>>(
         size_t seed, const std::unordered_set<logical_tensor_t> &array) {
     for (auto &&e : array) {
-        seed = utils::hash_combine(seed, logical_tensor_wrapper_t(e).hash());
+        seed = hash_combine(seed, logical_tensor_wrapper_t(e).hash());
     }
     return seed;
 }
@@ -142,12 +141,13 @@ struct hash<dnnl::impl::graph::partition_hashing::key_t> {
     result_type operator()(const argument_type &key) const {
         using namespace dnnl::impl::graph;
         using namespace dnnl::impl::graph::partition_hashing;
-        using namespace dnnl::impl::graph::utils;
+
         size_t seed = 0;
         // Compute hash for partition_id_, nthread_, engine_kind_
-        seed = hash_combine(seed, key.partition_id_);
-        seed = hash_combine(seed, key.nthread_);
-        seed = hash_combine(seed, static_cast<size_t>(key.engine_kind_));
+        seed = dnnl::impl::hash_combine(seed, key.partition_id_);
+        seed = dnnl::impl::hash_combine(seed, key.nthread_);
+        seed = dnnl::impl::hash_combine(
+                seed, static_cast<size_t>(key.engine_kind_));
 
         // Combine hash for op_kinds & attributes with the computed hash
         seed = get_array_hash(seed, key.ops_.data(), key.ops_.size());

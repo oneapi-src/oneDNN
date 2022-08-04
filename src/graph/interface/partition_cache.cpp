@@ -51,8 +51,8 @@ std::vector<const logical_tensor_t *> get_raw_ptrs(
 
 compiled_partition_cache_t &compiled_partition_cache() {
 #ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
-    static const int capacity = utils::getenv_int(
-            "DNNL_GRAPH_COMPILED_PARTITION_CACHE_CAPACITY", 1024);
+    static const int capacity
+            = getenv_int("DNNL_GRAPH_COMPILED_PARTITION_CACHE_CAPACITY", 1024);
 #else
     static const int capacity = 0;
 #endif

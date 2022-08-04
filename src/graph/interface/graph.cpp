@@ -66,7 +66,7 @@ namespace impl {
 namespace graph {
 fpmath_mode_t get_default_fpmath_mode() {
     static fpmath_mode_t default_fpmath_mode = fpmath_mode::strict;
-    static std::string val = utils::getenv_string_user("DEFAULT_FPMATH_MODE");
+    static std::string val = getenv_string_user("DEFAULT_FPMATH_MODE");
     if (!val.empty()) {
         if (val.compare("strict") == 0)
             default_fpmath_mode = fpmath_mode::strict;
@@ -367,8 +367,8 @@ status_t DNNL_API dnnl_graph_graph_filter(
     if (status != status::success) return status::invalid_graph;
 
 #ifdef DNNL_ENABLE_GRAPH_DUMP
-    if (utils::getenv_int_user("DUMP", 0) > 0
-            || utils::check_verbose_string_user("DUMP", "graph")) {
+    if (dnnl::impl::getenv_int_user("GRAPH_DUMP", 0) > 0
+            || utils::check_verbose_string_user("GRAPH_DUMP", "graph")) {
         // deep copy for graph serialization. note that this is for
         // visualization purpose
         graph_t agraph(*graph);
@@ -415,8 +415,8 @@ status_t DNNL_API dnnl_graph_graph_get_partitions(
     std::vector<partition_t *> partitions {partition, partition + num};
     graph->get_ordered_partitions(partitions);
 #ifdef DNNL_ENABLE_GRAPH_DUMP
-    if (utils::getenv_int_user("DUMP", 0) > 0
-            || utils::check_verbose_string_user("DUMP", "graph")) {
+    if (dnnl::impl::getenv_int_user("GRAPH_DUMP", 0) > 0
+            || utils::check_verbose_string_user("GRAPH_DUMP", "graph")) {
         // graph serialization after partitioning. note that this is for
         // visualization purpose
         graph_t agraph(*graph);

@@ -518,8 +518,8 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
     if (status::success != ret) return ret;
 
 #ifdef DNNL_ENABLE_GRAPH_DUMP
-    if (utils::getenv_int_user("DUMP", 0) > 1
-            || utils::check_verbose_string_user("DUMP", "subgraph")) {
+    if (dnnl::impl::getenv_int_user("GRAPH_DUMP", 0) > 1
+            || utils::check_verbose_string_user("GRAPH_DUMP", "subgraph")) {
         if (!is_supported()) return status::unimplemented;
         // deep copy for graph serialization
         auto part = pimpl_->clone();

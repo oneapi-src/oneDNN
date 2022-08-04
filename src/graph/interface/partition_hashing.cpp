@@ -88,8 +88,8 @@ bool key_t::operator==(const key_t &rhs) const {
 size_t get_op_hash(const op_t &op) {
     size_t seed = 0;
     // TODO(zixuanwe): `id` might be sufficient to cover all attributes.
-    seed = utils::hash_combine(seed, op.get_id());
-    seed = utils::hash_combine(seed, static_cast<size_t>(op.get_kind()));
+    seed = hash_combine(seed, op.get_id());
+    seed = hash_combine(seed, static_cast<size_t>(op.get_kind()));
     return seed;
 }
 

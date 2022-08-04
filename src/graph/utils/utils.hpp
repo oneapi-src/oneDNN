@@ -31,30 +31,21 @@
 #include <vector>
 #include <type_traits>
 
+#include "common/utils.hpp"
+
 #include "graph/interface/c_types_map.hpp"
-
-#ifndef UNUSED
-#define UNUSED(x) ((void)(x))
-#endif
-
-#ifndef MAYBE_UNUSED
-#define MAYBE_UNUSED(x) UNUSED(x)
-#endif
-
-#ifndef assertm
-#define assertm(exp, msg) assert(((void)(msg), (exp)))
-#endif
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace utils {
 
-#define CHECK(f) \
-    do { \
-        status_t _status_ = f; \
-        if (_status_ != status::success) return _status_; \
-    } while (0)
+// import common utilities
+using namespace dnnl::impl::utils;
+
+#ifndef assertm
+#define assertm(exp, msg) assert(((void)(msg), (exp)))
+#endif
 
 #ifndef NDEBUG
 #define DEBUG_PRINT_ERROR(message) \
@@ -91,48 +82,9 @@ inline static size_t size_of(
     return prod(shape) * size_of(dtype);
 }
 
-template <typename T, typename P>
-constexpr bool one_of(T val, P item) {
-    return (T)val == item;
-}
-
-template <typename T, typename P, typename... Args>
-constexpr bool one_of(T val, P item, Args... item_others) {
-    return (T)val == item || one_of(val, item_others...);
-}
-
-template <typename... Args>
-inline bool any_null(Args... ptrs) {
-    return one_of(nullptr, ptrs...);
-}
-
 template <typename T>
 inline bool any_le(const std::vector<T> &v, T i) {
     return std::any_of(v.begin(), v.end(), [i](T k) { return k <= i; });
-}
-
-template <typename T, typename R = T>
-inline R array_product(const T *arr, size_t size) {
-    if (size == 0) return 0;
-
-    R prod = 1;
-    for (size_t i = 0; i < size; ++i) {
-        prod *= arr[i];
-    }
-
-    return prod;
-}
-
-template <typename T>
-inline void array_copy(T *dst, const T *src, size_t size) {
-    for (size_t i = 0; i < size; ++i)
-        dst[i] = src[i];
-}
-
-template <typename T, typename U>
-inline void array_set(T *arr, const U &val, size_t size) {
-    for (size_t i = 0; i < size; ++i)
-        arr[i] = static_cast<T>(val);
 }
 
 // solve the Greatest Common Divisor
@@ -151,45 +103,7 @@ inline size_t lcm(size_t a, size_t b) {
     return a * b / gcd(a, b);
 }
 
-// The following code is derived from Boost C++ library
-// Copyright 2005-2014 Daniel James.
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
-template <typename T>
-static size_t hash_combine(size_t seed, const T &v) {
-    return seed ^= std::hash<T> {}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-}
-
-// Returns a value of type T by reinterpretting the representation of the input
-// value (part of C++20).
-//
-// Provides a safe implementation of type punning.
-//
-// Constraints:
-// - U and T must have the same size
-// - U and T must be trivially copyable
-template <typename T, typename U>
-inline T bit_cast(const U &u) {
-    static_assert(sizeof(T) == sizeof(U), "Bit-casting must preserve size.");
-    // Use std::is_pod as older GNU versions do not support
-    // std::is_trivially_copyable.
-    static_assert(std::is_pod<T>::value, "T must be trivially copyable.");
-    static_assert(std::is_pod<U>::value, "U must be trivially copyable.");
-
-    T t;
-    std::memcpy(&t, &u, sizeof(U));
-    return t;
-}
-
-inline int float2int(float x) {
-    return bit_cast<int>(x);
-}
-
-int getenv(const char *name, char *buffer, int buffer_size);
-int getenv_int(const char *name, int default_value);
-int getenv_int_user(const char *name, int default_value);
 int getenv_int_internal(const char *name, int default_value);
-std::string getenv_string_user(const char *name);
 bool check_verbose_string_user(const char *name, const char *expected);
 
 inline std::string thread_id_to_str(std::thread::id id) {
@@ -197,10 +111,6 @@ inline std::string thread_id_to_str(std::thread::id id) {
     ss << id;
     return ss.str();
 }
-
-#define DNNL_GRAPH_DISALLOW_COPY_AND_ASSIGN(T) \
-    T(const T &) = delete; \
-    T &operator=(const T &) = delete; // NOLINT
 
 } // namespace utils
 } // namespace graph

@@ -129,9 +129,9 @@ public:
             pu.match(agraph, pgraph, fusion_ops);
             if (!fusion_ops.empty()) {
                 // temporary solution here for showing which pattern matched
-                if (graph::utils::getenv_int_user("DUMP", 0) > 0
+                if (getenv_int_user("GRAPH_DUMP", 0) > 0
                         || graph::utils::check_verbose_string_user(
-                                "DUMP", "pattern")) {
+                                "GRAPH_DUMP", "pattern")) {
                     printf("onednn_graph_verbose,info,pattern,hit,%s\n",
                             get_pass_name().c_str());
                     fflush(stdout);
