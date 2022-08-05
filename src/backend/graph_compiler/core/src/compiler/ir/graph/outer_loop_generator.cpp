@@ -241,6 +241,7 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
     COMPILE_ASSERT(base_tsr.defined(), "Expecting a tensor");
     auto bld = builder::get_current_builder();
     auto numdims = base_tsr->dims_.size();
+    auto lanes = vectorize_step(ctx, base_tsr->elem_dtype_.type_code_);
     assert(numdims > 0);
     std::vector<expr> loop_vars;
     slice_range cur_tsr_slice;
@@ -270,20 +271,39 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
     }
 
     // generate anchors from inner to outer
-    for (size_t i = 0; i < numdims - 1; i++) {
-        // loop num is current dimension index
-        auto loop_num = loop_axis[numdims - i - 1];
-        // upper loop num
-        auto upper_loop_num = loop_axis[numdims - i - 2];
-        // set full tensor range for loop_num dimension
-        cur_tsr_slice[loop_num] = std::make_pair(0, base_tsr->dims_[loop_num]);
-        fusion->create_output_fusion_anchor(
-                {tensor_slice(base_tsr, slice_range(cur_tsr_slice))});
-        auto body = bld->pop_scope();
-        auto loop = bld->push_for_loop(loop_vars[upper_loop_num], 0,
-                base_tsr->dims_[upper_loop_num], 1, body, true,
-                for_type::NORMAL);
-        loops.emplace_back(loop.checked_as<for_loop>());
+    if (numdims > 1) {
+        for (size_t i = 0; i < numdims - 1; i++) {
+            // loop num is current dimension index
+            auto loop_num = loop_axis[numdims - i - 1];
+            // upper loop num
+            auto upper_loop_num = loop_axis[numdims - i - 2];
+            // set full tensor range for loop_num dimension
+            cur_tsr_slice[loop_num]
+                    = std::make_pair(0, base_tsr->dims_[loop_num]);
+            fusion->create_output_fusion_anchor(
+                    {tensor_slice(base_tsr, slice_range(cur_tsr_slice))});
+            auto body = bld->pop_scope();
+            auto loop = bld->push_for_loop(loop_vars[upper_loop_num], 0,
+                    base_tsr->dims_[upper_loop_num], 1, body, true,
+                    for_type::NORMAL);
+            loops.emplace_back(loop.checked_as<for_loop>());
+        }
+    } else {
+        COMPILE_ASSERT(numdims == 1, "only 1 dims is expected")
+        if (base_tsr->dims_[0].isa<constant>()) {
+            auto only_dim = get_const_as_int(
+                    base_tsr->dims_[0].static_as<constant>());
+            if ((only_dim % lanes == 0) && (only_dim > lanes)) {
+                cur_tsr_slice[0].second = expr((int)lanes);
+                fusion->create_output_fusion_anchor(
+                        {tensor_slice(base_tsr, slice_range(cur_tsr_slice))});
+                auto body = bld->pop_scope();
+                auto loop = bld->push_for_loop(loop_vars[0], 0,
+                        base_tsr->dims_[0], expr((int)lanes), body, true,
+                        for_type::NORMAL);
+                loops.emplace_back(loop.checked_as<for_loop>());
+            }
+        }
     }
     cur_tsr_slice[loop_axis[0]]
             = std::make_pair(0, base_tsr->dims_[loop_axis[0]]);

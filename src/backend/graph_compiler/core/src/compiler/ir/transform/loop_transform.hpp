@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@ namespace sc {
  * Removes redundant loops with parallel attribute. Will reserve the outmost
  * one loop with parallel.
  * @param body the stmts for parallel remove
+ * @param forced decides whether finally remove the parallel loop which also
+ * owns `num_threads_` field
  * */
-void remove_parallel(stmt body);
+void remove_parallel(stmt body, bool forced = true);
 
-void remove_parallel(func_t body);
+void remove_parallel(func_t body, bool forced = true);
 
 /**
  * Collect loops inside this body. Won't recurisvely look into loop body.

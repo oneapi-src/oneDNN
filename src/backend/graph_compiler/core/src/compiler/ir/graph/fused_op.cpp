@@ -905,8 +905,7 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
     auto func = parti_->func_;
     func->name_ += "_" + std::to_string(logical_op_id_);
     func->decl_->name_ += "_" + std::to_string(logical_op_id_);
-    auto core_body = func->body_.checked_as<stmts>()->seq_[0];
-    schedule_loops(core_body);
+    schedule_loops(func->body_);
     auto modu = std::make_shared<ir_module_t>(ctx);
     modu->add_func({func});
     modu->set_entry_func_idx(0);
@@ -938,7 +937,7 @@ void schedule_loop_body(
                         && (fused_number % run_threads) == 0))
             break;
         auto inner_loop = get_inner_for_loop(cur_loop.get());
-        if (inner_loop.defined()) {
+        if (inner_loop.defined() && !inner_loop->num_threads_) {
             std::unordered_map<expr, expr> cur_remap;
             outer_most_loop->fuse(
                     inner_loop, expr_remap ? &cur_remap : nullptr);
@@ -968,7 +967,12 @@ void mixed_fuse_op_t::schedule_loops(const stmt &body) {
         schedule_loop_body(body);
     else if (body.isa<stmts>()) {
         for (auto &st : body.checked_as<stmts>()->seq_) {
-            if (st.isa<for_loop>()) { schedule_loop_body(st); }
+            if (st.isa<for_loop>()) {
+                schedule_loop_body(st);
+            } else {
+                // recursively call
+                schedule_loops(st);
+            }
         }
     }
 }

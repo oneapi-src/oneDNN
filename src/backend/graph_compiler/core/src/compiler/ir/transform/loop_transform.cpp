@@ -412,12 +412,25 @@ public:
 };
 
 class loop_parallel_replacer_t : public ir_inplace_visitor_t {
+private:
+    bool forced_;
+
 public:
+    loop_parallel_replacer_t(bool forced = true) : forced_(forced) {}
     using ir_inplace_visitor_t::dispatch_impl;
     using ir_inplace_visitor_t::visit_impl;
     stmt visit_impl(for_loop v) override {
         dispatch_impl(v->body_);
-        if (v->kind_ == for_type::PARALLEL) { v->kind_ = for_type::NORMAL; }
+        if (v->kind_ == for_type::PARALLEL) {
+            if (v->num_threads_ > 0) {
+                if (forced_) {
+                    v->kind_ = for_type::NORMAL;
+                    v->num_threads_ = 0;
+                }
+            } else {
+                v->kind_ = for_type::NORMAL;
+            }
+        }
         return v;
     }
     expr dispatch_impl(expr e) override { return e; }
@@ -590,13 +603,13 @@ void for_loop_node_t::parallel_merge(const stmt &parent, const for_loop &ax) {
     ax->var_ = expr();
 }
 
-void remove_parallel(stmt body) {
-    loop_parallel_replacer_t replacer;
+void remove_parallel(stmt body, bool forced) {
+    loop_parallel_replacer_t replacer(forced);
     replacer.dispatch_impl(std::move(body));
 }
 
-void remove_parallel(func_t body) {
-    loop_parallel_replacer_t replacer;
+void remove_parallel(func_t body, bool forced) {
+    loop_parallel_replacer_t replacer(forced);
     replacer.dispatch_impl(std::move(body));
 }
 

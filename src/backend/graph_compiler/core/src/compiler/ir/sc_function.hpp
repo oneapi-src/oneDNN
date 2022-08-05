@@ -104,13 +104,6 @@ SC_INTERNAL_API extern ostream &operator<<(ostream &os, const func_c &e);
 // Operator << overload for std::ostream on func_base*
 SC_INTERNAL_API extern ostream &operator<<(ostream &os, const func_base *e);
 
-/**
- * Removes redundant loops with parallel attribute. Will reserve the outmost
- * one loop with parallel.
- * @param body the stmts for parallel remove
- * */
-void remove_parallel(func_t body);
-
 } // namespace sc
 
 namespace std {

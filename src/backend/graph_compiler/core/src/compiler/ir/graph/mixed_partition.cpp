@@ -30,6 +30,7 @@
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/visitor.hpp>
@@ -1641,7 +1642,7 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         parti.func_->decl_->params_ = args;
         parti.func_->decl_->name_ = parti.func_->name_;
         // remove all parallel flag
-        remove_parallel(parti.func_);
+        remove_parallel(parti.func_, false);
 
         // push return to the end of body
         auto ret = builder::make_returns_unattached(true);
