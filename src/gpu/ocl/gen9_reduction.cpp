@@ -32,6 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+// Extract N and C block sizes from blk.inner_blks
 std::pair<int, int> get_n_c_block_sizes(const memory_desc_wrapper &mdw) {
     int n_block_size = 1;
     int c_block_size = 1;
@@ -106,8 +107,8 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.power = pd->desc()->p;
     conf.eps = pd->desc()->eps;
     conf.dispatch = compute_engine->create_dispatch(src_mdw.md_);
-    conf.finalize_dispatch = compute_engine->create_dispatch();
 
+    // Last blocked dim is C and it has blockSize size
     auto is_c_blocked_by
             = [](const memory_desc_wrapper &mdw, const int blockSize) {
                   const blocking_desc_t &blk = mdw.blocking_desc();
@@ -116,6 +117,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
                           && (blk.inner_blks[blk.inner_nblks - 1] == blockSize);
               };
 
+    // src C must have blocks of 16 or 32
     if (!(is_c_blocked_by(src_mdw, 16) || is_c_blocked_by(src_mdw, 32)))
         return status::unimplemented;
 
@@ -123,6 +125,8 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     int dst_n_block_size, dst_c_block_size;
     std::tie(src_n_block_size, src_c_block_size) = get_n_c_block_sizes(src_mdw);
     std::tie(dst_n_block_size, dst_c_block_size) = get_n_c_block_sizes(dst_mdw);
+
+    // src/dst blocking must match
     if (src_n_block_size != dst_n_block_size
             || src_c_block_size != dst_c_block_size
             || src_mdw.blocking_desc().inner_nblks
@@ -131,6 +135,8 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     conf.n_block_size = src_n_block_size;
     conf.c_block_size = src_c_block_size;
+
+    // Either 0th/1st dims blocked or just 1st dim blocked
     if ((conf.n_block_size == 1 && src_mdw.blocking_desc().inner_nblks > 1)
             || src_mdw.blocking_desc().inner_nblks > 2) {
         return status::unimplemented;
@@ -155,19 +161,23 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
             hwd_reduction_size *= conf.reduce_dims[d];
         }
     }
+
+    // If any spatial dims are reduced, they all have to be.
     if (hwd_size != hwd_reduction_size && hwd_reduction_size > 1) {
         return status::unimplemented;
     }
 
+    // full padded C must be a multiple of 16 -- redundant due to blocking?
     conf.sub_group_size = 16;
     const auto &src_padded_dims = src_mdw.padded_dims();
     if (src_padded_dims[1] % conf.sub_group_size != 0) {
         return status_t::dnnl_unimplemented;
     }
-    conf.initial_c_chunks = std::min(
-            static_cast<int>(src_padded_dims[1]) / conf.sub_group_size,
-            conf.c_block_size / conf.sub_group_size);
 
+    // number of C chunks in dim 1
+    conf.initial_c_chunks = conf.c_block_size / conf.sub_group_size;
+
+    // Split N chunks/chunk size according to heuristic
     std::tie(conf.initial_n_chunk_size, conf.initial_n_chunks)
             = get_initial_n_split(conf.src_dims[0], conf.is_reduction_dim[0]);
 
@@ -175,10 +185,13 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
         return conf.initial_n_chunk_size * conf.initial_c_chunks
                 * conf.initial_hwd_chunk_size;
     };
+
+    // Number of chunks of hwd to reduce
     const auto get_wi_per_hwd = [this]() {
         return ceil(static_cast<float>(conf.initial_hwd_dim)
                 / conf.initial_hwd_chunk_size);
     };
+
     const auto get_used_threads_num = [this, get_wi_per_hwd]() {
         return conf.initial_n_chunks * conf.src_dims[1]
                 / (conf.sub_group_size * conf.initial_c_chunks)
@@ -212,6 +225,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
                 && get_wi_per_hwd() < max_wi_per_hwd) {
             conf.initial_hwd_chunk_size /= 2;
         }
+
         while ((get_used_threads_num() > min_threads
                        && get_reduction_elems_per_wi() < min_elems_per_wi)
                 || get_wi_per_hwd() > max_wi_per_hwd) {
@@ -238,6 +252,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
             = conf.is_reduction_dim[0] ? conf.initial_n_chunks : 1;
 
     int initial_n_chunks_padded, initial_c_padded;
+
     if (conf.final_c_chunk_size == 1 && conf.final_n_chunk_size == 1
             && conf.final_hwd_chunk_size == 1) {
         conf.skip_final_phase = true;
@@ -257,50 +272,64 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
             initial_c_padded, conf.initial_c_chunks);
     conf.dispatch.define_dim("INITIAL_HWD_CHUNK_ID", std::min(ndims - 1, 2),
             conf.final_hwd_dim, 1);
+
+    // Each initial kernel will handle 16 C channels
+    // Requires INITIAL_C (initial_c_padded) to be a multiple of sub_group_size
     CHECK(conf.dispatch.vectorize_dim("INITIAL_C", conf.sub_group_size));
     conf.dispatch.set_kernel_attr_suffix("INITIAL");
     conf.dispatch.generate();
+    conf.attr_info = attr_info_t::create(pd->attr());
 
-    const int final_n_padded
-            = utils::rnd_up(conf.final_n_dim, conf.n_block_size);
-    const int final_n_chunks_padded
-            = utils::div_up(final_n_padded, conf.final_n_chunk_size);
-    conf.finalize_dispatch.define_dim("FINAL_N", 0, final_n_chunks_padded);
-    const int final_c_padded
-            = utils::rnd_up(conf.final_c_dim, conf.c_block_size);
-    const int final_c_chunks_padded
-            = utils::div_up(final_c_padded, conf.final_c_chunk_size);
-    conf.finalize_dispatch.define_dim(
-            "FINAL_C", std::min(ndims - 1, 1), final_c_chunks_padded);
-    conf.finalize_dispatch.define_dim("FINAL_HWD", std::min(ndims - 1, 2),
-            conf.final_hwd_dim / conf.final_hwd_chunk_size);
-    conf.finalize_dispatch.set_kernel_attr_suffix("FINAL");
-    conf.finalize_dispatch.generate();
+    if (!conf.skip_final_phase) {
+        conf.finalize_dispatch = compute_engine->create_dispatch();
+        const int final_n_padded
+                = utils::rnd_up(conf.final_n_dim, conf.n_block_size);
+        const int final_n_chunks_padded
+                = utils::div_up(final_n_padded, conf.final_n_chunk_size);
+        conf.finalize_dispatch.define_dim("FINAL_N", 0, final_n_chunks_padded);
+        const int final_c_padded
+                = utils::rnd_up(conf.final_c_dim, conf.c_block_size);
+        const int final_c_chunks_padded
+                = utils::div_up(final_c_padded, conf.final_c_chunk_size);
+        conf.finalize_dispatch.define_dim(
+                "FINAL_C", std::min(ndims - 1, 1), final_c_chunks_padded);
+        conf.finalize_dispatch.define_dim("FINAL_HWD", std::min(ndims - 1, 2),
+                conf.final_hwd_dim / conf.final_hwd_chunk_size);
+        conf.finalize_dispatch.set_kernel_attr_suffix("FINAL");
+        conf.finalize_dispatch.generate();
+    }
 
     return status::success;
 }
 
-static status_t init_kernel_ctx_common(
-        compute::kernel_ctx_t &kernel_ctx, const reduction_conf_t &conf) {
+static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
+        const reduction_conf_t &conf, const post_ops_t &post_ops) {
     using namespace alg_kind;
 
     kernel_ctx.set_data_type(conf.src_type);
 
+    // N shape descriptors
+    kernel_ctx.define_int("IS_N_REDUCED", conf.is_reduction_dim[0]);
     kernel_ctx.define_int("INITIAL_N", conf.src_dims[0]);
+    kernel_ctx.define_int("INITIAL_N_CHUNKS", conf.initial_n_chunks);
+    kernel_ctx.define_int("INITIAL_N_CHUNK_SIZE", conf.initial_n_chunk_size);
+    kernel_ctx.define_int("N_BLOCK_SIZE", conf.n_block_size);
+
+    // C shape descriptors
+    kernel_ctx.define_int("IS_C_REDUCED", conf.is_reduction_dim[1]);
     kernel_ctx.define_int("INITIAL_C", conf.src_dims[1]);
     kernel_ctx.define_int("INITIAL_C_CHUNKS", conf.initial_c_chunks);
-    kernel_ctx.define_int("INITIAL_N_CHUNKS", conf.initial_n_chunks);
-    kernel_ctx.define_int("SKIP_FINAL_PHASE", conf.skip_final_phase);
-    kernel_ctx.define_int("FINAL_N_DIM", conf.final_n_dim);
-    kernel_ctx.define_int("FINAL_N_CHUNK_SIZE", conf.final_n_chunk_size);
-    kernel_ctx.define_int("INITIAL_N_CHUNK_SIZE", conf.initial_n_chunk_size);
-    kernel_ctx.define_int("FINAL_C_DIM", conf.final_c_dim);
-    kernel_ctx.define_int("FINAL_C_CHUNK_SIZE", conf.final_c_chunk_size);
+    // No INITIAL_C_CHUNK_SIZE variable -- equal to SUB_GROUP_SIZE
+    kernel_ctx.define_int("C_BLOCK_SIZE", conf.c_block_size);
+
+    // Spatial shape descriptors
     kernel_ctx.define_int("INITIAL_HWD_DIM", conf.initial_hwd_dim);
-    kernel_ctx.define_int("FINAL_HWD_DIM", conf.final_hwd_dim);
     kernel_ctx.define_int(
             "INITIAL_HWD_CHUNK_SIZE", conf.initial_hwd_chunk_size);
-    kernel_ctx.define_int("FINAL_HWD_CHUNK_SIZE", conf.final_hwd_chunk_size);
+    kernel_ctx.define_int(
+            "IS_HWD_REDUCED", conf.final_hwd_dim < conf.initial_hwd_dim);
+
+    // DST shape descriptors
     kernel_ctx.define_int("DST_N", conf.dst_dims[0]);
     kernel_ctx.define_int("DST_C", conf.dst_dims[1]);
     kernel_ctx.define_int(
@@ -308,19 +337,30 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int(
             "DST_C_PADDED", utils::rnd_up(conf.dst_dims[1], conf.c_block_size));
 
+    // General problem descriptors
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
-    kernel_ctx.define_int("C_BLOCK_SIZE", conf.c_block_size);
-    kernel_ctx.define_int("N_BLOCK_SIZE", conf.n_block_size);
     kernel_ctx.define_int("VECT_DT_N", conf.vector_size);
     kernel_ctx.define_int("REDUCTION_SIZE", conf.div);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("POWER", conf.power);
     kernel_ctx.define_float("EPS", conf.eps);
 
-    kernel_ctx.define_int("IS_N_REDUCED", conf.is_reduction_dim[0]);
-    kernel_ctx.define_int("IS_C_REDUCED", conf.is_reduction_dim[1]);
-    kernel_ctx.define_int(
-            "IS_HWD_REDUCED", conf.final_hwd_dim < conf.initial_hwd_dim);
+    kernel_ctx.define_int("SKIP_FINAL_PHASE", conf.skip_final_phase);
+
+    // Final kernel variables
+    kernel_ctx.define_int("FINAL_N_DIM", conf.final_n_dim);
+    kernel_ctx.define_int("FINAL_N_CHUNK_SIZE", conf.final_n_chunk_size);
+    kernel_ctx.define_int("FINAL_C_DIM", conf.final_c_dim);
+    kernel_ctx.define_int("FINAL_C_CHUNK_SIZE", conf.final_c_chunk_size);
+    kernel_ctx.define_int("FINAL_HWD_DIM", conf.final_hwd_dim);
+    kernel_ctx.define_int("FINAL_HWD_CHUNK_SIZE", conf.final_hwd_chunk_size);
+
+    // Define H/W/D dimensions for use in binary post ops
+    std::string dim_names[3] = {"D", "H", "W"};
+    for (int i = 2; i < 5; i++) {
+        dim_t dim = (i < conf.ndims) ? conf.dst_dims[i] : 1;
+        kernel_ctx.define_int("DST_" + dim_names[i - 2] + "_DIM", dim);
+    }
 
     switch (conf.alg) {
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
@@ -346,15 +386,18 @@ static status_t init_kernel_ctx_common(
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
+    def_attr_info(kernel_ctx, conf.attr_info, post_ops);
+
     def_dispatch(kernel_ctx, conf.dispatch);
-    def_dispatch(kernel_ctx, conf.finalize_dispatch);
+    if (!conf.skip_final_phase)
+        def_dispatch(kernel_ctx, conf.finalize_dispatch);
 
     return status::success;
 }
 
 status_t gen9_reduction_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf);
+    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
 }
 
 void gen9_reduction_t::pd_t::init_scratchpad() {
@@ -376,24 +419,29 @@ status_t gen9_reduction_t::execute_gen9(const exec_ctx_t &ctx) const {
                     memory_tracking::names::key_reduction);
     const auto &conf = pd()->conf;
 
+    // Kick off the initial reduction phase
     compute::kernel_arg_list_t reduction_arg_list;
     reduction_arg_list.set(0, src);
     reduction_arg_list.set(1, conf.skip_final_phase ? dst : *temp_reduce);
+    if (conf.skip_final_phase) {
+        append_post_ops_to_arg_list(
+                ctx, reduction_arg_list, 2, pd()->attr()->post_ops_);
+    }
     auto initial_nd_range = conf.dispatch.nd_range();
     status_t status = parallel_for(
             ctx, initial_nd_range, initial_kernel, reduction_arg_list);
 
-    if (!conf.skip_final_phase) {
-        if (status != status::success) return status;
-        compute::kernel_arg_list_t final_reduction_arg_list;
-        final_reduction_arg_list.set(0, *temp_reduce);
-        final_reduction_arg_list.set(1, dst);
-        auto final_nd_range = conf.finalize_dispatch.nd_range();
-        return parallel_for(
-                ctx, final_nd_range, final_kernel, final_reduction_arg_list);
-    } else {
-        return status;
-    }
+    if (conf.skip_final_phase || status != status::success) return status;
+
+    // Continue with final reduction phase
+    compute::kernel_arg_list_t final_reduction_arg_list;
+    final_reduction_arg_list.set(0, *temp_reduce);
+    final_reduction_arg_list.set(1, dst);
+    append_post_ops_to_arg_list(
+            ctx, final_reduction_arg_list, 2, pd()->attr()->post_ops_);
+    auto final_nd_range = conf.finalize_dispatch.nd_range();
+    return parallel_for(
+            ctx, final_nd_range, final_kernel, final_reduction_arg_list);
 }
 
 } // namespace ocl

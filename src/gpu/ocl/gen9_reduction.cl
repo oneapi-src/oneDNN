@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
 #if defined(IS_MAX)
@@ -55,18 +56,24 @@
 #endif
 
 #if defined(IS_MEAN)
-#define FINALIZE(x) (x / REDUCTION_SIZE)
+#define FINALIZE_REDUCTION(x) (x / REDUCTION_SIZE)
 #elif defined(IS_LP_MAX)
-#define FINALIZE(x) rootn(fmax(x, EPS), POWER)
+#define FINALIZE_REDUCTION(x) rootn(fmax(x, EPS), POWER)
 #elif defined(IS_LP_SUM)
-#define FINALIZE(x) rootn(x + EPS, POWER)
+#define FINALIZE_REDUCTION(x) rootn(x + EPS, POWER)
 #elif defined(IS_P_MAX)
-#define FINALIZE(x) fmax(x, EPS)
+#define FINALIZE_REDUCTION(x) fmax(x, EPS)
 #elif defined(IS_P_SUM)
-#define FINALIZE(x) (x + EPS)
+#define FINALIZE_REDUCTION(x) (x + EPS)
 #else
-#define FINALIZE(x) (x)
+#define FINALIZE_REDUCTION(x) (x)
 #endif
+
+#if WITH_SUM
+#define INIT_SUM(sum_data) DST_TO_REF(sum_data)
+#else
+#define INIT_SUM(sum_data) 0.0f
+#endif //WITH_SUM
 
 #if defined(IS_MAX)
 #define SUB_GROUP_REDUCE(x, c_block) sub_group_reduce_max(x)
@@ -107,55 +114,79 @@
 // clang-format off
 // C blocked or N,C blocked
 #define INITIAL_SRC_OFFSET(n, c, hwd) \
-    (((n) / N_BLOCK_SIZE) * INITIAL_HWD_DIM * N_BLOCK_SIZE * ROUND_UP(INITIAL_C, C_BLOCK_SIZE) + \
-     ((n) % N_BLOCK_SIZE) * C_BLOCK_SIZE + \
-     ((c) / C_BLOCK_SIZE) * INITIAL_HWD_DIM * N_BLOCK_SIZE * C_BLOCK_SIZE + \
-     (hwd) * N_BLOCK_SIZE * C_BLOCK_SIZE + \
-     ((c) % C_BLOCK_SIZE))
+    (((n) / N_BLOCK_SIZE) * INITIAL_HWD_DIM * N_BLOCK_SIZE  * ROUND_UP(INITIAL_C, C_BLOCK_SIZE) + \
+     ((c) / C_BLOCK_SIZE) * INITIAL_HWD_DIM * N_BLOCK_SIZE  * C_BLOCK_SIZE + \
+     (hwd)                                  * N_BLOCK_SIZE  * C_BLOCK_SIZE + \
+     ((n)                                   % N_BLOCK_SIZE) * C_BLOCK_SIZE + \
+     ((c)                                                   % C_BLOCK_SIZE))
 
 #define INITIAL_DST_OFFSET(n, c, hwd) \
-    ((n / N_BLOCK_SIZE) * FINAL_HWD_DIM * N_BLOCK_SIZE * ROUND_UP(FINAL_C_DIM, C_BLOCK_SIZE) + \
-     ((n) % N_BLOCK_SIZE) * C_BLOCK_SIZE + \
-     ((c) / C_BLOCK_SIZE) * FINAL_HWD_DIM * N_BLOCK_SIZE * C_BLOCK_SIZE + \
-     (hwd) * N_BLOCK_SIZE * C_BLOCK_SIZE + \
-     ((c) % C_BLOCK_SIZE))
+     ((n  / N_BLOCK_SIZE) * FINAL_HWD_DIM * N_BLOCK_SIZE  * ROUND_UP(FINAL_C_DIM, C_BLOCK_SIZE) + \
+     ((c) / C_BLOCK_SIZE) * FINAL_HWD_DIM * N_BLOCK_SIZE  * C_BLOCK_SIZE + \
+     (hwd)                                * N_BLOCK_SIZE  * C_BLOCK_SIZE + \
+     ((n)                                 % N_BLOCK_SIZE) * C_BLOCK_SIZE + \
+     ((c)                                                 % C_BLOCK_SIZE))
 
 #define FINAL_SRC_OFFSET(n, c, hwd) INITIAL_DST_OFFSET(n, c, hwd)
 
 #define FINAL_DST_OFFSET(n, c, hwd) \
-    ((n) / N_BLOCK_SIZE) * (FINAL_HWD_DIM / FINAL_HWD_CHUNK_SIZE) * N_BLOCK_SIZE * ROUND_UP(FINAL_C_DIM / FINAL_C_CHUNK_SIZE, C_BLOCK_SIZE) + \
-     ((n) % N_BLOCK_SIZE) * C_BLOCK_SIZE + \
-     ((c) / C_BLOCK_SIZE) * (FINAL_HWD_DIM / FINAL_HWD_CHUNK_SIZE) * N_BLOCK_SIZE * C_BLOCK_SIZE + \
-     (hwd) * N_BLOCK_SIZE * C_BLOCK_SIZE + \
-     ((c) % C_BLOCK_SIZE)
+     ((n) / N_BLOCK_SIZE) * (FINAL_HWD_DIM / FINAL_HWD_CHUNK_SIZE) * N_BLOCK_SIZE  * ROUND_UP(FINAL_C_DIM / FINAL_C_CHUNK_SIZE, C_BLOCK_SIZE) + \
+     ((c) / C_BLOCK_SIZE) * (FINAL_HWD_DIM / FINAL_HWD_CHUNK_SIZE) * N_BLOCK_SIZE  * C_BLOCK_SIZE + \
+     (hwd)                                                         * N_BLOCK_SIZE  * C_BLOCK_SIZE + \
+     ((n)                                                          % N_BLOCK_SIZE) * C_BLOCK_SIZE + \
+     ((c)                                                                          % C_BLOCK_SIZE)
 // clang-format on
 
-#if SKIP_FINAL_PHASE
-#define WRITE_INITIAL_RESULT(dst_ptr, dst_offset, data) \
+#if WITH_POST_OP
+// Compute H, W, D indices before passing them into the post op macro
+#define APPLY_POST_OPS(sum_data, data, n_idx, c_idx, hwd_idx) \
     { \
-        float res = convert_float(data); \
-        dst_ptr[dst_offset] = TO_DST(FINALIZE(res)); \
+        float sum_init_val = INIT_SUM(sum_data); \
+        const int D = hwd_start / (DST_H_DIM * DST_W_DIM); \
+        const int H = (hwd_start % (DST_H_DIM * DST_W_DIM)) / DST_W_DIM; \
+        const int W = hwd_start % DST_W_DIM; \
+        APPLY_POST_OPS_SERIAL(data, float, sum_init_val, float, n_idx, 1, \
+                c_idx, 1, D, 1, H, 1, W, 1, 0, 1); \
     }
+#else
+#define APPLY_POST_OPS(sum_data, data, n_idx, c_idx, hwd_idx) \
+    {}
+#endif // WITH_POST_OP
+
+#define WRITE_FINAL_RESULT(dst_elem, acc, n_start, c_start, hwd_start) \
+    { \
+        float acc_float = FINALIZE_REDUCTION(convert_float(acc)); \
+        APPLY_POST_OPS(dst_elem, acc_float, n_start, c_start, hwd_start); \
+        dst_elem = TO_DST(acc_float); \
+    }
+
+#if SKIP_FINAL_PHASE
+#define WRITE_INITIAL_RESULT WRITE_FINAL_RESULT
 #define INITIAL_DST_DTYPE DST_DATA_T
 #else
-#define WRITE_INITIAL_RESULT(dst_ptr, dst_offset, data) \
-    { dst_ptr[dst_offset] = data; }
+#define WRITE_INITIAL_RESULT(dst_elem, data, n_start, c_start, hwd_start) \
+    { dst_elem = data; }
 #define INITIAL_DST_DTYPE DEF_ACC_DATA_T
 #endif
 
 // Reduces only chunks of reduction dimensions
 // in order to create more threads and increase precision
 NAMED_KERNEL_ATTR(INITIAL)
-__kernel void gen9_initial_reduce(
-        __global SRC_DATA_T *src, __global INITIAL_DST_DTYPE *dst) {
+__kernel void gen9_initial_reduce(__global SRC_DATA_T *src,
+        __global INITIAL_DST_DTYPE *dst
+#if SKIP_FINAL_PHASE
+                POST_OP_ARGS
+#endif
+) {
     const int n_chunk_idx = GWS_GET_INITIAL_N();
     const int c = GWS_GET_INITIAL_C();
     const int c_block_idx = c / C_BLOCK_SIZE;
     const int hwd_chunk_idx = GWS_GET_INITIAL_HWD_CHUNK_ID();
-
     const int hwd_start = hwd_chunk_idx * INITIAL_HWD_CHUNK_SIZE;
     const int current_hwd_chunk = min(INITIAL_HWD_CHUNK_SIZE,
             INITIAL_HWD_DIM - hwd_chunk_idx * INITIAL_HWD_CHUNK_SIZE);
+
+    // Limit the chunk size to stop early at a vector boundary
     const int aligned_hwd_chunk = ROUND_DOWN(current_hwd_chunk, VECT_DT_N);
 
     const int n_start = n_chunk_idx * INITIAL_N_CHUNK_SIZE;
@@ -186,10 +217,9 @@ __kernel void gen9_initial_reduce(
         }
     }
 #endif
-    int channel_id = (INITIAL_C % SUB_GROUP_SIZE == 0
-                    ? c
-                    : (c + get_sub_group_local_id()));
-    if ((channel_id >= INITIAL_C) || (n_start >= INITIAL_N)) { return; }
+
+    int channel_id = c + get_sub_group_local_id();
+    if (channel_id >= INITIAL_C || n_start >= INITIAL_N) { return; }
 
     VECT_DEF_ACC_DATA_T vector_acc = INIT_ACC;
     for (int n = n_start; n < n_end; n++) {
@@ -205,11 +235,13 @@ __kernel void gen9_initial_reduce(
                 vector_acc = ACCUMULATE(vector_acc, data);
             }
         }
+
         for (int hwd_id = aligned_hwd_chunk; hwd_id < current_hwd_chunk;
                 hwd_id++) {
             const int off = INITIAL_SRC_OFFSET(n, c, hwd_start + hwd_id);
             C_BLOCK_T data = CONVERT_C_BLOCK_T(AS_C_BLOCK_DATA_T(
                     C_BLOCK_READ((const __global BLOCK_DATA_T *)&src[off])));
+
 #if VECT_DT_N == 1
             vector_acc = ACCUMULATE(vector_acc, data);
 #else // VECT_DT_N == 1
@@ -217,8 +249,9 @@ __kernel void gen9_initial_reduce(
             vector_acc[0] = ACCUMULATE(vector_acc[0], data);
 #elif INITIAL_C_CHUNKS == 2
             // data[0] and data[1] must be accumulated separately as they contain different C
-            vector_acc[0] = ACCUMULATE(vector_acc[0], data[0]);
-            vector_acc[1] = ACCUMULATE(vector_acc[1], data[1]);
+            for (int i = 0; i < INITIAL_C_CHUNKS; i++) {
+                vector_acc[i] = ACCUMULATE(vector_acc[i], data[i]);
+            }
 #endif // INITIAL_C_CHUNKS == 1
 #endif // VECT_DT_N == 1
         }
@@ -227,6 +260,7 @@ __kernel void gen9_initial_reduce(
     VECT_DEF_ACC_DATA_T acc = vector_acc;
 #else // VECT_DT_N == 1
     const int elems_to_accumulate = aligned_hwd_chunk > 0 ? VECT_DT_N : 1;
+
 #if INITIAL_C_CHUNKS == 1
     DEF_ACC_DATA_T acc = INIT_ACC;
     for (int i = 0; i < elems_to_accumulate; i++) {
@@ -240,7 +274,6 @@ __kernel void gen9_initial_reduce(
     }
 #endif // INITIAL_C_CHUNKS == 1
 #endif // VECT_DT_N == 1
-
     const int local_id = get_sub_group_local_id();
 #if IS_C_REDUCED
 #if INITIAL_C_CHUNKS == 2
@@ -251,27 +284,32 @@ __kernel void gen9_initial_reduce(
     const int dst_off
             = INITIAL_DST_OFFSET(n_chunk_idx, c_block_idx, hwd_chunk_idx);
     c_acc = SUB_GROUP_REDUCE(c_acc, c);
-    if (local_id == 0) { WRITE_INITIAL_RESULT(dst, dst_off, c_acc); }
+    if (local_id == 0) {
+        WRITE_INITIAL_RESULT(dst[dst_off], c_acc, n_start, c, hwd_start);
+    }
 #else // IS_C_REDUCED
     const int dst_c = c + local_id;
 #if INITIAL_C_CHUNKS == 1
     WRITE_INITIAL_RESULT(
-            dst, INITIAL_DST_OFFSET(n_chunk_idx, dst_c, hwd_chunk_idx), acc);
+            dst[INITIAL_DST_OFFSET(n_chunk_idx, dst_c, hwd_chunk_idx)], acc,
+            n_start, dst_c, hwd_start);
 #else // INITIAL_C_CHUNKS == 1
-    WRITE_INITIAL_RESULT(
-            dst, INITIAL_DST_OFFSET(n_chunk_idx, dst_c, hwd_chunk_idx), acc[0]);
-    WRITE_INITIAL_RESULT(dst,
-            INITIAL_DST_OFFSET(
-                    n_chunk_idx, dst_c + SUB_GROUP_SIZE, hwd_chunk_idx),
-            acc[1]);
+    for (int i = 0; i < INITIAL_C_CHUNKS; i++) {
+        int c_off = i * SUB_GROUP_SIZE;
+        WRITE_INITIAL_RESULT(dst[INITIAL_DST_OFFSET(n_chunk_idx, dst_c + c_off,
+                                     hwd_chunk_idx)],
+                acc[i], n_start, c, hwd_start);
+    }
 #endif // INITIAL_C_CHUNKS == 1
 #endif // IS_C_REDUCED
 }
 
+#if !SKIP_FINAL_PHASE
+
 // Finalizes reduction by reducing results of initial reduction
 NAMED_KERNEL_ATTR(FINAL)
 __kernel void gen9_final_reduce(
-        __global DEF_ACC_DATA_T *src, __global DST_DATA_T *dst) {
+        __global DEF_ACC_DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
     const int n_start = GWS_GET_FINAL_N() * FINAL_N_CHUNK_SIZE;
     const int c_start = GWS_GET_FINAL_C() * FINAL_C_CHUNK_SIZE;
     const int hwd_start = GWS_GET_FINAL_HWD() * FINAL_HWD_CHUNK_SIZE;
@@ -309,6 +347,8 @@ __kernel void gen9_final_reduce(
     }
     if (n_start < DST_N && c_start < DST_C) {
         const int off = FINAL_DST_OFFSET(n_start, c_start, hwd_start);
-        dst[off] = TO_DST(FINALIZE(convert_float(acc)));
+
+        WRITE_FINAL_RESULT(dst[off], acc, n_start, c_start, hwd_start);
     }
 }
+#endif // !SKIP_FINAL_PHASE
