@@ -678,6 +678,16 @@ ltensors extract_detail_from_tensors(
     return ret;
 }
 
+sc_graph_t make_single_op_graph(const std::string &opname,
+        const std::vector<graph_tensor_ptr> &inputs,
+        const std::vector<graph_tensor_ptr> &outputs, const any_map_t &attr) {
+    sc_graph_t ret;
+    ret.make_input(inputs);
+    auto op = ret.make(opname, inputs, outputs, attr);
+    ret.make_output(op->get_outputs());
+    return ret;
+}
+
 } // namespace graph
 } // namespace sc
 

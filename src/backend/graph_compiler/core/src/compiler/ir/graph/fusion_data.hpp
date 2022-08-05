@@ -23,6 +23,7 @@
 #include <vector>
 #include "fusible_op.hpp"
 #include "graph_map.hpp"
+#include "tensor_slice.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/sc_expr.hpp>
 #include <unordered_map>
@@ -30,7 +31,6 @@
 
 namespace sc {
 
-using slice_range = std::vector<std::pair<expr, expr>>;
 using slice_range_list = std::vector<slice_range>;
 using slice_range_map = std::unordered_map<int, slice_range_list>;
 
@@ -136,53 +136,6 @@ inline slice_range gen_slice_by_dims(const sc_dims &dims) {
     }
     return ret;
 }
-
-/**
- * A slice of the tensor.
- * @param tptr_ the base tensor_ptr
- * @param shape_ the slice shape
- * */
-struct tensor_slice {
-    tensorptr tptr_;
-    std::vector<expr> shape_;
-    tensor_slice() = default;
-
-    tensor_slice(const expr &tsr);
-
-    tensor_slice(const expr &tsr, slice_range &&ranges);
-
-    // Gets the start address of the tensor slice
-    expr get_tensor_ptr() const { return tptr_; }
-
-    // Gets the shape of the sliced tensor
-    const std::vector<expr> &get_shape() const { return shape_; }
-
-    int64_t nslice_dims() const { return static_cast<int64_t>(shape_.size()); }
-    int64_t nbase_dims() const {
-        return static_cast<int64_t>(get_base_dims().size());
-    }
-
-    // Gets the offset of the sliced tensor
-    const std::vector<expr> &get_offset() const { return tptr_->base_->idx_; }
-
-    // Gets the ranges of the sliced tensor
-    slice_range get_ranges() const;
-
-    // Gets the real shape of base tensor (const version)
-    const std::vector<expr> &get_base_dims() const;
-
-    // Gets the dtype of base tensor
-    sc_data_type_t get_base_dtype() const;
-
-    // Gets the real tensor of tensor slice, not the tensor_ptr
-    tensor get_real_tensor() const;
-
-    // check whether slice is full on specific axes
-    bool full_on_axes(const std::vector<int> &axes) const;
-
-    // is_full
-    bool is_full() const;
-};
 
 bool is_reshaped_tensor(const expr &tsr);
 

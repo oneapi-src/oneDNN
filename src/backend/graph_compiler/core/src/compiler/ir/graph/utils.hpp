@@ -24,6 +24,11 @@
 
 namespace sc {
 namespace graph {
+sc_graph_t make_single_op_graph(const std::string &opname,
+        const std::vector<graph_tensor_ptr> &inputs,
+        const std::vector<graph_tensor_ptr> &outputs = {},
+        const any_map_t &attr = {});
+
 expr tensor_detail_to_ir_tensor(
         const std::string &name, const logical_tensor_t &);
 expr tensor_detail_to_ir_tensor(
