@@ -1732,7 +1732,8 @@ private:
             auto &rbd = vec[0].reg_buf_data();
             auto rd = rbd.reg_data();
             int regs = utils::div_up(stride_bytes * 2, grf_size);
-            if (regs > 2) return false;
+            if (regs > 2 || (stride_bytes / type_size) * 2 != elems)
+                return false;
             rd.setRegion(stride_bytes / type_size, elems / 2, 0);
             reg_buf_t rb(hw, ngen::GRFRange(rd.getBase(), regs));
             bind(obj, reg_buf_data_t(rb, rd));
