@@ -27,7 +27,7 @@ namespace gpu {
 namespace jit {
 
 // Trace for debugging purposes.
-#ifdef GEN_CONV_DEBUG
+#ifdef GEN_CONV_PROFILE
 ir_utils::debug_profiler_t &get_trace_profiler();
 inline void trace_start() {
     get_trace_profiler().start();

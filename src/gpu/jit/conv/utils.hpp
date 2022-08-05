@@ -32,7 +32,10 @@
 // Uncomment this when jit::ir debugging is required:
 //#define GEN_CONV_DEBUG
 
-#ifdef GEN_CONV_DEBUG
+// Uncomment this when jit::ir profiling is required:
+//#define GEN_CONV_PROFILE
+
+#ifdef GEN_CONV_PROFILE
 #include "common/profiler.hpp"
 #endif
 
@@ -238,7 +241,7 @@ public:
     operator bool() const { return true; }
 
     static bool is_enabled() {
-#ifdef GEN_CONV_DEBUG
+#if defined(GEN_CONV_DEBUG) || defined(GEN_CONV_PROFILE)
         static const int log_level(getenv_int("log_level", LOG_LEVEL));
         return log_level >= level;
 #else
@@ -449,7 +452,7 @@ void for_each(const std::vector<T> &bounds, const F &f) {
 }
 
 struct debug_profiler_t {
-#ifdef GEN_CONV_DEBUG
+#ifdef GEN_CONV_PROFILE
     debug_profiler_t(std::string profile_name) : profile(profile_name) {};
     void start() { profile.start(); };
     void stamp(const char *name) { profile.stamp(name); };

@@ -4251,8 +4251,10 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     generate_epilogue();
     profile.stop("Epilogue");
 
-#ifdef GEN_CONV_DEBUG
+#ifdef GEN_CONV_PROFILE
     ir_perf_no_trace() << profile << "\n";
+#endif
+#ifdef GEN_CONV_DEBUG
     ir_trace() << "Actual register usage:           "
                << ra_.get_peak_grf_usage() << std::endl;
     if (ra_.get_peak_grf_usage() > cfg_.estimated_peak_grf_usage) {
