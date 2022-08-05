@@ -208,16 +208,15 @@ protected:
                 right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
                 right_padding(cd.iw, cd.ow, cd.kw, cd.padw, cd.strw, cd.dilw)};
 
-        auto conv_desc = with_bias
-                ? convolution_forward::desc(aprop_kind, p.aalgorithm,
-                        c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
-                        strides, dilations, padL, padR)
-                : convolution_forward::desc(aprop_kind, p.aalgorithm,
-                        c_src_desc, c_weights_desc, c_dst_desc, strides,
-                        dilations, padL, padR);
+        auto conv_primitive_desc = with_bias
+                ? convolution_forward::primitive_desc(eng, aprop_kind,
+                        p.aalgorithm, c_src_desc, c_weights_desc, c_bias_desc,
+                        c_dst_desc, strides, dilations, padL, padR,
+                        attr.mkl_attr)
+                : convolution_forward::primitive_desc(eng, aprop_kind,
+                        p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
+                        strides, dilations, padL, padR, attr.mkl_attr);
 
-        auto conv_primitive_desc = convolution_forward::primitive_desc(
-                conv_desc, attr.mkl_attr, eng);
         conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_primitive_desc.get()); // test construction from a C pd
 

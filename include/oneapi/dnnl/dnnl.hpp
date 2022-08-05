@@ -4883,12 +4883,13 @@ struct primitive_desc : public primitive_desc_base {
 
 /// Convolution forward propagation primitive.
 struct convolution_forward : public primitive {
-    /// Descriptor for a convolution forward propagation primitive.
-    struct desc {
-        dnnl_convolution_desc_t data;
+    /// Primitive descriptor for a convolution forward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for a convolution forward propagation
-        /// primitive with bias.
+        /// Constructs a primitive descriptor for a convolution forward
+        ///     propagation primitive with bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4900,6 +4901,7 @@ struct convolution_forward : public primitive {
         /// the same as in the tensor: depth (for 3D tensors), height (for 3D
         /// and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -4917,26 +4919,25 @@ struct convolution_forward : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &bias_desc, const memory::desc &dst_desc,
-                const memory::dims &strides, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_convolution_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind),
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &weights_desc.data, &bias_desc.data, &dst_desc.data,
-                            &strides[0], &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a convolution forward "
-                    "propagation primitive");
-        }
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &bias_desc,
+                const memory::desc &dst_desc, const memory::dims &strides,
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
+                    weights_desc, &bias_desc, dst_desc, strides, nullptr,
+                    padding_l, padding_r, attr, allow_empty) {}
 
-        /// Constructs a descriptor for a convolution forward propagation
-        /// primitive without bias.
+        /// Constructs a primitive descriptor for a convolution forward
+        ///     propagation primitive without bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4948,6 +4949,7 @@ struct convolution_forward : public primitive {
         /// the same as in the tensor: depth (for 3D tensors), height (for 3D
         /// and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -4963,24 +4965,24 @@ struct convolution_forward : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &dst_desc, const memory::dims &strides,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_convolution_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind),
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &weights_desc.data, nullptr, &dst_desc.data,
-                            &strides[0], &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a convolution forward "
-                    "propagation primitive");
-        }
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &dst_desc,
+                const memory::dims &strides, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
+                    weights_desc, nullptr, dst_desc, strides, nullptr,
+                    padding_l, padding_r, attr, allow_empty) {}
 
-        /// Constructs a descriptor for a dilated convolution forward
+        /// Constructs a primitive descriptor for a dilated convolution forward
         /// propagation primitive with bias.
         ///
         /// @note
@@ -4993,6 +4995,7 @@ struct convolution_forward : public primitive {
         /// of values is the same as in the tensor: depth (for 3D tensors),
         /// height (for 3D and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -5012,26 +5015,25 @@ struct convolution_forward : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &bias_desc, const memory::desc &dst_desc,
-                const memory::dims &strides, const memory::dims &dilates,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_dilated_convolution_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      convert_to_c(aalgorithm), &src_desc.data,
-                                      &weights_desc.data, &bias_desc.data,
-                                      &dst_desc.data, &strides[0], &dilates[0],
-                                      &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a dilated convolution "
-                    "forward propagation primitive");
-        }
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &bias_desc,
+                const memory::desc &dst_desc, const memory::dims &strides,
+                const memory::dims &dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
+                    weights_desc, &bias_desc, dst_desc, strides, &dilates,
+                    padding_l, padding_r, attr, allow_empty) {}
 
-        /// Constructs a descriptor for a dilated convolution forward
+        /// Constructs a primitive descriptor for a dilated convolution forward
         /// propagation primitive without bias.
         ///
         /// @note
@@ -5044,6 +5046,7 @@ struct convolution_forward : public primitive {
         /// of values is the same as in the tensor: depth (for 3D tensors),
         /// height (for 3D and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -5061,61 +5064,22 @@ struct convolution_forward : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &dst_desc, const memory::dims &strides,
-                const memory::dims &dilates, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_dilated_convolution_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      convert_to_c(aalgorithm), &src_desc.data,
-                                      &weights_desc.data, nullptr,
-                                      &dst_desc.data, &strides[0], &dilates[0],
-                                      &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a dilated convolution "
-                    "forward propagation primitive");
-        }
-    };
-
-    /// Primitive descriptor for a convolution forward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a convolution forward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a convolution forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case
-        ///     an empty object will be produced. This flag is optional and
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &dst_desc,
+                const memory::dims &strides, const memory::dims &dilates,
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
-
-        /// Constructs a primitive descriptor for a convolution forward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a convolution forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case
-        ///     an empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+            : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
+                    weights_desc, nullptr, dst_desc, strides, &dilates,
+                    padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -5160,6 +5124,39 @@ struct convolution_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
         memory::dims get_padding_r() const { return base::get_padding_r(); }
+
+    private:
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc *bias_desc,
+                const memory::desc &dst_desc, const memory::dims &strides,
+                const memory::dims *dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r, const primitive_attr &attr,
+                bool allow_empty) {
+
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+
+            if (dilates)
+                memory::validate_dims(*dilates, src_desc.data.ndims - 2);
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_dilated_convolution_forward_primitive_desc_create(
+                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            convert_to_c(aalgorithm), &src_desc.data,
+                            &weights_desc.data,
+                            bias_desc ? &bias_desc->data : nullptr,
+                            &dst_desc.data, &strides[0],
+                            dilates ? dilates->data() : nullptr, &padding_l[0],
+                            &padding_r[0], attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "convolution forward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -5182,13 +5179,13 @@ struct convolution_forward : public primitive {
 
 /// Convolution backward propagation primitive.
 struct convolution_backward_data : public primitive {
+    /// Primitive descriptor for a convolution backward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-    /// Descriptor for a convolution backward propagation primitive.
-    struct desc {
-        dnnl_convolution_desc_t data;
-
-        /// Constructs a descriptor for a convolution backward propagation
-        /// primitive.
+        /// Constructs a primitive descriptor for a convolution backward
+        ///     propagation primitive.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -5200,6 +5197,7 @@ struct convolution_backward_data : public primitive {
         /// the same as in the tensor: depth (for 3D tensors), height (for 3D
         /// and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aalgorithm Convolution algorithm. Possible values are
         ///     #dnnl::algorithm::convolution_direct,
         ///     #dnnl::algorithm::convolution_winograd, and
@@ -5212,23 +5210,28 @@ struct convolution_backward_data : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
+        /// @param hint_fwd_pd Primitive descriptor for a convolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_convolution_backward_data_desc_init(&data,
-                            convert_to_c(aalgorithm), &diff_src_desc.data,
-                            &weights_desc.data, &diff_dst_desc.data,
-                            &strides[0], &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a convolution backward "
-                    "propagation primitive");
-        }
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const convolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, diff_src_desc, weights_desc,
+                    diff_dst_desc, strides, nullptr, padding_l, padding_r,
+                    hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a descriptor for dilated convolution backward
+        /// Constructs a primitive descriptor for a dilated convolution backward
         /// propagation primitive.
         ///
         /// @note
@@ -5241,6 +5244,7 @@ struct convolution_backward_data : public primitive {
         /// of values is the same as in the tensor: depth (for 3D tensors),
         /// height (for 3D and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aalgorithm Convolution algorithm. Possible values are
         ///     #dnnl::algorithm::convolution_direct,
         ///     #dnnl::algorithm::convolution_winograd, and
@@ -5255,70 +5259,27 @@ struct convolution_backward_data : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
+        /// @param hint_fwd_pd Primitive descriptor for a convolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_dilated_convolution_backward_data_desc_init(&data,
-                            convert_to_c(aalgorithm), &diff_src_desc.data,
-                            &weights_desc.data, &diff_dst_desc.data,
-                            &strides[0], &dilates[0], &padding_l[0],
-                            &padding_r[0]),
-                    "could not create a descriptor for a dilated convolution "
-                    "backward propagation primitive");
-        }
-    };
-
-    /// Primitive descriptor for a convolution backward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a convolution backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a convolution backward propagation
-        ///     primitive.
-        /// @param aengine Engine to perform the operation on.
-        /// @param hint_fwd_pd Primitive descriptor for a convolution forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case
-        ///     an empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+                const memory::dims &padding_r,
                 const convolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
-
-        /// Constructs a primitive descriptor for a convolution backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a convolution backward propagation
-        ///     primitive.
-        /// @param aengine Engine to perform the operation on.
-        /// @param attr Primitive attributes to use.
-        /// @param hint_fwd_pd Primitive descriptor for a convolution forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case
-        ///     an empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
-                const convolution_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aalgorithm, diff_src_desc, weights_desc,
+                    diff_dst_desc, strides, &dilates, padding_l, padding_r,
+                    hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -5356,6 +5317,39 @@ struct convolution_backward_data : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
         memory::dims get_padding_r() const { return base::get_padding_r(); }
+
+    private:
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims *dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const convolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr, bool allow_empty) {
+
+            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
+
+            if (dilates)
+                memory::validate_dims(*dilates, diff_src_desc.data.ndims - 2);
+
+            // TODO: maybe use only dilated version?
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_dilated_convolution_backward_data_primitive_desc_create(
+                            &pd, aengine.get(), convert_to_c(aalgorithm),
+                            &diff_src_desc.data, &weights_desc.data,
+                            &diff_dst_desc.data, &strides[0],
+                            dilates ? dilates->data() : nullptr, &padding_l[0],
+                            &padding_r[0], hint_fwd_pd.get(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "convolution backward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -5378,234 +5372,210 @@ struct convolution_backward_data : public primitive {
 
 /// Convolution weights gradient primitive.
 struct convolution_backward_weights : public primitive {
-    /// Descriptor for a convolution weights gradient primitive.
-    struct desc {
-        dnnl_convolution_desc_t data;
-
-        /// Constructs a descriptor for a convolution weights gradient primitive
-        /// with bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
-        /// for spatial dimensions only and hence must have the same number of
-        /// elements as there are spatial dimensions. The order of values is
-        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
-        /// and 2D tensors), and width.
-        ///
-        /// @param aalgorithm Convolution algorithm. Possible values are
-        ///     #dnnl::algorithm::convolution_direct,
-        ///     #dnnl::algorithm::convolution_winograd, and
-        ///     #dnnl::algorithm::convolution_auto.
-        /// @param src_desc Source memory descriptor.
-        /// @param diff_weights_desc Diff weights memory descriptor.
-        /// @param diff_bias_desc Diff bias memory descriptor. Passing zero
-        ///     memory descriptor disables the bias term.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        /// @param strides Strides for each spatial dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_bias_desc,
-                const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_convolution_backward_weights_desc_init(&data,
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &diff_weights_desc.data, &diff_bias_desc.data,
-                            &diff_dst_desc.data, &strides[0], &padding_l[0],
-                            &padding_r[0]),
-                    "could not create a descriptor for a convolution weights "
-                    "update primitive");
-        }
-
-        /// Constructs a descriptor for a convolution weights gradient primitive
-        /// without bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
-        /// for spatial dimensions only and hence must have the same number of
-        /// elements as there are spatial dimensions. The order of values is
-        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
-        /// and 2D tensors), and width.
-        ///
-        /// @param aalgorithm Convolution algorithm. Possible values are
-        ///     #dnnl::algorithm::convolution_direct,
-        ///     #dnnl::algorithm::convolution_winograd, and
-        ///     #dnnl::algorithm::convolution_auto.
-        /// @param src_desc Source memory descriptor.
-        /// @param diff_weights_desc Diff weights memory descriptor.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        /// @param strides Strides for each spatial dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_convolution_backward_weights_desc_init(&data,
-                                      convert_to_c(aalgorithm), &src_desc.data,
-                                      &diff_weights_desc.data, nullptr,
-                                      &diff_dst_desc.data, &strides[0],
-                                      &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a convolution weights "
-                    "update primitive");
-        }
-
-        /// Constructs a descriptor for a dilated convolution weights gradient
-        /// primitive with bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
-        /// contain values for spatial dimensions only and hence must have the
-        /// same number of elements as there are spatial dimensions. The order
-        /// of values is the same as in the tensor: depth (for 3D tensors),
-        /// height (for 3D and 2D tensors), and width.
-        ///
-        /// @param aalgorithm Convolution algorithm. Possible values are
-        ///     #dnnl::algorithm::convolution_direct,
-        ///     #dnnl::algorithm::convolution_winograd, and
-        ///     #dnnl::algorithm::convolution_auto.
-        /// @param src_desc Source memory descriptor.
-        /// @param diff_weights_desc Diff weights memory descriptor.
-        /// @param diff_bias_desc Diff bias memory descriptor. Passing zero
-        ///     memory descriptor disables the bias term.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        /// @param strides Strides for each spatial dimension.
-        /// @param dilates Dilations for each spatial dimension. A zero value
-        ///     means no dilation in the corresponding dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_bias_desc,
-                const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &dilates, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_dilated_convolution_backward_weights_desc_init(&data,
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &diff_weights_desc.data, &diff_bias_desc.data,
-                            &diff_dst_desc.data, &strides[0], &dilates[0],
-                            &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a dilated convolution "
-                    "weights gradient primitive");
-        }
-
-        /// Constructs a descriptor for a dilated convolution weights gradient
-        /// primitive without bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
-        /// contain values for spatial dimensions only and hence must have the
-        /// same number of elements as there are spatial dimensions. The order
-        /// of values is the same as in the tensor: depth (for 3D tensors),
-        /// height (for 3D and 2D tensors), and width.
-        ///
-        /// @param aalgorithm Convolution algorithm. Possible values are
-        ///     #dnnl::algorithm::convolution_direct,
-        ///     #dnnl::algorithm::convolution_winograd, and
-        ///     #dnnl::algorithm::convolution_auto.
-        /// @param src_desc Source memory descriptor.
-        /// @param diff_weights_desc Diff weights memory descriptor.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        /// @param strides Strides for each spatial dimension.
-        /// @param dilates Dilations for each spatial dimension. A zero value
-        ///     means no dilation in the corresponding dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &dilates, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_dilated_convolution_backward_weights_desc_init(&data,
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &diff_weights_desc.data, nullptr,
-                            &diff_dst_desc.data, &strides[0], &dilates[0],
-                            &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a dilated convolution "
-                    "weights gradient primitive");
-        }
-    };
-
     /// Primitive descriptor for a convolution weights gradient primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
         /// Constructs a primitive descriptor for a convolution weights gradient
-        /// primitive.
+        ///     primitive with bias.
         ///
-        /// @param adesc Descriptor for a convolution weights gradient primitive.
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
+        /// for spatial dimensions only and hence must have the same number of
+        /// elements as there are spatial dimensions. The order of values is
+        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
+        /// and 2D tensors), and width.
+        ///
         /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a convolution forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
+        /// @param aalgorithm Convolution algorithm. Possible values are
+        ///     #dnnl::algorithm::convolution_direct,
+        ///     #dnnl::algorithm::convolution_winograd, and
+        ///     #dnnl::algorithm::convolution_auto.
+        /// @param src_desc Source memory descriptor.
+        /// @param diff_weights_desc Diff weights memory descriptor.
+        /// @param diff_bias_desc Diff bias memory descriptor. Passing zero
+        ///     memory descriptor disables the bias term.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Strides for each spatial dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param hint_fwd_pd Primitive descriptor for a convolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case
-        ///     an empty object will be produced. This flag is optional and
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &padding_l, const memory::dims &padding_r,
                 const convolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
+                    &diff_bias_desc, diff_dst_desc, strides, nullptr, padding_l,
+                    padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution weights gradient
-        /// primitive.
+        ///     primitive without bias.
         ///
-        /// @param adesc Descriptor for a convolution weights gradient primitive.
-        /// @param attr Primitive attributes to use.
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
+        /// for spatial dimensions only and hence must have the same number of
+        /// elements as there are spatial dimensions. The order of values is
+        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
+        /// and 2D tensors), and width.
+        ///
         /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a convolution forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
+        /// @param aalgorithm Convolution algorithm. Possible values are
+        ///     #dnnl::algorithm::convolution_direct,
+        ///     #dnnl::algorithm::convolution_winograd, and
+        ///     #dnnl::algorithm::convolution_auto.
+        /// @param src_desc Source memory descriptor.
+        /// @param diff_weights_desc Diff weights memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Strides for each spatial dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param hint_fwd_pd Primitive descriptor for a convolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case
-        ///     an empty object will be produced. This flag is optional and
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &padding_l, const memory::dims &padding_r,
                 const convolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
+                    nullptr, diff_dst_desc, strides, nullptr, padding_l,
+                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a dilated convolution weights
+        ///     gradient primitive with bias.
+        ///
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
+        /// contain values for spatial dimensions only and hence must have the
+        /// same number of elements as there are spatial dimensions. The order
+        /// of values is the same as in the tensor: depth (for 3D tensors),
+        /// height (for 3D and 2D tensors), and width.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aalgorithm Convolution algorithm. Possible values are
+        ///     #dnnl::algorithm::convolution_direct,
+        ///     #dnnl::algorithm::convolution_winograd, and
+        ///     #dnnl::algorithm::convolution_auto.
+        /// @param src_desc Source memory descriptor.
+        /// @param diff_weights_desc Diff weights memory descriptor.
+        /// @param diff_bias_desc Diff bias memory descriptor. Passing zero
+        ///     memory descriptor disables the bias term.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Strides for each spatial dimension.
+        /// @param dilates Dilations for each spatial dimension. A zero value
+        ///     means no dilation in the corresponding dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param hint_fwd_pd Primitive descriptor for a convolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const convolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
+                    &diff_bias_desc, diff_dst_desc, strides, &dilates,
+                    padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a dilated convolution weights
+        ///     gradient primitive without bias.
+        ///
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
+        /// contain values for spatial dimensions only and hence must have the
+        /// same number of elements as there are spatial dimensions. The order
+        /// of values is the same as in the tensor: depth (for 3D tensors),
+        /// height (for 3D and 2D tensors), and width.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aalgorithm Convolution algorithm. Possible values are
+        ///     #dnnl::algorithm::convolution_direct,
+        ///     #dnnl::algorithm::convolution_winograd, and
+        ///     #dnnl::algorithm::convolution_auto.
+        /// @param src_desc Source memory descriptor.
+        /// @param diff_weights_desc Diff weights memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Strides for each spatial dimension.
+        /// @param dilates Dilations for each spatial dimension. A zero value
+        ///     means no dilation in the corresponding dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param hint_fwd_pd Primitive descriptor for a convolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const convolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
+                    nullptr, diff_dst_desc, strides, &dilates, padding_l,
+                    padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution weights gradient
         /// primitive from a C API primitive descriptor that must have a
@@ -5653,6 +5623,40 @@ struct convolution_backward_weights : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
         memory::dims get_padding_r() const { return base::get_padding_r(); }
+
+    private:
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc *diff_bias_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims *dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const convolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr, bool allow_empty) {
+
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+
+            if (dilates)
+                memory::validate_dims(*dilates, src_desc.data.ndims - 2);
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_dilated_convolution_backward_weights_primitive_desc_create(
+                            &pd, aengine.get(), convert_to_c(aalgorithm),
+                            &src_desc.data, &diff_weights_desc.data,
+                            diff_bias_desc ? &diff_bias_desc->data : nullptr,
+                            &diff_dst_desc.data, &strides[0],
+                            dilates ? dilates->data() : nullptr, &padding_l[0],
+                            &padding_r[0], hint_fwd_pd.get(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "convolution weights update primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -5684,235 +5688,199 @@ struct convolution_backward_weights : public primitive {
 
 /// Deconvolution forward propagation primitive.
 struct deconvolution_forward : public primitive {
-    /// Descriptor for a deconvolution forward propagation primitive.
-    struct desc {
-        dnnl_deconvolution_desc_t data;
-
-        /// Constructs a descriptor for a deconvolution forward propagation
-        /// primitive with bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
-        /// for spatial dimensions only and hence must have the same number of
-        /// elements as there are spatial dimensions. The order of values is
-        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
-        /// and 2D tensors), and width.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param aalgorithm Deconvolution algorithm:
-        ///     #dnnl::algorithm::deconvolution_direct, and
-        ///     #dnnl::algorithm::deconvolution_winograd.
-        /// @param src_desc Source memory descriptor.
-        /// @param weights_desc Weights memory descriptor.
-        /// @param bias_desc Bias memory descriptor. Passing zero memory
-        ///     descriptor disables the bias term.
-        /// @param dst_desc Destination memory descriptor.
-        /// @param strides Vector of strides for spatial dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &bias_desc, const memory::desc &dst_desc,
-                const memory::dims &strides, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_deconvolution_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind),
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &weights_desc.data, &bias_desc.data, &dst_desc.data,
-                            &strides[0], &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a deconvolution forward "
-                    "propagation primitive");
-        }
-
-        /// Constructs a descriptor for a deconvolution forward propagation
-        /// primitive without bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
-        /// for spatial dimensions only and hence must have the same number of
-        /// elements as there are spatial dimensions. The order of values is
-        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
-        /// and 2D tensors), and width.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param aalgorithm Deconvolution algorithm:
-        ///     #dnnl::algorithm::deconvolution_direct, and
-        ///     #dnnl::algorithm::deconvolution_winograd.
-        /// @param src_desc Source memory descriptor.
-        /// @param weights_desc Weights memory descriptor.
-        /// @param dst_desc Destination memory descriptor.
-        /// @param strides Vector of strides for spatial dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &dst_desc, const memory::dims &strides,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_deconvolution_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind),
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &weights_desc.data, nullptr, &dst_desc.data,
-                            &strides[0], &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a deconvolution forward "
-                    "propagation primitive");
-        }
-
-        /// Constructs a descriptor for a dilated deconvolution forward
-        /// propagation primitive with bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
-        /// contain values for spatial dimensions only and hence must have the
-        /// same number of elements as there are spatial dimensions. The order
-        /// of values is the same as in the tensor: depth (for 3D tensors),
-        /// height (for 3D and 2D tensors), and width.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param aalgorithm Deconvolution algorithm:
-        ///     #dnnl::algorithm::deconvolution_direct, and
-        ///     #dnnl::algorithm::deconvolution_winograd.
-        /// @param src_desc Source memory descriptor.
-        /// @param weights_desc Weights memory descriptor.
-        /// @param bias_desc Bias memory descriptor. Passing zero memory
-        ///     descriptor disables the bias term.
-        /// @param dst_desc Destination memory descriptor.
-        /// @param strides Vector of strides for spatial dimension.
-        /// @param dilates Dilations for each spatial dimension. A zero value
-        ///     means no dilation in the corresponding dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &bias_desc, const memory::desc &dst_desc,
-                const memory::dims &strides, const memory::dims &dilates,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_dilated_deconvolution_forward_desc_init(
-                                      &data, dnnl::convert_to_c(aprop_kind),
-                                      convert_to_c(aalgorithm), &src_desc.data,
-                                      &weights_desc.data, &bias_desc.data,
-                                      &dst_desc.data, &strides[0], &dilates[0],
-                                      &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a dilated deconvolution "
-                    "forward propagation primitive");
-        }
-
-        /// Constructs a descriptor for a dilated deconvolution forward
-        /// propagation primitive without bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
-        /// contain values for spatial dimensions only and hence must have the
-        /// same number of elements as there are spatial dimensions. The order
-        /// of values is the same as in the tensor: depth (for 3D tensors),
-        /// height (for 3D and 2D tensors), and width.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param aalgorithm Deconvolution algorithm:
-        ///     #dnnl::algorithm::deconvolution_direct, and
-        ///     #dnnl::algorithm::deconvolution_winograd.
-        /// @param src_desc Source memory descriptor.
-        /// @param weights_desc Weights memory descriptor.
-        /// @param dst_desc Destination memory descriptor.
-        /// @param strides Vector of strides for spatial dimension.
-        /// @param dilates Dilations for each spatial dimension. A zero value
-        ///     means no dilation in the corresponding dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &dst_desc, const memory::dims &strides,
-                const memory::dims &dilates, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_dilated_deconvolution_forward_desc_init(
-                                      &data, dnnl::convert_to_c(aprop_kind),
-                                      convert_to_c(aalgorithm), &src_desc.data,
-                                      &weights_desc.data, nullptr,
-                                      &dst_desc.data, &strides[0], &dilates[0],
-                                      &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a dilated deconvolution "
-                    "forward propagation primitive");
-        }
-    };
-
     /// Primitive descriptor for a deconvolution forward propagation primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
         /// Constructs a primitive descriptor for a deconvolution forward
-        /// propagation primitive.
+        ///     propagation primitive with bias.
         ///
-        /// @param adesc Descriptor for a deconvolution forward propagation
-        ///     primitive.
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
+        /// for spatial dimensions only and hence must have the same number of
+        /// elements as there are spatial dimensions. The order of values is
+        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
+        /// and 2D tensors), and width.
+        ///
         /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm Deconvolution algorithm:
+        ///     #dnnl::algorithm::deconvolution_direct, and
+        ///     #dnnl::algorithm::deconvolution_winograd.
+        /// @param src_desc Source memory descriptor.
+        /// @param weights_desc Weights memory descriptor.
+        /// @param bias_desc Bias memory descriptor. Passing zero memory
+        ///     descriptor disables the bias term.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param strides Vector of strides for spatial dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &bias_desc,
+                const memory::desc &dst_desc, const memory::dims &strides,
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+            : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
+                    weights_desc, &bias_desc, dst_desc, strides, nullptr,
+                    padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution forward
-        /// propagation primitive.
+        ///     propagation primitive without bias.
         ///
-        /// @param adesc Descriptor for a deconvolution forward propagation
-        ///     primitive.
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
+        /// for spatial dimensions only and hence must have the same number of
+        /// elements as there are spatial dimensions. The order of values is
+        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
+        /// and 2D tensors), and width.
+        ///
         /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm Deconvolution algorithm:
+        ///     #dnnl::algorithm::deconvolution_direct, and
+        ///     #dnnl::algorithm::deconvolution_winograd.
+        /// @param src_desc Source memory descriptor.
+        /// @param weights_desc Weights memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param strides Vector of strides for spatial dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &dst_desc,
+                const memory::dims &strides, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
+                    weights_desc, nullptr, dst_desc, strides, nullptr,
+                    padding_l, padding_r, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a dilated deconvolution
+        ///     forward propagation primitive with bias.
+        ///
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
+        /// contain values for spatial dimensions only and hence must have the
+        /// same number of elements as there are spatial dimensions. The order
+        /// of values is the same as in the tensor: depth (for 3D tensors),
+        /// height (for 3D and 2D tensors), and width.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm Deconvolution algorithm:
+        ///     #dnnl::algorithm::deconvolution_direct, and
+        ///     #dnnl::algorithm::deconvolution_winograd.
+        /// @param src_desc Source memory descriptor.
+        /// @param weights_desc Weights memory descriptor.
+        /// @param bias_desc Bias memory descriptor. Passing zero memory
+        ///     descriptor disables the bias term.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param strides Vector of strides for spatial dimension.
+        /// @param dilates Dilations for each spatial dimension. A zero value
+        ///     means no dilation in the corresponding dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &bias_desc,
+                const memory::desc &dst_desc, const memory::dims &strides,
+                const memory::dims &dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
+                    weights_desc, &bias_desc, dst_desc, strides, &dilates,
+                    padding_l, padding_r, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a dilated deconvolution
+        ///     forward propagation primitive without bias.
+        ///
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
+        /// contain values for spatial dimensions only and hence must have the
+        /// same number of elements as there are spatial dimensions. The order
+        /// of values is the same as in the tensor: depth (for 3D tensors),
+        /// height (for 3D and 2D tensors), and width.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm Deconvolution algorithm:
+        ///     #dnnl::algorithm::deconvolution_direct, and
+        ///     #dnnl::algorithm::deconvolution_winograd.
+        /// @param src_desc Source memory descriptor.
+        /// @param weights_desc Weights memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param strides Vector of strides for spatial dimension.
+        /// @param dilates Dilations for each spatial dimension. A zero value
+        ///     means no dilation in the corresponding dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &dst_desc,
+                const memory::dims &strides, const memory::dims &dilates,
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
+                    weights_desc, nullptr, dst_desc, strides, &dilates,
+                    padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -5954,6 +5922,39 @@ struct deconvolution_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
         memory::dims get_padding_r() const { return base::get_padding_r(); }
+
+    private:
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc *bias_desc,
+                const memory::desc &dst_desc, const memory::dims &strides,
+                const memory::dims *dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r, const primitive_attr &attr,
+                bool allow_empty) {
+
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+
+            if (dilates)
+                memory::validate_dims(*dilates, src_desc.data.ndims - 2);
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_dilated_deconvolution_forward_primitive_desc_create(
+                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            convert_to_c(aalgorithm), &src_desc.data,
+                            &weights_desc.data,
+                            bias_desc ? &bias_desc->data : nullptr,
+                            &dst_desc.data, &strides[0],
+                            dilates ? dilates->data() : nullptr, &padding_l[0],
+                            &padding_r[0], attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "deconvolution forward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -5976,12 +5977,13 @@ struct deconvolution_forward : public primitive {
 
 /// Deconvolution backward propagation primitive.
 struct deconvolution_backward_data : public primitive {
-    /// Descriptor for a deconvolution backward propagation primitive.
-    struct desc {
-        dnnl_deconvolution_desc_t data;
+    /// Primitive descriptor for a deconvolution backward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for a deconvolution backward propagation
-        /// primitive.
+        /// Constructs a primitive descriptor for a deconvolution backward
+        ///     propagation primitive.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -5993,6 +5995,7 @@ struct deconvolution_backward_data : public primitive {
         /// the same as in the tensor: depth (for 3D tensors), height (for 3D
         /// and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aalgorithm Deconvolution algorithm
         ///     (#dnnl::algorithm::convolution_direct,
         ///     #dnnl::algorithm::convolution_winograd).
@@ -6004,24 +6007,29 @@ struct deconvolution_backward_data : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
+        /// @param hint_fwd_pd Primitive descriptor for a deconvolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_deconvolution_backward_data_desc_init(&data,
-                            convert_to_c(aalgorithm), &diff_src_desc.data,
-                            &weights_desc.data, &diff_dst_desc.data,
-                            &strides[0], &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a deconvolution "
-                    "backward propagation primitive");
-        }
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const deconvolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, diff_src_desc, weights_desc,
+                    diff_dst_desc, strides, nullptr, padding_l, padding_r,
+                    hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a descriptor for a dilated deconvolution backward
-        /// propagation primitive.
+        /// Constructs a primitive descriptor for a dilated deconvolution
+        ///     backward propagation primitive.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -6033,6 +6041,7 @@ struct deconvolution_backward_data : public primitive {
         /// of values is the same as in the tensor: depth (for 3D tensors),
         /// height (for 3D and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aalgorithm Deconvolution algorithm
         ///     (#dnnl::algorithm::convolution_direct,
         ///     #dnnl::algorithm::convolution_winograd).
@@ -6046,70 +6055,27 @@ struct deconvolution_backward_data : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
+        /// @param hint_fwd_pd Primitive descriptor for a deconvolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_dilated_deconvolution_backward_data_desc_init(&data,
-                            convert_to_c(aalgorithm), &diff_src_desc.data,
-                            &weights_desc.data, &diff_dst_desc.data,
-                            &strides[0], &dilates[0], &padding_l[0],
-                            &padding_r[0]),
-                    "could not create a descriptor for a dilated deconvolution "
-                    "backward propagation primitive");
-        }
-    };
-
-    /// Primitive descriptor for a deconvolution backward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a deconvolution backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a deconvolution backward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a deconvolution forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+                const memory::dims &padding_r,
                 const deconvolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
-
-        /// Constructs a primitive descriptor for a deconvolution backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a deconvolution backward propagation
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a deconvolution forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
-                const deconvolution_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aalgorithm, diff_src_desc, weights_desc,
+                    diff_dst_desc, strides, &dilates, padding_l, padding_r,
+                    hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -6147,6 +6113,38 @@ struct deconvolution_backward_data : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
         memory::dims get_padding_r() const { return base::get_padding_r(); }
+
+    private:
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims *dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const deconvolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr, bool allow_empty) {
+
+            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
+
+            if (dilates)
+                memory::validate_dims(*dilates, diff_src_desc.data.ndims - 2);
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
+                            &pd, aengine.get(), convert_to_c(aalgorithm),
+                            &diff_src_desc.data, &weights_desc.data,
+                            &diff_dst_desc.data, &strides[0],
+                            dilates ? dilates->data() : nullptr, &padding_l[0],
+                            &padding_r[0], hint_fwd_pd.get(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "deconvolution backward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6169,232 +6167,206 @@ struct deconvolution_backward_data : public primitive {
 
 /// Deconvolution weights gradient primitive.
 struct deconvolution_backward_weights : public primitive {
-    /// Descriptor for a deconvolution weights gradient primitive.
-    struct desc {
-        dnnl_deconvolution_desc_t data;
-
-        /// Constructs a descriptor for a deconvolution weights gradient
-        /// primitive with bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
-        /// for spatial dimensions only and hence must have the same number of
-        /// elements as there are spatial dimensions. The order of values is
-        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
-        /// and 2D tensors), and width.
-        ///
-        /// @param aalgorithm Deconvolution algorithm. Possible values are
-        ///     #dnnl::algorithm::deconvolution_direct, and
-        ///     #dnnl::algorithm::deconvolution_winograd.
-        /// @param src_desc Source memory descriptor.
-        /// @param diff_weights_desc Diff weights memory descriptor.
-        /// @param diff_bias_desc Diff bias memory descriptor. Passing zero
-        ///     memory descriptor disables the bias term.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        /// @param strides Strides for each spatial dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_bias_desc,
-                const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_deconvolution_backward_weights_desc_init(&data,
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &diff_weights_desc.data, &diff_bias_desc.data,
-                            &diff_dst_desc.data, &strides[0], &padding_l[0],
-                            &padding_r[0]),
-                    "could not create a descriptor for a deconvolution weights "
-                    "update primitive");
-        }
-
-        /// Constructs a descriptor for a deconvolution weights gradient
-        /// primitive without bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
-        /// for spatial dimensions only and hence must have the same number of
-        /// elements as there are spatial dimensions. The order of values is
-        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
-        /// and 2D tensors), and width.
-        ///
-        /// @param aalgorithm Deconvolution algorithm. Possible values are
-        ///     #dnnl::algorithm::deconvolution_direct, and
-        ///     #dnnl::algorithm::deconvolution_winograd.
-        /// @param src_desc Source memory descriptor.
-        /// @param diff_weights_desc Diff weights memory descriptor.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        /// @param strides Strides for each spatial dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_deconvolution_backward_weights_desc_init(
-                                      &data, convert_to_c(aalgorithm),
-                                      &src_desc.data, &diff_weights_desc.data,
-                                      nullptr, &diff_dst_desc.data, &strides[0],
-                                      &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a deconvolution weights "
-                    "update primitive");
-        }
-
-        /// Constructs a descriptor for a dilated deconvolution weights gradient
-        /// primitive with bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
-        /// contain values for spatial dimensions only and hence must have the
-        /// same number of elements as there are spatial dimensions. The order
-        /// of values is the same as in the tensor: depth (for 3D tensors),
-        /// height (for 3D and 2D tensors), and width.
-        ///
-        /// @param aalgorithm Deconvolution algorithm. Possible values are
-        ///     #dnnl::algorithm::deconvolution_direct, and
-        ///     #dnnl::algorithm::deconvolution_winograd.
-        /// @param src_desc Source memory descriptor.
-        /// @param diff_weights_desc Diff weights memory descriptor.
-        /// @param diff_bias_desc Diff bias memory descriptor. Passing zero
-        ///     memory descriptor disables the bias term.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        /// @param strides Strides for each spatial dimension.
-        /// @param dilates Dilations for each spatial dimension. A zero value
-        ///     means no dilation in the corresponding dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_bias_desc,
-                const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &dilates, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_dilated_deconvolution_backward_weights_desc_init(&data,
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &diff_weights_desc.data, &diff_bias_desc.data,
-                            &diff_dst_desc.data, &strides[0], &dilates[0],
-                            &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a dilated deconvolution "
-                    "weights gradient primitive");
-        }
-
-        /// Constructs a descriptor for a dilated deconvolution weights gradient
-        /// primitive without bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
-        /// contain values for spatial dimensions only and hence must have the
-        /// same number of elements as there are spatial dimensions. The order
-        /// of values is the same as in the tensor: depth (for 3D tensors),
-        /// height (for 3D and 2D tensors), and width.
-        ///
-        /// @param aalgorithm Deconvolution algorithm. Possible values are
-        ///     #dnnl::algorithm::deconvolution_direct, and
-        ///     #dnnl::algorithm::deconvolution_winograd.
-        /// @param src_desc Source memory descriptor.
-        /// @param diff_weights_desc Diff weights memory descriptor.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        /// @param strides Strides for each spatial dimension.
-        /// @param dilates Dilations for each spatial dimension. A zero value
-        ///     means no dilation in the corresponding dimension.
-        /// @param padding_l Vector of padding values for low indices for each
-        ///     spatial dimension `([[front,] top,] left)`.
-        /// @param padding_r Vector of padding values for high indices for
-        ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_dst_desc, const memory::dims &strides,
-                const memory::dims &dilates, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(dilates, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_dilated_deconvolution_backward_weights_desc_init(&data,
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &diff_weights_desc.data, nullptr,
-                            &diff_dst_desc.data, &strides[0], &dilates[0],
-                            &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a dilated deconvolution "
-                    "weights gradient primitive");
-        }
-    };
-
     /// Primitive descriptor for a deconvolution weights gradient primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
         /// Constructs a primitive descriptor for a deconvolution weights
-        /// update primitive.
+        ///     gradient primitive with bias.
         ///
-        /// @param adesc Descriptor for a deconvolution weights gradient
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a deconvolution forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception.  In this case
-        ///     an empty object will be produced.  This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                const deconvolution_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
-
-        /// Constructs a primitive descriptor for a deconvolution weights
-        /// update primitive.
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
-        /// @param adesc Descriptor for a deconvolution weights gradient
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
+        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
+        /// for spatial dimensions only and hence must have the same number of
+        /// elements as there are spatial dimensions. The order of values is
+        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
+        /// and 2D tensors), and width.
+        ///
         /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a deconvolution forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
+        /// @param aalgorithm Deconvolution algorithm. Possible values are
+        ///     #dnnl::algorithm::deconvolution_direct, and
+        ///     #dnnl::algorithm::deconvolution_winograd.
+        /// @param src_desc Source memory descriptor.
+        /// @param diff_weights_desc Diff weights memory descriptor.
+        /// @param diff_bias_desc Diff bias memory descriptor. Passing zero
+        ///     memory descriptor disables the bias term.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Strides for each spatial dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param hint_fwd_pd Primitive descriptor for a deconvolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &padding_l, const memory::dims &padding_r,
                 const deconvolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
+                    &diff_bias_desc, diff_dst_desc, strides, nullptr, padding_l,
+                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a deconvolution weights
+        ///     gradient primitive without bias.
+        ///
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p padding_l, and @p padding_r contain values
+        /// for spatial dimensions only and hence must have the same number of
+        /// elements as there are spatial dimensions. The order of values is
+        /// the same as in the tensor: depth (for 3D tensors), height (for 3D
+        /// and 2D tensors), and width.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aalgorithm Deconvolution algorithm. Possible values are
+        ///     #dnnl::algorithm::deconvolution_direct, and
+        ///     #dnnl::algorithm::deconvolution_winograd.
+        /// @param src_desc Source memory descriptor.
+        /// @param diff_weights_desc Diff weights memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Strides for each spatial dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param hint_fwd_pd Primitive descriptor for a deconvolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const deconvolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
+                    nullptr, diff_dst_desc, strides, nullptr, padding_l,
+                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a dilated deconvolution
+        ///     weights gradient primitive with bias.
+        ///
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
+        /// contain values for spatial dimensions only and hence must have the
+        /// same number of elements as there are spatial dimensions. The order
+        /// of values is the same as in the tensor: depth (for 3D tensors),
+        /// height (for 3D and 2D tensors), and width.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aalgorithm Deconvolution algorithm. Possible values are
+        ///     #dnnl::algorithm::deconvolution_direct, and
+        ///     #dnnl::algorithm::deconvolution_winograd.
+        /// @param src_desc Source memory descriptor.
+        /// @param diff_weights_desc Diff weights memory descriptor.
+        /// @param diff_bias_desc Diff bias memory descriptor. Passing zero
+        ///     memory descriptor disables the bias term.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Strides for each spatial dimension.
+        /// @param dilates Dilations for each spatial dimension. A zero value
+        ///     means no dilation in the corresponding dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param hint_fwd_pd Primitive descriptor for a deconvolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const deconvolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
+                    &diff_bias_desc, diff_dst_desc, strides, &dilates,
+                    padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a dilated deconvolution
+        ///     weights gradient primitive without bias.
+        ///
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r
+        /// contain values for spatial dimensions only and hence must have the
+        /// same number of elements as there are spatial dimensions. The order
+        /// of values is the same as in the tensor: depth (for 3D tensors),
+        /// height (for 3D and 2D tensors), and width.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aalgorithm Deconvolution algorithm. Possible values are
+        ///     #dnnl::algorithm::deconvolution_direct, and
+        ///     #dnnl::algorithm::deconvolution_winograd.
+        /// @param src_desc Source memory descriptor.
+        /// @param diff_weights_desc Diff weights memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Strides for each spatial dimension.
+        /// @param dilates Dilations for each spatial dimension. A zero value
+        ///     means no dilation in the corresponding dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        /// @param hint_fwd_pd Primitive descriptor for a deconvolution
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const deconvolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
+                    nullptr, diff_dst_desc, strides, &dilates, padding_l,
+                    padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution weights
         /// gradient primitive from a C API primitive descriptor that must
@@ -6439,6 +6411,40 @@ struct deconvolution_backward_weights : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
         memory::dims get_padding_r() const { return base::get_padding_r(); }
+
+    private:
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc *diff_bias_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims *dilates, const memory::dims &padding_l,
+                const memory::dims &padding_r,
+                const deconvolution_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr, bool allow_empty) {
+
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+
+            if (dilates)
+                memory::validate_dims(*dilates, src_desc.data.ndims - 2);
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_dilated_deconvolution_backward_weights_primitive_desc_create(
+                            &pd, aengine.get(), convert_to_c(aalgorithm),
+                            &src_desc.data, &diff_weights_desc.data,
+                            diff_bias_desc ? &diff_bias_desc->data : nullptr,
+                            &diff_dst_desc.data, &strides[0],
+                            dilates ? dilates->data() : nullptr, &padding_l[0],
+                            &padding_r[0], hint_fwd_pd.get(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "deconvolution weights update primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.

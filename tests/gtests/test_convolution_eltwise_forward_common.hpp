@@ -248,16 +248,15 @@ protected:
         dnnl::primitive_attr attr;
         attr.set_post_ops(ops);
 
-        auto conv_desc = with_bias
-                ? convolution_forward::desc(prop_kind::forward_scoring,
-                        p.aalgorithm, c_src_desc, c_weights_desc, c_bias_desc,
-                        c_dst_desc, strides, dilations, padL, padR)
-                : convolution_forward::desc(prop_kind::forward_scoring,
-                        p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
-                        strides, dilations, padL, padR);
-
-        auto conv_primitive_desc
-                = convolution_forward::primitive_desc(conv_desc, attr, eng);
+        auto conv_primitive_desc = with_bias
+                ? convolution_forward::primitive_desc(eng,
+                        prop_kind::forward_scoring, p.aalgorithm, c_src_desc,
+                        c_weights_desc, c_bias_desc, c_dst_desc, strides,
+                        dilations, padL, padR, attr)
+                : convolution_forward::primitive_desc(eng,
+                        prop_kind::forward_scoring, p.aalgorithm, c_src_desc,
+                        c_weights_desc, c_dst_desc, strides, dilations, padL,
+                        padR, attr);
 
         ASSERT_EQ(conv_primitive_desc.get_algorithm(), p.aalgorithm);
         ASSERT_EQ(conv_primitive_desc.get_prop_kind(),

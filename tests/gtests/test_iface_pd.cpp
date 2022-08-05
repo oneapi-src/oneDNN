@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,10 +36,11 @@ TEST_F(pd_test_t, ConvTestNotEmpty) {
     bool is_empty = false;
 
     try {
-        auto pd = convolution_forward::primitive_desc {
-                {prop_kind::forward_inference, algorithm::convolution_direct,
-                        dat_md, wht_md, dat_md, {1, 1}, {0, 0}, {0, 0}},
-                e, false};
+        auto default_attr = primitive_attr();
+        auto pd = convolution_forward::primitive_desc {e,
+                prop_kind::forward_inference, algorithm::convolution_direct,
+                dat_md, wht_md, dat_md, {1, 1}, {0, 0}, {0, 0}, default_attr,
+                false};
         is_empty = pd.get(true) == nullptr; // not reached if !allow_empty
     } catch (error &) { no_exception = false; }
 
@@ -56,11 +57,10 @@ TEST_F(pd_test_t, ConvTestEmpty) {
         bool is_empty = false;
 
         try {
-            auto pd = convolution_forward::primitive_desc {
-                    {prop_kind::forward_inference,
-                            algorithm::convolution_direct, dat_md, wht_md,
-                            dat_md, {1, 1}, {0, 0}, {0, 0}},
-                    attrs, e, allow_empty};
+            auto pd = convolution_forward::primitive_desc {e,
+                    prop_kind::forward_inference, algorithm::convolution_direct,
+                    dat_md, wht_md, dat_md, {1, 1}, {0, 0}, {0, 0}, attrs,
+                    allow_empty};
             is_empty = pd.get(true) == nullptr; // not reached if !allow_empty
         } catch (error &) { no_exception = false; }
 

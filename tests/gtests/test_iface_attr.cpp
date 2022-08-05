@@ -509,13 +509,12 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusion) {
         memory::desc dat_md {{1024, 512, 64, 64}, dt, memory::format_tag::any};
         memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::any};
 
-        auto cd_desc = convolution_forward::desc(prop_kind::forward_inference,
-                algorithm::convolution_auto, dat_md, wht_md, dat_md, {1, 1},
-                {0, 0}, {0, 0});
-
         std::string impl_info_unfused;
 
-        auto pd = convolution_forward::primitive_desc(cd_desc, e);
+        auto pd = convolution_forward::primitive_desc(e,
+                prop_kind::forward_inference, algorithm::convolution_auto,
+                dat_md, wht_md, dat_md, {1, 1}, {0, 0}, {0, 0});
+
         ASSERT_NO_THROW(impl_info_unfused = pd.impl_info_str(););
 
         // skip if above unfused impl is not jitted.
@@ -531,7 +530,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusion) {
 
         std::string impl_info_fused;
 
-        pd = convolution_forward::primitive_desc(cd_desc, attr, e);
+        pd = convolution_forward::primitive_desc(e,
+                prop_kind::forward_inference, algorithm::convolution_auto,
+                dat_md, wht_md, dat_md, {1, 1}, {0, 0}, {0, 0}, attr);
         ASSERT_NO_THROW(impl_info_fused = pd.impl_info_str(););
 
         // Make sure ref fused impl is not deployed.
@@ -599,12 +600,14 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
     memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};
     memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::nchw};
     auto bin_desc = binary::desc(algorithm::binary_add, wht_md, wht_md, wht_md);
-    auto cd_desc = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_auto, dat_md, wht_md, dat_md, {1, 1}, {0, 0},
-            {0, 0});
     auto bin_pd = binary::primitive_desc(bin_desc, attr_s, eng);
-    auto cd_pd_os = convolution_forward::primitive_desc(cd_desc, attr_os, eng);
-    auto cd_pd_dw = convolution_forward::primitive_desc(cd_desc, attr_dw, eng);
+
+    auto cd_pd_os = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_auto, dat_md,
+            wht_md, dat_md, {1, 1}, {0, 0}, {0, 0}, attr_os);
+    auto cd_pd_dw = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_auto, dat_md,
+            wht_md, dat_md, {1, 1}, {0, 0}, {0, 0}, attr_dw);
     if (test_out_of_memory()) {
         attr_s = bin_pd.get_primitive_attr();
         attr_os = cd_pd_os.get_primitive_attr();

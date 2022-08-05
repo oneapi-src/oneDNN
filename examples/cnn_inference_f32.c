@@ -227,15 +227,11 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
             dnnl_f32, dnnl_format_tag_any));
 
     // create a convolution
-    dnnl_convolution_desc_t conv_any_desc;
-    CHECK(dnnl_convolution_forward_desc_init(&conv_any_desc, dnnl_forward,
-            dnnl_convolution_direct, &conv_src_md, &conv_weights_md,
-            &conv_bias_md, &conv_dst_md, conv_strides, conv_padding,
-            conv_padding));
-
     dnnl_primitive_desc_t conv_pd;
-    CHECK(dnnl_primitive_desc_create(
-            &conv_pd, &conv_any_desc, NULL, engine, NULL));
+    CHECK(dnnl_convolution_forward_primitive_desc_create(&conv_pd, engine,
+            dnnl_forward, dnnl_convolution_direct, &conv_src_md,
+            &conv_weights_md, &conv_bias_md, &conv_dst_md, conv_strides,
+            conv_padding, conv_padding, NULL));
 
     dnnl_memory_t conv_internal_src_memory, conv_internal_weights_memory,
             conv_internal_dst_memory;

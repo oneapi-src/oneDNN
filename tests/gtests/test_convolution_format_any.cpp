@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,12 +74,10 @@ protected:
         auto c_dst_desc
                 = create_md({cd.mb, cd.oc, cd.oh, cd.ow}, data_type, tag::any);
 
-        auto conv_desc = convolution_forward::desc(p.aprop_kind, p.aalgorithm,
-                c_src_desc, c_weights_desc, c_dst_desc, {cd.strh, cd.strw},
-                {cd.padh, cd.padw}, {cd.padh, cd.padw});
-
-        auto conv_prim_desc
-                = convolution_forward::primitive_desc(conv_desc, eng);
+        auto conv_prim_desc = convolution_forward::primitive_desc(eng,
+                p.aprop_kind, p.aalgorithm, c_src_desc, c_weights_desc,
+                c_dst_desc, {cd.strh, cd.strw}, {cd.padh, cd.padw},
+                {cd.padh, cd.padw});
 
         auto check_fmt = [&](const dnnl_memory_desc_t &md,
                                  data_fmt_t expected) {

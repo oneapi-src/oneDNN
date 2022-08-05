@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -188,19 +188,16 @@ protected:
         check_zero_tail<data_t_wei>(1, c_weights.get());
         check_zero_tail<data_t_diff_src>(1, c_diff_src.get());
 
-        auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
-                p.aalgorithm, c_src_desc_f, c_weights_desc, c_dst_desc_f,
-                {cd.strh, cd.strw}, {cd.dilh, cd.dilw}, {cd.padh, cd.padw},
-                padR);
-        auto conv_primitive_desc
-                = convolution_forward::primitive_desc(conv_desc, eng);
-
-        auto conv_bwd_data_desc = convolution_backward_data::desc(p.aalgorithm,
-                c_src_desc, c_weights_desc, c_dst_desc, {cd.strh, cd.strw},
+        auto conv_primitive_desc = convolution_forward::primitive_desc(eng,
+                prop_kind::forward_training, p.aalgorithm, c_src_desc_f,
+                c_weights_desc, c_dst_desc_f, {cd.strh, cd.strw},
                 {cd.dilh, cd.dilw}, {cd.padh, cd.padw}, padR);
+
         auto conv_bwd_data_primitive_desc
-                = convolution_backward_data::primitive_desc(
-                        conv_bwd_data_desc, eng, conv_primitive_desc);
+                = convolution_backward_data::primitive_desc(eng, p.aalgorithm,
+                        c_src_desc, c_weights_desc, c_dst_desc,
+                        {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
+                        {cd.padh, cd.padw}, padR, conv_primitive_desc);
         conv_bwd_data_primitive_desc
                 = convolution_backward_data::primitive_desc(
                         conv_bwd_data_primitive_desc

@@ -126,32 +126,44 @@ TEST_F(runtime_attr_test_t, TestConv) {
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::s32, tag::any};
-    convolution_forward::desc op_d(prop_kind::forward,
+
+    CHECK_OK(convolution_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
-            {1, 1}, {1, 1});
-    CHECK_OK(convolution_forward::primitive_desc(op_d, eng));
-    CHECK_OK(convolution_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(false), eng));
-    CHECK_OK(convolution_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(true), eng));
+            {1, 1}, {1, 1}));
+    CHECK_OK(convolution_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, gen_attr_with_oscale(false)));
+    CHECK_OK(convolution_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, gen_attr_with_oscale(true)));
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
         if ((src_md.data_type() == data_type::s8
                     || src_md.data_type() == data_type::u8)
                 && (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST)) {
-            CHECK_OK(convolution_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(false, arg), eng));
-            CHECK_OK(convolution_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(true, arg), eng));
+            CHECK_OK(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_zp(false, arg)));
+            CHECK_OK(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_zp(true, arg)));
         } else {
-            CHECK_UNIMPL(convolution_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(false, arg), eng));
-            CHECK_UNIMPL(convolution_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(true, arg), eng));
+            CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_zp(false, arg)));
+            CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_zp(true, arg)));
         }
-        CHECK_UNIMPL(convolution_forward::primitive_desc(
-                op_d, gen_attr_with_zp(false, arg, 1 << 1), eng));
+        CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                prop_kind::forward, algorithm::convolution_direct, src_md,
+                wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                gen_attr_with_zp(false, arg, 1 << 1)));
     }
 }
 
@@ -159,21 +171,24 @@ TEST_F(runtime_attr_test_t, TestDeconv) {
     memory::desc src_md {{1, 16, 7, 7}, data_type::f32, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::f32, tag::any};
-    deconvolution_forward::desc op_d(prop_kind::forward,
-            algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
-            {1, 1}, {1, 1});
     // TODO: add u8s8 combination to replace CHECK_UNIMPL with CHECK_OK below
-    CHECK_UNIMPL(deconvolution_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(false), eng));
-    CHECK_UNIMPL(deconvolution_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(true), eng));
+    CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, gen_attr_with_oscale(false)));
+    CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, gen_attr_with_oscale(true)));
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(deconvolution_forward::primitive_desc(
-                op_d, gen_attr_with_zp(false, arg), eng));
-        CHECK_UNIMPL(deconvolution_forward::primitive_desc(
-                op_d, gen_attr_with_zp(true, arg), eng));
+        CHECK_UNIMPL(
+                deconvolution_forward::primitive_desc(eng, prop_kind::forward,
+                        algorithm::deconvolution_direct, src_md, wei_md, dst_md,
+                        {1, 1}, {1, 1}, {1, 1}, gen_attr_with_zp(false, arg)));
+        CHECK_UNIMPL(
+                deconvolution_forward::primitive_desc(eng, prop_kind::forward,
+                        algorithm::deconvolution_direct, src_md, wei_md, dst_md,
+                        {1, 1}, {1, 1}, {1, 1}, gen_attr_with_zp(true, arg)));
     }
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,16 +26,12 @@ class persistent_cache_api_test_t : public ::testing::Test {};
 HANDLE_EXCEPTIONS_FOR_TEST(
         persistent_cache_api_test_t, TestPersistentCacheAPI) {
     engine e = get_test_engine();
-    auto pd = convolution_forward::primitive_desc {
-            {prop_kind::forward_training, algorithm::convolution_direct,
-                    {{2, 16, 16, 16}, memory::data_type::f32,
-                            memory::format_tag::nchw},
-                    {{16, 16, 3, 3}, memory::data_type::f32,
-                            memory::format_tag::oihw},
-                    {{2, 16, 14, 14}, memory::data_type::f32,
-                            memory::format_tag::nchw},
-                    {1, 1}, {0, 0}, {0, 0}},
-            e};
+    auto pd = convolution_forward::primitive_desc {e,
+            prop_kind::forward_training, algorithm::convolution_direct,
+            {{2, 16, 16, 16}, memory::data_type::f32, memory::format_tag::nchw},
+            {{16, 16, 3, 3}, memory::data_type::f32, memory::format_tag::oihw},
+            {{2, 16, 14, 14}, memory::data_type::f32, memory::format_tag::nchw},
+            {1, 1}, {0, 0}, {0, 0}};
     auto p = convolution_forward(pd);
 
     std::vector<uint8_t> cache_blob_id;

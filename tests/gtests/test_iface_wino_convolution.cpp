@@ -81,30 +81,26 @@ TEST_F(wino_conv_test_t, TestSmallPadding) {
         memory::desc src_md {{1, 16, 7, 7}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 3, 3}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 7, 7}, input.dat_dt, tag::any};
-        auto fwd_op_desc = convolution_forward::desc(prop_kind::forward,
-                algorithm::convolution_winograd, src_md, wei_md, dst_md, {1, 1},
-                {1, 1}, {1, 1});
 
         if (input.wino_supported) {
+            convolution_forward::primitive_desc fwd_hint;
             EXPECT_NO_THROW(
-                    convolution_forward::primitive_desc(fwd_op_desc, eng));
+                    fwd_hint = convolution_forward::primitive_desc(eng,
+                            prop_kind::forward, algorithm::convolution_winograd,
+                            src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
             if (input.backward_supported) {
-                auto bwdd_op_desc = convolution_backward_data::desc(
+                EXPECT_NO_THROW(convolution_backward_data::primitive_desc(eng,
                         algorithm::convolution_winograd, src_md, wei_md, dst_md,
-                        {1, 1}, {1, 1}, {1, 1});
-                auto bwdw_op_desc = convolution_backward_weights::desc(
-                        algorithm::convolution_winograd, src_md, wei_md, dst_md,
-                        {1, 1}, {1, 1}, {1, 1});
-                EXPECT_NO_THROW(convolution_backward_data::primitive_desc(
-                        bwdd_op_desc, eng,
-                        convolution_forward::primitive_desc(fwd_op_desc, eng)));
+                        {1, 1}, {1, 1}, {1, 1}, fwd_hint));
+
                 EXPECT_NO_THROW(convolution_backward_weights::primitive_desc(
-                        bwdw_op_desc, eng,
-                        convolution_forward::primitive_desc(fwd_op_desc, eng)));
+                        eng, algorithm::convolution_winograd, src_md, wei_md,
+                        dst_md, {1, 1}, {1, 1}, {1, 1}, fwd_hint));
             }
         } else {
-            EXPECT_ANY_THROW(
-                    convolution_forward::primitive_desc(fwd_op_desc, eng));
+            EXPECT_ANY_THROW(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_winograd, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
         }
     }
 }
@@ -118,18 +114,17 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
         memory::desc src_md {{1, 16, 7, 7}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 3, 3}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 9, 9}, input.dat_dt, tag::any};
-        auto fwd_op_desc = convolution_forward::desc(prop_kind::forward,
-                algorithm::convolution_winograd, src_md, wei_md, dst_md, {1, 1},
-                {2, 2}, {2, 2});
 
         bool large_pad_is_supported
                 = (get_test_engine_kind() == engine::kind::gpu);
         if (input.wino_supported && large_pad_is_supported) {
-            EXPECT_NO_THROW(
-                    convolution_forward::primitive_desc(fwd_op_desc, eng));
+            EXPECT_NO_THROW(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_winograd, src_md,
+                    wei_md, dst_md, {1, 1}, {2, 2}, {2, 2}));
         } else {
-            EXPECT_ANY_THROW(
-                    convolution_forward::primitive_desc(fwd_op_desc, eng));
+            EXPECT_ANY_THROW(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_winograd, src_md,
+                    wei_md, dst_md, {1, 1}, {2, 2}, {2, 2}));
         }
     }
 }
@@ -143,11 +138,10 @@ TEST_F(wino_conv_test_t, TestUnsupportedKernel) {
         memory::desc src_md {{1, 16, 5, 5}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 2, 2}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 6, 6}, input.dat_dt, tag::any};
-        auto fwd_op_desc = convolution_forward::desc(prop_kind::forward,
-                algorithm::convolution_winograd, src_md, wei_md, dst_md, {1, 1},
-                {1, 1}, {1, 1});
 
-        EXPECT_ANY_THROW(convolution_forward::primitive_desc(fwd_op_desc, eng));
+        EXPECT_ANY_THROW(convolution_forward::primitive_desc(eng,
+                prop_kind::forward, algorithm::convolution_winograd, src_md,
+                wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
     }
 }
 

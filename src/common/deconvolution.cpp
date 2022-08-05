@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
@@ -119,70 +121,106 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
 }
 } // namespace
 
-status_t dnnl_deconvolution_forward_desc_init(deconvolution_desc_t *deconv_desc,
+status_t dnnl_deconvolution_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
-        const dims_t strides, const dims_t padding_l, const dims_t padding_r) {
+        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
+        const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return deconv_desc_init(deconv_desc, prop_kind, alg_kind, src_desc,
+
+    auto deconv_desc = deconvolution_desc_t();
+    CHECK(deconv_desc_init(&deconv_desc, prop_kind, alg_kind, src_desc,
             weights_desc, bias_desc, dst_desc, strides, nullptr, padding_l,
-            padding_r);
+            padding_r));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&deconv_desc, nullptr, attr);
 }
 
-status_t dnnl_dilated_deconvolution_forward_desc_init(
-        deconvolution_desc_t *deconv_desc, prop_kind_t prop_kind,
-        alg_kind_t alg_kind, const memory_desc_t *src_desc,
-        const memory_desc_t *weights_desc, const memory_desc_t *bias_desc,
-        const memory_desc_t *dst_desc, const dims_t strides,
-        const dims_t dilates, const dims_t padding_l, const dims_t padding_r) {
+status_t dnnl_dilated_deconvolution_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        prop_kind_t prop_kind, alg_kind_t alg_kind,
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
+        const dims_t strides, const dims_t dilates, const dims_t padding_l,
+        const dims_t padding_r, const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return deconv_desc_init(deconv_desc, prop_kind, alg_kind, src_desc,
+
+    auto deconv_desc = deconvolution_desc_t();
+    CHECK(deconv_desc_init(&deconv_desc, prop_kind, alg_kind, src_desc,
             weights_desc, bias_desc, dst_desc, strides, dilates, padding_l,
-            padding_r);
+            padding_r));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&deconv_desc, nullptr, attr);
 }
 
-status_t dnnl_deconvolution_backward_data_desc_init(
-        deconvolution_desc_t *deconv_desc, alg_kind_t alg_kind,
-        const memory_desc_t *diff_src_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *diff_dst_desc, const dims_t strides,
-        const dims_t padding_l, const dims_t padding_r) {
-    return deconv_desc_init(deconv_desc, backward_data, alg_kind, diff_src_desc,
+status_t dnnl_deconvolution_backward_data_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc,
+        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto deconv_desc = deconvolution_desc_t();
+    CHECK(deconv_desc_init(&deconv_desc, backward_data, alg_kind, diff_src_desc,
             weights_desc, nullptr, diff_dst_desc, strides, nullptr, padding_l,
-            padding_r);
+            padding_r));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&deconv_desc, hint_fwd_pd, attr);
 }
 
-status_t dnnl_dilated_deconvolution_backward_data_desc_init(
-        deconvolution_desc_t *deconv_desc, alg_kind_t alg_kind,
-        const memory_desc_t *diff_src_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *diff_dst_desc, const dims_t strides,
-        const dims_t dilates, const dims_t padding_l, const dims_t padding_r) {
-    return deconv_desc_init(deconv_desc, backward_data, alg_kind, diff_src_desc,
+status_t dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc,
+        const dims_t strides, const dims_t dilates, const dims_t padding_l,
+        const dims_t padding_r, const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto deconv_desc = deconvolution_desc_t();
+    CHECK(deconv_desc_init(&deconv_desc, backward_data, alg_kind, diff_src_desc,
             weights_desc, nullptr, diff_dst_desc, strides, dilates, padding_l,
-            padding_r);
+            padding_r));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&deconv_desc, hint_fwd_pd, attr);
 }
 
-status_t dnnl_deconvolution_backward_weights_desc_init(
-        deconvolution_desc_t *deconv_desc, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
+status_t dnnl_deconvolution_backward_weights_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *diff_weights_desc,
         const memory_desc_t *diff_bias_desc, const memory_desc_t *diff_dst_desc,
-        const dims_t strides, const dims_t padding_l, const dims_t padding_r) {
-    return deconv_desc_init(deconv_desc, backward_weights, alg_kind, src_desc,
+        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto deconv_desc = deconvolution_desc_t();
+    CHECK(deconv_desc_init(&deconv_desc, backward_weights, alg_kind, src_desc,
             diff_weights_desc, diff_bias_desc, diff_dst_desc, strides, nullptr,
-            padding_l, padding_r);
+            padding_l, padding_r));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&deconv_desc, hint_fwd_pd, attr);
 }
 
-status_t dnnl_dilated_deconvolution_backward_weights_desc_init(
-        deconvolution_desc_t *deconv_desc, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
+status_t dnnl_dilated_deconvolution_backward_weights_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *diff_weights_desc,
         const memory_desc_t *diff_bias_desc, const memory_desc_t *diff_dst_desc,
         const dims_t strides, const dims_t dilates, const dims_t padding_l,
-        const dims_t padding_r) {
-    return deconv_desc_init(deconv_desc, backward_weights, alg_kind, src_desc,
+        const dims_t padding_r, const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto deconv_desc = deconvolution_desc_t();
+    CHECK(deconv_desc_init(&deconv_desc, backward_weights, alg_kind, src_desc,
             diff_weights_desc, diff_bias_desc, diff_dst_desc, strides, dilates,
-            padding_l, padding_r);
+            padding_l, padding_r));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&deconv_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

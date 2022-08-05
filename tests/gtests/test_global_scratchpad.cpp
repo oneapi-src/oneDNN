@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,11 +57,9 @@ struct conv_ctx_t {
         c_.wei_md = memory::desc(wei_dims, dt::f32, tag::any);
         c_.dst_md = memory::desc(dst_dims, dt::f32, tag::any);
 
-        auto desc = convolution_forward::desc(prop_kind::forward,
+        c_.pd = convolution_forward::primitive_desc(eng_, prop_kind::forward,
                 algorithm::convolution_direct, c_.src_md, c_.wei_md, c_.dst_md,
                 strides_dims, dilations_dims, padding_left, padding_right);
-
-        c_.pd = convolution_forward::primitive_desc(desc, eng_);
 
         c_.src_mem = test::make_memory(c_.pd.src_desc(), eng_);
         c_.wei_mem = test::make_memory(c_.pd.weights_desc(), eng_);

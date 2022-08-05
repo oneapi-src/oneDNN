@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,13 +36,12 @@ TEST_F(handle_test_t, TestHandleConstructorsAndOperators) {
     ASSERT_TRUE((dnnl_primitive_desc_t)pd == nullptr);
 
     // Dummy descriptor just to be able to create a pd
-    auto d = convolution_forward::desc(prop_kind::forward_inference,
+    pd = convolution_forward::primitive_desc(e, prop_kind::forward_inference,
             algorithm::convolution_direct,
             {{1, 16, 7, 7}, memory::data_type::f32, memory::format_tag::any},
             {{16, 16, 1, 1}, memory::data_type::f32, memory::format_tag::any},
             {{1, 16, 7, 7}, memory::data_type::f32, memory::format_tag::any},
             {1, 1}, {0, 0}, {0, 0});
-    pd = convolution_forward::primitive_desc(d, e);
 
     // Copy from pd to pd1
     auto pd1 = pd;

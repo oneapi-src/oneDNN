@@ -168,13 +168,6 @@ void conv_relu_naive(const memory &user_src, const memory &user_wei,
     auto conv_dst_md = memory::desc(user_dst.get_desc());
     // [Create mem_desc]
     /// @page performance_profiling_cpp
-    /// @snippet performance_profiling.cpp Create conv_desc
-    // [Create conv_desc]
-    // create a convolution descriptor
-    auto conv_d = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_direct, conv_src_md, conv_wei_md,
-            conv_dst_md, strides, padding, padding);
-    // [Create conv_desc]
     /// Next the program creates a convolution primitive descriptor `conv_pd`
     /// and convolution primitive `conv`. These structs will inherit
     /// NCHW format from `md` by way of the `conv_d`. Finally it creates
@@ -184,7 +177,9 @@ void conv_relu_naive(const memory &user_src, const memory &user_wei,
     /// @snippet performance_profiling.cpp Create conv_prim_desc
     // [Create conv_prim_desc]
     // create a convolution primitive descriptor
-    auto conv_pd = convolution_forward::primitive_desc(conv_d, eng);
+    auto conv_pd = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_direct,
+            conv_src_md, conv_wei_md, conv_dst_md, strides, padding, padding);
     // [Create conv_prim_desc]
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Create conv_primitive
@@ -259,14 +254,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     conv_wei_md.data.format_kind = dnnl_format_kind_any;
     conv_dst_md.data.format_kind = dnnl_format_kind_any;
     // [Create mem_desc with tag=any]
-    /// @page performance_profiling_cpp
-    /// @snippet performance_profiling.cpp Create conv_desc implementation2
-    // [Create conv_desc implementation2]
-    // create a convolution descriptor
-    auto conv_d = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_direct, conv_src_md, conv_wei_md,
-            conv_dst_md, strides, padding, padding);
-    // [Create conv_desc implementation2]
+
     /// Next the program creates a convolution primitive descriptor conv_pd and
     /// convolution primitive conv as in naive implementation.
     /// However, in this implementation the structs will inherit blocked format
@@ -275,7 +263,9 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// @snippet performance_profiling.cpp Create conv_prim_desc implementation2
     // [Create conv_prim_desc implementation2]
     // create a convolution primitive descriptor and primitive
-    auto conv_pd = convolution_forward::primitive_desc(conv_d, eng);
+    auto conv_pd = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_direct,
+            conv_src_md, conv_wei_md, conv_dst_md, strides, padding, padding);
     // [Create conv_prim_desc implementation2]
     /// Since the resulting convolution primitive will expect
     /// blocked source data, conditional reorders are inserted to convert
@@ -391,10 +381,6 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     conv_wei_md.data.format_kind = dnnl_format_kind_any;
     conv_dst_md.data.format_kind = dnnl_format_kind_any;
 
-    // create a convolution descriptor
-    auto conv_d = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_direct, conv_src_md, conv_wei_md,
-            conv_dst_md, strides, padding, padding);
     /// Then in preparation for the convolution prim desctiptor, a ReLU post-op
     /// is built and added to the primitive attribute `attr`:
     /// @page performance_profiling_cpp
@@ -409,7 +395,10 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     auto attr = create_attr_with_relu_post_op();
 
     // create a convolution primitive descriptor
-    auto conv_pd = convolution_forward::primitive_desc(conv_d, attr, eng);
+    auto conv_pd = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_direct,
+            conv_src_md, conv_wei_md, conv_dst_md, strides, padding, padding,
+            attr);
     // [Create prim_desc with attr]
     /// Then conditional reorders are applied as in *blocked format
     /// implementation* to convert `user_` format NCHW to blocked. Finally, it

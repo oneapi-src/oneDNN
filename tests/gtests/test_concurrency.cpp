@@ -203,14 +203,15 @@ public:
         auto src_md = memory::desc(src_dims, dt::f32, tag::nhwc);
         auto wei_md = memory::desc(wei_dims, dt::f32, tag::oihw);
         auto dst_md = memory::desc(dst_dims, dt::f32, tag::nhwc);
-        auto desc = convolution_forward::desc(prop_kind::forward_training,
-                algorithm::convolution_direct, src_md, wei_md, memory::desc(),
-                dst_md, strides, padding_l, padding_r);
 
         primitive_attr attr;
         attr.set_scratchpad_mode(scratchpad_mode::user);
 
-        pd_ = convolution_forward::primitive_desc(desc, attr, eng_);
+        pd_ = convolution_forward::primitive_desc(eng_,
+                prop_kind::forward_training, algorithm::convolution_direct,
+                src_md, wei_md, memory::desc(), dst_md, strides, padding_l,
+                padding_r, attr);
+
         prim_ = create_primitive<convolution_forward>(pd_);
 
         size_t sz = pd_.scratchpad_desc().get_size();

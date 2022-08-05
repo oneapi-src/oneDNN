@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include "gpu/ocl/convolution_inner_product.hpp"
-
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/reorder.hpp"
 
 using namespace dnnl::impl::memory_tracking;
@@ -74,9 +74,9 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
     dim_t padding_r[] = {0, 0, 0};
 
     alg_kind_t alg = alg_kind::convolution_direct;
-    CHECK(dnnl_convolution_forward_desc_init(&cd, ipd.prop_kind, alg,
-            &conv_src_md, &conv_wei_md, invariant_bia_md(), &conv_dst_md,
-            &strides[0], &padding[0], &padding_r[0]));
+    CHECK(conv_desc_init(&cd, ipd.prop_kind, alg, &conv_src_md, &conv_wei_md,
+            invariant_bia_md(), &conv_dst_md, &strides[0], nullptr, &padding[0],
+            &padding_r[0]));
 
     primitive_attr_t conv_attr(*attr());
     if (!conv_attr.is_initialized()) return status::out_of_memory;

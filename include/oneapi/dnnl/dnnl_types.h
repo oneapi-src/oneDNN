@@ -1912,59 +1912,6 @@ typedef const void *const_dnnl_op_desc_t;
 /// @addtogroup dnnl_api_primitives
 /// @{
 
-/// @addtogroup dnnl_api_convolution
-/// @{
-
-/// A descriptor of a convolution operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_convolution.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward_data,
-    /// #dnnl_backward_weights, and #dnnl_backward_bias.
-    dnnl_prop_kind_t prop_kind;
-    /// The kind of the convolution algorithm. Possible values:
-    /// #dnnl_convolution_direct.
-    dnnl_alg_kind_t alg_kind;
-    /// Source memory descriptor.
-    dnnl_memory_desc_t src_desc;
-    /// Source gradient memory descriptor.
-    dnnl_memory_desc_t diff_src_desc;
-    /// Weights memory descriptor.
-    dnnl_memory_desc_t weights_desc;
-    /// Weights gradient memory descriptor.
-    dnnl_memory_desc_t diff_weights_desc;
-    /// Bias memory descriptor.
-    dnnl_memory_desc_t bias_desc;
-    /// Bias gradient memory descriptor.
-    dnnl_memory_desc_t diff_bias_desc;
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-    /// Destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_dst_desc;
-    /// Convolution strides in each spatial dimension.
-    dnnl_dims_t strides;
-    /// Convolution dilates in each spatial dimension.
-    dnnl_dims_t dilates;
-    /// Padding in each spatial dimension. padding[0] is a padding in the
-    /// beginning (@p padding_l), padding[1] is a padding in the end (@p
-    /// padding_r).
-    dnnl_dims_t padding[2];
-    /// The accumulator data type. Initialized automatically.
-    dnnl_data_type_t accum_data_type;
-} dnnl_convolution_desc_t;
-
-/// @} dnnl_api_convolution
-
-/// @addtogroup dnnl_api_deconvolution
-/// @{
-
-/// A descriptor of a deconvolution operation.
-typedef dnnl_convolution_desc_t dnnl_deconvolution_desc_t;
-
-/// @} dnnl_api_deconvolution
-
 /// @addtogroup dnnl_api_shuffle
 /// @{
 

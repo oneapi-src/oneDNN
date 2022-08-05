@@ -336,8 +336,6 @@ int fill_dst(
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_convolution_desc_t cd;
-
     auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
             prb->get_dt_conf(SRC).dt, normalize_tag(prb->stag, prb->ndims));
     auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
@@ -352,38 +350,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     if (prb->alg == WINO) alg = dnnl_convolution_winograd;
     if (prb->alg == AUTO) alg = dnnl_convolution_auto;
 
-    switch (prb->dir) {
-        case FWD_D:
-        case FWD_B:
-        case FWD_I:
-            DNN_SAFE_STATUS(dnnl_dilated_convolution_forward_desc_init(&cd,
-                    prb->dir == FWD_I ? dnnl_forward_inference
-                                      : dnnl_forward_training,
-                    alg, &src_d, &wei_d, prb->dir == FWD_B ? &bia_d : nullptr,
-                    &dst_d, prb->strides().data(), prb->dilations().data(),
-                    prb->padding().data(), prb->padding_r().data()));
-            break;
-        case BWD_D:
-            DNN_SAFE_STATUS(dnnl_dilated_convolution_backward_data_desc_init(
-                    &cd, alg, &src_d, &wei_d, &dst_d, prb->strides().data(),
-                    prb->dilations().data(), prb->padding().data(),
-                    prb->padding_r().data()));
-            break;
-        case BWD_W:
-        case BWD_WB:
-            DNN_SAFE_STATUS(dnnl_dilated_convolution_backward_weights_desc_init(
-                    &cd, alg, &src_d, &wei_d,
-                    prb->dir == BWD_W ? nullptr : &bia_d, &dst_d,
-                    prb->strides().data(), prb->dilations().data(),
-                    prb->padding().data(), prb->padding_r().data()));
-            break;
-        default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
-    }
-
-    DNN_SAFE_STATUS(cd.accum_data_type == prb->get_dt_conf(ACC).dt
-                    ? dnnl_success
-                    : dnnl_unimplemented);
-
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
     attr_args.prepare_post_ops_mds(
@@ -391,8 +357,49 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &cd, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    switch (prb->dir) {
+        case FWD_D:
+        case FWD_B:
+        case FWD_I:
+            DNN_SAFE_STATUS(
+                    dnnl_dilated_convolution_forward_primitive_desc_create(
+                            &init_pd_args.pd, init_pd_args.engine,
+                            prb->dir == FWD_I ? dnnl_forward_inference
+                                              : dnnl_forward_training,
+                            alg, &src_d, &wei_d,
+                            prb->dir == FWD_B ? &bia_d : nullptr, &dst_d,
+                            prb->strides().data(), prb->dilations().data(),
+                            prb->padding().data(), prb->padding_r().data(),
+                            dnnl_attr));
+            break;
+        case BWD_D:
+            DNN_SAFE_STATUS(
+                    dnnl_dilated_convolution_backward_data_primitive_desc_create(
+                            &init_pd_args.pd, init_pd_args.engine, alg, &src_d,
+                            &wei_d, &dst_d, prb->strides().data(),
+                            prb->dilations().data(), prb->padding().data(),
+                            prb->padding_r().data(), init_pd_args.hint,
+                            dnnl_attr));
+            break;
+        case BWD_W:
+        case BWD_WB:
+            DNN_SAFE_STATUS(
+                    dnnl_dilated_convolution_backward_weights_primitive_desc_create(
+                            &init_pd_args.pd, init_pd_args.engine, alg, &src_d,
+                            &wei_d, prb->dir == BWD_W ? nullptr : &bia_d,
+                            &dst_d, prb->strides().data(),
+                            prb->dilations().data(), prb->padding().data(),
+                            prb->padding_r().data(), init_pd_args.hint,
+                            dnnl_attr));
+            break;
+        default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
+    }
+
+    // TODO: add query for acc type in pd.
+    //DNN_SAFE_STATUS(cd.accum_data_type == prb->get_dt_conf(ACC).dt
+    //                ? dnnl_success
+    //                : dnnl_unimplemented);
+    return dnnl_success;
 }
 
 int init_prim_ref(

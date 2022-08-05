@@ -254,17 +254,15 @@ protected:
 
         auto weights_tr = test::make_memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
-        auto deconv_desc = with_bias
-                ? deconvolution_forward::desc(aprop_kind,
+        auto deconv_primitive_desc = with_bias
+                ? deconvolution_forward::primitive_desc(eng, aprop_kind,
                         algorithm::deconvolution_direct, *dec_src_desc,
                         *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
                         strides, padL, padR)
-                : deconvolution_forward::desc(aprop_kind,
+                : deconvolution_forward::primitive_desc(eng, aprop_kind,
                         algorithm::deconvolution_direct, *dec_src_desc,
                         *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
 
-        auto deconv_primitive_desc
-                = deconvolution_forward::primitive_desc(deconv_desc, eng);
         deconv_primitive_desc = deconvolution_forward::primitive_desc(
                 deconv_primitive_desc.get()); // test construction from a C pd
 
@@ -297,20 +295,16 @@ protected:
                                 {DNNL_ARG_DST, dst->get()}});
         strm.wait();
 
-        auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
-                algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, strides, padL, padR);
-
-        auto conv_primitive_desc
-                = convolution_forward::primitive_desc(conv_desc, eng);
-
-        auto conv_bwd_data_desc = convolution_backward_data::desc(
-                algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
+        auto conv_primitive_desc = convolution_forward::primitive_desc(eng,
+                prop_kind::forward_training, algorithm::convolution_direct,
+                *con_src_desc, *con_weights_desc, *con_dst_desc, strides, padL,
+                padR);
 
         auto conv_bwd_data_primitive_desc
-                = convolution_backward_data::primitive_desc(
-                        conv_bwd_data_desc, eng, conv_primitive_desc);
+                = convolution_backward_data::primitive_desc(eng,
+                        algorithm::convolution_direct, *con_src_desc,
+                        *con_weights_desc, *con_dst_desc, strides, padL, padR,
+                        conv_primitive_desc);
 
         convolution_backward_data(conv_bwd_data_primitive_desc)
                 .execute(strm,
@@ -338,20 +332,16 @@ protected:
         auto weights_tr = test::make_memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
-        auto deconv_desc
-                = deconvolution_forward::desc(prop_kind::forward_training,
-                        algorithm::deconvolution_direct, *dec_src_desc,
-                        *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
+        auto deconv_primitive_desc = deconvolution_forward::primitive_desc(eng,
+                prop_kind::forward_training, algorithm::deconvolution_direct,
+                *dec_src_desc, *dec_weights_desc, *dec_dst_desc, strides, padL,
+                padR);
 
-        auto deconv_primitive_desc
-                = deconvolution_forward::primitive_desc(deconv_desc, eng);
-
-        auto deconv_bwd_data_desc = deconvolution_backward_data::desc(
-                algorithm::deconvolution_direct, *dec_src_desc,
-                *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
         auto deconv_bwd_data_primitive_desc
-                = deconvolution_backward_data::primitive_desc(
-                        deconv_bwd_data_desc, eng, deconv_primitive_desc);
+                = deconvolution_backward_data::primitive_desc(eng,
+                        algorithm::deconvolution_direct, *dec_src_desc,
+                        *dec_weights_desc, *dec_dst_desc, strides, padL, padR,
+                        deconv_primitive_desc);
         deconv_bwd_data_primitive_desc
                 = deconvolution_backward_data::primitive_desc(
                         deconv_bwd_data_primitive_desc
@@ -382,12 +372,10 @@ protected:
                                 {DNNL_ARG_DIFF_SRC, src->get()}});
         strm.wait();
 
-        auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
-                algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, strides, padL, padR);
-
-        auto conv_primitive_desc
-                = convolution_forward::primitive_desc(conv_desc, eng);
+        auto conv_primitive_desc = convolution_forward::primitive_desc(eng,
+                prop_kind::forward_training, algorithm::convolution_direct,
+                *con_src_desc, *con_weights_desc, *con_dst_desc, strides, padL,
+                padR);
 
         convolution_forward(conv_primitive_desc)
                 .execute(strm,
@@ -411,21 +399,16 @@ protected:
 
         fill_data<data_t>(dst->get_size() / sizeof(data_t), dst->get());
 
-        auto deconv_desc = deconvolution_forward::desc(
+        auto deconv_primitive_desc = deconvolution_forward::primitive_desc(eng,
                 prop_kind::forward_training, algorithm::deconvolution_direct,
                 *dec_src_desc, *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
                 {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
 
-        auto deconv_primitive_desc
-                = deconvolution_forward::primitive_desc(deconv_desc, eng);
-
-        auto deconv_bwd_weights_desc = deconvolution_backward_weights::desc(
-                algorithm::deconvolution_direct, *dec_src_desc,
-                *dec_weights_desc, *dec_bias_desc, *dec_dst_desc, strides, padL,
-                padR);
         auto deconv_bwd_weights_primitive_desc
-                = deconvolution_backward_weights::primitive_desc(
-                        deconv_bwd_weights_desc, eng, deconv_primitive_desc);
+                = deconvolution_backward_weights::primitive_desc(eng,
+                        algorithm::deconvolution_direct, *dec_src_desc,
+                        *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
+                        strides, padL, padR, deconv_primitive_desc);
 
         ASSERT_TRUE(deconv_bwd_weights_primitive_desc.query_md(
                             query::exec_arg_md, DNNL_ARG_SRC)
@@ -456,24 +439,21 @@ protected:
                                 {DNNL_ARG_DIFF_BIAS, bias->get()}});
         strm.wait();
 
-        auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
-                algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, strides, padL, padR);
+        auto conv_primitive_desc = convolution_forward::primitive_desc(eng,
+                prop_kind::forward_training, algorithm::convolution_direct,
+                *con_src_desc, *con_weights_desc, *con_dst_desc, strides, padL,
+                padR);
 
-        auto conv_primitive_desc
-                = convolution_forward::primitive_desc(conv_desc, eng);
-
-        auto conv_bwd_weights_desc = convolution_backward_weights::desc(
-                algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, strides, padL, padR);
         deconv_bwd_weights_primitive_desc
                 = deconvolution_backward_weights::primitive_desc(
                         deconv_bwd_weights_primitive_desc
                                 .get()); // test construction from a C pd
 
         auto conv_bwd_weights_primitive_desc
-                = convolution_backward_weights::primitive_desc(
-                        conv_bwd_weights_desc, eng, conv_primitive_desc);
+                = convolution_backward_weights::primitive_desc(eng,
+                        algorithm::convolution_direct, *con_src_desc,
+                        *con_weights_desc, *con_dst_desc, strides, padL, padR,
+                        conv_primitive_desc);
 
         convolution_backward_weights(conv_bwd_weights_primitive_desc)
                 .execute(strm,

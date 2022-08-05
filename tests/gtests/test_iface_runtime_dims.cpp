@@ -82,14 +82,28 @@ TEST_F(runtime_dim_test_t, TestConv) {
     memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::abcd};
     memory::desc dst_md {
             {DNNL_RUNTIME_DIM_VAL, 32, 7, 7}, data_type::f32, tag::abcd};
-    CHECK_UNIMPL(convolution_forward::desc(prop_kind::forward,
+    CHECK_UNIMPL(convolution_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
             {1, 1}, {1, 1}));
-    CHECK_UNIMPL(convolution_backward_data::desc(algorithm::convolution_direct,
-            src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
-    CHECK_UNIMPL(
-            convolution_backward_weights::desc(algorithm::convolution_direct,
-                    src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
+
+    convolution_forward::primitive_desc fwd_hint;
+    {
+        auto valid_src_md
+                = memory::desc({2, 16, 7, 7}, data_type::f32, tag::abcd);
+        auto valid_dst_md
+                = memory::desc({2, 32, 7, 7}, data_type::f32, tag::abcd);
+        CHECK_OK(fwd_hint
+                = convolution_forward::primitive_desc(eng, prop_kind::forward,
+                        algorithm::convolution_direct, valid_src_md, wei_md,
+                        valid_dst_md, {1, 1}, {1, 1}, {1, 1}));
+    }
+
+    CHECK_UNIMPL(convolution_backward_data::primitive_desc(eng,
+            algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, fwd_hint));
+    CHECK_UNIMPL(convolution_backward_weights::primitive_desc(eng,
+            algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, fwd_hint));
 }
 
 TEST_F(runtime_dim_test_t, TestDeconv) {
@@ -98,15 +112,27 @@ TEST_F(runtime_dim_test_t, TestDeconv) {
     memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::abcd};
     memory::desc dst_md {
             {DNNL_RUNTIME_DIM_VAL, 32, 7, 7}, data_type::f32, tag::abcd};
-    CHECK_UNIMPL(deconvolution_forward::desc(prop_kind::forward,
+    CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
             {1, 1}, {1, 1}));
-    CHECK_UNIMPL(
-            deconvolution_backward_data::desc(algorithm::deconvolution_direct,
-                    src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
-    CHECK_UNIMPL(deconvolution_backward_weights::desc(
+
+    deconvolution_forward::primitive_desc fwd_hint;
+    {
+        auto valid_src_md
+                = memory::desc({2, 16, 7, 7}, data_type::f32, tag::abcd);
+        auto valid_dst_md
+                = memory::desc({2, 32, 7, 7}, data_type::f32, tag::abcd);
+        CHECK_OK(fwd_hint
+                = deconvolution_forward::primitive_desc(eng, prop_kind::forward,
+                        algorithm::deconvolution_direct, valid_src_md, wei_md,
+                        valid_dst_md, {1, 1}, {1, 1}, {1, 1}));
+    }
+    CHECK_UNIMPL(deconvolution_backward_data::primitive_desc(eng,
             algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
-            {1, 1}, {1, 1}));
+            {1, 1}, {1, 1}, fwd_hint));
+    CHECK_UNIMPL(deconvolution_backward_weights::primitive_desc(eng,
+            algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, fwd_hint));
 }
 
 TEST_F(runtime_dim_test_t, TestEltwise) {

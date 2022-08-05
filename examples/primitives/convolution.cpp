@@ -126,12 +126,6 @@ void convolution_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(weights_data.data(), user_weights_mem);
     write_to_dnnl_memory(bias_data.data(), user_bias_mem);
 
-    // Create operation descriptor.
-    auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
-            algorithm::convolution_direct, conv_src_md, conv_weights_md,
-            user_bias_md, conv_dst_md, strides_dims, padding_dims_l,
-            padding_dims_r);
-
     // Create primitive post-ops (ReLU).
     const float scale = 1.f;
     const float alpha = 0.f;
@@ -142,8 +136,10 @@ void convolution_example(dnnl::engine::kind engine_kind) {
     conv_attr.set_post_ops(conv_ops);
 
     // Create primitive descriptor.
-    auto conv_pd
-            = convolution_forward::primitive_desc(conv_desc, conv_attr, engine);
+    auto conv_pd = convolution_forward::primitive_desc(engine,
+            prop_kind::forward_training, algorithm::convolution_direct,
+            conv_src_md, conv_weights_md, user_bias_md, conv_dst_md,
+            strides_dims, padding_dims_l, padding_dims_r, conv_attr);
 
     // For now, assume that the src, weights, and dst memory layouts generated
     // by the primitive and the ones provided by the user are identical.
@@ -280,12 +276,6 @@ void depthwise_convolution_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(weights_data.data(), user_weights_mem);
     write_to_dnnl_memory(bias_data.data(), user_bias_mem);
 
-    // Create operation descriptor.
-    auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
-            algorithm::convolution_direct, conv_src_md, conv_weights_md,
-            user_bias_md, conv_dst_md, strides_dims, padding_dims_l,
-            padding_dims_r);
-
     // Create primitive post-ops (ReLU).
     const float scale = 1.f;
     const float alpha = 0.f;
@@ -296,8 +286,10 @@ void depthwise_convolution_example(dnnl::engine::kind engine_kind) {
     conv_attr.set_post_ops(conv_ops);
 
     // Create primitive descriptor.
-    auto conv_pd
-            = convolution_forward::primitive_desc(conv_desc, conv_attr, engine);
+    auto conv_pd = convolution_forward::primitive_desc(engine,
+            prop_kind::forward_training, algorithm::convolution_direct,
+            conv_src_md, conv_weights_md, user_bias_md, conv_dst_md,
+            strides_dims, padding_dims_l, padding_dims_r, conv_attr);
 
     // For now, assume that the src, weights, and dst memory layouts generated
     // by the primitive and the ones provided by the user are identical.

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -175,14 +175,13 @@ void test2() {
     }
 
     /* create a convolution primitive descriptor */
-    dnnl_convolution_desc_t c3_desc;
     dnnl_primitive_desc_t c3_pd;
     dnnl_primitive_t c3;
 
-    CHECK(dnnl_convolution_forward_desc_init(&c3_desc, dnnl_forward_training,
-            dnnl_convolution_direct, &c3_src_md, &c3_weights_md, &c3_bias_md,
-            &c3_dst_md, strides, padding, NULL));
-    CHECK(dnnl_primitive_desc_create(&c3_pd, &c3_desc, NULL, engine, NULL));
+    CHECK(dnnl_convolution_forward_primitive_desc_create(&c3_pd, engine,
+            dnnl_forward_training, dnnl_convolution_direct, &c3_src_md,
+            &c3_weights_md, &c3_bias_md, &c3_dst_md, strides, padding, NULL,
+            NULL));
 
     CHECK_TRUE(dnnl_memory_desc_equal(&c3_src_md,
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_src_md, 0)));

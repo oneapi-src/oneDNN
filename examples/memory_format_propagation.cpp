@@ -153,12 +153,13 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
     /// @snippet memory_format_propagation.cpp Create convolution and pooling primitive descriptors
     // [Create convolution and pooling primitive descriptors]
     auto conv_pd = convolution_forward::primitive_desc(
-            {prop_kind::forward_inference, algorithm::convolution_auto,
-                    conv_src_md, conv_weights_md,
-                    conv_dst_md, // shape information
-                    {1, 1}, // strides
-                    {1, 1}, {1, 1}}, // left and right padding
-            eng);
+            eng, prop_kind::forward_inference, algorithm::convolution_auto,
+            conv_src_md, conv_weights_md,
+            conv_dst_md, // shape information
+            {1, 1}, // strides
+            {1, 1}, {1, 1} // left and right padding
+    );
+
     auto pool_pd = pooling_forward::primitive_desc(
             {prop_kind::forward_inference, algorithm::pooling_max,
                     conv_pd.dst_desc(), pool_dst_md, // shape information

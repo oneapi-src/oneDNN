@@ -93,11 +93,10 @@ void simple_net(engine::kind engine_kind) {
     auto conv_dst_md = memory::desc({conv_dst_tz}, dt::f32, tag::any);
 
     // create a convolution primitive descriptor
-    auto conv_desc = convolution_forward::desc(prop_kind::forward,
+    auto conv_pd = convolution_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::convolution_direct, conv_src_md, conv_weights_md,
             conv_bias_md, conv_dst_md, conv_strides, conv_padding,
             conv_padding);
-    auto conv_pd = convolution_forward::primitive_desc(conv_desc, eng);
 
     // create reorder primitives between user input and conv src if needed
     auto conv_src_memory = conv_user_src_memory;
@@ -350,12 +349,10 @@ void simple_net(engine::kind engine_kind) {
     auto conv_diff_dst_md = memory::desc({conv_dst_tz}, dt::f32, tag::any);
 
     // create backward convolution primitive descriptor
-    auto conv_bwd_weights_desc
-            = convolution_backward_weights::desc(algorithm::convolution_direct,
-                    conv_bwd_src_md, conv_diff_weights_md, conv_diff_bias_md,
-                    conv_diff_dst_md, conv_strides, conv_padding, conv_padding);
-    auto conv_bwd_weights_pd = convolution_backward_weights::primitive_desc(
-            conv_bwd_weights_desc, eng, conv_pd);
+    auto conv_bwd_weights_pd = convolution_backward_weights::primitive_desc(eng,
+            algorithm::convolution_direct, conv_bwd_src_md,
+            conv_diff_weights_md, conv_diff_bias_md, conv_diff_dst_md,
+            conv_strides, conv_padding, conv_padding, conv_pd);
 
     // for best performance convolution backward might chose
     // different memory format for src and diff_dst

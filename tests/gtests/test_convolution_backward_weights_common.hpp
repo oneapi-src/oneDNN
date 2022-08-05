@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -233,22 +233,19 @@ protected:
                 right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
                 right_padding(cd.iw, cd.ow, cd.kw, cd.padw, cd.strw, cd.dilw)};
 
-        auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
-                p.aalgorithm, c_src_desc, c_weights_desc_f, c_diff_bias_desc,
-                c_dst_desc_f, {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
-                {cd.padh, cd.padw}, padR);
-
-        auto conv_bwd_weights_desc = convolution_backward_weights::desc(
-                p.aalgorithm, c_src_desc, c_diff_weights_desc, c_diff_bias_desc,
-                c_diff_dst_desc, {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
-                {cd.padh, cd.padw}, padR);
-
-        auto conv_primitive_desc
-                = convolution_forward::primitive_desc(conv_desc, eng);
+        auto conv_primitive_desc = convolution_forward::primitive_desc(eng,
+                prop_kind::forward_training, p.aalgorithm, c_src_desc,
+                c_weights_desc_f, c_diff_bias_desc, c_dst_desc_f,
+                {cd.strh, cd.strw}, {cd.dilh, cd.dilw}, {cd.padh, cd.padw},
+                padR);
 
         auto conv_bwd_weights_primitive_desc
-                = convolution_backward_weights::primitive_desc(
-                        conv_bwd_weights_desc, eng, conv_primitive_desc);
+                = convolution_backward_weights::primitive_desc(eng,
+                        p.aalgorithm, c_src_desc, c_diff_weights_desc,
+                        c_diff_bias_desc, c_diff_dst_desc, {cd.strh, cd.strw},
+                        {cd.dilh, cd.dilw}, {cd.padh, cd.padw}, padR,
+                        conv_primitive_desc);
+
         conv_bwd_weights_primitive_desc
                 = convolution_backward_weights::primitive_desc(
                         conv_bwd_weights_primitive_desc

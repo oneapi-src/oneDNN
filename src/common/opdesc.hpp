@@ -79,6 +79,48 @@ struct inner_product_desc_t {
     data_type_t accum_data_type;
 };
 
+struct convolution_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_convolution.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, #dnnl_backward_data,
+    // #dnnl_backward_weights, and #dnnl_backward_bias.
+    prop_kind_t prop_kind;
+    // The kind of the convolution algorithm. Possible values:
+    // #dnnl_convolution_direct.
+    alg_kind_t alg_kind;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // Weights memory descriptor.
+    memory_desc_t weights_desc;
+    // Weights gradient memory descriptor.
+    memory_desc_t diff_weights_desc;
+    // Bias memory descriptor.
+    memory_desc_t bias_desc;
+    // Bias gradient memory descriptor.
+    memory_desc_t diff_bias_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
+    // Convolution strides in each spatial dimension.
+    dims_t strides;
+    // Convolution dilates in each spatial dimension.
+    dims_t dilates;
+    // Padding in each spatial dimension. padding[0] is a padding in the
+    // beginning (@p padding_l), padding[1] is a padding in the end (@p
+    // padding_r).
+    dims_t padding[2];
+    // The accumulator data type. Initialized automatically.
+    data_type_t accum_data_type;
+};
+
+// A descriptor of a deconvolution operation.
+using deconvolution_desc_t = convolution_desc_t;
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

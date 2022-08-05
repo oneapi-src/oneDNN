@@ -120,26 +120,20 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto conv1_dst_md = memory::desc({conv1_dst_tz}, dt::f32, tag::any);
     //[Create convolution memory descriptors]
 
-    /// Create a convolution descriptor by specifying propagation kind,
-    /// [convolution algorithm](@ref dev_guide_convolution), shapes of input,
-    /// weights, bias, output, convolution strides, padding, and kind of padding.
+    /// Create a convolution primitive descriptor by specifying engine,
+    /// propagation kind, [convolution algorithm](@ref dev_guide_convolution),
+    /// shapes of input, weights, bias, output, convolution strides, padding,
+    /// and kind of padding.
     /// Propagation kind is set to prop_kind::forward_inference to optimize for
     /// inference execution and omit computations that are necessary only for
     /// backward propagation.
-    /// @snippet cnn_inference_f32.cpp Create convolution descriptor
-    //[Create convolution descriptor]
-    auto conv1_desc = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_direct, conv1_src_md, conv1_weights_md,
-            conv1_bias_md, conv1_dst_md, conv1_strides, conv1_padding,
-            conv1_padding);
-    //[Create convolution descriptor]
-
-    /// Create a convolution primitive descriptor. Once created, this
-    /// descriptor has specific formats instead of the `any` format specified
-    /// in the convolution descriptor.
+    /// Once created, it has specific formats instead of the `any` format.
     /// @snippet cnn_inference_f32.cpp Create convolution primitive descriptor
     //[Create convolution primitive descriptor]
-    auto conv1_prim_desc = convolution_forward::primitive_desc(conv1_desc, eng);
+    auto conv1_prim_desc = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_direct,
+            conv1_src_md, conv1_weights_md, conv1_bias_md, conv1_dst_md,
+            conv1_strides, conv1_padding, conv1_padding);
     //[Create convolution primitive descriptor]
 
     /// Check whether data and weights formats required by convolution is different
@@ -280,11 +274,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto conv2_dst_md = memory::desc({conv2_dst_tz}, dt::f32, tag::any);
 
     // create a convolution
-    auto conv2_desc = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_direct, conv2_src_md, conv2_weights_md,
-            conv2_bias_md, conv2_dst_md, conv2_strides, conv2_padding,
-            conv2_padding);
-    auto conv2_prim_desc = convolution_forward::primitive_desc(conv2_desc, eng);
+    auto conv2_prim_desc = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_direct,
+            conv2_src_md, conv2_weights_md, conv2_bias_md, conv2_dst_md,
+            conv2_strides, conv2_padding, conv2_padding);
 
     auto conv2_src_memory = pool1_dst_memory;
     if (conv2_prim_desc.src_desc() != conv2_src_memory.get_desc()) {
@@ -399,11 +392,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto conv3_dst_md = memory::desc({conv3_dst_tz}, dt::f32, tag::any);
 
     // create a convolution
-    auto conv3_desc = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_direct, conv3_src_md, conv3_weights_md,
-            conv3_bias_md, conv3_dst_md, conv3_strides, conv3_padding,
-            conv3_padding);
-    auto conv3_prim_desc = convolution_forward::primitive_desc(conv3_desc, eng);
+    auto conv3_prim_desc = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_direct,
+            conv3_src_md, conv3_weights_md, conv3_bias_md, conv3_dst_md,
+            conv3_strides, conv3_padding, conv3_padding);
 
     auto conv3_src_memory = pool2_dst_memory;
     if (conv3_prim_desc.src_desc() != conv3_src_memory.get_desc()) {
@@ -473,11 +465,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto conv4_dst_md = memory::desc({conv4_dst_tz}, dt::f32, tag::any);
 
     // create a convolution
-    auto conv4_desc = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_direct, conv4_src_md, conv4_weights_md,
-            conv4_bias_md, conv4_dst_md, conv4_strides, conv4_padding,
-            conv4_padding);
-    auto conv4_prim_desc = convolution_forward::primitive_desc(conv4_desc, eng);
+    auto conv4_prim_desc = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_direct,
+            conv4_src_md, conv4_weights_md, conv4_bias_md, conv4_dst_md,
+            conv4_strides, conv4_padding, conv4_padding);
 
     auto conv4_src_memory = conv3_dst_memory;
     if (conv4_prim_desc.src_desc() != conv4_src_memory.get_desc()) {
@@ -546,11 +537,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto conv5_dst_md = memory::desc({conv5_dst_tz}, dt::f32, tag::any);
 
     // create a convolution
-    auto conv5_desc = convolution_forward::desc(prop_kind::forward_inference,
-            algorithm::convolution_direct, conv5_src_md, conv5_weights_md,
-            conv5_bias_md, conv5_dst_md, conv5_strides, conv5_padding,
-            conv5_padding);
-    auto conv5_prim_desc = convolution_forward::primitive_desc(conv5_desc, eng);
+    auto conv5_prim_desc = convolution_forward::primitive_desc(eng,
+            prop_kind::forward_inference, algorithm::convolution_direct,
+            conv5_src_md, conv5_weights_md, conv5_bias_md, conv5_dst_md,
+            conv5_strides, conv5_padding, conv5_padding);
 
     auto conv5_src_memory = conv4_dst_memory;
     if (conv5_prim_desc.src_desc() != conv5_src_memory.get_desc()) {

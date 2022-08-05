@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -126,16 +126,6 @@ void simple_net_int8(engine::kind engine_kind) {
     auto conv_dst_md = memory::desc({conv_dst_tz}, dt::u8, tag::any);
     //[Create convolution memory descriptors]
 
-    /// Create a convolution descriptor passing the int8 memory
-    /// descriptors as parameters.
-    /// @snippet cnn_inference_int8.cpp Create convolution descriptor
-    //[Create convolution descriptor]
-    auto conv_desc = convolution_forward::desc(prop_kind::forward,
-            algorithm::convolution_direct, conv_src_md, conv_weights_md,
-            conv_bias_md, conv_dst_md, conv_strides, conv_padding,
-            conv_padding);
-    //[Create convolution descriptor]
-
     /// Configuring int8-specific parameters in an int8 primitive is done
     /// via the Attributes Primitive. Create an attributes object for the
     /// convolution and configure it accordingly.
@@ -159,7 +149,10 @@ void simple_net_int8(engine::kind engine_kind) {
 
     // check if int8 convolution is supported
     try {
-        convolution_forward::primitive_desc(conv_desc, conv_attr, eng);
+        convolution_forward::primitive_desc(eng, prop_kind::forward,
+                algorithm::convolution_direct, conv_src_md, conv_weights_md,
+                conv_bias_md, conv_dst_md, conv_strides, conv_padding,
+                conv_padding, conv_attr);
     } catch (error &e) {
         if (e.status == dnnl_unimplemented)
             throw example_allows_unimplemented {
@@ -171,14 +164,16 @@ void simple_net_int8(engine::kind engine_kind) {
         throw;
     }
 
-    /// Create a primitive descriptor using the convolution descriptor
-    /// and passing along the int8 attributes in the constructor. The primitive
+    /// Create a primitive descriptor passing the int8 memory descriptors
+    /// and int8 attributes to the constructor. The primitive
     /// descriptor for the convolution will contain the specific memory
     /// formats for the computation.
     /// @snippet cnn_inference_int8.cpp Create convolution primitive descriptor
     //[Create convolution primitive descriptor]
-    auto conv_prim_desc
-            = convolution_forward::primitive_desc(conv_desc, conv_attr, eng);
+    auto conv_prim_desc = convolution_forward::primitive_desc(eng,
+            prop_kind::forward, algorithm::convolution_direct, conv_src_md,
+            conv_weights_md, conv_bias_md, conv_dst_md, conv_strides,
+            conv_padding, conv_padding, conv_attr);
     //[Create convolution primitive descriptor]
 
     /// Create a memory for each of the convolution's data input
