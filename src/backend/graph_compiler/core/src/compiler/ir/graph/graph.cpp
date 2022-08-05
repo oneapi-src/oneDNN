@@ -685,10 +685,10 @@ namespace std {
 std::size_t hash<sc::logical_tensor_t>::operator()(
         const sc::logical_tensor_t &k) const {
     size_t seed = 0;
-    hash_combine(seed, k.dtype_);
-    hash_combine(seed, k.format_);
+    sc::hash_combine(seed, k.dtype_);
+    sc::hash_combine(seed, k.format_);
     for (size_t i = 0; i < k.plain_dims_.size(); i++) {
-        hash_combine(seed, k.plain_dims_[i]);
+        sc::hash_combine(seed, k.plain_dims_[i]);
     }
     return seed;
 }

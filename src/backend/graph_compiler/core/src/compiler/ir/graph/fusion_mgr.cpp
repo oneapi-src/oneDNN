@@ -1599,8 +1599,8 @@ namespace std {
 std::size_t hash<sc::buffer_reuse_identity>::operator()(
         const sc::buffer_reuse_identity &in) const {
     size_t seed = 0;
-    hash_combine(seed, in.dtype_);
-    hash_combine(seed, in.shapes_);
+    sc::hash_combine(seed, in.dtype_);
+    sc::hash_combine(seed, in.shapes_);
     return seed;
 }
 } // namespace std

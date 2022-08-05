@@ -271,7 +271,7 @@ struct alignas(64) brg_arg_t {
         if (has_bd_mask) {
             // todo: optimize bd mask hash against byte-by-byte.
             for (int i = 0; i < M; i++) {
-                hash_combine(bd_ret, bd_mask[i]);
+                sc::hash_combine(bd_ret, bd_mask[i]);
             }
         }
         ret = ret ^ bd_ret;
@@ -319,7 +319,7 @@ struct palette_ptr_t {
             size_t ret = 0;
             for (int i = 0; i < int(PALETTE_SIZE / sizeof(ret)); i++) {
                 uint64_t val = ((uint64_t *)(p.ptr_))[i];
-                hash_combine(ret, val);
+                sc::hash_combine(ret, val);
             }
             return ret;
         }

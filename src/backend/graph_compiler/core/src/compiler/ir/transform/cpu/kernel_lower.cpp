@@ -36,8 +36,8 @@ template <>
 struct hash<sc::brgemm::postop_setting_t> {
     std::size_t operator()(const sc::brgemm::postop_setting_t &k) const {
         size_t ret = 0;
-        hash_combine(ret, k.pack_info_[0]);
-        hash_combine(ret, k.pack_info_[1]);
+        sc::hash_combine(ret, k.pack_info_[0]);
+        sc::hash_combine(ret, k.pack_info_[1]);
         return ret;
     }
 };

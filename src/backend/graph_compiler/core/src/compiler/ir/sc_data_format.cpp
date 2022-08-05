@@ -441,11 +441,11 @@ namespace std {
 std::size_t hash<sc::sc_data_format_t>::operator()(
         const sc::sc_data_format_t &k) const {
     size_t hash_ = 0;
-    hash_combine(hash_, (uint64_t)k.format_code_);
-    hash_combine(hash_, get<0>(k.blocks_));
-    hash_combine(hash_, get<1>(k.blocks_));
-    hash_combine(hash_, get<2>(k.blocks_));
-    hash_combine(hash_, get<3>(k.blocks_));
+    sc::hash_combine(hash_, (uint64_t)k.format_code_);
+    sc::hash_combine(hash_, get<0>(k.blocks_));
+    sc::hash_combine(hash_, get<1>(k.blocks_));
+    sc::hash_combine(hash_, get<2>(k.blocks_));
+    sc::hash_combine(hash_, get<3>(k.blocks_));
     return hash_;
 }
 } // namespace std
