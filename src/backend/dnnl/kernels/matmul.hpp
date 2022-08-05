@@ -143,6 +143,8 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
 
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_transpose_to_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_adjacent_reorders);

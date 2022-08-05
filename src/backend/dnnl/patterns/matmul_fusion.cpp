@@ -825,7 +825,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_matmul_reshape_transpose_fusion)
+        dnnl, int8_matmul_transpose_optional_reshape_fusion)
         .set_priority(10.f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -846,8 +846,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pm::pb_op_t *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize,
                             in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op_t *pmatmul
                             = pgraph->append_op(impl::op_kind::MatMul,
@@ -867,19 +865,47 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto popt_bias = pgraph->append_optional(popt_bias_graph,
                             in_edges_t {in_edge(0, pmatmul, 0)}, "popt_bias");
 
-                    // reshape
-                    auto preshape = pgraph->append_op(
-                            impl::op_kind::StaticReshape,
-                            in_edges_t {in_edge(0, popt_bias, 0)}, "preshape");
+                    // Optional pre reshape
+                    auto popt_reshape_pre_graph = std::make_shared<pb_graph_t>(
+                            "poptional_reshape_pre");
+                    pm::pb_op_t *preshape_pre
+                            = popt_reshape_pre_graph->append_op(
+                                    impl::op_kind::StaticReshape,
+                                    "preshape_pre");
+                    popt_reshape_pre_graph->create_input_port(
+                            0, preshape_pre, 0);
+                    popt_reshape_pre_graph->create_output_port(
+                            0, preshape_pre, 0);
+                    auto popt_reshape_pre
+                            = pgraph->append_optional(popt_reshape_pre_graph,
+                                    in_edges_t {in_edge(0, popt_bias, 0)},
+                                    "popt_reshape_pre");
 
                     // transpose
                     auto ptranspose = pgraph->append_op(
                             impl::op_kind::StaticTranspose,
-                            in_edges_t {in_edge(0, preshape, 0)}, "ptranspose");
+                            in_edges_t {in_edge(0, popt_reshape_pre, 0)},
+                            "ptranspose");
+
+                    // Optional post reshape
+                    auto popt_reshape_post_graph = std::make_shared<pb_graph_t>(
+                            "poptional_reshape_post");
+                    pm::pb_op_t *preshape_post
+                            = popt_reshape_post_graph->append_op(
+                                    impl::op_kind::StaticReshape,
+                                    "preshape_post");
+                    popt_reshape_post_graph->create_input_port(
+                            0, preshape_post, 0);
+                    popt_reshape_post_graph->create_output_port(
+                            0, preshape_post, 0);
+                    auto popt_reshape_post
+                            = pgraph->append_optional(popt_reshape_post_graph,
+                                    in_edges_t {in_edge(0, ptranspose, 0)},
+                                    "popt_reshape_post");
 
                     // quant_out
                     pgraph->append_op(impl::op_kind::Quantize,
-                            in_edges_t {in_edge(0, ptranspose, 0)},
+                            in_edges_t {in_edge(0, popt_reshape_post, 0)},
                             "pquant_out");
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {

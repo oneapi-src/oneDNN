@@ -3284,6 +3284,57 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> transpose_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() == op_kind::dnnl_transpose
+                && cur_op->get_input_value(0)->has_producer()
+                && cur_op->get_input_value(0)->get_producer().get_kind()
+                        == op_kind::dnnl_matmul
+                && !cur_op->get_output_value(0)->get_consumers().empty()
+                && cur_op->get_output_value(0)
+                                ->get_consumers()[0]
+                                .get_op()
+                                .get_kind()
+                        == op_kind::dnnl_reshape) {
+            transpose_ops.emplace_back(cur_op);
+        }
+    }
+
+    for (auto &transpose_op : transpose_ops) {
+        value_ptr in_val = transpose_op->get_input_value(0);
+        auto in_lt = in_val->get_logical_tensor();
+        value_ptr out_val = transpose_op->get_output_value(0);
+        auto out_lt = out_val->get_logical_tensor();
+        std::vector<int64_t> order
+                = transpose_op->get_attr<std::vector<int64_t>>(op_attr::order);
+        // if order < 0, convert it to postive order
+        if (!order.empty()) {
+            for (int64_t &axis : order) {
+                if (axis < 0) axis += ltw(in_lt).ndims();
+            }
+        } else {
+            return impl::status::success;
+        }
+
+        std::vector<int> axes = dnnl_impl::utils::fmap(order,
+                [](int64_t index) { return static_cast<int32_t>(index); });
+        // calculate the expected transposed layout by permuting the md
+        auto expected_stride = get_dense_strides(ltw(out_lt).vdims());
+        dnnl::memory::desc out_md {ltw(out_lt).vdims(),
+                static_cast<dnnl::memory::data_type>(ltw(out_lt).data_type()),
+                expected_stride};
+        dnnl::memory::desc expected_out_md = out_md.permute_axes(axes);
+        const auto &strides = expected_out_md.data.format_desc.blocking.strides;
+        in_val->set_strides({strides, strides + out_lt.ndims});
+        auto &matmul = transpose_op->get_input_value(0)->get_producer();
+        matmul.set_attr(op_attr::keep_dst_layout, true);
+    }
+
+    return impl::status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

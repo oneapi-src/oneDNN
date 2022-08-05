@@ -201,6 +201,10 @@ impl::status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg);
 // it can have the opportunity to be fused into computation operators
 impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg);
 
+// This pass will compute matmul with the dst layout of following transpose if
+// the operator after transpose need a dense layout
+impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
