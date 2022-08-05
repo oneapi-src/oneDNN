@@ -486,9 +486,8 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
     if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
     pdw.reset(init_pd_args.pd);
 
-    // Iterator is not supported, further logic is not applicable.
     // Service primitive is not supposed to utilize further logic.
-    if (!pd_itw || is_service_prim) return OK;
+    if (is_service_prim) return OK;
 
     while (true) {
         const auto impl_name = query_impl_info(pdw);
@@ -496,6 +495,13 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
         if (!maybe_skip(impl_name)) return OK;
 
         BENCHDNN_PRINT(6, "Implementation skipped: %s\n", impl_name.c_str());
+
+        // Iterator is not supported, further logic is not applicable.
+        if (!pd_itw) {
+            res->state = SKIPPED;
+            res->reason = SKIP_IMPL_HIT;
+            return OK;
+        }
 
         auto status = dnnl_primitive_desc_iterator_next(pd_itw);
         if (status == dnnl_iterator_ends) {
