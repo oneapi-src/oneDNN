@@ -33,10 +33,11 @@ namespace reorder {
 
 // Filling for integers is different due to problematic int -> float conversion.
 // And it doesn't require many different points to be tested.
-int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
+int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
     const auto conf = prb->get_conf(kind);
 
-    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
+    for (int64_t idx = 0; idx < mem_fp.nelems(); ++idx) {
         const float gen[4] = {
                 conf->max, // saturate to max of output data type
                 conf->min, // saturate to min of output data type
@@ -45,18 +46,21 @@ int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
         };
 
         const int64_t rng = kind == SRC ? (idx % 4) : ((idx * 5 / 4) % 4);
-        mem.set_elem(idx, round_to_nearest_representable(conf->dt, gen[rng]));
+        mem_fp.set_elem(
+                idx, round_to_nearest_representable(conf->dt, gen[rng]));
     }
 
+    SAFE(mem_dt.reorder(mem_fp), WARN);
     return OK;
 }
 
-int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
+int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
     const auto conf = prb->get_conf(kind);
     const int scale_mask = attr_t::get_default_mask(prb->attr.oscale.policy);
 
-    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
-        const int64_t mask_idx = mem.get_scale_idx(idx, scale_mask);
+    for (int64_t idx = 0; idx < mem_fp.nelems(); ++idx) {
+        const int64_t mask_idx = mem_fp.get_scale_idx(idx, scale_mask);
         const float scale = prb->scales[mask_idx];
 
         const float gen[7] = {
@@ -70,43 +74,19 @@ int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
         };
 
         const int64_t rng = kind == SRC ? (idx % 7) : ((idx * 8 / 7) % 7);
-        mem.set_elem(idx, round_to_nearest_representable(conf->dt, gen[rng]));
+        mem_fp.set_elem(
+                idx, round_to_nearest_representable(conf->dt, gen[rng]));
     }
 
+    SAFE(mem_dt.reorder(mem_fp), WARN);
     return OK;
 }
 
-int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
+int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
     const auto dt = kind == SRC ? prb->sdt : prb->ddt;
-    if (is_integral_dt(dt)) return fill_memory_int(prb, kind, mem);
-    return fill_memory_fp(prb, kind, mem);
-}
-
-int fill_memory_extra(const prb_t *prb, dnnl_memory_extra_desc_t &extra) {
-    extra.flags = dnnl_memory_extra_flag_none;
-
-    if (prb->is_reorder_with_compensation(FLAG_ANY)) {
-        for (const auto &i_oflag : prb->oflag) {
-            if (i_oflag.first & FLAG_S8S8_COMP) {
-                extra.flags |= dnnl_memory_extra_flag_compensation_conv_s8s8;
-                extra.compensation_mask = i_oflag.second;
-
-                const float s8_scale_factor = reorder_rescale_factor();
-                const bool need_rescale = s8_scale_factor != 1.f;
-                if (need_rescale) {
-                    extra.flags |= dnnl_memory_extra_flag_scale_adjust;
-                    extra.scale_adjust = s8_scale_factor;
-                }
-            }
-            if (i_oflag.first & FLAG_ZP_COMP) {
-                extra.flags
-                        |= dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
-                extra.asymm_compensation_mask = i_oflag.second;
-            }
-        }
-    }
-
-    return OK;
+    if (is_integral_dt(dt)) return fill_memory_int(prb, kind, mem_dt, mem_fp);
+    return fill_memory_fp(prb, kind, mem_dt, mem_fp);
 }
 
 int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
@@ -167,9 +147,28 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             = dnn_mem_t::init_md(prb->ndims, dims.data(), prb->ddt, prb->dtag);
 
     // Prepare and assign extra for dst_md.
-    dnnl_memory_extra_desc_t dst_md_extra {};
-    fill_memory_extra(prb, dst_md_extra);
-    dst_d.extra = dst_md_extra;
+    auto &extra = dst_d.extra;
+    extra.flags = dnnl_memory_extra_flag_none;
+    if (prb->is_reorder_with_compensation(FLAG_ANY)) {
+        for (const auto &i_oflag : prb->oflag) {
+            if (i_oflag.first & FLAG_S8S8_COMP) {
+                extra.flags |= dnnl_memory_extra_flag_compensation_conv_s8s8;
+                extra.compensation_mask = i_oflag.second;
+
+                const float s8_scale_factor = reorder_rescale_factor();
+                const bool need_rescale = s8_scale_factor != 1.f;
+                if (need_rescale) {
+                    extra.flags |= dnnl_memory_extra_flag_scale_adjust;
+                    extra.scale_adjust = s8_scale_factor;
+                }
+            }
+            if (i_oflag.first & FLAG_ZP_COMP) {
+                extra.flags
+                        |= dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
+                extra.asymm_compensation_mask = i_oflag.second;
+            }
+        }
+    }
 
     auto src_engine = init_pd_args.engine;
     auto dst_engine = init_pd_args.engine;
@@ -342,15 +341,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, dst_engine);
     dnn_mem_t dst_dt(dst_md, dst_engine);
 
-    SAFE(fill_memory(prb, SRC, src_fp), WARN);
-    SAFE(src_dt.reorder(src_fp), WARN);
+    SAFE(fill_memory(prb, SRC, src_dt, src_fp), WARN);
 
     const bool has_sum
             = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0;
-    if (has_sum) {
-        SAFE(fill_memory(prb, DST, dst_fp), WARN);
-        SAFE(dst_dt.reorder(dst_fp), WARN);
-    }
+    if (has_sum) { SAFE(fill_memory(prb, DST, dst_dt, dst_fp), WARN); }
 
     dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
     const int mask = attr_t::get_default_mask(prb->attr.oscale.policy);
