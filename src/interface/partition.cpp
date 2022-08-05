@@ -303,7 +303,7 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
 
     std::vector<tensor_t> ins, outs;
     ins.reserve(num_inputs);
-    outs.reserve(num_inputs);
+    outs.reserve(num_outputs);
 
     for (size_t i = 0; i < num_inputs; ++i) {
         ins.emplace_back(**(inputs + i));
