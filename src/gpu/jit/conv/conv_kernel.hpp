@@ -876,13 +876,8 @@ public:
             const ngen_operand_t &src0, const ngen_operand_t &src1,
             const ngen_operand_t &src2) {
         if (src2.is_reg_data()) {
-            auto _src1 = src1;
-            auto _src2 = src2;
-            if (ngen_is_dw(src2.type()) && ngen_is_w(src1.type())) {
-                std::swap(_src1, _src2);
-            }
-            mad(mod, dst.reg_data(), src0.reg_data(), _src1.reg_data(),
-                    _src2.reg_data());
+            mad(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
+                    src2.reg_data());
         } else if (hw < ngen::HW::XeLP) {
             mul(mod, dst.reg_data(), src1.reg_data(), src2.immediate());
             add(mod, dst.reg_data(), dst.reg_data(), src0.reg_data());
@@ -3968,16 +3963,14 @@ private:
 
         check_bank_conflicts(mod, src0, src1, src2, /*is_dpas=*/false);
         if (src0.isNull()) {
-            host_->emul(mod, dst, src1, src2);
+            host_->mul(mod, dst, src1, src2);
         } else {
             ir_assert(dst.byte_offset() == src0.getByteOffset())
                     << "dst/src0 must be aligned to the same GRF offset.";
-            auto _src0 = mad_t::arg_src0(args).reg_buf_data().format(
-                    0, to_ngen(mad_func.dst_type), mad_func.exec_size);
             auto _src1 = src1;
             auto _src2 = src2;
             align_src_dst_offset(host_, scope, mod, dst, _src1, _src2);
-            host_->emad(mod, dst, _src0, _src1, _src2);
+            host_->mad(mod, dst, src0, _src1, _src2);
         }
     }
 
