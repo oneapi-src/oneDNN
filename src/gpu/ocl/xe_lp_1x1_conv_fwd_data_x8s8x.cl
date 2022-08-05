@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * licensed under the apache license, version 2.0 (the "license");
 * you may not use this file except in compliance with the license.
@@ -444,6 +444,10 @@ xe_lp_1x1_conv_fwd_x8s8x(const __global SRC_DATA_T *src,
 #if WITH_DST_ZPOINTS
     int4 dst_zp = read_dst_zero_points_32c(
             dst_compensation, oc_group_id * OC_BLOCK);
+#if !WITH_DST_ZPOINTS_PER_OC && OC % 32 != 0
+    dst_zp = convert_int4(
+            zero_pad_dst_32c(convert_float4(dst_zp), oc_group_id * OC_BLOCK));
+#endif
 #define ADD_DST_COMPENSATION() tmp += convert_float4(dst_zp);
 #else
 #define ADD_DST_COMPENSATION()

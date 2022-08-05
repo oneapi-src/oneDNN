@@ -433,6 +433,11 @@ conv_fwd_ow_block_x8s8x(const __global SRC_DATA_T *src,
 #if WITH_DST_ZPOINTS
         int4 dst_zp = read_dst_zero_points_32c(
                 dst_compensation, (group_oc + oc) * OC_BLOCK);
+#if !WITH_DST_ZPOINTS_PER_OC && OC % 32 != 0
+        dst_zp = convert_int4(zero_pad_dst_32c(
+                convert_float4(dst_zp), (group_oc + oc) * OC_BLOCK));
+#endif
+
 #define ADD_DST_COMPENSATION() tmp += convert_float4(dst_zp);
 #else
 #define ADD_DST_COMPENSATION()
