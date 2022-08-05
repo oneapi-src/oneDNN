@@ -280,22 +280,6 @@ public:
      * satisfied or this is empty, it will throw an exception
      * */
     SC_API size_t hash() const;
-
-    /**
-     * Converts any_t to string, using json writer on reflection::general_ref_t
-     * Requires that the type have reflection::type registered. If not, it will
-     * throw an exception
-     * */
-    SC_API void to_string_may_throw(std::ostream &os) const;
-
-    /**
-     * Converts any_t to string using reflection. If we don't know how to handle
-     * the type (the type is not registered in reflection), will print the RTTI
-     * type name and its address.
-     * */
-    SC_API void to_string(std::ostream &os) const;
-    SC_API std::string to_string() const;
-
     /**
      * Pattern matching on the type of the contained value of this any_t
      * The parameters starting from the second are the functions that matches
@@ -522,23 +506,6 @@ public:
         if (!has_key(v)) { impl_.insert(std::make_pair(v, any_t())); }
         return get_any(v);
     }
-
-    /**
-     * Converts it to string, using json writer on reflection::general_ref_t
-     * Requires that the types in it have reflection::type registered. If not,
-     * it will throw an exception
-     * */
-    void to_string_may_throw(std::ostream &os) const;
-
-    /**
-     * Converts it to string, using json writer on reflection::general_ref_t
-     * It will not throw if the a type in an any_t is not registered in
-     * reflection.
-     * @see any_t::to_string
-     * */
-    void to_string(std::ostream &os) const;
-    std::string to_string() const;
-
     /**
      * Compares the map with other using reflection
      * Requires that the types in it have reflection::type registered. If not,

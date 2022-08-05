@@ -14,17 +14,16 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "driver.hpp"
 #include <algorithm>
 #include <atomic>
 #include <fstream>
 #include <tuple>
 #include <utility>
-#include "driver.hpp"
 #include "pass/pass.hpp"
 #include <runtime/env_vars.hpp>
 #include <unordered_map>
 #include <util/exceptions.hpp>
-#include <util/graph_repository.hpp>
 #include <util/scoped_timer.hpp>
 
 #ifdef _MSC_VER
@@ -167,33 +166,6 @@ static void run_passes(sc_graph_t &graph, const context_ptr &ctx,
     }
 }
 
-void dump_graph_to_json(const sc_graph_t &graph) {
-    static std::atomic<int> file_counter = {0};
-    static std::string export_path
-            = utils::getenv_string(env_names[env_key::SC_DUMP_GRAPH_JSON]);
-
-    if (!export_path.empty()) {
-        // construct a file name through file_counter
-        bool file_exist = true;
-        std::string filename;
-        while (file_exist) {
-            std::ifstream infile;
-            std::stringstream ss;
-            ss << export_path << '/' << ++file_counter << ".json";
-            filename = ss.str();
-            infile.open(filename);
-            file_exist = infile.good();
-        }
-        // save graph
-        std::ofstream outfile(filename);
-        if (!outfile.good()) {
-            SC_MODULE_WARN << "Could not write to " << export_path
-                           << ", the directory may not exist" << std::endl;
-        }
-        save_graph_to_json(graph, outfile);
-    }
-}
-
 std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> create_op_map(
         sc_graph_t &lg, sc_graph_t &rg) {
     assert(lg.ops_.size() == rg.ops_.size());
@@ -213,15 +185,11 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         std::vector<basic_graph_pass_ptr> *post_tune_pass) {
     bool need_tuning = timeout != 0;
     sc_graph_t graph_cpy;
-    dump_graph_to_json(graph);
 
     // save origin graph(tuning) / load config(no tune)
     if (need_tuning) {
         graph_cpy = copy_graph(graph);
         graph.attrs_["temp.op_map"] = create_op_map(graph, graph_cpy);
-    } else if (in_cfg != nullptr && !in_cfg->op_cfgs_.empty()) {
-        SC_MODULE_INFO << "Setting user-provided config";
-        graph::set_graph_config(graph, *in_cfg);
     } else {
         SC_MODULE_INFO << "Use default config";
     }
@@ -238,53 +206,10 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
     run_passes(graph, ctx, *postpass);
 }
 
-namespace graph {
-std::unique_ptr<graph::repository> &get_driver_import_repo(
-        const context_ptr &ctx) {
-    auto make_repo = [](const context_ptr &ctx) {
-        std::string import_path
-                = utils::getenv_string(env_names[env_key::SC_TUNING_IMPORT]);
-        if (import_path.empty()) {
-            import_path = "sctune.json";
-            SC_MODULE_WARN << "The environment variable SC_TUNING_IMPORT "
-                              "is not set, using the graph config file in the "
-                              "current dir: sctune.json.";
-        }
-        std::ifstream ifs(import_path);
-        if (!ifs) {
-            SC_MODULE_WARN << "Cannot open graph config file: " << import_path;
-            return std::unique_ptr<graph::repository> {};
-        } else {
-            try {
-                return utils::make_unique<graph::repository>(
-                        graph::repository::load(ctx, ifs));
-            } catch (json_error &je) {
-                SC_MODULE_WARN << "Ignored graph config file: " << import_path
-                               << ", error = " << je.what();
-                return std::unique_ptr<graph::repository> {};
-            }
-        }
-    };
-    static std::unique_ptr<graph::repository> repo = make_repo(ctx);
-    return repo;
-}
-} // namespace graph
-
 void graph_driver(
         sc_graph_t &graph, int batch_size, int repeat, const context_ptr &ctx) {
     graph_config *pincfg = nullptr;
     graph_config *poutcfg = nullptr;
-    graph_config incfg;
-    auto repo = graph::get_driver_import_repo(ctx).get();
-    if (repo) {
-        auto entry = repo->find(graph);
-        if (!entry) {
-            SC_MODULE_WARN << "Cannot open find the graph in the config file";
-        } else {
-            incfg = entry->config_;
-            pincfg = &incfg;
-        }
-    }
     tuner_creator *ptun_creator = nullptr;
     int64_t real_timeout = 0;
     sc_graph_t orig_graph;

@@ -16,7 +16,6 @@
 
 #include <util/any_map.hpp>
 #include <util/any_reflection_cvt.hpp>
-#include <util/json.hpp>
 #include <util/reflection.hpp>
 
 namespace sc {
@@ -168,38 +167,6 @@ size_t any_t::hash() const {
     return utils::any_to_general_ref(*this).hash();
 }
 
-static bool any_to_str_reflection(
-        std::ostream &os, const any_t &ths, const void *buffer) {
-    if (ths.empty()) {
-        os << "empty";
-        return true;
-    }
-    auto ty_this = reflection::get_type_by_rtti(ths.type_code());
-    if (!ty_this) { return false; }
-    json::json_writer writer {&os, false};
-    writer.write(reflection::general_ref_t {(void *)buffer, *ty_this});
-    return true;
-}
-
-void any_t::to_string_may_throw(std::ostream &os) const {
-    COMPILE_ASSERT(any_to_str_reflection(os, *this, get_raw()),
-            "Cannot call any_t to string without reflection data defined, "
-            "type: " << type_code()->name());
-}
-
-void any_t::to_string(std::ostream &os) const {
-    bool success = any_to_str_reflection(os, *this, get_raw());
-    if (!success) {
-        os << '[' << type_code()->name() << " @" << (void *)get_raw() << ']';
-    }
-}
-
-std::string any_t::to_string() const {
-    std::stringstream ss;
-    to_string(ss);
-    return ss.str();
-}
-
 any_t &any_map_t::get_any(const std::string &v) {
     auto itr = impl_.find(v);
     COMPILE_ASSERT(
@@ -212,38 +179,6 @@ const any_t &any_map_t::get_any(const std::string &v) const {
     COMPILE_ASSERT(
             itr != impl_.end(), "Cannot find the key " << v << " in the map");
     return itr->second;
-}
-
-void any_map_t::to_string(std::ostream &os) const {
-    os << '{';
-    int cnt = 0;
-    for (auto &kv : impl_) {
-        if (cnt != 0) { os << ", "; }
-        os << kv.first;
-        os << ':';
-        kv.second.to_string(os);
-        cnt++;
-    }
-    os << '}';
-}
-
-std::string any_map_t::to_string() const {
-    std::stringstream ss;
-    to_string(ss);
-    return ss.str();
-}
-
-void any_map_t::to_string_may_throw(std::ostream &os) const {
-    os << '{';
-    int cnt = 0;
-    for (auto &kv : impl_) {
-        if (cnt != 0) { os << ", "; }
-        os << kv.first;
-        os << ':';
-        kv.second.to_string_may_throw(os);
-        cnt++;
-    }
-    os << '}';
 }
 
 bool any_map_t::operator==(const any_map_t &other) const {
