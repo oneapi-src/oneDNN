@@ -133,6 +133,7 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     const int64_t *user_mb() const override { return &p_->user_mb; }
+    const attr_t *attr() const override { return &p_->attr; }
     const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
     const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
