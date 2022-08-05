@@ -51,6 +51,34 @@ struct zero_pad_desc_t {
     primitive_kind_t primitive_kind;
 };
 
+struct inner_product_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_inner_product.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: forward_training,
+    // forward_inference, backward_data,
+    // backward_weights, and backward_bias.
+    prop_kind_t prop_kind;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // Weights memory descriptor.
+    memory_desc_t weights_desc;
+    // Weights gradient memory descriptor.
+    memory_desc_t diff_weights_desc;
+    // Bias memory descriptor.
+    memory_desc_t bias_desc;
+    // Bias gradient memory descriptor.
+    memory_desc_t diff_bias_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
+    // The accumulator data type.
+    data_type_t accum_data_type;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

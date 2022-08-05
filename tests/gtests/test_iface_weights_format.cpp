@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -138,14 +138,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(weights_format_test_t, InnerProductWeightsCheck) {
         memory::desc bia_md {input_shape.bia_dims(), input_dt, tag::any};
         memory::desc dst_md {input_shape.dst_dims(), input_dt, tag::any};
 
-        auto fwd_desc = inner_product_forward::desc(
+        auto fwd_pd = inner_product_forward::primitive_desc(eng,
                 prop_kind::forward_training, src_md, wei_md, bia_md, dst_md);
-        auto bwdd_desc
-                = inner_product_backward_data::desc(src_md, wei_md, dst_md);
-        auto bwdw_desc = inner_product_backward_weights::desc(
-                src_md, wei_md, bia_md, dst_md);
-
-        auto fwd_pd = inner_product_forward::primitive_desc(fwd_desc, eng);
 
         bool fwd_brgemm_ker_found = false, bwdd_brgemm_ker_found = false,
              bwdw_brgemm_ker_found = false;
@@ -159,9 +153,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(weights_format_test_t, InnerProductWeightsCheck) {
         // therefore bwdd_pd and bwdw_pd needs to be initialized only after
         // fwd_pd is fixed.
         auto bwdd_pd = inner_product_backward_data::primitive_desc(
-                bwdd_desc, eng, fwd_pd);
+                eng, src_md, wei_md, dst_md, fwd_pd);
         auto bwdw_pd = inner_product_backward_weights::primitive_desc(
-                bwdw_desc, eng, fwd_pd);
+                eng, src_md, wei_md, bia_md, dst_md, fwd_pd);
         // If the forward inner product can be handled by brgemm then so
         // should be the backward data/weights one
         ASSERT_NO_THROW(bwdd_brgemm_ker_found = seek_brgemm_impl(bwdd_pd));

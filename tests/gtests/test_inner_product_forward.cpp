@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -164,14 +164,12 @@ protected:
                 : create_md({}, data_type, p.bias_format);
         auto ip_dst_desc = create_md({ipd.mb, ipd.oc}, data_type, p.dst_format);
 
-        auto ip_desc = with_bias
-                ? inner_product_forward::desc(p.aprop_kind, ip_src_desc,
-                        ip_weights_desc, ip_bias_desc, ip_dst_desc)
-                : inner_product_forward::desc(p.aprop_kind, ip_src_desc,
-                        ip_weights_desc, ip_dst_desc);
+        auto ip_primitive_desc = with_bias
+                ? inner_product_forward::primitive_desc(eng, p.aprop_kind,
+                        ip_src_desc, ip_weights_desc, ip_bias_desc, ip_dst_desc)
+                : inner_product_forward::primitive_desc(eng, p.aprop_kind,
+                        ip_src_desc, ip_weights_desc, ip_dst_desc);
 
-        auto ip_primitive_desc
-                = inner_product_forward::primitive_desc(ip_desc, eng);
         ip_primitive_desc = inner_product_forward::primitive_desc(
                 ip_primitive_desc.get()); // test construction from a C pd
 

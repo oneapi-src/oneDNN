@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -206,21 +206,19 @@ protected:
                 : create_md({}, data_type, p.diff_bias_format);
 
         // Create inner product forward (hint for backward)
-        auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
-                ip_src_desc, ip_diff_weights_desc, ip_diff_dst_desc);
         auto ip_fwd_pdesc
-                = inner_product_forward::primitive_desc(ip_fwd_desc, eng);
-
-        // Create inner product backward
-        auto ip_desc = with_bias
-                ? inner_product_backward_weights::desc(ip_src_desc,
-                        ip_diff_weights_desc, ip_diff_bias_desc,
-                        ip_diff_dst_desc)
-                : inner_product_backward_weights::desc(
+                = inner_product_forward::primitive_desc(eng, prop_kind::forward,
                         ip_src_desc, ip_diff_weights_desc, ip_diff_dst_desc);
 
-        auto ip_primitive_desc = inner_product_backward_weights::primitive_desc(
-                ip_desc, eng, ip_fwd_pdesc);
+        // Create inner product backward
+        auto ip_primitive_desc = with_bias
+                ? inner_product_backward_weights::primitive_desc(eng,
+                        ip_src_desc, ip_diff_weights_desc, ip_diff_bias_desc,
+                        ip_diff_dst_desc, ip_fwd_pdesc)
+                : inner_product_backward_weights::primitive_desc(eng,
+                        ip_src_desc, ip_diff_weights_desc, ip_diff_dst_desc,
+                        ip_fwd_pdesc);
+
         ip_primitive_desc = inner_product_backward_weights::primitive_desc(
                 ip_primitive_desc.get()); // test construction from a C pd
 

@@ -123,10 +123,23 @@ TEST_F(runtime_dim_test_t, TestInnerProduct) {
             {DNNL_RUNTIME_DIM_VAL, 16, 7, 7}, data_type::f32, tag::abcd};
     memory::desc wei_md {{32, 16, 7, 7}, data_type::f32, tag::abcd};
     memory::desc dst_md {{DNNL_RUNTIME_DIM_VAL, 32}, data_type::f32, tag::ab};
-    CHECK_UNIMPL(inner_product_forward::desc(
-            prop_kind::forward, src_md, wei_md, dst_md));
-    CHECK_UNIMPL(inner_product_backward_data::desc(src_md, wei_md, dst_md));
-    CHECK_UNIMPL(inner_product_backward_weights::desc(src_md, wei_md, dst_md));
+    CHECK_UNIMPL(inner_product_forward::primitive_desc(
+            eng, prop_kind::forward, src_md, wei_md, dst_md));
+
+    inner_product_forward::primitive_desc fwd_hint;
+    {
+        auto valid_src_md
+                = memory::desc({2, 16, 7, 7}, data_type::f32, tag::abcd);
+        auto valid_dst_md = memory::desc({2, 32}, data_type::f32, tag::ab);
+        CHECK_OK(fwd_hint
+                = inner_product_forward::primitive_desc(eng, prop_kind::forward,
+                        valid_src_md, wei_md, valid_dst_md));
+    }
+
+    CHECK_UNIMPL(inner_product_backward_data::primitive_desc(
+            eng, src_md, wei_md, dst_md, fwd_hint));
+    CHECK_UNIMPL(inner_product_backward_weights::primitive_desc(
+            eng, src_md, wei_md, dst_md, fwd_hint));
 }
 
 TEST_F(runtime_dim_test_t, TestLNorm) {

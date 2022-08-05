@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -166,17 +166,15 @@ protected:
                 = create_md({ipd.mb, ipd.oc}, data_type, p.diff_dst_format);
 
         // Create inner product forward (hint for backward)
-        auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
-                ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc);
         auto ip_fwd_pdesc
-                = inner_product_forward::primitive_desc(ip_fwd_desc, eng);
+                = inner_product_forward::primitive_desc(eng, prop_kind::forward,
+                        ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc);
 
         // Create inner product backward
-        auto ip_desc = inner_product_backward_data::desc(
-                ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc);
-
         auto ip_primitive_desc = inner_product_backward_data::primitive_desc(
-                ip_desc, eng, ip_fwd_pdesc);
+                eng, ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc,
+                ip_fwd_pdesc);
+
         ip_primitive_desc = inner_product_backward_data::primitive_desc(
                 ip_primitive_desc.get()); // test construction from a C pd
 

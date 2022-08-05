@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
@@ -86,30 +88,47 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
 } // namespace impl
 } // namespace dnnl
 
-status_t dnnl_inner_product_forward_desc_init(inner_product_desc_t *ip_desc,
+status_t dnnl_inner_product_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
         const memory_desc_t *weights_desc, const memory_desc_t *bias_desc,
-        const memory_desc_t *dst_desc) {
+        const memory_desc_t *dst_desc, const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return ip_desc_init(
-            ip_desc, prop_kind, src_desc, weights_desc, bias_desc, dst_desc);
+
+    auto ip_desc = inner_product_desc_t();
+    CHECK(ip_desc_init(
+            &ip_desc, prop_kind, src_desc, weights_desc, bias_desc, dst_desc));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&ip_desc, nullptr, attr);
 }
 
-status_t dnnl_inner_product_backward_data_desc_init(
-        inner_product_desc_t *ip_desc, const memory_desc_t *diff_src_desc,
-        const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc) {
-    return ip_desc_init(ip_desc, backward_data, diff_src_desc, weights_desc,
-            nullptr, diff_dst_desc);
+status_t dnnl_inner_product_backward_data_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        const memory_desc_t *diff_src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *diff_dst_desc,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto ip_desc = inner_product_desc_t();
+    CHECK(ip_desc_init(&ip_desc, backward_data, diff_src_desc, weights_desc,
+            nullptr, diff_dst_desc));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&ip_desc, hint_fwd_pd, attr);
 }
 
-status_t dnnl_inner_product_backward_weights_desc_init(
-        inner_product_desc_t *ip_desc, const memory_desc_t *src_desc,
-        const memory_desc_t *diff_weights_desc,
-        const memory_desc_t *diff_bias_desc,
-        const memory_desc_t *diff_dst_desc) {
-    return ip_desc_init(ip_desc, backward_weights, src_desc, diff_weights_desc,
-            diff_bias_desc, diff_dst_desc);
+status_t dnnl_inner_product_backward_weights_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
+        const memory_desc_t *diff_bias_desc, const memory_desc_t *diff_dst_desc,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto ip_desc = inner_product_desc_t();
+    CHECK(ip_desc_init(&ip_desc, backward_weights, src_desc, diff_weights_desc,
+            diff_bias_desc, diff_dst_desc));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&ip_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

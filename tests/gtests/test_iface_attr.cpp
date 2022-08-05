@@ -571,9 +571,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, InnerProdBlockedWeights) {
         memory::desc dst_md {
                 {1024, 256}, memory::data_type::f32, memory::format_tag::any};
 
-        auto ip_desc = inner_product_forward::desc(
-                prop_kind::forward_training, src_md, wei_md, bia_md, dst_md);
-        auto pd = inner_product_forward::primitive_desc(ip_desc, e);
+        auto pd = inner_product_forward::primitive_desc(
+                e, prop_kind::forward_training, src_md, wei_md, bia_md, dst_md);
 
         std::string impl_info;
         ASSERT_NO_THROW(impl_info = pd.impl_info_str(););

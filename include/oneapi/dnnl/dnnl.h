@@ -2292,7 +2292,9 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_backward_desc_init(
 ///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param ip_desc Output descriptor for inner product primitive.
+/// @param primitive_desc Creates a primitive descriptor for an inner product
+///     forward propagation primitive.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param src_desc Source memory descriptor.
@@ -2301,14 +2303,15 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_backward_desc_init(
 ///     descriptor, or a memory descriptor with format_kind set to
 ///     #dnnl_format_kind_undef disables the bias term.
 /// @param dst_desc Destination memory descriptor.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_inner_product_forward_desc_init(
-        dnnl_inner_product_desc_t *ip_desc, dnnl_prop_kind_t prop_kind,
-        const dnnl_memory_desc_t *src_desc,
+dnnl_status_t DNNL_API dnnl_inner_product_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_desc,
         const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_desc);
+        const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
+        const_dnnl_primitive_attr_t attr);
 
 /// Initializes descriptor for inner product backward propagation.
 ///
@@ -2316,17 +2319,24 @@ dnnl_status_t DNNL_API dnnl_inner_product_forward_desc_init(
 ///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param ip_desc Output descriptor for inner product primitive.
+/// @param primitive_desc Creates a primitive descriptor for an inner product
+///     backward propagation primitive.
+/// @param engine Engine to use.
 /// @param diff_src_desc Diff source memory descriptor.
 /// @param weights_desc Weights memory descriptor.
 /// @param diff_dst_desc Diff destination memory descriptor.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_inner_product_backward_data_desc_init(
-        dnnl_inner_product_desc_t *ip_desc,
+dnnl_status_t DNNL_API dnnl_inner_product_backward_data_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         const dnnl_memory_desc_t *diff_src_desc,
         const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *diff_dst_desc);
+        const dnnl_memory_desc_t *diff_dst_desc,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
 /// Initializes descriptor for inner product weights gradient primitive.
 ///
@@ -2334,20 +2344,29 @@ dnnl_status_t DNNL_API dnnl_inner_product_backward_data_desc_init(
 ///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param ip_desc Output descriptor for inner product primitive.
+/// @param primitive_desc Creates a primitive descriptor for an inner product
+///     weights update primitive.
+/// @param engine Engine to use.
 /// @param src_desc Source memory descriptor.
 /// @param diff_weights_desc Diff weights memory descriptor.
 /// @param diff_bias_desc Diff bias memory descriptor. Passing NULL, a zero
 ///     memory descriptor, or a memory descriptor with format_kind set to
 ///     #dnnl_format_kind_undef disables the bias term.
 /// @param diff_dst_desc Diff destination memory descriptor.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_inner_product_backward_weights_desc_init(
-        dnnl_inner_product_desc_t *ip_desc, const dnnl_memory_desc_t *src_desc,
+dnnl_status_t DNNL_API
+dnnl_inner_product_backward_weights_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        const dnnl_memory_desc_t *src_desc,
         const dnnl_memory_desc_t *diff_weights_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_desc);
+        const dnnl_memory_desc_t *diff_dst_desc,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_inner_product
 

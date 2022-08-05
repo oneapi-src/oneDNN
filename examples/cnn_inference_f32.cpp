@@ -643,9 +643,9 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto fc6_dst_md = memory::desc({fc6_dst_tz}, dt::f32, tag::any);
 
     // create a inner_product
-    auto fc6_desc = inner_product_forward::desc(prop_kind::forward_inference,
-            fc6_src_md, fc6_weights_md, fc6_bias_md, fc6_dst_md);
-    auto fc6_prim_desc = inner_product_forward::primitive_desc(fc6_desc, eng);
+    auto fc6_prim_desc = inner_product_forward::primitive_desc(eng,
+            prop_kind::forward_inference, fc6_src_md, fc6_weights_md,
+            fc6_bias_md, fc6_dst_md);
 
     auto fc6_src_memory = pool5_dst_memory;
     if (fc6_prim_desc.src_desc() != fc6_src_memory.get_desc()) {
@@ -693,9 +693,9 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto fc7_dst_md = memory::desc({fc7_dst_tz}, dt::f32, tag::any);
 
     // create a inner_product
-    auto fc7_desc = inner_product_forward::desc(prop_kind::forward_inference,
-            fc6_dst_memory.get_desc(), fc7_weights_md, fc7_bias_md, fc7_dst_md);
-    auto fc7_prim_desc = inner_product_forward::primitive_desc(fc7_desc, eng);
+    auto fc7_prim_desc = inner_product_forward::primitive_desc(eng,
+            prop_kind::forward_inference, fc6_dst_memory.get_desc(),
+            fc7_weights_md, fc7_bias_md, fc7_dst_md);
 
     auto fc7_weights_memory = fc7_user_weights_memory;
     if (fc7_prim_desc.weights_desc() != fc7_user_weights_memory.get_desc()) {
@@ -736,9 +736,9 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto fc8_dst_md = memory::desc({fc8_dst_tz}, dt::f32, tag::any);
 
     // create a inner_product
-    auto fc8_desc = inner_product_forward::desc(prop_kind::forward_inference,
-            fc7_dst_memory.get_desc(), fc8_weights_md, fc8_bias_md, fc8_dst_md);
-    auto fc8_prim_desc = inner_product_forward::primitive_desc(fc8_desc, eng);
+    auto fc8_prim_desc = inner_product_forward::primitive_desc(eng,
+            prop_kind::forward_inference, fc7_dst_memory.get_desc(),
+            fc8_weights_md, fc8_bias_md, fc8_dst_md);
 
     auto fc8_weights_memory = fc8_user_weights_memory;
     if (fc8_prim_desc.weights_desc() != fc8_user_weights_memory.get_desc()) {

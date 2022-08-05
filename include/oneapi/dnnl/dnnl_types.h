@@ -2244,40 +2244,6 @@ typedef struct {
 
 /// @} dnnl_api_layer_normalization
 
-/// @addtogroup dnnl_api_inner_product
-/// @{
-
-/// A descriptor of an inner product operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_inner_product.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward_data,
-    /// #dnnl_backward_weights, and #dnnl_backward_bias.
-    dnnl_prop_kind_t prop_kind;
-    /// Source memory descriptor.
-    dnnl_memory_desc_t src_desc;
-    /// Source gradient memory descriptor.
-    dnnl_memory_desc_t diff_src_desc;
-    /// Weights memory descriptor.
-    dnnl_memory_desc_t weights_desc;
-    /// Weights gradient memory descriptor.
-    dnnl_memory_desc_t diff_weights_desc;
-    /// Bias memory descriptor.
-    dnnl_memory_desc_t bias_desc;
-    /// Bias gradient memory descriptor.
-    dnnl_memory_desc_t diff_bias_desc;
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-    /// Destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_dst_desc;
-    /// The accumulator data type. Initialized automatically.
-    dnnl_data_type_t accum_data_type;
-} dnnl_inner_product_desc_t;
-
-/// @} dnnl_api_inner_product
-
 /// @addtogroup dnnl_api_rnn
 /// @{
 

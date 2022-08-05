@@ -4226,6 +4226,13 @@ protected:
                 "primitive descriptor propagation kind mismatch");
     }
 
+    /// Returns a constant reference to a static instance of default constructed
+    /// primitive attributes
+    static const primitive_attr &default_attr() {
+        static const primitive_attr attr;
+        return attr;
+    }
+
     using base = primitive_desc_base;
 };
 
@@ -7470,17 +7477,19 @@ struct layer_normalization_backward : public primitive {
 
 /// Inner product forward propagation primitive.
 struct inner_product_forward : public primitive {
-    /// Descriptor for an inner product forward propagation primitive.
-    struct desc {
-        dnnl_inner_product_desc_t data;
+    /// Primitive descriptor for an inner product forward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for an inner product forward propagation
-        /// primitive with bias.
+        /// Constructs a primitive descriptor for an inner product forward
+        /// propagation primitive with bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -7488,77 +7497,47 @@ struct inner_product_forward : public primitive {
         /// @param weights_desc Memory descriptor for weights.
         /// @param bias_desc Memory descriptor for bias.
         /// @param dst_desc Memory descriptor for dst.
-        desc(prop_kind aprop_kind, const memory::desc &src_desc,
-                const memory::desc &weights_desc, const memory::desc &bias_desc,
-                const memory::desc &dst_desc) {
-            error::wrap_c_api(dnnl_inner_product_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      &src_desc.data, &weights_desc.data,
-                                      &bias_desc.data, &dst_desc.data),
-                    "could not create a descriptor for an inner product "
-                    "forward propagation primitive");
-        }
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &src_desc, const memory::desc &weights_desc,
+                const memory::desc &bias_desc, const memory::desc &dst_desc,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, src_desc, weights_desc,
+                    &bias_desc, dst_desc, attr, allow_empty) {}
 
-        /// Constructs a descriptor for an inner product forward propagation
-        /// primitive without bias.
+        /// Constructs a primitive descriptor for an inner product forward
+        /// propagation primitive.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
         /// @param src_desc Memory descriptor for src.
         /// @param weights_desc Memory descriptor for weights.
         /// @param dst_desc Memory descriptor for dst.
-        desc(prop_kind aprop_kind, const memory::desc &src_desc,
-                const memory::desc &weights_desc,
-                const memory::desc &dst_desc) {
-            error::wrap_c_api(
-                    dnnl_inner_product_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind), &src_desc.data,
-                            &weights_desc.data, nullptr, &dst_desc.data),
-                    "could not create a descriptor for an inner product "
-                    "forward propagation primitive");
-        }
-    };
-
-    /// Primitive descriptor for an inner product forward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for an inner product forward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for an inner product forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &src_desc, const memory::desc &weights_desc,
+                const memory::desc &dst_desc,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
-
-        /// Constructs a primitive descriptor for an inner product forward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for an inner product forward propagation
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
-        /// @param aengine Engine to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+            : primitive_desc(aengine, aprop_kind, src_desc, weights_desc,
+                    nullptr, dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an inner product forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -7582,6 +7561,27 @@ struct inner_product_forward : public primitive {
 
         /// @copydoc dnnl::convolution_forward::primitive_desc::bias_desc()const
         memory::desc bias_desc() const { return base::weights_desc(1); }
+
+    private:
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &src_desc, const memory::desc &weights_desc,
+                const memory::desc *bias_desc, const memory::desc &dst_desc,
+                const primitive_attr &attr, bool allow_empty) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_inner_product_forward_primitive_desc_create(&pd,
+                            aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            &src_desc.data, &weights_desc.data,
+                            bias_desc ? &bias_desc->data : nullptr,
+                            &dst_desc.data, attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for an inner "
+                        "product forward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -7604,31 +7604,6 @@ struct inner_product_forward : public primitive {
 
 /// Inner product backward propagation primitive.
 struct inner_product_backward_data : public primitive {
-    /// Descriptor for an inner product backward propagation primitive.
-    struct desc {
-        dnnl_inner_product_desc_t data;
-
-        /// Constructs a descriptor for an inner product backward propagation
-        /// primitive.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// @param diff_src_desc Memory descriptor for diff src.
-        /// @param weights_desc Memory descriptor for weights.
-        /// @param diff_dst_desc Memory descriptor for diff dst.
-        desc(const memory::desc &diff_src_desc,
-                const memory::desc &weights_desc,
-                const memory::desc &diff_dst_desc) {
-            error::wrap_c_api(dnnl_inner_product_backward_data_desc_init(&data,
-                                      &diff_src_desc.data, &weights_desc.data,
-                                      &diff_dst_desc.data),
-                    "could not create a descriptor for an inner product "
-                    "backward propagation primitive");
-        }
-    };
-
     /// Primitive descriptor for an inner product backward propagation
     /// primitive.
     struct primitive_desc : public dnnl::primitive_desc {
@@ -7638,42 +7613,42 @@ struct inner_product_backward_data : public primitive {
         /// Constructs a primitive descriptor for an inner product backward
         /// propagation primitive.
         ///
-        /// @param adesc Descriptor for an inner product backward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for an inner product
-        ///     forward propagation primitive. It is used as a hint for
-        ///     deciding which memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                const inner_product_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
-
-        /// Constructs a primitive descriptor for an inner product backward
-        /// propagation primitive.
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
-        /// @param adesc Descriptor for an inner product backward propagation
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
         /// @param aengine Engine to use.
+        /// @param diff_src_desc Memory descriptor for diff src.
+        /// @param weights_desc Memory descriptor for weights.
+        /// @param diff_dst_desc Memory descriptor for diff dst.
         /// @param hint_fwd_pd Primitive descriptor for an inner product
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
+        primitive_desc(const engine &aengine, const memory::desc &diff_src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &diff_dst_desc,
                 const inner_product_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_inner_product_backward_data_primitive_desc_create(
+                            &pd, aengine.get(), &diff_src_desc.data,
+                            &weights_desc.data, &diff_dst_desc.data,
+                            hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for an inner "
+                        "product backward propagation primitive");
+            reset(pd);
+        }
 
         /// Constructs a primitive descriptor for an inner product backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -7715,86 +7690,56 @@ struct inner_product_backward_data : public primitive {
 
 /// Inner product weights gradient primitive.
 struct inner_product_backward_weights : public primitive {
-    /// Descriptor for an inner product weights gradient primitive.
-    struct desc {
-        dnnl_inner_product_desc_t data;
-
-        /// Constructs a descriptor for an inner product descriptor weights
-        /// update primitive with bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// @param src_desc Memory descriptor for src.
-        /// @param diff_weights_desc Memory descriptor for diff weights.
-        /// @param diff_bias_desc Memory descriptor for diff bias.
-        /// @param diff_dst_desc Memory descriptor for diff dst.
-        desc(const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_bias_desc,
-                const memory::desc &diff_dst_desc) {
-            error::wrap_c_api(
-                    dnnl_inner_product_backward_weights_desc_init(&data,
-                            &src_desc.data, &diff_weights_desc.data,
-                            &diff_bias_desc.data, &diff_dst_desc.data),
-                    "could not create a descriptor for an inner product "
-                    "weights gradient primitive");
-        }
-
-        /// Constructs a descriptor for an inner product descriptor weights
-        /// update primitive without bias.
-        ///
-        /// @note
-        ///     All the memory descriptors may be initialized with the
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// @param src_desc Memory descriptor for src.
-        /// @param diff_weights_desc Memory descriptor for diff weights.
-        /// @param diff_dst_desc Memory descriptor for diff dst.
-        desc(const memory::desc &src_desc,
-                const memory::desc &diff_weights_desc,
-                const memory::desc &diff_dst_desc) {
-            error::wrap_c_api(
-                    dnnl_inner_product_backward_weights_desc_init(&data,
-                            &src_desc.data, &diff_weights_desc.data, nullptr,
-                            &diff_dst_desc.data),
-                    "could not create a descriptor for an inner product "
-                    "weights gradient primitive");
-        }
-    };
-
     /// Primitive descriptor for an inner product weights gradient primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
         /// Constructs a primitive descriptor for an inner product weights
-        /// update primitive.
+        /// update primitive with bias.
         ///
-        /// @param adesc Descriptor for an inner product weights gradient
-        ///     primitive.
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
         /// @param aengine Engine to use.
+        /// @param src_desc Memory descriptor for src.
+        /// @param diff_weights_desc Memory descriptor for diff weights.
+        /// @param diff_bias_desc Memory descriptor for diff bias.
+        /// @param diff_dst_desc Memory descriptor for diff dst.
         /// @param hint_fwd_pd Primitive descriptor for an inner product
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_desc,
                 const inner_product_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, src_desc, diff_weights_desc,
+                    &diff_bias_desc, diff_dst_desc, hint_fwd_pd, attr,
+                    allow_empty) {}
 
         /// Constructs a primitive descriptor for an inner product weights
         /// update primitive.
         ///
-        /// @param adesc Descriptor for an inner product weights gradient
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
+        /// @note
+        ///     All the memory descriptors may be initialized with the
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
         /// @param aengine Engine to use.
+        /// @param src_desc Memory descriptor for src.
+        /// @param diff_weights_desc Memory descriptor for diff weights.
+        /// @param diff_dst_desc Memory descriptor for diff dst.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param hint_fwd_pd Primitive descriptor for an inner product
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -7802,12 +7747,14 @@ struct inner_product_backward_weights : public primitive {
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
+        primitive_desc(const engine &aengine, const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc,
                 const inner_product_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, src_desc, diff_weights_desc, nullptr,
+                    diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an inner product weights
         /// update primitive from a C API primitive descriptor that must
@@ -7833,6 +7780,29 @@ struct inner_product_backward_weights : public primitive {
         /// @copydoc dnnl::convolution_backward_weights::primitive_desc::diff_bias_desc()const
         memory::desc diff_bias_desc() const {
             return base::diff_weights_desc(1);
+        }
+
+    private:
+        primitive_desc(const engine &aengine, const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc *diff_bias_desc,
+                const memory::desc &diff_dst_desc,
+                const inner_product_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr, bool allow_empty) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_inner_product_backward_weights_primitive_desc_create(
+                            &pd, aengine.get(), &src_desc.data,
+                            &diff_weights_desc.data,
+                            diff_bias_desc ? &diff_bias_desc->data : nullptr,
+                            &diff_dst_desc.data, hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for an inner "
+                        "product weights gradient primitive");
+            reset(pd);
         }
     };
 
