@@ -66,17 +66,17 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         : stat_and_data_kernel_t(pd)
         , jit_generator(jit_name())
         , src_d_(pd_->src_md())
-        , dst_d_(pd_->dst_md()) {
-        simd_w_ = vlen / sizeof(float);
-        C_ = pd_->norm_axis();
-        axis_simd_full_ = C_ / simd_w_;
-        axis_simd_tail_ = C_ % simd_w_;
-        eps_ = pd_->desc()->layer_norm_epsilon;
-        calculate_stats_ = !pd_->stats_are_src();
-        use_scaleshift_ = pd_->use_scaleshift();
-        use_scale_ = pd_->use_scale();
-        use_shift_ = pd_->use_shift();
-        save_stats_ = pd_->is_training();
+        , dst_d_(pd_->dst_md())
+        , simd_w_(vlen / sizeof(float))
+        , C_(pd_->norm_axis())
+        , axis_simd_full_(C_ / simd_w_)
+        , axis_simd_tail_(C_ % simd_w_)
+        , use_scaleshift_(pd_->use_scaleshift())
+        , use_scale_(pd_->use_scale())
+        , use_shift_(pd_->use_shift())
+        , save_stats_(pd_->is_training())
+        , calculate_stats_(!pd_->stats_are_src())
+        , eps_(pd_->desc()->layer_norm_epsilon) {
 
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
@@ -109,39 +109,39 @@ protected:
 
     io::jit_io_multi_dt_helper_t<Vmm> io_;
     const memory_desc_wrapper src_d_, dst_d_;
-    size_t simd_w_;
-    dim_t C_;
-    dim_t axis_simd_full_;
-    dim_t axis_simd_tail_;
-    bool use_scaleshift_;
-    bool use_scale_;
-    bool use_shift_;
-    bool save_stats_;
-    bool calculate_stats_;
-    float eps_;
+    const size_t simd_w_;
+    const dim_t C_;
+    const dim_t axis_simd_full_;
+    const dim_t axis_simd_tail_;
+    const bool use_scaleshift_;
+    const bool use_scale_;
+    const bool use_shift_;
+    const bool save_stats_;
+    const bool calculate_stats_;
+    const float eps_;
 
-    const Xbyak::Reg64 reg_param = abi_param1;
-    const Xbyak::Reg64 reg_src = rdx;
-    const Xbyak::Reg64 reg_dst = rax;
-    const Xbyak::Reg64 reg_mean = rbx;
-    const Xbyak::Reg64 reg_scale = r8;
-    const Xbyak::Reg64 reg_block_end = r9;
-    const Xbyak::Reg64 reg_eps = r10;
-    const Xbyak::Reg64 reg_tmp = r11;
-    const Xbyak::Reg64 reg_shift = r12;
-    const Xbyak::Reg64 reg_var = r13;
+    const Reg64 reg_param = abi_param1;
+    const Reg64 reg_src = rdx;
+    const Reg64 reg_dst = rax;
+    const Reg64 reg_mean = rbx;
+    const Reg64 reg_scale = r8;
+    const Reg64 reg_block_end = r9;
+    const Reg64 reg_eps = r10;
+    const Reg64 reg_tmp = r11;
+    const Reg64 reg_shift = r12;
+    const Reg64 reg_var = r13;
 
-    Vmm vmm_tail_mask = Vmm(0);
-    Vmm vmm_scale = Vmm(7); // In unroll range, safe for dst compute.
-    Vmm vmm_shift = Vmm(8); // In unroll range, safe for dst compute.
-    Vmm vmm_ones = Vmm(9);
-    Vmm vmm_eps = Vmm(10);
-    Vmm vmm_c = Vmm(11);
-    Vmm vmm_mean = Vmm(12);
-    Vmm vmm_inv_sqrtvar = Vmm(13);
-    Vmm vmm_dst = Vmm(14);
-    Vmm vmm_tmp = Vmm(15);
-    Xmm xmm_tmp = Xmm(15);
+    const Vmm vmm_tail_mask = Vmm(0);
+    const Vmm vmm_scale = Vmm(7); // In unroll range, safe for dst compute.
+    const Vmm vmm_shift = Vmm(8); // In unroll range, safe for dst compute.
+    const Vmm vmm_ones = Vmm(9);
+    const Vmm vmm_eps = Vmm(10);
+    const Vmm vmm_c = Vmm(11);
+    const Vmm vmm_mean = Vmm(12);
+    const Vmm vmm_inv_sqrtvar = Vmm(13);
+    const Vmm vmm_dst = Vmm(14);
+    const Vmm vmm_tmp = Vmm(15);
+    const Xmm xmm_tmp = Xmm(15);
 
     const int bf16_emu_zmm_1_idx = 28;
     const int bf16_emu_zmm_2_idx = 29;
@@ -440,6 +440,7 @@ stat_and_data_kernel_t *stat_and_data_kernel_t::create(
     } else if (mayiuse(sse41)) {
         return new jit_stat_and_data_kernel_t<sse41>(pd);
     } else {
+        assert(!"kernel is empty.");
         return nullptr;
     }
 }
@@ -479,12 +480,12 @@ struct jit_diff_ss_kernel_t : diff_ss_kernel_t, public jit_generator {
         : diff_ss_kernel_t(pd)
         , jit_generator(jit_name())
         , src_d_(pd_->src_md())
-        , d_dst_d_(pd_->diff_dst_md()) {
-        simd_w_ = vlen / sizeof(float);
-        C_ = pd_->norm_axis();
-        axis_simd_full_ = C_ / simd_w_;
-        axis_simd_tail_ = C_ % simd_w_;
-        eps_ = pd_->desc()->layer_norm_epsilon;
+        , d_dst_d_(pd_->diff_dst_md())
+        , simd_w_(vlen / sizeof(float))
+        , C_(pd_->norm_axis())
+        , axis_simd_full_(C_ / simd_w_)
+        , axis_simd_tail_(C_ % simd_w_)
+        , eps_(pd_->desc()->layer_norm_epsilon) {
 
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
@@ -515,30 +516,30 @@ protected:
 
     io::jit_io_multi_dt_helper_t<Vmm> io_;
     const memory_desc_wrapper src_d_, d_dst_d_;
-    size_t simd_w_;
-    dim_t C_;
-    dim_t axis_simd_full_;
-    dim_t axis_simd_tail_;
-    float eps_;
+    const size_t simd_w_;
+    const dim_t C_;
+    const dim_t axis_simd_full_;
+    const dim_t axis_simd_tail_;
+    const float eps_;
 
-    const Xbyak::Reg64 reg_param = abi_param1;
-    const Xbyak::Reg64 reg_src = rdx;
-    const Xbyak::Reg64 reg_diff_dst = rax;
-    const Xbyak::Reg64 reg_mean = rbx;
-    const Xbyak::Reg64 reg_diff_scale = r8;
-    const Xbyak::Reg64 reg_block_end = r9;
-    const Xbyak::Reg64 reg_tmp = r11;
-    const Xbyak::Reg64 reg_diff_shift = r12;
-    const Xbyak::Reg64 reg_inv_sqrtvar = r13;
+    const Reg64 reg_param = abi_param1;
+    const Reg64 reg_src = rdx;
+    const Reg64 reg_diff_dst = rax;
+    const Reg64 reg_mean = rbx;
+    const Reg64 reg_diff_scale = r8;
+    const Reg64 reg_block_end = r9;
+    const Reg64 reg_tmp = r11;
+    const Reg64 reg_diff_shift = r12;
+    const Reg64 reg_inv_sqrtvar = r13;
 
-    Vmm vmm_tail_mask = Vmm(0);
-    Xmm xmm_tmp = Xmm(9);
-    Vmm vmm_inv_sqrtvar = Vmm(10);
-    Vmm vmm_ddst = Vmm(11);
-    Vmm vmm_dscale = Vmm(12);
-    Vmm vmm_dshift = Vmm(13);
-    Vmm vmm_src = Vmm(14);
-    Vmm vmm_mean = Vmm(15);
+    const Vmm vmm_tail_mask = Vmm(0);
+    const Xmm xmm_tmp = Xmm(9);
+    const Vmm vmm_inv_sqrtvar = Vmm(10);
+    const Vmm vmm_ddst = Vmm(11);
+    const Vmm vmm_dscale = Vmm(12);
+    const Vmm vmm_dshift = Vmm(13);
+    const Vmm vmm_src = Vmm(14);
+    const Vmm vmm_mean = Vmm(15);
 
     const int bf16_emu_zmm_1_idx = 28;
     const int bf16_emu_zmm_2_idx = 29;
@@ -636,6 +637,7 @@ diff_ss_kernel_t *diff_ss_kernel_t::create(const layer_normalization_pd_t *pd) {
     } else if (mayiuse(avx2)) {
         return new jit_diff_ss_kernel_t<avx2>(pd);
     } else {
+        assert(!"kernel is empty.");
         return nullptr;
     }
 }
@@ -666,15 +668,15 @@ struct jit_diff_data_base_kernel_t : diff_data_kernel_t, public jit_generator {
         , jit_generator(jit_name())
         , src_d_(pd_->src_md())
         , d_dst_d_(pd_->diff_dst_md())
-        , d_src_d_(pd_->diff_src_md()) {
-        simd_w_ = vlen / sizeof(float);
-        C_ = pd_->norm_axis();
-        axis_simd_full_ = C_ / simd_w_;
-        axis_simd_tail_ = C_ % simd_w_;
-        calculate_diff_stats_ = !pd_->stats_are_src();
-        use_scaleshift_ = pd_->use_scaleshift();
-        use_scale_ = pd_->use_scale();
-        use_shift_ = pd_->use_shift();
+        , d_src_d_(pd_->diff_src_md())
+        , simd_w_(vlen / sizeof(float))
+        , C_(pd_->norm_axis())
+        , axis_simd_full_(C_ / simd_w_)
+        , axis_simd_tail_(C_ % simd_w_)
+        , use_scaleshift_(pd_->use_scaleshift())
+        , use_scale_(pd_->use_scale())
+        , use_shift_(pd_->use_shift())
+        , calculate_diff_stats_(!pd_->stats_are_src()) {
 
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
@@ -707,38 +709,38 @@ protected:
 
     io::jit_io_multi_dt_helper_t<Vmm> io_;
     const memory_desc_wrapper src_d_, d_dst_d_, d_src_d_;
-    size_t simd_w_;
-    dim_t C_;
-    dim_t axis_simd_full_;
-    dim_t axis_simd_tail_;
-    bool use_scaleshift_;
-    bool use_scale_;
-    bool use_shift_;
-    bool calculate_diff_stats_;
+    const size_t simd_w_;
+    const dim_t C_;
+    const dim_t axis_simd_full_;
+    const dim_t axis_simd_tail_;
+    const bool use_scaleshift_;
+    const bool use_scale_;
+    const bool use_shift_;
+    const bool calculate_diff_stats_;
 
-    const Xbyak::Reg64 reg_param = abi_param1;
-    const Xbyak::Reg64 reg_src = rdx;
-    const Xbyak::Reg64 reg_diff_dst = rax;
-    const Xbyak::Reg64 reg_diff_src = r14;
-    const Xbyak::Reg64 reg_mean = rbx;
-    const Xbyak::Reg64 reg_inv_sqrtvar = r13;
-    const Xbyak::Reg64 reg_scale = r8;
-    const Xbyak::Reg64 reg_tmp = r11;
-    const Xbyak::Reg64 reg_dd_scale = r10;
-    const Xbyak::Reg64 reg_dd_scale_x = r12;
-    const Xbyak::Reg64 reg_block_end = r9;
+    const Reg64 reg_param = abi_param1;
+    const Reg64 reg_src = rdx;
+    const Reg64 reg_diff_dst = rax;
+    const Reg64 reg_diff_src = r14;
+    const Reg64 reg_mean = rbx;
+    const Reg64 reg_inv_sqrtvar = r13;
+    const Reg64 reg_scale = r8;
+    const Reg64 reg_tmp = r11;
+    const Reg64 reg_dd_scale = r10;
+    const Reg64 reg_dd_scale_x = r12;
+    const Reg64 reg_block_end = r9;
 
-    Vmm vmm_tail_mask = Vmm(0);
-    Vmm vmm_C = Vmm(7);
-    Vmm vmm_scale = Vmm(8);
-    Xmm xmm_tmp = Xmm(9);
-    Vmm vmm_tmp = Vmm(9);
-    Vmm vmm_inv_sqrtvar = Vmm(10);
-    Vmm vmm_dsrc = Vmm(11);
-    Vmm vmm_dd_scale_x = Vmm(12);
-    Vmm vmm_dd_scale = Vmm(13);
-    Vmm vmm_src = Vmm(14);
-    Vmm vmm_mean = Vmm(15);
+    const Vmm vmm_tail_mask = Vmm(0);
+    const Vmm vmm_C = Vmm(7);
+    const Vmm vmm_scale = Vmm(8);
+    const Xmm xmm_tmp = Xmm(9);
+    const Vmm vmm_tmp = Vmm(9);
+    const Vmm vmm_inv_sqrtvar = Vmm(10);
+    const Vmm vmm_dsrc = Vmm(11);
+    const Vmm vmm_dd_scale_x = Vmm(12);
+    const Vmm vmm_dd_scale = Vmm(13);
+    const Vmm vmm_src = Vmm(14);
+    const Vmm vmm_mean = Vmm(15);
 
     const int bf16_emu_zmm_1_idx = 28;
     const int bf16_emu_zmm_2_idx = 29;
@@ -917,6 +919,7 @@ diff_data_kernel_t *diff_data_kernel_t::create(
     } else if (mayiuse(avx2)) {
         return new jit_diff_data_kernel_t<avx2>(pd);
     } else {
+        assert(!"kernel is empty.");
         return nullptr;
     }
 }
