@@ -46,6 +46,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
                                 : use_sh ? sh.get_elem(c) : 0;
             auto off = n * prb->c + c;
             float res = gamma * (src.get_elem(off) - smean) + beta;
+            maybe_oscale(prb->attr, res, prb->scales, 0);
             dst_ptr[off] = res;
         }
     });

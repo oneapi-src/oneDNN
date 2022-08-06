@@ -2445,6 +2445,68 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_backward_desc_init(
 
 /// @} dnnl_api_layer_normalization
 
+/// @addtogroup dnnl_api_layer_normalization_v2
+/// @{
+
+/// Initializes a descriptor for layer normalization v2 forward propagation
+/// primitive.
+///
+/// @note
+///     In-place operation is supported: the dst can refer to the same memory
+///     as the src.
+///
+/// @param lnrm_desc Output descriptor for layer normalization primitive.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_forward_training and #dnnl_forward_inference.
+/// @param src_desc Source memory descriptor.
+/// @param dst_desc Destination memory descriptor.
+/// @param stat_desc Memory descriptor for mean and variance. If this
+///     parameter is NULL, a zero memory descriptor, or a memory descriptor
+///     with format_kind set to #dnnl_format_kind_undef, then the memory
+///     descriptor for stats is derived from @p data_desc by removing the last
+///     dimension.
+/// @param epsilon Layer normalization epsilon parameter.
+/// @param flags Layer normalization flags (@ref dnnl_normalization_flags_t).
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_layer_normalization_v2_forward_desc_init(
+        dnnl_layer_normalization_v2_desc_t *lnrm_desc,
+        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *dst_desc, const dnnl_memory_desc_t *stat_desc,
+        float epsilon, unsigned flags);
+
+/// Initializes a descriptor for a layer normalization v2 backward propagation
+/// primitive.
+///
+/// @note
+///     In-place operation is supported: the diff_dst can refer to the same
+///     memory as the diff_src.
+///
+/// @param lnrm_desc Output descriptor for layer normalization primitive.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_backward_data and #dnnl_backward (diffs for all parameters are
+///     computed in this case).
+/// @param diff_src_desc Diff source memory descriptor.
+/// @param diff_dst_desc Diff destination memory descriptor.
+/// @param src_desc Source memory descriptor.
+/// @param stat_desc Memory descriptor for mean and variance. If this
+///     parameter is NULL, a zero memory descriptor, or a memory descriptor
+///     with format_kind set to #dnnl_format_kind_undef, then the memory
+///     descriptor for stats is derived from @p data_desc by removing the last
+///     dimension.
+/// @param epsilon Layer normalization epsilon parameter.
+/// @param flags Layer normalization flags (@ref dnnl_normalization_flags_t).
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_layer_normalization_v2_backward_desc_init(
+        dnnl_layer_normalization_v2_desc_t *lnrm_desc,
+        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *diff_src_desc,
+        const dnnl_memory_desc_t *diff_dst_desc,
+        const dnnl_memory_desc_t *src_desc, const dnnl_memory_desc_t *stat_desc,
+        float epsilon, unsigned flags);
+
+/// @} dnnl_api_layer_normalization_v2
+
 /// @addtogroup dnnl_api_inner_product
 /// @{
 

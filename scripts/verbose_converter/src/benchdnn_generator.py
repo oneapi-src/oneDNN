@@ -42,6 +42,7 @@ def convert_driver(prop_kind):
         'eltwise': 'eltwise',
         'inner_product': 'ip',
         'layer_normalization': 'lnorm',
+        'layer_normalization_v2': 'lnorm',
         'lrn': 'lrn',
         'matmul': 'matmul',
         'pooling': 'pool',
@@ -267,6 +268,22 @@ def convert_dts(mds, prim_kind):
 
         return f' --sdt={data_dt}:{weights_dt}'
 
+    # --dt=SRC_DT[:WEI_DT][:DST_DT]
+    def convert_dts_multiple(mds):
+        dts = '--dt='
+        for md in mds:
+            md_dt = md['data_type']
+            md_arg = md['arg']
+            if md_arg == 'src':
+                dts += f'{md_dt}'
+            elif md_arg == 'wei':
+                dts += f':{md_dt}'
+            elif md_arg == 'dst':
+                dts += f':{md_dt}'
+            else:
+                dts += f''
+        return dts
+
     def convert_dts_multiple_src(mds):
         src_dts = ''
         dts = ''
@@ -293,7 +310,7 @@ def convert_dts(mds, prim_kind):
         'deconvolution': convert_dts_cfg,
         'eltwise': convert_dts_common,
         'inner_product': convert_dts_cfg,
-        'layer_normalization': convert_dts_common,
+        'layer_normalization': convert_dts_multiple,
         'lrn': convert_dts_common,
         'matmul': convert_dts_cfg_with_bias,
         'pooling': convert_dts_cfg_pool,
@@ -334,6 +351,22 @@ def convert_tags(mds, prim_kind):
             else:
                 md_tag = md['tag']
                 tags += f' --{md_arg}tag={md_tag}'
+        return tags
+
+    # --tag=SRC_TAG[:WEI_TAG][:DST_TAG]
+    def convert_tags_multiple(mds):
+        tags = '--tag='
+        for md in mds:
+            md_tag = md['tag']
+            md_arg = md['arg']
+            if md_arg == 'src':
+                tags += f'{md_tag}'
+            elif md_arg == 'wei':
+                tags += f':{md_tag}'
+            elif md_arg == 'dst':
+                tags += f':{md_tag}'
+            else:
+                tags += f''
         return tags
 
     def convert_tags_multiple_src(mds):
@@ -377,7 +410,7 @@ def convert_tags(mds, prim_kind):
         return tags
 
     def convert_tags_lnorm(mds):
-        tag = convert_tags_common(mds)
+        tag = convert_tags_multiple(mds)
         stat_md = ''
         for md in mds:
             if md['arg'] == 'stats':

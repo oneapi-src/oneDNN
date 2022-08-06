@@ -29,9 +29,9 @@ namespace impl {
 struct layer_normalization_fwd_pd_t;
 
 struct layer_normalization_pd_t : public primitive_desc_t {
-    static constexpr auto base_pkind = primitive_kind::layer_normalization;
+    static constexpr auto base_pkind = primitive_kind::layer_normalization_v2;
 
-    const layer_normalization_desc_t *desc() const { return &desc_; }
+    const layer_normalization_v2_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
@@ -42,7 +42,15 @@ struct layer_normalization_pd_t : public primitive_desc_t {
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
             case query::layer_normalization_d:
-                *(const layer_normalization_desc_t **)result = desc();
+                *(const layer_normalization_desc_t **)result
+                        = reinterpret_cast<const layer_normalization_desc_t *>(
+                                desc());
+                break;
+            case query::layer_normalization_v2_d:
+                *(const layer_normalization_v2_desc_t **)result = desc();
+                break;
+            case query::primitive_kind:
+                *(primitive_kind_t *)result = desc_.primitive_kind;
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }
@@ -50,11 +58,11 @@ struct layer_normalization_pd_t : public primitive_desc_t {
     }
 
     /* common layer_normalization aux functions */
-    int ndims() const { return desc_.data_desc.ndims; }
+    int ndims() const { return desc_.src_desc.ndims; }
     dim_t across_axis() const {
-        return utils::array_product(desc_.data_desc.dims, ndims() - 1);
+        return utils::array_product(desc_.src_desc.dims, ndims() - 1);
     }
-    dim_t norm_axis() const { return desc_.data_desc.dims[ndims() - 1]; }
+    dim_t norm_axis() const { return desc_.src_desc.dims[ndims() - 1]; }
 
     bool stats_are_src() const { return desc_.flags & dnnl_use_global_stats; }
     bool stats_are_tmp() const { return !(stats_are_src() || is_training()); }
@@ -76,49 +84,49 @@ struct layer_normalization_pd_t : public primitive_desc_t {
     }
 
     bool has_zero_dim_memory() const {
-        return memory_desc_wrapper(desc_.data_desc).has_zero_dim();
+        return memory_desc_wrapper(desc_.src_desc).has_zero_dim();
     }
 
     const memory_desc_t *stat_md() const { return &stat_md_; }
 
 protected:
-    layer_normalization_desc_t desc_;
+    layer_normalization_v2_desc_t desc_;
     const layer_normalization_fwd_pd_t *hint_fwd_pd_;
 
-    memory_desc_t data_md_;
+    memory_desc_t src_md_;
     memory_desc_t stat_md_;
     memory_desc_t scaleshift_md_;
 
-    layer_normalization_pd_t(const layer_normalization_desc_t *adesc,
+    layer_normalization_pd_t(const layer_normalization_v2_desc_t *adesc,
             const primitive_attr_t *attr,
             const layer_normalization_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(cast_layer_normalization_v1_to_v2(*adesc))
         , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc)
+        , src_md_(desc_.src_desc)
         , stat_md_(desc_.stat_desc)
         , scaleshift_md_(desc_.data_scaleshift_desc) {}
 
-    bool set_default_stat_md_format(const memory_desc_t &data_md) {
+    bool set_default_stat_md_format(const memory_desc_t &src_md) {
         if (stat_md_.format_kind != format_kind::any) return true;
 
-        // data memory desc in non-blocked memory format is unsupported
-        if (data_md.format_kind != format_kind::blocked) return false;
+        // src memory desc in non-blocked memory format is unsupported
+        if (src_md.format_kind != format_kind::blocked) return false;
 
         // if the normalization axis is blocked, fallback to plain format
         bool is_norm_dim_blocked = false;
-        for (int d = 0; d < data_md.format_desc.blocking.inner_nblks; ++d)
-            is_norm_dim_blocked |= data_md.format_desc.blocking.inner_idxs[d]
-                    == ndims() - 1;
+        for (int d = 0; d < src_md.format_desc.blocking.inner_nblks; ++d)
+            is_norm_dim_blocked
+                    |= src_md.format_desc.blocking.inner_idxs[d] == ndims() - 1;
         if (is_norm_dim_blocked)
             return memory_desc_init_by_strides(stat_md_, nullptr)
                     == status::success;
 
-        // the default memory format for stat is derived from data_md by
+        // the default memory format for stat is derived from src_md by
         // dropping the normalization dimension and keeping the physical order
         // of other dimensions (preserving the blocked structure if any)
         return memory_desc_init_by_blocking_desc(
-                       stat_md_, data_md.format_desc.blocking)
+                       stat_md_, src_md.format_desc.blocking)
                 == status::success;
     }
 
@@ -135,7 +143,40 @@ protected:
     }
 
 private:
-    const memory_desc_t &data_desc() const { return desc_.data_desc; }
+    const memory_desc_t &src_desc() const { return desc_.src_desc; }
+
+    layer_normalization_v2_desc_t cast_layer_normalization_v1_to_v2(
+            const layer_normalization_v2_desc_t &layer_normalization_desc)
+            const {
+        if (layer_normalization_desc.primitive_kind
+                == primitive_kind::layer_normalization_v2)
+            return layer_normalization_desc;
+
+        layer_normalization_v2_desc_t layer_normalization_v2_desc;
+        layer_normalization_v2_desc.primitive_kind
+                = primitive_kind::layer_normalization;
+        layer_normalization_v2_desc.prop_kind
+                = layer_normalization_desc.prop_kind;
+        layer_normalization_v2_desc.src_desc
+                = layer_normalization_desc.src_desc;
+        layer_normalization_v2_desc.diff_src_desc
+                = layer_normalization_desc.diff_src_desc;
+        layer_normalization_v2_desc.data_scaleshift_desc
+                = layer_normalization_desc.data_scaleshift_desc;
+        layer_normalization_v2_desc.diff_data_scaleshift_desc
+                = layer_normalization_desc.diff_data_scaleshift_desc;
+        layer_normalization_v2_desc.stat_desc
+                = layer_normalization_desc.stat_desc;
+        layer_normalization_v2_desc.layer_norm_epsilon
+                = layer_normalization_desc.layer_norm_epsilon;
+        layer_normalization_v2_desc.flags = layer_normalization_desc.flags;
+        layer_normalization_v2_desc.dst_desc
+                = layer_normalization_desc.src_desc;
+        layer_normalization_v2_desc.diff_dst_desc
+                = layer_normalization_desc.diff_src_desc;
+
+        return layer_normalization_v2_desc;
+    }
 };
 
 struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
@@ -176,13 +217,13 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     }
 
     const memory_desc_t *src_md(int index = 0) const override {
-        if (index == 0) return &data_md_;
+        if (index == 0) return &src_md_;
         if (stats_are_src() && (index == 1 || index == 2)) return &stat_md_;
         return &glob_zero_md;
     }
 
     const memory_desc_t *dst_md(int index = 0) const override {
-        if (index == 0) return &data_md_;
+        if (index == 0) return &dst_md_;
         if (!stats_are_src() && is_training() && (index == 1 || index == 2))
             return &stat_md_;
         return &glob_zero_md;
@@ -201,18 +242,32 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     }
 
 protected:
-    layer_normalization_fwd_pd_t(const layer_normalization_desc_t *adesc,
+    memory_desc_t dst_md_;
+
+    layer_normalization_fwd_pd_t(const layer_normalization_v2_desc_t *adesc,
             const primitive_attr_t *attr,
             const layer_normalization_fwd_pd_t *hint_fwd_pd)
-        : layer_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
+        : layer_normalization_pd_t(adesc, attr, hint_fwd_pd)
+        , dst_md_(desc_.dst_desc) {}
 
     bool set_default_formats_common() {
-        return set_default_stat_md_format(data_md_);
+        return IMPLICATION(dst_md_.format_kind == format_kind::any,
+                       memory_desc_init_by_md_and_dt(
+                               dst_md_, src_md_, dst_md_.data_type)
+                               == status::success)
+                && set_default_stat_md_format(src_md_);
     }
 
     bool check_scale_shift_data_type() const {
         return IMPLICATION(use_scaleshift() || use_scale() || use_shift(),
                 weights_md()->data_type == data_type::f32);
+    }
+
+    bool attr_oscale_ok() const {
+        const auto &oscale = attr()->output_scales_;
+        const bool ok = IMPLICATION(desc()->primitive_kind != base_pkind,
+                attr()->output_scales_.has_default_values());
+        return ok && oscale.mask_ == 0;
     }
 };
 
@@ -260,13 +315,13 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
     }
 
     const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &data_md_ : index <= 2 ? &stat_md_ : &glob_zero_md;
+        return index == 0 ? &src_md_ : index <= 2 ? &stat_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+        return index == 0 ? &diff_src_md_ : &glob_zero_md;
     }
 
     const memory_desc_t *weights_md(int index = 0) const override {
@@ -286,22 +341,28 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
     }
 
 protected:
-    memory_desc_t diff_data_md_;
+    memory_desc_t diff_src_md_;
+    memory_desc_t diff_dst_md_;
     memory_desc_t diff_scaleshift_md_;
 
-    layer_normalization_bwd_pd_t(const layer_normalization_desc_t *adesc,
+    layer_normalization_bwd_pd_t(const layer_normalization_v2_desc_t *adesc,
             const primitive_attr_t *attr,
             const layer_normalization_fwd_pd_t *hint_fwd_pd)
         : layer_normalization_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_data_desc)
+        , diff_src_md_(desc_.diff_src_desc)
+        , diff_dst_md_(desc_.diff_dst_desc)
         , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
 
     bool set_default_formats_common() {
-        return IMPLICATION(diff_data_md_.format_kind == format_kind::any,
+        return IMPLICATION(diff_dst_md_.format_kind == format_kind::any,
                        memory_desc_init_by_md_and_dt(
-                               diff_data_md_, data_md_, diff_data_md_.data_type)
+                               diff_dst_md_, src_md_, diff_dst_md_.data_type)
                                == status::success)
-                && set_default_stat_md_format(diff_data_md_);
+                && IMPLICATION(diff_src_md_.format_kind == format_kind::any,
+                        memory_desc_init_by_md_and_dt(
+                                diff_src_md_, src_md_, diff_src_md_.data_type)
+                                == status::success)
+                && set_default_stat_md_format(diff_src_md_);
     }
 
     bool check_scale_shift_data_type() const {

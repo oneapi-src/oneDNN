@@ -55,7 +55,7 @@ static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
      * ALG_2: if fall back to ALG_0 gives only one non-zero element, use the
      *        filling which doesn't use strict approach.
      */
-    const int64_t exact_bits = digits_dt(prb->dt);
+    const int64_t exact_bits = digits_dt(prb->dt[0]);
     const int64_t L = prb->c;
     const int64_t logL = (int64_t)ceilf(log2f(L));
 
@@ -71,13 +71,13 @@ static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
 
     const int64_t flex_bits = alg == ALG_0
             ? want_flex_bits /* BFloat16 has only 7 bits of mantissa */
-            : MIN2(prb->dt == dnnl_bf16 ? 7 : exact_bits,
+            : MIN2(prb->dt[0] == dnnl_bf16 ? 7 : exact_bits,
                     (exact_bits - logL) / 2 - 1);
     if (flex_bits < min_flex_bits) return FAIL;
 
     if (exact_bits == 2 * flex_bits) alg = ALG_2;
 
-    if (alg == ALG_0 || alg == ALG_1) {
+    if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
         const int64_t flex_mask = (1 << flex_bits) - 1;
 
         /* density: (exact_bits - log_2(L * density)) / 2 >= flex_bits */
@@ -126,9 +126,11 @@ static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
             std::minstd_rand b_seed(n + 1);
             b_seed.discard(2);
 
-            std::uniform_int_distribution<> int_dist(0, 6);
+            const float val_coeff = is_integral_dt(prb->dt[0]) ? 4.f : 1.f;
+            const int distr_shift = prb->dt[0] == dnnl_u8 ? 2 : 0;
+            std::uniform_int_distribution<> int_dist(0 + distr_shift, 6);
             std::bernoulli_distribution b_dist(0.5f);
-            const float m = 0.25f * (1 << int_dist(int_seed));
+            const float m = val_coeff * 0.25f * (1 << int_dist(int_seed));
             float v = 0; /* current variance */
 
             const int64_t c_shift = n * prb->c;
@@ -142,9 +144,11 @@ static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
 
                 if (c % 2 == 0) {
                     bigger_val = b_dist(b_seed);
-                    val = bigger_val ? (m + 1.f) : (m + 0.25f);
+                    val = bigger_val ? (m + val_coeff * 1.f)
+                                     : (m + val_coeff * 0.25f);
                 } else {
-                    val = bigger_val ? (m - 1.f) : (m - 0.25f);
+                    val = bigger_val ? (m - val_coeff * 1.f)
+                                     : (m - val_coeff * 0.25f);
                 }
                 src.set_elem(idx, val);
 
@@ -224,12 +228,12 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
             int sign = half_dist(b_seed) ? 1.f : -1.f;
             // d_dst = powf(2, {-4, ... , 2})
             float dd = sign * 0.0625f * (1LL << data_dist(int_seed));
-            d_dst.set_elem(
-                    c_shift + c, round_to_nearest_representable(prb->dt, dd));
+            d_dst.set_elem(c_shift + c,
+                    round_to_nearest_representable(prb->dt[1], dd));
 
             float s = c % 2 == 0 ? (m - 1.f) : (m + 1.f);
             src.set_elem(
-                    c_shift + c, round_to_nearest_representable(prb->dt, s));
+                    c_shift + c, round_to_nearest_representable(prb->dt[0], s));
         }
     });
 
@@ -239,44 +243,59 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_layer_normalization_desc_t ld;
+    dnnl_layer_normalization_v2_desc_t ld;
 
-    const int64_t *data_dims = &prb->dims[0];
+    auto src_d = dnn_mem_t::init_md(
+            prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
 
-    auto data_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, prb->tag);
-
-    dnnl_memory_desc_t stat_d;
+    dnnl_memory_desc_t stat_d {};
     const dnnl_memory_desc_t *stat_d_ptr = nullptr;
     if (prb->stat_tag != tag::undef) {
         stat_d = dnn_mem_t::init_md(
-                prb->ndims - 1, data_dims, dnnl_f32, prb->stat_tag);
+                prb->ndims - 1, prb->dims.data(), dnnl_f32, prb->stat_tag);
         stat_d_ptr = &stat_d;
     }
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (prb->dir & FLAG_FWD) {
+        auto dst_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_layer_normalization_forward_desc_init(
-                &ld, prop, &data_d, stat_d_ptr, prb->eps, flags));
+        DNN_SAFE_STATUS(dnnl_layer_normalization_v2_forward_desc_init(
+                &ld, prop, &src_d, &dst_d, stat_d_ptr, prb->eps, flags));
     } else {
-        auto diff_data_d
-                = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
+        auto diff_src_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
+        auto diff_dst_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
-        DNN_SAFE_STATUS(dnnl_layer_normalization_backward_desc_init(
-                &ld, prop, &diff_data_d, &data_d, stat_d_ptr, prb->eps, flags));
+        DNN_SAFE_STATUS(dnnl_layer_normalization_v2_backward_desc_init(&ld,
+                prop, &diff_src_d, &diff_dst_d, &src_d, stat_d_ptr, prb->eps,
+                flags));
     }
 
+    attr_args_t attr_args;
+    attr_args.prepare_output_scales(prb->attr, prb->scales, 1);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args_t()));
+            create_dnnl_attr(prb->attr, attr_args));
 
     return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &ld,
             dnnl_attr, init_pd_args.engine, init_pd_args.hint);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
-    skip_unimplemented_data_type({prb->dt}, prb->dir, res);
+    skip_unimplemented_data_type({prb->dt[0], prb->dt[1]}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res);
+
+    if (is_gpu()) {
+        const bool dt_ok = prb->dt[0] == prb->dt[1]
+                && !is_integral_dt(prb->dt[0]) && !is_integral_dt(prb->dt[1]);
+        if (!dt_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -285,7 +304,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
     // See `skip_invalid_inplace` for details.
     if (prb->inplace) {
-        skip_invalid_inplace(res, prb->dt, prb->dt, prb->tag, prb->tag);
+        skip_invalid_inplace(
+                res, prb->dt[0], prb->dt[1], prb->tag[0], prb->tag[1]);
         if (res->state == SKIPPED) return;
     }
 }
@@ -295,15 +315,16 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const bool compare_with_norm = (prb->dir & FLAG_BWD);
     cmp.set_norm_validation_mode(compare_with_norm);
 
+    const auto dt = prb->dir & FLAG_FWD ? prb->dt[1] : prb->dt[0];
     const int f32_mant_digits = 24;
-    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
+    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(dt)));
     float trh = trh_coeff * ((kind == SRC || kind == DST) ? 5e-7 : 0);
     if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
         trh = trh_coeff * 5e-6;
     cmp.set_threshold(trh);
 
-    // TODO: improve bf16 filling
-    if (prb->dt == dnnl_bf16) cmp.set_zero_trust_percent(99.f);
+    // u8 turns half of output into zeros.
+    if (prb->dt[1] == dnnl_u8) cmp.set_zero_trust_percent(60.f);
 
     // When the error is larger than `trh`, it could be due to a catastrophic
     // cancellation in final result which is computed as `Y = a * X + b`.
@@ -366,53 +387,53 @@ int doit(const prb_t *prb, res_t *res) {
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    const auto &data_md = query_md(const_pd, DNNL_ARG_SRC);
+    const auto &src_md = query_md(const_pd, DNNL_ARG_SRC);
     const auto &mean_md = query_md(const_pd, DNNL_ARG_MEAN);
     const auto &var_md = query_md(const_pd, DNNL_ARG_VARIANCE);
     const auto &ss_md = query_md(const_pd, DNNL_ARG_SCALE_SHIFT);
     const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
-    const auto fp = dnnl_f32;
-    const auto tag = tag::abx;
-
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(data_md, fp, tag, ref_engine);
-    dnn_mem_t src_dt(data_md, test_engine);
-
-    dnn_mem_t &dst_fp = src_fp; // in-place reference
+    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
+    dnn_mem_t src_dt(src_md, test_engine);
     dnn_mem_t placeholder_dst_dt;
-    if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, test_engine); }
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     // On inference w/o global stats the layer norm doesn't require stat
     // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
-    const auto stat_ndims = prb->ndims - 1;
-    const auto stat_tag = tag::abx;
-    dnn_mem_t mean_fp(stat_ndims, data_md.dims, fp, stat_tag, ref_engine);
+    dnn_mem_t mean_fp(
+            prb->ndims - 1, src_md.dims, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t mean_dt(mean_md, test_engine);
 
-    dnn_mem_t var_fp(stat_ndims, data_md.dims, fp, stat_tag, ref_engine);
+    dnn_mem_t var_fp(
+            prb->ndims - 1, src_md.dims, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t var_dt(var_md, test_engine);
 
-    dnn_mem_t ss_fp(ss_md, fp, tag::abx, ref_engine);
+    dnn_mem_t ss_fp(ss_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t ss_dt(ss_md, test_engine);
-    dnn_mem_t d_ss_fp(ss_md, fp, tag::abx, ref_engine);
-    dnn_mem_t d_ss_dt(ss_md, test_engine);
 
-    dnn_mem_t sh_fp(ss_md, fp, use_sh ? tag::x : tag::abx, ref_engine);
+    dnn_mem_t sh_fp(ss_md, dnnl_f32, use_sh ? tag::x : tag::abx, ref_engine);
     dnn_mem_t sh_dt(ss_md, test_engine);
-    dnn_mem_t d_sh_fp(ss_md, fp, use_sh ? tag::x : tag::abx, ref_engine);
-    dnn_mem_t d_sh_dt(ss_md, test_engine);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
-    dnn_mem_t d_dst_dt, placeholder_d_src_dt;
+    dnn_mem_t d_dst_dt, placeholder_d_src_dt, d_ss_dt, d_sh_dt;
+
+    dnn_mem_t scales;
+    maybe_prepare_runtime_scales(scales, prb->attr.oscale, prb->n, prb->scales);
 
     args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {
+        const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+
+        dnn_mem_t &dst_fp = src_fp; // in-place reference
+        if (!prb->inplace) {
+            placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
+        }
+
         if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp) != OK) {
             return res->state = MISTRUSTED, OK;
         }
@@ -433,6 +454,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_SHIFT, sh_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
@@ -453,16 +475,24 @@ int doit(const prb_t *prb, res_t *res) {
             check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
         }
     } else {
-        const auto &d_data_md = query_md(const_pd, DNNL_ARG_DIFF_DST);
+        const auto &d_src_md = query_md(const_pd, DNNL_ARG_DIFF_SRC);
+        const auto &d_dst_md = query_md(const_pd, DNNL_ARG_DIFF_DST);
 
-        dnn_mem_t d_dst_fp(d_data_md, fp, tag, ref_engine);
-        d_dst_dt = dnn_mem_t(d_data_md, test_engine);
+        dnn_mem_t d_dst_fp(d_dst_md, dnnl_f32, tag::abx, ref_engine);
+        d_dst_dt = dnn_mem_t(d_dst_md, test_engine);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
         if (!prb->inplace) {
-            placeholder_d_src_dt = dnn_mem_t(d_data_md, test_engine);
+            placeholder_d_src_dt = dnn_mem_t(d_src_md, test_engine);
         }
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
+
+        d_ss_dt = dnn_mem_t(ss_md, test_engine);
+        dnn_mem_t d_ss_fp(ss_md, dnnl_f32, tag::abx, ref_engine);
+
+        d_sh_dt = dnn_mem_t(ss_md, test_engine);
+        dnn_mem_t d_sh_fp(
+                ss_md, dnnl_f32, use_sh ? tag::x : tag::abx, ref_engine);
 
         if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp) != OK) {
             return res->state = MISTRUSTED, OK;

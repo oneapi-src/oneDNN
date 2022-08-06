@@ -2,7 +2,7 @@ Layer Normalization {#dev_guide_layer_normalization}
 ====================================================
 
 >
-> [API Reference](@ref dnnl_api_layer_normalization)
+> [API Reference](@ref dnnl_api_layer_normalization_v2)
 >
 
 ## General
@@ -35,7 +35,8 @@ where
 
 - \f$\varepsilon\f$ is a constant to improve numerical stability.
 
-Mean and variance are computed at runtime or provided by a user. When mean and variance are computed at runtime, the following formulas are used:
+Mean and variance are computed at runtime or provided by a user. When mean and
+variance are computed at runtime, the following formulas are used:
 
 - \f$\mu(t, n) = \frac{1}{C} \sum\limits_{c} \src(t, n, c)_{}\f$,
 
@@ -111,34 +112,42 @@ argument index as specified by the following table.
    flags can be set using the bitwise OR operator (`|`). Flag
    #dnnl_use_scaleshift cannot be mixed with #dnnl_use_scale or #dnnl_use_shift.
 
-
 2. For forward propagation, the mean and variance might be either computed at
    runtime (in which case they are outputs of the primitive) or provided by
    a user (in which case they are inputs). In the latter case, a user must set
    the #dnnl_use_global_stats flag. For the backward propagation, the mean and
    variance are always input parameters.
 
-3. The memory format and data type for `src` and `dst` are assumed to be the
-   same, and in the API they are typically referred to as `data` (e.g., see
-   `data_desc` in dnnl::layer_normalization_forward::desc::desc()). The same is
-   true for `diff_src` and `diff_dst`. The corresponding memory descriptors are
-   referred to as `diff_data_desc`.
-
-4. Both forward and backward propagation support in-place operations, meaning
+3. Both forward and backward propagation support in-place operations, meaning
    that \src can be used as input and output for forward propagation, and
    \diffdst can be used as input and output for backward propagation. In case of
-   an in-place operation, the original data will be overwritten. Note, however,
-   that backward propagation requires original \src, hence the corresponding
-   forward propagation should not be performed in-place.
+   an in-place operation, the original data will be overwritten. This support is
+   limited to cases when data types of \src and \dst or \diffsrc and \diffdst
+   are identical. Note, however, that backward propagation requires original
+   \src, hence the corresponding forward propagation should not be performed
+   in-place.
+
+### Post-ops and Attributes
+
+Attributes enable you to modify the behavior of the layer normalization
+primitive. The following attributes are supported by the layer normalization
+primitive:
+
+| Propagation | Type      | Operation                                                    | Description                                                    | Restrictions                                  |
+| :--         | :--       | :--                                                          | :--                                                            | :--                                           |
+| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of layer normalization by given scale factor | int8 layer normalization only, zero mask only |
 
 ### Data Type Support
 
 The operation supports the following combinations of data types:
 
-| Propagation        | Source / Destination | Mean / Variance / ScaleShift
-| :--                | :--                  | :--
-| forward / backward | f32, bf16            | f32
-| forward            | f16                  | f32
+| Propagation | Source                 | Destination            |
+| :--         | :--                    | :--                    |
+| forward     | f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8 |
+| backward    | f32, bf16              | f32, bf16              |
+
+Mean, Variance and ScaleShift data types are always f32 and independent of
+Source or Destination data types.
 
 ### Data Representation
 
@@ -183,18 +192,27 @@ The layer normalization primitive is optimized for the following memory formats:
 | TNC            | #dnnl_tnc (#dnnl_abc), #dnnl_ntc (#dnnl_bac)
 | LDNC           | #dnnl_ldnc (#dnnl_abcd)
 
+## Implementation Limitations
+
+1. Refer to @ref dev_guide_data_types for limitations related to data types
+   support.
+
+2. **GPU**
+   - Only tensors of 6 or fewer dimensions are supported.
+   - Different data types for source and destination is not supported.
+   - Integer data types for source and destination are not supported.
+
 ## Performance Tips
-1. For data tensors (`src`, `dst`, `diff_src`, `diff_dst`), use memory formats
+1. For data tensors \src, \dst, \diffsrc, and \diffdst, use memory formats
    for which the last logical axis is the last in the physical memory layout.
 
-2. For `mean`/`variance`, use the memory format that follows the data memory
+2. For \mean and \variance, use the memory format that follows the data memory
    format; i.e., if the data format is #dnnl_tnc, the best performance can be
    expected for statistics with #dnnl_tn and suboptimal for statistics with the
    #dnnl_nt format.
 
-3. For backward propagation, use the same memory format for `src`, `diff_dst`,
-   and `diff_src` (the format of `diff_dst` and `diff_src` are always the same
-   because of the API). Different formats are functionally supported but lead to
+3. For backward propagation, use the same memory format for \src, \diffdst,
+   and \diffsrc. Different formats are functionally supported but lead to
    highly suboptimal performance.
 
 4. Use in-place operations whenever possible (see caveats in General Notes).

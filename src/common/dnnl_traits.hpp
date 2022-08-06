@@ -126,6 +126,7 @@ PKIND_TRAITS_INST(prelu);
 PKIND_TRAITS_INST(lrn);
 PKIND_TRAITS_INST(batch_normalization);
 PKIND_TRAITS_INST(layer_normalization);
+PKIND_TRAITS_INST(layer_normalization_v2);
 PKIND_TRAITS_INST(inner_product);
 PKIND_TRAITS_INST(rnn);
 PKIND_TRAITS_INST(gemm);

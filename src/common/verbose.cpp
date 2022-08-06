@@ -681,13 +681,13 @@ static std::string init_info_layer_normalization(
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto src_md = pd->src_md(0);
+    auto src_md = pd->src_md();
+    auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
     auto stats_md = pd->is_fwd() && !pd->stats_are_src() ? pd->dst_md(1)
                                                          : pd->src_md(1);
-    auto diff_src_md = pd->diff_src_md();
-    ss << "data_" << src_md;
+    ss << "src_" << src_md << " dst_" << dst_md;
     if (stats_md) ss << " stats_" << stats_md;
-    if (diff_src_md) ss << " diff_" << diff_src_md;
+    if (pd->is_bwd()) ss << " diff_src_" << pd->diff_src_md();
     ss << ",";
 
     ss << pd->attr() << ",";
@@ -1009,6 +1009,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(deconvolution);
             CASE(eltwise);
             CASE(inner_product);
+            case primitive_kind::layer_normalization_v2:
             CASE(layer_normalization);
             CASE(lrn);
             CASE(logsoftmax);

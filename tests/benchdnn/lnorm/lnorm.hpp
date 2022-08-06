@@ -56,8 +56,9 @@ struct settings_t : public base_settings_t {
     prb_dims_t prb_dims;
 
     std::vector<dir_t> dir {FWD_D};
-    std::vector<dnnl_data_type_t> dt {dnnl_f32};
-    std::vector<std::string> tag {tag::abx}, stat_tag {tag::any};
+    std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
+    std::vector<std::vector<std::string>> tag {{tag::abx, tag::any}};
+    std::vector<std::string> stat_tag {tag::any};
     std::vector<flags_t> flags {NONE};
     check_alg_t check_alg = check_alg_t::ALG_AUTO;
 
@@ -70,10 +71,10 @@ struct settings_t : public base_settings_t {
 };
 
 struct prb_t : public prb_dims_t {
-    prb_t(const prb_dims_t &prb_dims, const std::string &tag,
-            const std::string &stat_tag, dir_t dir, dnnl_data_type_t dt,
-            flags_t flags, const attr_t &attr, bool inplace,
-            check_alg_t check_alg)
+    prb_t(const prb_dims_t &prb_dims, const std::vector<std::string> &tag,
+            const std::string &stat_tag, dir_t dir,
+            const std::vector<dnnl_data_type_t> &dt, flags_t flags,
+            const attr_t &attr, bool inplace, check_alg_t check_alg)
         : prb_dims_t(prb_dims)
         , check_alg(check_alg)
         , tag(tag)
@@ -82,19 +83,32 @@ struct prb_t : public prb_dims_t {
         , dt(dt)
         , flags(flags)
         , inplace(inplace)
-        , attr(attr) {
+        , attr(attr)
+        , scales(NULL) {
         n = 1;
         for (int d = 0; d < ndims - 1; d++)
             n *= dims[d];
         c = dims[ndims - 1];
         eps = 1.f / 16;
+
+        // Broadcast data types if needed
+        if (dt.size() == 1) {
+            const auto val = dt[0]; // Need a copy here.
+            this->dt.assign(2, val);
+        }
+        if (tag.size() == 1) { this->tag.push_back(tag::any); }
+
+        generate_oscales();
     }
-    ~prb_t() {}
+    ~prb_t() {
+        if (scales) zfree(scales);
+    }
 
     check_alg_t check_alg;
-    std::string tag, stat_tag;
+    std::vector<std::string> tag;
+    std::string stat_tag;
     dir_t dir;
-    dnnl_data_type_t dt;
+    std::vector<dnnl_data_type_t> dt;
     flags_t flags;
     bool inplace;
     attr_t attr;
@@ -104,6 +118,9 @@ struct prb_t : public prb_dims_t {
     bool use_ss() const { return flags & USE_SCALESHIFT; }
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
+
+    float *scales;
+    void generate_oscales();
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -112,8 +129,10 @@ struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)
         : base_perf_report_t(perf_template)
         , p_(prb)
-        , tag_(normalize_tag(p_->tag, p_->ndims))
-        , stat_tag_(normalize_tag(p_->stat_tag, p_->ndims - 1)) {}
+        , stat_tag_(normalize_tag(p_->stat_tag, p_->ndims - 1)) {
+        for (size_t d = 0; d < p_->tag.size(); d++)
+            tag_.push_back(normalize_tag(p_->tag[d], p_->ndims));
+    }
 
     void dump_desc(std::ostream &s) const override {
         s << static_cast<const prb_dims_t &>(*p_);
@@ -127,13 +146,16 @@ struct perf_report_t : public base_perf_report_t {
 
     const std::string *name() const override { return &p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
-    const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    const std::string *tag() const override { return &tag_; }
+    const std::vector<dnnl_data_type_t> *sdt() const override {
+        return &p_->dt;
+    }
+    const std::vector<std::string> *stag() const override { return &tag_; }
     const std::string *stat_tag() const override { return &stat_tag_; }
 
 private:
     const prb_t *p_;
-    std::string tag_, stat_tag_;
+    std::vector<std::string> tag_;
+    std::string stat_tag_;
 };
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);

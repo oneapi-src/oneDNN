@@ -22,8 +22,7 @@
 #include "common/reorder.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu/cpu_batch_normalization_utils.hpp"
-#include "cpu/cpu_engine.hpp"
+#include "cpu/cpu_primitive.hpp"
 #include "cpu/ref_io_helper.hpp"
 
 #include "cpu/simple_layer_normalization.hpp"
@@ -37,16 +36,17 @@ using namespace data_type;
 
 status_t simple_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
+    using skip_mask_t = primitive_attr_t::skip_mask_t;
     const memory_desc_wrapper src_d(src_md());
 
     const bool ok = is_fwd() && !has_zero_dim_memory()
-            && utils::one_of(src_md()->data_type, f32, bf16)
-            && utils::one_of(dst_md()->data_type, f32, bf16)
+            && utils::one_of(src_md()->data_type, f32, bf16, s8, u8)
+            && utils::one_of(dst_md()->data_type, f32, bf16, s8, u8)
             && platform::has_data_type_support(src_md()->data_type)
             && platform::has_data_type_support(dst_md()->data_type)
-            && src_md()->data_type == dst_md()->data_type
             && stat_md()->data_type == f32 && check_scale_shift_data_type()
-            && attr()->has_default_values() && set_default_formats_common()
+            && attr()->has_default_values(skip_mask_t::oscale_runtime)
+            && attr_oscale_ok() && set_default_formats_common()
             && src_d.is_blocking_desc()
             // plain format, last logical dim is last physical
             && src_d.blocking_desc().strides[ndims() - 1] == 1;
@@ -96,6 +96,8 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                         CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE))
                 : CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
     }
+
+    DEFINE_SCALES_BUFFER(output_scales);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -156,6 +158,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     const size_t off = c + C * offset;
                     float s = io::load_float_value(src_dt, src_ptr, off);
                     float d = sm * (s - v_mean) + sv;
+                    d *= output_scales[0];
                     io::store_float_value(dst_dt, d, dst_ptr, off);
                 }
             } else if (use_scale) {
@@ -165,6 +168,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     const size_t off = c + C * offset;
                     float s = io::load_float_value(src_dt, src_ptr, off);
                     float d = sm * (s - v_mean);
+                    d *= output_scales[0];
                     io::store_float_value(dst_dt, d, dst_ptr, off);
                 }
             } else if (use_shift) {
@@ -175,6 +179,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     const size_t off = c + C * offset;
                     float s = io::load_float_value(src_dt, src_ptr, off);
                     float d = sm * (s - v_mean) + sv;
+                    d *= output_scales[0];
                     io::store_float_value(dst_dt, d, dst_ptr, off);
                 }
             } else {
@@ -184,6 +189,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     const size_t off = c + C * offset;
                     float s = io::load_float_value(src_dt, src_ptr, off);
                     float d = sm * (s - v_mean);
+                    d *= output_scales[0];
                     io::store_float_value(dst_dt, d, dst_ptr, off);
                 }
             }
@@ -207,8 +213,6 @@ status_t simple_layer_normalization_bwd_t::pd_t::init(engine_t *engine) {
             && platform::has_data_type_support(src_md()->data_type)
             && platform::has_data_type_support(diff_dst_md()->data_type)
             && platform::has_data_type_support(diff_src_md()->data_type)
-            && src_md()->data_type == diff_dst_md()->data_type
-            && diff_src_md()->data_type == diff_dst_md()->data_type
             && stat_md()->data_type == f32 && check_scale_shift_data_type()
             && attr()->has_default_values() && set_default_formats_common()
             && src_d.is_blocking_desc()

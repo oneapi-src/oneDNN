@@ -97,6 +97,8 @@ class LogParser:
                     prim_kind = 'pooling'
                 if prim_kind == 'softmax_v2':
                     prim_kind = 'softmax'
+                if prim_kind == 'layer_normalization_v2':
+                    prim_kind = 'layer_normalization'
                 return prim_kind
 
             def convert_exts(exts):

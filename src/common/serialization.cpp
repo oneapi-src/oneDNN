@@ -39,6 +39,7 @@ status_t serialize_desc(
         CASE(inner_product)
         CASE(gemm)
         CASE(layer_normalization)
+        CASE(layer_normalization_v2)
         CASE(logsoftmax)
         CASE(lrn)
         CASE(matmul)
@@ -353,6 +354,16 @@ void serialize_desc(serialization_stream_t &sstream,
     sstream.write(&desc.layer_norm_epsilon);
     // Flags
     sstream.write(&desc.flags);
+}
+
+void serialize_desc(serialization_stream_t &sstream,
+        const layer_normalization_v2_desc_t &desc) {
+    const auto &v1_desc
+            = *reinterpret_cast<const layer_normalization_desc_t *>(&desc);
+    serialize_desc(sstream, v1_desc);
+    // Memory descriptors
+    serialize_md(sstream, desc.dst_desc);
+    serialize_md(sstream, desc.diff_dst_desc);
 }
 
 void serialize_desc(serialization_stream_t &sstream, const lrn_desc_t &desc) {

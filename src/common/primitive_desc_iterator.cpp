@@ -37,9 +37,9 @@ status_t dnnl_primitive_desc_iterator_create(
     using namespace primitive_kind;
     bool known_primitive_kind = utils::one_of(op_desc->kind,
             batch_normalization, binary, convolution, deconvolution, eltwise,
-            gemm, inner_product, layer_normalization, lrn, logsoftmax, matmul,
-            pooling, pooling_v2, prelu, reduction, resampling, rnn, shuffle,
-            softmax, softmax_v2);
+            gemm, inner_product, layer_normalization, layer_normalization_v2,
+            lrn, logsoftmax, matmul, pooling, pooling_v2, prelu, reduction,
+            resampling, rnn, shuffle, softmax, softmax_v2);
     if (!known_primitive_kind) return invalid_arguments;
 
     auto it = new primitive_desc_iterator_t(engine, op_desc, attr,

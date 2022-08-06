@@ -42,7 +42,7 @@ struct stat_and_data_kernel_t {
 
     virtual void operator()(const void *src, void *dst, const float *scale,
             const float *shift, float *mean, float *var,
-            const size_t block_size) const {};
+            const float *output_scales, const size_t block_size) const {};
 
     virtual status_t create_kernel() { return status::success; }
 
@@ -94,18 +94,18 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
             const memory_desc_wrapper src_d(src_md());
 
             const bool ok = is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_md()->data_type, f32, bf16)
-                    && utils::one_of(dst_md()->data_type, f32, bf16)
+                    && utils::one_of(src_md()->data_type, f32, bf16, s8, u8)
+                    && utils::one_of(dst_md()->data_type, f32, bf16, s8, u8)
                     && platform::has_data_type_support(src_md()->data_type)
                     && platform::has_data_type_support(dst_md()->data_type)
-                    && src_md()->data_type == dst_md()->data_type
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
-                    && attr()->has_default_values()
-                    && set_default_formats_common()
+                    && attr()->has_default_values(skip_mask_t::oscale_runtime)
+                    && attr_oscale_ok() && set_default_formats_common()
                     && src_d.is_blocking_desc()
                     // plain format, last logical dim is last physical
                     && src_d.blocking_desc().strides[ndims() - 1] == 1;
@@ -231,8 +231,6 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
                     && platform::has_data_type_support(src_md()->data_type)
                     && platform::has_data_type_support(diff_dst_md()->data_type)
                     && platform::has_data_type_support(diff_src_md()->data_type)
-                    && src_md()->data_type == diff_dst_md()->data_type
-                    && diff_src_md()->data_type == diff_dst_md()->data_type
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
                     && attr()->has_default_values()
