@@ -18,6 +18,7 @@
 #define CPU_X64_JIT_GENERATOR_HPP
 
 #include <limits.h>
+#include <vector>
 
 #include "common/bit_cast.hpp"
 #include "common/compiler_workarounds.hpp"
@@ -2499,14 +2500,13 @@ public:
     template <typename Vmm>
     void runtime_tail_process(const Xbyak::Reg64 &reg_tail,
             const Xbyak::Reg64 &reg_tmp,
-            const std::function<void(int)> &tail_process) {
-        constexpr int simd_w_ymm = 8;
-        constexpr int f32_bits = sizeof(float) * 8;
-        const auto simd_w = Vmm().getBit() / f32_bits;
-        assert(simd_w != Xbyak::Zmm().getBit() / f32_bits);
+            const std::function<void(int)> &tail_process,
+            const data_type_t data_type = data_type::f32) {
+        const auto simd_w
+                = vreg_traits<Vmm>::vlen / types::data_type_size(data_type);
 
         Xbyak::Label label_tbl, label_tbl_end;
-        Xbyak::Label l_case[simd_w_ymm];
+        std::vector<Xbyak::Label> l_case(simd_w);
 
         mov(reg_tmp, label_tbl);
         const Xbyak::Address label_address
