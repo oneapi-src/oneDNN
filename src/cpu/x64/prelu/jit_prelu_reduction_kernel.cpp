@@ -127,8 +127,7 @@ Xbyak::Address jit_prelu_reduction_kernel_t::diff_scratch_ptr(
 template <typename Vmm>
 jit_uni_prelu_reduction_kernel_t<Vmm>::jit_uni_prelu_reduction_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa)
-    : jit_prelu_reduction_kernel_t(
-            pd, prelu::vmm_traits_t<Vmm>::vlen / sizeof(float))
+    : jit_prelu_reduction_kernel_t(pd, vreg_traits<Vmm>::vlen / sizeof(float))
     , isa_(isa)
     , saturation_needed_(utils::one_of(
               data_type_, data_type::s8, data_type::u8, data_type::s32))

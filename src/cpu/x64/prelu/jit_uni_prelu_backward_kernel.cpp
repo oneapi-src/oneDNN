@@ -83,7 +83,7 @@ bool jit_prelu_backward_kernel_t::any_tensor_bf16() const {
 template <typename Vmm>
 jit_uni_prelu_backward_kernel_t<Vmm>::jit_uni_prelu_backward_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa)
-    : jit_prelu_backward_kernel_t(pd, isa, prelu::vmm_traits_t<Vmm>::vlen,
+    : jit_prelu_backward_kernel_t(pd, isa, vreg_traits<Vmm>::vlen,
             std::is_same<Vmm, Xbyak::Zmm>::value ? 4u : 6u)
     , saturation_needed_diff_src_(utils::one_of(
               diff_src_dt_, data_type::u8, data_type::s8, data_type::s32))

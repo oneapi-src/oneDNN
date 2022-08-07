@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,24 +51,6 @@ size_t get_block_tail_size(const memory_desc_t *mem) noexcept;
 void apply_zero_padding(jit_generator *host, const size_t tail_size,
         const data_type_t dt, const size_t block_tail_size,
         const Xbyak::Reg64 &reg_dst, const Xbyak::Reg64 *reg_offset) noexcept;
-
-template <typename Vmm>
-struct vmm_traits_t {};
-
-template <>
-struct vmm_traits_t<Xbyak::Zmm> {
-    static constexpr int vlen = 64;
-};
-
-template <>
-struct vmm_traits_t<Xbyak::Ymm> {
-    static constexpr int vlen = 32;
-};
-
-template <>
-struct vmm_traits_t<Xbyak::Xmm> {
-    static constexpr int vlen = 16;
-};
 
 } // namespace prelu
 } // namespace x64
