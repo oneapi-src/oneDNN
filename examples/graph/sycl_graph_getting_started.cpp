@@ -244,12 +244,6 @@ void sycl_graph_getting_started_tutorial(engine::kind ekind) {
 
 int main(int argc, char **argv) {
     engine::kind ekind = parse_engine_kind(argc, argv);
-    if (ekind != engine::kind::gpu) {
-        std::cout
-                << "sycl_graph_getting_started: skip. Only support gpu for now."
-                << std::endl;
-        return 0;
-    }
     sycl_graph_getting_started_tutorial(ekind);
     return 0;
 }

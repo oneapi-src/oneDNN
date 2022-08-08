@@ -54,7 +54,8 @@ if(ONEDNN_BUILD_GRAPH)
 else()
     # Remove graph examples
     list(REMOVE_ITEM sources
-        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_graph_getting_started.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_graph_getting_started.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/sycl_graph_getting_started.cpp)
 endif()
 
 # Remove tests for CUDA which use unimplemented primitives
