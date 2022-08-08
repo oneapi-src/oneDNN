@@ -28,7 +28,9 @@ namespace x64 {
 namespace prelu {
 
 cpu_isa_t get_supported_isa() {
-    if (mayiuse(avx512_core_bf16))
+    if (mayiuse(avx512_core_fp16))
+        return avx512_core_fp16;
+    else if (mayiuse(avx512_core_bf16))
         return avx512_core_bf16;
     else if (mayiuse(avx512_core))
         return avx512_core;
@@ -43,7 +45,9 @@ cpu_isa_t get_supported_isa() {
 }
 
 static int get_vlen(const cpu_isa_t &isa) noexcept {
-    if (isa == avx512_core_bf16)
+    if (isa == avx512_core_fp16)
+        return cpu_isa_traits<avx512_core_fp16>::vlen;
+    else if (isa == avx512_core_bf16)
         return cpu_isa_traits<avx512_core_bf16>::vlen;
     else if (isa == avx512_core)
         return cpu_isa_traits<avx512_core>::vlen;
@@ -55,7 +59,9 @@ static int get_vlen(const cpu_isa_t &isa) noexcept {
 }
 
 int get_n_vregs(const cpu_isa_t &isa) noexcept {
-    if (isa == avx512_core_bf16)
+    if (isa == avx512_core_fp16)
+        return cpu_isa_traits<avx512_core_fp16>::n_vregs;
+    else if (isa == avx512_core_bf16)
         return cpu_isa_traits<avx512_core_bf16>::n_vregs;
     else if (isa == avx512_core)
         return cpu_isa_traits<avx512_core>::n_vregs;
@@ -167,21 +173,21 @@ bcast get_bcast_type(
 
 bool dt_supported(const std::set<data_type_t> &tensor_data_types) noexcept {
 
-    const bool tensor_dt_valid = std::all_of(tensor_data_types.cbegin(),
-            tensor_data_types.cend(), [](const data_type_t &dt) {
-                return utils::one_of(dt, data_type::bf16, data_type::f32,
-                        data_type::s32, data_type::u8, data_type::s8);
-            });
+    const bool is_avx512_core = mayiuse(avx512_core);
+    const bool is_avx512_core_fp16 = mayiuse(avx512_core_fp16);
 
-    if (tensor_dt_valid) {
-        const bool any_tensor_bf16 = std::any_of(tensor_data_types.cbegin(),
-                tensor_data_types.cend(),
-                [](const data_type_t &dt) { return dt == data_type::bf16; });
+    auto is_dt_ok = [&](data_type_t dt) {
+        return utils::one_of(dt, data_type::bf16, data_type::f16,
+                       data_type::f32, data_type::s32, data_type::u8,
+                       data_type::s8)
+                && IMPLICATION(dt == data_type::bf16, is_avx512_core)
+                && IMPLICATION(dt == data_type::f16, is_avx512_core_fp16);
+    };
 
-        return IMPLICATION(any_tensor_bf16, mayiuse(avx512_core));
-    }
+    for (auto dt : tensor_data_types)
+        if (!is_dt_ok(dt)) return false;
 
-    return false;
+    return true;
 }
 
 size_t c_blk_nelems(const memory_desc_t *mem, bool padding) noexcept {
