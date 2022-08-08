@@ -107,6 +107,10 @@ bool has_data_type_support(data_type_t data_type) {
         case data_type::bf16:
 #if DNNL_X64
             return x64::mayiuse(x64::avx512_core);
+#elif DNNL_PPC64
+#if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)
+            return true;
+#endif
 #else
             return false;
 #endif

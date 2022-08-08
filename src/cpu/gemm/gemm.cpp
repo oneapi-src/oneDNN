@@ -280,6 +280,18 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
         return gemm_driver(transa, transb, dummyOffsetC, M, N, K, alpha,
                 (const bfloat16_t *)A, lda, dummy_ao, (const bfloat16_t *)B,
                 ldb, dummy_bo, beta, (float *)C, ldc, dummy_co, false);
+#elif DNNL_PPC64
+#if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)
+    bool trA = *transa == 't' || *transa == 'T';
+    bool trB = *transb == 't' || *transb == 'T';
+    CBLAS_TRANSPOSE Cblas_trA = trA ? CblasTrans : CblasNoTrans;
+    CBLAS_TRANSPOSE Cblas_trB = trB ? CblasTrans : CblasNoTrans;
+
+    cblas_sbgemm(CblasColMajor, Cblas_trA, Cblas_trB, *M, *N, *K, *alpha,
+            (const bfloat16 *)A, *lda, (const bfloat16 *)B, *ldb, *beta, C,
+            *ldc);
+    return dnnl_success;
+#endif
 #endif
 
     return dnnl_unimplemented;

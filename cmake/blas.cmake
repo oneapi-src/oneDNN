@@ -83,6 +83,11 @@ if(BLAS_FOUND)
          message(FATAL_ERROR "BLAS library does not support CBLAS interface.")
      endif()
 
+     check_function_exists(cblas_sbgemm BLAS_HAS_SBGEMM)
+     if(BLAS_HAS_SBGEMM)
+         add_definitions(-DBLAS_HAS_SBGEMM)
+     endif()
+
      message(STATUS "Found CBLAS: ${BLAS_LIBRARIES}")
      message(STATUS "CBLAS include path: ${BLAS_INCLUDE_DIR}")
      add_definitions(-DUSE_CBLAS)
