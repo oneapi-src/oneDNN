@@ -75,6 +75,7 @@ static load_fn_t create_load(const data_type_t src_dtype) {
         case f32: return create_load<f32>();
         case s32: return create_load<s32>();
         case bf16: return create_load<bf16>();
+        case f16: return create_load<f16>();
         case s8: return create_load<s8>();
         case u8: return create_load<u8>();
         default: assert(!"Unsupported data type.");
@@ -89,6 +90,7 @@ static store_fn_t create_store(const data_type_t dst_dtype) {
         case f32: return create_store<f32>();
         case s32: return create_store<s32>();
         case bf16: return create_store<bf16>();
+        case f16: return create_store<f16>();
         case s8: return create_store<s8>();
         case u8: return create_store<u8>();
         default: assert(!"Unsupported data type.");

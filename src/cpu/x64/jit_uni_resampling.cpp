@@ -38,6 +38,7 @@ namespace x64 {
 using namespace resampling_utils;
 
 static cpu_isa_t get_supported_isa(bool is_blocked_8_format) {
+    if (mayiuse(avx512_core_fp16)) return avx512_core_fp16;
     if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
     if (mayiuse(avx512_core)) return avx512_core;
     if (mayiuse(avx2)) return avx2;
@@ -65,6 +66,7 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
             && set_default_params(conf_.src_tag) == status::success
             && platform::has_data_type_support(conf_.src_data_type)
             && platform::has_data_type_support(conf_.dst_data_type)
+            && IMPLICATION(conf_.src_data_type == f16, src_d.is_plain())
             && attr()->has_default_values(sm::post_ops, conf_.dst_data_type)
             && attr_.set_default_formats(dst_md(0)) == status::success;
     if (!ok) return status::unimplemented;
@@ -175,6 +177,11 @@ status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_avx512(
         const memory_desc_t *dst_md, const jit_resampling_conf_t &conf) {
     const format_tag_t blocked_8_tag = utils::pick(conf.ndims - 3,
             format_tag::nCw8c, format_tag::nChw8c, format_tag::nCdhw8c);
+    if (is_superset(conf.isa, avx512_core_fp16))
+        safe_ptr_assign(kernel_,
+                new jit_uni_resampling_kernel_t<avx512_core_fp16, Xbyak::Zmm>(
+                        conf, dst_md));
+
     if (memory_desc_matches_tag(*pd()->src_md(), blocked_8_tag)) {
         return safe_ptr_assign(kernel_,
                 new jit_uni_resampling_kernel_t<avx512_core, Xbyak::Ymm>(

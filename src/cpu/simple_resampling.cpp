@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -466,26 +466,42 @@ simple_resampling_kernel_t<src_type, dst_type>::create_trilinear() const {
 
 template struct simple_resampling_kernel_t<data_type::f32, data_type::f32>;
 template struct simple_resampling_kernel_t<data_type::f32, data_type::bf16>;
+template struct simple_resampling_kernel_t<data_type::f32, data_type::f16>;
 template struct simple_resampling_kernel_t<data_type::f32, data_type::s32>;
 template struct simple_resampling_kernel_t<data_type::f32, data_type::s8>;
 template struct simple_resampling_kernel_t<data_type::f32, data_type::u8>;
+
 template struct simple_resampling_kernel_t<data_type::bf16, data_type::f32>;
 template struct simple_resampling_kernel_t<data_type::bf16, data_type::bf16>;
+template struct simple_resampling_kernel_t<data_type::bf16, data_type::f16>;
 template struct simple_resampling_kernel_t<data_type::bf16, data_type::s32>;
 template struct simple_resampling_kernel_t<data_type::bf16, data_type::s8>;
 template struct simple_resampling_kernel_t<data_type::bf16, data_type::u8>;
+
+template struct simple_resampling_kernel_t<data_type::f16, data_type::f32>;
+template struct simple_resampling_kernel_t<data_type::f16, data_type::bf16>;
+template struct simple_resampling_kernel_t<data_type::f16, data_type::f16>;
+template struct simple_resampling_kernel_t<data_type::f16, data_type::s32>;
+template struct simple_resampling_kernel_t<data_type::f16, data_type::s8>;
+template struct simple_resampling_kernel_t<data_type::f16, data_type::u8>;
+
 template struct simple_resampling_kernel_t<data_type::s32, data_type::f32>;
 template struct simple_resampling_kernel_t<data_type::s32, data_type::bf16>;
+template struct simple_resampling_kernel_t<data_type::s32, data_type::f16>;
 template struct simple_resampling_kernel_t<data_type::s32, data_type::s32>;
 template struct simple_resampling_kernel_t<data_type::s32, data_type::s8>;
 template struct simple_resampling_kernel_t<data_type::s32, data_type::u8>;
+
 template struct simple_resampling_kernel_t<data_type::s8, data_type::f32>;
 template struct simple_resampling_kernel_t<data_type::s8, data_type::bf16>;
+template struct simple_resampling_kernel_t<data_type::s8, data_type::f16>;
 template struct simple_resampling_kernel_t<data_type::s8, data_type::s32>;
 template struct simple_resampling_kernel_t<data_type::s8, data_type::s8>;
 template struct simple_resampling_kernel_t<data_type::s8, data_type::u8>;
+
 template struct simple_resampling_kernel_t<data_type::u8, data_type::f32>;
 template struct simple_resampling_kernel_t<data_type::u8, data_type::bf16>;
+template struct simple_resampling_kernel_t<data_type::u8, data_type::f16>;
 template struct simple_resampling_kernel_t<data_type::u8, data_type::s32>;
 template struct simple_resampling_kernel_t<data_type::u8, data_type::s8>;
 template struct simple_resampling_kernel_t<data_type::u8, data_type::u8>;
@@ -500,6 +516,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case f32: return new simple_resampling_kernel_t<f32, f32>(pd);
                 case s32: return new simple_resampling_kernel_t<f32, s32>(pd);
                 case bf16: return new simple_resampling_kernel_t<f32, bf16>(pd);
+                case f16: return new simple_resampling_kernel_t<f32, f16>(pd);
                 case s8: return new simple_resampling_kernel_t<f32, s8>(pd);
                 case u8: return new simple_resampling_kernel_t<f32, u8>(pd);
                 default: break;
@@ -509,6 +526,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case f32: return new simple_resampling_kernel_t<s32, f32>(pd);
                 case s32: return new simple_resampling_kernel_t<s32, s32>(pd);
                 case bf16: return new simple_resampling_kernel_t<s32, bf16>(pd);
+                case f16: return new simple_resampling_kernel_t<s32, f16>(pd);
                 case s8: return new simple_resampling_kernel_t<s32, s8>(pd);
                 case u8: return new simple_resampling_kernel_t<s32, u8>(pd);
                 default: break;
@@ -519,8 +537,19 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case s32: return new simple_resampling_kernel_t<bf16, s32>(pd);
                 case bf16:
                     return new simple_resampling_kernel_t<bf16, bf16>(pd);
+                case f16: return new simple_resampling_kernel_t<bf16, f16>(pd);
                 case s8: return new simple_resampling_kernel_t<bf16, s8>(pd);
                 case u8: return new simple_resampling_kernel_t<bf16, u8>(pd);
+                default: break;
+            }
+        case f16:
+            switch (dst_dt) {
+                case f32: return new simple_resampling_kernel_t<f16, f32>(pd);
+                case s32: return new simple_resampling_kernel_t<f16, s32>(pd);
+                case bf16: return new simple_resampling_kernel_t<f16, bf16>(pd);
+                case f16: return new simple_resampling_kernel_t<f16, f16>(pd);
+                case s8: return new simple_resampling_kernel_t<f16, s8>(pd);
+                case u8: return new simple_resampling_kernel_t<f16, u8>(pd);
                 default: break;
             }
         case s8:
@@ -528,6 +557,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case f32: return new simple_resampling_kernel_t<s8, f32>(pd);
                 case s32: return new simple_resampling_kernel_t<s8, s32>(pd);
                 case bf16: return new simple_resampling_kernel_t<s8, bf16>(pd);
+                case f16: return new simple_resampling_kernel_t<s8, f16>(pd);
                 case s8: return new simple_resampling_kernel_t<s8, s8>(pd);
                 case u8: return new simple_resampling_kernel_t<s8, u8>(pd);
                 default: break;
@@ -537,6 +567,7 @@ simple_resampling_base_t *create_simple_resampling(const resampling_pd_t *pd,
                 case f32: return new simple_resampling_kernel_t<u8, f32>(pd);
                 case s32: return new simple_resampling_kernel_t<u8, s32>(pd);
                 case bf16: return new simple_resampling_kernel_t<u8, bf16>(pd);
+                case f16: return new simple_resampling_kernel_t<u8, f16>(pd);
                 case s8: return new simple_resampling_kernel_t<u8, s8>(pd);
                 case u8: return new simple_resampling_kernel_t<u8, u8>(pd);
                 default: break;

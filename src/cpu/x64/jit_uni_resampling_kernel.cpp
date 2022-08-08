@@ -92,6 +92,7 @@ bool jit_uni_resampling_kernel_t<isa, Vmm>::can_movntps_be_used() const {
     switch (conf_.dst_data_type) {
         case data_type::f32:
         case data_type::s32: are_data_filling_register_fully = true; break;
+        case data_type::f16:
         case data_type::bf16:
             are_data_filling_register_fully = is_xmm_ ? false : true;
             break;
@@ -749,6 +750,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::generate() {
         postops_injector_->prepare_table();
 }
 
+template struct jit_uni_resampling_kernel_t<avx512_core_fp16, Zmm>;
 template struct jit_uni_resampling_kernel_t<avx512_core, Zmm>;
 template struct jit_uni_resampling_kernel_t<avx512_core, Ymm>;
 template struct jit_uni_resampling_kernel_t<avx, Ymm>;

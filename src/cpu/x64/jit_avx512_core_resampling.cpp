@@ -811,6 +811,9 @@ status_t jit_avx512_core_resampling_bwd_t::pd_t::init(engine_t *engine) {
     const bool ok = mayiuse(avx512_core) && !is_fwd() && !has_zero_dim_memory()
             && platform::has_data_type_support(diff_dst_md()->data_type)
             && platform::has_data_type_support(diff_src_md()->data_type)
+            && IMPLICATION(diff_src_md()->data_type == f16,
+                    mayiuse(avx512_core_fp16)
+                            && memory_desc_wrapper(diff_src_md()).is_plain())
             && set_default_params() == status::success
             && attr()->has_default_values();
     if (!ok) return status::unimplemented;
