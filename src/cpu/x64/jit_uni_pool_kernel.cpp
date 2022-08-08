@@ -411,12 +411,7 @@ inline void jit_uni_pool_kernel<isa>::load(const int idx,
         vcvtph2psx(vmm_to_load, ptr[reg_ptr + offset]);
     } else {
         if (is_c_tail_proccessing && !jpp.is_c_padded) {
-            if (isa == sse41) {
-                for (int i = 0; i < jpp.c_tail % (jpp.c_block / 2); i++) {
-                    pinsrd(Xmm(idx), ptr[reg_ptr + offset + i * jpp.dt_size],
-                            i);
-                }
-            } else if (isa == avx || isa == avx2) {
+            if (isa == avx || isa == avx2) {
                 vmaskmovps(Vmm(idx), vmm_c_tail_mask, ptr[reg_ptr + offset]);
             } else {
                 vmovups(Zmm(idx) | k_c_tail_mask | T_z, ptr[reg_ptr + offset]);
@@ -425,6 +420,17 @@ inline void jit_uni_pool_kernel<isa>::load(const int idx,
             uni_vmovups(Vmm(idx), ptr[reg_ptr + offset]);
         }
     }
+}
+
+template <>
+inline void jit_uni_pool_kernel<sse41>::load(const int idx,
+        const reg64_t &reg_ptr, const int offset,
+        const bool is_c_tail_proccessing) {
+    if (is_c_tail_proccessing && !jpp.is_c_padded) {
+        for (int i = 0; i < jpp.c_tail % (jpp.c_block / 2); i++)
+            pinsrd(Xmm(idx), ptr[reg_ptr + offset + i * jpp.dt_size], i);
+    } else
+        uni_vmovups(Vmm(idx), ptr[reg_ptr + offset]);
 }
 
 template <cpu_isa_t isa>
@@ -443,42 +449,14 @@ inline void jit_uni_pool_kernel<isa>::store(const int idx,
     } else {
         if (is_c_tail_proccessing) {
             if (!jpp.is_c_padded) {
-                if (isa == sse41)
-                    for (int i = 0; i < jpp.c_tail % (jpp.c_block / 2); i++)
-                        pextrd(ptr[reg_ptr + offset + i * jpp.dt_size],
-                                Xmm(idx), i);
-                else if (isa == avx || isa == avx2)
+                if (isa == avx || isa == avx2)
                     vmaskmovps(
                             ptr[reg_ptr + offset], vmm_c_tail_mask, Vmm(idx));
                 else
                     vmovups(ptr[reg_ptr + offset] | k_c_tail_mask, Zmm(idx));
             } else {
                 if (jpp.with_postops) {
-                    if (isa == sse41) {
-                        static constexpr auto xmm_half = 4;
-                        const auto tail_size
-                                = (jpp.c_without_padding > jpp.c_block)
-                                ? jpp.c_without_padding % (jpp.c - jpp.c_block)
-                                : jpp.c_without_padding;
-                        const auto tail_size_real = (tail_size >= xmm_half)
-                                ? tail_size - xmm_half
-                                : tail_size;
-                        uni_vxorps(xmm_tmp_1, xmm_tmp_1, xmm_tmp_1);
-                        if (tail_size <= xmm_half && sse_high_half) {
-                            // just zero out upper half padding and don't write anything else
-                            uni_vmovups(vmmword[reg_ptr + offset], xmm_tmp_1);
-                            return;
-                        }
-
-                        if ((tail_size < xmm_half && !sse_high_half)
-                                || (tail_size > xmm_half && sse_high_half)) {
-                            std::bitset<8> tail_mask((1 << tail_size_real) - 1);
-                            tail_mask.flip();
-                            uni_vblendps(Vmm(idx), Vmm(idx), xmm_tmp_1,
-                                    tail_mask.to_ulong());
-                        }
-
-                    } else if (isa == avx || isa == avx2) {
+                    if (isa == avx || isa == avx2) {
                         uni_vxorps(ymm_tmp_1, ymm_tmp_1, ymm_tmp_1);
                         uni_vblendvps(
                                 Vmm(idx), ymm_tmp_1, Vmm(idx), vmm_c_tail_mask);
@@ -490,6 +468,44 @@ inline void jit_uni_pool_kernel<isa>::store(const int idx,
         } else
             uni_vmovups(vmmword[reg_ptr + offset], Vmm(idx));
     }
+}
+
+template <>
+inline void jit_uni_pool_kernel<sse41>::store(const int idx,
+        const reg64_t &reg_ptr, const int offset,
+        const bool is_c_tail_proccessing) {
+    if (is_c_tail_proccessing) {
+        if (!jpp.is_c_padded) {
+            for (int i = 0; i < jpp.c_tail % (jpp.c_block / 2); i++)
+                pextrd(ptr[reg_ptr + offset + i * jpp.dt_size], Xmm(idx), i);
+        } else {
+            if (jpp.with_postops) {
+                static constexpr auto xmm_half = 4;
+                const auto tail_size = (jpp.c_without_padding > jpp.c_block)
+                        ? jpp.c_without_padding % (jpp.c - jpp.c_block)
+                        : jpp.c_without_padding;
+                const auto tail_size_real = (tail_size >= xmm_half)
+                        ? tail_size - xmm_half
+                        : tail_size;
+                uni_vxorps(xmm_tmp_1, xmm_tmp_1, xmm_tmp_1);
+                if (tail_size <= xmm_half && sse_high_half) {
+                    // just zero out upper half padding and don't write anything else
+                    uni_vmovups(vmmword[reg_ptr + offset], xmm_tmp_1);
+                    return;
+                }
+
+                if ((tail_size < xmm_half && !sse_high_half)
+                        || (tail_size > xmm_half && sse_high_half)) {
+                    std::bitset<8> tail_mask((1 << tail_size_real) - 1);
+                    tail_mask.flip();
+                    uni_vblendps(Vmm(idx), Vmm(idx), xmm_tmp_1,
+                            tail_mask.to_ulong());
+                }
+            }
+            uni_vmovups(vmmword[reg_ptr + offset], Vmm(idx));
+        }
+    } else
+        uni_vmovups(vmmword[reg_ptr + offset], Vmm(idx));
 }
 
 template <cpu_isa_t isa>
