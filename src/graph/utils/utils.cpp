@@ -34,7 +34,7 @@ int getenv_int_internal(const char *name, int default_value) {
     // # of digits in the longest 32-bit signed int + sign + terminating null
     const int len = 12;
     char value_str[len]; // NOLINT
-    for (const auto &prefix : {"_ONEDNN", "_DNNL"}) {
+    for (const auto &prefix : {"_ONEDNN_", "_DNNL_"}) {
         std::string name_str = std::string(prefix) + std::string(name);
         if (getenv(name_str.c_str(), value_str, len) > 0) {
             value = std::atoi(value_str);
@@ -49,7 +49,7 @@ bool check_verbose_string_user(const char *name, const char *expected) {
     std::string value;
     const int len = 64;
     char value_str[len]; // NOLINT
-    for (const auto &prefix : {"ONEDNN", "DNNL"}) {
+    for (const auto &prefix : {"ONEDNN_", "DNNL_"}) {
         std::string name_str = std::string(prefix) + std::string(name);
         if (getenv(name_str.c_str(), value_str, len) > 0) {
             value = value_str;
