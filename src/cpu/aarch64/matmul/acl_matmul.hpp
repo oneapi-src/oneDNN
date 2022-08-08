@@ -75,6 +75,7 @@ struct acl_matmul_t : public primitive_t {
                     && desc()->accum_data_type == data_type::f32
                     && dst_md()->data_type == data_type::f32
                     && platform::has_data_type_support(data_type::f32)
+                    && !has_zero_dim_memory()
                     && attr()->has_default_values(
                             smask_t::oscale | smask_t::post_ops)
                     && post_ops_ok() && attr_oscale_ok()
