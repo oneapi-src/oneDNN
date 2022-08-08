@@ -117,6 +117,32 @@ if(DNNL_WITH_SYCL)
     add_subdirectory(sycl)
 endif()
 
+if(ONEDNN_BUILD_GRAPH)
+    message(STATUS "Graph component is enabled")
+    if (DNNL_GPU_RUNTIME STREQUAL "OCL")
+        message(FATAL_ERROR "Graph component doesn't support OCL GPU runtime")
+    endif()
+
+    if (NOT DNNL_GPU_VENDOR STREQUAL "INTEL")
+        message(FATAL_ERROR "Graph component doesn't support ${DNNL_GPU_VENDOR} GPU")
+    endif()
+
+    if (NOT DNNL_ENABLE_PRIMITIVE STREQUAL "ALL")
+        message(FATAL_ERROR "Graph component doesn't support selecting primitives")
+    endif()
+
+    if (NOT DNNL_ENABLE_WORKLOAD STREQUAL "TRAINING")
+        message(FATAL_ERROR "Graph component doesn't support selecting workloads")
+    endif()
+    
+    add_definitions_with_host_compiler(-DBUILD_GRAPH)
+    
+    if(ONEDNN_ENABLE_GRAPH_DUMP)
+        message(STATUS "Graph artifacts dump is enabled")
+        add_definitions_with_host_compiler(-DDNNL_ENABLE_GRAPH_DUMP)
+    endif()
+endif()
+# Even if ONEDNN_BUILD_GRAPH is OFF, we still build it for preseved symbols.
 add_subdirectory(graph)
 
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)

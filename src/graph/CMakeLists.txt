@@ -14,15 +14,6 @@
 # limitations under the License.
 #===============================================================================
 
-if(ONEDNN_BUILD_GRAPH)
-    message(STATUS "Graph component is enabled")
-    add_definitions_with_host_compiler(-DBUILD_GRAPH)
-    if(ONEDNN_ENABLE_GRAPH_DUMP)
-        message(STATUS "Graph artifacts dump is enabled")
-        add_definitions_with_host_compiler(-DDNNL_ENABLE_GRAPH_DUMP)
-    endif()
-endif()
-
 add_subdirectory(interface)
 
 if (ONEDNN_BUILD_GRAPH)
