@@ -38,8 +38,8 @@ class pb_graph_t;
 // VARIADIC_INPUT_NUM means the num of inputs will be depend on the op
 // Using a large enough number to represent this.
 #define VARIADIC_INPUT_NUM 64
-using iport_t = int64_t;
-using oport_t = int64_t;
+using iport_t = size_t;
+using oport_t = size_t;
 using producer_t = std::pair<pb_node_t *, oport_t>;
 using consumer_t = std::pair<pb_node_t *, iport_t>;
 using consumers_t = std::vector<std::shared_ptr<consumer_t>>;
@@ -156,8 +156,8 @@ public:
     repetition_t() = delete;
     pb_graph_t *get_body();
     port_map get_port_map(); // only support single port binding
-    int64_t get_min_rep() const { return min_rep_; }
-    int64_t get_max_rep() const { return max_rep_; }
+    size_t get_min_rep() const { return min_rep_; }
+    size_t get_max_rep() const { return max_rep_; }
 
 protected:
     friend class pb_graph_t;
@@ -167,13 +167,13 @@ protected:
     // [0, n+1) means at most n repetitions
     // [n, INT64_MAX) means at least n repetitions
     repetition_t(std::shared_ptr<pb_graph_t> p_node, port_map p_map,
-            int64_t min_rep, int64_t max_rep);
+            size_t min_rep, size_t max_rep);
     // Usage case for Optional does not need a port map
     repetition_t(std::shared_ptr<pb_graph_t> p_node);
     std::shared_ptr<pb_graph_t> body_;
     port_map port_map_;
-    int64_t min_rep_;
-    int64_t max_rep_;
+    size_t min_rep_;
+    size_t max_rep_;
 };
 
 // "pb_graph_t" represents a group of pb_op_ts and also serves as a pb_node_t
@@ -234,10 +234,10 @@ public:
             std::string name = "");
 
     repetition_t *append_repetition(std::shared_ptr<pb_graph_t> p_node,
-            port_map p_map, int64_t min_rep, int64_t max_rep,
+            port_map p_map, size_t min_rep, size_t max_rep,
             const in_edges_t &p_in_edges, std::string name = "");
     repetition_t *append_repetition(std::shared_ptr<pb_graph_t> p_node,
-            port_map p_map, int64_t min_rep, int64_t max_rep,
+            port_map p_map, size_t min_rep, size_t max_rep,
             std::string name = "");
 
     repetition_t *append_optional(std::shared_ptr<pb_graph_t> p_node,
@@ -245,8 +245,8 @@ public:
     repetition_t *append_optional(
             std::shared_ptr<pb_graph_t> p_node, std::string name = "");
 
-    std::vector<std::pair<oport_t, consumers_t>> get_inner_consumers();
-    std::vector<std::pair<iport_t, producer_t>> get_inner_producers();
+    std::vector<std::pair<iport_t, consumers_t>> get_inner_consumers();
+    std::vector<std::pair<oport_t, producer_t>> get_inner_producers();
     std::shared_ptr<consumers_t> get_inner_consumer(iport_t);
     std::shared_ptr<producer_t> get_inner_producer(oport_t);
 

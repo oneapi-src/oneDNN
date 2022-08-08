@@ -80,8 +80,8 @@ bool get_optional_outputs(
 }
 } // namespace
 
-binding_t::binding_t(node_bind_kind p_kind, op_t *p_op, int64_t p_op_port,
-        pb_node_t *p_node, int64_t p_port)
+binding_t::binding_t(node_bind_kind p_kind, op_t *p_op, size_t p_op_port,
+        pb_node_t *p_node, size_t p_port)
     : bind_op {p_op}
     , bind_node {p_node}
     , bind_kind {p_kind}
@@ -258,9 +258,8 @@ bool match_node_outputs(op_t *op, pb_node_t *node, match_context_t *ctx,
                 pb_node_t *out_node = node_consumer->first;
                 // check if the out_node has been matched by previous out_ops
                 if (node_oport_matched_cons.count(k)) continue;
-                binding_t out_bind(BIND_IN, out_op,
-                        int64_t(op_consumer.get_offset()), out_node,
-                        node_consumer->second);
+                binding_t out_bind(BIND_IN, out_op, op_consumer.get_offset(),
+                        out_node, node_consumer->second);
                 if (!match_graph_helper(out_bind, ctx, copied_op_map)) {
                     continue;
                 } else {
@@ -517,21 +516,19 @@ void fill_parent_io_map(
     for (size_t i = 0; i < inner_cons.size(); i++) {
         auto con_set = inner_cons[i].second;
         if (con_set.empty()) continue;
-        int64_t si = static_cast<int64_t>(i);
         pb_node_t *con_node = con_set[0]->first;
         if (con_node == local_bind.bind_node) {
-            parent_ctx->in_port_map[si] = {local_ctx->in_port_map[si].first,
-                    local_ctx->in_port_map[si].second};
+            parent_ctx->in_port_map[i] = {local_ctx->in_port_map[i].first,
+                    local_ctx->in_port_map[i].second};
         }
     }
     auto inner_prods = pgraph->get_inner_producers();
     for (size_t i = 0; i < inner_prods.size(); i++) {
         auto prod = inner_prods[i];
         pb_node_t *prod_node = prod.second.first;
-        int64_t si = static_cast<int64_t>(i);
         if (prod_node == local_bind.bind_node) {
-            parent_ctx->out_port_map[si] = {local_ctx->out_port_map[si].first,
-                    local_ctx->out_port_map[si].second};
+            parent_ctx->out_port_map[i] = {local_ctx->out_port_map[i].first,
+                    local_ctx->out_port_map[i].second};
         }
     }
 }
@@ -638,8 +635,8 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     repetition_t *rep_node = dynamic_cast<repetition_t *>(bind_arg.bind_node);
     port_map pmap = rep_node->get_port_map();
-    int64_t min_rep = rep_node->get_min_rep();
-    int64_t max_rep = rep_node->get_max_rep() - 1;
+    size_t min_rep = rep_node->get_min_rep();
+    size_t max_rep = rep_node->get_max_rep() - 1;
 
     // binding_t for first iteration.
     // all iterations have same body_graph, bind_kind and bind_port
@@ -654,7 +651,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
     bool forward_match = temp_bind.bind_kind != BIND_OUT;
 
     // num of repetition blocks matched
-    int64_t num_rep = 0;
+    size_t num_rep = 0;
     while (true) {
         match_context_t temp_ctx {speculative_ctx};
         if (!match_graph(temp_bind, &temp_ctx, temp_op_map)) break;
@@ -691,8 +688,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             oport_t oport = pmap.first;
             op_t *current_op = temp_ctx.out_port_map[oport].first;
             if (oport >= current_op->num_outputs()) break;
-            auto cons = current_op->get_output_value(static_cast<size_t>(oport))
-                                ->get_consumers();
+            auto cons = current_op->get_output_value(oport)->get_consumers();
             if (cons.empty()) break;
             if (cons.size() == 1) {
                 op_t *next_op = &(cons[0].get_op());
@@ -734,8 +730,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             iport_t iport = pmap.second;
             op_t *current_op = temp_ctx.in_port_map[iport].first;
             if (iport >= current_op->num_inputs()) break;
-            auto in_value
-                    = current_op->get_input_value(static_cast<size_t>(iport));
+            auto in_value = current_op->get_input_value(iport);
             temp_bind.bind_op = &(in_value->get_producer());
             temp_bind.bind_op_port = in_value->get_offset();
         }

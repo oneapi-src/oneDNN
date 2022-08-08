@@ -24,23 +24,20 @@ using namespace dnnl::graph::impl::utils::pm;
 using std::dynamic_pointer_cast;
 
 std::shared_ptr<consumers_t> pb_node_t::get_consumers(oport_t p_port) {
-    if (p_port < 0) { return nullptr; }
     if (outs_.size() <= p_port) { return nullptr; }
-    return outs_[static_cast<uint64_t>(p_port)];
+    return outs_[p_port];
 }
 
 std::shared_ptr<producer_t> pb_node_t::get_producer(iport_t p_port) {
-    if (p_port < 0) { return nullptr; }
     if (ins_.size() <= p_port) { return nullptr; }
-    return ins_[static_cast<uint64_t>(p_port)];
+    return ins_[p_port];
 }
 
 std::vector<std::pair<iport_t, producer_t>> pb_node_t::get_inputs() {
     std::vector<std::pair<iport_t, producer_t>> inputs;
     size_t s = ins_.size();
     for (size_t i = 0; i < s; i++) {
-        if (ins_[i] != nullptr)
-            inputs.emplace_back(static_cast<iport_t>(i), *ins_[i]);
+        if (ins_[i] != nullptr) inputs.emplace_back(i, *ins_[i]);
     }
     return inputs;
 }
@@ -49,39 +46,32 @@ std::vector<std::pair<oport_t, consumers_t>> pb_node_t::get_outputs() {
     std::vector<std::pair<oport_t, consumers_t>> outputs;
     size_t s = outs_.size();
     for (size_t i = 0; i < s; i++) {
-        if (outs_[i] != nullptr)
-            outputs.emplace_back(static_cast<oport_t>(i), *outs_[i]);
+        if (outs_[i] != nullptr) outputs.emplace_back(i, *outs_[i]);
     }
     return outputs;
 }
 
 bool pb_node_t::set_producer(
         iport_t p_port, std::shared_ptr<producer_t> p_producer) {
-    if (p_port < 0) { return false; }
-    uint64_t index = static_cast<uint64_t>(p_port);
-    if (ins_.size() <= index) { ins_.resize(index + 1, nullptr); }
-    ins_[index] = std::move(p_producer);
+    if (ins_.size() <= p_port) { ins_.resize(p_port + 1, nullptr); }
+    ins_[p_port] = std::move(p_producer);
     return true;
 }
 
 bool pb_node_t::set_consumers(
         oport_t p_port, std::shared_ptr<consumers_t> p_consumers) {
-    if (p_port < 0) { return false; }
-    uint64_t index = static_cast<uint64_t>(p_port);
-    if (outs_.size() <= index) { outs_.resize(index + 1, nullptr); }
-    outs_[index] = std::move(p_consumers);
+    if (outs_.size() <= p_port) { outs_.resize(p_port + 1, nullptr); }
+    outs_[p_port] = std::move(p_consumers);
     return true;
 }
 
 bool pb_node_t::add_consumer(
         oport_t p_port, const std::shared_ptr<consumer_t> &p_consumer) {
-    if (p_port < 0) { return false; }
-    uint64_t index = static_cast<uint64_t>(p_port);
-    if (outs_.size() <= index) { outs_.resize(index + 1, nullptr); }
+    if (outs_.size() <= p_port) { outs_.resize(p_port + 1, nullptr); }
     std::shared_ptr<consumers_t> con = get_consumers(p_port);
     if (con == nullptr) {
         con = std::make_shared<consumers_t>();
-        outs_[index] = con;
+        outs_[p_port] = con;
     }
     con->push_back(p_consumer);
     return true;
@@ -147,46 +137,38 @@ void pb_op_t::allow_external_output(oport_t p_port) {
     external_outputs_.insert(p_port);
 }
 
-std::vector<std::pair<oport_t, consumers_t>> pb_graph_t::get_inner_consumers() {
-    std::vector<std::pair<oport_t, consumers_t>> consumers;
+std::vector<std::pair<iport_t, consumers_t>> pb_graph_t::get_inner_consumers() {
+    std::vector<std::pair<iport_t, consumers_t>> consumers;
     size_t s = inner_consumers_.size();
     for (size_t i = 0; i < s; i++) {
         if (inner_consumers_[i] != nullptr)
-            consumers.emplace_back(
-                    static_cast<oport_t>(i), *inner_consumers_[i]);
+            consumers.emplace_back(i, *inner_consumers_[i]);
     }
     return consumers;
 }
 
-std::vector<std::pair<iport_t, producer_t>> pb_graph_t::get_inner_producers() {
-    std::vector<std::pair<iport_t, producer_t>> producers;
+std::vector<std::pair<oport_t, producer_t>> pb_graph_t::get_inner_producers() {
+    std::vector<std::pair<oport_t, producer_t>> producers;
     size_t s = inner_producers_.size();
     for (size_t i = 0; i < s; i++) {
         if (inner_producers_[i] != nullptr)
-            producers.emplace_back(
-                    static_cast<iport_t>(i), *inner_producers_[i]);
+            producers.emplace_back(i, *inner_producers_[i]);
     }
     return producers;
 }
 
 std::shared_ptr<consumers_t> pb_graph_t::get_inner_consumer(iport_t i_t) {
-    if (i_t < 0) { return nullptr; }
-    uint64_t index = static_cast<uint64_t>(i_t);
-    if (inner_consumers_.size() <= index) { return nullptr; }
-    return inner_consumers_[index];
+    if (inner_consumers_.size() <= i_t) { return nullptr; }
+    return inner_consumers_[i_t];
 }
 
 std::shared_ptr<producer_t> pb_graph_t::get_inner_producer(oport_t o_t) {
-    if (o_t < 0) { return nullptr; }
-    uint64_t index = static_cast<uint64_t>(o_t);
-    if (inner_producers_.size() <= index) { return nullptr; }
-    return inner_producers_[index];
+    if (inner_producers_.size() <= o_t) { return nullptr; }
+    return inner_producers_[o_t];
 }
 
 bool pb_graph_t::create_input_port(
         iport_t p_port, const std::shared_ptr<consumer_t> &p_consumer) {
-    if (p_port < 0) { return false; }
-    uint64_t index = static_cast<uint64_t>(p_port);
     for (auto const &con_set : inner_consumers_) {
         if (con_set != nullptr) {
             for (auto const &con : *con_set) {
@@ -196,25 +178,23 @@ bool pb_graph_t::create_input_port(
             }
         }
     }
-    if (inner_consumers_.size() <= index) {
-        inner_consumers_.resize(index + 1, nullptr);
+    if (inner_consumers_.size() <= p_port) {
+        inner_consumers_.resize(p_port + 1, nullptr);
     }
-    if (inner_consumers_[index] == nullptr) {
-        inner_consumers_[index] = std::make_shared<consumers_t>();
+    if (inner_consumers_[p_port] == nullptr) {
+        inner_consumers_[p_port] = std::make_shared<consumers_t>();
     }
-    inner_consumers_[index]->push_back(p_consumer);
+    inner_consumers_[p_port]->push_back(p_consumer);
     return true;
 }
 
 bool pb_graph_t::create_output_port(
         oport_t p_port, std::shared_ptr<producer_t> p_producer) {
-    if (p_port < 0) { return false; }
-    uint64_t index = static_cast<uint64_t>(p_port);
-    if (inner_producers_.size() <= index) {
-        inner_producers_.resize(index + 1, nullptr);
+    if (inner_producers_.size() <= p_port) {
+        inner_producers_.resize(p_port + 1, nullptr);
     }
-    if (inner_producers_[index] != nullptr) return false;
-    inner_producers_[index] = std::move(p_producer);
+    if (inner_producers_[p_port] != nullptr) return false;
+    inner_producers_[p_port] = std::move(p_producer);
     return true;
 }
 
@@ -313,7 +293,7 @@ alternation_t *pb_graph_t::append_alternation(
 }
 
 repetition_t *pb_graph_t::append_repetition(std::shared_ptr<pb_graph_t> p_node,
-        port_map p_map, int64_t min_rep, int64_t max_rep,
+        port_map p_map, size_t min_rep, size_t max_rep,
         const in_edges_t &p_in_edges, std::string name) {
     assertm(p_map.first == 0, "repetition only supports 1 output port");
     std::shared_ptr<repetition_t> p_repetition(new repetition_t(
@@ -325,7 +305,7 @@ repetition_t *pb_graph_t::append_repetition(std::shared_ptr<pb_graph_t> p_node,
 }
 
 repetition_t *pb_graph_t::append_repetition(std::shared_ptr<pb_graph_t> p_node,
-        port_map p_map, int64_t min_rep, int64_t max_rep, std::string name) {
+        port_map p_map, size_t min_rep, size_t max_rep, std::string name) {
     return append_repetition(std::move(p_node), std::move(p_map), min_rep,
             max_rep, {}, std::move(name));
 }
@@ -359,7 +339,7 @@ std::vector<pb_graph_t *> alternation_t::get_alternatives() {
 }
 
 repetition_t::repetition_t(std::shared_ptr<pb_graph_t> p_node, port_map p_map,
-        int64_t min_rep, int64_t max_rep)
+        size_t min_rep, size_t max_rep)
     : body_ {std::move(p_node)}
     , port_map_ {std::move(p_map)}
     , min_rep_ {min_rep}

@@ -78,17 +78,17 @@ enum node_bind_kind {
 //
 class binding_t {
 public:
-    binding_t(node_bind_kind p_kind, op_t *p_op, int64_t p_op_port,
-            pb_node_t *p_node, int64_t p_port);
+    binding_t(node_bind_kind p_kind, op_t *p_op, size_t p_op_port,
+            pb_node_t *p_node, size_t p_port);
 
     op_t *bind_op;
     pb_node_t *bind_node;
     node_bind_kind bind_kind;
-    int64_t bind_port;
-    int64_t bind_op_port;
+    size_t bind_port;
+    size_t bind_op_port;
 };
 
-using graph_port_map = std::unordered_map<int64_t, std::pair<op_t *, int64_t>>;
+using graph_port_map = std::unordered_map<size_t, std::pair<op_t *, size_t>>;
 
 //
 // match context tracks a pattern graph match progress
