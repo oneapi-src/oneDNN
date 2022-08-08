@@ -19,6 +19,7 @@
 
 #include "cpu/cpu_batch_normalization_pd.hpp"
 
+#include "cpu/aarch64/acl_post_ops.hpp"
 #include "cpu/aarch64/acl_utils.hpp"
 
 namespace dnnl {
@@ -98,6 +99,12 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
         using cpu_batch_normalization_fwd_pd_t::
                 cpu_batch_normalization_fwd_pd_t;
 
+        pd_t(const batch_normalization_desc_t *adesc,
+                const primitive_attr_t *attr,
+                const typename pd_t::base_class *hint_fwd_pd)
+            : cpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd)
+            , abp() {}
+
         DECLARE_COMMON_PD_T("acl", acl_batch_normalization_fwd_t);
 
         status_t init(engine_t *engine) {
@@ -107,7 +114,8 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
             const memory_desc_wrapper data_d(data_md_);
             const memory_desc_wrapper stat_d(stat_md_);
 
-            ACL_CHECK_SUPPORT(!attr()->has_default_values(),
+            using smask_t = primitive_attr_t::skip_mask_t;
+            ACL_CHECK_SUPPORT(!attr()->has_default_values(smask_t::post_ops),
                     "attr must have default values");
 
             // Stats must already have been calculated
@@ -184,15 +192,47 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
                 return status::unimplemented;
             }
 
-            // TODO: incorporate arbitrary post ops when merged upstream
+            ACL_CHECK_SUPPORT(fuse_norm_relu()
+                            && desc()->prop_kind == prop_kind::forward_training,
+                    "forward training with fused ReLU is not supported");
+
+            // oneDNN only supports eltwise post ops with bnorm
+            for (int i = 0; i < attr()->post_ops_.len(); ++i)
+                if (!attr()->post_ops_.entry_[i].is_eltwise())
+                    return status::unimplemented;
+
             if (fuse_norm_relu()) {
-                ACL_CHECK_SUPPORT(
-                        desc()->prop_kind == prop_kind::forward_training,
-                        "forward training with RELU is not supported");
                 abp.act_info = arm_compute::ActivationLayerInfo(arm_compute::
                                 ActivationLayerInfo::ActivationFunction::RELU);
+                // ACL BNorm supports fusing ReLU. If this validate fails, it
+                // will be for a different, unrecoverable reason
+                CHECK(validate(abp.act_info));
+                // init any additional post ops
+                CHECK(post_ops.init(engine, attr_.post_ops_, data_md_));
+            } else {
+                // init post ops, removing first eltwise for fusion
+                arm_compute::ActivationLayerInfo act_info;
+                CHECK(post_ops.init(
+                        engine, attr_.post_ops_, data_md_, act_info));
+                // ACL BNorm doesn't support all the same eltwise ops as the
+                // standalone ACL operator, so fall back to unfused eltwise if
+                // validate fails
+                if (validate(act_info) == status::success) {
+                    // validate succeeded => we can fuse the eltwise
+                    abp.act_info = act_info;
+                } else {
+                    // validate unfused eltwise + remaining post ops
+                    CHECK(validate());
+                    CHECK(post_ops.init(engine, attr_.post_ops_, data_md_));
+                }
             }
 
+            return status::success;
+        }
+
+        status_t validate() { return validate(abp.act_info); }
+
+        status_t validate(arm_compute::ActivationLayerInfo &act_info) {
             // Mathematically scaleshift => scale AND shift
             bool shift_or_scaleshift = (use_scaleshift() || use_shift());
             bool scale_or_scaleshift = (use_scaleshift() || use_scale());
@@ -201,12 +241,13 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
                     &abp.stats_info,
                     shift_or_scaleshift ? &abp.stats_info : nullptr,
                     scale_or_scaleshift ? &abp.stats_info : nullptr,
-                    desc()->batch_norm_epsilon, abp.act_info));
-
+                    desc()->batch_norm_epsilon, act_info));
             return status::success;
         }
 
         acl_batch_normalization_conf_t abp;
+
+        acl_post_ops_t post_ops;
     }; // pd_t
 
     acl_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -221,6 +262,8 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
         // Configure the resource based on information from primitive descriptor
         CHECK(r->configure(pd()->abp, pd()));
         mapper.add(this, std::move(r));
+
+        CHECK(pd()->post_ops.create_resource(engine, mapper));
 
         return status::success;
     }
