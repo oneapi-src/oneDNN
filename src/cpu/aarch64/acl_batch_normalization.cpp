@@ -73,11 +73,14 @@ status_t acl_batch_normalization_fwd_t::execute_forward(
     acl_obj.bnorm.run();
 
     acl_obj.src_tensor.allocator()->free();
-    acl_obj.dst_tensor.allocator()->free();
     acl_obj.gamma_tensor.allocator()->free();
     acl_obj.beta_tensor.allocator()->free();
     acl_obj.mean_tensor.allocator()->free();
     acl_obj.var_tensor.allocator()->free();
+
+    pd()->post_ops.execute(ctx, acl_obj.dst_tensor.buffer());
+
+    acl_obj.dst_tensor.allocator()->free();
 
     return status::success;
 }
