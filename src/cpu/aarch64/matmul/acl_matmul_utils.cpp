@@ -23,8 +23,6 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-using namespace alg_kind;
-
 namespace acl_matmul_utils {
 
 status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
