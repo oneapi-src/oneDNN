@@ -397,9 +397,7 @@ inline void jit_uni_pool_kernel<isa>::load(const int idx,
         /*TODO: maybe use vpmovzxwd + vpslld,
              * in order to free up vmm_idx() register */
         if (is_c_tail_proccessing && !jpp.is_c_padded) {
-            Vmm vmm_to_load = is_c_tail_proccessing
-                    ? Vmm(idx) | k_c_tail_mask | T_z
-                    : Vmm(idx);
+            Vmm vmm_to_load = Vmm(idx) | k_c_tail_mask | T_z;
             vpmovzxwd(vmm_to_load, ptr[reg_ptr + offset]);
             vpslld(vmm_to_load, vmm_to_load, 16);
         } else {
