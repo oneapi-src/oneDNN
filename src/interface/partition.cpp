@@ -316,8 +316,10 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
     if (utils::get_verbose() >= 3) {
         allocator_t *alloc = compiled_partition->get_engine().get_allocator();
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        stream->wait();
         double ms = utils::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
+        stream->wait();
         ms = utils::get_msec() - ms;
         printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
                 compiled_partition->info(), ms, alloc->id(),
@@ -329,8 +331,10 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
 #else
     if (utils::get_verbose()) {
 #endif
+        stream->wait();
         double ms = utils::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
+        stream->wait();
         ms = utils::get_msec() - ms;
         printf("onednn_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
                 ms);
@@ -367,14 +371,58 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
     for (size_t i = 0; i < num_outputs; ++i) {
         outs.emplace_back(**(outputs + i));
     }
-    if (deps != nullptr) {
-        const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
-        return compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
-                static_cast<::sycl::event *>(sycl_event));
+#ifndef NDEBUG
+    if (utils::get_verbose() >= 3) {
+        allocator_t *alloc = compiled_partition->get_engine().get_allocator();
+        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
+        stream->wait();
+        double ms = utils::get_msec();
+        if (deps != nullptr) {
+            const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
+            CHECK(compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
+                    static_cast<::sycl::event *>(sycl_event)));
+        } else {
+            CHECK(compiled_partition->execute_sycl(stream, ins, outs, {},
+                    static_cast<::sycl::event *>(sycl_event)));
+        }
+        stream->wait();
+        ms = utils::get_msec() - ms;
+        printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
+                compiled_partition->info(), ms, alloc->id(),
+                utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
+                allocator_t::monitor_t::get_total_persist_memory(alloc),
+                allocator_t::monitor_t::get_peak_temp_memory(alloc));
+        fflush(stdout);
+    } else if (utils::get_verbose()) {
+#else
+    if (utils::get_verbose()) {
+#endif
+        stream->wait();
+        double ms = utils::get_msec();
+        if (deps != nullptr) {
+            const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
+            CHECK(compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
+                    static_cast<::sycl::event *>(sycl_event)));
+        } else {
+            CHECK(compiled_partition->execute_sycl(stream, ins, outs, {},
+                    static_cast<::sycl::event *>(sycl_event)));
+        }
+        stream->wait();
+        ms = utils::get_msec() - ms;
+        printf("onednn_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
+                ms);
+        fflush(stdout);
+    } else {
+        if (deps != nullptr) {
+            const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
+            CHECK(compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
+                    static_cast<::sycl::event *>(sycl_event)));
+        } else {
+            CHECK(compiled_partition->execute_sycl(stream, ins, outs, {},
+                    static_cast<::sycl::event *>(sycl_event)));
+        }
     }
-
-    return compiled_partition->execute_sycl(
-            stream, ins, outs, {}, static_cast<::sycl::event *>(sycl_event));
+    return status::success;
 #else
     UNUSED(compiled_partition);
     UNUSED(stream);
@@ -683,30 +731,8 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
     pre_process(processed_inputs, inputs, backend);
     pre_process(processed_outputs, outputs, backend);
 
-    if (utils::get_verbose() >= 3) {
-        allocator_t *alloc = this->get_engine().get_allocator();
-        allocator_t::monitor_t::reset_peak_temp_memory(alloc);
-        double ms = utils::get_msec();
-        ret = pimpl_->execute_sycl(astream, processed_inputs, processed_outputs,
-                sycl_deps, sycl_event);
-        ms = utils::get_msec() - ms;
-        printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n", this->info(),
-                ms, alloc->id(),
-                utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
-                allocator_t::monitor_t::get_total_persist_memory(alloc),
-                allocator_t::monitor_t::get_peak_temp_memory(alloc));
-        fflush(stdout);
-    } else if (utils::get_verbose()) {
-        double ms = utils::get_msec();
-        ret = pimpl_->execute_sycl(astream, processed_inputs, processed_outputs,
-                sycl_deps, sycl_event);
-        ms = utils::get_msec() - ms;
-        printf("onednn_graph_verbose,exec,%s,%g\n", this->info(), ms);
-        fflush(stdout);
-    } else {
-        ret = pimpl_->execute_sycl(astream, processed_inputs, processed_outputs,
-                sycl_deps, sycl_event);
-    }
+    ret = pimpl_->execute_sycl(astream, processed_inputs, processed_outputs,
+            sycl_deps, sycl_event);
 
     return ret;
 }
