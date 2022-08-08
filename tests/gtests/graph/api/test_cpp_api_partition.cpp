@@ -23,7 +23,8 @@
 
 TEST(APIPartition, PartitionTest) {
     using namespace dnnl::graph;
-    dnnl::engine::kind engine_kind = static_cast<dnnl::engine::kind>(api_test_engine_kind);
+    dnnl::engine::kind engine_kind
+            = static_cast<dnnl::engine::kind>(api_test_engine_kind);
     dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
     dnnl::engine::kind real_engine_kind = eng.get_kind();
 
@@ -107,7 +108,8 @@ TEST(APIPartition, PartitionTest) {
 
 TEST(APIPartition, GetInputOutputIDs) {
     using namespace dnnl::graph;
-    dnnl::engine::kind engine_kind = static_cast<dnnl::engine::kind>(api_test_engine_kind);
+    dnnl::engine::kind engine_kind
+            = static_cast<dnnl::engine::kind>(api_test_engine_kind);
     dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
     dnnl::engine::kind real_engine_kind = eng.get_kind();
 
@@ -165,7 +167,8 @@ TEST(APIPartition, GetInputOutputIDs) {
 
 TEST(APIPartition, UnsupportedPartitions) {
     using namespace dnnl::graph;
-    dnnl::engine::kind engine_kind = static_cast<dnnl::engine::kind>(api_test_engine_kind);
+    dnnl::engine::kind engine_kind
+            = static_cast<dnnl::engine::kind>(api_test_engine_kind);
     dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
     dnnl::engine::kind real_engine_kind = eng.get_kind();
 
@@ -200,7 +203,8 @@ TEST(APIPartition, UnsupportedPartitions) {
 
 TEST(APIPartition, AddInferShape) {
     using namespace dnnl::graph;
-    dnnl::engine::kind engine_kind = static_cast<dnnl::engine::kind>(api_test_engine_kind);
+    dnnl::engine::kind engine_kind
+            = static_cast<dnnl::engine::kind>(api_test_engine_kind);
     graph g(engine_kind);
 
     std::vector<int64_t> shape_0 {1};
@@ -225,7 +229,8 @@ TEST(APIPartition, AddInferShape) {
 
 TEST(APIPartition, SingleConvPartition) {
     using namespace dnnl::graph;
-    dnnl::engine::kind engine_kind = static_cast<dnnl::engine::kind>(api_test_engine_kind);
+    dnnl::engine::kind engine_kind
+            = static_cast<dnnl::engine::kind>(api_test_engine_kind);
 
     std::vector<int64_t> input_dims {8, 256, 56, 56};
     std::vector<int64_t> conv_weight_dims {64, 256, 1, 1};
