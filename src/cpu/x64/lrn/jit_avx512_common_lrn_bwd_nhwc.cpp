@@ -295,7 +295,7 @@ void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::load_compute_data(
 
     const int loop_size = loop_size_param;
     static constexpr int mask_shift = sizeof(int32_t);
-    static constexpr int acc_size = d_type == bf16 ? 2 : 4;
+    static constexpr int acc_size = utils::one_of(d_type, bf16, f16) ? 2 : 4;
     const auto load_shifted_padded_with_zeros
             = [this](int dstIdx, int srcIdx, int maskTmpIdx, int offset) {
                   this->uni_vpxor(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
@@ -319,7 +319,8 @@ void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::load_compute_data(
                                     + offset),
                     true);
 
-        if (d_type == bf16 || tail_proc != tail_mode::NoTail) {
+        if (utils::one_of(d_type, bf16, f16)
+                || tail_proc != tail_mode::NoTail) {
             if (tail_proc == tail_mode::NoTail) {
                 IRB_LOOP(this->load_data(this->zreg(irb, this->z_tmp_),
                         this->EVEX_compress_addr(
@@ -434,6 +435,7 @@ void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::store_compute_data(
 
 template class jit_avx512_common_lrn_kernel_bwd_nhwc_t<f32>;
 template class jit_avx512_common_lrn_kernel_bwd_nhwc_t<bf16>;
+template class jit_avx512_common_lrn_kernel_bwd_nhwc_t<f16>;
 
 } // namespace lrn
 } // namespace x64

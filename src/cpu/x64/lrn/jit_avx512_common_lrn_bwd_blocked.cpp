@@ -218,6 +218,7 @@ void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::compute_loop(
 
 template class jit_avx512_common_lrn_kernel_bwd_blocked_t<f32>;
 template class jit_avx512_common_lrn_kernel_bwd_blocked_t<bf16>;
+template class jit_avx512_common_lrn_kernel_bwd_blocked_t<f16>;
 
 } // namespace lrn
 } // namespace x64

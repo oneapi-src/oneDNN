@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ protected:
     const bool emulateBfloat_;
     const int regs_used_per_block_;
     const int reg_block_;
-    static constexpr int vlen_ = d_type == bf16 ? 32 : 64;
+    static constexpr int vlen_ = utils::one_of(d_type, bf16, f16) ? 32 : 64;
     std::unique_ptr<bf16_emulation_t> bf16_emu_ = nullptr;
 };
 

@@ -39,8 +39,8 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    const bool ok = true && mayiuse(avx512_core)
-            && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && is_fwd()
+    const bool ok = true && mayiuse(avx512_core) && is_fwd()
+            && IMPLICATION(d_type == f16, mayiuse(avx512_core_fp16))
             && !has_zero_dim_memory() && everyone_is(d_type, data_d.data_type())
             && data_d.ndims() == 4 && attr()->has_default_values();
     if (!ok) return unimplemented;
@@ -78,14 +78,15 @@ jit_avx512_common_lrn_fwd_t<d_type>::~jit_avx512_common_lrn_fwd_t() = default;
 
 template struct jit_avx512_common_lrn_fwd_t<f32>;
 template struct jit_avx512_common_lrn_fwd_t<bf16>;
+template struct jit_avx512_common_lrn_fwd_t<f16>;
 
 template <data_type_t d_type>
 status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    const bool ok = true && mayiuse(avx512_core)
-            && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && !is_fwd()
+    const bool ok = true && mayiuse(avx512_core) && !is_fwd()
+            && IMPLICATION(d_type == f16, mayiuse(avx512_core_fp16))
             && utils::everyone_is(d_type, data_d.data_type())
             && set_default_formats_common() && !has_zero_dim_memory()
             && data_d.ndims() == 4 && attr()->has_default_values();
@@ -120,6 +121,7 @@ jit_avx512_common_lrn_bwd_t<d_type>::~jit_avx512_common_lrn_bwd_t() = default;
 
 template struct jit_avx512_common_lrn_bwd_t<f32>;
 template struct jit_avx512_common_lrn_bwd_t<bf16>;
+template struct jit_avx512_common_lrn_bwd_t<f16>;
 
 } // namespace x64
 } // namespace cpu

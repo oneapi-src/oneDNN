@@ -57,12 +57,24 @@ void jit_avx512_common_lrn_kernel_fwd_t<bf16>::load_data(
         this->vmovups(reg, p);
 }
 
+template <>
+void jit_avx512_common_lrn_kernel_fwd_t<f16>::load_data(
+        Xmm reg, const Address p, bool from_stack) {
+    if (!from_stack) {
+        this->vcvtph2psx(reg, p);
+    } else
+        this->vmovups(reg, p);
+}
+
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_fwd_t<d_type>::load_tail(int tail_value,
         Reg64 src, int src_mem_offset, int dst_stack_offset,
         int tmp_load_to_stack_idx_tail) {
 
+    // TODO: Investigate if this method can be simplified by using mask or
+    // jit_generator load utilities.
     static constexpr auto src_size = sizeof(data_t);
+    auto tmp_xreg = this->xreg(0, tmp_load_to_stack_idx_tail);
 
     const auto load_tail_simd = [&](Xmm tmp_reg, int vlen) {
         this->load_data(tmp_reg, this->EVEX_compress_addr(src, src_mem_offset));
@@ -74,26 +86,32 @@ void jit_avx512_common_lrn_kernel_fwd_t<d_type>::load_tail(int tail_value,
 
     if (tail_value >= 8)
         load_tail_simd(this->yreg(0, tmp_load_to_stack_idx_tail), 8);
-    if (tail_value >= 4)
-        load_tail_simd(this->xreg(0, tmp_load_to_stack_idx_tail), 4);
+    if (tail_value >= 4) load_tail_simd(tmp_xreg, 4);
 
     for (int i = 0; i < tail_value; ++i) {
         if (d_type == bf16) {
             this->movzx(this->imm_addr64_, word[src + src_mem_offset]);
-            this->vmovq(this->xreg(0, tmp_load_to_stack_idx_tail),
-                    this->imm_addr64_);
-            this->vpslld(this->xreg(0, tmp_load_to_stack_idx_tail),
-                    this->xreg(0, tmp_load_to_stack_idx_tail), 0x10);
-        } else
-            this->vmovss(this->xreg(0, tmp_load_to_stack_idx_tail),
+            this->vmovq(tmp_xreg, this->imm_addr64_);
+            this->vpslld(tmp_xreg, tmp_xreg, 0x10);
+        } else if (d_type == f16) {
+            this->vxorps(tmp_xreg, tmp_xreg, tmp_xreg);
+            this->vcvtsh2ss(tmp_xreg, tmp_xreg,
                     this->EVEX_compress_addr(src, src_mem_offset));
+        } else
+            this->vmovss(
+                    tmp_xreg, this->EVEX_compress_addr(src, src_mem_offset));
 
-        this->vmovss(ptr[rsp + dst_stack_offset],
-                this->xreg(0, tmp_load_to_stack_idx_tail));
+        this->vmovss(ptr[rsp + dst_stack_offset], tmp_xreg);
 
         dst_stack_offset += acc_size;
         src_mem_offset += src_size;
     }
+}
+
+template <>
+void jit_avx512_common_lrn_kernel_fwd_t<f16>::store_data(
+        const Address addr, Zmm zr, Ymm yr) {
+    this->vcvtps2ph(addr, zr, this->_op_mxcsr);
 }
 
 template <>
@@ -143,6 +161,29 @@ void jit_avx512_common_lrn_kernel_fwd_t<f32>::store_tail(int tail_value,
 
 template <>
 void jit_avx512_common_lrn_kernel_fwd_t<bf16>::store_tail(int tail_value,
+        Zmm src, Reg64 dst, int dst_mem_offset, int tmp_stack_offset,
+        int tmp_idx) {
+
+    this->store_data(this->EVEX_compress_addr(rsp, tmp_stack_offset), src,
+            this->yreg(0, tmp_idx));
+    const auto res = std::div(tail_value, 4);
+
+    for (int i = 0; i < res.quot; ++i, tmp_stack_offset += 4 * acc_bf_16_size,
+             dst_mem_offset += 4 * acc_bf_16_size) {
+        this->mov(this->imm_addr64_, qword[rsp + tmp_stack_offset]);
+        this->mov(qword[dst + dst_mem_offset], this->imm_addr64_);
+    }
+
+    for (int i = 0; i < res.rem; ++i, tmp_stack_offset += acc_bf_16_size,
+             dst_mem_offset += acc_bf_16_size) {
+        this->mov(this->imm_addr16_, word[rsp + tmp_stack_offset]);
+        this->mov(word[dst + dst_mem_offset], this->imm_addr16_);
+    }
+}
+
+// Copy-paste from above bf16 implementation
+template <>
+void jit_avx512_common_lrn_kernel_fwd_t<f16>::store_tail(int tail_value,
         Zmm src, Reg64 dst, int dst_mem_offset, int tmp_stack_offset,
         int tmp_idx) {
 
@@ -216,6 +257,7 @@ Xmm jit_avx512_common_lrn_kernel_fwd_t<d_type>::xreg(int irb, int i) const {
 
 template class jit_avx512_common_lrn_kernel_fwd_t<f32>;
 template class jit_avx512_common_lrn_kernel_fwd_t<bf16>;
+template class jit_avx512_common_lrn_kernel_fwd_t<f16>;
 
 } // namespace lrn
 } // namespace x64

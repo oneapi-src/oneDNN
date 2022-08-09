@@ -210,8 +210,9 @@ template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
         across_version version, tail_mode tail_proc, int loop_size_param) {
 
-    static constexpr int acc_size
-            = d_type == bf16 ? sizeof(acc_data_bf16_t) : sizeof(acc_data_t);
+    static constexpr int acc_size = utils::one_of(d_type, bf16, f16)
+            ? sizeof(acc_data_bf16_t)
+            : sizeof(acc_data_t);
 
     const int loop_size = loop_size_param;
     static constexpr int mask_shift = sizeof(int32_t);
@@ -375,6 +376,7 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::store_compute_data(
 
 template class jit_avx512_common_lrn_kernel_fwd_nhwc_t<f32>;
 template class jit_avx512_common_lrn_kernel_fwd_nhwc_t<bf16>;
+template class jit_avx512_common_lrn_kernel_fwd_nhwc_t<f16>;
 
 } // namespace lrn
 } // namespace x64

@@ -37,10 +37,14 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("lrn_jit:",
-                        (d_type == data_type::bf16) ? (mayiuse(avx512_core_bf16)
-                                        ? avx512_core_bf16
-                                        : bf16_emulation_t::get_isa())
-                                                    : avx512_core,
+                        utils::map(true, avx512_core,
+                                d_type == data_type::bf16
+                                        && mayiuse(avx512_core_bf16),
+                                avx512_core_bf16,
+                                d_type == data_type::bf16
+                                        && !mayiuse(avx512_core_bf16),
+                                bf16_emulation_t::get_isa(),
+                                d_type == data_type::f16, avx512_core_fp16),
                         ""),
                 jit_avx512_common_lrn_fwd_t);
 
@@ -72,10 +76,14 @@ struct jit_avx512_common_lrn_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("lrn_jit:",
-                        (d_type == data_type::bf16) ? (mayiuse(avx512_core_bf16)
-                                        ? avx512_core_bf16
-                                        : bf16_emulation_t::get_isa())
-                                                    : avx512_core,
+                        utils::map(true, avx512_core,
+                                d_type == data_type::bf16
+                                        && mayiuse(avx512_core_bf16),
+                                avx512_core_bf16,
+                                d_type == data_type::bf16
+                                        && !mayiuse(avx512_core_bf16),
+                                bf16_emulation_t::get_isa(),
+                                d_type == data_type::f16, avx512_core_fp16),
                         ""),
                 jit_avx512_common_lrn_bwd_t);
 
