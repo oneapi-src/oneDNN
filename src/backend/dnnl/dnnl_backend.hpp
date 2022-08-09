@@ -233,26 +233,23 @@ struct kernel_base_t {
         return prepare_inplace_pairs_impl();
     }
 
-    impl::status_t execute(const dnnl_partition_impl_t *part,
-            const impl::stream_t *astream,
+    impl::status_t execute(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) {
-        return execute_impl(part, astream, inputs, outputs);
+        return execute_impl(astream, inputs, outputs);
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    impl::status_t execute_sycl(const dnnl_partition_impl_t *part,
-            const impl::stream_t *astream,
+    impl::status_t execute_sycl(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
             const std::vector<::sycl::event> &sycl_deps,
             ::sycl::event *sycl_event) {
         return sycl_execute_impl(
-                part, astream, inputs, outputs, sycl_deps, sycl_event);
+                astream, inputs, outputs, sycl_deps, sycl_event);
     }
 
-    virtual impl::status_t sycl_execute_impl(const dnnl_partition_impl_t *part,
-            const impl::stream_t *astream,
+    virtual impl::status_t sycl_execute_impl(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
             const std::vector<::sycl::event> &sycl_deps,
@@ -266,8 +263,7 @@ struct kernel_base_t {
             const std::vector<impl::logical_tensor_t> &outputs)
             = 0;
 
-    virtual impl::status_t execute_impl(const dnnl_partition_impl_t *part,
-            const impl::stream_t *astream,
+    virtual impl::status_t execute_impl(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs)
             = 0;

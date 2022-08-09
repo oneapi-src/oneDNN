@@ -139,11 +139,9 @@ public:
         }
     }
 
-    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
-            const impl::stream_t *g_stream,
+    impl::status_t execute_impl(const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(part);
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         thread_local_cache_t<execution_args_set_t> res_cache;
@@ -166,13 +164,11 @@ public:
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    impl::status_t sycl_execute_impl(const dnnl_partition_impl_t *part,
-            const impl::stream_t *g_stream,
+    impl::status_t sycl_execute_impl(const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
             const std::vector<::sycl::event> &sycl_deps,
             ::sycl::event *sycl_event) override {
-        UNUSED(part);
         auto deps = sycl_deps;
         ::sycl::event returned_event;
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
