@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,9 +110,9 @@ ref_resampling_fwd_t::~ref_resampling_fwd_t() = default;
 
 void ref_resampling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     if (this->pd()->has_zero_dim_memory()) return;
-
+    status_t status = status::success;
     const auto src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_MEM(byte *, DNNL_ARG_DST);
+    auto dst = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DST, status);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -207,9 +207,9 @@ ref_resampling_bwd_t::~ref_resampling_bwd_t() = default;
 
 void ref_resampling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     if (this->pd()->has_zero_dim_memory()) return;
-
+    status_t status = status::success;
     const auto diff_dst = CTX_IN_MEM(const byte *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(byte *, DNNL_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_CLEAN_MEM(byte *, DNNL_ARG_DIFF_SRC, status);
 
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
