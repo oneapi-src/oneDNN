@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "../dynamic_lower_info.hpp"
 #include "../fusible_op.hpp"
 #include "../traits.hpp"
 #include "../visitor.hpp"
@@ -62,6 +63,11 @@ SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
         op_id_map[new_node] = node->logical_op_id_;
     });
     copied_graph.attrs_ = graph.attrs_;
+    // deep copy here.
+    if (graph.dyn_info_) {
+        copied_graph.dyn_info_
+                = std::make_shared<dynamic_lower_info_t>(*graph.dyn_info_);
+    }
     copied_graph.resort_op_ids(op_id_map);
     return copied_graph;
 }

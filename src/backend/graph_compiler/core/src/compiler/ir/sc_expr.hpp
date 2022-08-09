@@ -1441,13 +1441,6 @@ extern int64_t get_expr_as_int(const expr_c &e);
  * return that name; otherwise raise an exception.
  */
 const std::string &get_node_name(const expr &e);
-
-/**
- * Converts a dims vector to expr vector (with uint64_t) values
- * */
-std::vector<expr> dims_to_expr(const std::vector<int64_t> &dim);
-std::vector<expr_c> dims_to_expr_c(const std::vector<int64_t> &dim);
-
 } // namespace sc
 
 namespace std {

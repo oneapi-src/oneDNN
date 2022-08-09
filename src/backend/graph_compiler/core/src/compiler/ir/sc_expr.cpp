@@ -841,24 +841,4 @@ const std::string &get_node_name(const expr &e) {
             false, "Not an expr_base subclass that has a 'name_' member.");
 }
 
-std::vector<expr> dims_to_expr(const sc_dims &dim) {
-    std::vector<sc::expr> dim_expr;
-    dim_expr.reserve(dim.size());
-    for (auto d : dim) {
-        uint64_t unsigned_d = d;
-        dim_expr.emplace_back(unsigned_d);
-    }
-    return dim_expr;
-}
-
-std::vector<expr_c> dims_to_expr_c(const sc_dims &dim) {
-    std::vector<sc::expr_c> dim_expr;
-    dim_expr.reserve(dim.size());
-    for (auto d : dim) {
-        uint64_t unsigned_d = d;
-        dim_expr.emplace_back(unsigned_d);
-    }
-    return dim_expr;
-}
-
 } // namespace sc

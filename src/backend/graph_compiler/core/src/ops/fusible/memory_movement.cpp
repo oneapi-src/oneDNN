@@ -179,7 +179,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     for (auto &dim : shapes) {
         total_shape2 *= dim;
     }
-    COMPILE_ASSERT(total_shape1 == total_shape2,
+    COMPILE_ASSERT(is_dynamic() || total_shape1 == total_shape2,
             "Wrong total size of input shapes, can not do reshape plain dims "
             "from " << utils::print_vector(ins[0]->details_.get_plain_dims())
                     << " to " << utils::print_vector(shapes));
@@ -706,7 +706,6 @@ void split_op_t::prepare_fusion_data(fdata_map &fdmap) {
                 out_dims.emplace_back(shapes_[i]);
             }
         }
-        output->details_.set_blocking_dims(out_dims);
     }
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,12 @@
 #include <unordered_map>
 
 namespace sc {
-
+// measured by a f32 FMA:
+// for(i, 0, 2^16, 1) {
+//    c[i] = c[i] + a[i] * b[i];
+// }
+// workload threshold = sigma(shape * sizeof(dtype) * read/write weight)
+constexpr size_t memory_access_threshold_per_thread = 37440UL;
 /**
  * According to workload marked in loop to calculate total
  * workloads(calculation/memory attachment) and decide whether to mark

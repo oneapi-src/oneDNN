@@ -23,6 +23,7 @@
 #include "../ir_comparer.hpp"
 #include "../pass/ir_copy_internal.hpp"
 #include "../visitor.hpp"
+#include "auto_cast.hpp"
 #include "constant_fold.hpp"
 #include "tensor_shrink.hpp"
 #include <util/utils.hpp>
@@ -344,13 +345,19 @@ for_loop for_loop_node_t::fuse(
         return this->node_ptr_from_this().static_as<for_loop>();
     }
     static std::atomic<int> fuse_count(0);
-    int64_t min1, max1, step1;
-    int64_t min2, max2, step2;
-    get_constant_from_for_loop(this, min1, max1, step1);
-    get_constant_from_for_loop(ax.get(), min2, max2, step2);
-    int64_t loop_len1 = max1 - min1;
-    int64_t loop_len2 = max2 - min2;
-    int64_t outer_len = loop_len1 * loop_len2;
+    expr min1, max1, step1;
+    expr min2, max2, step2;
+    auto get_expr_from_for_loop
+            = [](for_loop_node_t *_loop, expr &min, expr &max, expr &step) {
+                  min = _loop->iter_begin_;
+                  max = _loop->iter_end_;
+                  step = _loop->step_;
+              };
+    get_expr_from_for_loop(this, min1, max1, step1);
+    get_expr_from_for_loop(ax.get(), min2, max2, step2);
+    expr loop_len1 = max1 - min1;
+    expr loop_len2 = max2 - min2;
+    expr outer_len = loop_len1 * loop_len2;
     var var1 = var_.checked_as<var>(), var2 = ax->var_.checked_as<var>();
     COMPILE_ASSERT(var_->dtype_ == ax->var_->dtype_,
             "The fused for loop variables should have the same types, got "
@@ -362,16 +369,15 @@ for_loop for_loop_node_t::fuse(
 
     std::unordered_map<var_node *, expr> var_remap;
     // old iter variable is mapped to vout / loop_len2 and vout % loop_len2
-    expr outer = vout / make_expr<constant_node>(loop_len2, vout->dtype_);
-    if (min1 != 0) {
-        outer = outer + make_expr<constant_node>(min1, vout->dtype_);
-    }
+    expr outer = vout / loop_len2;
+    outer = outer + min1;
+    outer = do_cast_and_fold(outer);
     var_remap.insert(std::make_pair(var1.get(), outer));
     if (expr_remap) { expr_remap->insert(std::make_pair(var1, outer)); }
-    expr inner = vout % make_expr<constant_node>(loop_len2, vout->dtype_);
-    if (min2 != 0) {
-        inner = inner + make_expr<constant_node>(min2, vout->dtype_);
-    }
+    expr inner = vout % loop_len2;
+    inner = inner + min2;
+    inner = do_cast_and_fold(inner).remove_const();
+
     var_remap.insert(std::make_pair(var2.get(), inner));
     if (expr_remap) { expr_remap->insert(std::make_pair(var2, inner)); }
     var_inplace_replacer_t pass(&var_remap);
@@ -379,7 +385,7 @@ for_loop for_loop_node_t::fuse(
 
     var_ = vout;
     iter_begin_ = make_expr<constant_node>(int64_t(0), var1->dtype_);
-    iter_end_ = make_expr<constant_node>(outer_len, var1->dtype_);
+    iter_end_ = constant_folder_t()(auto_caster_t()(outer_len)).remove_const();
     step_ = make_expr<constant_node>(int64_t(1), var1->dtype_);
 
     body_ = std::move(newbody);

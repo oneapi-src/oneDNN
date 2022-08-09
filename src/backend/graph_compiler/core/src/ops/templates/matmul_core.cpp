@@ -22,11 +22,13 @@
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <microkernel/builtin.hpp>
 #include <ops/matmul_core.hpp>
 #include <runtime/config.hpp>
+#include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/parallel.hpp>
 #include <util/any_map.hpp>
 #include <util/math_utils.hpp>
@@ -61,6 +63,7 @@ static std::vector<T> concat_vec(
 static void inline validate_cfg(
   matmul_core_config_t &cfg, bool is_amx, sc_data_type_t dtype) {
   if (!is_amx) return;
+  if (is_dynamic_dim(cfg.K_block)) { return; }
   int rd_block = dtype == datatypes::bf16
     ? 32
     : utils::is_one_of(dtype, datatypes::u8, datatypes::s8) ? 64 : -1;
@@ -100,13 +103,36 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
   // todo:(xianhang) take into consideration num thread information from
   // threadpool
   auto ret = reflection::general_object_t::make<matmul_core_config_t>();
+  matmul_core_config_t &cfg = *ret.unchecked_get_as<matmul_core_config_t>();
+  if (is_dynamic()) {
+    auto in0_dims = in_tensors_[0].get_plain_dims();
+    auto in1_dims = in_tensors_[1].get_plain_dims();
+    int M = in0_dims[in0_dims.size() - 2];
+    int K = in0_dims[in0_dims.size() - 1];
+    int N = in1_dims[in1_dims.size() - 1];
+    if (is_dynamic_dim(M)) {
+      cfg.M_block = dimensions::dynamic_any;
+    } else {
+      cfg.M_block = runtime::get_dyn_cfg_single(M, true);
+    }
+    if (is_dynamic_dim(N)) {
+      cfg.N_block = dimensions::dynamic_any;
+    } else {
+      cfg.N_block = runtime::get_dyn_cfg_single(N, true);
+    }
+    if (is_dynamic_dim(K)) {
+      cfg.K_block = dimensions::dynamic_any;
+    } else {
+      cfg.K_block = runtime::get_dyn_cfg_single(K, true);
+    }
+    return std::move(ret);
+  }
   const bool is_amx = is_use_amx(ctx);
   const bool is_int8
     = utils::is_one_of(get_in_dtypes(0), datatypes::u8, datatypes::s8);
   const bool is_bf16 = get_in_dtypes(0) == datatypes::bf16;
   const int max_block = 64;
   const int min_block = 32;
-  matmul_core_config_t &cfg = *ret.unchecked_get_as<matmul_core_config_t>();
   const auto A_plain_dims = get_mma_plain_dims();
   const auto B_plain_dims = get_mmb_plain_dims();
   std::vector<int> possible_blks;
@@ -215,13 +241,13 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     assert(B_plain_dims.size() == 2);
     int N = static_cast<int>(B_plain_dims[1]);
     int K = static_cast<int>(B_plain_dims[0]);
+
     if (get_a_batch_dims().empty() && get_b_batch_dims().empty()) {
       // matmul2d default config
       // do nothing
     } else {
       // bmm default config
       assert(cfg.M_block > 0);
-
       int ceil64_N = static_cast<int>(sc::utils::rnd_up(N, 64));
       int ceil48_N = static_cast<int>(sc::utils::rnd_up(N, 48));
       int ceil32_N = static_cast<int>(sc::utils::rnd_up(N, 32));
@@ -241,9 +267,9 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
   return std::move(ret);
 }
 
-gen_matmul_core_t::gen_matmul_core_t(
+gen_matmul_core_t::gen_matmul_core_t(sc_op *owner,
   std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
-  : parent(std::move(ins), std::move(outs)) {
+  : parent(owner, std::move(ins), std::move(outs)) {
   COMPILE_ASSERT(
     in_tensors_.size() == 2, "input logical tensor size should be two.");
   COMPILE_ASSERT(
@@ -270,10 +296,10 @@ void gen_matmul_core_t::init_axes() {
     = get_mm_blocking_axes(in_tensors_[0], in_tensors_[1], out_tensors_[0]);
 }
 
-void gen_matmul_core_t::get_and_check_blocks(const std::vector<expr> &inputs,
-  const matmul_core_config_t &config, int &M_num_blocks, int &K_num_blocks,
-  int &M_block, int &K_block, int &N_block, int &B_K_num_blocks,
-  int &N_num_blocks) const {
+void gen_matmul_core_t::get_and_check_blocks(sc_graph_t &graph,
+  const std::vector<expr> &inputs, const matmul_core_config_t &config,
+  expr &M_num_blocks, expr &K_num_blocks, int &M_block, int &K_block,
+  int &N_block, expr &B_K_num_blocks, expr &N_num_blocks) const {
   auto A_dims = inputs[0].as<tensor>()->dims_;
   auto B_dims = inputs[1].as<tensor>()->dims_;
   bool is_config_set
@@ -329,36 +355,36 @@ void gen_matmul_core_t::get_and_check_blocks(const std::vector<expr> &inputs,
       || (M_block == config.M_block && K_block == config.K_block
         && N_block == config.N_block),
     "Unmatched config with input format");
-
+  // divide and ceil(x, 1) to convert x to index datatype.
   M_num_blocks = blocking_axes_.A_m.size() == 1
-    ? utils::divide_and_ceil(
-      get_expr_as_int(A_dims[blocking_axes_.A_m.at(0)]), M_block)
-    : get_expr_as_int(A_dims[blocking_axes_.A_m.at(0)]);
+    ? divide_and_ceil(
+      A_dims[blocking_axes_.A_m.at(0)], graph.dim_to_expr(M_block))
+    : divide_and_ceil(A_dims[blocking_axes_.A_m.at(0)], UINT64_C(1));
 
   K_num_blocks = blocking_axes_.A_k.size() == 1
-    ? utils::divide_and_ceil(
-      get_expr_as_int(A_dims[blocking_axes_.A_k.at(0)]), K_block)
-    : get_expr_as_int(A_dims[blocking_axes_.A_k.at(0)]);
+    ? divide_and_ceil(
+      A_dims[blocking_axes_.A_k.at(0)], graph.dim_to_expr(K_block))
+    : divide_and_ceil(A_dims[blocking_axes_.A_k.at(0)], UINT64_C(1));
 
   B_K_num_blocks = blocking_axes_.B_k.size() == 1
-    ? utils::divide_and_ceil(
-      get_expr_as_int(B_dims[blocking_axes_.B_k.at(0)]), K_block)
-    : get_expr_as_int(B_dims[blocking_axes_.B_k.at(0)]);
+    ? divide_and_ceil(
+      B_dims[blocking_axes_.B_k.at(0)], graph.dim_to_expr(K_block))
+    : divide_and_ceil(B_dims[blocking_axes_.B_k.at(0)], UINT64_C(1));
 
   N_num_blocks = blocking_axes_.B_n.size() == 1
-    ? utils::divide_and_ceil(
-      get_expr_as_int(B_dims[blocking_axes_.B_n.at(0)]), N_block)
-    : get_expr_as_int(B_dims[blocking_axes_.B_n.at(0)]);
+    ? divide_and_ceil(
+      B_dims[blocking_axes_.B_n.at(0)], graph.dim_to_expr(N_block))
+    : divide_and_ceil(B_dims[blocking_axes_.B_n.at(0)], UINT64_C(1));
 
-  COMPILE_ASSERT(
-    K_num_blocks == B_K_num_blocks, "A and B num blocks of K are not equal.");
+  COMPILE_ASSERT(K_num_blocks->equals(B_K_num_blocks),
+    "A and B num blocks of K are not equal.");
 }
 
-void gen_matmul_core_t::get_brgemm_and_fusion_params(
+void gen_matmul_core_t::get_brgemm_and_fusion_params(sc_graph_t &graph,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   const int &M_block, const int &K_block, const int &N_block,
   std::vector<expr> &aidx, std::vector<expr> &bidx, std::vector<expr> &cidx,
-  int &LDA, int &LDB, int &LDC, int &stride_a, int &stride_b,
+  expr &LDA, expr &LDB, expr &LDC, expr &stride_a, expr &stride_b,
   std::vector<std::pair<expr, expr>> &fidx1,
   std::vector<std::pair<expr, expr>> &fidx2,
   std::vector<std::pair<expr, expr>> &fidx3) const {
@@ -369,7 +395,7 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(
   if (blocking_axes_.A_bs.empty()) {
     if (blocking_axes_.A_m.size() == 1 && blocking_axes_.A_k.size() == 1) {
       // MK
-      LDA = get_expr_as_int(A_dims[blocking_axes_.A_k.back()]);
+      LDA = A_dims[blocking_axes_.A_k.back()];
       stride_a = K_block;
     }
     update_a = true;
@@ -382,7 +408,7 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(
         blocking_axes_.B_n.back() == static_cast<int>(B_dims.size()) - 1,
         "brgemm does not support K axis is the last axis for B");
       // KN
-      LDB = get_expr_as_int(B_dims[blocking_axes_.B_n.back()]);
+      LDB = B_dims[blocking_axes_.B_n.back()];
       stride_b = LDB * K_block;
       assert(bidx.size() >= 2);
       std::swap(bidx[bidx.size() - 1], bidx[bidx.size() - 2]);
@@ -392,12 +418,13 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(
   if (blocking_axes_.C_m.size() == 1 && blocking_axes_.C_n.size() == 1
     && blocking_axes_.C_bs.empty()) {
     // MN
-    LDC = get_expr_as_int(B_dims[blocking_axes_.B_n.back()]);
+    LDC = B_dims[blocking_axes_.B_n.back()];
     update_c = true;
   }
 
   bool flag_s = false; // used for updating stride_a/stride_b
   bool flag_l = false; // used for updating LDA/LDB/LDC
+
   int bds_a = static_cast<int>(blocking_axes_.A_bs.size());
   int bds_b = static_cast<int>(blocking_axes_.B_bs.size());
   int bds_c = bds_a > bds_b ? bds_a : bds_b;
@@ -428,10 +455,8 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(
           aidx_[i] = aidx[batch_idx];
           batch_idx++;
         }
-        if (flag_l && flag_l_idx < i) { LDA *= get_expr_as_int(A_dims[i]); }
-        if (flag_s && flag_s_idx < i) {
-          stride_a *= get_expr_as_int(A_dims[i]);
-        }
+        if (flag_l && flag_l_idx < i) { LDA = LDA * A_dims[i]; }
+        if (flag_s && flag_s_idx < i) { stride_a = stride_a * A_dims[i]; }
       }
     } else {
       for (int i = 0; i < bds_a + 2; i++) {
@@ -447,7 +472,7 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(
           aidx_[i] = aidx[batch_idx];
           batch_idx++;
         }
-        if (flag_s) { stride_a *= get_expr_as_int(A_dims[i]); }
+        if (flag_s) { stride_a = stride_a * A_dims[i]; }
       }
     }
     aidx.swap(aidx_);
@@ -477,10 +502,8 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(
           bidx_[i] = bidx[batch_idx];
           batch_idx++;
         }
-        if (flag_l && flag_l_idx < i) { LDB *= get_expr_as_int(B_dims[i]); }
-        if (flag_s && flag_s_idx < i) {
-          stride_b *= get_expr_as_int(B_dims[i]);
-        }
+        if (flag_l && flag_l_idx < i) { LDB = LDB * B_dims[i]; }
+        if (flag_s && flag_s_idx < i) { stride_b = stride_b * B_dims[i]; }
       }
     } else {
       for (int i = 0; i < bds_b + 2; i++) {
@@ -496,7 +519,7 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(
           bidx_[i] = bidx[batch_idx];
           batch_idx++;
         }
-        if (flag_s) { stride_b *= get_expr_as_int(B_dims[i]); }
+        if (flag_s) { stride_b = stride_b * B_dims[i]; }
       }
     }
     bidx.swap(bidx_);
@@ -528,7 +551,7 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(
           fidx3_[i] = fidx3[batch_idx];
           batch_idx++;
         }
-        if (flag_l) { LDC *= get_expr_as_int(C_dims[i]); }
+        if (flag_l) { LDC = LDC * C_dims[i]; }
       }
     } else {
       for (int i = 0; i < bds_c + 2; i++) {
@@ -582,11 +605,13 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init
+  sc_graph_t &graph = owner_->get_owner_graph();
   auto A_dtype = get_A_dtype(), B_dtype = get_B_dtype();
-  int M_block = 0, K_block = 0, N_block = 0, M_num_blocks = 0, N_num_blocks = 0,
-      K_num_blocks = 0, B_K_num_blocks = 0;
-  get_and_check_blocks(inputs, config, M_num_blocks, K_num_blocks, M_block,
-    K_block, N_block, B_K_num_blocks, N_num_blocks);
+  int M_block = 0, K_block = 0, N_block = 0;
+  expr M_num_blocks, N_num_blocks, K_num_blocks, B_K_num_blocks;
+
+  get_and_check_blocks(graph, inputs, config, M_num_blocks, K_num_blocks,
+    M_block, K_block, N_block, B_K_num_blocks, N_num_blocks);
 
   int dtype_block = 1;
   if (B_dtype == datatypes::bf16) {
@@ -685,12 +710,12 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
               {{m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}});
 
           if (dtype_block > 1) bidx.emplace_back(0);
-          int LDA = K_block, LDB = N_block, LDC = N_block,
-              stride_a = M_block * K_block,
-              stride_b = (int)utils::divide_and_ceil(K_block, dtype_block)
+          expr LDA = K_block, LDB = N_block, LDC = N_block,
+               stride_a = M_block * K_block,
+               stride_b = (int)utils::divide_and_ceil(K_block, dtype_block)
             * dtype_block * N_block;
 
-          get_brgemm_and_fusion_params(inputs, outputs, M_block, K_block,
+          get_brgemm_and_fusion_params(graph, inputs, outputs, M_block, K_block,
             N_block, aidx, bidx, cidx, LDA, LDB, LDC, stride_a, stride_b, fidx1,
             fidx2, fidx3);
 
@@ -722,12 +747,12 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   } else {
     _named_for_(lm_c, m_o, 0, M_num_blocks, 1, for_type::PARALLEL) {
       _named_for_(ln_c, n_o, 0, N_num_blocks) {
-        int LDA = K_block, LDB = N_block, LDC = N_block,
-            stride_a = M_block * K_block,
-            stride_b = (int)utils::divide_and_ceil(K_block, dtype_block)
+        expr LDA = K_block, LDB = N_block, LDC = N_block,
+             stride_a = M_block * K_block,
+             stride_b = (int)utils::divide_and_ceil(K_block, dtype_block)
           * dtype_block * N_block;
         if (!in_tensors_[0].get_format().is_blocking()) {
-          LDA = in_tensors_[0].get_plain_dims().back();
+          LDA = graph.dim_to_expr(in_tensors_[0].get_plain_dims().back());
           stride_a = K_block;
         }
         if (!in_tensors_[1].get_format().is_blocking()) {
@@ -735,11 +760,11 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
           COMPILE_ASSERT(in_tensors_[1].get_format().is_same_format_kind(
                            sc_data_format_t(format_kinds::KN)),
             "brgemm does not support K axis is the last axis for B.");
-          LDB = in_tensors_[1].get_plain_dims().back();
+          LDB = graph.dim_to_expr(in_tensors_[1].get_plain_dims().back());
           stride_b = LDB * K_block;
         }
         if (!out_tensors_[0].get_format().is_blocking()) {
-          LDC = in_tensors_[1].get_plain_dims().back();
+          LDC = graph.dim_to_expr(in_tensors_[1].get_plain_dims().back());
         }
         sc::builtin::brgemm_init_update_allow_fusion(
           tensor_ptr(A,
@@ -771,7 +796,9 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
       // this is the gemm output
       if (fusion
         && (bwise_fusion_
-          || M_num_blocks >= runtime_config_t::get().get_num_threads())) {
+          || (M_num_blocks.isa<constant>()
+            && get_expr_as_int(M_num_blocks)
+              >= runtime_config_t::get().get_num_threads()))) {
         fusion->create_output_fusion_anchor({tensor_slice(C,
           !out_tensors_[0].get_format().is_blocking()
             ? std::vector<std::pair<expr, expr>> {{m_o * M_block, M_block},

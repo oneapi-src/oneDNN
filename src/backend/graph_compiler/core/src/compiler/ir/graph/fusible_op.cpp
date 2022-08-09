@@ -29,6 +29,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/mixed_partition.hpp>
+#include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
@@ -240,6 +241,7 @@ size_t fusible_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
 size_t fusible_op_t::compute_fusible_workload(const context_ptr &ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
+    if (is_dynamic()) { return memory_access_threshold_per_thread; }
     std::vector<shape_dtype_pair> wkld_ins, wkld_outs;
     wkld_ins.resize(inputs.size());
     wkld_outs.resize(dst.size());
@@ -270,6 +272,18 @@ input_op::input_op(const std::vector<graph_tensor_ptr> &outs) {
         out->producer_owner_ = this;
     }
     op_name_ = "input";
+}
+
+void input_op::initialize_dynamic_placeholder() {
+    for (auto &out : info_.outputs_) {
+        auto plain_dims = out->details_.get_plain_dims();
+        for (auto &it : plain_dims) {
+            if (it == dimensions::dynamic_any) {
+                it = get_owner_graph().get_next_dynamic_placeholder();
+            }
+        }
+        out->details_.set_plain_dims(plain_dims);
+    }
 }
 
 void input_op::prepare_fusion_data(fdata_map &fdmap) {

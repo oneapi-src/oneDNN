@@ -27,6 +27,7 @@
 #include "outer_loop_generator.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
 
@@ -59,15 +60,15 @@ static std::vector<const tensor_slice *> convert_const_t(
     return dst;
 }
 
-static std::vector<tensor_slice> make_tensor_slice(
+static std::vector<tensor_slice> make_tensor_slice(sc_graph_t &graph,
         const std::vector<graph_tensor_ptr> &data,
         const std::string &tensor_name, std::vector<expr> &flattened) {
     std::vector<tensor_slice> expected;
     for (size_t i = 0; i < data.size(); ++i) {
         std::vector<expr> dims
-                = dims_to_expr(data[i]->details_.get_blocking_dims());
+                = data[i]->details_.get_blocking_dims_expr(graph);
         std::vector<expr> strides
-                = dims_to_expr(data[i]->details_.get_strides());
+                = logical_tensor_t::compute_dense_stride_expr(graph, dims);
         expr aexpr = builder::make_stensor(tensor_name + std::to_string(i),
                 dims, strides, data[i]->details_.dtype_);
         flattened.emplace_back(aexpr);
@@ -102,8 +103,9 @@ sc_dims get_expr_to_dims(const std::vector<expr> &dim) {
     sc_dims dim_int;
     dim_int.reserve(dim.size());
     for (const expr &d : dim) {
-        COMPILE_ASSERT(d.isa<constant_c>(), "non-constant value found.");
-        dim_int.emplace_back(get_const_as_int(d.static_as<constant_c>()));
+        auto cd = do_cast_and_fold(d);
+        COMPILE_ASSERT(cd.isa<constant_c>(), "non-constant value found.");
+        dim_int.emplace_back(get_const_as_int(cd.static_as<constant_c>()));
     }
     return dim_int;
 }
@@ -343,8 +345,9 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
             = {expr::lvalue_proxy_t(indexed_target_floor, false)};
     std::vector<expr::lvalue_proxy_t> target_tail
             = {expr::lvalue_proxy_t(indexed_target_tail, false)};
-    auto slice_len = get_const_as_int(
-            expand_loop_by->get_shape().at(vx_info.axis).static_as<constant>());
+    auto len_tmp
+            = do_cast_and_fold(expand_loop_by->get_shape().at(vx_info.axis));
+    auto slice_len = get_const_as_int(len_tmp.static_as<constant>());
     int floor = slice_len / vx_info.lanes * vx_info.lanes;
     int tail = slice_len % vx_info.lanes;
     int last_axis_mask = -1;
@@ -466,6 +469,14 @@ size_t get_dims_product(const sc_dims &dims) {
         ret *= dims[i];
     }
     assert(ret > 0 && "Overflow or non-constant shape detected");
+    return ret;
+}
+
+int get_number_of_squeeze_dims(const sc_dims &dims) {
+    int ret = 0;
+    for (auto &it : dims) {
+        if (it == 1) { ret++; }
+    }
     return ret;
 }
 

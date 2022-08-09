@@ -59,6 +59,8 @@ using gt2buf_map = gt_map_t<expr>;
 using gt2anchor_map = gt_map_t<fuse_anchor_map_t *>;
 using format_stride_pair = std::pair<sc_data_format_t, sc_dims>;
 
+struct dispatch_key_set_t;
+using dispatch_set_ptr = std::shared_ptr<dispatch_key_set_t>;
 /** VConst struct record possible varible in constant value, e.g.
  *
  *   const int a = k * b;
@@ -145,6 +147,7 @@ struct SC_API graph_tensor SC_EXTENDS_LEAK_CHECK(graph_tensor) {
 };
 
 using ltensors = std::vector<logical_tensor_t>;
+
 struct sc_op_info_t {
     std::vector<graph_tensor_ptr> outputs_;
     std::vector<graph_tensor_ptr> inputs_;
@@ -152,6 +155,12 @@ struct sc_op_info_t {
     /* the map of <output index, input index vector> decribes the sharing
      relationship between input and output tensors */
     std::unordered_map<int, std::vector<int>> tensor_share_info_;
+    // set of all dynamic dispatch keys combinations of op, this field is mainly
+    // prepared for dynamic dispatch during lowering and is created during
+    // layout propagation.
+    dispatch_set_ptr dispatch_key_set_;
+    // current used impl type
+    int cur_impl_;
 };
 
 struct op_base_trait_t {};
@@ -183,10 +192,12 @@ constexpr const char *bwise_no_strided_dims = "bwise_no_strided_dims";
 constexpr const char *layer_name = "temp.name";
 }; // namespace op_attr_key
 
+class sc_graph_t;
 class SC_INTERNAL_API sc_op : public virtual op_base_trait_t,
                               public std::enable_shared_from_this<sc_op>
                               SC_LEAK_CHECK(sc_op) {
 public:
+    sc_graph_t *owner_graph_ {nullptr};
     sc_op_info_t info_;
     any_map_t attrs_;
     // the logical op ID in the op in the manager, default is 0.
@@ -208,6 +219,8 @@ public:
     const std::vector<graph_tensor_ptr> &get_outputs() const {
         return info_.outputs_;
     }
+    virtual const dispatch_set_ptr &get_dispatch_key_set() const;
+    virtual dispatch_set_ptr &get_dispatch_key_set();
 
     /**
      * Repalces an input logical tensor
@@ -227,6 +240,10 @@ public:
     // the op is single output and the output is single used
     bool is_single_output_single_use();
 
+    // the op contains dynamic shape calculation, we didn't store a boolean
+    // value cache for op/graph, because they are dynamic themselves.
+    bool is_dynamic() const;
+
     // the op share given graph tensor with opT(except itself)
     template <typename opT>
     bool share_gt_with_op(const graph_tensor_ptr &gt) {
@@ -241,6 +258,14 @@ public:
     // Marks this node invalid and detach_use from all input tensors
     void remove();
 
+    // get op's owner graph
+    sc_graph_t &get_owner_graph() { return *owner_graph_; }
+    void set_owner_graph(sc_graph_t *owner_graph) {
+        owner_graph_ = owner_graph;
+    }
+    // infer output details like plain shapes, most op infer in their
+    // constructors except for conv now.
+    virtual void infer_out_tensor_details() {}
     /**
      * Checks if the node is of a subclass.
      * @param T the subclass
@@ -319,6 +344,9 @@ public:
 
     virtual ~sc_op() = default;
     virtual float get_gflop();
+    // Get op impl type candidates for dynamic dispatch. Default candidates are
+    // padding/no_padding.
+    virtual std::vector<int> get_impl_dispatch_candidates() const;
 };
 
 inline sc_op_weak_ptr_t &sc_op_weak_ptr_t::operator=(sc_op *other) {
@@ -332,6 +360,7 @@ class SC_INTERNAL_API output_op;
 std::vector<graph_tensor_ptr> copy_logical_tsr(
         const std::vector<graph_tensor_ptr> &v);
 
+struct dynamic_lower_info_t;
 class SC_API sc_graph_t {
 public:
     // the attr keys for graph
@@ -349,6 +378,8 @@ public:
 
     std::vector<sc_op_ptr> ops_;
     any_map_t attrs_;
+    // lowering info related to dynamic
+    std::shared_ptr<dynamic_lower_info_t> dyn_info_;
 
     // adds an existing node to the graph
     void add(const sc_op_ptr &node);
@@ -388,11 +419,32 @@ public:
     // This function is aimed to re-sort the ops in the graph's `ops_` array
     // using the op-ids in the op_id_map
     void resort_op_ids(const std::unordered_map<sc_op_ptr, int> &op_id_map);
+
+    // get next valid dynamic placeholder (decreasing) in graph.
+    // We use [-2, -min_of_int64_t] to represent relationships between dynamic
+    // shapes. It will be called by infer shapes(constructor of each op).
+    // E.g. plain shape [-2, 64, -2, 128, -3, -4], first and third dimension are
+    // the same dynamic var, and the last two are separated.
+    sc_dim get_next_dynamic_placeholder();
+    // return a expr (vector) from input dim (vector), if dim is dynamic, first
+    // find in dim2expr_map_, if not found, create a var based on placeholder.
+    expr dim_to_expr(const sc_dim &);
+    std::vector<expr> dims_to_expr(const sc_dims &dim);
+    std::vector<expr_c> dims_to_expr_c(const sc_dims &dim);
+
     // Get the total gflop from all tunable ops contained in the graph.
     float get_gflop() const;
+    bool is_dynamic() const;
     std::vector<sc_op_ptr> get_output_ops();
     std::vector<sc_op_ptr> get_input_ops();
     std::vector<sc_op_ptr> get_input_or_const_ops() const;
+
+    // sync dynamic placeholder and dim2expr map with other graph. When you
+    // create a subgraph b of graph a, you need to call
+    // b.sync_dynamic_info_with_graph(a).
+    void sync_dynamic_info_with_graph(const sc_graph_t &other) {
+        dyn_info_ = other.dyn_info_;
+    }
     // output op
     std::shared_ptr<sc_op> make_output(
             const std::vector<graph_tensor_ptr> &inputs,
@@ -406,6 +458,9 @@ public:
     sc_graph_t &operator=(sc_graph_t &&other) = default;
     sc_graph_t(const sc_graph_t &other) = delete;
 };
+
+std::vector<expr> get_blocking_shapes_expr(sc_graph_t &graph,
+        const sc_dims &plain_shapes, const sc_data_format_t &format);
 
 using op_factory_func = sc_op_ptr (*)(const std::vector<graph_tensor_ptr> &,
         const std::vector<graph_tensor_ptr> &, const any_map_t &);

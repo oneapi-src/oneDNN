@@ -67,14 +67,14 @@ static void fuse_outer_loops(for_loop outer_loop) {
     for (size_t i = 1; i < loops.size() - 1; i++) {
         if (fused_number >= max_fused_number) { break; }
         if (!loop_can_be_fused(loops[i])) { break; }
-        loops[0]->fuse(loops[i]);
         fused_number = fused_number * get_loop_range(loops[i]);
+        loops[0]->fuse(loops[i]);
     }
 }
 
 outer_loop_generator_t::outer_loop_generator_t(
         size_t base_tsr_idx, bool use_output_mode)
-    : body_generator_base_t({}, {})
+    : body_generator_base_t(nullptr, {}, {})
     , base_tsr_idx_(base_tsr_idx)
     , use_output_mode_(use_output_mode) {}
 
@@ -314,7 +314,9 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
 
 anchor_loop_generator_t::anchor_loop_generator_t(
         const graph_tensor_ptr &gt, const fuse_anchor_map_ptr &parent_fanchor)
-    : body_generator_base_t({}, {}), gt_(gt), parent_fanchor_(parent_fanchor) {}
+    : body_generator_base_t(nullptr, {}, {})
+    , gt_(gt)
+    , parent_fanchor_(parent_fanchor) {}
 
 size_t anchor_loop_generator_t::create_inner_anchor(
         std::vector<fuse_anchor_map_ptr> &fanchor_map) {

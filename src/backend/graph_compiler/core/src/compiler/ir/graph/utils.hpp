@@ -23,6 +23,8 @@
 #include <compiler/ir/graph/graph.hpp>
 
 namespace sc {
+// do divide and ceil on expr.
+expr divide_and_ceil(const expr &, const expr &);
 namespace graph {
 sc_graph_t make_single_op_graph(const std::string &opname,
         const std::vector<graph_tensor_ptr> &inputs,
@@ -30,14 +32,15 @@ sc_graph_t make_single_op_graph(const std::string &opname,
         const any_map_t &attr = {});
 
 expr tensor_detail_to_ir_tensor(
-        const std::string &name, const logical_tensor_t &);
-expr tensor_detail_to_ir_tensor(
-        const std::string &name, const graph_tensor_ptr &, gt2buf_map &);
-std::vector<expr> tensor_detail_to_ir_tensor(
+        sc_graph_t &graph, const std::string &name, const logical_tensor_t &);
+expr tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
+        const graph_tensor_ptr &, gt2buf_map &);
+std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
         const std::string &name_prefix, const std::vector<logical_tensor_t> &);
-std::vector<expr> tensor_detail_to_ir_tensor(
+std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
         const std::string &name_prefix, const std::vector<graph_tensor_ptr> &);
-std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,
+std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
+        const std::string &name_prefix,
         const std::vector<graph_tensor_ptr> &tsrs, gt2buf_map &g2b_map);
 std::string decay_quantized_op_name(const std::string &op_name);
 

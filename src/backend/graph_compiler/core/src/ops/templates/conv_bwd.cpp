@@ -63,9 +63,10 @@ config_ptr gen_conv_bwd::get_default_config(context_ptr ctx) const {
   return std::move(ret);
 }
 
-gen_conv_bwd::gen_conv_bwd(const sc_dims &stride, const sc_dims &padding,
-  std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
-  : parent(std::move(ins), std::move(outs))
+gen_conv_bwd::gen_conv_bwd(sc_op *owner, const sc_dims &stride,
+  const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
+  std::vector<logical_tensor_t> &&outs)
+  : parent(owner, std::move(ins), std::move(outs))
   , stride_(stride)
   , padding_(padding) {
   COMPILE_ASSERT(

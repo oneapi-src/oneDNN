@@ -44,6 +44,8 @@ void infer_binary_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
 sc_dims get_expr_to_dims(const std::vector<expr> &dims);
 size_t get_dims_product(const sc_dims &dims);
+// the dim can be squeezed is 1
+int get_number_of_squeeze_dims(const sc_dims &dims);
 
 bool slice_full_on_axes(
         const sc_dims &dim, slice_range ranges, const std::vector<int> &axes);

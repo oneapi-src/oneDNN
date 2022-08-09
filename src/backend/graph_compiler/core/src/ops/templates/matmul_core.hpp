@@ -54,11 +54,13 @@ public:
 
   bool bwise_fusion_ = false;
 
-  gen_matmul_core_t(
-    std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
+  gen_matmul_core_t(sc_op *owner, std::vector<logical_tensor_t> &&ins,
+    std::vector<logical_tensor_t> &&outs);
 
   float get_gflop() const override;
-
+  bool is_dynamic() const {
+    return in_tensors_[0].is_dynamic() || in_tensors_[1].is_dynamic();
+  }
   const sc_dims get_a_batch_dims() const {
     return {in_tensors_[0].get_plain_dims().begin(),
       in_tensors_[0].get_plain_dims().end() - 2};
@@ -79,16 +81,17 @@ public:
       in_tensors_[1].get_plain_dims().end()};
   };
 
-  void get_and_check_blocks(const std::vector<expr> &inputs,
-    const matmul_core_config_t &config, int &M_num_blocks, int &K_num_blocks,
-    int &M_block, int &K_block, int &N_block, int &B_K_num_blocks,
-    int &N_num_blocks) const;
+  void get_and_check_blocks(sc_graph_t &graph, const std::vector<expr> &inputs,
+    const matmul_core_config_t &config, expr &M_num_blocks, expr &K_num_blocks,
+    int &M_block, int &K_block, int &N_block, expr &B_K_num_blocks,
+    expr &N_num_blocks) const;
 
-  void get_brgemm_and_fusion_params(const std::vector<expr> &inputs,
-    const std::vector<expr> &outputs, const int &M_block, const int &K_block,
-    const int &N_block, std::vector<expr> &aidx, std::vector<expr> &bidx,
-    std::vector<expr> &cidx, int &LDA, int &LDB, int &LDC, int &stride_a,
-    int &stride_b, std::vector<std::pair<expr, expr>> &fidx1,
+  void get_brgemm_and_fusion_params(sc_graph_t &graph,
+    const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+    const int &M_block, const int &K_block, const int &N_block,
+    std::vector<expr> &aidx, std::vector<expr> &bidx, std::vector<expr> &cidx,
+    expr &LDA, expr &LDB, expr &LDC, expr &stride_a, expr &stride_b,
+    std::vector<std::pair<expr, expr>> &fidx1,
     std::vector<std::pair<expr, expr>> &fidx2,
     std::vector<std::pair<expr, expr>> &fidx3) const;
 

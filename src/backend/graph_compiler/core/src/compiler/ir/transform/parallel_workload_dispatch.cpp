@@ -25,12 +25,6 @@
 #include <unordered_map>
 
 namespace sc {
-// measured by a f32 FMA:
-// for(i, 0, 2^16, 1) {
-//    c[i] = c[i] + a[i] * b[i];
-// }
-// workload threshold = sigma(shape * sizeof(dtype) * read/write weight)
-static size_t memory_access_threshold_per_thread = 37440UL;
 // the workload allocated to a thread can not exceed
 // threshold_per_thread * coefficient
 static float threshold_coefficient = 1.f;
@@ -165,12 +159,13 @@ public:
         cur_workload = total_wkld;
         changed |= (body_wkld > 0UL);
         if (changed) {
-            assert(begin.isa<constant>() && end.isa<constant>()
-                    && step.isa<constant>());
             stmt_c newv = copy_attr(*v,
                     builder::make_for_loop_unattached(var, begin, end, step,
                             body, v->incremental_, v->kind_, v->num_threads_));
-            if (v->kind_ == for_type::PARALLEL) {
+            // todo: for dynamic boundary cases, try split of quotient and
+            // remainder process with if-else.
+            if (v->kind_ == for_type::PARALLEL && begin.isa<constant>()
+                    && end.isa<constant>() && step.isa<constant>()) {
                 // copy whole for loop as split is inplace
                 std::unordered_map<expr_c, expr> rmap;
                 ir_copier_t cpier(rmap, false);

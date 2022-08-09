@@ -33,7 +33,8 @@ public:
             override;
     body_generator_ptr create_generator() override;
     float get_gflop() override;
-    static sc_dims infer_out_dims(const sc_dims &input_dims,
+    void infer_out_tensor_details() override;
+    sc_dims infer_out_dims(const sc_dims &input_dims,
             const sc_dims &weight_dims, const sc_dims &padding,
             const sc_dims &stride);
     sc_data_type_t infer_out_dtype(const sc_data_type_t &input_dtype,

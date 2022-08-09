@@ -161,6 +161,7 @@ public:
     input_op(const logical_tensor_t &lt);
     input_op(const std::vector<graph_tensor_ptr> &outs);
 
+    void initialize_dynamic_placeholder();
     const bool is_arg_input() {
         return attrs_.get_or_else("temp.arg_input", false);
     }

@@ -15,6 +15,7 @@
  *******************************************************************************/
 #include "convolution.hpp"
 #include <memory>
+#include <utility>
 #include "templates/conv_bwd.hpp"
 #include "templates/conv_fwd.hpp"
 #include <compiler/ir/graph/tunable_op.hpp>
@@ -33,6 +34,21 @@ sc_data_type_t conv_fwd_op_t::infer_out_dtype(
     } else {
         // both f32 and bf16 inputs generate f32 output
         return datatypes::f32;
+    }
+}
+
+void conv_fwd_op_t::infer_out_tensor_details() {
+    auto &cur_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
+    auto &indims = info_.inputs_[0]->details_.get_plain_dims();
+    auto &weightdims = info_.inputs_[1]->details_.get_plain_dims();
+    auto expected_out_shape = infer_out_dims(indims, weightdims,
+            attrs_.get<sc_dims>("paddings"), attrs_.get<sc_dims>("strides"));
+    if (!cur_plain_dims.empty()) {
+        COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
+                        == expected_out_shape,
+                "Bad output shape for conv");
+    } else {
+        info_.outputs_[0]->details_.set_plain_dims(expected_out_shape);
     }
 }
 
@@ -76,13 +92,19 @@ sc_dims conv_fwd_op_t::infer_out_dims(const sc_dims &input_dims,
         auto r = (i + 2 * p - k) / s + 1;
         return r;
     };
-
+    sc_graph_t &graph = get_owner_graph();
     sc_dims out_dims(ndims);
     out_dims[0] = input_dims[0];
     out_dims[1] = weight_dims[0];
     for (int i = 2; i < ndims; ++i) {
-        out_dims[i] = calc_out_shapes(input_dims[i], weight_dims[i],
-                pad_dims[i - 2], stride_dims[i - 2]);
+        if (is_dynamic_dim(input_dims[i]) || is_dynamic_dim(weight_dims[i])
+                || is_dynamic_dim(pad_dims[i - 2])
+                || is_dynamic_dim(stride_dims[i - 2])) {
+            out_dims[i] = graph.get_next_dynamic_placeholder();
+        } else {
+            out_dims[i] = calc_out_shapes(input_dims[i], weight_dims[i],
+                    pad_dims[i - 2], stride_dims[i - 2]);
+        }
     }
 
     return out_dims;
@@ -122,22 +144,16 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     : tunable_op_t("conv_fwd", ins, outs, attrs) {
     COMPILE_ASSERT(info_.inputs_.size() == 2, "conv expects 2 inputs");
     auto &indims = info_.inputs_[0]->details_.get_plain_dims();
-    auto &weightdims = info_.inputs_[1]->details_.get_plain_dims();
     ndims_ = indims.size();
-    auto expected_out_shape = infer_out_dims(indims, weightdims,
-            attrs_.get<sc_dims>("paddings"), attrs_.get<sc_dims>("strides"));
     auto &data_dtype = info_.inputs_[0]->details_.dtype_;
     auto &weight_dtype = info_.inputs_[1]->details_.dtype_;
     if (info_.outputs_.empty()) {
         check_dtypes(data_dtype, weight_dtype);
-        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
-                sc_data_format_t(), expected_out_shape,
-                infer_out_dtype(data_dtype, weight_dtype)));
+        info_.outputs_.emplace_back(
+                std::make_shared<graph_tensor>(this, sc_data_format_t(),
+                        sc_dims {}, infer_out_dtype(data_dtype, weight_dtype)));
     } else {
         COMPILE_ASSERT(info_.outputs_.size() == 1, "conv expects 1 output");
-        COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
-                        == expected_out_shape,
-                "Bad output shape for conv");
         check_dtypes(
                 data_dtype, weight_dtype, info_.outputs_[0]->details_.dtype_);
     }
@@ -146,9 +162,10 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
 body_generator_ptr conv_fwd_op_t::create_generator() {
     auto &stride = attrs_.get<sc_dims>("strides");
     auto &padding = attrs_.get<sc_dims>("paddings");
-    return utils::make_unique<gen_conv_fwd_t>(stride, padding,
+    auto ret = utils::make_unique<gen_conv_fwd_t>(this, stride, padding,
             graph::extract_detail_from_tensors(get_inputs()),
             graph::extract_detail_from_tensors(get_outputs()));
+    return std::move(ret);
 }
 
 float conv_fwd_op_t::get_gflop() {
@@ -205,7 +222,7 @@ conv_bwd_op_t::conv_bwd_op_t(const std::vector<graph_tensor_ptr> &ins,
 body_generator_ptr conv_bwd_op_t::create_generator() {
     auto &stride = attrs_.get<sc_dims>("strides");
     auto &padding = attrs_.get<sc_dims>("paddings");
-    return utils::make_unique<gen_conv_bwd>(stride, padding,
+    return utils::make_unique<gen_conv_bwd>(this, stride, padding,
             graph::extract_detail_from_tensors(get_inputs()),
             graph::extract_detail_from_tensors(get_outputs()));
 }

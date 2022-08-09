@@ -49,7 +49,7 @@ public:
     return std::tuple<int, int> {get_output_dims()[2], get_output_dims()[3]};
   }
 
-  gen_conv_bwd(const sc_dims &stride, const sc_dims &padding,
+  gen_conv_bwd(sc_op *owner, const sc_dims &stride, const sc_dims &padding,
     std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
 
   float get_gflop() const override;

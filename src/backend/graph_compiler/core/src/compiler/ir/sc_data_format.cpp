@@ -16,6 +16,9 @@
 
 #include "sc_data_format.hpp"
 #include <algorithm>
+#include <compiler/ir/graph/graph.hpp>
+#include <compiler/ir/graph/utils.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -301,25 +304,10 @@ sc_data_format_t::get_blocked_axis() const {
     return blocked_axis;
 }
 
-sc_dims sc_data_format_t::get_blocking_shapes(
-        const sc_dims &plain_shapes, const sc_data_format_t &format) {
-    if (plain_shapes.empty()) { return sc_dims(); }
-    // todo: should be is_plain()
-    if (format.format_code_ == format_kinds::any) { return plain_shapes; }
-    sc_dims ret;
-    size_t base_out_dim = 0;
-    size_t num_plain_dims = format.format_code_.norig_dims();
-    size_t num_format_dims = format.format_code_.ndims();
-    size_t num_out_dims = num_format_dims;
-    ret.reserve(num_out_dims);
-    COMPILE_ASSERT(plain_shapes.size() == num_plain_dims,
-            "Wrong number of dimensions for format: "
-                    << format
-                    << ", plain shape = " << utils::print_vector(plain_shapes));
-    if (!is_fixed_blocks(format.blocks_, 4)) {
-        return sc_dims(num_out_dims, -1);
-    }
-
+void get_blocking_shapes_impl(const sc_dims &plain_shapes,
+        const sc_data_format_t &format, size_t base_out_dim,
+        size_t num_format_dims, size_t num_out_dims,
+        const std::function<void(int, int)> &callback) {
     COMPILE_ASSERT(plain_shapes.size() <= sc_data_format_kind_t::MAX_DIMS,
             "Too many dims in plain shapes");
     // index: index in the format, value: the blocking number collected from
@@ -346,7 +334,7 @@ sc_dims sc_data_format_t::get_blocking_shapes(
         assert((size_t)orig_axis < plain_shapes.size());
         // find original shape from plain_shapes or blocking_num
         int new_shape;
-        if (blocking_num[idx_in_format] > 0) {
+        if (blocking_num[idx_in_format] != 0) {
             new_shape = blocking_num[idx_in_format];
         } else {
             new_shape = plain_shapes.at(orig_axis + base_out_dim);
@@ -360,8 +348,64 @@ sc_dims sc_data_format_t::get_blocking_shapes(
                 break;
             }
         }
-        ret.push_back(utils::divide_and_ceil(new_shape, next_blocking_number));
+        callback(new_shape, next_blocking_number);
     }
+}
+
+sc_dims sc_data_format_t::get_blocking_shapes(
+        const sc_dims &plain_shapes, const sc_data_format_t &format) {
+    if (plain_shapes.empty()) { return sc_dims(); }
+    // todo: should be is_plain()
+    if (format.format_code_ == format_kinds::any) { return plain_shapes; }
+    sc_dims ret;
+    size_t base_out_dim = 0;
+    size_t num_plain_dims = format.format_code_.norig_dims();
+    size_t num_format_dims = format.format_code_.ndims();
+    size_t num_out_dims = num_format_dims;
+    ret.reserve(num_out_dims);
+    COMPILE_ASSERT(plain_shapes.size() == num_plain_dims,
+            "Wrong number of dimensions for format: "
+                    << format
+                    << ", plain shape = " << utils::print_vector(plain_shapes));
+    auto callback = [&](int new_shape, int next_blocking_number) {
+        if (is_dynamic_dim(new_shape) || is_dynamic_dim(next_blocking_number)) {
+            ret.push_back(dimensions::dynamic_any);
+        } else {
+            ret.push_back(
+                    utils::divide_and_ceil(new_shape, next_blocking_number));
+        }
+    };
+    get_blocking_shapes_impl(plain_shapes, format, base_out_dim,
+            num_format_dims, num_out_dims, callback);
+    return ret;
+}
+
+std::vector<expr> get_blocking_shapes_expr(sc_graph_t &g,
+        const sc_dims &plain_shapes, const sc_data_format_t &format) {
+    if (plain_shapes.empty()) { return std::vector<expr>(); }
+    // todo: should be is_plain()
+    if (format.format_code_ == format_kinds::any) {
+        return g.dims_to_expr(plain_shapes);
+    }
+    std::vector<expr> ret;
+    size_t base_out_dim = 0;
+    size_t num_plain_dims = format.format_code_.norig_dims();
+    size_t num_format_dims = format.format_code_.ndims();
+    size_t num_out_dims = num_format_dims;
+    ret.reserve(num_out_dims);
+    COMPILE_ASSERT(plain_shapes.size() == num_plain_dims,
+            "Wrong number of dimensions for format: "
+                    << format
+                    << ", plain shape = " << utils::print_vector(plain_shapes));
+    auto callback = [&](int new_shape, int next_blocking_number) {
+        auto dim = next_blocking_number == 1
+                ? g.dim_to_expr(new_shape)
+                : divide_and_ceil(g.dim_to_expr(new_shape),
+                        g.dim_to_expr(next_blocking_number));
+        ret.push_back(dim);
+    };
+    get_blocking_shapes_impl(plain_shapes, format, base_out_dim,
+            num_format_dims, num_out_dims, callback);
     return ret;
 }
 
@@ -389,6 +433,10 @@ sc_dims sc_data_format_t::get_padded_plain_shapes(
         int shape = 1;
         for (size_t i = 0; i < num_format_dims; i++) {
             if ((int)orig_axis == format.format_code_.get(i)) {
+                if (is_dynamic_dim(real_shapes.at(base_out_dim + i))) {
+                    shape = dimensions::dynamic_any;
+                    break;
+                }
                 shape *= real_shapes.at(base_out_dim + i);
             }
         }

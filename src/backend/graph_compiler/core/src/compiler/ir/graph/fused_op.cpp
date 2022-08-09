@@ -98,12 +98,13 @@ void mark_read_or_write_buffers(std::vector<expr> &args, bool is_read) {
 
 func_t create_func_decl_for_op(
         sc_op *op, std::vector<expr> &ins, std::vector<expr> &outs) {
-    ins = ins.empty()
-            ? graph::tensor_detail_to_ir_tensor("__ins_", op->get_inputs())
-            : ins;
-    outs = outs.empty()
-            ? graph::tensor_detail_to_ir_tensor("__outs_", op->get_outputs())
-            : outs;
+    auto &graph = op->get_owner_graph();
+    ins = ins.empty() ? graph::tensor_detail_to_ir_tensor(
+                  graph, "__ins_", op->get_inputs())
+                      : ins;
+    outs = outs.empty() ? graph::tensor_detail_to_ir_tensor(
+                   graph, "__outs_", op->get_outputs())
+                        : outs;
     graph::mark_read_or_write_buffers(ins, true);
     graph::mark_read_or_write_buffers(outs, false);
     std::vector<expr> args = outs;
@@ -162,6 +163,7 @@ void collect_shrinked_graph_axes_map(
 // shrink graph by shrink size
 sc_graph_t shrink_graph(const sc_graph_t &graph, gt2gt_map &lt_map) {
     sc_graph_t shrinked_graph;
+    shrinked_graph.sync_dynamic_info_with_graph(graph);
     op_visitor_t vis(op_visitor_t::dequeue_selector,
             op_visitor_t::create_DAG_updater(graph.ops_.size()));
     std::unordered_map<sc_op_ptr, int> op_id_map;
@@ -695,7 +697,8 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
         outs = {real_outs[0]};
     } else {
         // no in-place available, define the output args independently
-        outs = graph::tensor_detail_to_ir_tensor(
+        auto &graph = get_owner_graph();
+        outs = graph::tensor_detail_to_ir_tensor(graph,
                 "__origouts_" + std::to_string(out_idx++),
                 mainop->get_outputs());
         assert(outs.size() == 1);
@@ -1057,7 +1060,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
                             + (is_output ? std::string("out_")
                                          : std::string("in_"))
                             + std::to_string(tsr_map.size()),
-                    dims_to_expr(shrink_dims),
+                    sub_graph.dims_to_expr(shrink_dims),
                     tsr.checked_as<tensor>()->elem_dtype_);
             shrinked_tsr->attr().set("temp.bw_axes", bw_axes);
             tsr_map[tsr] = shrinked_tsr;

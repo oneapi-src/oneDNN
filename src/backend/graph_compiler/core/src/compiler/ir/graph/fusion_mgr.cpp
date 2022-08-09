@@ -256,8 +256,9 @@ expr fusion_manager::allocate_tensor(
                     sc::address_space addrspace = sc::address_space::automatic,
                     const std::shared_ptr<static_data_t> &init_value = nullptr,
                     bool global = false) {
-                auto shapes = dims_to_expr(lt.get_blocking_dims());
-                auto strides = dims_to_expr(lt.get_strides());
+                auto shapes = lt.get_blocking_dims_expr(graph_);
+                auto strides = logical_tensor_t::compute_dense_stride_expr(
+                        graph_, shapes);
                 tsr = builder::make_stensor(
                         name + std::to_string(alloc_tensor_count_++), shapes,
                         strides, output->details_.dtype_, addrspace, init_value)
@@ -406,11 +407,12 @@ void fusion_manager::do_infer_slice_ranges(
                 fsmap.get(cur->get_inputs()[0])
                         = {dst[output_idx].get_ranges()};
             } else {
-                auto out_dims = output_cur->get_inputs()[0]
-                                        ->details_.get_blocking_dims();
+                auto &details = output_cur->get_inputs()[0]->details_;
+                std::vector<expr> out_dims
+                        = details.get_blocking_dims_expr(graph_);
                 slice_range out_ranges;
                 for (auto &d : out_dims) {
-                    out_ranges.emplace_back(std::make_pair(0, dim2unsigned(d)));
+                    out_ranges.emplace_back(std::make_pair(0, d));
                 }
                 if (fsmap.get(cur->get_inputs()[0]).empty())
                     fsmap.get(cur->get_inputs()[0]) = {out_ranges};
@@ -546,13 +548,14 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 if (!inargs.empty()) {
                     tsr = inargs[arg_idx];
                 } else {
+                    auto blocking_dims
+                            = input_cur->get_outputs()[0]
+                                      ->details_.get_blocking_dims_expr(graph_);
+                    auto strides = logical_tensor_t::compute_dense_stride_expr(
+                            graph_, blocking_dims);
                     auto arg_tsr = builder::make_stensor(
                             std::string("arg_tsr_") + std::to_string(arg_idx),
-                            dims_to_expr(
-                                    input_cur->get_outputs()[0]
-                                            ->details_.get_blocking_dims()),
-                            dims_to_expr(input_cur->get_outputs()[0]
-                                                 ->details_.get_strides()),
+                            blocking_dims, strides,
                             input_cur->get_outputs()[0]->details_.dtype_);
                     tsr = arg_tsr;
                 }
@@ -591,13 +594,14 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                     // Here, it will not be pushed into allocated_tensors_,
                     // because
                     // it will be replaced in final IR generation
+                    auto dims
+                            = cur->get_inputs()[0]
+                                      ->details_.get_blocking_dims_expr(graph_);
+                    auto strides = logical_tensor_t::compute_dense_stride_expr(
+                            graph_, dims);
                     auto arg_tsr = builder::make_stensor(
                             std::string("output") + std::to_string(output_idx),
-                            dims_to_expr(
-                                    cur->get_inputs()[0]
-                                            ->details_.get_blocking_dims()),
-                            dims_to_expr(cur->get_inputs()[0]
-                                                 ->details_.get_strides()),
+                            dims, strides,
                             cur->get_inputs()[0]->details_.dtype_);
                     tsr = arg_tsr;
                 }
@@ -636,7 +640,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             // use tensorptr to represent reshaped tensor
             cur_out_detail.set_buffer(builder::tensor_ptr(base_tsr,
                     std::vector<expr>(base_tsr->dims_.size(), 0),
-                    dims_to_expr(reshape_cur->get_shapes())));
+                    graph_.dims_to_expr(reshape_cur->get_shapes())));
 
             bool access_has_updated = false;
             set_buffer_reuse_hint(hint_tick, fdmap, cur_node,

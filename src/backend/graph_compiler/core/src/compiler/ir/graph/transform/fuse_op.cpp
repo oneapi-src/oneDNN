@@ -343,9 +343,11 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
         std::vector<fusion_partition_t::ptr> &op_2_partition,
         std::vector<sc_op_ptr> &out_failed_ops) {
     auto fmgr = std::make_shared<fusion_manager>();
+    fmgr->get_graph().sync_dynamic_info_with_graph(g);
     std::string op_name;
     std::vector<graph_tensor_ptr> fused_op_in;
     sc_graph_t copied_op_graph;
+    copied_op_graph.sync_dynamic_info_with_graph(g);
     std::vector<graph_tensor_ptr> fused_op_out;
     bool multi_use = false;
     if (op) {
@@ -442,6 +444,7 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
             /*ins*/ fused_op_in,
             /*outs*/
             fused_op_out, any_map_t {});
+    fused_op_ptr->set_owner_graph(&g);
     if (multi_use) { fused_op_ptr->keep_outputs_[0] = true; }
     // todo: cache the get func result
     fused_op_ptr->try_get_func(get_default_context(), true, out_failed_ops);

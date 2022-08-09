@@ -87,8 +87,6 @@ reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
     op_name_ = "reorder";
     attrs_ = attrs;
     plain_dims_ = ins[0]->details_.get_plain_dims();
-    input_format_ = info_.inputs_[0]->details_.get_format();
-    output_format_ = info_.outputs_[0]->details_.get_format();
     COMPILE_ASSERT(info_.inputs_[0]->details_.get_format().is_convertible(
                            info_.outputs_[0]->details_.get_format()),
             "input format " << info_.inputs_[0]->details_.get_format()
@@ -672,9 +670,11 @@ void reorder_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     // has been pre-inferred, skip
     if (!fsmap.get(get_outputs()[0]).empty()) return;
-    COMPILE_ASSERT(input_format_.is_convertible(output_format_),
+    auto &input_format = get_input_format();
+    auto &output_format = get_output_format();
+    COMPILE_ASSERT(input_format.is_convertible(output_format),
             "Can not convert input format "
-                    << input_format_ << " to output format " << output_format_
+                    << input_format << " to output format " << output_format
                     << ".");
     // search known ranges from any input of cur fusbile op
     slice_range_map known_ranges_map
@@ -683,8 +683,8 @@ void reorder_op_t::infer_slice_ranges(
     auto input_slice_list = known_ranges_map[0];
     slice_range_list reorder_ranges_list;
 
-    infer_reorder_slice(input_slice_list, input_format_, output_format_,
-            reorder_ranges_list);
+    infer_reorder_slice(
+            input_slice_list, input_format, output_format, reorder_ranges_list);
     if (reorder_ranges_list.empty()) {
         for (auto &user : get_outputs()[0]->uses_) {
             if (user.second->isa<output_op>()) {
@@ -712,8 +712,8 @@ void reorder_op_t::pre_slice_ranges(
         slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
         slice_range_list input_slice_list;
 
-        infer_reorder_slice(known_ranges_list, output_format_, input_format_,
-                input_slice_list);
+        infer_reorder_slice(known_ranges_list, get_output_format(),
+                get_input_format(), input_slice_list);
         if (input_slice_list.size() != 1) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
@@ -2113,22 +2113,26 @@ size_t reorder_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
 }
 
 bool reorder_op_t::check_padding() const {
+    auto &input_format = get_input_format();
+    auto &output_format = get_output_format();
     auto input_blocking_dims
-            = sc_data_format_t::get_blocking_shapes(plain_dims_, input_format_);
-    auto output_blocking_dims = sc_data_format_t::get_blocking_shapes(
-            plain_dims_, output_format_);
+            = sc_data_format_t::get_blocking_shapes(plain_dims_, input_format);
+    auto output_blocking_dims
+            = sc_data_format_t::get_blocking_shapes(plain_dims_, output_format);
     return sc_data_format_t::get_padded_plain_shapes(
-                   input_blocking_dims, input_format_)
+                   input_blocking_dims, input_format)
             != sc_data_format_t::get_padded_plain_shapes(
-                    output_blocking_dims, output_format_);
+                    output_blocking_dims, output_format);
 }
 
 bool reorder_op_t::use_output_loop() const {
     if (check_padding()) {
+        auto &input_format = get_input_format();
+        auto &output_format = get_output_format();
         // block->stride
-        if (input_format_.is_blocking() && is_not_blocking(output_format_))
+        if (input_format.is_blocking() && is_not_blocking(output_format))
             return false;
-        else if (input_format_.is_blocking() && output_format_.is_blocking()) {
+        else if (input_format.is_blocking() && output_format.is_blocking()) {
             // block->block: check the products of blocking dims whether
             // same?
             return (get_dims_product(
@@ -2149,7 +2153,7 @@ bool reorder_op_t::use_output_loop() const {
 }
 
 bool reorder_op_t::support_output_loop() const {
-    return output_format_.is_blocking();
+    return get_output_format().is_blocking();
 }
 
 void reorder_op_t::compute_block(context_ptr ctx,
@@ -2159,8 +2163,8 @@ void reorder_op_t::compute_block(context_ptr ctx,
             = info_.inputs_[0]->details_.get_strides().back() != 1
             || info_.outputs_[0]->details_.get_strides().back() != 1;
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
-    compute_reorder_block(ctx, *inputs[0], *dst[0], input_format_,
-            output_format_, info_.inputs_[0]->details_.dtype_, plain_dims_,
+    compute_reorder_block(ctx, *inputs[0], *dst[0], get_input_format(),
+            get_output_format(), info_.inputs_[0]->details_.dtype_, plain_dims_,
             use_output_loop(), attrs_, wkld, is_innermost_dim_strided);
 }
 

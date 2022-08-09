@@ -185,8 +185,8 @@ struct lowering_visitor_state_t {
         max_tensor_size_ = 0;
         for (auto &op : g.ops_) {
             for (auto &tsr : op->get_outputs()) {
-                max_tensor_size_
-                        = std::max(max_tensor_size_, tsr->details_.size());
+                max_tensor_size_ = std::max(max_tensor_size_,
+                        tsr->details_.get_blocking_byte_size());
             }
         }
     }
@@ -272,8 +272,8 @@ struct lowering_visitor_state_t {
                 } else {
                     ref_count_modifier = in->uses_.size();
                 }
-                float cur_tsr = float(in->details_.size()) / ref_count_modifier
-                        / max_tensor_size_ * heat_modifier;
+                float cur_tsr = float(in->details_.get_blocking_byte_size())
+                        / ref_count_modifier / max_tensor_size_ * heat_modifier;
                 cur_score += cur_tsr;
             }
         }
@@ -291,7 +291,8 @@ struct lowering_visitor_state_t {
                                 use.second.get(), distance_to_visited));
             }
             float cur_tsr = (distance - 1) * distance_factor
-                    + float(out->details_.size()) / max_tensor_size_;
+                    + float(out->details_.get_blocking_byte_size())
+                            / max_tensor_size_;
             cur_score -= cur_tsr;
         }
         return cur_score;
@@ -430,8 +431,9 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
             }
         }
 
-        std::vector<expr> dims = dims_to_expr(t->details_.get_blocking_dims());
-        std::vector<expr> strides = dims_to_expr(t->details_.get_strides());
+        std::vector<expr> dims = t->details_.get_blocking_dims_expr(graph);
+        std::vector<expr> strides
+                = logical_tensor_t::compute_dense_stride_expr(graph, dims);
         std::string tensor_name
                 = graph::get_tensor_name(t.get(), linked_output);
         if (tensor_name.empty()) {
@@ -503,7 +505,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
             auto ndims = old_tsr->details_.get_blocking_dims().size();
             std::vector<expr_c> base_idx(ndims, expr(0));
             auto &new_int_shape = new_tsr->details_.get_blocking_dims();
-            std::vector<expr_c> new_shape = dims_to_expr_c(new_int_shape);
+            std::vector<expr_c> new_shape = graph.dims_to_expr_c(new_int_shape);
             return builder::tensor_ptr(base_tsr, base_idx, new_shape);
         };
         int const_type

@@ -25,6 +25,8 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>
 
@@ -175,18 +177,16 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
     auto rhs_const = dynamic_cast<constant_op_t *>(
             info_.inputs_.at(1)->producer_owner_);
     if (outs.empty()) {
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         // fixme: correctly infer the shape for broadcast
         if (!lhs_const && rhs_const) {
-            info_.outputs_.emplace_back(
-                    std::make_shared<graph_tensor>(this, ins[0]->details_));
+            info_.outputs_[0]->details_ = info_.inputs_[0]->details_;
         } else if (lhs_const && !rhs_const) {
-            info_.outputs_.emplace_back(
-                    std::make_shared<graph_tensor>(this, ins[1]->details_));
+            info_.outputs_[0]->details_ = info_.inputs_[1]->details_;
         } else {
             int bc_input_idx = get_broadcast_input();
             int ref_idx = bc_input_idx < 0 ? 0 : 1 - bc_input_idx;
-            info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
-                    this, ins[ref_idx]->details_));
+            info_.outputs_[0]->details_ = info_.inputs_[ref_idx]->details_;
         }
     } else {
         info_.outputs_ = outs;
@@ -245,17 +245,14 @@ int binary_elementwise_op_impl_t::get_broadcast_input() const {
     if (lhs_dims == rhs_dims) {
         return -1;
     } else {
-        auto lhs_dp = get_dims_product(lhs_dims);
-        auto rhs_dp = get_dims_product(rhs_dims);
-        if (lhs_dp == rhs_dp) {
-            COMPILE_ASSERT(lhs_dims.size() != rhs_dims.size(),
-                    "Unexpected dims of bianry elementwise inputs are found: "
-                            << utils::print_vector(lhs_dims) << " and "
-                            << utils::print_vector(rhs_dims))
+        // to suppport dynamic
+        if (lhs_dims.size() != rhs_dims.size()) {
             return lhs_dims.size() > rhs_dims.size() ? 1 : 0;
-        } else {
-            return lhs_dp > rhs_dp ? 1 : 0;
         }
+        return get_number_of_squeeze_dims(lhs_dims)
+                        <= get_number_of_squeeze_dims(rhs_dims)
+                ? 1
+                : 0;
     }
 }
 
@@ -578,8 +575,9 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
     }
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
-    auto slice_len = get_const_as_int(
-            dst.get_shape().at(vx_info.axis).static_as<constant>());
+    auto cur_dim = do_cast_and_fold(dst.get_shape().at(vx_info.axis));
+    assert(cur_dim.isa<constant>());
+    auto slice_len = get_const_as_int(cur_dim.static_as<constant>());
     int floor = slice_len / vx_info.lanes * vx_info.lanes;
     int tail = slice_len % vx_info.lanes;
     int last_axis_mask = -1;
@@ -745,9 +743,9 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     vx_info_.axis = dst[0]->get_shape().size() - 1;
 
     for (int64_t i = dst[0]->nslice_dims() - 1; i >= 0; --i) {
-        int cur_dim = get_const_as_int(
-                dst[0]->get_shape()[i].checked_as<constant>());
-        if (1 != cur_dim) {
+        auto cur_dim = dst[0]->get_shape()[i];
+        if (!cur_dim.isa<constant>()
+                || get_const_as_int(cur_dim.checked_as<constant>())) {
             vx_info_.axis = i;
             break;
         }

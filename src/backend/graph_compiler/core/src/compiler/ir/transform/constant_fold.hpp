@@ -53,7 +53,9 @@ public:
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
     expr_c expand_polynomial(expr_c f, int max_iter = 1);
 };
-
+// do auto cast and constant fold for input expr.
+expr do_cast_and_fold(const expr &in);
+expr_c do_cast_and_fold(const expr_c &in);
 } // namespace sc
 
 #endif

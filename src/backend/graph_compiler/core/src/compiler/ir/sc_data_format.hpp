@@ -26,7 +26,6 @@
 #include <util/hash_utils.hpp>
 
 namespace sc {
-
 /// Memory format kind
 enum class sc_format_category {
     // any means: support block and plain
@@ -189,7 +188,6 @@ constexpr auto NCHW = ABCD, KCRS = ABCD, NKHW = ABCD, MK = AB, KN = AB, NK = BA,
                KCDRS = ABCDE, NCDHWc = ABCDEb, KCDRSck = ABCDEba;
 #undef SC_DEF_FMT
 }; // namespace format_kinds
-
 struct SC_API sc_data_format_t {
     using blocking_t = std::array<int, 4>;
     sc_data_format_t() : format_code_(format_kinds::any), blocks_ {0} {}

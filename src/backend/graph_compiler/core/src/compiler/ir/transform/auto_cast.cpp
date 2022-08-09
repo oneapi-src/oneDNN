@@ -290,7 +290,12 @@ public:
                 for (unsigned i = brgemm_args::C + 1; i < newargs.size(); i++) {
                     // cast newargs[i] to the expected types
                     expr_c v = newargs[i];
-                    changed |= cast_to(v, brgemm_args::arg_types[i], v);
+                    // specific process for brgemm, as its runtime kernel is too
+                    // hard to change.
+                    if (v->dtype_ != brgemm_args::arg_types[i]) {
+                        v = builder::make_cast(brgemm_args::arg_types[i], v);
+                        changed = true;
+                    }
                     newargs[i] = v.remove_const();
                 }
                 break;

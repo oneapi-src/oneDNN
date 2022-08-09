@@ -1275,7 +1275,7 @@ public:
         {
             builder_.SetInsertPoint(body);
             dispatch(v->body_);
-            if (!llvm::isa<llvm::ReturnInst>(body->back())) {
+            if (body->empty() || !llvm::isa<llvm::ReturnInst>(body->back())) {
                 auto step_v = generate_expr(v->step_);
                 Value *itr_value = builder_.CreateLoad(
                         itr_v->getType()->getPointerElementType(), itr_v);

@@ -85,9 +85,10 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   return std::move(ret);
 }
 
-gen_conv_fwd_t::gen_conv_fwd_t(const sc_dims &stride, const sc_dims &padding,
-  std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
-  : parent(std::move(ins), std::move(outs)) {
+gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
+  const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
+  std::vector<logical_tensor_t> &&outs)
+  : parent(owner, std::move(ins), std::move(outs)) {
   COMPILE_ASSERT(in_tensors_.size() == 2,
     "Wrong number of inputs, expected to be 2 but got " << in_tensors_.size()
                                                         << ".");

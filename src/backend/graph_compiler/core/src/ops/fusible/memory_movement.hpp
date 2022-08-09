@@ -141,17 +141,21 @@ public:
             sc_data_format_t output_format);
     ir_module_ptr get_func(context_ptr ctx) override;
     const sc_data_format_kind_t &get_input_format_kind() const {
-        return input_format_.format_code_;
+        return info_.inputs_[0]->details_.get_format().format_code_;
     }
     const sc_data_format_kind_t &get_output_format_kind() const {
-        return output_format_.format_code_;
+        return info_.outputs_[0]->details_.get_format().format_code_;
     }
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)
             override;
-    const sc_data_format_t &get_output_format() const { return output_format_; }
-    const sc_data_format_t &get_input_format() const { return input_format_; }
+    const sc_data_format_t &get_output_format() const {
+        return info_.outputs_[0]->details_.get_format();
+    }
+    const sc_data_format_t &get_input_format() const {
+        return info_.inputs_[0]->details_.get_format();
+    }
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
     bool check_padding() const;
@@ -164,8 +168,6 @@ public:
 
 private:
     sc_dims plain_dims_;
-    sc_data_format_t input_format_;
-    sc_data_format_t output_format_;
 };
 } // namespace sc
 #endif

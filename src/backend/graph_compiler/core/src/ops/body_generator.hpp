@@ -27,6 +27,7 @@ namespace sc {
 
 using config_ptr = reflection::shared_general_object_t;
 class fusion_manager;
+class sc_op;
 struct graph_tensor;
 
 namespace tuner {
@@ -38,6 +39,7 @@ using config_space_ptr = std::unique_ptr<tuner::config_space>;
  * The generator base class to generate IR for the body of an Op
  * */
 struct body_generator_base_t {
+    sc_op *owner_;
     std::vector<logical_tensor_t> in_tensors_;
     std::vector<logical_tensor_t> out_tensors_;
     /**
@@ -95,18 +97,20 @@ struct body_generator_base_t {
 
     virtual ~body_generator_base_t() = default;
 
-    body_generator_base_t(std::vector<logical_tensor_t> &&in_tensors,
+    body_generator_base_t(sc_op *owner,
+            std::vector<logical_tensor_t> &&in_tensors,
             std::vector<logical_tensor_t> &&out_tensors)
-        : in_tensors_(std::move(in_tensors))
+        : owner_(owner)
+        , in_tensors_(std::move(in_tensors))
         , out_tensors_(std::move(out_tensors)) {}
 
-    body_generator_base_t(const std::vector<logical_tensor_t> &in_tensors,
+    body_generator_base_t(sc_op *owner,
+            const std::vector<logical_tensor_t> &in_tensors,
             const std::vector<logical_tensor_t> &out_tensors)
-        : in_tensors_(in_tensors), out_tensors_(out_tensors) {}
+        : owner_(owner), in_tensors_(in_tensors), out_tensors_(out_tensors) {}
 };
 
 using body_generator_ptr = std::unique_ptr<body_generator_base_t>;
-
 template <typename TConfig>
 struct body_generator_t : public body_generator_base_t {
     virtual bool is_valid_config(
@@ -138,13 +142,13 @@ struct body_generator_t : public body_generator_base_t {
                 ctx, *reinterpret_cast<const TConfig *>(config), body, fors);
     }
 
-    body_generator_t(const std::vector<logical_tensor_t> &ins,
+    body_generator_t(sc_op *owner, const std::vector<logical_tensor_t> &ins,
             const std::vector<logical_tensor_t> &outs)
-        : body_generator_base_t {ins, outs} {}
+        : body_generator_base_t {owner, ins, outs} {}
 
-    body_generator_t(std::vector<logical_tensor_t> &&ins,
+    body_generator_t(sc_op *owner, std::vector<logical_tensor_t> &&ins,
             std::vector<logical_tensor_t> &&outs)
-        : body_generator_base_t {std::move(ins), std::move(outs)} {}
+        : body_generator_base_t {owner, std::move(ins), std::move(outs)} {}
 };
 
 } // namespace sc

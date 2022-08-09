@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/config/context.hpp>
+#include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/sc_data_type.hpp>
 #include <unordered_set>
 namespace sc {
@@ -95,6 +96,11 @@ inline std::pair<int, int> get_amx_reduce_and_tile_factor(
     tile_factor = 2;
   }
   return std::make_pair(reduce_factor, tile_factor);
+}
+
+inline std::vector<int> get_dynamic_block_candidates(bool has_48 = true) {
+  return has_48 ? std::vector<int> {16, 32, 48, 64}
+                : std::vector<int> {16, 32, 64};
 }
 } // namespace ops
 } // namespace sc

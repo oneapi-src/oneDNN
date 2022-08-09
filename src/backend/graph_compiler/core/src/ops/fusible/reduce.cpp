@@ -25,6 +25,8 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
 
@@ -33,13 +35,11 @@ namespace sc {
 bool slice_full_on_axes(
         const sc_dims &dim, slice_range ranges, const std::vector<int> &axes) {
     for (auto &ax : axes) {
-        if (!ranges[ax].first.isa<constant>()
-                || !ranges[ax].second.isa<constant>()) {
-            return false;
-        }
-        if (get_const_as_int(ranges[ax].first.checked_as<constant>()) != 0
-                || get_const_as_int(ranges[ax].second.checked_as<constant>())
-                        != dim[ax]) {
+        auto first = do_cast_and_fold(ranges[ax].first);
+        auto second = do_cast_and_fold(ranges[ax].second);
+        if (!first.isa<constant>() || !second.isa<constant>()) { return false; }
+        if (get_const_as_int(first.checked_as<constant>()) != 0
+                || get_const_as_int(second.checked_as<constant>()) != dim[ax]) {
             return false;
         }
     }

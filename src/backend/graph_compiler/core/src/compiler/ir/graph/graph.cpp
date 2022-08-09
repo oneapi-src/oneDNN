@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <vector>
 
+#include "dynamic_dispatch_key.hpp"
+#include "dynamic_lower_info.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
@@ -204,10 +206,17 @@ const sc_dims &logical_tensor_t::get_blocking_dims() const {
     return dims_;
 }
 
-static bool check_stride_validity(const sc_dims &dims, const sc_dims &strides) {
+std::vector<expr> logical_tensor_t::get_blocking_dims_expr(
+        sc_graph_t &g) const {
+    return get_blocking_shapes_expr(g, plain_dims_, format_);
+}
+
+static bool check_stride_validity(
+        const bool is_dynamic, const sc_dims &dims, const sc_dims &strides) {
     return strides.size() == dims.size()
-            && std::is_sorted(
-                    strides.begin(), strides.end(), std::greater<sc_dim>());
+            && (is_dynamic
+                    || std::is_sorted(strides.begin(), strides.end(),
+                            std::greater<sc_dim>()));
 }
 
 void logical_tensor_t::internal_update() {
@@ -215,17 +224,24 @@ void logical_tensor_t::internal_update() {
     if (strides_.empty()) {
         strides_ = compute_dense_stride(dims_);
     } else {
-        COMPILE_ASSERT(check_stride_validity(dims_, strides_),
+        COMPILE_ASSERT(check_stride_validity(is_dynamic_, dims_, strides_),
                 "Specified strides value invalid or not consistent with "
                 "real(blocking) dims.")
     }
 }
 
+void logical_tensor_t::dynamic_update() {
+    is_dynamic_ = !std::all_of(plain_dims_.begin(), plain_dims_.end(),
+            [](const sc_dim &dim) { return !is_dynamic_dim(dim); });
+}
+
 // sets the logical dims in plain format
 void logical_tensor_t::set_plain_dims(const sc_dims &plain_dims) {
-    COMPILE_ASSERT(is_dense(), "Forbid update format on a strided tensor.");
+    COMPILE_ASSERT(is_dynamic_ || is_dense(),
+            "Forbid update format on a strided tensor.");
     strides_.clear();
     plain_dims_ = plain_dims;
+    dynamic_update();
     internal_update();
 }
 
@@ -247,7 +263,7 @@ void logical_tensor_t::set_format(const sc_data_format_t &newv) {
 }
 
 void logical_tensor_t::set_strides(const sc_dims &strides) {
-    COMPILE_ASSERT(check_stride_validity(dims_, strides),
+    COMPILE_ASSERT(check_stride_validity(is_dynamic_, dims_, strides),
             "Specified strides value invalid or not consistent with "
             "real(blocking) dims.")
     strides_ = strides;
@@ -260,7 +276,26 @@ void logical_tensor_t::set_format_and_stride(
     internal_update();
 }
 
-size_t logical_tensor_t::size() const {
+void logical_tensor_t::add_format_candidate(const sc_data_format_t &newv) {
+    format_candidates_.insert(newv);
+}
+
+void logical_tensor_t::remove_format_candidate(const sc_data_format_t &v) {
+    auto it = format_candidates_.find(v);
+    if (it != format_candidates_.end()) { format_candidates_.erase(it); }
+}
+
+void logical_tensor_t::set_format_candidates(
+        const std::vector<sc_data_format_t> &newf) {
+    format_candidates_.insert(newf.begin(), newf.end());
+    if (format_candidates_.size() == 1) {
+        format_ = *format_candidates_.begin();
+    }
+    internal_update();
+}
+
+size_t logical_tensor_t::get_blocking_byte_size() const {
+    COMPILE_ASSERT(!is_dynamic(), "blocking byte size should be static shape.");
     size_t sz = utils::get_sizeof_type(dtype_);
     for (auto z : get_blocking_dims()) {
         sz *= z;
@@ -270,6 +305,7 @@ size_t logical_tensor_t::size() const {
 
 bool logical_tensor_t::is_dense() {
     if (strides_.empty()) { return true; }
+    if (is_dynamic_) { return true; }
     assert(strides_.size() == dims_.size());
     if (strides_.back() != 1) { return false; }
     for (int i = dims_.size() - 2; i >= 0; --i) {
@@ -278,10 +314,25 @@ bool logical_tensor_t::is_dense() {
     return true;
 }
 
+std::vector<expr> logical_tensor_t::get_strides_expr(sc_graph_t &g) const {
+    return is_dynamic_ ? logical_tensor_t::compute_dense_stride_expr(
+                   g, get_blocking_dims_expr(g))
+                       : g.dims_to_expr(get_strides());
+}
+
 sc_dims logical_tensor_t::compute_dense_stride(const sc_dims &dims) {
     sc_dims strides(dims.size(), 1);
     for (int i = dims.size() - 2; i >= 0; --i) {
-        strides[i] = strides[i + 1] * dims[i + 1];
+        strides[i] = dims[i + 1] * strides[i + 1];
+    }
+    return strides;
+}
+
+std::vector<expr> logical_tensor_t::compute_dense_stride_expr(
+        sc_graph_t &g, const std::vector<expr> &dims) {
+    std::vector<expr> strides(dims.size(), UINT64_C(1));
+    for (int i = dims.size() - 2; i >= 0; --i) {
+        strides[i] = dims[i + 1] * strides[i + 1];
     }
     return strides;
 }
@@ -326,10 +377,40 @@ graph_tensor_ptr graph_tensor::copy() {
     return std::make_shared<graph_tensor>(producer_owner_, details_);
 }
 
+bool dispatch_key_cmper_t::operator()(
+        const op_dispatch_key_t &key0, const op_dispatch_key_t &key1) const {
+    if (key0.impl_ != key1.impl_) { return key0.impl_ < key1.impl_; }
+    assert(key0.in_out_formats_.size() == key1.in_out_formats_.size());
+    for (size_t i = 0; i < key0.in_out_formats_.size(); i++) {
+        if (key0.in_out_formats_[i].format_code_
+                != key1.in_out_formats_[i].format_code_) {
+            return key0.in_out_formats_[i].format_code_
+                    < key1.in_out_formats_[i].format_code_;
+        }
+        if (key0.in_out_formats_[i].blocks_
+                != key1.in_out_formats_[i].blocks_) {
+            return key0.in_out_formats_[i].blocks_
+                    < key1.in_out_formats_[i].blocks_;
+        }
+    }
+    assert(key0.var_block_.size() == key1.var_block_.size());
+    for (size_t i = 0; i < key0.var_block_.size(); i++) {
+        assert(key0.var_block_[i].size() == key1.var_block_[i].size());
+        for (size_t j = 0; j < key0.var_block_[i].size(); j++) {
+            if (key0.var_block_[i][j] != key1.var_block_[i][j]) {
+                return key0.var_block_[i][j] < key1.var_block_[i][j];
+            }
+        }
+    }
+    // equal
+    return false;
+}
+
 void sc_op::replace_input(size_t index, const graph_tensor_ptr &new_input) {
     assert(index < info_.inputs_.size());
-    assert(get_dims_product(info_.inputs_[index]->details_.get_plain_dims())
-            == get_dims_product(new_input->details_.get_plain_dims()));
+    assert(new_input->details_.is_dynamic()
+            || get_dims_product(info_.inputs_[index]->details_.get_plain_dims())
+                    == get_dims_product(new_input->details_.get_plain_dims()));
     info_.inputs_[index]->detach_use(shared_from_this(), index);
     info_.inputs_[index] = new_input;
     new_input->attach_use(shared_from_this(), index);
@@ -347,6 +428,29 @@ void sc_op::replace_uses_with_and_remove(const sc_op_ptr &replacer) {
 
 bool sc_op::is_single_output_single_use() {
     return info_.outputs_.size() == 1 && info_.outputs_[0]->uses_.size() == 1;
+}
+
+bool sc_op::is_dynamic() const {
+    return !std::all_of(info_.inputs_.begin(), info_.inputs_.end(),
+                   [](const graph_tensor_ptr &inp) {
+                       return !inp->details_.is_dynamic();
+                   })
+            || !std::all_of(info_.outputs_.begin(), info_.outputs_.end(),
+                    [](const graph_tensor_ptr &out) {
+                        return !out->details_.is_dynamic();
+                    });
+}
+
+const dispatch_set_ptr &sc_op::get_dispatch_key_set() const {
+    assert(info_.dispatch_key_set_);
+    return info_.dispatch_key_set_;
+}
+
+dispatch_set_ptr &sc_op::get_dispatch_key_set() {
+    if (!info_.dispatch_key_set_) {
+        info_.dispatch_key_set_ = std::make_shared<dispatch_key_set_t>();
+    }
+    return info_.dispatch_key_set_;
 }
 
 void sc_op::remove() {
@@ -437,6 +541,53 @@ void sc_graph_t::resort_op_ids(
     }
 }
 
+sc_dim sc_graph_t::get_next_dynamic_placeholder() {
+    if (!dyn_info_) { dyn_info_ = std::make_shared<dynamic_lower_info_t>(); }
+    COMPILE_ASSERT(std::numeric_limits<sc_dim>::min()
+                    < dyn_info_->cur_dynamic_placeholder_,
+            "Dynamic shapes are too many to mark!");
+    return dyn_info_->cur_dynamic_placeholder_--;
+}
+
+expr sc_graph_t::dim_to_expr(const sc_dim &v) {
+    const std::string dynamic_prefix = "dynamic_var_";
+    if (is_dynamic_dim(v)) {
+        if (!dyn_info_) {
+            dyn_info_ = std::make_shared<dynamic_lower_info_t>();
+        }
+        assert(v != dimensions::dynamic_any);
+        auto &m = dyn_info_->dim2expr_map_;
+        auto it = m.find(v);
+        if (it == m.end()) {
+            auto dyn_var = make_expr<var_node>(
+                    datatypes::index, dynamic_prefix + std::to_string(-v));
+            m[v] = dyn_var;
+            return dyn_var;
+        } else {
+            return it->second;
+        }
+    }
+    return dim2unsigned(v);
+}
+
+std::vector<expr> sc_graph_t::dims_to_expr(const sc_dims &dim) {
+    std::vector<sc::expr> dim_expr;
+    dim_expr.reserve(dim.size());
+    for (auto d : dim) {
+        dim_expr.emplace_back(dim_to_expr(d));
+    }
+    return dim_expr;
+}
+
+std::vector<expr_c> sc_graph_t::dims_to_expr_c(const sc_dims &dim) {
+    std::vector<sc::expr_c> dim_expr;
+    dim_expr.reserve(dim.size());
+    for (auto d : dim) {
+        dim_expr.emplace_back(dim_to_expr(d));
+    }
+    return dim_expr;
+}
+
 float sc_graph_t::get_gflop() const {
     float gflop = 0.f;
     for (auto &op : ops_) {
@@ -448,9 +599,15 @@ float sc_graph_t::get_gflop() const {
     return gflop;
 }
 
+bool sc_graph_t::is_dynamic() const {
+    return !std::all_of(ops_.begin(), ops_.end(),
+            [](const sc_op_ptr &op) { return !op->is_dynamic(); });
+}
+
 void sc_graph_t::add(const sc_op_ptr &ret) {
     assert(ret->logical_op_id_ == 0);
     ret->logical_op_id_ = ops_.size();
+    ret->set_owner_graph(this);
     for (auto &outs : ret->info_.outputs_) {
         assert(outs->producer_owner_ == nullptr
                 || outs->producer_owner_ == ret.get());
@@ -494,12 +651,16 @@ std::shared_ptr<sc_op> sc_graph_t::make(const std::string &op_name,
         ret->dyn_cast<op_traits::may_quantize_t>()->is_quantized_ = true;
     }
     add(ret);
+    // As owner graph is initialzed after op's constructor and add, some ops
+    // like conv need infer output plain shapes at this step.
+    ret->infer_out_tensor_details();
     return ret;
 }
 
 std::shared_ptr<sc_op> sc_graph_t::make_output(
         const std::vector<graph_tensor_ptr> &inputs, const any_map_t &attrs) {
     auto ret = std::make_shared<output_op>(inputs);
+    ret->owner_graph_ = this;
     ret->attrs_ = attrs;
     for (unsigned i = 0; i < inputs.size(); i++) {
         inputs[i]->attach_use(ret, i);
@@ -512,8 +673,10 @@ std::shared_ptr<sc_op> sc_graph_t::make_output(
 std::shared_ptr<sc_op> sc_graph_t::make_input(
         const std::vector<graph_tensor_ptr> &inputs, const any_map_t &attrs) {
     auto ret = std::make_shared<input_op>(inputs);
+    ret->owner_graph_ = this;
     ret->attrs_ = attrs;
     ret->logical_op_id_ = ops_.size();
+    if (ret->is_dynamic()) { ret->initialize_dynamic_placeholder(); }
     ops_.emplace_back(ret);
     return ret;
 }
@@ -599,6 +762,10 @@ float sc_op::get_gflop() {
     return 0.0f;
 }
 
+std::vector<int> sc_op::get_impl_dispatch_candidates() const {
+    return get_default_impl_dispatch_candidates();
+}
+
 namespace graph {
 std::string decay_quantized_op_name(const std::string &op_name) {
     bool is_quantized = utils::string_startswith(op_name, "quantized");
@@ -617,52 +784,58 @@ void get_logical_tensors(
     }
 }
 
-expr tensor_detail_to_ir_tensor(
-        const std::string &name, const logical_tensor_t &tsrd) {
+expr tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
+        const logical_tensor_t &tsrd) {
     auto blocking_dims = tsrd.get_blocking_dims();
     auto strides = tsrd.get_strides();
     COMPILE_ASSERT(blocking_dims.size() == strides.size(),
             "Dims and strides does not match.");
-    return builder::make_stensor(name, dims_to_expr(blocking_dims),
-            dims_to_expr(strides), tsrd.dtype_);
+    auto blocking_exprs = tsrd.get_blocking_dims_expr(graph);
+    auto tsr = builder::make_stensor(name, blocking_exprs,
+            tsrd.get_strides_expr(graph), tsrd.dtype_, address_space::automatic,
+            nullptr);
+    return tsr;
 }
 
-expr tensor_detail_to_ir_tensor(const std::string &name,
+expr tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
         const graph_tensor_ptr &gt, gt2buf_map &g2b_map) {
     if (!g2b_map.haskey(gt))
-        g2b_map.get(gt) = tensor_detail_to_ir_tensor(name, gt->details_);
+        g2b_map.get(gt) = tensor_detail_to_ir_tensor(graph, name, gt->details_);
     return g2b_map.get(gt);
 }
 
-std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,
+std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
+        const std::string &name_prefix,
         const std::vector<logical_tensor_t> &tsrs) {
     std::vector<expr> ret;
     ret.reserve(tsrs.size());
     for (size_t i = 0; i < tsrs.size(); i++) {
         ret.emplace_back(tensor_detail_to_ir_tensor(
-                name_prefix + std::to_string(i), tsrs[i]));
+                graph, name_prefix + std::to_string(i), tsrs[i]));
     }
     return ret;
 }
 
-std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,
+std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
+        const std::string &name_prefix,
         const std::vector<graph_tensor_ptr> &tsrs) {
     std::vector<expr> ret;
     ret.reserve(tsrs.size());
     for (size_t i = 0; i < tsrs.size(); i++) {
         ret.emplace_back(tensor_detail_to_ir_tensor(
-                name_prefix + std::to_string(i), tsrs[i]->details_));
+                graph, name_prefix + std::to_string(i), tsrs[i]->details_));
     }
     return ret;
 }
 
-std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,
+std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
+        const std::string &name_prefix,
         const std::vector<graph_tensor_ptr> &tsrs, gt2buf_map &g2b_map) {
     std::vector<expr> ret;
     ret.reserve(tsrs.size());
     for (size_t i = 0; i < tsrs.size(); i++) {
         auto ir_tsr = tensor_detail_to_ir_tensor(
-                name_prefix + std::to_string(i), tsrs[i], g2b_map);
+                graph, name_prefix + std::to_string(i), tsrs[i], g2b_map);
         ret.emplace_back(ir_tsr);
     }
     return ret;

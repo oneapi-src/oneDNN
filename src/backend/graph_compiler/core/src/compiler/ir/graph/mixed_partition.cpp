@@ -124,7 +124,8 @@ void mxp_replacer_t::replace_anchor(
 }
 
 void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
-    graph::tensor_detail_to_ir_tensor(
+    auto &graph = op->get_owner_graph();
+    graph::tensor_detail_to_ir_tensor(graph,
             op->op_name_ + "_" + std::to_string(op->logical_op_id_) + "_ins_",
             op->get_inputs(), g2b_map_);
 
@@ -168,10 +169,10 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
         auto base_tsr = get_real_tensor(g2b_map_.get(op->get_inputs()[0]));
         g2b_map_.get(op->get_outputs()[0]) = builder::tensor_ptr(base_tsr,
                 std::vector<expr>(base_tsr->dims_.size(), 0),
-                dims_to_expr(tv_op->get_shapes()));
+                graph.dims_to_expr(tv_op->get_shapes()));
     }
 
-    graph::tensor_detail_to_ir_tensor(
+    graph::tensor_detail_to_ir_tensor(graph,
             op->op_name_ + "_" + std::to_string(op->logical_op_id_) + "_outs_",
             op->get_outputs(), g2b_map_);
 

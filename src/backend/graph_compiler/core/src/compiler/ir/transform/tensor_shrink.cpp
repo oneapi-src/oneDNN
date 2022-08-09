@@ -18,6 +18,8 @@
 #include <vector>
 #include "../ir_comparer.hpp"
 #include "../visitor.hpp"
+#include "auto_cast.hpp"
+#include "constant_fold.hpp"
 #include <compiler/dimensions.hpp>
 #include <compiler/ir/builder.hpp>
 #include <unordered_map>
@@ -79,11 +81,13 @@ bool check_brgemm_LDX(
     if (is_tensor_and_should_shrink(tsr)) {
         auto &shrink_info = tsr->attr_->get<tensor_shrinker_t::shrink_info_t>(
                 tensor_shrinker_attrs::should_shrink);
+        auto ld_arg_const
+                = constant_folder_t()(auto_caster_t()(args[LD_arg_idx]));
         COMPILE_ASSERT(shrink_info.shape_.size() == tsr->dims_.size(),
                 "Bad number of dimensions for indexing access");
-        COMPILE_ASSERT(args[LD_arg_idx].isa<constant>(),
-                "Constant LDX is expected, but got " << args[LD_arg_idx]);
-        int64_t LDX = get_expr_as_int(args[LD_arg_idx]);
+        COMPILE_ASSERT(ld_arg_const.isa<constant>(),
+                "Constant LDX is expected, but got " << ld_arg_const);
+        int64_t LDX = get_expr_as_int(ld_arg_const);
         int64_t acc_orig = 1, acc_shrink = 1;
         for (int64_t i = static_cast<int64_t>(shrink_info.shape_.size()) - 1;
                 i >= 0; i--) {

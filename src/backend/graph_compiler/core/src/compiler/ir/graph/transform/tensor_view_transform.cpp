@@ -217,7 +217,7 @@ void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
     int reorder2tv = graph.attrs_.get_or_else("temp.reorder2tv", 1);
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
-        if (node->isa<reorder_op_t>() && reorder2tv
+        if (node->isa<reorder_op_t>() && reorder2tv && !node->is_dynamic()
                 && should_transform_reorder(node)) {
             auto tensor_view_out = node->get_outputs()[0]->copy();
             tensor_view_out->producer_owner_ = nullptr;

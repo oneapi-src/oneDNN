@@ -20,6 +20,7 @@
 #include "../builder.hpp"
 #include "../util_module_passes.hpp"
 #include "../visitor.hpp"
+#include "auto_cast.hpp"
 #include "constant_fold.hpp"
 #include <compiler/ir/ir_comparer.hpp>
 #include <util/utils.hpp>
@@ -890,6 +891,16 @@ expr_c constant_folder_t::expand_polynomial(expr_c f, int max_iter) {
 const_ir_module_ptr constant_folder_t::operator()(const_ir_module_ptr f) {
     constant_fold_t pass;
     return dispatch_module_on_visitor(&pass, f);
+}
+
+expr do_cast_and_fold(const expr &in) {
+    static auto_caster_t caster;
+    static constant_folder_t folder;
+    return folder(caster(in)).remove_const();
+}
+
+expr_c do_cast_and_fold(const expr_c &in) {
+    return do_cast_and_fold(in.remove_const());
 }
 
 } // namespace sc

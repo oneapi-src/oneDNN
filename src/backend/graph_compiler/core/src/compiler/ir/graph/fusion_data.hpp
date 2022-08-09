@@ -42,6 +42,7 @@ enum class infer_status_code : int {
     END,
 };
 
+expr do_cast_and_fold(const expr &);
 struct infer_status_map_t {
 private:
     context_ptr ctx_;
@@ -116,7 +117,7 @@ public:
 inline std::vector<expr> get_slice_idx(const slice_range &range) {
     std::vector<expr> ret;
     for (auto &r : range) {
-        ret.emplace_back(r.first);
+        ret.emplace_back(do_cast_and_fold(r.first));
     }
     return ret;
 }
@@ -124,7 +125,7 @@ inline std::vector<expr> get_slice_idx(const slice_range &range) {
 inline std::vector<expr> get_slice_shape(const slice_range &range) {
     std::vector<expr> ret;
     for (auto &r : range) {
-        ret.emplace_back(r.second);
+        ret.emplace_back(do_cast_and_fold(r.second));
     }
     return ret;
 }

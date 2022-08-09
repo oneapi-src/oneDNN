@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,27 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_DIMENSIONS_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_DIMENSIONS_HPP
-#include <assert.h>
-#include <stdint.h>
-#include <vector>
 
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_UTILS_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_UTILS_HPP
 namespace sc {
-using sc_dim = int64_t;
-using sc_dims = std::vector<sc_dim>;
-namespace dimensions {
-constexpr sc_dim dynamic_any = -1;
-}
+namespace runtime {
+/**
+ * @brief Get the dynamic config single block from the plain dynamic dimension
+ *
+ * @param in the dynamic dimension
+ * @param has_48 default true, candidates are [16, 32, 48, 64], if false,
+ * candidates are [16, 32, 64].
+ * @return the selected block config
+ */
+int get_dyn_cfg_single(int in, bool has_48 = true);
 
-inline uint64_t dim2unsigned(sc_dim v) {
-    assert(v >= 0);
-    return v;
-}
-
-inline bool is_dynamic_dim(sc_dim v) {
-    return v < 0;
-}
+} // namespace runtime
 
 } // namespace sc
 
