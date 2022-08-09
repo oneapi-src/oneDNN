@@ -71,6 +71,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
 /*
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
 on GPU, while CPU supports.
+matched pattern:
+    for case1 and case2
+                        Dequantize
+                            |
+                    (AvgPool|MaxPool)
+                            |
+                (StaticReshape|StaticTranspose)*
+                            |
+                        Quantize
+    for case 3
+                    Dequantize
+                        |
+                (AvgPool|MaxPool)   Dequantize
+                           \         /
+                               Add
+                                |
+                              Quantize
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_cpu)
         .set_priority(10.0f)
@@ -80,25 +97,62 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_cpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto pdequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "pdequnt_data");
+                    pdequant_data->append_decision_function(
+                            check_qtype_equal_to_per_tensor);
 
                     auto ppool = pgraph->append_alternation(
                             {impl::op_kind::AvgPool, impl::op_kind::MaxPool},
                             {in_edge(0, pdequant_data, 0)}, "ppool");
+                    // case1: quant
+                    auto subgraph_1 = std::make_shared<pb_graph_t>(
+                            "subgraph_only_quant");
+                    {
+                        auto quant = subgraph_1->append_op(
+                                impl::op_kind::Quantize, "pquantize");
+                        quant->append_decision_function(
+                                check_qtype_equal_to_per_tensor);
+                        subgraph_1->create_input_port(0, quant, 0);
+                        subgraph_1->create_output_port(0, quant, 0);
+                    }
 
-                    auto padd_subgraph
+                    // case2: reshape - quant
+                    auto subgraph_2 = std::make_shared<pb_graph_t>(
+                            "subgraph_reshape_quant");
+                    {
+                        auto reshape = subgraph_2->append_alternation(
+                                {impl::op_kind::StaticReshape,
+                                        impl::op_kind::StaticTranspose},
+                                "reshape");
+                        auto quant
+                                = subgraph_2->append_op(impl::op_kind::Quantize,
+                                        {in_edge(0, reshape, 0)}, "pquantize");
+                        quant->append_decision_function(
+                                check_qtype_equal_to_per_tensor);
+                        subgraph_2->create_input_port(0, reshape, 0);
+                        subgraph_2->create_output_port(0, quant, 0);
+                    }
+
+                    // case3: binary op -quant
+                    auto subgraph_3
                             = std::make_shared<pb_graph_t>("padd_subgraph");
-                    auto pdequant_other = padd_subgraph->append_op(
-                            impl::op_kind::Dequantize, "pdequnt_other");
-                    auto padd = padd_subgraph->append_op(impl::op_kind::Add,
-                            {in_edge(1, pdequant_other, 0)}, "padd");
-                    padd_subgraph->create_input_port(0, padd, 0);
-                    padd_subgraph->create_input_port(1, pdequant_other, 0);
-                    padd_subgraph->create_output_port(0, padd, 0);
-                    auto pbinary = pgraph->append_optional(
-                            padd_subgraph, {in_edge(0, ppool, 0)}, "pbinary");
+                    {
+                        auto pdequant_other = subgraph_3->append_op(
+                                impl::op_kind::Dequantize, "pdequnt_other");
+                        auto padd = subgraph_3->append_op(impl::op_kind::Add,
+                                {in_edge(1, pdequant_other, 0)}, "padd");
+                        auto quant
+                                = subgraph_3->append_op(impl::op_kind::Quantize,
+                                        {in_edge(0, padd, 0)}, "pquantize");
 
-                    pgraph->append_op(impl::op_kind::Quantize,
-                            {in_edge(0, pbinary, 0)}, "pquantize");
+                        quant->append_decision_function(
+                                check_qtype_equal_to_per_tensor);
+                        subgraph_3->create_input_port(0, padd, 0);
+                        subgraph_3->create_input_port(1, pdequant_other, 0);
+                        subgraph_3->create_output_port(0, quant, 0);
+                    }
+                    pgraph->append_alternation(
+                            {subgraph_1, subgraph_2, subgraph_3},
+                            {in_edge(0, ppool, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_pooling>();
@@ -107,6 +161,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_cpu)
 /*
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
 on GPU, while CPU supports.
+matched pattern:
+    for case1 and case2
+                        Dequantize
+                            |
+                    (AvgPool|MaxPool)
+                            |
+                (StaticReshape|StaticTranspose)*
+                            |
+                        Quantize
+    for case 3
+                    Dequantize
+                        |
+                (AvgPool|MaxPool)   Dequantize
+                           \         /
+                               Add
+                                |
+                              Quantize
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_gpu)
         .set_priority(10.0f)
@@ -120,23 +191,51 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_gpu)
                     auto ppool = pgraph->append_alternation(
                             {impl::op_kind::AvgPool, impl::op_kind::MaxPool},
                             {in_edge(0, pdequant_data, 0)}, "ppool");
+                    // case1: quant
+                    auto subgraph_1 = std::make_shared<pb_graph_t>(
+                            "subgraph_only_quant");
+                    {
+                        auto quant = subgraph_1->append_op(
+                                impl::op_kind::Quantize, "pquantize");
+                        subgraph_1->create_input_port(0, quant, 0);
+                        subgraph_1->create_output_port(0, quant, 0);
+                    }
 
-                    auto padd_subgraph
+                    // case2: reshape - quant
+                    auto subgraph_2 = std::make_shared<pb_graph_t>(
+                            "subgraph_reshape_quant");
+                    {
+                        auto reshape = subgraph_2->append_alternation(
+                                {impl::op_kind::StaticReshape,
+                                        impl::op_kind::StaticTranspose},
+                                "reshape");
+                        auto quant
+                                = subgraph_2->append_op(impl::op_kind::Quantize,
+                                        {in_edge(0, reshape, 0)}, "pquantize");
+                        subgraph_2->create_input_port(0, reshape, 0);
+                        subgraph_2->create_output_port(0, quant, 0);
+                    }
+
+                    // case3: binary op -quant
+                    auto subgraph_3
                             = std::make_shared<pb_graph_t>("padd_subgraph");
-                    auto pdequant_other = padd_subgraph->append_op(
-                            impl::op_kind::Dequantize, "pdequnt_other");
-                    pdequant_other->append_decision_function(
-                            check_zps_values<0>);
-                    auto padd = padd_subgraph->append_op(impl::op_kind::Add,
-                            {in_edge(1, pdequant_other, 0)}, "padd");
-                    padd_subgraph->create_input_port(0, padd, 0);
-                    padd_subgraph->create_input_port(1, pdequant_other, 0);
-                    padd_subgraph->create_output_port(0, padd, 0);
-                    auto pbinary = pgraph->append_optional(
-                            padd_subgraph, {in_edge(0, ppool, 0)}, "pbinary");
-
-                    pgraph->append_op(impl::op_kind::Quantize,
-                            {in_edge(0, pbinary, 0)}, "pquantize");
+                    {
+                        auto pdequant_other = subgraph_3->append_op(
+                                impl::op_kind::Dequantize, "pdequnt_other");
+                        pdequant_other->append_decision_function(
+                                check_zps_values<0>);
+                        auto padd = subgraph_3->append_op(impl::op_kind::Add,
+                                {in_edge(1, pdequant_other, 0)}, "padd");
+                        auto quant
+                                = subgraph_3->append_op(impl::op_kind::Quantize,
+                                        {in_edge(0, padd, 0)}, "pquantize");
+                        subgraph_3->create_input_port(0, padd, 0);
+                        subgraph_3->create_input_port(1, pdequant_other, 0);
+                        subgraph_3->create_output_port(0, quant, 0);
+                    }
+                    pgraph->append_alternation(
+                            {subgraph_1, subgraph_2, subgraph_3},
+                            {in_edge(0, ppool, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_pooling>();

@@ -14,9 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cmath>
 #include <functional>
+#include <memory>
 #include <random>
 #include <tuple>
+#include <vector>
 
 #include "interface/c_types_map.hpp"
 
@@ -1344,3 +1347,171 @@ INSTANTIATE_TEST_SUITE_P(Execute, PoolBinary,
                         impl::op_kind::AvgPool, impl::op_kind::Multiply},
                 dnnl_graph_test_pool_binary_params {
                         impl::op_kind::MaxPool, impl::op_kind::Subtract}));
+
+// dequant -> pool -> reshape* -> quant
+TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
+    using dims = impl::dnnl_impl::dims;
+    using dim = impl::dnnl_impl::dim;
+
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    const std::string data_format {"NCX"};
+    dim width = 3;
+    dim height = 3;
+    dim kernel_x = 2;
+    dim kernel_y = 2;
+    dim stride_x = 1;
+    dim stride_y = 1;
+
+    std::vector<int64_t> src_shape {1, 1, width, height};
+    std::vector<int64_t> pool_out_shape {1, 1, 2, 2};
+    const std::vector<impl::op_kind_t> base_op_kinds {
+            impl::op_kind::AvgPool, impl::op_kind::MaxPool};
+    const std::vector<impl::op_kind_t> rtypes {impl::op_kind::StaticTranspose,
+            impl::op_kind::Wildcard, impl::op_kind::StaticReshape};
+    test::vector<int8_t> src_s8_data {4, 8, 12, 16, 20, 24, 28, 32, 36};
+    std::vector<int64_t> order {3, 2, 1, 0};
+    const float scale_src = 0.1f;
+    const float scale_out = 0.2f;
+    const int64_t zp_src = -4;
+    const int64_t zp_out = -4;
+    std::vector<
+            std::tuple<impl::op_kind_t, impl::op_kind_t, test::vector<int8_t>>>
+            ut_vec {std::make_tuple(impl::op_kind::StaticTranspose,
+                            impl::op_kind::AvgPool,
+                            test::vector<int8_t> {4, 10, 6, 12}),
+                    std::make_tuple(impl::op_kind::StaticTranspose,
+                            impl::op_kind::MaxPool,
+                            test::vector<int8_t> {8, 14, 10, 16}),
+                    std::make_tuple(impl::op_kind::Wildcard,
+                            impl::op_kind::AvgPool,
+                            test::vector<int8_t> {4, 6, 10, 12}),
+                    std::make_tuple(impl::op_kind::Wildcard,
+                            impl::op_kind::MaxPool,
+                            test::vector<int8_t> {8, 10, 14, 16}),
+                    std::make_tuple(impl::op_kind::StaticReshape,
+                            impl::op_kind::AvgPool,
+                            test::vector<int8_t> {4, 6, 10, 12}),
+                    std::make_tuple(impl::op_kind::StaticReshape,
+                            impl::op_kind::MaxPool,
+                            test::vector<int8_t> {8, 10, 14, 16})};
+    size_t id = 0;
+    for (auto &item : ut_vec) {
+        const auto &rtype = std::get<0>(item);
+        const auto &op_kind = std::get<1>(item);
+        auto dst_data = std::get<2>(item);
+
+        std::vector<int64_t> dst_shape {1, 1, 2, 2};
+        if (rtype == impl::op_kind::StaticReshape) {
+            dst_shape.assign(1, product(dst_shape));
+        } else if (rtype == impl::op_kind::StaticTranspose) {
+            std::reverse(dst_shape.begin(), dst_shape.end());
+        }
+
+        test::vector<int8_t> case1_dst_s8_data(product(dst_shape));
+
+        impl::op_t dqdata_op(id++, impl::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+        impl::op_t pool_op(id++, op_kind, "pool_op");
+        pool_op.set_attr<dims>(
+                impl::op_attr::strides, dims {stride_x, stride_y});
+        pool_op.set_attr<dims>(
+                impl::op_attr::kernel, dims {kernel_x, kernel_y});
+        pool_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+        pool_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+        pool_op.set_attr<std::string>(impl::op_attr::data_format, data_format);
+
+        if (op_kind == impl::op_kind::AvgPool)
+            pool_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
+
+        impl::op_t reshape_op(id++, rtype, "reshape");
+        if (rtype == impl::op_kind::StaticReshape) {
+            reshape_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::shape, {-1});
+            reshape_op.set_attr<bool>(impl::op_attr::special_zero, false);
+        } else if (rtype == impl::op_kind::StaticTranspose) {
+            //StaticTranspose
+            reshape_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::order, order);
+        }
+
+        impl::op_t qout_op(id++, impl::op_kind::Quantize, "qout_op");
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+        auto dq_in_s8 = utils::logical_tensor_init(
+                id++, src_shape, impl::data_type::s8);
+        auto dq_out_f32 = utils::logical_tensor_init(
+                id++, src_shape, impl::data_type::f32);
+        dqdata_op.add_input(dq_in_s8);
+        dqdata_op.add_output(dq_out_f32);
+
+        auto pool_out_f32 = utils::logical_tensor_init(
+                id++, pool_out_shape, impl::data_type::f32);
+        pool_op.add_input(dq_out_f32);
+        pool_op.add_output(pool_out_f32);
+
+        auto reshape_out_f32 = utils::logical_tensor_init(
+                id++, dst_shape, impl::data_type::f32);
+        auto q_out_s8 = utils::logical_tensor_init(
+                id++, dst_shape, impl::data_type::s8);
+
+        if (rtype != impl::op_kind::Wildcard) {
+            reshape_op.add_input(pool_out_f32);
+            reshape_op.add_output(reshape_out_f32);
+
+            qout_op.add_input(reshape_out_f32);
+            qout_op.add_output(q_out_s8);
+        } else {
+            qout_op.add_input(pool_out_f32);
+            qout_op.add_output(q_out_s8);
+        }
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&dqdata_op);
+        g.add_op(&pool_op);
+        if (rtype != impl::op_kind::Wildcard) { g.add_op(&reshape_op); }
+        g.add_op(&qout_op);
+        g.build_graph();
+
+        impl::tensor_t src_s8_ts(dq_in_s8, &engine, src_s8_data.data());
+        impl::tensor_t case1_dst_s8_ts(
+                q_out_s8, &engine, case1_dst_s8_data.data());
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_pool_binary_fusion_gpu"
+                                : "int8_pool_binary_fusion_cpu");
+        apass->run(g);
+
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+        impl::compiled_partition_t cp(p);
+        std::vector<const impl::logical_tensor_t *> lt_ins {&dq_in_s8};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&q_out_s8};
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+        cp.execute(&strm, {src_s8_ts}, {case1_dst_s8_ts});
+        strm.wait();
+
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_dst_s8_data, dst_data,
+                    /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_dst_s8_data, dst_data,
+                    /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
+    }
+}

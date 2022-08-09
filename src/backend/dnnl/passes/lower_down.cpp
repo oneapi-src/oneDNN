@@ -23,6 +23,7 @@
 #include <numeric>
 #include <set>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -412,11 +413,16 @@ impl::status_t replace_quant_data_with_binary_post_op(
             // add quant data as a constant input
             const auto qtype
                     = quant_data_op->get_attr<std::string>(op_attr::qtype);
-            const auto axis = quant_data_op->get_attr<int64_t>(op_attr::axis);
             const std::vector<int64_t> out_shape
                     = ltw(out_val->get_logical_tensor()).vdims();
             std::vector<int64_t> new_shape(out_shape.size(), 1);
-            if (qtype == "per_tensor") new_shape[axis] = out_shape[axis];
+
+            // axis in  [-r, r-1], it may less 0
+            const auto axis = (quant_data_op->get_attr<int64_t>(op_attr::axis)
+                                      + out_shape.size())
+                    % out_shape.size();
+
+            if (qtype != "per_tensor") new_shape[axis] = out_shape[axis];
             op_ptr const_data_op;
             if (quant_data_op->get_kind() == op_kind::dnnl_mul_scales) {
                 const auto scales = quant_data_op->get_attr<std::vector<float>>(
@@ -3861,13 +3867,18 @@ impl::status_t remove_quant_data_with_no_effect(
         }
 
         if (to_remove) {
+            // for dnnl_mul_scales out_value dataType is f32
+            // for dnnl_add_zps out_value dataType is s8/u8
+            // post logical tensor should be retained
             value_ptr quant_data_out_val = quant_data_op->get_output_value(0);
-            if (quant_data_out_val->get_consumers().empty()) {
-                value_ptr quant_data_in_val = quant_data_op->get_input_value(0);
-                op_t &predecessor_op = quant_data_in_val->get_producer();
-                predecessor_op.connect_output(0, quant_data_out_val);
-                to_be_removed_ops.push_back(quant_data_op);
+            value_ptr quant_data_in_val = quant_data_op->get_input_value(0);
+            if (quant_data_in_val->has_producer()) {
+                quant_data_in_val->get_producer().connect_output(
+                        quant_data_in_val->get_offset(), quant_data_out_val);
+                to_be_removed_ops.emplace_back(quant_data_op);
             } else {
+                assertm(!quant_data_out_val->get_consumers().empty(),
+                        "single op can't be removed");
                 fuse_op_to_successor(quant_data_op.get(), subgraph);
             }
         }
