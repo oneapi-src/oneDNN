@@ -858,8 +858,8 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
             = get_pass("int8_identical_bottleneck_resblock_fusion");
     impl::pass::pass_base_ptr apass2
             = get_pass(eng->kind() == impl::engine_kind::gpu
-                            ? "int8_conv_post_ops_fusion_gpu"
-                            : "int8_conv_post_ops_fusion_cpu");
+                            ? "int8_conv_post_ops_int8_add_fusion_gpu"
+                            : "int8_conv_post_ops_int8_add_fusion_cpu");
     apass1->run(g);
     apass2->run(g);
     ASSERT_EQ(g.get_num_partitions(), 2U);
