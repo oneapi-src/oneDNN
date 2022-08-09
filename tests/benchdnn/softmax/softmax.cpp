@@ -191,12 +191,6 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         skip_invalid_inplace(res, prb->sdt, prb->ddt, prb->stag, prb->dtag);
         if (res->state == SKIPPED) return;
     }
-
-    // Runtime output scale is not supported.
-    if (is_gpu() && prb->attr.oscale.runtime) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
