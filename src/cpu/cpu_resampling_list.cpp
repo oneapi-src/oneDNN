@@ -20,7 +20,7 @@
 #include "cpu/simple_resampling.hpp"
 
 #if DNNL_X64
-#include "cpu/x64/jit_avx512_common_resampling.hpp"
+#include "cpu/x64/jit_avx512_core_resampling.hpp"
 #include "cpu/x64/jit_uni_resampling.hpp"
 using namespace dnnl::impl::cpu::x64;
 #endif
@@ -43,7 +43,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
-            CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t)
+            CPU_INSTANCE_X64(jit_avx512_core_resampling_bwd_t)
             CPU_INSTANCE(simple_resampling_bwd_t)
             CPU_INSTANCE(ref_resampling_bwd_t)
             nullptr,

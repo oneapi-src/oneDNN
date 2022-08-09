@@ -22,7 +22,7 @@
 
 #include "cpu/x64/jit_generator.hpp"
 
-#include "cpu/x64/jit_avx512_common_resampling.hpp"
+#include "cpu/x64/jit_avx512_core_resampling.hpp"
 
 #include "utils/jit_io_helper.hpp"
 
@@ -45,12 +45,12 @@ struct jit_resampling_args_t {
 // jit kernels
 namespace {
 
-struct jit_avx512_common_resampling_kernel_t
-    : public jit_avx512_common_resampling_kernel_base_t {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_resampling)
+struct jit_avx512_core_resampling_kernel_t
+    : public jit_avx512_core_resampling_kernel_base_t {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_resampling)
 
-    jit_avx512_common_resampling_kernel_t(const resampling_pd_t *pd)
-        : jit_avx512_common_resampling_kernel_base_t(pd, jit_name())
+    jit_avx512_core_resampling_kernel_t(const resampling_pd_t *pd)
+        : jit_avx512_core_resampling_kernel_base_t(pd, jit_name())
         , is_saturation_needed_(utils::one_of(dst_data_type(), data_type::u8,
                   data_type::s8, data_type::s32)) {
 
@@ -786,26 +786,26 @@ private:
 
 } // namespace
 
-jit_avx512_common_resampling_kernel_base_t::
-        jit_avx512_common_resampling_kernel_base_t(
+jit_avx512_core_resampling_kernel_base_t::
+        jit_avx512_core_resampling_kernel_base_t(
                 const resampling_pd_t *pd, const char *name)
     : jit_generator(name), pd_(pd) {}
 
-data_type_t jit_avx512_common_resampling_kernel_base_t::src_data_type() const {
+data_type_t jit_avx512_core_resampling_kernel_base_t::src_data_type() const {
     if (pd_->is_fwd())
         return pd_->src_md()->data_type;
     else
         return pd_->diff_dst_md()->data_type;
 }
 
-data_type_t jit_avx512_common_resampling_kernel_base_t::dst_data_type() const {
+data_type_t jit_avx512_core_resampling_kernel_base_t::dst_data_type() const {
     if (pd_->is_fwd())
         return pd_->dst_md()->data_type;
     else
         return pd_->diff_src_md()->data_type;
 }
 
-status_t jit_avx512_common_resampling_bwd_t::pd_t::init(engine_t *engine) {
+status_t jit_avx512_core_resampling_bwd_t::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
     const bool ok = mayiuse(avx512_core) && !is_fwd() && !has_zero_dim_memory()
@@ -823,16 +823,15 @@ status_t jit_avx512_common_resampling_bwd_t::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
-jit_avx512_common_resampling_bwd_t::~jit_avx512_common_resampling_bwd_t()
-        = default;
+jit_avx512_core_resampling_bwd_t::~jit_avx512_core_resampling_bwd_t() = default;
 
-status_t jit_avx512_common_resampling_bwd_t::init(engine_t *engine) {
+status_t jit_avx512_core_resampling_bwd_t::init(engine_t *engine) {
     CHECK(safe_ptr_assign(
-            kernel_, new jit_avx512_common_resampling_kernel_t(pd())));
+            kernel_, new jit_avx512_core_resampling_kernel_t(pd())));
     return kernel_->create_kernel();
 }
 
-status_t jit_avx512_common_resampling_bwd_t::execute(
+status_t jit_avx512_core_resampling_bwd_t::execute(
         const exec_ctx_t &ctx) const {
 
     const auto diff_dst = CTX_IN_MEM(const unsigned char *, DNNL_ARG_DIFF_DST);
