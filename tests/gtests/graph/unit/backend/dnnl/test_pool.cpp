@@ -811,9 +811,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     g.add_op(&maxpool);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass1 = get_pass(
-            eng->kind() == impl::engine_kind::gpu ? "dequant_pass_gpu"
-                                                  : "dequant_pass_cpu");
+    impl::pass::pass_base_ptr apass1 = get_pass("dequant_pass");
     impl::pass::pass_base_ptr apass2 = get_pass("max_pool_pass");
     apass1->run(g);
     apass2->run(g);
