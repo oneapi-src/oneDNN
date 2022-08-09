@@ -37,11 +37,6 @@ bool check_scales_equal_to_1(op_t *op) {
             [](float val) { return val == 1.0f; });
 }
 
-bool check_qtype_equal_to_per_tensor(op_t *op) {
-    std::string qtype = op->get_attr<std::string>(op_attr::qtype);
-    return qtype == "per_tensor";
-}
-
 /*!
  * \brief This provides convtranspose-related fusion
  *        The process includes follow steps:

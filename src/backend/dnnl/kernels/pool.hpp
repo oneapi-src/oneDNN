@@ -102,6 +102,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
 
         if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_pool);
             BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
             BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);

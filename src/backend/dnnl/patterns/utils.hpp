@@ -16,7 +16,9 @@
 #ifndef BACKEND_DNNL_PATTERNS_UTILS_HPP
 #define BACKEND_DNNL_PATTERNS_UTILS_HPP
 
+#include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "interface/c_types_map.hpp"
@@ -72,6 +74,11 @@ template <size_t N>
 bool check_producer_input_num(op_t *op) {
     op_t *producer = op->get_input_op(0);
     return producer->num_inputs() == N;
+}
+
+inline bool check_qtype_equal_to_per_tensor(op_t *op) {
+    std::string qtype = op->get_attr<std::string>(op_attr::qtype);
+    return qtype == "per_tensor";
 }
 
 inline const std::vector<impl::op_kind_t> &get_unary_ops() {
