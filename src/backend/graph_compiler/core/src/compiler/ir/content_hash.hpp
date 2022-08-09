@@ -21,6 +21,7 @@
 #include "ir_comparer.hpp"
 #include "sc_expr.hpp"
 #include <unordered_map>
+#include <util/compiler_macros.hpp>
 
 namespace sc {
 template <typename T>
@@ -58,7 +59,10 @@ struct content_equals_t {};
 
 template <>
 struct content_equals_t<expr_c> {
+#if !SC_GNUC_VERSION_LT(7)
+    // Old version of gcc will produce error upon content_hash_map construction
     ir_comparer cmper_;
+#endif
     bool operator()(const expr_c &a, const expr_c &b) const;
 };
 

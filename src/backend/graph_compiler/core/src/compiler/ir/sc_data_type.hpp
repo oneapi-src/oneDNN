@@ -156,6 +156,7 @@ enum type_category { CATE_FLOAT, CATE_INT, CATE_UINT, CATE_OTHER };
 
 extern type_category get_type_category(sc_data_type_t dtype);
 extern type_category get_type_category_nothrow(sc_data_type_t dtype);
+extern type_category get_etype_category(sc_data_type_t dtype);
 extern type_category get_etype_category_nothrow(sc_data_type_t dtype);
 
 SC_INTERNAL_API std::ostream &operator<<(std::ostream &os, sc_data_etype etype);

@@ -49,6 +49,22 @@ type_category get_type_category_nothrow(sc_data_type_t dtype) {
     }
 }
 
+type_category get_etype_category(sc_data_type_t dtype) {
+    switch (dtype.type_code_) {
+        case sc_data_etype::BF16:
+        case sc_data_etype::F16:
+        case sc_data_etype::F32: return CATE_FLOAT; break;
+        case sc_data_etype::S32:
+        case sc_data_etype::S8: return CATE_INT; break;
+        case sc_data_etype::INDEX:
+        case sc_data_etype::U32:
+        case sc_data_etype::U16:
+        case sc_data_etype::U8:
+        case sc_data_etype::BOOLEAN: return CATE_UINT; break;
+        default: assert(0 && "Bad type"); return CATE_OTHER;
+    }
+}
+
 type_category get_etype_category_nothrow(sc_data_type_t dtype) {
     switch (dtype.type_code_) {
         case sc_data_etype::BF16:
