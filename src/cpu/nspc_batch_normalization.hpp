@@ -90,7 +90,7 @@ struct nspc_batch_normalization_fwd_t : public primitive_t {
                 const size_t bf16cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(C(), simd_w);
                 scratchpad.template book<acc_data_t>(
-                        key_bnorm_bf16cvt, bf16cvt_buf_sz);
+                        key_bnorm_cvt, bf16cvt_buf_sz);
             }
         }
     };
@@ -167,7 +167,7 @@ struct nspc_batch_normalization_bwd_t : public primitive_t {
                 const size_t bf16cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(C(), simd_w);
                 scratchpad.template book<acc_data_t>(
-                        key_bnorm_bf16cvt, bf16cvt_buf_sz);
+                        key_bnorm_cvt, bf16cvt_buf_sz);
             }
         }
     };

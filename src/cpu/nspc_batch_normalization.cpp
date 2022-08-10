@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
     acc_data_t *tmp_data_ = d_type == bf16
-            ? scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt)
+            ? scratchpad.template get<acc_data_t>(key_bnorm_cvt)
             : nullptr;
 
     const dim_t N = pd()->MB();
@@ -299,7 +299,7 @@ status_t nspc_batch_normalization_bwd_t<d_type>::execute_backward(
     acc_data_t *ws_reduce
             = scratchpad.template get<acc_data_t>(key_bnorm_reduction);
     acc_data_t *tmp_data_ = d_type == bf16
-            ? scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt)
+            ? scratchpad.template get<acc_data_t>(key_bnorm_cvt)
             : nullptr;
 
     const float eps = pd()->desc()->batch_norm_epsilon;

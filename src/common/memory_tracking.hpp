@@ -153,7 +153,7 @@ namespace names {
 enum {
     key_none = 0,
     key_barrier,
-    key_bnorm_bf16cvt,
+    key_bnorm_cvt,
     key_bnorm_tmp_mean,
     key_bnorm_tmp_var,
     key_bnorm_tmp_diff_ss,
