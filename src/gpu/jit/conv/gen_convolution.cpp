@@ -134,65 +134,80 @@ public:
 
     template <typename T>
     status_t init(T *primitive, engine_t *engine) {
-        auto &cfg = get_cfg(primitive);
+        try {
+            auto &cfg = get_cfg(primitive);
 
-        ir_info() << "Configuration:" << std::endl;
-        ir_info() << cfg;
+            ir_info() << "Configuration:" << std::endl;
+            ir_info() << cfg;
 
-        auto &kernel_infos = primitive->pd()->kernel_infos;
-        for (int i = 0; i < int(kernel_infos.size()); i++) {
-            auto &info = *kernel_infos[i];
-            switch (info.id()) {
-                case kernel_id_t::convolution:
-                    try {
-                        kernels_.push_back(make_kernel<conv_kernel_t>(primitive,
-                                engine, cfg.hw_cfg.hw(), cfg, primitive->pd(),
-                                info));
-                    } catch (const ngen::out_of_registers_exception &e) {
-                        if (cfg.hw_cfg.regs() < 256
-                                && cfg.hw_cfg.large_grf_support()) {
-                            ir_warning() << "Failed to generate kernel with "
-                                            "default register mode, attempting "
-                                            "again with large_grf_mode "
-                                            "enabled\n";
+            auto &kernel_infos = primitive->pd()->kernel_infos;
+            for (int i = 0; i < int(kernel_infos.size()); i++) {
+                auto &info = *kernel_infos[i];
+                switch (info.id()) {
+                    case kernel_id_t::convolution:
+                        try {
                             kernels_.push_back(make_kernel<conv_kernel_t>(
                                     primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                    primitive->pd(), info, grf_mode_t::large));
-                        } else {
-                            throw e;
+                                    primitive->pd(), info));
+                        } catch (const ngen::out_of_registers_exception &e) {
+                            if (cfg.hw_cfg.regs() < 256
+                                    && cfg.hw_cfg.large_grf_support()) {
+                                ir_warning()
+                                        << "Failed to generate kernel with "
+                                           "default register mode, attempting "
+                                           "again with large_grf_mode "
+                                           "enabled\n";
+                                kernels_.push_back(make_kernel<conv_kernel_t>(
+                                        primitive, engine, cfg.hw_cfg.hw(), cfg,
+                                        primitive->pd(), info,
+                                        grf_mode_t::large));
+                            } else {
+                                throw e;
+                            }
                         }
+                        break;
+                    case kernel_id_t::pre_reorder: {
+                        auto src_layout = cfg.tensor_config.user_layout(
+                                info.arg_name(1));
+                        auto dst_layout = cfg.tensor_config.compute_layout(
+                                info.arg_name(1));
+                        kernels_.push_back(make_kernel<reorder_kernel_t>(
+                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
+                                info, src_layout, dst_layout,
+                                cfg.is_dpas_or_dpasw_fma(),
+                                grf_mode_t::matches));
+                        break;
                     }
-                    break;
-                case kernel_id_t::pre_reorder: {
-                    auto src_layout
-                            = cfg.tensor_config.user_layout(info.arg_name(1));
-                    auto dst_layout = cfg.tensor_config.compute_layout(
-                            info.arg_name(1));
-                    kernels_.push_back(make_kernel<reorder_kernel_t>(primitive,
-                            engine, cfg.hw_cfg.hw(), cfg.hw_cfg, info,
-                            src_layout, dst_layout, cfg.is_dpas_or_dpasw_fma(),
-                            grf_mode_t::matches));
-                    break;
+                    case kernel_id_t::post_reorder: {
+                        auto src_layout = cfg.tensor_config.compute_layout(
+                                info.arg_name(0));
+                        auto dst_layout = cfg.tensor_config.user_layout(
+                                info.arg_name(0));
+                        kernels_.push_back(make_kernel<reorder_kernel_t>(
+                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
+                                info, src_layout, dst_layout,
+                                cfg.is_dpas_or_dpasw_fma(),
+                                grf_mode_t::matches));
+                        break;
+                    }
+                    case kernel_id_t::zero_out:
+                        kernels_.push_back(make_kernel<zero_out_kernel_t>(
+                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
+                                info, cfg.is_dpas_or_dpasw_fma(),
+                                grf_mode_t::matches));
+                        break;
+                    default: ir_error_not_expected();
                 }
-                case kernel_id_t::post_reorder: {
-                    auto src_layout = cfg.tensor_config.compute_layout(
-                            info.arg_name(0));
-                    auto dst_layout
-                            = cfg.tensor_config.user_layout(info.arg_name(0));
-                    kernels_.push_back(make_kernel<reorder_kernel_t>(primitive,
-                            engine, cfg.hw_cfg.hw(), cfg.hw_cfg, info,
-                            src_layout, dst_layout, cfg.is_dpas_or_dpasw_fma(),
-                            grf_mode_t::matches));
-                    break;
-                }
-                case kernel_id_t::zero_out:
-                    kernels_.push_back(make_kernel<zero_out_kernel_t>(primitive,
-                            engine, cfg.hw_cfg.hw(), cfg.hw_cfg, info,
-                            cfg.is_dpas_or_dpasw_fma(), grf_mode_t::matches));
-                    break;
-                default: ir_error_not_expected();
+                if (!kernels_[i]) return status::runtime_error;
             }
-            if (!kernels_[i]) return status::runtime_error;
+        } catch (std::runtime_error &err) {
+            // If verbose is enabled, print the primitive case and rethrow the
+            // exception.
+            if (get_verbose())
+                printf("onednn_verbose,error,%s\n",
+                        primitive->pd()->info(engine));
+            std::cerr << err.what() << "\n";
+            return status::runtime_error;
         }
 
         return status::success;
