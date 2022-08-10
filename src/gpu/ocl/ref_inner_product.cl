@@ -22,7 +22,7 @@
 KERNEL_ATTR
 __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
         __global WEI_DATA_T *wei, __global BIA_DATA_T *bias,
-        __global DST_DATA_T *dst POST_OP_ARGS, float output_scale) {
+        __global DST_DATA_T *dst POST_OP_ARGS, __global float *output_scale) {
 
     const int mb = GWS_GET_MB();
     const int oc = GWS_GET_OC();
@@ -47,7 +47,7 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
     tmp += BIA_TO_REF(bias[oc]);
 #endif
 
-    tmp *= output_scale;
+    tmp *= output_scale[0];
 
     float dest_data;
 #if WITH_SUM

@@ -51,7 +51,8 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+            const auto attr_skip_mask
+                    = primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = true
@@ -117,10 +118,58 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
         return execute_forward(ctx);
     }
 
+    status_t init_res_storage(
+            engine_t *engine, gpu_resource_t *r) const override {
+        std::unique_ptr<memory_storage_t> tmp_mem_storage;
+
+        memory_desc_t scales_md;
+        scales_md.data_type = data_type::f32;
+        scales_md.ndims = 1;
+        scales_md.dims[0] = 1;
+        memory_desc_init_by_tag(scales_md, format_tag::x);
+        CHECK(handle_runtime_value(
+                engine, SCALES_, &scales_md, tmp_mem_storage));
+        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
+        return status::success;
+    }
+
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
+
+    status_t handle_runtime_value(engine_t *engine, int arg_idx,
+            const memory_desc_t *md,
+            std::unique_ptr<memory_storage_t> &mem_storage) const {
+        assert(arg_idx == SCALES_);
+
+        const primitive_attr_t &attr = *pd()->attr();
+        void *p {nullptr};
+        memory_desc_wrapper mdw(*md);
+        size_t sz = sizeof(float);
+        memory_storage_t *mem_s_ptr;
+        status_t status
+                = engine->create_memory_storage(&mem_s_ptr, mdw.nelems() * sz);
+        if (status != status::success) {
+            mem_storage.reset();
+            return status;
+        }
+        mem_storage.reset(mem_s_ptr);
+        assert(sizeof(float) == sizeof(int));
+        status = mem_storage->map_data(
+                &p, nullptr, sizeof(float) * mdw.nelems());
+        if (status != status::success) return status;
+        if (attr.output_scales_.has_default_values()) {
+            utils::array_set((float *)p, (float)1, mdw.nelems());
+        } else {
+            utils::array_copy((float *)p, attr.output_scales_.scales_,
+                    attr.output_scales_.count_);
+        }
+        status = mem_storage->unmap_data(p, nullptr);
+        return status;
+    }
+
+    enum { SCALES_ = 0 };
 };
 
 struct ref_inner_product_bwd_data_t : public gpu_primitive_t {

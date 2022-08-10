@@ -181,8 +181,6 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
 
-    const float *output_scales = pd()->attr()->output_scales_.scales_;
-
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, weights);
@@ -192,7 +190,11 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     unsigned arg_idx = append_post_ops_to_arg_list(
             ctx, arg_list, 4, pd()->attr()->post_ops_);
 
-    arg_list.set(arg_idx, output_scales[0]);
+    const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
+            ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES)
+            : &CTX_GPU_RES_STORAGE(SCALES_);
+
+    arg_list.set(arg_idx, *scales);
 
     auto nd_range = conf.dispatch.nd_range();
 
