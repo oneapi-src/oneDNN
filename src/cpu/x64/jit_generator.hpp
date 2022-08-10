@@ -1326,15 +1326,22 @@ public:
 
     void uni_vroundps(
             const Xbyak::Xmm &x, const Xbyak::Operand &op, const int imm) {
-        if (is_valid_isa(avx))
+        if (is_valid_isa(avx512_core))
+            vrndscaleps(x, op, imm & 0x3);
+        else if (is_valid_isa(avx))
             vroundps(x, op, imm);
         else
             roundps(x, op, imm);
     }
+
     void uni_vroundps(
             const Xbyak::Ymm &x, const Xbyak::Operand &op, const int imm) {
-        vroundps(x, op, imm);
+        if (is_valid_isa(avx512_core))
+            vrndscaleps(x, op, imm & 0x3);
+        else
+            vroundps(x, op, imm);
     }
+
     void uni_vroundps(
             const Xbyak::Zmm &x, const Xbyak::Operand &op, const int imm) {
         vrndscaleps(x, op, imm & 0x3);
