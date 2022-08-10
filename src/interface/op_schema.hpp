@@ -175,6 +175,12 @@ public:
     op_schema_t &set_output(size_t out_offset, std::string &&out_name,
             std::string &&out_description, std::string &&dtype_string = "any");
 
+    /*! @brief Enable commutative inputs */
+    op_schema_t &set_commutative_inputs();
+
+    /*! @brief Get whether the commutative inputs option is enabled or not */
+    bool get_commutative_inputs() const;
+
     op_schema_t &set_type_constraints(
             std::string &&dtype_string, std::set<data_type_t> &&dtypes);
 
@@ -275,6 +281,7 @@ private:
     std::unordered_map<op_attr_t, attribute_t> attributes_;
     shape_infer_fn tensor_inference_function_;
     type_constraint_fn op_type_constraint_function_;
+    bool commutative_inputs_enabled_ = false;
 };
 
 using op_kind_version_schema_map

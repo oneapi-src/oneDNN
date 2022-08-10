@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "interface/op_schema.hpp"
 #include "utils/pm/nested_matcher.hpp"
 
 namespace dnnl {
@@ -31,9 +32,9 @@ namespace pm {
 namespace {
 // check if an op's inputs are commutative
 bool has_commutative_inputs(op_t *op) {
-    static const std::unordered_set<op_kind_t> commutative_kinds {op_kind::Add,
-            op_kind::Multiply, op_kind::Maximum, op_kind::Minimum};
-    return commutative_kinds.count(op->get_kind());
+    const op_schema_t *opm
+            = op_schema_registry_t::get_op_schema(op->get_kind());
+    return opm->get_commutative_inputs();
 }
 
 // check if a pb_node is optional and its producers are all optional

@@ -109,6 +109,17 @@ op_schema_t &op_schema_t::set_output(size_t out_offset, std::string &&out_name,
     return *this;
 }
 
+op_schema_t &op_schema_t::set_commutative_inputs() {
+    assertm(num_inputs_.size() == 1 && *(num_inputs_.begin()) == 2,
+            "commutative inputs can only be enabled for ops with two inputs");
+    commutative_inputs_enabled_ = true;
+    return *this;
+}
+
+bool op_schema_t::get_commutative_inputs() const {
+    return commutative_inputs_enabled_;
+}
+
 op_schema_t &op_schema_t::set_type_constraints(
         std::string &&dtype_string, std::set<data_type_t> &&dtypes) {
     op_parameter_dtype_map_[std::move(dtype_string)] = std::move(dtypes);
