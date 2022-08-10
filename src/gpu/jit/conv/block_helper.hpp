@@ -646,6 +646,7 @@ private:
             bmnk_d.incr_inner_dims();
             bmnk_d.set_base_iter_block(
                     bmnk_d.base_iter_block() * d.base_iter_block());
+            if (d.is_blocked() and d.size() != 1) bmnk_d.incr_inner_dims();
         }
     }
 
