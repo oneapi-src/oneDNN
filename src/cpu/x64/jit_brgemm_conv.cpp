@@ -560,10 +560,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     CHECK(copy_to_pbuffer_->create_kernel());
     if (jcp.copy_block_only) {
         const auto iw_block = copy_to_pbuffer_->dst_w(jcp.ow_block);
-        const auto ih_block
-                = get_inp_size(IHP, jcp.oh_block, EXT_KH, SH, DH - 1);
-        const auto id_block
-                = get_inp_size(IDP, jcp.od_block, EXT_KD, SD, DD - 1);
+        const auto ih_block = get_inp_size(IHP, jcp.oh_block, KH, SH, DH - 1);
+        const auto id_block = get_inp_size(IDP, jcp.od_block, KD, SD, DD - 1);
 
         pbuf_w_sz = (dim_t)jcp.ic_block * jcp.kh_sets * jcp.kw_sets * iw_block;
         pbuf_h_sz = pbuf_w_sz * ih_block;
