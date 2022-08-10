@@ -159,11 +159,19 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
                                 || perf_workaround(src_md(1))))) {
                 return status::unimplemented;
             }
-            // Setting the MB as the innermost dim for optimized performance
-            // Hence starting i = 1, ignoring MB
-            conf.dispatch.define_dim_with_nesting_level(
-                    "D0", ndims, dst_d.dims()[0], 1);
-            for (int i = 1; i < MAX_NDIMS; ++i) {
+            format_tag_t src_tag
+                    = src0_d.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b);
+            bool is16b
+                    = src1_d.matches_tag(src_tag) && dst_d.matches_tag(src_tag);
+            int idx = 0;
+            if (!is16b) {
+                idx = 1;
+                // Setting the MB as the innermost dim for optimized performance
+                // Hence starting i = 1, ignoring MB
+                conf.dispatch.define_dim_with_nesting_level(
+                        "D0", ndims, dst_d.dims()[0], 1);
+            }
+            for (int i = idx; i < MAX_NDIMS; ++i) {
                 int dim = i < ndims ? dst_d.dims()[i] : 1;
                 if (i == 1) {
                     conf.dispatch.define_dim(utils::format("D%d", i),
