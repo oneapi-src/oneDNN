@@ -21,9 +21,9 @@
 #include "test_api_common.h"
 
 TEST(CAPI, AddOp) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t op0 = NULL;
-    dnnl_graph_op_t op1 = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t op0 = nullptr;
+    dnnl_graph_op_t op1 = nullptr;
     dnnl_engine_kind_t engine = dnnl_cpu;
 
 #define ADD_OP_DESTROY \

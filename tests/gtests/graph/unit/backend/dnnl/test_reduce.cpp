@@ -22,6 +22,7 @@ TEST(Compile, TestReduce) {
                                               const bool keep_dims) {
         if (keep_dims) return shape;
         std::vector<size_t> excluded_axes;
+        excluded_axes.reserve(axes.size());
         for (const auto axis : axes) {
             excluded_axes.push_back(static_cast<size_t>(
                     (axis < 0) ? shape.size() + axis : axis));

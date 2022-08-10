@@ -21,9 +21,9 @@
 #include "test_api_common.h"
 
 TEST(CAPI, FilterConBNStandalone) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
-    dnnl_graph_op_t bn = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
+    dnnl_graph_op_t bn = nullptr;
     dnnl_engine_kind_t engine = dnnl_cpu;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
@@ -146,9 +146,9 @@ TEST(CAPI, FilterConBNStandalone) {
 }
 
 TEST(CAPI, FilterConvBNFused) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
-    dnnl_graph_op_t bn = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
+    dnnl_graph_op_t bn = nullptr;
     dnnl_engine_kind_t engine = dnnl_cpu;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
@@ -270,12 +270,12 @@ TEST(CAPI, FilterConvBNFused) {
 
 TEST(CAPI, FilterReluAdd) {
     // y = relu(x); z = x + y
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t relu = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t relu = nullptr;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_relu;
     dnnl_graph_op_create(&relu, 0, op_kind, "relu");
 
-    dnnl_graph_op_t add = NULL;
+    dnnl_graph_op_t add = nullptr;
     op_kind = dnnl_graph_op_add;
     dnnl_graph_op_create(&add, 1, op_kind, "add");
 
@@ -328,8 +328,8 @@ TEST(CAPI, FilterReluAdd) {
 }
 
 TEST(CAPI, DifferentLogicalTensorWithSameID) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t add = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t add = nullptr;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_add;
     dnnl_graph_op_create(&add, 1, op_kind, "add");
 

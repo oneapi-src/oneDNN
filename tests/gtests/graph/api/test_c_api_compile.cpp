@@ -23,13 +23,13 @@
 #include "test_api_common.hpp"
 
 TEST(CAPI, CompileBN) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t bn = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t bn = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_batch_norm_inference;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t gamma;
     dnnl_graph_logical_tensor_t beta;
@@ -45,13 +45,13 @@ TEST(CAPI, CompileBN) {
 #define COMPILE_BN_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(bn); \
-        bn = NULL; \
+        bn = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     dnnl_graph_op_create(&bn, 1, op_kind, "bn");
@@ -136,13 +136,13 @@ TEST(CAPI, CompileBN) {
 }
 
 TEST(CAPI, CompileConv2D) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t output;
@@ -150,13 +150,13 @@ TEST(CAPI, CompileConv2D) {
 #define COMPILED_CONV2D_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv2d); \
-        conv2d = NULL; \
+        conv2d = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {1, 3, 227, 227};
@@ -251,13 +251,13 @@ TEST(CAPI, CompileConv2D) {
 }
 
 TEST(CAPI, CompileGroupedConv2D) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t output;
@@ -265,13 +265,13 @@ TEST(CAPI, CompileGroupedConv2D) {
 #define COMPILE_GROUND_CONV2D_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv2d); \
-        conv2d = NULL; \
+        conv2d = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {1, 8, 227, 227};
@@ -366,14 +366,14 @@ TEST(CAPI, CompileGroupedConv2D) {
 }
 
 TEST(CAPI, CompileConv2DBiasSum) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
-    dnnl_graph_op_t bias_add = NULL;
-    dnnl_graph_op_t sum = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
+    dnnl_graph_op_t bias_add = nullptr;
+    dnnl_graph_op_t sum = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t bias;
@@ -385,17 +385,17 @@ TEST(CAPI, CompileConv2DBiasSum) {
 #define COMPILE_CONV2D_BIAS_SUM_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv2d); \
-        conv2d = NULL; \
+        conv2d = nullptr; \
         dnnl_graph_op_destroy(bias_add); \
-        bias_add = NULL; \
+        bias_add = nullptr; \
         dnnl_graph_op_destroy(sum); \
-        sum = NULL; \
+        sum = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {1, 3, 227, 227};
@@ -525,14 +525,14 @@ TEST(CAPI, CompileConv2DBiasSum) {
 }
 
 TEST(CAPI, CompileConv2DSumConv2D) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv0 = NULL;
-    dnnl_graph_op_t conv1 = NULL;
-    dnnl_graph_op_t sum = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv0 = nullptr;
+    dnnl_graph_op_t conv1 = nullptr;
+    dnnl_graph_op_t sum = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t *partition = nullptr;
+    dnnl_graph_compiled_partition_t *compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t conv0_input;
     dnnl_graph_logical_tensor_t conv0_weight;
     dnnl_graph_logical_tensor_t conv0_output;
@@ -544,13 +544,13 @@ TEST(CAPI, CompileConv2DSumConv2D) {
 #define COMPILE_CONV2D_SUM_CONV2D_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv0); \
-        conv0 = NULL; \
+        conv0 = nullptr; \
         dnnl_graph_op_destroy(conv1); \
-        conv1 = NULL; \
+        conv1 = nullptr; \
         dnnl_graph_op_destroy(sum); \
-        sum = NULL; \
+        sum = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {128, 3, 227, 227};
@@ -664,16 +664,16 @@ TEST(CAPI, CompileConv2DSumConv2D) {
 
     partition = (dnnl_graph_partition_t *)malloc(
             part_num * sizeof(dnnl_graph_partition_t));
-    if (partition == NULL) {
+    if (partition == nullptr) {
         COMPILE_CONV2D_SUM_CONV2D_DESTROY;
         return;
     }
     compiled_partition = (dnnl_graph_compiled_partition_t *)malloc(
             part_num * sizeof(dnnl_graph_compiled_partition_t));
-    if (compiled_partition == NULL) {
+    if (compiled_partition == nullptr) {
         COMPILE_CONV2D_SUM_CONV2D_DESTROY;
         free(partition);
-        partition = NULL;
+        partition = nullptr;
         return;
     }
 
@@ -686,11 +686,11 @@ TEST(CAPI, CompileConv2DSumConv2D) {
         } \
         if (partition) { \
             free(partition); \
-            partition = NULL; \
+            partition = nullptr; \
         } \
         if (compiled_partition) { \
             free(compiled_partition); \
-            compiled_partition = NULL; \
+            compiled_partition = nullptr; \
         } \
     } while (0);
 
@@ -751,14 +751,14 @@ TEST(CAPI, CompileConv2DSumConv2D) {
 }
 
 TEST(CAPI, CompileSumConv2DStridedBN) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv0 = NULL;
-    dnnl_graph_op_t bn = NULL;
-    dnnl_graph_op_t sum = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv0 = nullptr;
+    dnnl_graph_op_t bn = nullptr;
+    dnnl_graph_op_t sum = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t *partition = nullptr;
+    dnnl_graph_compiled_partition_t *compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t conv0_input;
     dnnl_graph_logical_tensor_t conv0_weight;
     dnnl_graph_logical_tensor_t conv0_output;
@@ -773,13 +773,13 @@ TEST(CAPI, CompileSumConv2DStridedBN) {
 #define COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv0); \
-        conv0 = NULL; \
+        conv0 = nullptr; \
         dnnl_graph_op_destroy(bn); \
-        bn = NULL; \
+        bn = nullptr; \
         dnnl_graph_op_destroy(sum); \
-        sum = NULL; \
+        sum = nullptr; \
     } while (0);
 
     const int64_t N = 128;
@@ -926,11 +926,11 @@ TEST(CAPI, CompileSumConv2DStridedBN) {
         } \
         if (partition) { \
             free(partition); \
-            partition = NULL; \
+            partition = nullptr; \
         } \
         if (compiled_partition) { \
             free(compiled_partition); \
-            compiled_partition = NULL; \
+            compiled_partition = nullptr; \
         } \
     } while (0);
 
@@ -1003,13 +1003,13 @@ TEST(CAPI, CompileSumConv2DStridedBN) {
 }
 
 TEST(CAPI, CompileConv2DWithUnknownShape) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t output;
@@ -1017,13 +1017,13 @@ TEST(CAPI, CompileConv2DWithUnknownShape) {
 #define COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv2d); \
-        conv2d = NULL; \
+        conv2d = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {1, 3, 227, 227};
@@ -1085,8 +1085,7 @@ TEST(CAPI, CompileConv2DWithUnknownShape) {
             COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
-    ASSERT_EQ_SAFE(
-            part_num, 1U, COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
+    ASSERT_EQ_SAFE(part_num, 1U, COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
             COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
     ASSERT_EQ_SAFE(
@@ -1119,26 +1118,26 @@ TEST(CAPI, CompileConv2DWithUnknownShape) {
 }
 
 TEST(CAPI, CompileMaxPool) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t maxpool = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t maxpool = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_max_pool;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t output;
 
 #define COMPILED_POOL_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(maxpool); \
-        maxpool = NULL; \
+        maxpool = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {1, 2, 2, 1};
@@ -1215,26 +1214,26 @@ TEST(CAPI, CompileMaxPool) {
 }
 
 TEST(CAPI, CompileMaxPoolWithStridedOutput) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t maxpool = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t maxpool = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_max_pool;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t output;
 
 #define COMPILED_POOL_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(maxpool); \
-        maxpool = NULL; \
+        maxpool = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {1, 1, 5, 5};
@@ -1327,24 +1326,24 @@ TEST(CAPI, CompileMaxPoolWithStridedOutput) {
 }
 
 TEST(CAPI, CompileAdd) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t add = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t add = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_add;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
 
 #define COMPILE_ADD_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(add); \
-        add = NULL; \
+        add = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     dnnl_graph_logical_tensor_t src0;
@@ -1409,13 +1408,13 @@ TEST(CAPI, CompileAdd) {
 }
 
 TEST(CAPI, CompileConvBN) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
-    dnnl_graph_op_t bn = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
+    dnnl_graph_op_t bn = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t conv_input;
     dnnl_graph_logical_tensor_t conv_weight;
     dnnl_graph_logical_tensor_t conv_output;
@@ -1428,15 +1427,15 @@ TEST(CAPI, CompileConvBN) {
 #define COMPILE_CONV_BN_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv2d); \
-        conv2d = NULL; \
+        conv2d = nullptr; \
         dnnl_graph_op_destroy(bn); \
-        bn = NULL; \
+        bn = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t conv_input_dim[] = {1, 3, 227, 227};
@@ -1570,13 +1569,13 @@ TEST(CAPI, CompileConvBN) {
 }
 
 TEST(CAPI, CompileGroupedConvBN) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
-    dnnl_graph_op_t bn = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
+    dnnl_graph_op_t bn = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t conv_input;
     dnnl_graph_logical_tensor_t conv_weight;
     dnnl_graph_logical_tensor_t conv_output;
@@ -1589,15 +1588,15 @@ TEST(CAPI, CompileGroupedConvBN) {
 #define COMPILE_GROUPED_CONV_BN_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv2d); \
-        conv2d = NULL; \
+        conv2d = nullptr; \
         dnnl_graph_op_destroy(bn); \
-        bn = NULL; \
+        bn = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t conv_input_dim[] = {1, 8, 227, 227};
@@ -1731,13 +1730,13 @@ TEST(CAPI, CompileGroupedConvBN) {
 }
 
 TEST(CAPI, CompileConvBNStandalone) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t conv2d = NULL;
-    dnnl_graph_op_t bn = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t conv2d = nullptr;
+    dnnl_graph_op_t bn = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t partition[2] = {NULL};
-    dnnl_graph_compiled_partition_t compiled_partition[2] = {NULL};
+    dnnl_graph_partition_t partition[2] = {nullptr};
+    dnnl_graph_compiled_partition_t compiled_partition[2] = {nullptr};
     dnnl_graph_logical_tensor_t conv_input;
     dnnl_graph_logical_tensor_t conv_weight;
     dnnl_graph_logical_tensor_t conv_output;
@@ -1745,19 +1744,19 @@ TEST(CAPI, CompileConvBNStandalone) {
 #define COMPILE_CONV_BN_STANDALONE_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(conv2d); \
-        conv2d = NULL; \
+        conv2d = nullptr; \
         dnnl_graph_op_destroy(bn); \
-        bn = NULL; \
+        bn = nullptr; \
         dnnl_graph_partition_destroy(partition[0]); \
-        partition[0] = NULL; \
+        partition[0] = nullptr; \
         dnnl_graph_partition_destroy(partition[1]); \
-        partition[1] = NULL; \
+        partition[1] = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition[0]); \
-        compiled_partition[0] = NULL; \
+        compiled_partition[0] = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition[1]); \
-        compiled_partition[1] = NULL; \
+        compiled_partition[1] = nullptr; \
     } while (0);
 
     dnnl_graph_logical_tensor_t bn_input;
@@ -1923,13 +1922,13 @@ TEST(CAPI, CompileConvBNStandalone) {
 }
 
 TEST(CAPI, CompileMatmulAdd1D) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t matmul = NULL;
-    dnnl_graph_op_t add = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t matmul = nullptr;
+    dnnl_graph_op_t add = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t matmul_output;
@@ -1939,15 +1938,15 @@ TEST(CAPI, CompileMatmulAdd1D) {
 #define COMPILE_MATMUL_ADD_1D_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(matmul); \
-        matmul = NULL; \
+        matmul = nullptr; \
         dnnl_graph_op_destroy(add); \
-        add = NULL; \
+        add = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {8, 768};
@@ -2024,14 +2023,14 @@ TEST(CAPI, CompileMatmulAdd1D) {
 }
 
 TEST(CAPI, CompileMatmulAddActivation) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t matmul = NULL;
-    dnnl_graph_op_t add = NULL;
-    dnnl_graph_op_t activation = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t matmul = nullptr;
+    dnnl_graph_op_t add = nullptr;
+    dnnl_graph_op_t activation = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t matmul_output;
@@ -2042,17 +2041,17 @@ TEST(CAPI, CompileMatmulAddActivation) {
 #define COMPILE_MATMUL_ADD_ACTIVATION_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(matmul); \
-        matmul = NULL; \
+        matmul = nullptr; \
         dnnl_graph_op_destroy(add); \
-        add = NULL; \
+        add = nullptr; \
         dnnl_graph_op_destroy(activation); \
-        activation = NULL; \
+        activation = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     const int64_t input_dim[] = {8, 768};
@@ -2122,8 +2121,7 @@ TEST(CAPI, CompileMatmulAddActivation) {
                 COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
                 dnnl_success, COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
-        ASSERT_EQ_SAFE(
-                part_num, 1U, COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
+        ASSERT_EQ_SAFE(part_num, 1U, COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
                 COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
         ASSERT_EQ_SAFE(
@@ -2149,24 +2147,24 @@ TEST(CAPI, CompileMatmulAddActivation) {
 }
 
 TEST(CAPI, CompileSoftmax) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t softmax = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t softmax = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_softmax;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
 
 #define COMPILE_SOFTMAX_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(softmax); \
-        softmax = NULL; \
+        softmax = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     dnnl_graph_logical_tensor_t src;
@@ -2224,24 +2222,24 @@ TEST(CAPI, CompileSoftmax) {
 }
 
 TEST(CAPI, CompileSoftmaxBackward) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t softmax = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t softmax = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_softmax_backprop;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
 
 #define COMPILE_SOFTMAX_BWD_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(softmax); \
-        softmax = NULL; \
+        softmax = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     dnnl_graph_logical_tensor_t src0;
@@ -2306,24 +2304,24 @@ TEST(CAPI, CompileSoftmaxBackward) {
 }
 
 TEST(CAPI, CompileLogSoftmax) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t logsoftmax = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t logsoftmax = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_log_softmax;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
 
 #define COMPILE_LOGSOFTMAX_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(logsoftmax); \
-        logsoftmax = NULL; \
+        logsoftmax = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     dnnl_graph_logical_tensor_t src;
@@ -2381,24 +2379,24 @@ TEST(CAPI, CompileLogSoftmax) {
 }
 
 TEST(CAPI, CompileWildcard) {
-    dnnl_graph_graph_t agraph = NULL;
-    dnnl_graph_op_t wildcard = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
+    dnnl_graph_op_t wildcard = nullptr;
     dnnl_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_wildcard;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t partition = NULL;
-    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+    dnnl_graph_partition_t partition = nullptr;
+    dnnl_graph_compiled_partition_t compiled_partition = nullptr;
 
 #define COMPILE_WILDCARD_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
-        agraph = NULL; \
+        agraph = nullptr; \
         dnnl_graph_op_destroy(wildcard); \
-        wildcard = NULL; \
+        wildcard = nullptr; \
         dnnl_graph_partition_destroy(partition); \
-        partition = NULL; \
+        partition = nullptr; \
         dnnl_graph_compiled_partition_destroy(compiled_partition); \
-        compiled_partition = NULL; \
+        compiled_partition = nullptr; \
     } while (0);
 
     dnnl_graph_logical_tensor_t src;
@@ -2461,29 +2459,29 @@ TEST(CAPI, PartitionInvalidArguments) {
     size_t id = 0;
     dnnl_engine_kind_t kind = dnnl_cpu;
     uint8_t supported = 0;
-    dnnl_graph_partition_t part = NULL;
+    dnnl_graph_partition_t part = nullptr;
 
-    res = dnnl_graph_partition_create(NULL);
+    res = dnnl_graph_partition_create(nullptr);
     ASSERT_EQ(res, dnnl_invalid_arguments);
 
     res = dnnl_success;
-    res = dnnl_graph_partition_create_with_op(NULL, NULL, kind);
+    res = dnnl_graph_partition_create_with_op(nullptr, nullptr, kind);
     ASSERT_EQ(res, dnnl_invalid_arguments);
 
     res = dnnl_success;
-    res = dnnl_graph_partition_get_op_num(NULL, &num);
+    res = dnnl_graph_partition_get_op_num(nullptr, &num);
     ASSERT_EQ(res, dnnl_invalid_arguments);
 
     res = dnnl_success;
-    res = dnnl_graph_partition_get_id(NULL, &id);
+    res = dnnl_graph_partition_get_id(nullptr, &id);
     ASSERT_EQ(res, dnnl_invalid_arguments);
 
     res = dnnl_success;
-    res = dnnl_graph_partition_is_supported(NULL, &supported);
+    res = dnnl_graph_partition_is_supported(nullptr, &supported);
     ASSERT_EQ(res, dnnl_invalid_arguments);
 
     res = dnnl_success;
-    res = dnnl_graph_partition_get_engine_kind(NULL, &kind);
+    res = dnnl_graph_partition_get_engine_kind(nullptr, &kind);
     ASSERT_EQ(res, dnnl_invalid_arguments);
 
     res = dnnl_graph_partition_create(&part);
@@ -2493,28 +2491,29 @@ TEST(CAPI, PartitionInvalidArguments) {
     }
 
     res = dnnl_success;
-    res = dnnl_graph_partition_create_with_op(&part, NULL, kind);
+    res = dnnl_graph_partition_create_with_op(&part, nullptr, kind);
     if (res != dnnl_invalid_arguments) {
         dnnl_graph_partition_destroy(part);
         ASSERT_TRUE(false);
     }
 
     res = dnnl_success;
-    res = dnnl_graph_partition_get_op_num(part, NULL);
+    res = dnnl_graph_partition_get_op_num(part, nullptr);
     if (res != dnnl_invalid_arguments) {
         dnnl_graph_partition_destroy(part);
         ASSERT_TRUE(false);
     }
 
     res = dnnl_success;
-    res = dnnl_graph_partition_is_supported(part, NULL);
+    res = dnnl_graph_partition_is_supported(part, nullptr);
     if (res != dnnl_invalid_arguments) {
         dnnl_graph_partition_destroy(part);
         ASSERT_TRUE(false);
     }
 
     res = dnnl_success;
-    res = dnnl_graph_partition_compile(part, NULL, 0, NULL, 0, NULL, NULL);
+    res = dnnl_graph_partition_compile(
+            part, nullptr, 0, nullptr, 0, nullptr, nullptr);
     if (res != dnnl_invalid_arguments) {
         dnnl_graph_partition_destroy(part);
         ASSERT_TRUE(false);

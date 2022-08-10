@@ -16,7 +16,7 @@
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 
-struct dnnl_graph_test_concat_params {
+struct concat_params_t {
     std::vector<impl::dim_t> src0_shape;
     std::vector<impl::dim_t> src1_shape;
     std::vector<impl::dim_t> dst_shape;
@@ -24,11 +24,11 @@ struct dnnl_graph_test_concat_params {
     bool is_nhwc;
 };
 
-class Concat : public ::testing::TestWithParam<dnnl_graph_test_concat_params> {
+class concat_t : public ::testing::TestWithParam<concat_params_t> {
 public:
     void TestConcat() {
-        const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_concat_params>::GetParam();
+        const auto params
+                = ::testing::TestWithParam<concat_params_t>::GetParam();
 
         std::vector<impl::dim_t> src0_dims = params.src0_shape;
         std::vector<impl::dim_t> src1_dims = params.src1_shape;
@@ -111,44 +111,39 @@ public:
     }
 };
 
-TEST_P(Concat, TestConcat) {
+TEST_P(concat_t, TestConcat) {
     TestConcat();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, Concat,
+INSTANTIATE_TEST_SUITE_P(Execute, concat_t,
         ::testing::Values(
                 // 2D, axis = 0
-                dnnl_graph_test_concat_params {
-                        {1, 2}, {1, 2}, {2, 2}, 0, false},
+                concat_params_t {{1, 2}, {1, 2}, {2, 2}, 0, false},
                 // 2D, axis = 1
-                dnnl_graph_test_concat_params {
-                        {1, 2}, {1, 2}, {1, 4}, 1, false},
+                concat_params_t {{1, 2}, {1, 2}, {1, 4}, 1, false},
                 // 3D, axis = 0
-                dnnl_graph_test_concat_params {
-                        {1, 2, 2}, {1, 2, 2}, {2, 2, 2}, 0, false},
+                concat_params_t {{1, 2, 2}, {1, 2, 2}, {2, 2, 2}, 0, false},
                 // 3D, axis = 1
-                dnnl_graph_test_concat_params {
-                        {1, 2, 2}, {1, 2, 2}, {1, 4, 2}, 1, false},
+                concat_params_t {{1, 2, 2}, {1, 2, 2}, {1, 4, 2}, 1, false},
                 // 3D, axis = 2
-                dnnl_graph_test_concat_params {
-                        {1, 2, 2}, {1, 2, 2}, {1, 2, 4}, 2, false},
+                concat_params_t {{1, 2, 2}, {1, 2, 2}, {1, 2, 4}, 2, false},
                 // 4D, axis = 0
-                dnnl_graph_test_concat_params {
+                concat_params_t {
                         {1, 2, 2, 2}, {1, 2, 2, 2}, {2, 2, 2, 2}, 0, false},
                 // 4D, axis = 0
-                dnnl_graph_test_concat_params {
+                concat_params_t {
                         {1, 2, 2, 2}, {1, 2, 2, 2}, {2, 2, 2, 2}, 0, true},
                 // 4D, axis = 1
-                dnnl_graph_test_concat_params {
+                concat_params_t {
                         {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 4, 2, 2}, 1, false},
                 // 4D, axis = 2
-                dnnl_graph_test_concat_params {
+                concat_params_t {
                         {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 2, 4, 2}, 2, false},
                 // 4D, axis = 3
-                dnnl_graph_test_concat_params {
+                concat_params_t {
                         {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 2, 2, 4}, 3, false},
                 // 4D, axis = -1
-                dnnl_graph_test_concat_params {
+                concat_params_t {
                         {1, 2, 2, 2}, {1, 2, 2, 2}, {1, 2, 2, 4}, -1, false}));
 
 TEST(Compile, ConcatWithMoreInputs) {

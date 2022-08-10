@@ -165,7 +165,7 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     dnnl_impl::split_quant_dequant(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 11U);
     auto conv_op = std::find_if(subgraph->get_ops().begin(),
-            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
+            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
     ASSERT_NE(conv_op, subgraph->get_ops().end());
@@ -182,7 +182,7 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
     dnnl_impl::folding_mul_scales(subgraph);
     auto qconv_op = std::find_if(subgraph->get_ops().begin(),
-            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
+            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
     auto &consumer
@@ -202,14 +202,14 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
 
     qconv_op = std::find_if(subgraph->get_ops().begin(),
-            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
+            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
     ASSERT_TRUE((*qconv_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
     int64_t key = (*qconv_op)->get_attr<int64_t>(
             dnnl_impl::op_attr::fusion_info_key);
     auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
-    auto post_ops = fusion_info.get_post_ops();
+    const auto &post_ops = fusion_info.get_post_ops();
     ASSERT_EQ(post_ops.size(), 2U);
 }
 
@@ -293,7 +293,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     dnnl_impl::split_quant_dequant(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 8U);
     auto matmul_op = std::find_if(subgraph->get_ops().begin(),
-            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
+            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
     auto &producer0 = (*matmul_op)->get_input_value(0)->get_producer();
@@ -309,7 +309,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     dnnl_impl::fuse_to_int8_matmul(subgraph);
     dnnl_impl::folding_mul_scales(subgraph);
     auto qmatmul_op = std::find_if(subgraph->get_ops().begin(),
-            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
+            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
     auto &consumer
@@ -325,7 +325,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
 
     qmatmul_op = std::find_if(subgraph->get_ops().begin(),
-            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
+            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
     ASSERT_TRUE((*qmatmul_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
@@ -333,7 +333,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
             = (*qmatmul_op)
                       ->get_attr<int64_t>(dnnl_impl::op_attr::fusion_info_key);
     auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
-    auto post_ops = fusion_info.get_post_ops();
+    const auto &post_ops = fusion_info.get_post_ops();
     ASSERT_EQ(post_ops.size(), 1U);
 }
 
@@ -642,7 +642,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     }
 }
 
-struct ut_matmul_params {
+struct matmul_params_t {
     std::vector<impl::dim_t> src_shape;
     std::vector<impl::dim_t> weight_shape;
     std::vector<impl::dim_t> bias_shape;
@@ -654,10 +654,10 @@ struct ut_matmul_params {
     size_t final_subgraph_size;
 };
 
-class TestInt8MatmulPassesWithDiffInputs
-    : public ::testing::TestWithParam<ut_matmul_params> {};
+class int8_matmul_with_diff_inputs_t
+    : public ::testing::TestWithParam<matmul_params_t> {};
 
-TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
+TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -787,20 +787,20 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     ASSERT_EQ(subgraph->get_ops().size(), params.final_subgraph_size);
 }
 
-INSTANTIATE_TEST_SUITE_P(SubgraphPass, TestInt8MatmulPassesWithDiffInputs,
-        testing::Values(ut_matmul_params {{1, 1024}, {1000, 1024}, {1000},
+INSTANTIATE_TEST_SUITE_P(SubgraphPass, int8_matmul_with_diff_inputs_t,
+        testing::Values(matmul_params_t {{1, 1024}, {1000, 1024}, {1000},
                                 {1, 1000}, false, true, false, 4, 5},
-                ut_matmul_params {{1, 1024}, {1000, 1024}, {1000}, {1, 1000},
+                matmul_params_t {{1, 1024}, {1000, 1024}, {1000}, {1, 1000},
                         false, true, true, 4, 5},
-                ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
+                matmul_params_t {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
                         true, false, 5, 6},
-                ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
+                matmul_params_t {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
                         true, true, 5, 6}));
 
-class TestMatmulPassesWithDiffInputs
-    : public ::testing::TestWithParam<ut_matmul_params> {};
+class matmul_with_diff_inputs_t
+    : public ::testing::TestWithParam<matmul_params_t> {};
 
-TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
+TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
     /*
     (f32) \     / (f32)
             matmul
@@ -894,12 +894,12 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
     ASSERT_EQ(subgraph->get_ops().size(), params.final_subgraph_size);
 }
 
-INSTANTIATE_TEST_SUITE_P(SubgraphPass, TestMatmulPassesWithDiffInputs,
-        testing::Values(ut_matmul_params {{1, 1024}, {1000, 1024}, {1000},
+INSTANTIATE_TEST_SUITE_P(SubgraphPass, matmul_with_diff_inputs_t,
+        testing::Values(matmul_params_t {{1, 1024}, {1000, 1024}, {1000},
                                 {1, 1000}, false, true, false, 4, 5},
-                ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
+                matmul_params_t {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
                         true, false, 6, 7},
-                ut_matmul_params {{4, 64, 3}, {3, 64}, {3}, {4, 3, 3}, true,
+                matmul_params_t {{4, 64, 3}, {3, 64}, {3}, {4, 3, 3}, true,
                         true, false, 6, 8}));
 
 TEST(SubgraphPass, ExecutionArgsSet) {

@@ -22,8 +22,7 @@
 #include "test_api_common.h"
 #include "test_api_common.hpp"
 
-class test_compile_conv
-    : public ::testing::TestWithParam<dnnl_graph_test_conv_params> {
+class test_compile_conv_t : public ::testing::TestWithParam<conv_params_t> {
 private:
     dnnl_status_t create_logic_tensor(const dims_t &dims,
             dnnl_graph_logical_tensor_t *tensor, dnnl_data_type_t data_type,
@@ -35,18 +34,17 @@ private:
 
 public:
     void TestConv2d() {
-        auto p = ::testing::TestWithParam<
-                dnnl_graph_test_conv_params>::GetParam();
+        auto p = ::testing::TestWithParam<conv_params_t>::GetParam();
 
         static auto isa = dnnl_get_effective_cpu_isa();
         SKIP_IF(p.engine == dnnl_cpu && p.data_type == dnnl_bf16
                         && isa < dnnl_cpu_isa_avx512_core,
                 "Skip test for systems that do not support avx512_core.");
 
-        dnnl_graph_graph_t agraph = NULL;
-        dnnl_graph_op_t op = NULL;
-        dnnl_graph_partition_t partition = NULL;
-        dnnl_graph_compiled_partition_t compiled_partition = NULL;
+        dnnl_graph_graph_t agraph = nullptr;
+        dnnl_graph_op_t op = nullptr;
+        dnnl_graph_partition_t partition = nullptr;
+        dnnl_graph_compiled_partition_t compiled_partition = nullptr;
 
 #define TEST_CONV2D_DESTROY \
     do { \
@@ -153,10 +151,9 @@ public:
     }
 };
 
-INSTANTIATE_TEST_SUITE_P(Test_CompileConv, test_compile_conv,
+INSTANTIATE_TEST_SUITE_P(Test_CompileConv, test_compile_conv_t,
         ::testing::Values(
-                dnnl_graph_test_conv_params {api_test_engine_kind,
-                        dnnl_graph_op_convolution,
+                conv_params_t {api_test_engine_kind, dnnl_graph_op_convolution,
                         dnnl_graph_partition_policy_max, dnnl_f32,
                         {"strides", "pads_begin", "pads_end", "dilations",
                                 "groups"},
@@ -165,8 +162,7 @@ INSTANTIATE_TEST_SUITE_P(Test_CompileConv, test_compile_conv,
                                 dnnl_graph_layout_type_strided,
                                 dnnl_graph_layout_type_strided},
                         {{1, 3, 227, 227}, {64, 3, 11, 11}, {1, 64, 55, 55}}},
-                dnnl_graph_test_conv_params {api_test_engine_kind,
-                        dnnl_graph_op_convolution,
+                conv_params_t {api_test_engine_kind, dnnl_graph_op_convolution,
                         dnnl_graph_partition_policy_fusion, dnnl_bf16,
                         {"strides", "pads_begin", "pads_end", "dilations",
                                 "groups"},
@@ -176,6 +172,6 @@ INSTANTIATE_TEST_SUITE_P(Test_CompileConv, test_compile_conv,
                                 dnnl_graph_layout_type_strided},
                         {{1, 3, 227, 227}, {64, 3, 11, 11}, {1, 64, 55, 55}}}));
 
-TEST_P(test_compile_conv, Test_CompileConv) {
+TEST_P(test_compile_conv_t, Test_CompileConv) {
     TestConv2d();
 }

@@ -16,17 +16,17 @@
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 
-struct dnnl_graph_test_prelu_params {
+struct prelu_params_t {
     dnnl::impl::graph::dims wei_dims;
     std::string data_format;
     bool per_channel_broadcast;
 };
 
-class Prelu : public ::testing::TestWithParam<dnnl_graph_test_prelu_params> {
+class prelu_t : public ::testing::TestWithParam<prelu_params_t> {
 public:
     void TestPrelu() {
-        const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_prelu_params>::GetParam();
+        const auto params
+                = ::testing::TestWithParam<prelu_params_t>::GetParam();
         impl::engine_t *eng = get_engine();
 
         impl::op_t op(impl::op_kind::PReLU, "prelu");
@@ -99,18 +99,17 @@ public:
     }
 };
 
-struct dnnl_graph_test_prelu_bwd_params {
+struct prelu_bwd_params_t {
     dnnl::impl::graph::dims data_dims;
     dnnl::impl::graph::dims wei_dims;
     std::string data_format;
 };
 
-class PreluBackprop
-    : public ::testing::TestWithParam<dnnl_graph_test_prelu_bwd_params> {
+class prelu_backprop_t : public ::testing::TestWithParam<prelu_bwd_params_t> {
 public:
     void TestPreluBackprop() {
-        const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_prelu_bwd_params>::GetParam();
+        const auto params
+                = ::testing::TestWithParam<prelu_bwd_params_t>::GetParam();
         impl::engine_t *eng = get_engine();
         impl::stream_t *strm = get_stream();
 
@@ -200,47 +199,46 @@ public:
     }
 };
 
-TEST_P(Prelu, TestPrelu) {
+TEST_P(prelu_t, TestPrelu) {
     TestPrelu();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, Prelu,
+INSTANTIATE_TEST_SUITE_P(Execute, prelu_t,
         ::testing::Values(
                 // no broadcast
-                dnnl_graph_test_prelu_params {{1, 2, 2, 2}, "NXC", false},
+                prelu_params_t {{1, 2, 2, 2}, "NXC", false},
                 // channel-shared broadcast
-                dnnl_graph_test_prelu_params {{1, 1, 1, 1}, "NXC", false},
+                prelu_params_t {{1, 1, 1, 1}, "NXC", false},
                 // shared-axes broadcast
-                dnnl_graph_test_prelu_params {{1, 2, 2, 1}, "NCX", false},
+                prelu_params_t {{1, 2, 2, 1}, "NCX", false},
                 // channel-wise broadcast, NCX
-                dnnl_graph_test_prelu_params {{1, 2, 1, 1}, "NCX", true},
+                prelu_params_t {{1, 2, 1, 1}, "NCX", true},
                 // channel-wise broadcast, NXC
-                dnnl_graph_test_prelu_params {{1, 1, 1, 2}, "NXC", true},
+                prelu_params_t {{1, 1, 1, 2}, "NXC", true},
                 // 1D weights broadcast, NXC
-                dnnl_graph_test_prelu_params {{2}, "NXC", true},
+                prelu_params_t {{2}, "NXC", true},
                 // 1d weights, no channel-wise broadcast, NCX
-                dnnl_graph_test_prelu_params {{2}, "NCX", false},
+                prelu_params_t {{2}, "NCX", false},
                 // 1d weights, channel-wise broadcast, NCX
-                dnnl_graph_test_prelu_params {{2}, "NCX", true}));
+                prelu_params_t {{2}, "NCX", true}));
 
-TEST_P(PreluBackprop, TestPreluBackprop) {
+TEST_P(prelu_backprop_t, TestPreluBackprop) {
     TestPreluBackprop();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, PreluBackprop,
+INSTANTIATE_TEST_SUITE_P(Execute, prelu_backprop_t,
         ::testing::Values(
                 // NCX, 1d slope, per tensor broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1}, "NCX"},
+                prelu_bwd_params_t {{1, 2, 2, 2}, {1}, "NCX"},
                 // NCX, 1d slope, per channel broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 1, 1}, {2}, "NCX"},
+                prelu_bwd_params_t {{1, 2, 1, 1}, {2}, "NCX"},
                 // NCX, tensorflow case
-                dnnl_graph_test_prelu_bwd_params {
-                        {1, 2, 2, 2}, {2, 2, 2}, "NCX"},
+                prelu_bwd_params_t {{1, 2, 2, 2}, {2, 2, 2}, "NCX"},
                 // NXC, 1d slope, per tensor broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1}, "NXC"},
+                prelu_bwd_params_t {{1, 2, 2, 2}, {1}, "NXC"},
                 // NXC, 1d slope, per channel broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 1, 1, 2}, {2}, "NXC"},
+                prelu_bwd_params_t {{1, 1, 1, 2}, {2}, "NXC"},
                 // 2d input, per tensor broadcast
-                dnnl_graph_test_prelu_bwd_params {{1, 2}, {1}, "NCX"},
+                prelu_bwd_params_t {{1, 2}, {1}, "NCX"},
                 // 2d input, per channel broadcast
-                dnnl_graph_test_prelu_bwd_params {{1, 2}, {2}, "NCX"}));
+                prelu_bwd_params_t {{1, 2}, {2}, "NCX"}));

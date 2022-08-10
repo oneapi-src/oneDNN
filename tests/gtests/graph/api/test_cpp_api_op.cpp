@@ -196,7 +196,7 @@ TEST(APIOp, ShallowCopy) {
     using namespace dnnl::graph;
     const size_t id = 123;
     op conv {id, op::kind::Convolution, "convolution"};
-    op conv_1(conv);
+    op conv_1(conv); // NOLINT
 
     ASSERT_EQ(conv.get(), conv_1.get());
 }

@@ -89,9 +89,9 @@ TEST(AttributeValue, Copy) {
     ASSERT_EQ(v1.get_kind(), attribute_kind::fs);
     ASSERT_EQ(v1.get<std::vector<float>>(), fs);
 
-    attribute_value_t v2 = v1;
-    ASSERT_EQ(v1.get_kind(), attribute_kind::fs);
-    ASSERT_EQ(v1.get<std::vector<float>>(), fs);
+    attribute_value_t v2 = v1; // NOLINT
+    ASSERT_EQ(v2.get_kind(), attribute_kind::fs);
+    ASSERT_EQ(v2.get<std::vector<float>>(), fs);
 }
 
 TEST(AttributeValue, Equal) {

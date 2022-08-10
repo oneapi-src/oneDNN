@@ -144,7 +144,7 @@ static inline void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic,
     }
 }
 
-struct dnnl_graph_test_batchnorm_params {
+struct batchnorm_params_t {
     impl::op_kind_t op_kind;
     bool with_relu;
     impl::dim_t N;
@@ -157,14 +157,12 @@ struct dnnl_graph_test_batchnorm_params {
     impl::data_type_t data_type;
 };
 
-class BatchNorm4D
-    : public ::testing::TestWithParam<dnnl_graph_test_batchnorm_params> {
+class batch_norm_4d_t : public ::testing::TestWithParam<batchnorm_params_t> {
 public:
     void TestBatchnorm(bool dims_in_order = true) {
         using dims = dnnl::impl::graph::dnnl_impl::dims;
 
-        auto params = ::testing::TestWithParam<
-                dnnl_graph_test_batchnorm_params>::GetParam();
+        auto params = ::testing::TestWithParam<batchnorm_params_t>::GetParam();
 
         impl::op_t batchnorm_op(0, params.op_kind, "batchnorm");
         batchnorm_op.set_attr(impl::op_attr::epsilon, params.epsilon);
@@ -416,27 +414,24 @@ public:
     }
 };
 
-TEST_P(BatchNorm4D, TestBatchnorm) {
+TEST_P(batch_norm_4d_t, TestBatchnorm) {
     Test();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, BatchNorm4D,
+INSTANTIATE_TEST_SUITE_P(Execute, batch_norm_4d_t,
         ::testing::Values(
-                dnnl_graph_test_batchnorm_params {
-                        impl::op_kind::BatchNormInference, false, 3, 3, 2, 2,
-                        0.001f, "NCX", "dnnl", impl::data_type::f32},
-                dnnl_graph_test_batchnorm_params {
-                        impl::op_kind::BatchNormInference, true, 3, 3, 2, 2,
-                        0.001f, "NCX", "dnnl", impl::data_type::f32},
-                dnnl_graph_test_batchnorm_params {
-                        impl::op_kind::BatchNormInference, false, 3, 3, 2, 2,
-                        0.001f, "NXC", "dnnl", impl::data_type::f32},
-                dnnl_graph_test_batchnorm_params {
-                        impl::op_kind::BatchNormForwardTraining, false, 3, 3, 2,
-                        2, 0.001f, "NCX", "dnnl", impl::data_type::f32},
-                dnnl_graph_test_batchnorm_params {
-                        impl::op_kind::BatchNormForwardTraining, false, 3, 3, 2,
-                        2, 0.001f, "NXC", "dnnl", impl::data_type::f32}));
+                batchnorm_params_t {impl::op_kind::BatchNormInference, false, 3,
+                        3, 2, 2, 0.001f, "NCX", "dnnl", impl::data_type::f32},
+                batchnorm_params_t {impl::op_kind::BatchNormInference, true, 3,
+                        3, 2, 2, 0.001f, "NCX", "dnnl", impl::data_type::f32},
+                batchnorm_params_t {impl::op_kind::BatchNormInference, false, 3,
+                        3, 2, 2, 0.001f, "NXC", "dnnl", impl::data_type::f32},
+                batchnorm_params_t {impl::op_kind::BatchNormForwardTraining,
+                        false, 3, 3, 2, 2, 0.001f, "NCX", "dnnl",
+                        impl::data_type::f32},
+                batchnorm_params_t {impl::op_kind::BatchNormForwardTraining,
+                        false, 3, 3, 2, 2, 0.001f, "NXC", "dnnl",
+                        impl::data_type::f32}));
 
 TEST(Compile, BatchNormBackpropFp32) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;

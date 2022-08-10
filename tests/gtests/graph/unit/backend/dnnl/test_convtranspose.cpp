@@ -16,7 +16,7 @@
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 
-struct dnnl_graph_test_convtranspose_params {
+struct convtranspose_params_t {
     std::string data_format;
     std::string filter_format;
     std::vector<int64_t> src_shape;
@@ -30,14 +30,14 @@ struct dnnl_graph_test_convtranspose_params {
     impl::dnnl_impl::dims pads_end;
 };
 
-class Convtranspose4D5D
-    : public ::testing::TestWithParam<dnnl_graph_test_convtranspose_params> {
+class convtranspose_4d_5d_t
+    : public ::testing::TestWithParam<convtranspose_params_t> {
 public:
     void TestConvtranspose() {
         using dims = impl::dnnl_impl::dims;
 
-        auto params = ::testing::TestWithParam<
-                dnnl_graph_test_convtranspose_params>::GetParam();
+        auto params
+                = ::testing::TestWithParam<convtranspose_params_t>::GetParam();
 
         impl::engine_t *eng = get_engine();
         std::vector<impl::dim_t> src_dims = params.src_shape;
@@ -141,7 +141,7 @@ public:
     }
 };
 
-struct dnnl_graph_test_convtranspose_bwd_params {
+struct convtranspose_bwd_params_t {
     std::vector<int64_t> src_dims;
     std::vector<int64_t> wei_dims;
     std::vector<int64_t> dst_dims;
@@ -153,15 +153,14 @@ struct dnnl_graph_test_convtranspose_bwd_params {
     std::string filter_format;
 };
 
-class ConvTransposeBackpropData
-    : public ::testing::TestWithParam<
-              dnnl_graph_test_convtranspose_bwd_params> {
+class convtranspose_backprop_data_t
+    : public ::testing::TestWithParam<convtranspose_bwd_params_t> {
 public:
     void TestConvTransposeBackpropData() {
         using dims = impl::dnnl_impl::dims;
 
         auto params = ::testing::TestWithParam<
-                dnnl_graph_test_convtranspose_bwd_params>::GetParam();
+                convtranspose_bwd_params_t>::GetParam();
 
         // default engine kind is cpu.
         impl::engine_t *eng = get_engine();
@@ -245,15 +244,14 @@ public:
     }
 };
 
-class ConvTransposeBackpropFilters
-    : public ::testing::TestWithParam<
-              dnnl_graph_test_convtranspose_bwd_params> {
+class convtranspose_backprop_filters_t
+    : public ::testing::TestWithParam<convtranspose_bwd_params_t> {
 public:
     void TestConvTransposeBackpropFilters() {
         using dims = impl::dnnl_impl::dims;
 
         auto params = ::testing::TestWithParam<
-                dnnl_graph_test_convtranspose_bwd_params>::GetParam();
+                convtranspose_bwd_params_t>::GetParam();
 
         impl::engine_t *eng = get_engine();
         std::vector<impl::dim_t> src_dims = params.src_dims;
@@ -335,19 +333,18 @@ public:
     }
 };
 
-struct dnnl_graph_test_convtranspose_add_params {
+struct convtranspose_add_params_t {
     std::vector<impl::dim_t> add_src_shape;
     bool swap;
     bool with_bias;
 };
 
-class test_convtranspose_add_compile
-    : public ::testing::TestWithParam<
-              dnnl_graph_test_convtranspose_add_params> {
+class test_convtranspose_add_compile_t
+    : public ::testing::TestWithParam<convtranspose_add_params_t> {
 public:
     void TestConvTransposeAdd() {
         const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_convtranspose_add_params>::GetParam();
+                convtranspose_add_params_t>::GetParam();
         using dims = impl::dnnl_impl::dims;
 
         impl::engine_t *eng = get_engine();
@@ -510,97 +507,92 @@ TEST(Compile, ConvtransposeFp32) {
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 }
 
-TEST_P(Convtranspose4D5D, TestConvtranspose) {
+TEST_P(convtranspose_4d_5d_t, TestConvtranspose) {
     TestConvtranspose();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, Convtranspose4D5D,
-        ::testing::Values(dnnl_graph_test_convtranspose_params {"NXC", "OIX",
-                                  {1, 2, 2, 1}, {1, 1, 3, 3}, false, {1},
-                                  {1, 4, 4, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                dnnl_graph_test_convtranspose_params {"NCX", "OIX",
-                        {1, 1, 2, 2}, {1, 1, 3, 3}, true, {1}, {1, 1, 4, 4},
-                        {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                dnnl_graph_test_convtranspose_params {"NXC", "XIO",
-                        {1, 2, 2, 1}, {3, 3, 1, 1}, false, {1}, {1, 4, 4, 1},
-                        {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                dnnl_graph_test_convtranspose_params {"NCX", "XIO",
-                        {1, 1, 2, 2}, {3, 3, 1, 1}, true, {1}, {1, 1, 4, 4},
-                        {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                dnnl_graph_test_convtranspose_params {"NXC", "OIX",
-                        {1, 1, 2, 2, 1}, {1, 1, 1, 3, 3}, false, {1},
-                        {1, 1, 4, 4, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}},
-                dnnl_graph_test_convtranspose_params {"NCX", "OIX",
-                        {1, 1, 1, 2, 2}, {1, 1, 1, 3, 3}, false, {1},
-                        {1, 1, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}},
-                dnnl_graph_test_convtranspose_params {"NXC", "XIO",
-                        {1, 1, 2, 2, 1}, {1, 3, 3, 1, 1}, false, {1},
-                        {1, 1, 4, 4, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}},
-                dnnl_graph_test_convtranspose_params {"NCX", "XIO",
-                        {1, 1, 1, 2, 2}, {1, 3, 3, 1, 1}, true, {1},
-                        {1, 1, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}}));
+INSTANTIATE_TEST_SUITE_P(Execute, convtranspose_4d_5d_t,
+        ::testing::Values(convtranspose_params_t {"NXC", "OIX", {1, 2, 2, 1},
+                                  {1, 1, 3, 3}, false, {1}, {1, 4, 4, 1},
+                                  {1, 1}, {1, 1}, {0, 0}, {0, 0}},
+                convtranspose_params_t {"NCX", "OIX", {1, 1, 2, 2},
+                        {1, 1, 3, 3}, true, {1}, {1, 1, 4, 4}, {1, 1}, {1, 1},
+                        {0, 0}, {0, 0}},
+                convtranspose_params_t {"NXC", "XIO", {1, 2, 2, 1},
+                        {3, 3, 1, 1}, false, {1}, {1, 4, 4, 1}, {1, 1}, {1, 1},
+                        {0, 0}, {0, 0}},
+                convtranspose_params_t {"NCX", "XIO", {1, 1, 2, 2},
+                        {3, 3, 1, 1}, true, {1}, {1, 1, 4, 4}, {1, 1}, {1, 1},
+                        {0, 0}, {0, 0}},
+                convtranspose_params_t {"NXC", "OIX", {1, 1, 2, 2, 1},
+                        {1, 1, 1, 3, 3}, false, {1}, {1, 1, 4, 4, 1}, {1, 1, 1},
+                        {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
+                convtranspose_params_t {"NCX", "OIX", {1, 1, 1, 2, 2},
+                        {1, 1, 1, 3, 3}, false, {1}, {1, 1, 1, 4, 4}, {1, 1, 1},
+                        {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
+                convtranspose_params_t {"NXC", "XIO", {1, 1, 2, 2, 1},
+                        {1, 3, 3, 1, 1}, false, {1}, {1, 1, 4, 4, 1}, {1, 1, 1},
+                        {1, 1, 1}, {0, 0, 0}, {0, 0, 0}},
+                convtranspose_params_t {"NCX", "XIO", {1, 1, 1, 2, 2},
+                        {1, 3, 3, 1, 1}, true, {1}, {1, 1, 1, 4, 4}, {1, 1, 1},
+                        {1, 1, 1}, {0, 0, 0}, {0, 0, 0}}));
 
-TEST_P(ConvTransposeBackpropData, TestConvTransposeBackpropData) {
+TEST_P(convtranspose_backprop_data_t, TestConvTransposeBackpropData) {
     TestConvTransposeBackpropData();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropData,
+INSTANTIATE_TEST_SUITE_P(Execute, convtranspose_backprop_data_t,
         ::testing::Values(
                 // NCX, OIX
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
-                        {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NCX", "OIX"},
+                convtranspose_bwd_params_t {{1, 1, 2, 2}, {1, 1, 3, 3},
+                        {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NCX",
+                        "OIX"},
                 // 3d, NCX, IOX
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
-                        {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NCX", "OIX"},
+                convtranspose_bwd_params_t {{1, 1, 1, 2, 2}, {1, 1, 1, 3, 3},
+                        {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NCX", "OIX"},
                 // NCX, XIO
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
-                        {3, 3, 1, 1}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NCX", "XIO"},
+                convtranspose_bwd_params_t {{1, 1, 2, 2}, {3, 3, 1, 1},
+                        {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NCX",
+                        "XIO"},
                 // 3d, NCX, XIO
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
-                        {1, 3, 3, 1, 1}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NCX", "XIO"},
+                convtranspose_bwd_params_t {{1, 1, 1, 2, 2}, {1, 3, 3, 1, 1},
+                        {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NCX", "XIO"},
                 // NXC, XIO
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1},
-                        {3, 4, 1, 1}, {1, 3, 4, 1}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NXC", "XIO"},
+                convtranspose_bwd_params_t {{1, 1, 1, 1}, {3, 4, 1, 1},
+                        {1, 3, 4, 1}, {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NXC",
+                        "XIO"},
                 // 3d, NXC, XIO
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1, 1},
-                        {1, 3, 4, 1, 1}, {1, 1, 3, 4, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NXC", "XIO"},
+                convtranspose_bwd_params_t {{1, 1, 1, 1, 1}, {1, 3, 4, 1, 1},
+                        {1, 1, 3, 4, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NXC", "XIO"},
                 // NXC, OIX
-                dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
-                        {1, 1, 3, 3}, {1, 4, 4, 1}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NXC", "OIX"},
+                convtranspose_bwd_params_t {{1, 2, 2, 1}, {1, 1, 3, 3},
+                        {1, 4, 4, 1}, {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NXC",
+                        "OIX"},
                 // 3d, NXC, OIX
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
-                        {1, 1, 1, 3, 3}, {1, 1, 4, 4, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NXC", "OIX"}));
+                convtranspose_bwd_params_t {{1, 1, 2, 2, 1}, {1, 1, 1, 3, 3},
+                        {1, 1, 4, 4, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NXC", "OIX"}));
 
-TEST_P(ConvTransposeBackpropFilters, TestConvTransposeBackpropFilters) {
+TEST_P(convtranspose_backprop_filters_t, TestConvTransposeBackpropFilters) {
     TestConvTransposeBackpropFilters();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropFilters,
-        ::testing::Values(
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
-                        {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NCX", "OIX"},
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
-                        {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NCX", "OIX"},
-                dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
-                        {3, 3, 1, 1}, {1, 4, 4, 1}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NXC", "XIO"},
-                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
-                        {1, 3, 3, 1, 1}, {1, 1, 4, 4, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NXC", "XIO"}));
+INSTANTIATE_TEST_SUITE_P(Execute, convtranspose_backprop_filters_t,
+        ::testing::Values(convtranspose_bwd_params_t {{1, 1, 2, 2},
+                                  {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1}, {0, 0},
+                                  {0, 0}, {1, 1}, "NCX", "OIX"},
+                convtranspose_bwd_params_t {{1, 1, 1, 2, 2}, {1, 1, 1, 3, 3},
+                        {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NCX", "OIX"},
+                convtranspose_bwd_params_t {{1, 2, 2, 1}, {3, 3, 1, 1},
+                        {1, 4, 4, 1}, {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NXC",
+                        "XIO"},
+                convtranspose_bwd_params_t {{1, 1, 2, 2, 1}, {1, 3, 3, 1, 1},
+                        {1, 1, 4, 4, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NXC", "XIO"}));
 
 TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     using dims = impl::dnnl_impl::dims;
@@ -667,37 +659,29 @@ TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
             || lt.layout_type == impl::layout_type::strided);
 }
 
-TEST_P(test_convtranspose_add_compile, TestConvTransposeAddCompile) {
+TEST_P(test_convtranspose_add_compile_t, TestConvTransposeAddCompile) {
     TestConvTransposeAdd();
 }
 
 INSTANTIATE_TEST_SUITE_P(TestConvTransposeAddCompile,
-        test_convtranspose_add_compile,
+        test_convtranspose_add_compile_t,
         ::testing::Values(
                 // with broadcast add, no swap inputs, without bias
-                dnnl_graph_test_convtranspose_add_params {
-                        {1, 1, 1, 1}, false, false},
+                convtranspose_add_params_t {{1, 1, 1, 1}, false, false},
                 // with broadcast add, swap inputs, without bias
-                dnnl_graph_test_convtranspose_add_params {
-                        {1, 1, 1, 1}, true, false},
+                convtranspose_add_params_t {{1, 1, 1, 1}, true, false},
                 // no broadcast add (sum), no swap inputs, without bias
-                dnnl_graph_test_convtranspose_add_params {
-                        {1, 4, 4, 1}, false, false},
+                convtranspose_add_params_t {{1, 4, 4, 1}, false, false},
                 // no broadcast add (sum), swap inputs, without bias
-                dnnl_graph_test_convtranspose_add_params {
-                        {1, 4, 4, 1}, true, false},
+                convtranspose_add_params_t {{1, 4, 4, 1}, true, false},
                 // with broadcast add, no swap inputs, with bias
-                dnnl_graph_test_convtranspose_add_params {
-                        {1, 1, 1, 1}, false, true},
+                convtranspose_add_params_t {{1, 1, 1, 1}, false, true},
                 // with broadcast add, swap inputs, with bias
-                dnnl_graph_test_convtranspose_add_params {
-                        {1, 1, 1, 1}, true, true},
+                convtranspose_add_params_t {{1, 1, 1, 1}, true, true},
                 // no broadcast add (sum), no swap inputs, with bias
-                dnnl_graph_test_convtranspose_add_params {
-                        {1, 4, 4, 1}, false, true},
+                convtranspose_add_params_t {{1, 4, 4, 1}, false, true},
                 // no broadcast add (sum), swap inputs, with bias
-                dnnl_graph_test_convtranspose_add_params {
-                        {1, 4, 4, 1}, true, true}));
+                convtranspose_add_params_t {{1, 4, 4, 1}, true, true}));
 
 TEST(operator_kernel, convtranspose_relu) {
     using dims = impl::dnnl_impl::dims;

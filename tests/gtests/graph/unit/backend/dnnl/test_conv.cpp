@@ -17,7 +17,7 @@
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 #include "graph/unit/backend/dnnl/ref_func.hpp"
 
-struct eltwise_param {
+struct eltwise_param_t {
     std::string pass_name;
     test::vector<float> bias;
     test::vector<float> ref_dst;
@@ -2194,31 +2194,31 @@ TEST(Execute, ConvBiasEltwise) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    std::vector<eltwise_param> params1 = {
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+    std::vector<eltwise_param_t> params1 = {
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {2.0, 1.5, 4.0, 0.5}, impl::op_kind::Abs, "Abs", {}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {static_cast<float>(exp(-2) - 1), 1.5, 4.0, 0.5},
                     impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {-0.04f, 1.5f, 4.0f, 0.5f}, impl::op_kind::LeakyReLU,
                     "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     mish_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {0.0, 1.5, 3.0, 0.5}, impl::op_kind::Clamp, "Clamp",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 3.f}}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     sigmoid_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Sigmoid,
                     "Sigmoid", {}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {4.0, 2.25, 16.0, 0.25}, impl::op_kind::Square, "Square",
                     {}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     tanh_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Tanh,
                     "Tanh", {}},
-            eltwise_param {"conv_bias_post_ops_fusion", {1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {1.0},
                     sqrt_func({0.0, 3.5, 6.0, 2.5}), impl::op_kind::Sqrt,
                     "Sqrt", {}},
     };
@@ -2307,17 +2307,17 @@ TEST(Execute, ConvBiasAddEltwise) {
     test::vector<float> post_src {-2.0, 1.0, -1.0, 0.0};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    std::vector<eltwise_param> params2 = {
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+    std::vector<eltwise_param_t> params2 = {
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {static_cast<float>(exp(-4.0) - 1), 2.5, 3.0, 0.5},
                     impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {-0.08f, 2.5f, 3.0f, 0.5f}, impl::op_kind::LeakyReLU,
                     "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
-            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     mish_func({-4.0f, 2.5f, 3.0f, 0.5f}), impl::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param {"conv_bias_post_ops_fusion", {3.0},
+            eltwise_param_t {"conv_bias_post_ops_fusion", {3.0},
                     {0.0, 6.f, 6.f, 4.5}, impl::op_kind::Clamp, "ReLU6",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
     };
@@ -2431,18 +2431,18 @@ TEST(Execute, ConvAddEltwise) {
     test::vector<float> ref_dst {-3.0, 3.5, 4.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    std::vector<eltwise_param> params = {
-            eltwise_param {"conv_post_ops_fusion", {0.0},
+    std::vector<eltwise_param_t> params = {
+            eltwise_param_t {"conv_post_ops_fusion", {0.0},
                     {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
                     impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
-            eltwise_param {"conv_post_ops_fusion", {0.0},
+            eltwise_param_t {"conv_post_ops_fusion", {0.0},
                     {-0.06f, 3.5f, 4.0f, 1.5f}, impl::op_kind::LeakyReLU,
                     "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
-            eltwise_param {"conv_post_ops_fusion", {0.0},
+            eltwise_param_t {"conv_post_ops_fusion", {0.0},
                     mish_func({-3.0f, 3.5f, 4.0f, 1.5f}), impl::op_kind::Mish,
                     "Mish", {}},
-            eltwise_param {"conv_post_ops_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
-                    impl::op_kind::Clamp, "ReLU6",
+            eltwise_param_t {"conv_post_ops_fusion", {0.0},
+                    {0.0, 3.5, 4.f, 1.5}, impl::op_kind::Clamp, "ReLU6",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
     };
 

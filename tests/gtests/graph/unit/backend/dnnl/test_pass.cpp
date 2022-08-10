@@ -11574,8 +11574,7 @@ TEST(Pass, ShuffleFusion) {
     const int64_t g = 4;
 
     for (const size_t axis : config_axis) {
-        const std::vector<int64_t> reshape0_src_shape = base_shape;
-        const std::vector<int64_t> reshape1_dst_shape = base_shape;
+        const std::vector<int64_t> &reshape1_dst_shape = base_shape;
 
         std::vector<int64_t> reshape0_dst_shape = base_shape;
         reshape0_dst_shape[axis] /= g;

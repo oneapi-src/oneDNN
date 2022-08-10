@@ -21,7 +21,7 @@
 #include "test_api_common.h"
 
 TEST(CAPI, CreateGraphWithEngine) {
-    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_graph_t agraph = nullptr;
     dnnl_engine_kind_t engine = dnnl_cpu;
 
 #define CREATE_GRAPH_WITH_ENGINE_DESTROY \

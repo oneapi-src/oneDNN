@@ -805,19 +805,19 @@ TEST(Compile, EltwiseGetInplacePair) {
     ASSERT_EQ(pairs[0].output_id, 1U);
 }
 
-struct dnnl_graph_test_eltwise_binary_params {
+struct eltwise_binary_params_t {
     impl::op_kind_t eltwise_kind;
     impl::op_kind_t binary_kind;
     std::vector<impl::dim_t> binary_src_shape;
     bool swap;
 };
 
-class EltwiseBinary
-    : public ::testing::TestWithParam<dnnl_graph_test_eltwise_binary_params> {
+class eltwise_binary_t
+    : public ::testing::TestWithParam<eltwise_binary_params_t> {
 public:
     void TestEltwiseBinary() {
-        const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_eltwise_binary_params>::GetParam();
+        const auto params
+                = ::testing::TestWithParam<eltwise_binary_params_t>::GetParam();
         impl::engine_t *eng = get_engine();
 
         std::vector<impl::dim_t> binary_src_shape = params.binary_src_shape;
@@ -899,39 +899,39 @@ public:
     }
 };
 
-TEST_P(EltwiseBinary, TestEltwiseBinary) {
+TEST_P(eltwise_binary_t, TestEltwiseBinary) {
     TestEltwiseBinary();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, EltwiseBinary,
+INSTANTIATE_TEST_SUITE_P(Execute, eltwise_binary_t,
         ::testing::Values(
                 // with broadcast add and no swap inputs
-                dnnl_graph_test_eltwise_binary_params {
+                eltwise_binary_params_t {
                         impl::op_kind::ReLU, impl::op_kind::Add, {1}, false},
                 // with broadcast add and swap inputs
-                dnnl_graph_test_eltwise_binary_params {
+                eltwise_binary_params_t {
                         impl::op_kind::ReLU, impl::op_kind::Add, {1}, true},
                 // no broadcast add and no swap inputs
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
+                eltwise_binary_params_t {impl::op_kind::ReLU,
                         impl::op_kind::Add, {1, 1, 2, 2}, false},
                 // no broadcast add and swap inputs
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
+                eltwise_binary_params_t {impl::op_kind::ReLU,
                         impl::op_kind::Add, {1, 1, 2, 2}, true},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Clamp,
+                eltwise_binary_params_t {impl::op_kind::Clamp,
                         impl::op_kind::Multiply, {1}, false},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Round,
+                eltwise_binary_params_t {impl::op_kind::Round,
                         impl::op_kind::Maximum, {1, 1, 2, 2}, false},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Sigmoid,
+                eltwise_binary_params_t {impl::op_kind::Sigmoid,
                         impl::op_kind::Divide, {1}, false},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::SoftPlus,
+                eltwise_binary_params_t {impl::op_kind::SoftPlus,
                         impl::op_kind::Minimum, {1, 1, 2, 2}, false},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Exp,
+                eltwise_binary_params_t {impl::op_kind::Exp,
                         impl::op_kind::Minimum, {1, 1, 2, 2}, false},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Elu,
+                eltwise_binary_params_t {impl::op_kind::Elu,
                         impl::op_kind::Subtract, {1, 1, 2, 2}, false},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Sqrt,
+                eltwise_binary_params_t {impl::op_kind::Sqrt,
                         impl::op_kind::Minimum, {1}, false},
-                dnnl_graph_test_eltwise_binary_params {impl::op_kind::HardSwish,
+                eltwise_binary_params_t {impl::op_kind::HardSwish,
                         impl::op_kind::Minimum, {1}, false},
-                dnnl_graph_test_eltwise_binary_params {
+                eltwise_binary_params_t {
                         impl::op_kind::Tanh, impl::op_kind::Add, {1}, true}));

@@ -47,16 +47,15 @@ using dims_t = std::vector<dim_t>;
         } \
     } while (0)
 
-struct dnnl_graph_test_conv_attr_name_t {
-    dnnl_graph_test_conv_attr_name_t()
+struct conv_attr_name_t {
+    conv_attr_name_t()
         : strides("strides")
         , pads_begin("pads_begin")
         , pads_end("pads_end")
         , dilations("dilations")
         , groups("groups") {}
-    dnnl_graph_test_conv_attr_name_t(std::string strides,
-            std::string pads_begin, std::string pads_end, std::string dilations,
-            std::string groups)
+    conv_attr_name_t(std::string strides, std::string pads_begin,
+            std::string pads_end, std::string dilations, std::string groups)
         : strides(std::move(strides))
         , pads_begin(std::move(pads_begin))
         , pads_end(std::move(pads_end))
@@ -69,9 +68,9 @@ struct dnnl_graph_test_conv_attr_name_t {
     std::string groups;
 };
 
-struct dnnl_graph_test_conv_attr_value_t {
-    dnnl_graph_test_conv_attr_value_t(dims_t strides, dims_t pads_begin,
-            dims_t pads_end, dims_t dilations, dims_t groups)
+struct conv_attr_value_t {
+    conv_attr_value_t(dims_t strides, dims_t pads_begin, dims_t pads_end,
+            dims_t dilations, dims_t groups)
         : strides(std::move(strides))
         , pads_begin(std::move(pads_begin))
         , pads_end(std::move(pads_end))
@@ -84,9 +83,8 @@ struct dnnl_graph_test_conv_attr_value_t {
     dims_t groups;
 };
 
-struct dnnl_graph_test_conv_shapes_t {
-    dnnl_graph_test_conv_shapes_t(
-            dims_t input_dims, dims_t weight_dims, dims_t output_dims)
+struct conv_shapes_t {
+    conv_shapes_t(dims_t input_dims, dims_t weight_dims, dims_t output_dims)
         : input_ndim(static_cast<dim_t>(input_dims.size()))
         , weight_ndim(static_cast<dim_t>(weight_dims.size()))
         , output_ndim(static_cast<dim_t>(output_dims.size()))
@@ -101,7 +99,7 @@ struct dnnl_graph_test_conv_shapes_t {
     dims_t output_dims;
 };
 
-struct dnnl_graph_test_conv_layout_t {
+struct conv_layout_t {
     dnnl_graph_layout_type_t input_layout;
     dnnl_graph_layout_type_t weight_layout;
     dnnl_graph_layout_type_t output_layout;
@@ -114,15 +112,15 @@ struct dnnl_graph_test_conv_layout_t {
     logic tensors:
     input, weight, output
 */
-struct dnnl_graph_test_conv_params {
+struct conv_params_t {
     dnnl_engine_kind_t engine;
     dnnl_graph_op_kind_t op_kind;
     dnnl_graph_partition_policy_t policy;
     dnnl_data_type_t data_type;
-    dnnl_graph_test_conv_attr_name_t attr_name;
-    dnnl_graph_test_conv_attr_value_t attr_value;
-    dnnl_graph_test_conv_layout_t tensor_layout;
-    dnnl_graph_test_conv_shapes_t tensor_dims;
+    conv_attr_name_t attr_name;
+    conv_attr_value_t attr_value;
+    conv_layout_t tensor_layout;
+    conv_shapes_t tensor_dims;
 };
 
 extern dnnl_engine_kind_t api_test_engine_kind;

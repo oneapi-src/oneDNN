@@ -3665,7 +3665,7 @@ struct dynamic_quantization_params_t {
 };
 
 template <op_kind_t kind>
-class DynamicQuantize
+class dynamic_quantization_t
     : public ::testing::TestWithParam<dynamic_quantization_params_t> {
 public:
     void Test() {
@@ -3694,7 +3694,7 @@ public:
     }
 };
 
-using dynamic_quantize_t = DynamicQuantize<op_kind::DynamicQuantize>;
+using dynamic_quantize_t = dynamic_quantization_t<op_kind::DynamicQuantize>;
 
 TEST_P(dynamic_quantize_t, TestDynamicQuantize) {
     Test();
@@ -3743,7 +3743,7 @@ static auto QuantizeCases = []() {
 
 INSTANTIATE_TEST_SUITE_P(OpSchema, dynamic_quantize_t, QuantizeCases());
 
-using dynamic_dequantize_t = DynamicQuantize<op_kind::DynamicDequantize>;
+using dynamic_dequantize_t = dynamic_quantization_t<op_kind::DynamicDequantize>;
 
 TEST_P(dynamic_dequantize_t, TestDynamicDequantize) {
     Test();

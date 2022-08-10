@@ -1189,17 +1189,16 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
     }
 }
 
-struct dnnl_graph_test_pool_binary_params {
+struct pool_binary_params_t {
     impl::op_kind_t pool_kind;
     impl::op_kind_t binary_kind;
 };
 
-class PoolBinary
-    : public ::testing::TestWithParam<dnnl_graph_test_pool_binary_params> {
+class pool_binary_t : public ::testing::TestWithParam<pool_binary_params_t> {
 public:
     void TestPoolBinary() {
-        const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_pool_binary_params>::GetParam();
+        const auto params
+                = ::testing::TestWithParam<pool_binary_params_t>::GetParam();
         using dims = impl::dnnl_impl::dims;
 
         impl::engine_t *eng = get_engine();
@@ -1311,23 +1310,22 @@ public:
     }
 };
 
-TEST_P(PoolBinary, TestPoolBinary) {
+TEST_P(pool_binary_t, TestPoolBinary) {
     TestPoolBinary();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, PoolBinary,
-        ::testing::Values(
-                dnnl_graph_test_pool_binary_params {
-                        impl::op_kind::AvgPool, impl::op_kind::Add},
-                dnnl_graph_test_pool_binary_params {
+INSTANTIATE_TEST_SUITE_P(Execute, pool_binary_t,
+        ::testing::Values(pool_binary_params_t {impl::op_kind::AvgPool,
+                                  impl::op_kind::Add},
+                pool_binary_params_t {
                         impl::op_kind::MaxPool, impl::op_kind::Add},
-                dnnl_graph_test_pool_binary_params {
+                pool_binary_params_t {
                         impl::op_kind::AvgPool, impl::op_kind::Divide},
-                dnnl_graph_test_pool_binary_params {
+                pool_binary_params_t {
                         impl::op_kind::AvgPool, impl::op_kind::Maximum},
-                dnnl_graph_test_pool_binary_params {
+                pool_binary_params_t {
                         impl::op_kind::MaxPool, impl::op_kind::Minimum},
-                dnnl_graph_test_pool_binary_params {
+                pool_binary_params_t {
                         impl::op_kind::AvgPool, impl::op_kind::Multiply},
-                dnnl_graph_test_pool_binary_params {
+                pool_binary_params_t {
                         impl::op_kind::MaxPool, impl::op_kind::Subtract}));

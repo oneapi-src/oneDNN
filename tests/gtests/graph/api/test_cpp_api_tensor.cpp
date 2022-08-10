@@ -101,7 +101,7 @@ TEST(APITensor, ShallowCopy) {
     void *handle = &n;
 
     tensor t_1 {lt_1, eng, handle};
-    tensor t_2(t_1);
+    tensor t_2(t_1); // NOLINT
 
     ASSERT_EQ(t_2.get_data_handle(), handle);
 }

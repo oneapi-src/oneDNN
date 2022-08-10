@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
-struct dnnl_graph_test_conv_params_t {
+struct test_conv_params_t {
     std::vector<int64_t> input_dims;
     std::vector<int64_t> ref_dst_dims;
     std::vector<int64_t> kernel;
@@ -35,11 +35,10 @@ struct dnnl_graph_test_conv_params_t {
 };
 
 class test_conv_compile_t
-    : public ::testing::TestWithParam<dnnl_graph_test_conv_params_t> {
+    : public ::testing::TestWithParam<test_conv_params_t> {
 public:
     void Test_Conv() {
-        auto params = ::testing::TestWithParam<
-                dnnl_graph_test_conv_params_t>::GetParam();
+        auto params = ::testing::TestWithParam<test_conv_params_t>::GetParam();
 
         using namespace dnnl::graph;
         dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
@@ -297,15 +296,14 @@ TEST_P(test_conv_compile_t, Test_Conv_Compile) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Test_Conv_Compile, test_conv_compile_t,
-        ::testing::Values(
-                dnnl_graph_test_conv_params_t {{1, 56, 56, 64}, {1, 56, 56, 64},
-                        {1, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}, 64,
-                        "SAME_UPPER", "NXC", "XIO"},
-                dnnl_graph_test_conv_params_t {{1, 14, 14, 1024},
-                        {1, 7, 7, 2048}, {1, 1}, {2, 2}, {1, 1}, {0, 0}, {0, 0},
-                        2048, "SAME_UPPER", "NXC", "XIO"}));
+        ::testing::Values(test_conv_params_t {{1, 56, 56, 64}, {1, 56, 56, 64},
+                                  {1, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}, 64,
+                                  "SAME_UPPER", "NXC", "XIO"},
+                test_conv_params_t {{1, 14, 14, 1024}, {1, 7, 7, 2048}, {1, 1},
+                        {2, 2}, {1, 1}, {0, 0}, {0, 0}, 2048, "SAME_UPPER",
+                        "NXC", "XIO"}));
 
-struct dnnl_graph_test_pool_params_t {
+struct pool_params_t {
     std::vector<int64_t> input_dims;
     std::vector<int64_t> ref_dst_dims;
     std::vector<int64_t> kernel;
@@ -320,11 +318,10 @@ struct dnnl_graph_test_pool_params_t {
 };
 
 class test_average_pool_compile_t
-    : public ::testing::TestWithParam<dnnl_graph_test_pool_params_t> {
+    : public ::testing::TestWithParam<pool_params_t> {
 public:
     void Test_Average_Pool() {
-        auto params = ::testing::TestWithParam<
-                dnnl_graph_test_pool_params_t>::GetParam();
+        auto params = ::testing::TestWithParam<pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
         dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
@@ -418,19 +415,16 @@ TEST_P(test_average_pool_compile_t, Test_Average_Pool_Compile) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Test_Average_Pool_Compile, test_average_pool_compile_t,
-        ::testing::Values(dnnl_graph_test_pool_params_t {{1, 1, 4, 4},
-                                  {1, 1, 2, 3}, {2, 2}, {3, 1}, {0, 0}, {0, 0},
-                                  {0, 0}, false, "NCX", "ceil", "None"},
-                dnnl_graph_test_pool_params_t {{1, 1, 4, 4}, {1, 1, 2, 3},
-                        {2, 2}, {3, 1}, {0, 0}, {0, 0}, {0, 0}, true, "NCX",
-                        "ceil", "None"}));
+        ::testing::Values(
+                pool_params_t {{1, 1, 4, 4}, {1, 1, 2, 3}, {2, 2}, {3, 1},
+                        {0, 0}, {0, 0}, {0, 0}, false, "NCX", "ceil", "None"},
+                pool_params_t {{1, 1, 4, 4}, {1, 1, 2, 3}, {2, 2}, {3, 1},
+                        {0, 0}, {0, 0}, {0, 0}, true, "NCX", "ceil", "None"}));
 
-class test_max_pool_compile_t
-    : public ::testing::TestWithParam<dnnl_graph_test_pool_params_t> {
+class test_max_pool_compile_t : public ::testing::TestWithParam<pool_params_t> {
 public:
     void Test_Max_Pool() {
-        auto params = ::testing::TestWithParam<
-                dnnl_graph_test_pool_params_t>::GetParam();
+        auto params = ::testing::TestWithParam<pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
         dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
@@ -519,8 +513,7 @@ public:
     }
 
     void Test_Max_Pool_FWD_BWD() {
-        auto params = ::testing::TestWithParam<
-                dnnl_graph_test_pool_params_t>::GetParam();
+        auto params = ::testing::TestWithParam<pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
         dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
@@ -680,31 +673,27 @@ TEST_P(test_max_pool_compile_t, Test_Max_Pool_Compile) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Test_Max_Pool_Compile, test_max_pool_compile_t,
-        ::testing::Values(dnnl_graph_test_pool_params_t {{1, 1, 3, 3},
-                                  {1, 1, 2, 2}, {2, 2}, {1, 1}, {1, 1}, {0, 0},
-                                  {0, 0}, false, "NCX", "ceil", "None"},
-                dnnl_graph_test_pool_params_t {{1, 1, 3, 3}, {1, 1, 2, 2},
-                        {2, 2}, {1, 1}, {1, 1}, {0, 0}, {0, 0}, false, "NCX",
-                        "floor", "None"},
-                dnnl_graph_test_pool_params_t {{1, 4, 4, 3}, {1, 1, 1, 3},
-                        {3, 3}, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, "NXC",
-                        "floor", "None"},
-                dnnl_graph_test_pool_params_t {{1, 4, 4, 3}, {1, 2, 2, 3},
-                        {3, 3}, {2, 2}, {1, 1}, {0, 0}, {0, 0}, false, "NXC",
-                        "floor", "SAME_UPPER"}));
+        ::testing::Values(
+                pool_params_t {{1, 1, 3, 3}, {1, 1, 2, 2}, {2, 2}, {1, 1},
+                        {1, 1}, {0, 0}, {0, 0}, false, "NCX", "ceil", "None"},
+                pool_params_t {{1, 1, 3, 3}, {1, 1, 2, 2}, {2, 2}, {1, 1},
+                        {1, 1}, {0, 0}, {0, 0}, false, "NCX", "floor", "None"},
+                pool_params_t {{1, 4, 4, 3}, {1, 1, 1, 3}, {3, 3}, {2, 2},
+                        {1, 1}, {0, 0}, {0, 0}, false, "NXC", "floor", "None"},
+                pool_params_t {{1, 4, 4, 3}, {1, 2, 2, 3}, {3, 3}, {2, 2},
+                        {1, 1}, {0, 0}, {0, 0}, false, "NXC", "floor",
+                        "SAME_UPPER"}));
 
-struct dnnl_graph_test_bn_params_t {
+struct bn_params_t {
     std::vector<int64_t> input_dims;
     float epsilon;
     std::string data_format;
 };
 
-class test_bn_compile_t
-    : public ::testing::TestWithParam<dnnl_graph_test_bn_params_t> {
+class test_bn_compile_t : public ::testing::TestWithParam<bn_params_t> {
 public:
     void Test_BatchNormTraining() {
-        auto params = ::testing::TestWithParam<
-                dnnl_graph_test_bn_params_t>::GetParam();
+        auto params = ::testing::TestWithParam<bn_params_t>::GetParam();
 
         using namespace dnnl::graph;
         dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
@@ -936,8 +925,7 @@ public:
     }
 
     void Test_BatchNormTraining_Opaque() {
-        auto params = ::testing::TestWithParam<
-                dnnl_graph_test_bn_params_t>::GetParam();
+        auto params = ::testing::TestWithParam<bn_params_t>::GetParam();
 
         using namespace dnnl::graph;
         dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
@@ -1186,6 +1174,5 @@ TEST_P(test_bn_compile_t, Test_BatchNorm_Compile) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Test_BatchNorm_Compile, test_bn_compile_t,
-        ::testing::Values(
-                dnnl_graph_test_bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));
+        ::testing::Values(bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));
 #endif

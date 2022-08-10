@@ -201,16 +201,14 @@ void cpu_get_started_tutorial() {
                 }
                 data_buffers.push_back({});
                 data_buffers.back().reset(malloc(mem_size), cpu_deletor {});
-                inputs_ts.push_back(
-                        tensor {in, eng, data_buffers.back().get()});
+                inputs_ts.emplace_back(in, eng, data_buffers.back().get());
             }
 
             for (const auto &out : outputs) {
                 size_t mem_size = out.get_mem_size();
                 data_buffers.push_back({});
                 data_buffers.back().reset(malloc(mem_size), cpu_deletor {});
-                outputs_ts.push_back(
-                        tensor {out, eng, data_buffers.back().get()});
+                outputs_ts.emplace_back(out, eng, data_buffers.back().get());
                 global_outputs_ts_map[out.get_id()] = outputs_ts.back();
             }
 
