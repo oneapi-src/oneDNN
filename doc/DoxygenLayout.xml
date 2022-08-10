@@ -11,9 +11,12 @@
       <tab type="user" title="Basic Concepts" url="@ref dev_guide_basic_concepts"/>
       <tab type="user" title="CPU Programming" url="@ref dev_guide_cpu_programming"/>
       <tab type="user" title="Data Types" url="@ref dev_guide_data_types"/>
-      <tab type="user" title="Environmental Variables" url="@ref dev_guide_environmental_variables"/>
       <tab type="user" title="SYCL Programming" url="@ref dev_guide_sycl_programming"/>
       <tab type="user" title="OPs and Patterns" url="@ref dev_guide_ops_and_patterns"/>
+    </tab>
+    <tab type="usergroup" title="Performance Profiling">
+      <tab type="user" title="Verbose Mode" url="@ref dev_guide_verbose_mode"/>
+      <tab type="user" title="Graph Serialization" url="@ref dev_guide_graph_serialization"/>
     </tab>
     <tab type="user" title="Examples" url="@ref dev_guide_examples"/>
     <tab type="user" title="Naming Conventions" url="@ref dev_guide_conventions"/>
