@@ -332,11 +332,12 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_create(
             &cpartitions[0], partitions[0]));
 
-    int64_t conv0_src_dims[] = {BATCH, CONV0_IC, CONV0_IH, CONV0_IW};
-    int64_t conv0_weight_dims[] = {CONV0_OC, CONV0_IC, CONV0_KS, CONV0_KS};
-    int64_t conv0_bias_dims[] = {CONV0_OC};
-    int64_t conv0_dst_dims[] = {BATCH, CONV0_OC, CONV0_OH, CONV0_OW};
-    int64_t relu0_dst_dims[] = {conv0_dst_dims[0], conv0_dst_dims[1],
+    dnnl_graph_dims_t conv0_src_dims = {BATCH, CONV0_IC, CONV0_IH, CONV0_IW};
+    dnnl_graph_dims_t conv0_weight_dims
+            = {CONV0_OC, CONV0_IC, CONV0_KS, CONV0_KS};
+    dnnl_graph_dims_t conv0_bias_dims = {CONV0_OC};
+    dnnl_graph_dims_t conv0_dst_dims = {BATCH, CONV0_OC, CONV0_OH, CONV0_OW};
+    dnnl_graph_dims_t relu0_dst_dims = {conv0_dst_dims[0], conv0_dst_dims[1],
             conv0_dst_dims[2], conv0_dst_dims[3]};
 
     dnnl_graph_logical_tensor_t conv0_src_desc, conv0_weight_desc,
@@ -376,10 +377,11 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_create(
             &cpartitions[1], partitions[1]));
 
-    int64_t conv1_weight_dims[] = {CONV1_OC, CONV1_IC, CONV1_KS, CONV1_KS};
-    int64_t conv1_bias_dims[] = {CONV1_OC};
-    int64_t conv1_dst_dims[] = {BATCH, CONV1_OC, CONV1_OH, CONV1_OW};
-    int64_t relu1_dst_dims[] = {conv1_dst_dims[0], conv1_dst_dims[1],
+    dnnl_graph_dims_t conv1_weight_dims
+            = {CONV1_OC, CONV1_IC, CONV1_KS, CONV1_KS};
+    dnnl_graph_dims_t conv1_bias_dims = {CONV1_OC};
+    dnnl_graph_dims_t conv1_dst_dims = {BATCH, CONV1_OC, CONV1_OH, CONV1_OW};
+    dnnl_graph_dims_t relu1_dst_dims = {conv1_dst_dims[0], conv1_dst_dims[1],
             conv1_dst_dims[2], conv1_dst_dims[3]};
 
     /// Get cpartition[0]'s output layout id, which has been filled in compile process

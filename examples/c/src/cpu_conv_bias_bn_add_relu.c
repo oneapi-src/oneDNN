@@ -418,14 +418,16 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_create(
             &cpartitions[0], partitions[0]));
 
-    int64_t conv1_src_dims[] = {BATCH, CONV1_IC, CONV1_IH, CONV1_IW};
-    int64_t conv1_weight_dims[] = {CONV1_OC, CONV1_IC, CONV1_KS, CONV1_KS};
-    int64_t conv1_bias_dims[] = {CONV1_OC};
-    int64_t batch_norm1_scale_dims[] = {CONV1_OC};
-    int64_t batch_norm1_shift_dims[] = {CONV1_OC};
-    int64_t batch_norm1_mean_dims[] = {CONV1_OC};
-    int64_t batch_norm1_variance_dims[] = {CONV1_OC};
-    int64_t batch_norm1_dst_dims[] = {BATCH, CONV1_OC, CONV1_OH, CONV1_OW};
+    dnnl_graph_dims_t conv1_src_dims = {BATCH, CONV1_IC, CONV1_IH, CONV1_IW};
+    dnnl_graph_dims_t conv1_weight_dims
+            = {CONV1_OC, CONV1_IC, CONV1_KS, CONV1_KS};
+    dnnl_graph_dims_t conv1_bias_dims = {CONV1_OC};
+    dnnl_graph_dims_t batch_norm1_scale_dims = {CONV1_OC};
+    dnnl_graph_dims_t batch_norm1_shift_dims = {CONV1_OC};
+    dnnl_graph_dims_t batch_norm1_mean_dims = {CONV1_OC};
+    dnnl_graph_dims_t batch_norm1_variance_dims = {CONV1_OC};
+    dnnl_graph_dims_t batch_norm1_dst_dims
+            = {BATCH, CONV1_OC, CONV1_OH, CONV1_OW};
     /// Get cpartition[1]'s output layout id, which has been filled in compile process
     dnnl_graph_logical_tensor_t conv1_src_desc, conv1_weight_desc,
             conv1_bias_desc, batch_norm1_scale_desc, batch_norm1_shift_desc,
@@ -486,14 +488,15 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_create(
             &cpartitions[1], partitions[1]));
 
-    int64_t conv0_src_dims[] = {BATCH, CONV0_IC, CONV0_IH, CONV0_IW};
-    int64_t conv0_weight_dims[] = {CONV0_OC, CONV0_IC, CONV0_KS, CONV0_KS};
-    int64_t conv0_bias_dims[] = {CONV0_OC};
-    int64_t batch_norm0_scale_dims[] = {CONV0_OC};
-    int64_t batch_norm0_shift_dims[] = {CONV0_OC};
-    int64_t batch_norm0_mean_dims[] = {CONV0_OC};
-    int64_t batch_norm0_variance_dims[] = {CONV0_OC};
-    int64_t relu0_dst_dims[] = {BATCH, CONV0_OC, CONV0_OH, CONV0_OW};
+    dnnl_graph_dims_t conv0_src_dims = {BATCH, CONV0_IC, CONV0_IH, CONV0_IW};
+    dnnl_graph_dims_t conv0_weight_dims
+            = {CONV0_OC, CONV0_IC, CONV0_KS, CONV0_KS};
+    dnnl_graph_dims_t conv0_bias_dims = {CONV0_OC};
+    dnnl_graph_dims_t batch_norm0_scale_dims = {CONV0_OC};
+    dnnl_graph_dims_t batch_norm0_shift_dims = {CONV0_OC};
+    dnnl_graph_dims_t batch_norm0_mean_dims = {CONV0_OC};
+    dnnl_graph_dims_t batch_norm0_variance_dims = {CONV0_OC};
+    dnnl_graph_dims_t relu0_dst_dims = {BATCH, CONV0_OC, CONV0_OH, CONV0_OW};
 
     dnnl_graph_logical_tensor_t conv0_src_desc, conv0_weight_desc,
             conv0_bias_desc, batch_norm0_scale_desc, batch_norm0_shift_desc,
