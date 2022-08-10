@@ -33,8 +33,8 @@
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
-gen9_softmax_fwd(
-        __global SRC_DATA_T *src, __global DST_DATA_T *dst, float scale) {
+gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
+        __global float *scale) {
 #if IS_NHWC || IS_BLOCKED
     // gws is the combination of mb and axis size
     const int group = get_global_id(0) / GROUP_SIZE;
@@ -104,7 +104,7 @@ gen9_softmax_fwd(
 #else
         d[k] = d[k] * denom_;
 #endif
-        dst[axis_channel_id] = FLOAT_TO_DATA(DST, d[k] * scale);
+        dst[axis_channel_id] = FLOAT_TO_DATA(DST, d[k] * scale[0]);
     }
 
 #else
@@ -151,7 +151,8 @@ gen9_softmax_fwd(
 #else
         d[k] = d[k] * denom_;
 #endif
-        STORE_FLOAT8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE], scale * d[k]);
+        STORE_FLOAT8(
+                DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE], scale[0] * d[k]);
     }
 #endif
 }
