@@ -1379,6 +1379,7 @@ private:
 };
 
 inline const expr_t &get_base(const expr_t &e) {
+    if (e.is_empty()) return e;
     if (e.is<var_t>()) return e;
     if (e.is<ptr_t>()) return e.as<ptr_t>().base;
     ir_error_not_expected() << e;

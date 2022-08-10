@@ -683,20 +683,23 @@ private:
 
     void mark_bufs(
             const send_t &send, const expr_t &buf, const expr_t &header) {
-        ir_assert(is_buffer(buf));
+        if (!buf.is_empty()) ir_assert(is_buffer(buf));
         ir_assert(is_buffer(header));
         ir_assert(is_header(header));
         grf_usage_label_t label = grf_usage_label_t::unknown;
-        if (buf_usage_.get_label(buf) == grf_usage_label_t::zero_points) {
+        if (buf.is_empty()) {
+            label = grf_usage_label_t::gmem_load;
+        } else if (buf_usage_.get_label(buf)
+                == grf_usage_label_t::zero_points) {
             label = grf_usage_label_t::zero_points;
         } else if (send.is_slm()) {
             label = (send.is_load() ? grf_usage_label_t::slm_load
                                     : grf_usage_label_t::slm_store);
         } else {
-            ir_assert(send.is_load()) << send;
+            ir_assert(send.is_load() || send.is_load_2d()) << send;
             label = grf_usage_label_t::gmem_load;
         }
-        set_label(buf, label);
+        if (!buf.is_empty()) set_label(buf, label);
         set_label(header, label);
     }
 
