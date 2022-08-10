@@ -522,3 +522,67 @@ TEST(ExecuteSubgraphFp32, ReduceWith3PostOps) {
         }
     }
 }
+
+TEST(Execute, ReduceMeanOutputDims) {
+    const auto apply_keep_dims_attr
+            = [](const std::vector<int64_t> &shape, const bool keep_dims) {
+                  if (keep_dims) return shape;
+                  std::vector<int64_t> new_shape;
+                  return new_shape;
+              };
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    test::vector<float> src0_data {1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f};
+    test::vector<float> ref_dst_data {4.f};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+    std::vector<int64_t> src0_shape {7};
+    std::vector<int64_t> dst_shape {1};
+
+    std::vector<bool> keep_dims_vals {true, false};
+    for (auto keep_dims : keep_dims_vals) {
+        impl::op_t reducemean_op(impl::op_kind::ReduceMean);
+        reducemean_op.set_attr<std::vector<int64_t>>(impl::op_attr::axes, {0});
+        reducemean_op.set_attr<bool>(impl::op_attr::keep_dims, keep_dims);
+
+        // prepare logical tensor
+        impl::logical_tensor_t src0 = utils::logical_tensor_init(
+                0, src0_shape, impl::data_type::f32);
+        auto new_dst_shape = apply_keep_dims_attr(dst_shape, keep_dims);
+        impl::logical_tensor_t dst = utils::logical_tensor_init(
+                1, new_dst_shape, impl::data_type::f32);
+        reducemean_op.add_input(src0);
+        reducemean_op.add_output(dst);
+        impl::graph_t g(eng.kind());
+        g.add_op(&reducemean_op);
+        g.build_graph();
+        impl::pass::pass_base_ptr apass = get_pass("reduce_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+        // compile
+        impl::partition_t p;
+        p.init(part);
+        impl::compiled_partition_t cp(p);
+        std::vector<const impl::logical_tensor_t *> inputs {&src0};
+        std::vector<const impl::logical_tensor_t *> outputs {&dst};
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+        // if keep_dims attr is false and the intput a one dimension tensor,
+        // the output should be a scalar (ndims=0, layout_type=strided).
+        // if keep_dims attr is true, the output's ndims is equal to
+        // input's ndims.
+        impl::logical_tensor_t dst_lt;
+        cp.query_logical_tensor(dst.id, &dst_lt);
+        ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+        ASSERT_EQ(dst_lt.ndims, new_dst_shape.size());
+        impl::tensor_t src0_ts(src0, &eng, src0_data.data());
+        impl::tensor_t dst_ts(dst_lt, &eng, dst_data.data());
+
+        ASSERT_EQ(
+                cp.execute(&strm, {src0_ts}, {dst_ts}), impl::status::success);
+        strm.wait();
+        for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+        }
+    }
+}
