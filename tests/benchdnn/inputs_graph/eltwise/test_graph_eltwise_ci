@@ -6,7 +6,7 @@
 --tag=abx,axb
 
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,hardswish,log,round,soft_relu,sqrt,square,tanh,logistic,logsigmoid
+--alg=abs,exp,gelu_erf,hardswish,log,mish,round,soft_relu,sqrt,square,tanh,logistic,logsigmoid
 64x512x28x28
 
 --alpha= --beta=
@@ -30,7 +30,7 @@
 --dt=f32
 --tag=abx,axb
 --alpha=0 --beta=0
---alg=gelu_erf,hardswish,relu_dst,soft_relu,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst,logsigmoid
+--alg=abs,gelu_erf,hardswish,mish,relu_dst,soft_relu,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst,logsigmoid
 64x512x28x28
 
 --alpha= --beta=

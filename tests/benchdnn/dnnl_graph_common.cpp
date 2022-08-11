@@ -221,6 +221,7 @@ dnnl::graph::op::kind convert_alg_kind(
         }
     } else {
         switch (kind) {
+            case dnnl_eltwise_abs: return graph_op::AbsBackprop;
             case dnnl_eltwise_clip_v2:
             case dnnl_eltwise_clip_v2_use_dst_for_bwd:
                 return graph_op::ClampBackprop;
@@ -232,6 +233,7 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_eltwise_logistic_use_dst_for_bwd:
                 return graph_op::SigmoidBackprop;
             case dnnl_eltwise_logsigmoid: return graph_op::SoftPlusBackprop;
+            case dnnl_eltwise_mish: return graph_op::MishBackprop;
             case dnnl_eltwise_relu:
             case dnnl_eltwise_relu_use_dst_for_bwd:
                 return graph_op::ReLUBackprop;
@@ -243,7 +245,6 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_eltwise_tanh_use_dst_for_bwd:
                 return graph_op::TanhBackprop;
             // Don't support for now
-            case dnnl_eltwise_abs:
             case dnnl_eltwise_exp:
             case dnnl_eltwise_log:
             case dnnl_eltwise_pow:
@@ -268,7 +269,6 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_eltwise_exp_use_dst_for_bwd:
             case dnnl_eltwise_gelu_tanh:
             case dnnl_eltwise_linear:
-            case dnnl_eltwise_mish:
             case dnnl_eltwise_swish:
             case dnnl_reduction_norm_lp_power_p_max:
             case dnnl_reduction_norm_lp_max:
