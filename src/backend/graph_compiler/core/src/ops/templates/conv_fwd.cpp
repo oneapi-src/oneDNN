@@ -86,7 +86,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
 }
 
 gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
-  const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
+  const sc_dims &pads_begin, std::vector<logical_tensor_t> &&ins,
   std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs)) {
   COMPILE_ASSERT(in_tensors_.size() == 2,
@@ -116,10 +116,10 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   ndims_ = input_plain_dims.size();
   is_3d_ = (ndims_ == 5);
   COMPILE_ASSERT(is_3d_
-      ? utils::is_one_of(static_cast<int>(padding.size()), 1, 3)
-      : utils::is_one_of(static_cast<int>(padding.size()), 1, 2),
-    "Wrong padding dims, should be 1D, 2 or 3D, but got " << padding.size()
-                                                          << "D.");
+      ? utils::is_one_of(static_cast<int>(pads_begin.size()), 1, 3)
+      : utils::is_one_of(static_cast<int>(pads_begin.size()), 1, 2),
+    "Wrong pads_begin dims, should be 1D, 2D or 3D, but got "
+      << pads_begin.size() << "D.");
   COMPILE_ASSERT(is_3d_
       ? utils::is_one_of(static_cast<int>(stride.size()), 1, 3)
       : utils::is_one_of(static_cast<int>(stride.size()), 1, 2),
@@ -142,11 +142,11 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   oh_ = out_plain_dims[ndims_ - 2];
   ow_ = out_plain_dims[ndims_ - 1];
   is_1x1_conv_ = (kd_ == 1 && kh_ == 1 && kw_ == 1);
-  pd_ = is_3d_ ? padding[0] : 0;
-  ph_ = padding[0], pw_ = padding[0];
-  if (padding.size() > 1) {
-    ph_ = padding[ndims_ - 4];
-    pw_ = padding[ndims_ - 3];
+  pd_ = is_3d_ ? pads_begin[0] : 0;
+  ph_ = pads_begin[0], pw_ = pads_begin[0];
+  if (pads_begin.size() > 1) {
+    ph_ = pads_begin[ndims_ - 4];
+    pw_ = pads_begin[ndims_ - 3];
   }
   sd_ = is_3d_ ? stride[0] : 1;
   sh_ = stride[0], sw_ = stride[0];

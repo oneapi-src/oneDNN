@@ -23,9 +23,9 @@
 
 namespace sc {
 namespace ops {
-class SC_INTERNAL_API conv_fwd_op_t : public tunable_op_t {
+class SC_INTERNAL_API conv_fwd_core_op_t : public tunable_op_t {
 public:
-    conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
+    conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
@@ -34,8 +34,9 @@ public:
     body_generator_ptr create_generator() override;
     float get_gflop() override;
     void infer_out_tensor_details() override;
-    sc_dims infer_out_dims(const sc_dims &input_dims,
-            const sc_dims &weight_dims, const sc_dims &padding,
+    static sc_dims infer_out_dims(sc_graph_t &owner_graph,
+            const sc_dims &input_dims, const sc_dims &weight_dims,
+            const sc_dims &pads_begin, const sc_dims &pads_end,
             const sc_dims &stride);
     sc_data_type_t infer_out_dtype(const sc_data_type_t &input_dtype,
             const sc_data_type_t &weight_dtype);

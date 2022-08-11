@@ -34,6 +34,7 @@
     F(relu_backprop); \
     F(sigmoid_backprop); \
     F(conv_fwd); \
+    F(conv_fwd_core); \
     F(batchnorm_inference); \
     F(batchnorm_forward_training); \
     F(batchnorm_training_backprop);

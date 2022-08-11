@@ -29,7 +29,7 @@ namespace sc {
 namespace quantize {
 
 static std::unordered_set<std::string> data_wei_op_set
-        = {"conv_fwd", "matmul_core"};
+        = {"conv_fwd_core", "matmul_core"};
 // quantize awared nodes search starts from dequantize node and end in
 // quantize node.
 static std::vector<std::pair<int, sc_op_ptr>> find_quantize_aware_nodes(

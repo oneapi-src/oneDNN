@@ -50,7 +50,7 @@ public:
     return std::tuple<int, int, int>(od_, oh_, ow_);
   }
 
-  gen_conv_fwd_t(sc_op *owner, const sc_dims &stride, const sc_dims &padding,
+  gen_conv_fwd_t(sc_op *owner, const sc_dims &stride, const sc_dims &pads_begin,
     std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
 
   float get_gflop() const override;
