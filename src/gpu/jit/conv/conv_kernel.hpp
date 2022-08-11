@@ -2861,8 +2861,9 @@ private:
                 src, dst, max_elems_per_thr, /*match_outer=*/true);
 
         if (tile.is_empty()) return false;
-
         elems_per_thr = tile.elems();
+        if (!math::is_pow2(elems_per_thr)) return false;
+
         int bytes_per_thr = elems_per_thr * type_size;
         if (bytes_per_thr % hword_bytes != 0) return false;
         if (bytes_per_thr < min_bytes_per_thr) return false;
