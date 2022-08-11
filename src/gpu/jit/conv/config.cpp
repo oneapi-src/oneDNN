@@ -42,7 +42,8 @@ status_t conv_config_t::init_common_blocking() {
     bh->set_dim("oc", oc);
     //take into account blocked ic channels when selecting block sizes
     bh->set_dim("ic",
-            is_bwd_w && is_compute_nhwc("src") ? wei_layout.dims()[2] : ic);
+            is_bwd_w ? std::max(src_layout.dims()[2], wei_layout.dims()[2])
+                     : ic);
     bh->set_dims({"kd", "kh", "kw"}, {kd, kh, kw});
 
     bh->set_b_dims({"g"});
