@@ -399,9 +399,6 @@ public:
             }
         }
         auto print = [&](std::ostream &out, int idx, const std::string &s) {
-            bool is_digit = true;
-            for (auto &c : s)
-                is_digit &= std::isdigit(c);
             int w = widths[idx] + 2;
             out << std::setw(w);
             out << (idx > 0 ? std::right : std::left);
