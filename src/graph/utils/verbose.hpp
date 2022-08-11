@@ -71,7 +71,7 @@ struct partition_info_t {
 private:
     std::string str_;
 
-#if defined(DNNL_GRAPH_DISABLE_VERBOSE)
+#if defined(DISABLE_VERBOSE)
     bool is_initialized_ = true;
 #else
     bool is_initialized_ = false;

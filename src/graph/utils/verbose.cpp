@@ -72,10 +72,10 @@ double get_msec() {
 
 static setting_t<int> verbose {0};
 int get_verbose() {
-#if !defined(DNNL_GRAPH_DISABLE_VERBOSE)
+#if !defined(DISABLE_VERBOSE)
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
-        static int val = getenv_int_user("VERBOSE", verbose.get());
+        static int val = getenv_int_user("GRAPH_VERBOSE", verbose.get());
         verbose.set(val);
     }
     static bool version_printed = false;
@@ -89,7 +89,7 @@ int get_verbose() {
     return verbose.get();
 }
 
-#if defined(DNNL_GRAPH_DISABLE_VERBOSE)
+#if defined(DISABLE_VERBOSE)
 void partition_info_t::init(
         const engine_t *engine, const compiled_partition_t *partition) {
     UNUSED(engine);
