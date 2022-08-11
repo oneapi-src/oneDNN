@@ -27,6 +27,7 @@ namespace quantize {
 /**
  * A temporary quantize and requantize op before calculation for conversion from
  * frontend. Support bf16 and int8/uint8 quantization.
+ * General quantize op, scales and zero points are stored in attribute.
  * */
 class quantize_op_t : public graph_op_t, public op_traits::auto_copyable_t {
 public:
@@ -47,6 +48,39 @@ public:
     dequantize_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     dequantize_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const any_map_t &attrs = any_map_t());
+
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void query_format(context_ptr ctx,
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
+};
+
+/**
+ * Dynamic quantize op, with scales and zero points as extra inputs.
+ * */
+class dynamic_quantize_op_t : public graph_op_t,
+                              public op_traits::auto_copyable_t {
+public:
+    dynamic_quantize_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+    dynamic_quantize_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const any_map_t &attrs = any_map_t());
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void query_format(context_ptr ctx,
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
+};
+
+// dynamic dequantize op
+class dynamic_dequantize_op_t : public graph_op_t,
+                                public op_traits::auto_copyable_t {
+public:
+    dynamic_dequantize_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+    dynamic_dequantize_op_t(const std::vector<graph_tensor_ptr> &ins,
             const any_map_t &attrs = any_map_t());
 
     std::shared_ptr<sc_graph_t> get_graph_impl() override;

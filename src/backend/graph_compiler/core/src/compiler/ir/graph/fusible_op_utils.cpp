@@ -96,6 +96,9 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
     COMPILE_ASSERT(copied->get_outputs().size() == 1,
             "Currently only support 1 output only");
     fmgr.make<output_op>(copied->get_outputs()[0]);
+    auto base_idx = gen.get_base_tsr_idx();
+    fmgr.put_input_first(
+            fmgr.get_graph().get_input_ops()[base_idx]->dyn_cast<input_op>());
     return lower_fusion_manager(ctx, &gen, op, &fmgr, check_parallel);
 }
 

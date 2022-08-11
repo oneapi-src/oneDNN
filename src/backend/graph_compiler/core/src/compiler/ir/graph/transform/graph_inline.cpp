@@ -103,7 +103,8 @@ static void do_inline_graph(
 }
 
 const std::set<std::string> &get_op_blocked_lists() {
-    static std::set<std::string> blocked_list {"quantize", "dequantize"};
+    static std::set<std::string> blocked_list {
+            "quantize", "dequantize", "dynamic_quantize", "dynamic_dequantize"};
     return blocked_list;
 }
 

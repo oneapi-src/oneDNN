@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <memory>
 #include <numeric>
+#include <string>
 #include <utility>
 #include "templates/matmul_core.hpp"
 #include "templates/utils.hpp"
@@ -26,6 +27,7 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/graph_map.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
+#include <compiler/ir/graph/quantization/quantize_info.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <runtime/config.hpp>
@@ -35,7 +37,6 @@
 
 namespace sc {
 namespace ops {
-
 template <typename T>
 static std::vector<T> merge_vec(
         const std::vector<T> &a, const std::vector<T> &b) {
@@ -465,49 +466,65 @@ sc_op_ptr matmul_core_op_t::do_compensations(
 }
 
 sc_op_ptr matmul_core_op_t::get_data_compensation(sc_graph_t &mgr) {
+    std::string weight_zp_key = attr_keys::weight_zero_points;
+    std::string dyn_weight_zp_key = attr_keys::dyn_weight_zero_points;
+    bool is_dyn_quan = attrs_.has_key(dyn_weight_zp_key);
     auto weight_zero_points
-            = attrs_.get_or_else("weight_zero_points", std::vector<int> {0});
-    if (weight_zero_points.empty()
-            || (std::all_of(weight_zero_points.begin(),
-                    weight_zero_points.end(), [](int i) { return i == 0; }))) {
+            = attrs_.get_or_else(weight_zp_key, std::vector<int> {0});
+    auto dyn_weight_zero_points
+            = attrs_.get_or_else(dyn_weight_zp_key, graph_tensor_ptr());
+    if (!is_dyn_quan
+            && (weight_zero_points.empty()
+                    || (std::all_of(weight_zero_points.begin(),
+                            weight_zero_points.end(),
+                            [](int i) { return i == 0; })))) {
         return nullptr;
     }
+    if (is_dyn_quan && !dyn_weight_zero_points) { return nullptr; }
     auto data = info_.inputs_[0];
     auto cast_node = mgr.make("cast", {data}, {}, {{"dtype", datatypes::s32}});
 
-    std::shared_ptr<static_data_t> weight_zero_points_ptr
-            = std::make_shared<static_data_t>(weight_zero_points);
-    sc_dims const_plain_dims;
-    sc_data_format_t const_format;
-    if (weight_zero_points.size() == 1) {
-        // per tensor
-        const_plain_dims = {1};
-    } else {
-        // per channel
-        COMPILE_ASSERT(0,
-                "matmul_core does not support per channel weight zero "
-                "points "
-                "compensation yet");
-        auto weight = info_.inputs_[1];
-        auto weight_plain_dims = weight->details_.get_plain_dims();
-        assert(weight_plain_dims.back()
-                == static_cast<int64_t>(weight_zero_points.size()));
-        const_plain_dims = {1, weight_plain_dims.back()};
-        const_format = info_.inputs_[1]->details_.get_format();
-    }
-    auto constant_node = mgr.make("constant", {}, {},
-            {{"values", weight_zero_points_ptr}, {"dtype", datatypes::s32},
-                    {"plain_dims", const_plain_dims},
-                    {"format", const_format}});
     // K is reduce axis
     std::vector<int> rdaxis
             = {static_cast<int>(data->details_.get_plain_dims().size()) - 1};
 
     auto reduce_node = mgr.make("reduce", cast_node->get_outputs(), {},
             {{"rd_axis", rdaxis}, {"rd_op", 0}, {"keep_dims", true}});
-    auto mul_node = mgr.make("mul",
-            {reduce_node->get_outputs()[0], constant_node->get_outputs()[0]},
-            {}, {});
+    sc_op_ptr mul_node;
+    if (is_dyn_quan) {
+        mul_node = mgr.make("mul",
+                {reduce_node->get_outputs()[0], dyn_weight_zero_points}, {},
+                {});
+    } else {
+        std::shared_ptr<static_data_t> weight_zero_points_ptr
+                = std::make_shared<static_data_t>(weight_zero_points);
+        sc_dims const_plain_dims;
+        sc_data_format_t const_format;
+        if (weight_zero_points.size() == 1) {
+            // per tensor
+            const_plain_dims = {1};
+        } else {
+            // per channel
+            COMPILE_ASSERT(0,
+                    "matmul_core does not support per channel weight zero "
+                    "points "
+                    "compensation yet");
+            auto weight = info_.inputs_[1];
+            auto weight_plain_dims = weight->details_.get_plain_dims();
+            assert(weight_plain_dims.back()
+                    == static_cast<int64_t>(weight_zero_points.size()));
+            const_plain_dims = {1, weight_plain_dims.back()};
+            const_format = info_.inputs_[1]->details_.get_format();
+        }
+        auto constant_node = mgr.make("constant", {}, {},
+                {{"values", weight_zero_points_ptr}, {"dtype", datatypes::s32},
+                        {"plain_dims", const_plain_dims},
+                        {"format", const_format}});
+        mul_node = mgr.make("mul",
+                {reduce_node->get_outputs()[0],
+                        constant_node->get_outputs()[0]},
+                {}, {});
+    }
     if (data->details_.get_plain_dims().size() < get_batch_dims().size() + 2) {
         sc_dims unsqueeze_shape(get_batch_dims().size() + 2
                         - data->details_.get_plain_dims().size(),
@@ -527,11 +544,18 @@ sc_op_ptr matmul_core_op_t::get_data_compensation(sc_graph_t &mgr) {
 
 std::vector<sc_op_ptr> matmul_core_op_t::get_s8s8_and_weight_compensation(
         sc_graph_t &mgr, bool s8s8_compensation) {
+    std::string data_zp_key = attr_keys::data_zero_points;
+    std::string dyn_data_zp_key = attr_keys::dyn_data_zero_points;
+    bool is_dyn_quan = attrs_.has_key(dyn_data_zp_key);
     auto data_zero_points
-            = attrs_.get_or_else("data_zero_points", std::vector<int> {0});
-    bool weight_compensation = !data_zero_points.empty()
-            && !(std::all_of(data_zero_points.begin(), data_zero_points.end(),
-                    [](int i) { return i == 0; }));
+            = attrs_.get_or_else(data_zp_key, std::vector<int> {0});
+    auto dyn_data_zero_points
+            = attrs_.get_or_else(dyn_data_zp_key, graph_tensor_ptr());
+    bool weight_compensation = (is_dyn_quan && dyn_data_zero_points)
+            || (!data_zero_points.empty()
+                    && !(std::all_of(data_zero_points.begin(),
+                            data_zero_points.end(),
+                            [](int i) { return i == 0; })));
     std::vector<sc_op_ptr> nodes = {nullptr, nullptr};
     if (!s8s8_compensation && !weight_compensation) { return nodes; }
 
@@ -546,35 +570,42 @@ std::vector<sc_op_ptr> matmul_core_op_t::get_s8s8_and_weight_compensation(
             {{"rd_axis", rdaxis}, {"rd_op", 0}, {"keep_dims", true}});
 
     if (weight_compensation) {
-        std::shared_ptr<static_data_t> data_zero_points_ptr
-                = std::make_shared<static_data_t>(data_zero_points);
-        sc_dims const_plain_dims;
-        sc_data_format_t const_format;
-        if (data_zero_points.size() == 1) {
-            // per tensor
-            const_plain_dims = {1};
+        if (is_dyn_quan) {
+            nodes[0] = mgr.make("mul",
+                    {reduce_node->get_outputs()[0], dyn_data_zero_points}, {},
+                    {});
         } else {
-            // per channel
-            COMPILE_ASSERT(0,
-                    "matmul_core does not support per channel data "
-                    "zero points "
-                    "compensation yet");
-            auto data = info_.inputs_[0];
-            auto data_plain_dims = data->details_.get_plain_dims();
-            size_t bds = get_batch_dims().size();
-            assert(data_plain_dims[bds]
-                    == static_cast<int64_t>(data_zero_points.size()));
-            const_plain_dims = {data_plain_dims[bds], 1};
-            const_format = info_.inputs_[0]->details_.get_format();
+            std::shared_ptr<static_data_t> data_zero_points_ptr
+                    = std::make_shared<static_data_t>(data_zero_points);
+            sc_dims const_plain_dims;
+            sc_data_format_t const_format;
+            if (data_zero_points.size() == 1) {
+                // per tensor
+                const_plain_dims = {1};
+            } else {
+                // per channel
+                COMPILE_ASSERT(0,
+                        "matmul_core does not support per channel data zero "
+                        "points "
+                        "compensation yet");
+                auto data = info_.inputs_[0];
+                auto data_plain_dims = data->details_.get_plain_dims();
+                size_t bds = get_batch_dims().size();
+                assert(data_plain_dims[bds]
+                        == static_cast<int64_t>(data_zero_points.size()));
+                const_plain_dims = {data_plain_dims[bds], 1};
+                const_format = info_.inputs_[0]->details_.get_format();
+            }
+            auto constant_node = mgr.make("constant", {}, {},
+                    {{"values", data_zero_points_ptr},
+                            {"dtype", datatypes::s32},
+                            {"plain_dims", const_plain_dims},
+                            {"format", const_format}});
+            nodes[0] = mgr.make("mul",
+                    {reduce_node->get_outputs()[0],
+                            constant_node->get_outputs()[0]},
+                    {}, {});
         }
-        auto constant_node = mgr.make("constant", {}, {},
-                {{"values", data_zero_points_ptr}, {"dtype", datatypes::s32},
-                        {"plain_dims", const_plain_dims},
-                        {"format", const_format}});
-        nodes[0] = mgr.make("mul",
-                {reduce_node->get_outputs()[0],
-                        constant_node->get_outputs()[0]},
-                {}, {});
         if (weight->details_.get_plain_dims().size()
                 < get_batch_dims().size() + 2) {
             sc_dims unsqueeze_shape(get_batch_dims().size() + 2
@@ -621,42 +652,66 @@ std::vector<sc_op_ptr> matmul_core_op_t::get_s8s8_and_weight_compensation(
 }
 
 sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
-    auto data_zero_points
-            = attrs_.get_or_else("data_zero_points", std::vector<int> {0});
-    auto weight_zero_points
-            = attrs_.get_or_else("weight_zero_points", std::vector<int> {0});
-    if (data_zero_points.empty() || weight_zero_points.empty()) {
-        return nullptr;
-    }
-    if ((std::all_of(data_zero_points.begin(), data_zero_points.end(),
-                [](int i) { return i == 0; }))
-            || (std::all_of(weight_zero_points.begin(),
-                    weight_zero_points.end(), [](int i) { return i == 0; }))) {
-        return nullptr;
-    }
-    COMPILE_ASSERT(
-            data_zero_points.size() == 1 && weight_zero_points.size() == 1,
-            "matmul_core does not support per channel data/weight zero "
-            "points "
-            "compensation yet");
-
+    bool is_dyn_quan = attrs_.has_key(attr_keys::dyn_data_zero_points);
+    auto data_zero_points = attrs_.get_or_else(
+            attr_keys::data_zero_points, std::vector<int> {0});
+    auto weight_zero_points = attrs_.get_or_else(
+            attr_keys::weight_zero_points, std::vector<int> {0});
+    auto dyn_data_zero_points = attrs_.get_or_else(
+            attr_keys::dyn_data_zero_points, graph_tensor_ptr());
+    auto dyn_weight_zero_points = attrs_.get_or_else(
+            attr_keys::dyn_weight_zero_points, graph_tensor_ptr());
     auto K_orig = info_.inputs_[0]->details_.get_plain_dims().at(
             info_.inputs_[0]->details_.get_plain_dims().size() - 1);
-
     int K = static_cast<int>(K_orig);
     COMPILE_ASSERT(attrs_.has_key("temp.padded_A_K"),
-            "No related VConst set, which maybe cause correctness "
-            "error")
-    auto constant_node = mgr.make("constant", {}, {},
-            {{"values",
-                     std::make_shared<static_data_t>(std::vector<int> {
-                             data_zero_points[0] * weight_zero_points[0] * K})},
-                    {"dtype", datatypes::s32}, {"plain_dims", sc_dims {1}},
-                    {"format", sc_data_format_t()},
-                    {"temp.val/var",
-                            data_zero_points[0] * weight_zero_points[0]},
-                    {"temp.var", attrs_["temp.padded_A_K"]}});
-    return constant_node;
+            "No related VConst set, which maybe cause correctness error")
+    sc_op_ptr ret_node;
+    if (is_dyn_quan) {
+        if (!dyn_data_zero_points || !dyn_weight_zero_points) {
+            return nullptr;
+        }
+        ret_node = mgr.make(
+                "mul", {dyn_data_zero_points, dyn_weight_zero_points}, {}, {});
+        auto const_reduce = mgr.make("constant", {}, {},
+                {{"dtype", datatypes::s32},
+                        {"values",
+                                std::make_shared<static_data_t>(
+                                        &K, sizeof(int))},
+                        {"plain_dims", sc_dims {1}},
+                        {"format", sc_data_format_t()}, {"temp.val/var", 1},
+                        {"temp.var", attrs_["temp.padded_A_K"]}});
+        ret_node = mgr.make("mul",
+                {ret_node->get_outputs()[0], const_reduce->get_outputs()[0]},
+                {}, {});
+    } else {
+        if (data_zero_points.empty() || weight_zero_points.empty()) {
+            return nullptr;
+        }
+        if ((std::all_of(data_zero_points.begin(), data_zero_points.end(),
+                    [](int i) { return i == 0; }))
+                || (std::all_of(weight_zero_points.begin(),
+                        weight_zero_points.end(),
+                        [](int i) { return i == 0; }))) {
+            return nullptr;
+        }
+        COMPILE_ASSERT(
+                data_zero_points.size() == 1 && weight_zero_points.size() == 1,
+                "matmul_core does not support per channel data/weight zero "
+                "points "
+                "compensation yet");
+        ret_node = mgr.make("constant", {}, {},
+                {{"values",
+                         std::make_shared<static_data_t>(
+                                 std::vector<int> {data_zero_points[0]
+                                         * weight_zero_points[0] * K})},
+                        {"dtype", datatypes::s32}, {"plain_dims", sc_dims {1}},
+                        {"format", sc_data_format_t()},
+                        {"temp.val/var",
+                                data_zero_points[0] * weight_zero_points[0]},
+                        {"temp.var", attrs_["temp.padded_A_K"]}});
+    }
+    return ret_node;
 }
 
 sc_dims matmul_core_op_t::get_bwise_fuse_shrink_dims() {

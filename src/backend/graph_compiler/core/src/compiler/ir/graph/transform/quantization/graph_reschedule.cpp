@@ -29,27 +29,42 @@ void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::bfs();
     vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
         if (node->isa<dequantize_op_t>()
-                || (node->isa<cast_op_t>()
-                        && node->attrs_.get_or_else("mixed_dtype", false))) {
-            assert(node->get_inputs().size() == 1);
+                || node->isa<dynamic_dequantize_op_t>()) {
             auto dequantize_input = node->info_.inputs_[0];
             auto dequantize_output = node->get_outputs()[0];
-            int use_count = dequantize_output->uses_.size();
             vis.update_state_for_visited(node);
 
             auto cld_nodes = dequantize_output->uses_;
+            std::vector<sc_op_ptr> node_to_remove = {node};
+            // whether replace inputs with next node according to two op nodes
+            // back check when int8-bf16 mixed type.
+            // For the case like:
+            //                    dequantize
+            //                     /
+            //           matmul  cast
+            //               \   /
+            //                add
+            if (cld_nodes.size() == 1 && cld_nodes[0].second->isa<cast_op_t>()
+                    && cld_nodes[0].second->attrs_.get_or_else(
+                            attr_keys::mixed_dtype, false)) {
+                node_to_remove.emplace_back(cld_nodes[0].second);
+                cld_nodes = cld_nodes[0].second->get_outputs()[0]->uses_;
+            }
+            int use_count = cld_nodes.size();
             for (auto &cld_node : cld_nodes) {
                 if ((cld_node.second->isa<op_traits::may_quantize_t>()
                             && cld_node.second
                                        ->dyn_cast<op_traits::may_quantize_t>()
-                                       ->should_quantized_)
-                        || cld_node.second->isa<cast_op_t>()) {
+                                       ->should_quantized_)) {
                     cld_node.second->replace_input(
                             cld_node.first, dequantize_input);
                     use_count--;
                 }
             }
-            if (!use_count) { node->remove(); }
+            if (!use_count) {
+                std::for_each(node_to_remove.begin(), node_to_remove.end(),
+                        [](const sc_op_ptr &op) { op->remove(); });
+            }
         }
     });
     mgr.reset_op_ids();
@@ -79,34 +94,38 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                         = sc_data_etype::S32;
                 may_quantize_node->is_quantized_ = true;
                 node->op_name_ = "quantized_" + node->op_name_;
-                assert(node->attrs_.has_key("data_scales")
-                        && node->attrs_.has_key("weight_scales"));
-                auto data_scales
-                        = node->attrs_.get<std::vector<float>>("data_scales");
-                auto weight_scales
-                        = node->attrs_.get<std::vector<float>>("weight_scales");
-                auto output_scales
-                        = math_utils::vector_mul(data_scales, weight_scales);
+                assert((node->attrs_.has_key(attr_keys::data_scales)
+                               && node->attrs_.has_key(
+                                       attr_keys::weight_scales))
+                        || (node->attrs_.has_key(attr_keys::dyn_data_scales)
+                                && node->attrs_.has_key(
+                                        attr_keys::dyn_weight_scales)));
+                bool is_dyn_quan
+                        = node->attrs_.has_key(attr_keys::dyn_data_scales);
+                auto weight_scales = node->attrs_.get_or_else(
+                        attr_keys::weight_scales, std::vector<float>());
                 int output_channel_axis;
-                if (node->attrs_.has_key("output_channel_axis")) {
-                    output_channel_axis
-                            = node->attrs_.get<int>("output_channel_axis");
+                if (node->attrs_.has_key(attr_keys::output_channel_axis)) {
+                    output_channel_axis = node->attrs_.get<int>(
+                            attr_keys::output_channel_axis);
                 } else {
-                    output_channel_axis
-                            = node->attrs_.get<int>("weight_channel_axis");
+                    output_channel_axis = node->attrs_.get<int>(
+                            attr_keys::weight_channel_axis);
                     if (weight_scales.size() > 1
-                            && node->attrs_.has_key("weight_channel_axis")) {
+                            && node->attrs_.has_key(
+                                    attr_keys::weight_channel_axis)) {
                         SC_WARN << "Weight_channel_axis is specified but "
                                    "output_channel_axis not specified. "
-                                   "Assuming "
-                                   "output_channel_axis == weight_channel_axis";
+                                   "Assuming output_channel_axis == "
+                                   "weight_channel_axis";
                     }
                 }
                 for (auto &child : node->get_outputs()[0]->uses_) {
                     auto cur_child = child;
                     auto cur_parent = node;
                     while (cur_child.second
-                                    ->dyn_cast<op_traits::may_quantize_t>()) {
+                                    ->dyn_cast<op_traits::may_quantize_t>()
+                            && cur_child.second->get_outputs().size() == 1) {
                         cur_child.second->replace_input(
                                 cur_child.first, cur_parent->get_outputs()[0]);
                         cur_parent = cur_child.second;
@@ -115,12 +134,74 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                         cur_parent->get_outputs()[0]->details_.dtype_.type_code_
                                 = sc_data_etype::S32;
                     }
-                    auto dequantize_node = mgr.make("dequantize",
-                            cur_parent->get_outputs(),
-                            std::vector<graph_tensor_ptr> {},
-                            {{"dtype", datatypes::f32},
-                                    {"scales", output_scales},
-                                    {"channel_axis", output_channel_axis}});
+                    sc_op_ptr dequantize_node;
+                    if (is_dyn_quan) {
+                        assert(node->attrs_.has_key(attr_keys::dyn_data_scales)
+                                && (node->attrs_.has_key(
+                                            attr_keys::dyn_weight_scales)
+                                        || node->attrs_.has_key(
+                                                attr_keys::weight_scales)));
+                        auto data_scales_gt
+                                = node->attrs_.get<graph_tensor_ptr>(
+                                        attr_keys::dyn_data_scales);
+                        auto weight_scales_gt = node->attrs_.get_or_else(
+                                attr_keys::dyn_weight_scales,
+                                graph_tensor_ptr());
+                        sc_op_ptr out_scales;
+                        if (weight_scales_gt) {
+                            out_scales = mgr.make("mul",
+                                    {data_scales_gt, weight_scales_gt}, {}, {});
+                        } else {
+                            auto wei_scale_const = mgr.make("constant", {}, {},
+                                    {{"values",
+                                             std::make_shared<static_data_t>(
+                                                     weight_scales)},
+                                            {"dtype", datatypes::f32},
+                                            {"plain_dims",
+                                                    sc_dims {static_cast<
+                                                            sc_dim>(
+                                                            weight_scales
+                                                                    .size())}},
+                                            {"format", sc_data_format_t()}});
+                            auto &wei_details
+                                    = wei_scale_const->get_outputs()[0]
+                                              ->details_;
+                            out_scales = mgr.make("mul",
+                                    {data_scales_gt,
+                                            wei_scale_const->get_outputs()[0]},
+                                    {std::make_shared<graph_tensor>(nullptr,
+                                            wei_details.get_format(),
+                                            wei_details.get_plain_dims(),
+                                            wei_details.dtype_)},
+                                    {});
+                        }
+                        dequantize_node = mgr.make("dynamic_dequantize",
+                                {cur_parent->get_outputs()[0],
+                                        out_scales->get_outputs()[0]},
+                                {},
+                                {{attr_keys::quan_dtype, datatypes::f32},
+                                        {attr_keys::channel_axis,
+                                                output_channel_axis}});
+                    } else {
+                        auto data_scales = node->attrs_.get<std::vector<float>>(
+                                attr_keys::data_scales);
+                        auto output_scales = math_utils::vector_mul(
+                                data_scales, weight_scales);
+                        dequantize_node = mgr.make("dequantize",
+                                cur_parent->get_outputs(),
+                                std::vector<graph_tensor_ptr> {},
+                                {{attr_keys::quan_dtype, datatypes::f32},
+                                        {attr_keys::scales, output_scales},
+                                        {attr_keys::channel_axis,
+                                                output_channel_axis}});
+                    }
+                    if (node->attrs_.get_or_else(
+                                attr_keys::mixed_dtype, false)) {
+                        dequantize_node = mgr.make("cast",
+                                dequantize_node->get_outputs(),
+                                std::vector<graph_tensor_ptr> {},
+                                {{"dtype", datatypes::bf16}});
+                    }
                     cur_child.second->replace_input(
                             cur_child.first, dequantize_node->get_outputs()[0]);
                     vis.update_state_for_visited(dequantize_node);
@@ -130,18 +211,48 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                 for (auto &out : node->get_outputs()) {
                     out->details_.dtype_
                             = node->get_inputs()[0]->details_.dtype_;
-                    // insert dequantize if last op of pattern is output op, for
-                    // pattern like `qua->deq->reshape->output`
+                    // insert dequantize if last op of pattern is output op,
+                    // for pattern like `qua->deq->reshape->output`
                     std::vector<std::pair<int, sc_op_weak_ptr_t>> uses
                             = out->uses_;
                     for (auto &use : uses) {
                         auto cld_op = use.second.lock();
-                        if (cld_op->isa<output_op>()
-                                && node->attrs_.has_key("scales")
-                                && node->attrs_.has_key("zero_points")) {
-                            auto dequantize_node = mgr.make("dequantize", {out},
-                                    std::vector<graph_tensor_ptr> {},
-                                    node->attrs_);
+                        if (!(cld_op->dyn_cast<op_traits::may_quantize_t>()
+                                    && cld_op->get_outputs().size() == 1)
+                                && ((node->attrs_.has_key(attr_keys::scales)
+                                            && node->attrs_.has_key(
+                                                    attr_keys::zero_points))
+                                        || (node->attrs_.has_key(
+                                                attr_keys::dyn_scales)))) {
+                            bool is_dyn_quan = node->attrs_.has_key(
+                                    attr_keys::dyn_scales);
+                            sc_op_ptr dequantize_node;
+                            if (is_dyn_quan) {
+                                auto &scales
+                                        = node->attrs_.get<graph_tensor_ptr>(
+                                                attr_keys::dyn_scales);
+                                auto &zero_points
+                                        = node->attrs_.get<graph_tensor_ptr>(
+                                                attr_keys::dyn_zero_points);
+                                std::vector<graph_tensor_ptr> ins
+                                        = {out, scales};
+                                if (zero_points) {
+                                    ins.emplace_back(zero_points);
+                                }
+                                dequantize_node = mgr.make("dynamic_dequantize",
+                                        ins, {}, node->attrs_);
+                            } else {
+                                dequantize_node = mgr.make("dequantize", {out},
+                                        std::vector<graph_tensor_ptr> {},
+                                        node->attrs_);
+                            }
+                            if (node->attrs_.get_or_else(
+                                        attr_keys::mixed_dtype, false)) {
+                                dequantize_node = mgr.make("cast",
+                                        dequantize_node->get_outputs(),
+                                        std::vector<graph_tensor_ptr> {},
+                                        {{"dtype", datatypes::bf16}});
+                            }
                             cld_op->replace_input(use.first,
                                     dequantize_node->get_outputs()[0]);
                             vis.update_state_for_visited(dequantize_node);

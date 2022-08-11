@@ -283,6 +283,10 @@ public:
                             real_in, sc_data_type_t::s32(16));
                     return builder::make_saturated_cast(real_in, v->dtype_);
                 }
+            } else if (v->dtype_ == sc_data_type_t::s32(16)) {
+                assert(intype == sc_data_type_t::f32(16));
+                return builder::make_round_and_cast(
+                        inval1, sc_data_type_t::s32(16));
             }
         }
         auto cast_s32_u8s8 = [intype, outtype](const expr_c &v) {
