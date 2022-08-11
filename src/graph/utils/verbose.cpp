@@ -33,6 +33,11 @@
 #include "graph/utils/utils.hpp"
 #include "graph/utils/verbose.hpp"
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#include "common/dnnl_thread.hpp"
+#include "cpu/platform.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -67,6 +72,22 @@ int get_verbose() {
         printf("onednn_graph_verbose,info,oneDNN Graph v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+        printf("onednn_graph_verbose,info,cpu,runtime:%s,nthr:%d\n",
+                dnnl_runtime2str(dnnl_version()->cpu_runtime),
+                dnnl_get_max_threads());
+        printf("onednn_graph_verbose,info,cpu,isa:%s\n",
+                cpu::platform::get_isa_info());
+#endif
+        printf("onednn_graph_verbose,info,gpu,runtime:%s\n",
+                dnnl_runtime2str(dnnl_version()->gpu_runtime));
+        std::vector<const backend *> &backends
+                = backend_registry_t::get_singleton().get_registered_backends();
+        for (size_t i = 0; i < backends.size() - 1; ++i) {
+            backend *bkd = const_cast<backend *>(backends[i]);
+            printf("onednn_graph_verbose,info,backend,%zu:%s\n", i,
+                    bkd->get_name().c_str());
+        }
         version_printed = true;
     }
 #endif
