@@ -44,6 +44,18 @@ bool memory_desc_ndims_ok(const T *first, const Rest *... rest) {
     return memory_desc_ndims_ok(first) || memory_desc_ndims_ok(rest...);
 }
 
+inline dim_t get_attr_oscales_count(int mask, const memory_desc_wrapper &md) {
+    dim_t count = 1;
+    if (mask == 0) return count;
+
+    for (int d = 0; d < md.ndims(); d++) {
+        const int dim_mask = 1 << d;
+        if (dim_mask & mask) count *= md.dims()[d];
+    }
+
+    return count;
+}
+
 struct memory_desc_info_t {
     // Max levels of blocking
     static const int max_nlevels = 3;

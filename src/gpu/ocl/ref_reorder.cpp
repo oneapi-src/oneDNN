@@ -43,9 +43,10 @@ status_t ref_reorder_t::pd_t::init_conf(engine_t *engine) {
     const auto &padded_dims = dst_mdw.padded_dims();
     const auto &zp = attr()->zero_points_;
     conf.with_sum_ab = (alpha() != 1.f || beta() != 0.f);
-    conf.scale_quant = attr()->output_scales_.mask_ != 0;
-    conf.scale_mask = conf.scale_quant ? attr()->output_scales_.mask_ : 0;
-    conf.scales_num = conf.scale_quant ? attr()->output_scales_.count_ : 0;
+    conf.scale_quant = !attr()->output_scales_.has_default_values();
+    conf.scale_mask = attr()->output_scales_.mask_;
+    conf.scales_num
+            = get_attr_oscales_count(attr()->output_scales_.mask_, dst_mdw);
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
     conf.with_src_zp = !zp.has_default_values(DNNL_ARG_SRC);
@@ -150,28 +151,35 @@ status_t ref_reorder_t::execute(const exec_ctx_t &ctx) const {
     float alpha = pd()->alpha();
     float beta = pd()->beta();
 
-    std::unique_ptr<memory_storage_t> scales;
-    if (conf.scale_quant) {
-        scales = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_reorder_scales);
-
-        void *tmp_ptr = nullptr;
-        status = scales->map_data(&tmp_ptr, ctx.stream(),
-                sizeof(float) * pd()->attr()->output_scales_.count_);
-        if (status != status::success) return status;
-        utils::array_copy((float *)tmp_ptr,
-                pd()->attr()->output_scales_.scales_,
-                pd()->attr()->output_scales_.count_);
-        status = scales->unmap_data(tmp_ptr, ctx.stream());
-        if (status != status::success) return status;
-    }
-
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
     arg_list.set(2, alpha);
     arg_list.set(3, beta);
-    arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
+
+    std::shared_ptr<memory_storage_t> scales;
+    if (conf.scale_quant) {
+        if (pd()->attr()->output_scales_.defined()) {
+            scales = ctx.get_scratchpad_grantor().get_memory_storage(
+                    key_reorder_scales);
+
+            void *tmp_ptr = nullptr;
+            status = scales->map_data(&tmp_ptr, ctx.stream(),
+                    sizeof(float) * pd()->attr()->output_scales_.count_);
+            if (status != status::success) return status;
+            utils::array_copy((float *)tmp_ptr,
+                    pd()->attr()->output_scales_.scales_,
+                    pd()->attr()->output_scales_.count_);
+            status = scales->unmap_data(tmp_ptr, ctx.stream());
+            if (status != status::success) return status;
+            arg_list.set(4, *scales);
+        } else {
+            auto &runtime_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
+            arg_list.set(4, runtime_scales);
+        }
+    } else {
+        arg_list.set(4, memory_storage_t::empty_storage());
+    }
 
     if (conf.with_src_zp && conf.common_src_zp == 0) {
         auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);

@@ -30,7 +30,7 @@ protected:
     bool attr_ok() const {
         return attr()->has_default_values(
                        dnnl_primitive_attr::skip_mask_t::zero_points_runtime
-                       | dnnl_primitive_attr::skip_mask_t::oscale
+                       | dnnl_primitive_attr::skip_mask_t::oscale_runtime
                        | dnnl_primitive_attr::skip_mask_t::post_ops)
                 && post_ops_ok();
     }
