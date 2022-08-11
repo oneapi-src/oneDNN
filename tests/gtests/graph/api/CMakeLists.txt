@@ -57,8 +57,11 @@ target_include_directories(test_graph_api
     ${PROJECT_SOURCE_DIR}/include
     )
 
-add_test("test_graph_api" "test_graph_api" "--engine=cpu")
-maybe_configure_windows_test("test_graph_api" TEST)
+# Add CPU test if CPU runtime is enabled
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+    add_test("test_graph_api" "test_graph_api" "--engine=cpu")
+    maybe_configure_windows_test("test_graph_api" TEST)
+endif()
 
 # Add GPU test if GPU runtime is enabled
 if(DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})

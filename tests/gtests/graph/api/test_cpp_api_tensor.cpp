@@ -21,7 +21,8 @@
 
 #include <vector>
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL \
+        && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 TEST(APITensor, CreateWithShape) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using data_type = logical_tensor::data_type;

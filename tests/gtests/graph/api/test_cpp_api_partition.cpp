@@ -268,9 +268,11 @@ TEST(APIPartition, SingleConvPartition) {
     ASSERT_TRUE(part.is_supported());
 }
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
 TEST(APIPartition, CompileWildcardPartition) {
     using namespace dnnl::graph;
+    dnnl::engine::kind engine_kind
+            = static_cast<dnnl::engine::kind>(api_test_engine_kind);
+    dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
     std::vector<int64_t> data_dims {8, 256, 56, 56};
 
     logical_tensor lt1 {0, logical_tensor::data_type::f32, data_dims,
@@ -282,7 +284,7 @@ TEST(APIPartition, CompileWildcardPartition) {
     wc.add_input(lt1);
     wc.add_output(lt2);
 
-    partition part {wc, dnnl::engine::kind::cpu};
+    partition part {wc, engine_kind};
 
     // get_ops
     std::vector<size_t> ops = part.get_ops();
@@ -292,7 +294,5 @@ TEST(APIPartition, CompileWildcardPartition) {
     ASSERT_FALSE(part.is_supported());
 
     // compile
-    dnnl::engine eng(dnnl::engine::kind::cpu, 0);
     EXPECT_THROW(part.compile({lt1}, {lt2}, eng), dnnl::error);
 }
-#endif

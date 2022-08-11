@@ -56,8 +56,12 @@ target_link_libraries(test_graph_unit
     )
 
 set(sycl_rt_pattern "(DPCPP)")
-add_test("test_graph_unit" "test_graph_unit" "--engine=cpu")
-maybe_configure_windows_test("test_graph_unit" TEST)
+
+# Add CPU test if CPU runtime is enabled
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+    add_test("test_graph_unit" "test_graph_unit" "--engine=cpu")
+    maybe_configure_windows_test("test_graph_unit" TEST)
+endif()
 
 # Add GPU test if GPU runtime is enabled
 if(DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})

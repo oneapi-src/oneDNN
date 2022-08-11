@@ -19,7 +19,6 @@
 #include "test_api_common.hpp"
 #include "gtest/gtest.h"
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
 struct test_conv_params_t {
     std::vector<int64_t> input_dims;
     std::vector<int64_t> ref_dst_dims;
@@ -41,9 +40,9 @@ public:
         auto params = ::testing::TestWithParam<test_conv_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
+        dnnl::engine::kind engine_kind
+                = static_cast<dnnl::engine::kind>(api_test_engine_kind);
         dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
-        dnnl::stream strm {eng};
 
         graph g(engine_kind);
 
@@ -133,25 +132,6 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(2).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(2).get_dims()[3], ref_dst_dims[3]);
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::vector<float> filter(product(filter_dims), 0.0);
-        std::vector<float> dst(product(input_dims), 0.0);
-
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-        std::generate(filter.begin(), filter.end(),
-                [&]() { return distribution(generator); });
-
-        tensor src_ts(lt1_plain, eng, src.data());
-        tensor filter_ts(lt2_plain, eng, filter.data());
-        tensor dst_ts(out0[0], eng, dst.data());
-
-        cp.execute(strm, {src_ts, filter_ts}, {dst_ts});
-
-        strm.wait();
-
         // backward filter
         graph g1(engine_kind);
         std::vector<int64_t> infer_filter_dims {-1, -1, -1, -1};
@@ -211,17 +191,6 @@ public:
         ASSERT_EQ(cp1.query_logical_tensor(5).get_dims()[2], filter_dims[2]);
         ASSERT_EQ(cp1.query_logical_tensor(5).get_dims()[3], filter_dims[3]);
 
-        logical_tensor lt6_plain_infered {5, logical_tensor::data_type::f32,
-                filter_dims, logical_tensor::layout_type::strided};
-
-        tensor input_ts(lt4_plain, eng, src.data());
-        tensor outgrad_ts(lt5_plain, eng, dst.data());
-        tensor filtergrad_ts(lt6_plain_infered, eng, filter.data());
-
-        cp1.execute(strm, {input_ts, outgrad_ts}, {filtergrad_ts});
-
-        strm.wait();
-
         // backward data
         graph g2(engine_kind);
         std::vector<int64_t> infer_data_dims {-1, -1, -1, -1};
@@ -280,14 +249,6 @@ public:
         ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[1], input_dims[1]);
         ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[3], input_dims[3]);
-
-        tensor outputgrad_ts(lt7_plain, eng, dst.data());
-        tensor filter_ts2(lt8_plain, eng, filter.data());
-        tensor inputgrad_ts(out2[0], eng, src.data());
-
-        cp2.execute(strm, {outputgrad_ts, filter_ts2}, {inputgrad_ts});
-
-        strm.wait();
     }
 };
 
@@ -324,9 +285,9 @@ public:
         auto params = ::testing::TestWithParam<pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
+        dnnl::engine::kind engine_kind
+                = static_cast<dnnl::engine::kind>(api_test_engine_kind);
         dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
-        dnnl::stream strm {eng};
 
         graph g(engine_kind);
 
@@ -340,12 +301,6 @@ public:
         const auto &data_format = params.data_format;
         const auto &rounding_type = params.rounding_type;
         const auto &auto_pad = params.auto_pad;
-
-        std::vector<float> src(product(input_dims), 0.0);
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
 
         std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
@@ -398,15 +353,6 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[1], ref_dst_dims[1]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
-
-        std::vector<float> dst(product(ref_dst_dims), 0.0);
-
-        tensor src_ts(lt1_plain, eng, src.data());
-        tensor dst_ts(out0[0], eng, dst.data());
-
-        cp.execute(strm, {src_ts}, {dst_ts});
-
-        strm.wait();
     }
 };
 
@@ -427,9 +373,9 @@ public:
         auto params = ::testing::TestWithParam<pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
+        dnnl::engine::kind engine_kind
+                = static_cast<dnnl::engine::kind>(api_test_engine_kind);
         dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
-        dnnl::stream strm {eng};
 
         graph g(engine_kind);
 
@@ -443,12 +389,6 @@ public:
         const auto &data_format = params.data_format;
         const auto &rounding_type = params.rounding_type;
         const auto &auto_pad = params.auto_pad;
-
-        std::vector<float> src(product(input_dims), 0.0);
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
 
         std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
@@ -501,24 +441,15 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[1], ref_dst_dims[1]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
-
-        std::vector<float> dst(product(ref_dst_dims), 0.0);
-
-        tensor src_ts(lt1_plain, eng, src.data());
-        tensor dst_ts(out0[0], eng, dst.data());
-
-        cp.execute(strm, {src_ts}, {dst_ts});
-
-        strm.wait();
     }
 
     void Test_Max_Pool_FWD_BWD() {
         auto params = ::testing::TestWithParam<pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
+        dnnl::engine::kind engine_kind
+                = static_cast<dnnl::engine::kind>(api_test_engine_kind);
         dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
-        dnnl::stream strm {eng};
 
         graph g(engine_kind);
 
@@ -532,12 +463,6 @@ public:
         const auto &data_format = params.data_format;
         const auto &rounding_type = params.rounding_type;
         const auto &auto_pad = params.auto_pad;
-
-        std::vector<float> src(product(input_dims), 0.0);
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
 
         std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
@@ -590,15 +515,6 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[1], ref_dst_dims[1]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
-
-        std::vector<float> dst(product(ref_dst_dims), 0.0);
-
-        tensor src_ts(lt1_plain, eng, src.data());
-        tensor dst_ts(out0[0], eng, dst.data());
-
-        cp.execute(strm, {src_ts}, {dst_ts});
-
-        strm.wait();
 
         graph g1(engine_kind);
 
@@ -655,15 +571,6 @@ public:
         ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[1], input_dims[1]);
         ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[3], input_dims[3]);
-
-        std::vector<float> outgrad(src.size(), 0.0);
-        tensor src_ts2(lt2_plain, eng, src.data());
-        tensor dst_ts2(lt3_plain, eng, dst.data());
-        tensor outgrad_ts(cp1.query_logical_tensor(4), eng, outgrad.data());
-
-        cp1.execute(strm, {src_ts2, dst_ts2}, {outgrad_ts});
-
-        strm.wait();
     }
 };
 
@@ -696,9 +603,9 @@ public:
         auto params = ::testing::TestWithParam<bn_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
+        dnnl::engine::kind engine_kind
+                = static_cast<dnnl::engine::kind>(api_test_engine_kind);
         dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
-        dnnl::stream strm {eng};
 
         graph g(engine_kind);
 
@@ -782,77 +689,10 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(5).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(5).get_dims()[3], input_dims[3]);
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::vector<float> gamma(channels, 0.0);
-        std::vector<float> beta(channels, 0.0);
-        std::vector<float> mean(channels, 0.0);
-        std::vector<float> variance(channels, 0.0);
-        std::vector<float> dst(product(input_dims), 0.0);
-        std::vector<float> running_mean(channels, 0.0);
-        std::vector<float> running_variance(channels, 0.0);
-        std::vector<float> batch_mean(channels, 0.0);
-        std::vector<float> batch_variance(channels, 0.0);
-
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-        std::generate(gamma.begin(), gamma.end(), []() {
-            static int i = 0;
-            return std::sin(static_cast<float>(i++) * 2.f);
-        });
-        std::generate(beta.begin(), beta.end(), []() {
-            static int i = 0;
-            return std::tan(i++);
-        });
-        std::generate(mean.begin(), mean.end(), []() {
-            static int i = 0;
-            return std::sin(static_cast<float>(i++) * 2.f);
-        });
-        std::generate(variance.begin(), variance.end(), []() {
-            static int i = 0;
-            return std::tan(i++);
-        });
-
-        logical_tensor lt0_plain {0, logical_tensor::data_type::f32, input_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt1_plain {1, logical_tensor::data_type::f32, gamma_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt2_plain {2, logical_tensor::data_type::f32, beta_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt3_plain {3, logical_tensor::data_type::f32, mean_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt4_plain {4, logical_tensor::data_type::f32,
-                variance_dims, logical_tensor::layout_type::strided};
-
-        tensor src_ts(lt0_plain, eng, src.data());
-        tensor gamma_ts(lt1_plain, eng, gamma.data());
-        tensor beta_ts(lt2_plain, eng, beta.data());
-        tensor mean_ts(lt3_plain, eng, mean.data());
-        tensor variance_ts(lt4_plain, eng, variance.data());
-
-        logical_tensor dst0_lt_infered {5, logical_tensor::data_type::f32,
-                input_dims, logical_tensor::layout_type::strided};
-        logical_tensor dst1_lt_infered {6, logical_tensor::data_type::f32,
-                mean_dims, logical_tensor::layout_type::strided};
-        logical_tensor dst2_lt_infered {7, logical_tensor::data_type::f32,
-                variance_dims, logical_tensor::layout_type::strided};
         logical_tensor dst3_lt_infered {8, logical_tensor::data_type::f32,
                 mean_dims, logical_tensor::layout_type::strided};
         logical_tensor dst4_lt_infered {9, logical_tensor::data_type::f32,
                 variance_dims, logical_tensor::layout_type::strided};
-        tensor dst_ts(dst0_lt_infered, eng, dst.data());
-        tensor running_mean_ts(dst1_lt_infered, eng, running_mean.data());
-        tensor running_variance_ts(
-                dst2_lt_infered, eng, running_variance.data());
-        tensor batch_mean_ts(dst3_lt_infered, eng, batch_mean.data());
-        tensor batch_variance_ts(dst4_lt_infered, eng, batch_variance.data());
-
-        cp.execute(strm, {src_ts, gamma_ts, beta_ts, mean_ts, variance_ts},
-                {dst_ts, running_mean_ts, running_variance_ts, batch_mean_ts,
-                        batch_variance_ts});
-
-        strm.wait();
 
         // BatchNormTrainingBackprop
         graph g2(engine_kind);
@@ -900,37 +740,15 @@ public:
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[1], input_dims[1]);
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[3], input_dims[3]);
-
-        logical_tensor lt10_plain {10, logical_tensor::data_type::f32,
-                input_dims, logical_tensor::layout_type::strided};
-        tensor outgrad_ts(lt10_plain, eng, dst.data());
-
-        logical_tensor dst0_lt_infered2 {11, logical_tensor::data_type::f32,
-                input_dims, logical_tensor::layout_type::strided};
-        logical_tensor dst1_lt_infered2 {12, logical_tensor::data_type::f32,
-                gamma_dims, logical_tensor::layout_type::strided};
-        logical_tensor dst2_lt_infered2 {13, logical_tensor::data_type::f32,
-                beta_dims, logical_tensor::layout_type::strided};
-
-        tensor ingrad_ts(dst0_lt_infered2, eng, src.data());
-        tensor gammagrad_ts(dst1_lt_infered2, eng, gamma.data());
-        tensor betagrad_ts(dst2_lt_infered2, eng, beta.data());
-
-        cp2.execute(strm,
-                {src_ts, outgrad_ts, gamma_ts, batch_mean_ts,
-                        batch_variance_ts},
-                {ingrad_ts, gammagrad_ts, betagrad_ts});
-
-        strm.wait();
     }
 
     void Test_BatchNormTraining_Opaque() {
         auto params = ::testing::TestWithParam<bn_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
+        dnnl::engine::kind engine_kind
+                = static_cast<dnnl::engine::kind>(api_test_engine_kind);
         dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
-        dnnl::stream strm {eng};
 
         graph g(engine_kind);
 
@@ -1043,60 +861,6 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(8).get_dims()[0], channels);
         ASSERT_EQ(cp.query_logical_tensor(9).get_dims()[0], channels);
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::vector<float> gamma(channels, 0.0);
-        std::vector<float> beta(channels, 0.0);
-        std::vector<float> mean(channels, 0.0);
-        std::vector<float> variance(channels, 0.0);
-        std::vector<float> dst(product(input_dims), 0.0);
-        std::vector<float> running_mean(channels, 0.0);
-        std::vector<float> running_variance(channels, 0.0);
-        std::vector<float> batch_mean(channels, 0.0);
-        std::vector<float> batch_variance(channels, 0.0);
-
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-        std::generate(gamma.begin(), gamma.end(), []() {
-            static int i = 0;
-            return std::sin(static_cast<float>(i++) * 2.f);
-        });
-        std::generate(beta.begin(), beta.end(), []() {
-            static int i = 0;
-            return std::tan(i++);
-        });
-        std::generate(mean.begin(), mean.end(), []() {
-            static int i = 0;
-            return std::sin(static_cast<float>(i++) * 2.f);
-        });
-        std::generate(variance.begin(), variance.end(), []() {
-            static int i = 0;
-            return std::tan(i++);
-        });
-
-        tensor src_ts(lt0_plain, eng, src.data());
-        tensor gamma_ts(lt1_plain, eng, gamma.data());
-        tensor beta_ts(lt2_plain, eng, beta.data());
-        tensor mean_ts(lt3_plain, eng, mean.data());
-        tensor variance_ts(lt4_plain, eng, variance.data());
-
-        tensor dst_ts(cp.query_logical_tensor(5), eng, dst.data());
-        tensor running_mean_ts(
-                cp.query_logical_tensor(6), eng, running_mean.data());
-        tensor running_variance_ts(
-                cp.query_logical_tensor(7), eng, running_variance.data());
-        tensor batch_mean_ts(
-                cp.query_logical_tensor(8), eng, batch_mean.data());
-        tensor batch_variance_ts(
-                cp.query_logical_tensor(9), eng, batch_variance.data());
-
-        cp.execute(strm, {src_ts, gamma_ts, beta_ts, mean_ts, variance_ts},
-                {dst_ts, running_mean_ts, running_variance_ts, batch_mean_ts,
-                        batch_variance_ts});
-
-        strm.wait();
-
         // BatchNormTrainingBackprop
         graph g2(engine_kind);
         op bn_bwd_op(0, op::kind::BatchNormTrainingBackprop, "bn_bwd");
@@ -1152,19 +916,6 @@ public:
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[1], input_dims[1]);
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[3], input_dims[3]);
-
-        tensor outgrad_ts(lt10_plain, eng, dst.data());
-
-        tensor ingrad_ts(cp2.query_logical_tensor(11), eng, src.data());
-        tensor gammagrad_ts(cp2.query_logical_tensor(12), eng, gamma.data());
-        tensor betagrad_ts(cp2.query_logical_tensor(13), eng, beta.data());
-
-        cp2.execute(strm,
-                {src_ts, outgrad_ts, gamma_ts, batch_mean_ts,
-                        batch_variance_ts},
-                {ingrad_ts, gammagrad_ts, betagrad_ts});
-
-        strm.wait();
     }
 };
 
@@ -1174,5 +925,5 @@ TEST_P(test_bn_compile_t, Test_BatchNorm_Compile) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Test_BatchNorm_Compile, test_bn_compile_t,
-        ::testing::Values(bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));
-#endif
+        ::testing::Values(
+                bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));

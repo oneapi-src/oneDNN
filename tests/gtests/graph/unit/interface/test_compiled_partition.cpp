@@ -33,11 +33,10 @@ namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl {
 namespace graph {
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
 TEST(CompiledPartitionCache, SingleOpCase) {
     const size_t max_batch = 4;
 
-    dnnl::engine eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t *eng = get_engine();
     std::vector<impl::graph::op_kind_t> kind_set {impl::graph::op_kind::ReLU,
             impl::graph::op_kind::ReLU, impl::graph::op_kind::Tanh};
 
@@ -70,7 +69,7 @@ TEST(CompiledPartitionCache, SingleOpCase) {
             elt.add_output(output);
 
             // Create graph
-            impl::graph::graph_t g {impl::graph::engine_kind::cpu};
+            impl::graph::graph_t g {eng->kind()};
             g.add_op(&elt);
             g.build_graph();
 
@@ -90,7 +89,7 @@ TEST(CompiledPartitionCache, SingleOpCase) {
             g.get_ordered_partitions(parts);
 
             // highly possibly cache_miss
-            tasks.emplace_back([&eng, par, input, output]() {
+            tasks.emplace_back([eng, par, input, output]() {
                 impl::graph::compiled_partition_t cp(par);
                 std::pair<impl::graph::compiled_partition_t *, bool> cpcache {
                         &cp, false};
@@ -99,11 +98,11 @@ TEST(CompiledPartitionCache, SingleOpCase) {
                 std::vector<const impl::graph::logical_tensor_t *> outputs {
                         &output};
                 // Partition compilation
-                par.compile(cpcache, inputs, outputs, eng.get());
+                par.compile(cpcache, inputs, outputs, eng);
             });
 
             // highly possibly cache_hit
-            tasks.emplace_back([&eng, par, input, output]() {
+            tasks.emplace_back([eng, par, input, output]() {
                 impl::graph::compiled_partition_t cp(par);
                 std::pair<impl::graph::compiled_partition_t *, bool> cpcache {
                         &cp, false};
@@ -112,7 +111,7 @@ TEST(CompiledPartitionCache, SingleOpCase) {
                 std::vector<const impl::graph::logical_tensor_t *> outputs {
                         &output};
                 // Partition compilation
-                par.compile(cpcache, inputs, outputs, eng.get());
+                par.compile(cpcache, inputs, outputs, eng);
             });
         }
     }
@@ -137,7 +136,6 @@ TEST(CompiledPartitionCache, SingleOpCase) {
     ASSERT_EQ(get_compiled_partition_cache_size(), new_capacity);
 #endif
 }
-#endif
 
 } // namespace graph
 } // namespace dnnl
