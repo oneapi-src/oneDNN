@@ -366,10 +366,10 @@ struct jit_bnorm_process_relu_t {
 };
 
 template <cpu_isa_t isa>
-struct jit_bnorm_bf16_emulation_t {
+struct helper_vmovups_data_t {
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    jit_bnorm_bf16_emulation_t(const batch_normalization_pd_t *bdesc,
+    helper_vmovups_data_t(const batch_normalization_pd_t *bdesc,
             jit_generator *host, Zmm zmm_reserved_1, Zmm zmm_reserved_2,
             Zmm zmm_reserved_3, Zmm zmm_reserved_4, Reg64 reg_tmp)
         : h_(host), bf16_emu_(nullptr) {
@@ -385,7 +385,7 @@ struct jit_bnorm_bf16_emulation_t {
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
     bool is_bf16_;
 
-    void uni_vmovups_data(const Operand &dst, const Operand &src) {
+    void operator()(const Operand &dst, const Operand &src) const {
         if (dst.isMEM()) {
             if (is_bf16_) {
                 constexpr bool isAvx2 = isa == avx2;
@@ -416,7 +416,7 @@ struct jit_bnorm_bf16_emulation_t {
     }
 
 private:
-    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_bnorm_bf16_emulation_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(helper_vmovups_data_t);
 };
 
 template <cpu_isa_t isa>
@@ -476,7 +476,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     const int vlen;
     const int simd_w;
     jit_bnorm_process_tail_t<isa> jit_tail_;
-    jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
+    helper_vmovups_data_t<isa> helper_vmovups_;
     int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
@@ -543,8 +543,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         for (int idx = start_idx, off = 0; idx < end_idx; idx++, off += step) {
             const Vmm vstat = Vmm(idx);
 
-            jit_bf16_emu_.uni_vmovups_data(
-                    v_, vmmword[reg_ptr_src_ + reg_off_dat_ + off]);
+            helper_vmovups_(v_, vmmword[reg_ptr_src_ + reg_off_dat_ + off]);
 
             if (compute_mean) {
                 uni_vaddps(vstat, vstat, v_);
@@ -720,7 +719,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         , simd_w(get_simd_w<isa>(tag_kind))
         , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
                   vtail_mask_, ktail_mask_)
-        , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
+        , helper_vmovups_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
@@ -836,7 +835,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
     const int simd_w;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
-    jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
+    helper_vmovups_data_t<isa> helper_vmovups_;
     int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
@@ -901,8 +900,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
     }
 
     void compute_bnorm(bool stream_store_allowed) {
-        jit_bf16_emu_.uni_vmovups_data(
-                v_, vmmword[reg_ptr_src_ + reg_off_dat_]);
+        helper_vmovups_(v_, vmmword[reg_ptr_src_ + reg_off_dat_]);
         uni_vsubps(v_, v_, vmean_);
         uni_vmulps(v_, v_, vsqrtvar_);
 
@@ -919,8 +917,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         if (stream_store_allowed) {
             uni_vmovntps(vmmword[reg_ptr_dst_ + reg_off_dat_], v_);
         } else {
-            jit_bf16_emu_.uni_vmovups_data(
-                    vmmword[reg_ptr_dst_ + reg_off_dat_], v_);
+            helper_vmovups_(vmmword[reg_ptr_dst_ + reg_off_dat_], v_);
         }
     }
 
@@ -998,7 +995,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
                   vtail_mask_, ktail_mask_)
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_, valpha, vmask, reg_alpha_)
-        , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
+        , helper_vmovups_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
@@ -1018,8 +1015,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
         const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
 
         preamble();
-        if (jit_bf16_emu_.bf16_emu_)
-            jit_bf16_emu_.bf16_emu_->init_vcvtneps2bf16();
+        if (helper_vmovups_.bf16_emu_)
+            helper_vmovups_.bf16_emu_->init_vcvtneps2bf16();
         sub(rsp, stack_size_required);
         load_common_params();
         jit_relu_.fwd_prepare_relu();
@@ -1095,7 +1092,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
     const int simd_w;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
-    jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
+    helper_vmovups_data_t<isa> helper_vmovups_;
     int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
@@ -1163,14 +1160,12 @@ struct jit_bnorm_bwd_t : public jit_generator {
     }
 
     void compute_bnorm(bool stream_store_allowed) {
-        jit_bf16_emu_.uni_vmovups_data(
-                v_, vmmword[reg_ptr_diff_dst_ + reg_off_dat_]);
+        helper_vmovups_(v_, vmmword[reg_ptr_diff_dst_ + reg_off_dat_]);
         jit_relu_.bwd_process_relu(v_);
 
         if (calculate_diff_stats()) {
             uni_vsubps(v_, v_, vdiff_beta_);
-            jit_bf16_emu_.uni_vmovups_data(
-                    vtmp_, vmmword[reg_ptr_src_ + reg_off_dat_]);
+            helper_vmovups_(vtmp_, vmmword[reg_ptr_src_ + reg_off_dat_]);
             uni_vsubps(vtmp_, vtmp_, vmean_);
             uni_vmulps(vtmp_, vtmp_, vdiff_gamma_);
             uni_vsubps(v_, v_, vtmp_);
@@ -1183,8 +1178,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
         if (stream_store_allowed) {
             uni_vmovntps(vmmword[reg_ptr_diff_src_ + reg_off_dat_], v_);
         } else {
-            jit_bf16_emu_.uni_vmovups_data(
-                    vmmword[reg_ptr_diff_src_ + reg_off_dat_], v_);
+            helper_vmovups_(vmmword[reg_ptr_diff_src_ + reg_off_dat_], v_);
         }
     }
 
@@ -1289,7 +1283,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
                   vtail_mask_, ktail_mask_)
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
-        , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
+        , helper_vmovups_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
@@ -1309,8 +1303,8 @@ struct jit_bnorm_bwd_t : public jit_generator {
         const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
 
         preamble();
-        if (jit_bf16_emu_.bf16_emu_)
-            jit_bf16_emu_.bf16_emu_->init_vcvtneps2bf16();
+        if (helper_vmovups_.bf16_emu_)
+            helper_vmovups_.bf16_emu_->init_vcvtneps2bf16();
         load_common_params();
         jit_relu_.bwd_prepare_relu();
         jit_tail_.prepare_tail();
@@ -1393,7 +1387,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
     const int simd_w;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
-    jit_bnorm_bf16_emulation_t<isa> jit_bf16_emu_;
+    helper_vmovups_data_t<isa> helper_vmovups_;
     int stride_N_, stride_S_, stride_C_;
     size_t data_type_size_, acc_type_size_;
 
@@ -1516,7 +1510,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
             const Vmm vdiff_beta = Vmm(idx + 1);
             const Vmm vdiff_gamma = Vmm(idx + 2);
 
-            jit_bf16_emu_.uni_vmovups_data(
+            helper_vmovups_(
                     v_, vmmword[reg_ptr_diff_dst_ + reg_off_dat_ + off]);
 
             jit_relu_.bwd_process_relu(
@@ -1525,8 +1519,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
             // diff_beta
             uni_vaddps(vdiff_beta, vdiff_beta, v_);
 
-            jit_bf16_emu_.uni_vmovups_data(
-                    vtmp_, vmmword[reg_ptr_src_ + reg_off_dat_ + off]);
+            helper_vmovups_(vtmp_, vmmword[reg_ptr_src_ + reg_off_dat_ + off]);
 
             // diff_gamma, note that diff_gamma will be multiplied
             // by sqrtvar before store
@@ -1687,7 +1680,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
                   vtail_mask_, ktail_mask_)
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
-        , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
+        , helper_vmovups_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
