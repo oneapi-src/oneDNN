@@ -33,22 +33,6 @@
 #include "graph/utils/utils.hpp"
 #include "graph/utils/verbose.hpp"
 
-#ifndef DNNL_GRAPH_VERSION_MAJOR
-#define DNNL_GRAPH_VERSION_MAJOR INT_MAX
-#endif
-
-#ifndef DNNL_GRAPH_VERSION_MINOR
-#define DNNL_GRAPH_VERSION_MINOR INT_MAX
-#endif
-
-#ifndef DNNL_GRAPH_VERSION_PATCH
-#define DNNL_GRAPH_VERSION_PATCH INT_MAX
-#endif
-
-#ifndef DNNL_GRAPH_VERSION_HASH
-#define DNNL_GRAPH_VERSION_HASH "N/A"
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace graph {
