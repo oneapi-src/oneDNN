@@ -18,7 +18,8 @@
 
 #include "graph/interface/partition.hpp"
 #include "graph/interface/partition_hashing.hpp"
-#include "graph/interface/thread.hpp"
+
+#include "common/dnnl_thread.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,7 +32,7 @@ key_t::key_t(size_t partition_id, engine_kind_t engine_kind,
         const std::vector<const logical_tensor_t *> &outs)
     : partition_id_(partition_id)
     , ops_(get_raw_ptrs(ops))
-    , nthread_(dnnl_graph_get_max_threads())
+    , nthread_(dnnl_get_max_threads())
     , engine_kind_(engine_kind)
     , thread_id_(std::this_thread::get_id()) {
     ins_.reserve(ins.size());
