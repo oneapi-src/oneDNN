@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ struct instance_counter {
         ++delcounter;
 #if SC_MEMORY_LEAK_CHECK == 2
         std::lock_guard<std::mutex> guard(lock);
+        assert(pool.count(ptr));
         pool.erase(ptr);
 #endif
     }
@@ -117,8 +118,8 @@ struct obj_dumper_impl<T, true> {
     static void funct(void *p, FILE *fp) {
         T *obj = (T *)p;
         std::stringstream ss;
-        obj->to_string(ss);
-        ss << '\n';
+        // obj->to_string(ss);
+        ss << obj << '\n';
         fputs(ss.str().c_str(), fp);
     }
 };

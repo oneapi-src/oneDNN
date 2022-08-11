@@ -329,6 +329,9 @@ public:
             const std::vector<graph_tensor_ptr> &consumer_lt,
             const any_map_t &attrs);
     sc_op() = default;
+    sc_op(const sc_op &) = delete;
+    sc_op(sc_op &&) = delete;
+
     virtual bool is_valid(const context_ptr &ctx) { return true; }
     virtual ir_module_ptr get_func(context_ptr ctx) = 0;
 
