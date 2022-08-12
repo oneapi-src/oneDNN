@@ -1899,7 +1899,9 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::
     }
 
     if (jcp.transform_to_vnni) {
-        simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
+        // TODO: double check if a barrier is needed here
+        if (jcp.global_transpose)
+            simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
         store_in_vnni_format();
     }
 }
