@@ -25,6 +25,8 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
+#include "common/utils.hpp"
+
 #include "graph/interface/backend.hpp"
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/partition.hpp"
@@ -43,7 +45,7 @@ namespace impl {
 namespace graph {
 namespace utils {
 
-static setting_t<int> verbose {0};
+static dnnl::impl::setting_t<int> verbose {0};
 int get_verbose() {
 #if !defined(DISABLE_VERBOSE)
     if (!verbose.initialized()) {

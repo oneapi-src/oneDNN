@@ -29,30 +29,6 @@ namespace impl {
 namespace graph {
 namespace utils {
 
-// The following code is derived from oneDNN/src/common/utils.hpp.
-template <typename T>
-struct setting_t {
-private:
-    T value_;
-    bool initialized_;
-
-public:
-    setting_t() : initialized_ {false} {}
-    setting_t(const T init) : value_ {init}, initialized_ {false} {}
-    bool initialized() { return initialized_; }
-    T get() { return value_; }
-    void set(T new_value) {
-        value_ = new_value;
-        initialized_ = true;
-    }
-    setting_t(const setting_t &) = delete;
-    setting_t &operator=(const setting_t &) = delete;
-};
-
-struct verbose_t {
-    int level;
-};
-
 struct partition_info_t {
     partition_info_t() = default;
     partition_info_t(const partition_info_t &rhs)
