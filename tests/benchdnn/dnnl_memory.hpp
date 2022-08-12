@@ -89,17 +89,36 @@ struct dnn_mem_t {
     size_t size() const;
 
     int64_t nelems(bool with_padded_dims = false) const {
-        auto dims = with_padded_dims ? md_.padded_dims : md_.dims;
+        const auto &_dims = with_padded_dims ? padded_dims() : dims();
         if (ndims() == 0) return 0;
 
         int64_t n = 1;
         for (int i = 0; i < ndims(); ++i)
-            n *= dims[i];
+            n *= _dims[i];
         return n;
     }
 
+    // Queries from memory descriptor.
     int ndims() const { return md_.ndims; }
+    // Can't merge two below because compiler doesn't like conversion from
+    // pointer to reference type.
+    const dnnl_dims_t &dims() const { return md_.dims; }
+    const dnnl_dims_t &padded_dims() const { return md_.padded_dims; }
     dnnl_data_type_t dt() const { return md_.data_type; }
+    const dnnl_dims_t &padded_offsets() const { return md_.padded_offsets; }
+    dnnl_dim_t offset0() const { return md_.offset0; }
+    dnnl_format_kind_t format_kind() const { return md_.format_kind; }
+    const dnnl_dims_t &strides() const {
+        return md_.format_desc.blocking.strides;
+    }
+    int inner_nblks() const { return md_.format_desc.blocking.inner_nblks; }
+    const dnnl_dims_t &inner_blks() const {
+        return md_.format_desc.blocking.inner_blks;
+    }
+    const dnnl_dims_t &inner_idxs() const {
+        return md_.format_desc.blocking.inner_idxs;
+    }
+
     size_t sizeof_dt() const;
 
     void set_dt(dnnl_data_type_t dt) { md_.data_type = dt; }
@@ -120,18 +139,18 @@ struct dnn_mem_t {
 
     int64_t get_scale_idx(
             int64_t data_idx, int scale_mask, const int ndims) const {
-        const auto &dims = md_.dims;
+        const auto &_dims = dims();
         int64_t stride = 1;
         int64_t offset = 0;
 
         if (scale_mask != 0) {
             for (int i = 0; i < ndims; ++i) {
                 int d = ndims - 1 - i;
-                auto pos = data_idx % dims[d];
-                data_idx /= dims[d];
+                auto pos = data_idx % _dims[d];
+                data_idx /= _dims[d];
                 if (scale_mask & (1 << d)) {
                     offset += pos * stride;
-                    stride *= dims[d];
+                    stride *= _dims[d];
                 }
             }
         }
@@ -216,7 +235,7 @@ int check_buffer_overwrite(const dnn_mem_t &mem, int arg, res_t *res = nullptr);
 // Returns physical offset by logical one. Logical offset is represented by an
 // array pos. If is_pos_padded is true pos represents the position in already
 // padded area.
-dnnl_dim_t md_off_v(const dnnl_memory_desc_t &md, const dnnl_dims_t pos,
+dnnl_dim_t md_off_v(const dnn_mem_t &mem, const dnnl_dims_t pos,
         bool is_pos_padded = false);
 
 #endif

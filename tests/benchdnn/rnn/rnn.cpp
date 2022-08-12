@@ -465,7 +465,7 @@ int fill_weights(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     assert(kind == WEIGHTS_PROJECTION ? mem_fp.ndims() == 4
                                       : mem_fp.ndims() == 5);
 
-    const auto &dims = mem_fp.md_.dims;
+    const auto &dims = mem_fp.dims();
     const int64_t L = dims[0];
     const int64_t D = dims[1];
     const int64_t I = dims[2];
@@ -517,7 +517,7 @@ int fill_bias(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     // To reduce likelihood of cancellation happening in bwd by bias,
     // (especially for GRU), we want diff_bias to be sparse
-    auto dims = mem_fp.md_.dims;
+    const auto &dims = mem_fp.dims();
     auto L = dims[0];
     auto D = dims[1];
     auto G = dims[2];

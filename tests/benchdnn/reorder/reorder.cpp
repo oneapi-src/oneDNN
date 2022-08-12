@@ -109,7 +109,7 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
         // piece of memory which is described by shortened tag coming from prb
         // into a separate memory and reorder it to plain so that it is a
         // straight comparison of values in native plain layout.
-        auto comp_md = dnn_mem_t::init_md(mem_ref.ndims(), mem_ref.md_.dims,
+        auto comp_md = dnn_mem_t::init_md(mem_ref.ndims(), mem_ref.dims(),
                 mem_ref.dt(), trim_tag_by_mask(prb->dtag, comp_mask));
         dnn_mem_t comp_m(comp_md, mem_ref.engine(), {false, comp_handle});
 

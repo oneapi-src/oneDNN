@@ -150,8 +150,7 @@ int doit(const prb_t *prb, res_t *res) {
                 = query_md(const_pd, DNNL_ARG_MULTIPLE_SRC + i_input);
         src_fp.emplace_back(src_md, dnnl_f32, tag::abx, ref_engine);
         src_dt.emplace_back(src_md, test_engine);
-        SAFE(fill_src(i_input, dst_md.data_type, src_dt[i_input],
-                     src_fp[i_input]),
+        SAFE(fill_src(i_input, dst_dt.dt(), src_dt[i_input], src_fp[i_input]),
                 WARN);
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
         if (is_bench_mode(CORR))

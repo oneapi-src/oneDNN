@@ -400,11 +400,11 @@ int doit(const prb_t *prb, res_t *res) {
     // On inference w/o global stats the layer norm doesn't require stat
     // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
     dnn_mem_t mean_fp(
-            prb->ndims - 1, src_md.dims, dnnl_f32, tag::abx, ref_engine);
+            prb->ndims - 1, src_fp.dims(), dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t mean_dt(mean_md, test_engine);
 
     dnn_mem_t var_fp(
-            prb->ndims - 1, src_md.dims, dnnl_f32, tag::abx, ref_engine);
+            prb->ndims - 1, src_fp.dims(), dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t var_dt(var_md, test_engine);
 
     dnn_mem_t ss_fp(ss_md, dnnl_f32, tag::abx, ref_engine);

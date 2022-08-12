@@ -33,10 +33,8 @@ dnnl_status_t dnnl_impl_zero_pad(
 namespace zeropad {
 
 static int compare(const dnn_mem_t &test_mem, res_t *res) {
-    const auto *dims = test_mem.md_.dims;
-
     if (test_mem.ndims() == 0) return OK;
-    if (test_mem.md_.format_kind != dnnl_blocked) return OK;
+    if (test_mem.format_kind() != dnnl_blocked) return OK;
 
     std::atomic<int> ok(true);
 
@@ -47,20 +45,20 @@ static int compare(const dnn_mem_t &test_mem, res_t *res) {
             = [&](dnnl_dims_t &pos, dnnl_dim_t &idx, bool &done, int stop_dim) {
                   for (int i = test_mem.ndims() - 1; i >= stop_dim; i--) {
                       pos[i]++;
-                      if (pos[i] < dims[i]) {
+                      if (pos[i] < test_mem.dims()[i]) {
                           break;
                       } else {
                           pos[i] = 0;
                           if (i == stop_dim) done = true;
                       }
                   }
-                  idx = md_off_v(test_mem.md_, pos);
+                  idx = md_off_v(test_mem, pos);
               };
 
-    benchdnn_parallel_nd(dims[0], [&](dnnl_dim_t dim0) {
+    benchdnn_parallel_nd(test_mem.dims()[0], [&](dnnl_dim_t dim0) {
         dnnl_dims_t pos = {0};
         pos[0] = dim0;
-        dnnl_dim_t idx = md_off_v(test_mem.md_, pos);
+        dnnl_dim_t idx = md_off_v(test_mem, pos);
         bool done = false;
 
         while (!done && ok) {
@@ -76,7 +74,7 @@ static int compare(const dnn_mem_t &test_mem, res_t *res) {
     if (!ok) {
         int errors = 0;
         dnnl_dims_t pos = {0};
-        dnnl_dim_t idx = md_off_v(test_mem.md_, pos);
+        dnnl_dim_t idx = md_off_v(test_mem, pos);
         bool done = false;
         while (!done) {
             for (size_t i = 0; i < type_size; i++) {

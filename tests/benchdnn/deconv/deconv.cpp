@@ -514,7 +514,8 @@ int doit(const prb_t *prb, res_t *res) {
     auto wei_tr_md = wei_md;
 
     const bool with_groups = true;
-    std::swap(wei_tr_md.dims[with_groups + 0], wei_tr_md.dims[with_groups + 1]);
+    auto &wei_tr_dims = wei_tr_md.dims;
+    std::swap(wei_tr_dims[with_groups + 0], wei_tr_dims[with_groups + 1]);
 
     const auto fp = dnnl_f32;
     const auto src_tag = tag::abx;

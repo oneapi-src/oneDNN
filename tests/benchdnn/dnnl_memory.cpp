@@ -144,7 +144,7 @@ size_t dnn_mem_t::size() const {
 }
 
 size_t dnn_mem_t::sizeof_dt() const {
-    return dnnl_data_type_size(md_.data_type);
+    return dnnl_data_type_size(dt());
 }
 
 float dnn_mem_t::get_elem(int64_t idx) const {
@@ -605,29 +605,29 @@ int dnn_mem_t::cleanup() {
 // Returns physical offset by logical one. logical offset is represented by a
 // scalar l_offset. If is_pos_padded is true, l_offset represents logical
 // offset in already padded area.
-static dnnl_dim_t md_off_l(dnnl_dims_t _pos, const dnnl_memory_desc_t &md,
+static dnnl_dim_t md_off_l(dnnl_dims_t _pos, const dnn_mem_t &mem,
         dnnl_dim_t l_offset, bool is_pos_padded = false) {
     dnnl_dims_t pos;
-    for (int rd = 0; rd < md.ndims; ++rd) {
-        const int d = md.ndims - 1 - rd;
-        const dnnl_dim_t cur_dim
-                = is_pos_padded ? md.padded_dims[d] : md.dims[d];
+    const auto &_dims = is_pos_padded ? mem.padded_dims() : mem.dims();
+    for (int rd = 0; rd < mem.ndims(); ++rd) {
+        const int d = mem.ndims() - 1 - rd;
+        const dnnl_dim_t cur_dim = _dims[d];
         pos[d] = l_offset % cur_dim;
         if (_pos) _pos[d] = pos[d];
         l_offset /= cur_dim;
     }
-    return md_off_v(md, pos, is_pos_padded);
+    return md_off_v(mem, pos, is_pos_padded);
 }
 
 template <typename T>
 static int check_zero_padding_impl(
         const dnn_mem_t &mem, int arg, res_t *res, int *error_count) {
     const int ndims = mem.ndims();
-    const auto *dims = mem.md_.dims;
-    const auto *pdims = mem.md_.padded_dims;
+    const auto &dims = mem.dims();
+    const auto &pdims = mem.padded_dims();
 
     if (ndims == 0) return OK;
-    if (mem.md_.format_kind != dnnl_blocked) return OK;
+    if (mem.format_kind() != dnnl_blocked) return OK;
 
     auto product = [](const dnnl_dim_t *beg, const dnnl_dim_t *end) {
         return std::accumulate(
@@ -648,7 +648,7 @@ static int check_zero_padding_impl(
         benchdnn_parallel_nd(dim_l, dim_r, [&](dnnl_dim_t l, dnnl_dim_t r) {
             for (dnnl_dim_t m = dims[dim_m_idx]; m < pdims[dim_m_idx]; ++m) {
                 auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
-                auto idx = md_off_l(nullptr, mem.md_, l_idx, true);
+                auto idx = md_off_l(nullptr, mem, l_idx, true);
                 if (!(mem_ptr[idx] == 0)) ok = false;
             }
         });
@@ -661,7 +661,7 @@ static int check_zero_padding_impl(
             for (dnnl_dim_t r = 0; r < dim_r; ++r) {
                 auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
                 dnnl_dims_t pos = {};
-                auto idx = md_off_l(pos, mem.md_, l_idx, true);
+                auto idx = md_off_l(pos, mem, l_idx, true);
 
                 bool idx_ok = (mem_ptr[idx] == 0);
                 if (!idx_ok) errors++;
@@ -695,7 +695,7 @@ int check_zero_padding(
 #define CASE(dt, type) \
     case dt: return check_zero_padding_impl<type>(mem, arg, res, error_count);
 
-    switch (mem.md_.data_type) {
+    switch (mem.dt()) {
         case dnnl_data_type_undef:
             return OK;
 
@@ -737,33 +737,35 @@ int check_buffer_overwrite(const dnn_mem_t &mem, int arg, res_t *res) {
 // Returns physical offset by logical one. Logical offset is represented by an
 // array pos. If is_pos_padded is true pos represents the position in already
 // padded area.
-dnnl_dim_t md_off_v(const dnnl_memory_desc_t &md, const dnnl_dims_t pos,
-        bool is_pos_padded) {
-    assert(md.format_kind == dnnl_blocked);
-    const auto &blk = md.format_desc.blocking;
+dnnl_dim_t md_off_v(
+        const dnn_mem_t &mem, const dnnl_dims_t pos, bool is_pos_padded) {
+    assert(mem.format_kind() == dnnl_blocked);
 
     dnnl_dims_t pos_copy = {0};
-    for (int d = 0; d < md.ndims; ++d)
-        pos_copy[d] = pos[d] + (is_pos_padded ? 0 : md.padded_offsets[d]);
+    for (int d = 0; d < mem.ndims(); ++d)
+        pos_copy[d] = pos[d] + (is_pos_padded ? 0 : mem.padded_offsets()[d]);
 
-    dnnl_dim_t phys_offset = md.offset0;
+    dnnl_dim_t phys_offset = mem.offset0();
 
-    if (blk.inner_nblks > 0) {
+    const int nblks = mem.inner_nblks();
+    if (nblks > 0) {
+        const auto &inner_idxs = mem.inner_idxs();
+        const auto &inner_blks = mem.inner_blks();
         dnnl_dim_t blk_stride = 1;
-        for (int iblk = blk.inner_nblks - 1; iblk >= 0; --iblk) {
-            const int d = blk.inner_idxs[iblk];
+        for (int iblk = nblks - 1; iblk >= 0; --iblk) {
+            const int d = inner_idxs[iblk];
 
-            dnnl_dim_t p = pos_copy[d] % blk.inner_blks[iblk];
-            pos_copy[d] /= blk.inner_blks[iblk];
+            dnnl_dim_t p = pos_copy[d] % inner_blks[iblk];
+            pos_copy[d] /= inner_blks[iblk];
 
             phys_offset += p * blk_stride;
-            blk_stride *= blk.inner_blks[iblk];
+            blk_stride *= inner_blks[iblk];
         }
     }
 
-    for (int d = 0; d < md.ndims; ++d) {
+    for (int d = 0; d < mem.ndims(); ++d) {
         const dnnl_dim_t p = pos_copy[d];
-        phys_offset += p * blk.strides[d];
+        phys_offset += p * mem.strides()[d];
     }
 
     return phys_offset;

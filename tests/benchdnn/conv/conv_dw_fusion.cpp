@@ -362,11 +362,11 @@ int doit(const prb_t *prb, res_t *res) {
     // Work around for the issue above
     SAFE(src_dt.reorder(src_fp0), WARN);
     SAFE(wei_dt.reorder(wei_fp0), WARN);
-    if (bia_md.data_type != dnnl_data_type_undef)
+    if (bia_dt.dt() != dnnl_data_type_undef)
         SAFE(bia_dt.reorder(bia_fp0), WARN);
     SAFE(dst_dt.reorder(dst_fp1), WARN);
     SAFE(fused_wei_dt.reorder(wei_fp1), WARN);
-    if (fused_bia_md.data_type != dnnl_data_type_undef)
+    if (fused_bia_dt.dt() != dnnl_data_type_undef)
         SAFE(fused_bia_dt.reorder(bia_fp1), WARN);
 
     args_t args, args0, args1, ref_args;
