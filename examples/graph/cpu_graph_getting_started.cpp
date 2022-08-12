@@ -135,7 +135,8 @@ void cpu_get_started_tutorial() {
     g.add_op(conv1_bias_add);
     g.add_op(relu1);
 
-    // partition
+    // finalize and partition
+    g.finalize();
     auto partitions = g.get_partitions();
 
     std::unordered_set<size_t> ids_with_any_layout;
