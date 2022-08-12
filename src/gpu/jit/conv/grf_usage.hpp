@@ -157,7 +157,9 @@ public:
 
 private:
     int grf_size_;
-    std::unordered_map<grf_usage_label_t, int> regs_;
+
+    using label_hash_t = ir_utils::enum_hash_t<grf_usage_label_t>;
+    std::unordered_map<grf_usage_label_t, int, label_hash_t> regs_;
     grf_buf_usage_t buf_usage_;
 };
 
