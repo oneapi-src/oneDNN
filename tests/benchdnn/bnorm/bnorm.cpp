@@ -495,9 +495,9 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t d_sh_fp(ss_md, fp, use_sh ? tag::x : tag::axb, ref_engine);
     dnn_mem_t d_sh_dt(ss_md, test_engine);
 
-    if (prb->need_ws()) SAFE(ws_md.ndims != 0 ? OK : FAIL, WARN);
     dnn_mem_t ws_fp(data_md, dnnl_u8, tag, ref_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
+    if (prb->need_ws()) SAFE(ws_dt.ndims() != 0 ? OK : FAIL, WARN);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;

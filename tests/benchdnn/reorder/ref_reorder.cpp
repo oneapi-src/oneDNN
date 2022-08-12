@@ -75,7 +75,6 @@ void compute_ref(
     const auto nelems_zp_comp = zp_comp.nelems();
     const auto nelems_comp = MAX2(nelems_s8_comp, nelems_zp_comp);
     const auto &ndims = src.ndims();
-    const auto &src_dims = src.md_.dims;
     assert(nelems_comp > 0);
     assert(IMPLICATION(
             need_s8_comp && need_zp_comp, nelems_s8_comp == nelems_zp_comp));
@@ -93,22 +92,22 @@ void compute_ref(
     dims_t reduce_dims(ndims, 1); // complementary to above.
     for (int i = 0; i < ndims; ++i) {
         if (comp_mask & (1 << i)) {
-            comp_dims[i] = src_dims[i];
+            comp_dims[i] = src.dims()[i];
             reduce_dims[i] = 1;
         } else {
             comp_dims[i] = 1;
-            reduce_dims[i] = src_dims[i];
+            reduce_dims[i] = src.dims()[i];
         }
     }
 
     const auto nelems_reduce = nelems / nelems_comp;
     benchdnn_parallel_nd(nelems_comp, [&](int64_t f) {
         dims_t idle_pos = off2dims_idx(comp_dims, f);
-        const int64_t src_idle_off = md_off_v(src.md_, idle_pos.data());
+        const int64_t src_idle_off = md_off_v(src, idle_pos.data());
         int comp_val = 0;
         for (int64_t r = 0; r < nelems_reduce; ++r) {
             dims_t reduce_pos = off2dims_idx(reduce_dims, r);
-            const int64_t src_reduce_off = md_off_v(src.md_, reduce_pos.data());
+            const int64_t src_reduce_off = md_off_v(src, reduce_pos.data());
             const int64_t src_off = src_idle_off + src_reduce_off;
             const int64_t scale_idx = dst.get_scale_idx(src_off, scale_mask);
             const float alpha = prb->scales[scale_idx];
