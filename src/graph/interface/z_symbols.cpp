@@ -70,6 +70,15 @@ status_t DNNL_API dnnl_graph_add_op(graph_t *graph, op_t *op) {
     return status::unimplemented;
 }
 
+status_t DNNL_API dnnl_graph_graph_finalize(graph_t *graph) {
+    return status::unimplemented;
+}
+
+status_t DNNL_API dnnl_graph_graph_is_finalized(
+        graph_t *graph, uint8_t *finalized) {
+    return status::unimplemented;
+}
+
 status_t DNNL_API dnnl_graph_graph_filter(
         graph_t *graph, partition_policy_t policy) {
     return status::unimplemented;

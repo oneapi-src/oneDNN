@@ -1444,6 +1444,27 @@ public:
         return static_cast<status>(ret);
     }
 
+    /// Finalizes a graph. It means users have finished adding operations into
+    /// the graph and the graph is ready for partitioning. Adding a new
+    /// operation into a finalized graph will return failures. Similarly,
+    /// partitioning on a un-finalized graph will also return failures.
+    void finalize() {
+        error::wrap_c_api(dnnl_graph_graph_finalize(get()),
+                "could not finalize the graph");
+    }
+
+    /// Checks if a graph is finalized.
+    ///
+    /// @return True if the graph is finalized or false if the graph is not
+    /// finalized.
+    bool is_finalized() const {
+        uint8_t ret = 0;
+        error::wrap_c_api(dnnl_graph_graph_is_finalized(get(), &ret),
+                "could not get the finalization status of the graph");
+
+        return ret != 0;
+    }
+
     /// Gets filtered partitions from a graph. Partitions will be claimed
     /// internally according to the capability of the library, the engine kind
     /// of the graph, and the policy.

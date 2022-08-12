@@ -595,6 +595,26 @@ dnnl_status_t DNNL_API dnnl_graph_graph_destroy(dnnl_graph_graph_t graph);
 dnnl_status_t DNNL_API dnnl_graph_add_op(
         dnnl_graph_graph_t graph, dnnl_graph_op_t op);
 
+/// Finalizes a graph. It means users have finished adding operations into the
+/// graph and the graph is ready for partitioning. Adding a new operation into a
+/// finalized graph will return failures. Similarly, partitioning on a
+/// un-finalized graph will also return failures.
+///
+/// @param graph The target graph to be finalized.
+/// @returns #dnnl_success on success or a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_graph_graph_finalize(dnnl_graph_graph_t graph);
+
+/// Checks if a graph is finalized.
+///
+/// @param graph The target graph to be finalized.
+/// @param finalized Output the finalization status. 0 means then graph is not
+///     finalized. Other values means the graph is finalized.
+/// @returns #dnnl_success on success or a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_graph_graph_is_finalized(
+        dnnl_graph_graph_t graph, uint8_t *finalized);
+
 /// Filters a graph. Partitions will be claimed internally according to the
 /// capability of the library, the engine kind, and the policy.
 ///

@@ -161,7 +161,7 @@ public:
         const consumer_t c {op, offset};
         auto pos = std::find(consumers_.begin(), consumers_.end(), c);
         if (pos != consumers_.end()) {
-            // Not all ops have been added through build_graph
+            // Not all ops have been added through finalize
             consumers_.erase(pos);
         }
     }

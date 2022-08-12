@@ -80,7 +80,7 @@ private:
 
     std::vector<std::shared_ptr<graph::partition_impl_t>> partition_impls_;
 
-    bool is_built_ {false};
+    bool finalized_ {false};
 
 public:
     dnnl_graph_graph(graph::engine_kind_t kind = graph::engine_kind::cpu)
@@ -259,10 +259,11 @@ public:
      */
     void get_ordered_partitions(std::vector<graph::partition_t *> &partitions);
 
-    /*!
-     * \brief Build backend graph after add op is done
-     */
-    graph::status_t build_graph();
+    // Finalize the graph after finishing adding ops.
+    graph::status_t finalize();
+
+    // Get the finalization status of the graph.
+    bool is_finalized() const { return finalized_; }
 
     // This function is used to infer shape for all the ops in a graph.
     // Before calling this function, the inputs value of the graph should

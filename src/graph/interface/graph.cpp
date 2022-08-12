@@ -28,6 +28,8 @@
 #include "graph/interface/graph.hpp"
 #include "graph/interface/partition.hpp"
 
+#include "graph/utils/utils.hpp"
+
 using namespace dnnl::impl::graph;
 
 namespace {
@@ -203,10 +205,10 @@ void dnnl_graph_graph::get_ordered_partitions(
     });
 }
 
-status_t dnnl_graph_graph::build_graph() {
+status_t dnnl_graph_graph::finalize() {
     // if the graph is already built, return directly.
     // TODO(xxx): actually we may need to a verification here.
-    if (is_built_) return status::success;
+    if (finalized_) return status::success;
 
     // map of {backend op: vector of input tensor_ids}
     std::unordered_map<graph_t::op_t *, std::vector<size_t>> op_to_tensor_id;
@@ -272,7 +274,7 @@ status_t dnnl_graph_graph::build_graph() {
         }
     }
 
-    is_built_ = true;
+    finalized_ = true;
     return status::success;
 }
 
@@ -357,14 +359,34 @@ status_t DNNL_API dnnl_graph_graph_destroy(graph_t *graph) {
 
 status_t DNNL_API dnnl_graph_add_op(graph_t *graph, op_t *op) {
     if (graph == nullptr || op == nullptr) { return status::invalid_arguments; }
+
+    if (graph->is_finalized()) { return status::invalid_graph; }
+
     return graph->add_op(op);
+}
+
+status_t DNNL_API dnnl_graph_graph_finalize(graph_t *graph) {
+    if (graph == nullptr) return status::invalid_arguments;
+
+    auto ret = graph->finalize();
+
+    return ret;
+}
+
+status_t DNNL_API dnnl_graph_graph_is_finalized(
+        graph_t *graph, uint8_t *finalized) {
+    if (utils::any_null(graph, finalized)) return status::invalid_arguments;
+
+    *finalized = static_cast<uint8_t>(graph->is_finalized());
+
+    return status::success;
 }
 
 status_t DNNL_API dnnl_graph_graph_filter(
         graph_t *graph, partition_policy_t policy) {
-    if (graph == nullptr) { return status::invalid_graph; }
-    auto status = graph->build_graph();
-    if (status != status::success) return status::invalid_graph;
+    if (graph == nullptr || (!graph->is_finalized())) {
+        return status::invalid_graph;
+    }
 
 #ifdef DNNL_ENABLE_GRAPH_DUMP
     if (dnnl::impl::getenv_int_user("GRAPH_DUMP", 0) > 0
@@ -383,8 +405,8 @@ status_t DNNL_API dnnl_graph_graph_filter(
             = backend_registry_t::get_singleton().get_registered_backends();
     for (auto cbkd : backends) {
         backend *bkd = const_cast<backend *>(cbkd);
-        status = bkd->get_partitions(*graph, policy);
-        if (status != status::success) return status::invalid_graph;
+        status_t ret = bkd->get_partitions(*graph, policy);
+        if (ret != status::success) return status::invalid_graph;
     }
 
     // Check the partition_impl
@@ -395,11 +417,7 @@ status_t DNNL_API dnnl_graph_graph_filter(
         }
     }
 
-    if (status != status::success) {
-        return status::invalid_graph;
-    } else {
-        return status::success;
-    }
+    return status::success;
 }
 
 status_t DNNL_API dnnl_graph_graph_get_partition_num(
