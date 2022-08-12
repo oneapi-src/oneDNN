@@ -80,7 +80,6 @@ private:
     std::once_flag initialization_flag_;
 };
 
-double get_msec();
 int get_verbose();
 
 } // namespace utils

@@ -43,22 +43,6 @@ namespace impl {
 namespace graph {
 namespace utils {
 
-// The following code is derived from oneDNN/src/common/verbose.cpp
-double get_msec() {
-#ifdef _WIN32
-    static LARGE_INTEGER frequency;
-    if (frequency.QuadPart == 0) QueryPerformanceFrequency(&frequency);
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    return 1e+3 * now.QuadPart / frequency.QuadPart;
-#else
-    struct timeval time;
-    gettimeofday(&time, nullptr);
-    return 1e+3 * static_cast<double>(time.tv_sec)
-            + 1e-3 * static_cast<double>(time.tv_usec);
-#endif
-}
-
 static setting_t<int> verbose {0};
 int get_verbose() {
 #if !defined(DISABLE_VERBOSE)

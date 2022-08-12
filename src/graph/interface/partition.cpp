@@ -25,6 +25,7 @@
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 
 #include "common/stream.hpp"
+#include "common/verbose.hpp"
 
 #include "graph/interface/allocator.hpp"
 #include "graph/interface/backend.hpp"
@@ -199,9 +200,9 @@ status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
     std::pair<compiled_partition_t *, bool> cp {compiled_partition, false};
 
     if (utils::get_verbose() >= 2) {
-        double ms = utils::get_msec();
+        double ms = dnnl::impl::get_msec();
         CHECK(partition->compile(cp, in, out, engine));
-        ms = utils::get_msec() - ms;
+        ms = dnnl::impl::get_msec() - ms;
 
         const char *cache_status = cp.second ? "cache_hit" : "cache_miss";
         printf("onednn_graph_verbose,compile:%s,%s,%g\n", cache_status,
@@ -322,10 +323,10 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
                 compiled_partition->get_engine()->get_allocator());
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
         stream->wait();
-        double ms = utils::get_msec();
+        double ms = dnnl::impl::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
-        ms = utils::get_msec() - ms;
+        ms = dnnl::impl::get_msec() - ms;
         printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
                 compiled_partition->info(), ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
@@ -337,10 +338,10 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
     if (utils::get_verbose()) {
 #endif
         stream->wait();
-        double ms = utils::get_msec();
+        double ms = dnnl::impl::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
-        ms = utils::get_msec() - ms;
+        ms = dnnl::impl::get_msec() - ms;
         printf("onednn_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
                 ms);
         fflush(stdout);
@@ -381,7 +382,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
         allocator_t *alloc = compiled_partition->get_engine().get_allocator();
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
         stream->wait();
-        double ms = utils::get_msec();
+        double ms = dnnl::impl::get_msec();
         if (deps != nullptr) {
             const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
             CHECK(compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
@@ -391,7 +392,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
                     static_cast<::sycl::event *>(sycl_event)));
         }
         stream->wait();
-        ms = utils::get_msec() - ms;
+        ms = dnnl::impl::get_msec() - ms;
         printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
                 compiled_partition->info(), ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
@@ -403,7 +404,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
     if (utils::get_verbose()) {
 #endif
         stream->wait();
-        double ms = utils::get_msec();
+        double ms = dnnl::impl::get_msec();
         if (deps != nullptr) {
             const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
             CHECK(compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
@@ -413,7 +414,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
                     static_cast<::sycl::event *>(sycl_event)));
         }
         stream->wait();
-        ms = utils::get_msec() - ms;
+        ms = dnnl::impl::get_msec() - ms;
         printf("onednn_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
                 ms);
         fflush(stdout);
