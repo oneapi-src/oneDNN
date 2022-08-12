@@ -38,7 +38,7 @@ TEST(Execute, Softmax) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&softmax_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
     apass->run(g);
@@ -90,7 +90,7 @@ TEST(Execute, SoftmaxWithLastDim) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&softmax_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
     apass->run(g);
@@ -151,7 +151,7 @@ static inline void test_softmax_bwd_common(const impl::op_kind_t op_kind,
 
     impl::graph_t g(eng->kind());
     g.add_op(&softmax_bwd_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = op_kind == impl::op_kind::SoftMaxBackprop
             ? get_pass("softmax_bwd_pass")
@@ -237,7 +237,7 @@ TEST(Execute, LogSoftmax) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&logsoftmax_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("logsoftmax_pass");
     ASSERT_TRUE(apass);
@@ -317,7 +317,7 @@ static inline void test_softmax_bwd_get_inplace_pair_common(
 
     impl::graph_t g(eng->kind());
     g.add_op(&softmax_bwd_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = op_kind == impl::op_kind::SoftMaxBackprop
             ? get_pass("softmax_bwd_pass")
@@ -367,7 +367,7 @@ TEST(Compile, SoftmaxGetInplacePair) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&softmax_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
     apass->run(g);

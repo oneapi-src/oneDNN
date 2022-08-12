@@ -90,7 +90,7 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
     impl::tensor_t weight_u8_ts(weight_u8, engine, weight_data.data());
@@ -217,7 +217,7 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);
     g.add_op(&binary_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -352,7 +352,7 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
     g.add_op(&matmul_op);
     g.add_op(&binary_op);
     g.add_op(&binary_op2);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("int8_matmul_div_add_fusion_cpu");
@@ -491,7 +491,7 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
             g.add_op(&matmul_op);
             g.add_op(&tcdata_op);
             g.add_op(&tcweight_op);
-            g.build_graph();
+            g.finalize();
 
             impl::pass::pass_base_ptr apass
                     = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -644,7 +644,7 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
             ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
             ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
             ASSERT_EQ(g.add_op(&binary_op), impl::status::success);
-            ASSERT_EQ(g.build_graph(), impl::status::success);
+            ASSERT_EQ(g.finalize(), impl::status::success);
 
             impl::pass::pass_base_ptr apass
                     = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -809,7 +809,7 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
             g.add_op(&tcdata_op);
             g.add_op(&tcweight_op);
             g.add_op(&binary_op);
-            g.build_graph();
+            g.finalize();
 
             impl::pass::pass_base_ptr apass
                     = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -982,7 +982,7 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
             g.add_op(&tcweight_op);
             g.add_op(&binary_op);
             g.add_op(&binary_add_op);
-            g.build_graph();
+            g.finalize();
 
             impl::pass::pass_base_ptr apass
                     = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -1118,7 +1118,7 @@ TEST(ExecuteSubgraphInt8, U8u8bf16DivBmm) {
     ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
     ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
     ASSERT_EQ(g.add_op(&binary_op), impl::status::success);
-    ASSERT_EQ(g.build_graph(), impl::status::success);
+    ASSERT_EQ(g.finalize(), impl::status::success);
 
     impl::pass::pass_base_ptr apass
             = get_pass("x8x8bf16_div_matmul_fusion_cpu");

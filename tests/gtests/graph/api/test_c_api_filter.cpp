@@ -134,6 +134,8 @@ TEST(CAPI, FilterConBNStandalone) {
             FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, bn), dnnl_success,
             FILTER_CONV_BN_STANDALONE_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_graph_finalize(agraph), dnnl_success,
+            FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_graph_filter(agraph, policy), dnnl_success,
             FILTER_CONV_BN_STANDALONE_DESTROY);
 
@@ -257,6 +259,8 @@ TEST(CAPI, FilterConvBNFused) {
             FILETER_CONV_BN_FUSED_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, bn), dnnl_success,
             FILETER_CONV_BN_FUSED_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_graph_finalize(agraph), dnnl_success,
+            FILETER_CONV_BN_FUSED_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_graph_filter(agraph, policy), dnnl_success,
             FILETER_CONV_BN_FUSED_DESTROY);
 
@@ -319,6 +323,8 @@ TEST(CAPI, FilterReluAdd) {
     ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, relu), dnnl_success,
             FILTER_RELU_ADD_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, add), dnnl_success,
+            FILTER_RELU_ADD_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_graph_finalize(agraph), dnnl_success,
             FILTER_RELU_ADD_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_graph_filter(agraph, policy), dnnl_success,
             FILTER_RELU_ADD_DESTROY);

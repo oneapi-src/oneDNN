@@ -133,7 +133,7 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -272,7 +272,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -473,7 +473,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     g.add_op(&add_node);
     g.add_op(&relu_node);
     g.add_op(&qout_node);
-    g.build_graph();
+    g.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -721,7 +721,7 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -836,7 +836,7 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(agraph);
@@ -1128,7 +1128,7 @@ TEST(SubgraphPass, MemoryPlanning) {
     g.add_op(&op7);
     g.add_op(&op8);
     g.add_op(&op9);
-    g.build_graph();
+    g.finalize();
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             g.get_ops(), p_eng, /* reset_layout */ false);
@@ -1196,7 +1196,7 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     impl::graph_t g;
     g.add_op(&conv);
     g.add_op(&depthwise);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
     apass->run(g);
@@ -1249,7 +1249,7 @@ TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
     impl::graph_t g;
     g.add_op(&sigmoid);
     g.add_op(&multiply);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
     apass->run(g);
@@ -1345,7 +1345,7 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     ASSERT_EQ(agraph.add_op(&div), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_bf16_matmul_div_add_fusion_cpu");
     apass->run(agraph);
@@ -1429,7 +1429,7 @@ TEST(SubgraphPass, FuseTypecastToQuantize) {
 
     ASSERT_EQ(agraph.add_op(&typecast), impl::status::success);
     ASSERT_EQ(agraph.add_op(&quantize), impl::status::success);
-    agraph.build_graph();
+    agraph.finalize();
     pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -1453,7 +1453,7 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
     id_generator id_gen;
     impl::graph_t g(eng->kind());
     construct_convolutional_bottleneck_resblock(&g, id_gen);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 8U);
 
@@ -1546,7 +1546,7 @@ TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
 
     impl::graph_t g;
     g.add_op(&op1);
-    g.build_graph();
+    g.finalize();
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             g.get_ops(), p_eng, /* reset_layout */ false);
@@ -1586,7 +1586,7 @@ TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
 
     impl::graph_t g;
     g.add_op(&op1);
-    g.build_graph();
+    g.finalize();
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             g.get_ops(), p_eng, /* reset_layout */ false);
@@ -1623,7 +1623,7 @@ TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
 
     impl::graph_t g;
     g.add_op(&op1);
-    g.build_graph();
+    g.finalize();
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             g.get_ops(), p_eng, /* reset_layout */ false);
@@ -1655,7 +1655,7 @@ TEST(LayoutPropagation, Transpose) {
 
     impl::graph_t g;
     g.add_op(&op1);
-    g.build_graph();
+    g.finalize();
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             g.get_ops(), p_eng, /* reset_layout */ false);
@@ -1779,7 +1779,7 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     g.add_op(&tcdst_op);
     g.add_op(&gelu_op);
     g.add_op(&qdst_op);
-    g.build_graph();
+    g.finalize();
 
     pass::pass_base_ptr apass
             = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -1834,7 +1834,7 @@ TEST(SubgraphPass, CheckUndefinedOpAttribute) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
     apass->run(agraph);

@@ -101,6 +101,7 @@ public:
         convfwd_op.add_output(lt3);
 
         g.add_op(convfwd_op);
+        g.finalize();
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
@@ -166,6 +167,7 @@ public:
         convbwd_filters_op.add_output(lt6);
 
         g1.add_op(convbwd_filters_op);
+        g1.finalize();
 
         auto partitions1 = g1.get_partitions(partition::policy::fusion);
         ASSERT_EQ(partitions1.size(), 1U);
@@ -225,6 +227,7 @@ public:
         convbwd_data_op.add_output(lt9);
 
         g2.add_op(convbwd_data_op);
+        g2.finalize();
 
         auto partitions2 = g2.get_partitions(partition::policy::fusion);
         ASSERT_EQ(partitions2.size(), 1U);
@@ -325,6 +328,7 @@ public:
         pool_op.add_output(lt2);
 
         g.add_op(pool_op);
+        g.finalize();
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
@@ -413,6 +417,7 @@ public:
         pool_op.add_output(lt2);
 
         g.add_op(pool_op);
+        g.finalize();
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
@@ -487,6 +492,7 @@ public:
         pool_op.add_output(lt1);
 
         g.add_op(pool_op);
+        g.finalize();
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
@@ -541,6 +547,7 @@ public:
         pool_op1.add_output(lt4);
 
         g1.add_op(pool_op1);
+        g1.finalize();
 
         //create_partition
         auto partitions1 = g1.get_partitions(partition::policy::fusion);
@@ -665,6 +672,7 @@ public:
         bn_fwd_op.add_output(lt9);
 
         g.add_op(bn_fwd_op);
+        g.finalize();
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
@@ -720,6 +728,7 @@ public:
         bn_bwd_op.add_output(lt13);
 
         g2.add_op(bn_bwd_op);
+        g2.finalize();
 
         auto partitions2 = g2.get_partitions(partition::policy::fusion);
         ASSERT_EQ(partitions2.size(), 1U);
@@ -808,6 +817,7 @@ public:
         bn_fwd_op.add_output(lt9);
 
         g.add_op(bn_fwd_op);
+        g.finalize();
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
@@ -887,6 +897,7 @@ public:
         bn_bwd_op.add_output(lt13);
 
         g2.add_op(bn_bwd_op);
+        g2.finalize();
 
         auto partitions2 = g2.get_partitions(partition::policy::fusion);
         ASSERT_EQ(partitions2.size(), 1U);
@@ -925,5 +936,4 @@ TEST_P(test_bn_compile_t, Test_BatchNorm_Compile) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Test_BatchNorm_Compile, test_bn_compile_t,
-        ::testing::Values(
-                bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));
+        ::testing::Values(bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));

@@ -42,7 +42,7 @@ TEST(Execute, InterpolateForwardNearest) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_pass");
     apass->run(g);
@@ -111,7 +111,7 @@ TEST(Execute, InterpolateAddForwardNearest) {
     impl::graph_t g(engine->kind());
     g.add_op(&interpolate_node);
     g.add_op(&add_node);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(g);
@@ -180,7 +180,7 @@ TEST(Execute, InterpolateSwish) {
     ASSERT_EQ(g.add_op(&interpolate_node), impl::status::success);
     ASSERT_EQ(g.add_op(&sigmoid_node), impl::status::success);
     ASSERT_EQ(g.add_op(&mul_node), impl::status::success);
-    ASSERT_EQ(g.build_graph(), impl::status::success);
+    ASSERT_EQ(g.finalize(), impl::status::success);
     ASSERT_EQ(g.num_ops(), 3U);
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
@@ -254,7 +254,7 @@ TEST(Execute, Interpolate3PostOps) {
     ASSERT_EQ(g.add_op(&relu_node), impl::status::success);
     ASSERT_EQ(g.add_op(&sigmoid_node), impl::status::success);
     ASSERT_EQ(g.add_op(&div_node), impl::status::success);
-    ASSERT_EQ(g.build_graph(), impl::status::success);
+    ASSERT_EQ(g.finalize(), impl::status::success);
     ASSERT_EQ(g.num_ops(), 4U);
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
@@ -346,7 +346,7 @@ TEST(Execute, InterpolatePostOps) {
         impl::graph_t g(engine->kind());
         g.add_op(&interpolate_node);
         g.add_op(&post_node);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("interpolate_post_ops_fusion");
@@ -411,7 +411,7 @@ TEST(Execute, InterpolateForwardLinear) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_pass");
     apass->run(g);
@@ -464,7 +464,7 @@ TEST(Execute, InterpolateBackwardNearest) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_bwd_pass");
     apass->run(g);
@@ -518,7 +518,7 @@ TEST(Execute, InterpolateBackwardLinear) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_bwd_pass");
     apass->run(g);

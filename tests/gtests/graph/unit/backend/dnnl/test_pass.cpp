@@ -88,7 +88,7 @@ TEST(Pass, FuseConvBn) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     ASSERT_EQ(agraph.num_ops(), 2U);
     ASSERT_EQ(agraph.get_ops()[0]->get_kind(), Convolution);
@@ -141,7 +141,7 @@ TEST(Pass, FuseConvBnWithSharedInputs) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     ASSERT_EQ(agraph.num_ops(), 2U);
     ASSERT_EQ(agraph.get_ops()[0]->get_kind(), Convolution);
@@ -198,7 +198,7 @@ TEST(Pass, FailToFuseConvBnWithBias) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -236,7 +236,7 @@ TEST(Pass, FailToFuseConvBnWithConvSecondOutput) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -268,7 +268,7 @@ TEST(Pass, FuseConvRelu) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -306,7 +306,7 @@ TEST(Pass, FailToFuseConvReluWithBias) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -337,7 +337,7 @@ TEST(Pass, FailToFuseConvReluWithConvSecondOutput) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&relu1), status::success);
     ASSERT_EQ(agraph.add_op(&relu2), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -365,7 +365,7 @@ TEST(Pass, FuseConvBiasadd) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -404,7 +404,7 @@ TEST(Pass, FuseConvWithInputBias) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -441,7 +441,7 @@ TEST(Pass, FuseConvSum) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -480,7 +480,7 @@ TEST(Pass, FailToFuseConvSumWithInputBias) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -519,7 +519,7 @@ TEST(Pass, FuseConvBiasaddBn) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -568,7 +568,7 @@ TEST(Pass, FuseConvBiasBnWithInputBias) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -616,7 +616,7 @@ TEST(Pass, FuseConvBiasaddRelu) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -656,7 +656,7 @@ TEST(Pass, FuseConvBiasReluWithInputBias) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -702,7 +702,7 @@ TEST(Pass, FuseConvBiasaddRelu6) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&clamp), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -743,7 +743,7 @@ TEST(Pass, FuseConvBiasElu) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&elu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -783,7 +783,7 @@ TEST(Pass, FuseConvBiasSigmoid) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -832,7 +832,7 @@ TEST(Pass, FuseConvBiasSwish) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -878,7 +878,7 @@ TEST(Pass, FuseConvSwish) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -926,7 +926,7 @@ TEST(Pass, FuseConvSwishSigmoid) {
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid2), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -968,7 +968,7 @@ TEST(Pass, FuseConvBiasClamp) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&clamp), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1012,7 +1012,7 @@ TEST(Pass, FuseConvBiasSquare) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&square), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1056,7 +1056,7 @@ TEST(Pass, FuseConvBiasTanh) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&tanh), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1100,7 +1100,7 @@ TEST(Pass, FuseConvBiasAbs) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&abs), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1144,7 +1144,7 @@ TEST(Pass, FuseConvBiasSqrt) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&sqrt), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1189,7 +1189,7 @@ TEST(Pass, FuseConvBiasaddSum) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1231,7 +1231,7 @@ TEST(Pass, FuseConvBiasSum) {
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1283,7 +1283,7 @@ TEST(Pass, FuseConvBiasaddSumRelu) {
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1352,7 +1352,7 @@ TEST(Pass, FuseConvBiasaddSumElu) {
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&elu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1406,7 +1406,7 @@ TEST(Pass, FuseConvBiasaddSumRelu6) {
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&clamp), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1485,7 +1485,7 @@ TEST(PassSystem, FuseConvDepthwise) {
         graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&conv), status::success);
         ASSERT_EQ(agraph.add_op(&depthwise), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -1540,7 +1540,7 @@ TEST(Pass, FuseBinarySum) {
 
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         pm.run_passes(agraph, "no_config");
 
@@ -1618,7 +1618,7 @@ TEST(Pass, FuseBinarySumWithSupportBroadcast) {
 
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         pm.run_passes(agraph, "no_config");
 
@@ -1670,7 +1670,7 @@ TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
 
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         pm.run_passes(agraph, "no_config");
 
@@ -1709,7 +1709,7 @@ TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
 
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         pm.run_passes(agraph, "no_config");
 
@@ -1747,7 +1747,7 @@ TEST(Pass, FuseBinaryAddMul) {
 
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&mul), status::success);
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -1797,7 +1797,7 @@ TEST(Pass, FuseBinaryEltwise) {
 
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&eltwise), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         pm.run_passes(agraph, "no_config");
 
@@ -1844,7 +1844,7 @@ TEST(Pass, FuseEltwiseBinary3PostOps) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&mul), status::success);
     ASSERT_EQ(agraph.add_op(&div), status::success);
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr pass = get_pass("eltwise_binary_fusion");
     pass->run(agraph);
@@ -1884,7 +1884,7 @@ TEST(Pass, FuseEltwiseBinaryFail) {
 
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&div), status::success);
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr pass = get_pass("eltwise_binary_fusion");
     pass->run(agraph);
@@ -1916,7 +1916,7 @@ TEST(Pass, ReciprocalMultiply2Divide) {
 
     ASSERT_EQ(agraph.add_op(&reciprocal), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -1990,7 +1990,7 @@ TEST(Pass, FuseBnRelu) {
 
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("bn_relu_fusion");
     apass->run(agraph);
@@ -2051,7 +2051,7 @@ TEST(Pass, FuseBnBwdReluBwd) {
 
     ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.add_op(&op2), status::success);
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("bn_bwd_relu_bwd_fusion");
     apass->run(agraph);
@@ -2111,7 +2111,7 @@ TEST(Pass, FuseConvSumRelu) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -2156,7 +2156,7 @@ TEST(Pass, FuseConvSumElu) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&elu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -2202,7 +2202,7 @@ TEST(Pass, FuseConvSumRelu6) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu6), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -2265,7 +2265,7 @@ TEST(Pass, FuseConvBiasaddSumSum) {
     ASSERT_EQ(agraph.add_op(&conv2), status::success);
     ASSERT_EQ(agraph.add_op(&bias2), status::success);
     ASSERT_EQ(agraph.add_op(&add2), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 6U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -2326,7 +2326,7 @@ TEST(Pass, FuseConvBnSum) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -2383,7 +2383,7 @@ TEST(Pass, FuseConvBnSumWithRelu) {
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -2439,7 +2439,7 @@ TEST(Pass, FailToFuseConvBnSumWithInputBias) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -2481,7 +2481,7 @@ TEST(Pass, FuseConvBiasBnSum) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -2534,7 +2534,7 @@ TEST(Pass, FuseConvBnRelu) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -2603,7 +2603,7 @@ TEST(Pass, FuseConvBiasaddBnRelu) {
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -2658,7 +2658,7 @@ TEST(Pass, FuseConvBiasBnReluWithInputBias) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -2731,7 +2731,7 @@ TEST(Pass, FuseConvBnSumRelu) {
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -2793,7 +2793,7 @@ TEST(Pass, FuseConvBiasBnSumRelu) {
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -2901,7 +2901,7 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
                 }
             }
 
-            agraph.build_graph();
+            agraph.finalize();
             ASSERT_EQ(agraph.num_ops(), num_chain_ops + 1);
 
             pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -3003,7 +3003,7 @@ TEST(Pass, FuseConvPostOpsChain) {
                 }
             }
 
-            agraph.build_graph();
+            agraph.finalize();
             ASSERT_EQ(agraph.num_ops(), num_chain_ops + 1);
 
             pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -3041,7 +3041,7 @@ TEST(Pass, FuseConvtransposeBiasadd) {
 
     ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
@@ -3085,7 +3085,7 @@ TEST(Pass, FuseConvtransposeAdd) {
 
         ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
-        agraph.build_graph();
+        agraph.finalize();
         ASSERT_EQ(agraph.num_ops(), 2U);
 
         pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
@@ -3137,7 +3137,7 @@ TEST(Pass, FuseConvtransposeAddTwoInputs) {
     ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
@@ -3181,7 +3181,7 @@ TEST(Pass, FuseConvtransposeRelu) {
 
         ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
         ASSERT_EQ(agraph.add_op(&relu), status::success);
-        agraph.build_graph();
+        agraph.finalize();
         ASSERT_EQ(agraph.num_ops(), 2U);
 
         pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
@@ -3228,7 +3228,7 @@ TEST(Pass, FuseConvtransposeReLUTwoInputs) {
     ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
@@ -3261,7 +3261,7 @@ TEST(Pass, FuseMatmulRelu) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3298,7 +3298,7 @@ TEST(Pass, FailToFuseMatmulRelu) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3337,7 +3337,7 @@ TEST(Pass, FailToFuseReluMatmul) {
 
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3370,7 +3370,7 @@ TEST(Pass, FuseMatmulElu) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&elu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3406,7 +3406,7 @@ TEST(Pass, FuseMatmulSigmoid) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3444,7 +3444,7 @@ TEST(Pass, FuseMatmulClamp) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&clamp), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3480,7 +3480,7 @@ TEST(Pass, FuseMatmulGelu) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&gelu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3520,7 +3520,7 @@ TEST(Pass, FuseMatmulSum) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3561,7 +3561,7 @@ TEST(Pass, FuseMatmulSumWithCommunicativeOrder) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3608,7 +3608,7 @@ TEST(Pass, FuseMatmulSumGelu) {
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&gelu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3655,7 +3655,7 @@ TEST(Pass, FuseMatmulSumRelu) {
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3696,7 +3696,7 @@ TEST(Pass, FuseMatmulDiv) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
     ASSERT_EQ(agraph.add_op(&div), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3737,7 +3737,7 @@ TEST(PassSystem, FuseMatmulDiv) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
     ASSERT_EQ(agraph.add_op(&div), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
@@ -3781,7 +3781,7 @@ TEST(Pass, FuseMatmulDivAdd) {
     ASSERT_EQ(agraph.add_op(&div), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard2), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 5U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -3833,7 +3833,7 @@ TEST(PassSystem, FuseMatmulDivAdd) {
     ASSERT_EQ(agraph.add_op(&div), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard2), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 5U);
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
@@ -3888,7 +3888,7 @@ TEST(Pass, FuseMatmulBiasadd) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -3922,7 +3922,7 @@ TEST(Pass, FuseMatmulBias) {
     matmul.add_output(lt_vec[3]);
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 1U);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -3962,7 +3962,7 @@ TEST(Pass, FuseMatmulBiasSigmoid) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -4012,7 +4012,7 @@ TEST(Pass, FuseMatmulBiasaddElu) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&elu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -4056,7 +4056,7 @@ TEST(Pass, FuseMatmulBiasaddRelu) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -4098,7 +4098,7 @@ TEST(Pass, FuseMatmulBiasaddClamp) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&clamp), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
@@ -4148,7 +4148,7 @@ TEST(Pass, FuseMatmulReluSum) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -4201,7 +4201,7 @@ TEST(Pass, FuseMatmulBiasSumRelu) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -4268,7 +4268,7 @@ TEST(Pass, FuseMatmulBiasaddSwish) {
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&mul), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -4321,7 +4321,7 @@ TEST(PassSystem, FuseMatmulBiasaddSwish) {
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&mul), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     // run all the pass to check if the priority is correct
@@ -4364,7 +4364,7 @@ TEST(Pass, FuseMatmulBiasaddRelu6) {
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&relu6), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -4457,7 +4457,7 @@ TEST(Pass, FuseGeluErf) {
     ASSERT_EQ(agraph.add_op(&op2), status::success);
     ASSERT_EQ(agraph.add_op(&op3), status::success);
     ASSERT_EQ(agraph.add_op(&op4), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 5U);
 
     pass::pass_base_ptr apass = get_pass("gelu_fusion");
@@ -4538,7 +4538,7 @@ TEST(Pass, FuseGelutanh) {
     ASSERT_EQ(agraph.add_op(&op5), status::success);
     ASSERT_EQ(agraph.add_op(&op6), status::success);
     ASSERT_EQ(agraph.add_op(&op7), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 8U);
 
     pass::pass_base_ptr gelu_pass = get_pass("gelu_fusion");
@@ -4601,7 +4601,7 @@ TEST(Pass, ConvSingleOpReplacement) {
     conv.add_output(lt_vec[2]);
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 1U);
 
     pass::pass_base_ptr apass = get_pass("conv_pass");
@@ -4630,7 +4630,7 @@ TEST(Pass, ConvSingleOpReplacementWithBias) {
     conv.add_output(lt_vec[3]);
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 1U);
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -4696,7 +4696,7 @@ TEST(Pass, SaveLoadJson) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&conv2), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 5U);
 
     auto &backend_ptr
@@ -4749,7 +4749,7 @@ TEST(Pass, InputJsonIsValid) {
 
     ASSERT_EQ(agraph.add_op(&conv1), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
@@ -4807,7 +4807,7 @@ TEST(Pass, InputJsonIsInvalidWithIncompleteHash) {
 
     ASSERT_EQ(agraph.add_op(&conv1), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
@@ -4867,7 +4867,7 @@ TEST(Pass, InputJsonIsInvalidWithMissingFiled) {
 
     ASSERT_EQ(agraph.add_op(&conv1), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
@@ -4920,7 +4920,7 @@ TEST(Pass, InputJsonIsInvalidWithWrongFormat) {
 
     ASSERT_EQ(agraph.add_op(&conv1), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
@@ -4982,7 +4982,7 @@ TEST(Pass, FuseTwoConvReluWithSharedWeight) {
     ASSERT_EQ(agraph.add_op(&conv1), status::success);
     ASSERT_EQ(agraph.add_op(&relu1), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
     pass::pass_base_ptr conv_post_ops_fusion_pass
             = get_pass("conv_post_ops_fusion");
@@ -5031,7 +5031,7 @@ TEST(Pass, CheckSameInput) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("conv_pass");
@@ -5110,7 +5110,7 @@ TEST(PassSystem, FuseToInt8Conv) {
         ASSERT_EQ(agraph.add_op(&conv), status::success);
         ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -5187,7 +5187,7 @@ TEST(Pass, FuseToInt8Fp32Conv) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&relu2), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -5277,7 +5277,7 @@ wildcard     | (f32)
     ASSERT_EQ(agraph.add_op(&quant), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -5336,7 +5336,7 @@ TEST(Pass, FuseToInt8ConvBias) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -5431,7 +5431,7 @@ TEST(Pass, FuseToInt8ConvRelu) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -5514,7 +5514,7 @@ TEST(Pass, FuseToInt8ConvSwish) {
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -5612,7 +5612,7 @@ TEST(Pass, FuseToInt8ConvBiasRelu) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -5723,7 +5723,7 @@ TEST(Pass, FuseToInt8ConvBiasAdd) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -5821,7 +5821,7 @@ TEST(Pass, FuseToInt8ConvBinary) {
             ASSERT_EQ(agraph.add_op(&binary), status::success);
             ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-            agraph.build_graph();
+            agraph.finalize();
 
             pass::pass_base_ptr apass
                     = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -5938,7 +5938,7 @@ TEST(Pass, FuseInt8ConvBiasWithTwoAdd) {
     ASSERT_EQ(agraph.add_op(&add2), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 8U);
 
     pass::pass_base_ptr apass
@@ -6062,7 +6062,7 @@ TEST(Pass, FuseToInt8ConvBiasAddRelu) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6162,7 +6162,7 @@ TEST(Pass, FuseToInt8ConvBiasDivAdd) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6263,7 +6263,7 @@ TEST(PassSystem, FuseToInt8ConvBiasDivAdd) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     // run all the pass to check if the priority is correct
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
@@ -6393,7 +6393,7 @@ TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6450,7 +6450,7 @@ TEST(Pass, FuseToX8s8f32Conv) {
     ASSERT_EQ(agraph.add_op(&dequant2), status::success);
     ASSERT_EQ(agraph.add_op(&conv), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6508,7 +6508,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasWithInputBias) {
     ASSERT_EQ(agraph.add_op(&dequant2), status::success);
     ASSERT_EQ(agraph.add_op(&conv), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6572,7 +6572,7 @@ TEST(Pass, FuseToX8s8f32ConvReluWithInputBias) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6637,7 +6637,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6725,7 +6725,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddRelu) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6815,7 +6815,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddReluWithAsymmetricZp) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
@@ -6941,7 +6941,7 @@ TEST(Pass, TestQuantizedConv) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     // run all the pass to check if the priority is correct
     pm.run_passes(agraph, "no_config");
@@ -7016,7 +7016,7 @@ TEST(Pass, FuseToInt8Matmul) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -7078,7 +7078,7 @@ TEST(PassSystem, TestInt8Matmul) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     // run all the pass to check if the priority is correct
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
@@ -7168,7 +7168,7 @@ TEST(Pass, OptionalQuantForInt8Matmul) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&quant2), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -7261,7 +7261,7 @@ TEST(Pass, FuseToInt8MatMulBinary) {
             ASSERT_EQ(agraph.add_op(&binary), status::success);
             ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-            agraph.build_graph();
+            agraph.finalize();
 
             pass::pass_base_ptr apass
                     = get_pass("int8_matmul_post_ops_fusion_cpu");
@@ -7358,7 +7358,7 @@ TEST(Pass, FailToFuseToInt8MatMulDivOrSubtract) {
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
         apass->run(agraph);
@@ -7440,7 +7440,7 @@ TEST(PassSystem, FuseToInt8MatMulSwishReLU) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     // run all the pass to check if the priority is correct
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
@@ -7509,7 +7509,7 @@ TEST(Pass, FuseToInt8MatmulBias) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -7575,7 +7575,7 @@ TEST(PassSystem, TestInt8MatmulBias) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -7649,7 +7649,7 @@ TEST(Pass, FuseToInt8MatmulRelu) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -7721,7 +7721,7 @@ TEST(PassSystem, FuseToInt8MatmulRelu) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -7797,7 +7797,7 @@ TEST(Pass, FuseToInt8MatmulBiasRelu) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -7851,7 +7851,7 @@ TEST(Pass, FuseToX8s8f32Matmul) {
     ASSERT_EQ(agraph.add_op(&dequant2), status::success);
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -7907,7 +7907,7 @@ TEST(Pass, FuseToX8s8f32MatmulBias) {
     ASSERT_EQ(agraph.add_op(&dequant2), status::success);
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -7978,7 +7978,7 @@ TEST(Pass, FuseToX8s8f32MatmulEltwise) {
         ASSERT_EQ(agraph.add_op(&matmul), status::success);
         ASSERT_EQ(agraph.add_op(&eltwise), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         pm.run_passes(agraph, "no_config");
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -8050,7 +8050,7 @@ TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
         ASSERT_EQ(agraph.add_op(&matmul), status::success);
         ASSERT_EQ(agraph.add_op(&eltwise), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         pm.run_passes(agraph, "no_config");
 
@@ -8116,7 +8116,7 @@ TEST(Pass, FuseToInt8Maxpool) {
     ASSERT_EQ(agraph.add_op(&maxpool), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion_cpu");
     apass->run(agraph);
@@ -8199,7 +8199,7 @@ TEST(Pass, FuseToInt8Avgpool) {
     ASSERT_EQ(agraph.add_op(&avgpool), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion_cpu");
     apass->run(agraph);
@@ -8296,7 +8296,7 @@ TEST(PassSystem, FuseToInt8PoolAdd) {
         ASSERT_EQ(agraph.add_op(&pool), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
         ASSERT_EQ(agraph.add_op(&quant), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         auto &backend_ptr
                 = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
@@ -8362,7 +8362,7 @@ TEST(PassSystem, Quantize) {
         quant.add_input(in);
         quant.add_output(out);
         ASSERT_EQ(agraph.add_op(&quant), status::success);
-        ASSERT_EQ(agraph.build_graph(), status::success);
+        ASSERT_EQ(agraph.finalize(), status::success);
 
         auto &backend_ptr
                 = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
@@ -8445,7 +8445,7 @@ TEST(Pass, FuseToInt8MatmulAdd) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -8535,7 +8535,7 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -8632,7 +8632,7 @@ TEST(PassSystem, FuseToInt8MatmulBiasBinary) {
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         auto &backend_ptr
                 = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
@@ -8676,7 +8676,7 @@ TEST(PassSystem, FuseReluAdd) {
 
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
@@ -8778,7 +8778,7 @@ TEST(Pass, FuseToX8s8f32MatmulBiasAdd) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -8857,7 +8857,7 @@ TEST(Pass, FuseToX8x8f32MatmulAdd) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -8936,7 +8936,7 @@ TEST(Pass, FuseToX8x8f32MatmulBiasAdd) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
@@ -9011,7 +9011,7 @@ TEST(Pass, FuseToX8x8f32MatmulDivAdd) {
     ASSERT_EQ(agraph.add_op(&div), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_matmul_div_add_fusion_cpu");
     apass->run(agraph);
@@ -9086,7 +9086,7 @@ TEST(PassSystem, FuseToX8x8f32MatmulDivAdd) {
     ASSERT_EQ(agraph.add_op(&div), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -9148,7 +9148,7 @@ TEST(Pass, FuseToX8s8bf16Matmul) {
     ASSERT_EQ(agraph.add_op(&typecast1), status::success);
     ASSERT_EQ(agraph.add_op(&typecast2), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -9216,7 +9216,7 @@ TEST(PassSystem, FuseToX8s8bf16Matmul) {
     ASSERT_EQ(agraph.add_op(&typecast1), status::success);
     ASSERT_EQ(agraph.add_op(&typecast2), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -9288,7 +9288,7 @@ TEST(Pass, FuseToX8s8bf16MatmulDiv) {
     ASSERT_EQ(agraph.add_op(&typecast2), status::success);
     ASSERT_EQ(agraph.add_op(&div), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -9367,7 +9367,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDiv) {
     ASSERT_EQ(agraph.add_op(&typecast2), status::success);
     ASSERT_EQ(agraph.add_op(&div), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -9468,7 +9468,7 @@ TEST(Pass, FuseToX8s8bf16MatmulDivAdd) {
     ASSERT_EQ(agraph.add_op(&div), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_bf16_matmul_div_add_fusion_cpu");
     apass->run(agraph);
@@ -9557,7 +9557,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDivAdd) {
     ASSERT_EQ(agraph.add_op(&div), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -9621,7 +9621,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBias) {
     ASSERT_EQ(agraph.add_op(&typecast1), status::success);
     ASSERT_EQ(agraph.add_op(&typecast2), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -9692,7 +9692,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBias) {
     ASSERT_EQ(agraph.add_op(&typecast1), status::success);
     ASSERT_EQ(agraph.add_op(&typecast2), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -9718,7 +9718,7 @@ TEST(Pass, FuseSingleTypecast) {
 
     ASSERT_EQ(agraph.add_op(&typecast), status::success);
 
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
     pass::pass_base_ptr apass = get_pass("typecast_pass");
     apass->run(agraph);
@@ -9810,7 +9810,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAdd) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -9914,7 +9914,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAdd) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -9993,7 +9993,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -10081,7 +10081,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAddBF16) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -10175,7 +10175,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulAdd) {
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -10273,7 +10273,7 @@ TEST(Pass, MixInt8AndBf16MatmulBiasGelu) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -10372,7 +10372,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulBiasGelu) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -10457,7 +10457,7 @@ TEST(Pass, MixInt8AndBf16MatmulGelu) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -10553,7 +10553,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulGelu) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -10640,7 +10640,7 @@ TEST(Pass, MixInt8AndBf16MatmulBias) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -10731,7 +10731,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulBias) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -10816,7 +10816,7 @@ TEST(Pass, MixInt8AndBf16Matmul) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -10904,7 +10904,7 @@ TEST(PassSystem, MixInt8AndBf16Matmul) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -10994,7 +10994,7 @@ TEST(Pass, MixInt8AndBf16ConvolutionBias) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion_cpu");
     apass->run(agraph);
@@ -11087,7 +11087,7 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBias) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -11186,7 +11186,7 @@ TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion_cpu");
     apass->run(agraph);
@@ -11287,7 +11287,7 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBiasGelu) {
     ASSERT_EQ(agraph.add_op(&typecast3), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -11337,7 +11337,7 @@ TEST(Pass, FuseAddIntoSum) {
         ASSERT_EQ(agraph.add_op(&add), status::success);
     }
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("sum_fusion");
     apass->run(agraph);
@@ -11383,7 +11383,7 @@ TEST(Pass, FuseBroadcastAddIntoSum) {
 
     agraph.add_op(&add0);
     agraph.add_op(&add1);
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("sum_fusion");
     apass->run(agraph);
@@ -11418,7 +11418,7 @@ TEST(Pass, FuseTypecaseQuantize) {
     ASSERT_EQ(agraph.add_op(&typecast), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
     apass->run(agraph);
@@ -11460,7 +11460,7 @@ TEST(PassSystem, FuseSoftmaxQuantize) {
     ASSERT_EQ(agraph.add_op(&softmax), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
@@ -11498,7 +11498,7 @@ TEST(PassSystem, FuseSoftmaxTypecast) {
     ASSERT_EQ(agraph.add_op(&softmax), status::success);
     ASSERT_EQ(agraph.add_op(&typecast), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
@@ -11548,7 +11548,7 @@ TEST(PassSystem, FuseSoftmaxTypecastQuantize) {
     ASSERT_EQ(agraph.add_op(&typecast), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
@@ -11616,7 +11616,7 @@ TEST(Pass, ShuffleFusion) {
         ASSERT_EQ(agraph.add_op(&reshape0), status::success);
         ASSERT_EQ(agraph.add_op(&transpose), status::success);
         ASSERT_EQ(agraph.add_op(&reshape1), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass("shuffle_fusion");
         apass->run(agraph);
@@ -11657,7 +11657,7 @@ TEST(PassSystem, FuseTypecaseQuantize) {
     ASSERT_EQ(agraph.add_op(&typecast), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -11768,7 +11768,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulAdd) {
     ASSERT_EQ(agraph.add_op(&typecast4), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -11859,7 +11859,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulDiv) {
     ASSERT_EQ(agraph.add_op(&div), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pm.run_passes(agraph, "no_config");
 
@@ -11892,7 +11892,7 @@ TEST(Pass, FuseBnReLUWithSharedInputs) {
     ASSERT_EQ(agraph.add_op(&bn), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass("bn_relu_fusion");
     apass->run(agraph);
@@ -11943,7 +11943,7 @@ TEST(Pass, FuseReorderAdd) {
         ASSERT_EQ(agraph.add_op(&reorder), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
 
-        ASSERT_EQ(agraph.build_graph(), status::success);
+        ASSERT_EQ(agraph.finalize(), status::success);
 
         pass::pass_base_ptr apass = get_pass("reorder_sum_fusion");
         apass->run(agraph);
@@ -11990,7 +11990,7 @@ TEST(Pass, FailToFuseReorderAdd) {
     ASSERT_EQ(agraph.add_op(&reorder), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
     pass::pass_base_ptr apass = get_pass("reorder_sum_fusion");
     apass->run(agraph);
@@ -12037,7 +12037,7 @@ TEST(Pass, FuseInt8Reorder) {
     ASSERT_EQ(agraph.add_op(&reorder), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
     pass::pass_base_ptr apass = get_pass("int8_reorder_fusion");
     apass->run(agraph);
@@ -12090,7 +12090,7 @@ TEST(PassSystem, FuseInt8Reorder) {
     ASSERT_EQ(agraph.add_op(&reorder), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -12159,7 +12159,7 @@ TEST(Pass, FuseInt8ReorderAdd) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
     pass::pass_base_ptr apass = get_pass("int8_reorder_sum_fusion_cpu");
     apass->run(agraph);
@@ -12233,7 +12233,7 @@ TEST(PassSystem, FuseInt8ReorderAdd) {
     ASSERT_EQ(agraph.add_op(&add), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -12258,7 +12258,7 @@ TEST(Pass, SingleInterpolatePass) {
             op_attr::coordinate_transformation_mode, std::string("half_pixel"));
 
     ASSERT_EQ(agraph.add_op(&interpolate), status::success);
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
     pass::pass_base_ptr apass = get_pass("interpolate_pass");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -12270,7 +12270,7 @@ TEST(Pass, SingleInterpolatePass) {
     graph_t fgraph;
     ASSERT_EQ(fgraph.add_op(&interpolate_coordinate_transformation_mode_fail),
             status::success);
-    ASSERT_EQ(fgraph.build_graph(), status::success);
+    ASSERT_EQ(fgraph.finalize(), status::success);
     apass->run(fgraph);
     ASSERT_EQ(fgraph.get_num_partitions(), 0U);
 }
@@ -12295,7 +12295,7 @@ TEST(Pass, FuseInterpolateRelu) {
 
     ASSERT_EQ(agraph.add_op(&interpolate), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
@@ -12344,7 +12344,7 @@ TEST(Pass, FuseInterpolateSwish) {
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
@@ -12394,7 +12394,7 @@ TEST(PassSystem, FuseInterpolateSwish) {
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
@@ -12445,7 +12445,7 @@ TEST(Pass, FuseInterpolate3PostOps) {
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
@@ -12485,7 +12485,7 @@ TEST(Pass, FuseInterpolateSum) {
 
     ASSERT_EQ(agraph.add_op(&interpolate), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
@@ -12523,7 +12523,7 @@ TEST(Pass, FuseInterpolateMul) {
 
     ASSERT_EQ(agraph.add_op(&interpolate), status::success);
     ASSERT_EQ(agraph.add_op(&mul), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
@@ -12541,7 +12541,7 @@ TEST(Pass, FuseInterpolateMul) {
 TEST(Pass, Int8MhaFusion) {
     dnnl::impl::graph::graph_t agraph;
     dnnl::graph::tests::unit::utils::construct_int8_MHA(&agraph);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 21U);
 
     dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("int8_MHA_fusion");
@@ -12552,7 +12552,7 @@ TEST(Pass, Int8MhaFusion) {
 TEST(Pass, F32MhaFusion) {
     dnnl::impl::graph::graph_t agraph;
     dnnl::graph::tests::unit::utils::construct_f32_MHA(&agraph);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 13U);
 
     dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
@@ -12590,7 +12590,7 @@ TEST(Pass, FuseReduceAdd) {
         graph_t agraph;
         ASSERT_EQ(agraph.add_op(&reduce), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(agraph);
@@ -12629,7 +12629,7 @@ TEST(Pass, FuseReduceRelu) {
         graph_t agraph;
         ASSERT_EQ(agraph.add_op(&reduce), status::success);
         ASSERT_EQ(agraph.add_op(&relu), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(agraph);
@@ -12676,7 +12676,7 @@ TEST(PassSystem, FuseReduceSwish) {
         ASSERT_EQ(agraph.add_op(&reduce), status::success);
         ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
         ASSERT_EQ(agraph.add_op(&multiply), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -12734,7 +12734,7 @@ TEST(PassSystem, FuseReduceWith3PostOps) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
-    agraph.build_graph();
+    agraph.finalize();
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -12764,7 +12764,7 @@ TEST(Pass, FailToFuseReduceWithEmptyScales) {
         reduce.add_output(lt_vec[1]);
 
         ASSERT_EQ(agraph.add_op(&reduce), status::success);
-        agraph.build_graph();
+        agraph.finalize();
         ASSERT_EQ(agraph.num_ops(), 1U);
 
         pass::pass_base_ptr apass = get_pass("reduce_pass");
@@ -12818,7 +12818,7 @@ TEST(Pass, Int8Concat) {
         quant.add_output(int8_dst_lt);
         ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-        ASSERT_EQ(agraph.build_graph(), status::success);
+        ASSERT_EQ(agraph.finalize(), status::success);
 
         pass::pass_base_ptr apass = get_pass("int8_concat_fusion");
         apass->run(agraph);
@@ -12889,7 +12889,7 @@ TEST(Pass, FailToFuseInt8Concat) {
     ASSERT_EQ(agraph.add_op(&concat), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
     pass::pass_base_ptr apass = get_pass("int8_concat_fusion");
     apass->run(agraph);
@@ -12982,7 +12982,7 @@ TEST(Pass, FuseToInt8ConvTransposeAdd) {
         ASSERT_EQ(agraph.add_op(&add), status::success);
         ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass
                 = get_pass("int8_convtranspose_post_ops_fusion_cpu");
@@ -13096,7 +13096,7 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
         ASSERT_EQ(agraph.add_op(&add), status::success);
         ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -13212,7 +13212,7 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
             ASSERT_EQ(agraph.add_op(&eltwise), status::success);
             ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-            agraph.build_graph();
+            agraph.finalize();
 
             pass::pass_base_ptr apass
                     = get_pass("int8_convtranspose_post_ops_fusion_cpu");
@@ -13318,7 +13318,7 @@ TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
             ASSERT_EQ(agraph.add_op(&eltwise), status::success);
             ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-            agraph.build_graph();
+            agraph.finalize();
 
             auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
             auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -13421,7 +13421,7 @@ TEST(Pass, FuseToInt8ConvtransposeBinary) {
             ASSERT_EQ(agraph.add_op(&binary), status::success);
             ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-            agraph.build_graph();
+            agraph.finalize();
 
             pass::pass_base_ptr apass
                     = get_pass("int8_convtranspose_post_ops_fusion_cpu");
@@ -13498,7 +13498,7 @@ TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
     ASSERT_EQ(agraph.add_op(&concat), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    ASSERT_EQ(agraph.build_graph(), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
     pass::pass_base_ptr apass = get_pass("int8_concat_fusion");
     apass->run(agraph);
@@ -13527,7 +13527,7 @@ TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
 
         graph_t agraph;
         ASSERT_EQ(agraph.add_op(&softplus), status::success);
-        ASSERT_EQ(agraph.build_graph(), status::success);
+        ASSERT_EQ(agraph.finalize(), status::success);
         pass::pass_base_ptr apass = get_pass(op_name + "_pass");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -13555,7 +13555,7 @@ TEST(Pass, FailToFuseSoftPlusForwardAndBackwardWithUnsupportedBetaAttrValue) {
 
         graph_t agraph;
         ASSERT_EQ(agraph.add_op(&softplus), status::success);
-        ASSERT_EQ(agraph.build_graph(), status::success);
+        ASSERT_EQ(agraph.finalize(), status::success);
         pass::pass_base_ptr apass = get_pass(op_name + "_pass");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 0U);
@@ -13586,7 +13586,7 @@ TEST(Pass, FuseConvBwdBiasaddBwd) {
     ASSERT_EQ(agraph.add_op(&op0), status::success);
     ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.add_op(&op2), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     pass::pass_base_ptr apass = get_pass("conv_bwd_weights_bwd_bias_fusion");
@@ -13671,7 +13671,7 @@ TEST(Pass, BinaryPostops) {
 
         ASSERT_EQ(agraph.add_op(&post_op), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         apass->run(agraph);
@@ -13763,7 +13763,7 @@ TEST(Pass, Binary3Postops) {
         for (size_t i = 0; i < post_ops.size(); ++i)
             ASSERT_EQ(agraph.add_op(&post_ops[i]), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         apass->run(agraph);
@@ -13817,7 +13817,7 @@ TEST(PassSystem, FuseBinarySwish) {
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
         ASSERT_EQ(agraph.add_op(&multiply), status::success);
-        agraph.build_graph();
+        agraph.finalize();
 
         auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -13922,7 +13922,7 @@ TEST(Pass, ConvtransposePostops) {
                     if (post_activation_on) {
                         ASSERT_EQ(agraph.add_op(&activation), status::success);
                     }
-                    agraph.build_graph();
+                    agraph.finalize();
 
                     pass::pass_base_ptr apass
                             = get_pass("convtranspose_post_ops_fusion");
@@ -14032,7 +14032,7 @@ TEST(Pass, Convtranspose3Postops) {
         } else
             output_lts.push_back(lt_idx);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
         apass->run(agraph);
@@ -14079,7 +14079,7 @@ TEST(PassSystem, FuseConvTransposeSwish) {
     ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
@@ -14170,7 +14170,7 @@ TEST(PassSystem, FuseToInt8ConvTransposeSwishReLU) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+    agraph.finalize();
 
     // run all the pass to check if the priority is correct
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
@@ -14251,7 +14251,7 @@ TEST(Pass, Pool3Postops) {
         for (size_t i = 0; i < post_ops.size(); ++i)
             ASSERT_EQ(agraph.add_op(&post_ops[i]), status::success);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
         apass->run(agraph);

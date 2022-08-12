@@ -246,7 +246,7 @@ public:
         impl::graph_t g(engine->kind());
         g.add_op(&batchnorm_op);
         if (params.with_relu) g.add_op(&relu_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = params.with_relu
                 ? get_pass("bn_relu_fusion")
@@ -500,7 +500,7 @@ TEST(Compile, BatchNormBackpropFp32) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&bn_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
     apass->run(g);

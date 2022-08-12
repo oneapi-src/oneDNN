@@ -54,7 +54,7 @@ TEST(Compile, ConvolutionFp32) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -107,7 +107,7 @@ TEST(Compile, ConvolutionBackpropDataFp32) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
     apass->run(g);
@@ -156,7 +156,7 @@ TEST(Compile, ConvolutionBackpropFilterFp32) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
     apass->run(g);
@@ -213,7 +213,7 @@ TEST(Compile, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     impl::engine_t *eng = get_engine();
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
     apass->run(g);
@@ -271,7 +271,7 @@ TEST(Execute, ConvolutionNcxOix) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -338,7 +338,7 @@ TEST(Execute, ConvtransposeWithGroups) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&convtranspose_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
     apass->run(g);
@@ -402,7 +402,7 @@ TEST(Execute, Convolution3DNcxOix) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -469,7 +469,7 @@ TEST(Execute, ConvolutionNcxXio) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -536,7 +536,7 @@ TEST(Execute, Convolution3DNcxXio) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -604,7 +604,7 @@ TEST(Execute, ConvolutionNxcXio) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -672,7 +672,7 @@ TEST(Execute, Convolution3DNxcXio) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -739,7 +739,7 @@ TEST(Execute, ConvolutionNxcOix) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -806,7 +806,7 @@ TEST(Execute, Convolution3DNxcOix) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -874,7 +874,7 @@ TEST(Execute, ConvolutionF16F16F16) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -943,7 +943,7 @@ TEST(Execute, ConvolutionBf16Bf16Bf16) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -1014,7 +1014,7 @@ TEST(Compile, ConvAddSharedInputs) {
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     // run pass
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -1082,7 +1082,7 @@ TEST(Compile, ConvAddInplace) {
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     // run pass
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
@@ -1136,7 +1136,7 @@ TEST(Execute, GroupConvolution) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
@@ -1211,7 +1211,7 @@ TEST(Execute, ConvolutionBackpropData) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
     apass->run(g);
@@ -1328,7 +1328,7 @@ TEST(Execute, ConvolutionBnFp32) {
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&bn_op);
-    g.build_graph();
+    g.finalize();
 
     // run unfused graph to compute the reference
     ASSERT_EQ(run_graph(g,
@@ -1438,7 +1438,7 @@ TEST(Compile, ConvBnSharedInputs) {
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&bn_op);
-    g.build_graph();
+    g.finalize();
 
     // run unfused graph to compute the reference
     ASSERT_EQ(run_graph(g,
@@ -1533,7 +1533,7 @@ TEST(Execute, ConvAdd) {
         g.add_op(&in_op);
         g.add_op(&conv_op);
         g.add_op(&add_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
         apass->run(g);
@@ -1619,7 +1619,7 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
@@ -1701,7 +1701,7 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
@@ -1784,7 +1784,7 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
@@ -1867,7 +1867,7 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
@@ -1947,7 +1947,7 @@ TEST(Compile, ConvAddBroadcast) {
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
@@ -2021,7 +2021,7 @@ TEST(Execute, ConvAddRelu) {
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.add_op(&relu_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
@@ -2137,7 +2137,7 @@ TEST(Execute, ConvMultiplePostOps) {
     g.add_op(&mul_op);
     g.add_op(&sum_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
     apass->run(g);
@@ -2259,7 +2259,7 @@ TEST(Execute, ConvBiasEltwise) {
         impl::graph_t g(eng->kind());
         g.add_op(&conv_op);
         g.add_op(&eltwise_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
@@ -2373,7 +2373,7 @@ TEST(Execute, ConvBiasAddEltwise) {
         g.add_op(&conv_op);
         g.add_op(&add_op);
         g.add_op(&eltwise_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
@@ -2491,7 +2491,7 @@ TEST(Execute, ConvAddEltwise) {
         g.add_op(&conv_op);
         g.add_op(&add_op);
         g.add_op(&eltwise_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
@@ -2590,7 +2590,7 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
     impl::graph_t g(engine->kind());
     g.add_op(&conv);
     g.add_op(&depthwise);
-    g.build_graph();
+    g.finalize();
 
     impl::tensor_t conv_src_ts(conv_src, engine, src_data.data());
     impl::tensor_t conv_wei_ts(conv_wei, engine, wei_data.data());
@@ -2759,7 +2759,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
         g.add_op(&qout_node);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -2937,7 +2937,7 @@ static inline void quantized_conv2d_eltwise(
         g.add_op(&conv_node);
         g.add_op(&eltwise_node);
         g.add_op(&qout_node);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -3163,7 +3163,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         g.add_op(&add_node);
         g.add_op(&relu_node);
         g.add_op(&qout_node);
-        g.build_graph();
+        g.finalize();
 
         // prepare in/out with full shape
         src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
@@ -3382,7 +3382,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         g.add_op(&add_node);
         g.add_op(&relu_node);
         g.add_op(&qout_node);
-        g.build_graph();
+        g.finalize();
 
         // prepare in/out with full shape
         src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
@@ -3568,7 +3568,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -3734,7 +3734,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
         g.add_op(&relu_node);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -3923,7 +3923,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
         g.add_op(&dqother_node);
         g.add_op(&add_node);
         g.add_op(&relu_node);
-        g.build_graph();
+        g.finalize();
 
         // prepare in/out with full shape
         src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
@@ -4134,7 +4134,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
         g.add_op(&dqother_node);
         g.add_op(&add_node);
         g.add_op(&relu_node);
-        g.build_graph();
+        g.finalize();
 
         // prepare in/out with full shape
         src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
@@ -4358,7 +4358,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
         g.add_op(&dqother_node);
         g.add_op(&add_node);
         g.add_op(&mul_node);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -4586,7 +4586,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         g.add_op(&dqweight_node2);
         g.add_op(&conv_node2);
         g.add_op(&qout_node2);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -4765,7 +4765,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
         ASSERT_EQ(g.add_op(&tcdst_op), impl::status::success);
         ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -4958,7 +4958,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&tc_bias_op), impl::status::success);
         ASSERT_EQ(g.add_op(&tcdst_op), impl::status::success);
         ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -5130,7 +5130,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
         ASSERT_EQ(g.add_op(&tcdst_op), impl::status::success);
         ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -5331,7 +5331,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&tc_bias_op), impl::status::success);
         ASSERT_EQ(g.add_op(&tcdst_op), impl::status::success);
         ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -5431,7 +5431,7 @@ TEST(Execute, ConvSumSum) {
     g.add_op(&add_op1);
     g.add_op(&add_op2);
 
-    g.build_graph();
+    g.finalize();
 
     run_all_passes(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -5526,7 +5526,7 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.add_op(&tc_op);
-    g.build_graph();
+    g.finalize();
 
     //run unfused graph to compute the reference
     ASSERT_EQ(run_graph(g, {conv_src_ts, conv_weight_ts, post_src_ts},
@@ -5711,7 +5711,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         g.add_op(&add_node);
         g.add_op(&relu_node);
         g.add_op(&qout_node);
-        g.build_graph();
+        g.finalize();
 
         // prepare in/out with full shape
         src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
@@ -5833,7 +5833,7 @@ TEST(Execute, ConvReluUnfused) {
     impl::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&relu_op);
-    g.build_graph();
+    g.finalize();
 
     test::vector<float> conv_src(8 * 32 * 16 * 16, 1);
     test::vector<float> conv_weight(32 * 32 * 1 * 1, 1);

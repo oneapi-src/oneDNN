@@ -1142,7 +1142,7 @@ inline void construct_int8_bf16_MHA(dnnl::impl::graph::graph_t *agraph,
 
     // construct a int8 MHA pattern first
     construct_int8_MHA(agraph, batch_size, seq_len, num_head, head_dim);
-    agraph->build_graph();
+    agraph->finalize();
 
     // change the f32 logical tensor to bf16
     for (auto &op : agraph->get_ops()) {

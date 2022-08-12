@@ -63,7 +63,7 @@ TEST(ApiExecute, ConvReLU) {
     op relu0(1, op::kind::ReLU, {conv0_dst_desc}, {relu0_dst_desc}, "relu0");
     g.add_op(conv0);
     g.add_op(relu0);
-
+    g.finalize();
     auto partition = g.get_partitions()[0];
 
     allocator alloc = sycl_interop::make_allocator(
@@ -150,7 +150,7 @@ TEST(SyclApiExecute, ConvReLU) {
     op relu0(1, op::kind::ReLU, {conv0_dst_desc}, {relu0_dst_desc}, "relu0");
     g.add_op(conv0);
     g.add_op(relu0);
-
+    g.finalize();
     auto partition = g.get_partitions()[0];
 
     allocator alloc = sycl_interop::make_allocator(

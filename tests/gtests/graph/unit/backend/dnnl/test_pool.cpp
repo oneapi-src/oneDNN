@@ -149,7 +149,7 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         g.add_op(&dqother_op);
         g.add_op(&add_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_s8_ts(src_s8, engine, src_s8_data.data());
         impl::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
@@ -280,7 +280,7 @@ TEST(ExecuteSubgraphFp32, Pool3Postops) {
         g.add_op(&pool_op);
         for (const auto &pop : post_ops)
             g.add_op(&pop);
-        g.build_graph();
+        g.finalize();
 
         std::vector<impl::tensor_t> src_tss {};
         for (size_t i = 0; i < input_lts.size(); ++i)
@@ -360,7 +360,7 @@ TEST(Execute, AvgPoolExcludePad) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&avg_pool_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
     apass->run(g);
@@ -423,7 +423,7 @@ TEST(Execute, AvgPoolIncludePad) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&avg_pool_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
     apass->run(g);
@@ -487,7 +487,7 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     avg_pool_bwd_op.add_output(diff_src_lt);
     impl::graph_t g(eng->kind());
     ASSERT_EQ(g.add_op(&avg_pool_bwd_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
     impl::pass::pass_base_ptr apass = get_pass("avg_pool_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -545,7 +545,7 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     avg_pool_bwd_op.add_output(diff_src_lt);
     impl::graph_t g(eng->kind());
     ASSERT_EQ(g.add_op(&avg_pool_bwd_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
     impl::pass::pass_base_ptr apass = get_pass("avg_pool_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -666,7 +666,7 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
         g.add_op(&dqdata_op);
         g.add_op(&avgpool_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t dst_u8_ts(dst_u8, engine, case1_out_data.data());
@@ -737,7 +737,7 @@ TEST(Execute, MaxPool) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&max_pool_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("max_pool_pass");
     apass->run(g);
@@ -809,7 +809,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     impl::graph_t g(eng->kind());
     g.add_op(&dequantize);
     g.add_op(&maxpool);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass1 = get_pass("dequant_pass");
     impl::pass::pass_base_ptr apass2 = get_pass("max_pool_pass");
@@ -897,7 +897,7 @@ TEST(Execute, MaxPoolBackwardWithIncides) {
     max_pool_bwd_op.add_output(diff_src_lt);
     impl::graph_t g(eng->kind());
     ASSERT_EQ(g.add_op(&max_pool_bwd_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
     impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -963,7 +963,7 @@ TEST(Execute, MaxPoolBackwardWithoutIncides) {
     max_pool_bwd_op.add_output(diff_src_lt);
     impl::graph_t g(eng->kind());
     ASSERT_EQ(g.add_op(&max_pool_bwd_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
     impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -1022,7 +1022,7 @@ TEST(Execute, MaxPoolBackwardWithoutIncidesPlainGrad) {
     max_pool_bwd_op.add_output(diff_src_lt);
     impl::graph_t g(eng->kind());
     ASSERT_EQ(g.add_op(&max_pool_bwd_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
     impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -1146,7 +1146,7 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
         g.add_op(&dqdata_op);
         g.add_op(&maxpool_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t dst_u8_ts(dst_u8, engine, case1_out_data.data());
@@ -1274,7 +1274,7 @@ public:
             impl::graph_t g(eng->kind());
             g.add_op(&pool_op);
             g.add_op(&binary_op);
-            g.build_graph();
+            g.finalize();
 
             impl::pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
             apass->run(g);

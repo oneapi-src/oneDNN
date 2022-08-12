@@ -45,7 +45,7 @@ TEST(Execute, DequantizePerTensor) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&dequantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
@@ -104,7 +104,7 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&dequantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
@@ -161,7 +161,7 @@ TEST(Execute, DequantizePerChannelSymmetric) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&dequantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
@@ -226,7 +226,7 @@ TEST(Execute, DynamicDequantizeS32ZpsPerTensor) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&dync_dequantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
     apass->run(g);
@@ -293,7 +293,7 @@ TEST(Execute, DynamicDequantizeNoZpsPerTensor) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&dync_dequantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
     apass->run(g);

@@ -79,7 +79,7 @@ TEST(Execute, ConvResBlock) {
     g.add_op(&conv2);
     g.add_op(&add);
     g.add_op(&relu2);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 7U);
 
@@ -203,7 +203,7 @@ TEST(Execute, ConvResBlockWithNhwcLayout) {
     g.add_op(&conv2);
     g.add_op(&add);
     g.add_op(&relu2);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 7U);
 
@@ -269,7 +269,7 @@ TEST(Execute, F32ConvolutionalBottleneckResBlock) {
     utils::id_generator id_gen;
     impl::graph_t g(eng->kind());
     utils::construct_convolutional_bottleneck_resblock(&g, id_gen);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 8U);
 
@@ -342,7 +342,7 @@ TEST(Execute, Int8IdenticalBottleneckResBlock) {
     utils::id_generator id_gen;
     impl::graph_t g(eng->kind());
     utils::construct_int8_identical_bottleneck_resblock(&g, id_gen);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 17U);
 
@@ -406,7 +406,7 @@ TEST(Execute, Int8Resnet50Stage2Block) {
     utils::id_generator id_gen;
     impl::graph_t g(eng->kind());
     utils::construct_int8_resnet50_stage2_block(&g, id_gen, 3);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 72U);
 
@@ -470,7 +470,7 @@ TEST(Execute, F32Resnet50Stage2Block) {
     impl::graph_t g(eng->kind());
     utils::construct_f32_resnet50_stage2_block(
             &g, id_gen, 3, /* use biasadd */ true);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 42U);
 
@@ -536,7 +536,7 @@ TEST(Execute, ItexInt8Resnet50Stage2Block) {
     utils::id_generator id_gen;
     impl::graph_t g(eng->kind());
     utils::construct_itex_int8_resnet50_stage2_block(&g, id_gen, 3);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 98U);
 
@@ -603,7 +603,7 @@ TEST(Execute, Int8ResneXt101Stage3Block) {
     utils::id_generator id_gen;
     impl::graph_t g(eng->kind());
     utils::construct_int8_resnext101_stage3_block(&g, id_gen, 22);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 395U);
 
@@ -666,7 +666,7 @@ TEST(Execute, ChainedReLU) {
 
     impl::graph_t g(eng->kind());
     utils::construct_chained_relu(&g);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 3U);
 
@@ -723,7 +723,7 @@ TEST(Execute, Int8ConvBiasReluConvBiasReluBlock) {
     utils::id_generator id_gen;
     impl::graph_t g(eng->kind());
     utils::construct_int8_conv_bias_relu_conv_bias_relu_block(&g, id_gen);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 10U);
 
@@ -787,7 +787,7 @@ TEST(Execute, Int8ConvBiasReluConvBiasReluConvBiasConvBiasAddReluBlock) {
     utils::id_generator id_gen;
     impl::graph_t g(eng->kind());
     utils::construct_int8_convolutional_bottleneck_resblock(&g, id_gen);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 21U);
 
@@ -850,7 +850,7 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
     utils::id_generator id_gen;
     impl::graph_t g(eng->kind());
     utils::construct_int8_convolutional_bottleneck_resblock(&g, id_gen);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 21U);
 
@@ -975,7 +975,7 @@ TEST(Compile, ConvBiasReluAdd) {
     g.add_op(&conv_op);
     g.add_op(&relu_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     // run pass
     impl::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
@@ -1004,7 +1004,7 @@ TEST(Execute, Int8Mha) {
 
     impl::graph_t g(eng->kind());
     utils::construct_int8_MHA(&g);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 21U);
 
@@ -1066,7 +1066,7 @@ TEST(Execute, F32Mha) {
 
     impl::graph_t g(eng->kind());
     utils::construct_f32_MHA(&g);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 13U);
 
@@ -1135,7 +1135,7 @@ TEST(Execute, Int8Bf16Mha) {
 
     impl::graph_t g(eng->kind());
     utils::construct_int8_bf16_MHA(&g);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 29U);
 
@@ -1191,7 +1191,7 @@ TEST(Execute, F32MhaReshapeSoftMax) {
 
     impl::graph_t g(eng->kind());
     utils::construct_reshaped_softmax_f32_mha(&g);
-    g.build_graph();
+    g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 14U);
 

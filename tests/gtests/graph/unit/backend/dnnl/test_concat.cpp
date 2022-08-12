@@ -77,7 +77,7 @@ public:
         auto *strm = get_stream();
         impl::graph_t g(eng->kind());
         g.add_op(&concat_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src0_ts(src0_lt, eng, src0_data.data());
         impl::tensor_t src1_ts(src1_lt, eng, src1_data.data());
@@ -171,7 +171,7 @@ TEST(Compile, ConcatWithMoreInputs) {
     auto *eng = get_engine();
     impl::graph_t g(eng->kind());
     g.add_op(&concat_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("concat_pass");
     apass->run(g);
@@ -303,7 +303,7 @@ TEST(ExecuteSubgraphInt8, Concat) {
     g.add_op(&dq2_op);
     g.add_op(&concat_op);
     g.add_op(&q_op);
-    g.build_graph();
+    g.finalize();
 
     impl::tensor_t src0_s8_ts(src0_s8, engine, src0_s8_data.data());
     impl::tensor_t src1_s8_ts(src1_s8, engine, src1_s8_data.data());

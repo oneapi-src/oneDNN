@@ -75,7 +75,7 @@ TEST(Compile, TestReduce) {
 
         impl::graph_t g(engine->kind());
         g.add_op(&reduce);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("reduce_pass");
         apass->run(g);
@@ -180,7 +180,7 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
         impl::graph_t g(engine->kind());
         g.add_op(&reduce);
         g.add_op(&add);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
         impl::tensor_t add_src1_ts(add_src1, engine, src1_data.data());
@@ -274,7 +274,7 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
         impl::graph_t g(engine->kind());
         g.add_op(&reduce);
         g.add_op(&relu);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
 
@@ -370,7 +370,7 @@ TEST(ExecuteSubgraphFp32, ReduceSwish) {
         g.add_op(&reduce);
         g.add_op(&sigmoid);
         g.add_op(&multiply);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
 
@@ -481,7 +481,7 @@ TEST(ExecuteSubgraphFp32, ReduceWith3PostOps) {
         g.add_op(&sigmoid);
         g.add_op(&maximum);
         g.add_op(&multiply);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t reduce_src_ts(reduce_src, engine, src_data.data());
         impl::tensor_t max_src_ts(max_src, engine, max_src_data.data());

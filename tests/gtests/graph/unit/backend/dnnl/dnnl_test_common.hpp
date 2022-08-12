@@ -136,7 +136,7 @@ static inline impl::status_t run_graph(impl::graph_t &agraph,
             single_op.add_output(op->get_output_value(i)->get_logical_tensor());
         }
         g.add_op(&single_op);
-        g.build_graph();
+        g.finalize();
         run_all_single_passes(g);
 
         auto part = g.get_partitions()[0];

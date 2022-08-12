@@ -342,7 +342,7 @@ TEST(OpSchema, GenerateDefaultAttribute) {
 
     graph_t agraph;
     ASSERT_EQ(agraph.add_op(&matmul_op), status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 1U);
 
     const auto &graph_matmul_op = agraph.get_ops()[0];

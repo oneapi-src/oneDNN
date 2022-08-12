@@ -59,7 +59,7 @@ public:
 
         impl::graph_t g(eng->kind());
         g.add_op(&op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("prelu_pass");
         apass->run(g);
@@ -154,7 +154,7 @@ public:
 
         impl::graph_t g(eng->kind());
         g.add_op(&prelu_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("prelu_bwd_pass");
         apass->run(g);

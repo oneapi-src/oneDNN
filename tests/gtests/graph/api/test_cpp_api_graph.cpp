@@ -32,6 +32,7 @@ TEST(APIGraph, GetPartitions) {
     relu_op.add_input(lt1);
     relu_op.add_output(lt2);
     g.add_op(relu_op);
+    g.finalize();
     // with default policy: partition::policy::fusion
     auto partitions = g.get_partitions();
 

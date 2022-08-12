@@ -37,7 +37,7 @@ TEST(Execute, Typecast) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&typecast_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("typecast_pass");
     apass->run(g);
@@ -77,7 +77,7 @@ TEST(Compile, TypecastNegativeInput) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&typecast_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("typecast_pass");
     apass->run(g);

@@ -52,7 +52,7 @@ TEST(CompiledPartition, Relu) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&relu_op);
-    g.build_graph();
+    g.finalize();
     run_all_passes(g);
 
     ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -127,7 +127,7 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&relu_op);
-    g.build_graph();
+    g.finalize();
 
     run_all_passes(g);
 
@@ -242,7 +242,7 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&n);
-    g.build_graph();
+    g.finalize();
     run_all_passes(g);
 
     ASSERT_EQ(g.get_num_partitions(), 1U);

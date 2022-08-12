@@ -45,7 +45,7 @@ TEST(Execute, QuantizePerTensor) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&quantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
@@ -104,7 +104,7 @@ TEST(Execute, QuantizePerTensorAnyLayout) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&quantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
@@ -160,7 +160,7 @@ TEST(Execute, QuantizePerChannelSymmetric) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&quantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
@@ -224,7 +224,7 @@ TEST(Execute, TypecastQuantize) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&typecast), impl::status::success);
     ASSERT_EQ(g.add_op(&quantize), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
     apass->run(g);
@@ -284,7 +284,7 @@ TEST(Execute, DynamicQuantizeS32ZpsPerTensor) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&dync_quantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
@@ -361,7 +361,7 @@ TEST(Execute, DynamicQuantizeS32ZpsPerChannel) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&dync_quantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
@@ -432,7 +432,7 @@ TEST(Execute, DynamicQuantizeS8ZpsPerTensor) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&dync_quantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
@@ -499,7 +499,7 @@ TEST(Execute, DynamicQuantizeNoZpsPerTensor) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&dync_quantize);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
@@ -579,7 +579,7 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
     ASSERT_EQ(g.add_op(&softmax_op), impl::status::success);
     ASSERT_EQ(g.add_op(&typecast), impl::status::success);
     ASSERT_EQ(g.add_op(&quantize), impl::status::success);
-    ASSERT_EQ(g.build_graph(), impl::status::success);
+    ASSERT_EQ(g.finalize(), impl::status::success);
 
     impl::pass::pass_base_ptr apass = get_pass("softmax_post_ops_fusion");
     apass->run(g);

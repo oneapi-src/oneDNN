@@ -46,7 +46,7 @@ TEST(Execute, BinaryOp) {
 
         impl::graph_t g(eng->kind());
         g.add_op(&binary_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
         apass->run(g);
@@ -105,7 +105,7 @@ TEST(Execute, MulEltwise) {
         impl::graph_t g(eng->kind());
         g.add_op(&mul_op);
         g.add_op(&eltwise_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
@@ -167,7 +167,7 @@ TEST(Execute, BinaryOpAddFusion) {
         impl::graph_t g(eng->kind());
         g.add_op(&bin_op);
         g.add_op(&add_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         apass->run(g);
@@ -217,7 +217,7 @@ TEST(Execute, BinarySub) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&bin_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sub_pass");
     apass->run(g);
@@ -276,7 +276,7 @@ TEST(Execute, MinEltwise) {
         impl::graph_t g(eng->kind());
         g.add_op(&min_op);
         g.add_op(&eltwise_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
@@ -335,7 +335,7 @@ TEST(Execute, MaxEltwise) {
         impl::graph_t g(eng->kind());
         g.add_op(&max_op);
         g.add_op(&eltwise_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
@@ -415,7 +415,7 @@ TEST(ExecuteSubgraphFp32, BinarySwish) {
         g.add_op(&binary);
         g.add_op(&sigmoid);
         g.add_op(&multiply);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t binary_src0_ts(binary_src0, engine, src0_data.data());
         impl::tensor_t binary_src1_ts(binary_src1, engine, src1_data.data());
@@ -505,7 +505,7 @@ TEST(Execute, Eltwise3BinaryPostops) {
     g.add_op(&div);
     g.add_op(&max);
     g.add_op(&sub);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
     apass->run(g);
@@ -616,7 +616,7 @@ TEST(ExecuteSubgraphFp32, Binary3Postops) {
         g.add_op(&binary_op);
         for (const auto &pop : post_ops)
             g.add_op(&pop);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t binary_src0_ts(lt_vec[0], engine, src_datas[0].data());
         impl::tensor_t binary_src1_ts(lt_vec[1], engine, src_datas[1].data());
@@ -689,7 +689,7 @@ TEST(Execute, Add) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -765,7 +765,7 @@ TEST(Execute, AddWithDifferentFormat) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -826,7 +826,7 @@ TEST(Execute, BroadcastAdd) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -900,7 +900,7 @@ TEST(Execute, SwapBroadcastAdd) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -969,7 +969,7 @@ TEST(Execute, MultidirectionalBroadcastAddBA) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1042,7 +1042,7 @@ TEST(Execute, multidirectionalbBroadcastAddAB) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1098,7 +1098,7 @@ TEST(Execute, MultidirectionalBroadcastAdd) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1154,7 +1154,7 @@ TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1205,7 +1205,7 @@ TEST(Compile, AddShapeMismatchCase0) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1242,7 +1242,7 @@ TEST(Compile, AddShapeMismatch1) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1280,7 +1280,7 @@ TEST(Compile, AddShapeMismatch2) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1324,7 +1324,7 @@ TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1392,7 +1392,7 @@ TEST(Execute, BiasAdd) {
 
         impl::graph_t g(eng->kind());
         ASSERT_EQ(g.add_op(&bias_add_op), impl::status::success);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("bias_add_pass");
         apass->run(g);
@@ -1460,7 +1460,7 @@ TEST(Execute, AddMul) {
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
     g.add_op(&mul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
@@ -1528,7 +1528,7 @@ TEST(Execute, AddMulPostSrcAsNxc) {
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
     g.add_op(&mul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
@@ -1590,7 +1590,7 @@ TEST(Execute, AddRelu) {
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
     g.add_op(&relu_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
@@ -1655,7 +1655,7 @@ TEST(Execute, AddSigmoid) {
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
     g.add_op(&sigmoid_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
@@ -1732,7 +1732,7 @@ TEST(Execute, AddAdd) {
     impl::graph_t g(eng->kind());
     g.add_op(&add0_op);
     g.add_op(&add1_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
@@ -1793,7 +1793,7 @@ TEST(Execute, ScalarScalarAdd) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1853,7 +1853,7 @@ TEST(Execute, ScalarVectorAdd) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
@@ -1923,7 +1923,7 @@ TEST(Execute, MulAddPerTensorBroadcast) {
     impl::graph_t g(eng->kind());
     g.add_op(&mul_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
@@ -1987,7 +1987,7 @@ TEST(Execute, MulAddPerHwBroadcast) {
     impl::graph_t g(eng->kind());
     g.add_op(&mul_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
@@ -2051,7 +2051,7 @@ TEST(Execute, MulAddPerChannelBroadcast) {
     impl::graph_t g(eng->kind());
     g.add_op(&mul_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
@@ -2129,7 +2129,7 @@ TEST(Execute, MulAddAdd) {
     g.add_op(&mul_op);
     g.add_op(&add1_op);
     g.add_op(&add2_op);
-    g.build_graph();
+    g.finalize();
 
     run_all_passes(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);

@@ -42,7 +42,7 @@ static inline void test_eltwise_common(test::vector<float> &src,
 
     impl::graph_t g(eng->kind());
     g.add_op(&op);
-    g.build_graph();
+    g.finalize();
 
     std::string pass_name = op_name + "_pass";
 
@@ -155,7 +155,7 @@ static inline void test_eltwise_bwd_common(
     impl::engine_t *eng = get_engine();
     impl::graph_t g(eng->kind());
     g.add_op(&op);
-    g.build_graph();
+    g.finalize();
 
     std::string pass_name = op_name + "_pass";
     impl::pass::pass_base_ptr apass = get_pass(pass_name);
@@ -559,7 +559,7 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
         agraph.add_op(&reshape0);
         agraph.add_op(&transpose);
         agraph.add_op(&reshape1);
-        agraph.build_graph();
+        agraph.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("shuffle_fusion");
         apass->run(agraph);
@@ -620,7 +620,7 @@ TEST(ExecuteSubgraphFp32, ReciprocalMul) {
     impl::graph_t g(eng->kind());
     ASSERT_EQ(g.add_op(&reciprocal_op), impl::status::success);
     ASSERT_EQ(g.add_op(&mul_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("reciprocal_multiply_fusion");
     apass->run(g);
@@ -721,7 +721,7 @@ TEST(Execute, Sum) {
     ASSERT_EQ(agraph.add_op(&add1), impl::status::success);
     ASSERT_EQ(agraph.add_op(&add2), impl::status::success);
     ASSERT_EQ(agraph.add_op(&add3), impl::status::success);
-    agraph.build_graph();
+    agraph.finalize();
     impl::pass::pass_base_ptr apass = get_pass("sum_fusion");
     apass->run(agraph);
 
@@ -783,7 +783,7 @@ TEST(Compile, EltwiseGetInplacePair) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&eltwise_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("tanh_pass");
     apass->run(g);
@@ -862,7 +862,7 @@ public:
         impl::graph_t g(eng->kind());
         g.add_op(&eltwise_op);
         g.add_op(&binary_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
         apass->run(g);

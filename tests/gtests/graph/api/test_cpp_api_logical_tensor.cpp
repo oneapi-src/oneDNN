@@ -169,7 +169,7 @@ TEST(APILogicalTensor, DifferentLogicalTensorWithSameID) {
     add.add_inputs({x1, x2});
     add.add_output(y);
     g.add_op(add);
-    EXPECT_THROW(g.get_partitions(partition::policy::fusion), dnnl::error);
+    EXPECT_THROW(g.finalize(), dnnl::error);
 }
 
 TEST(APILogicalTensor, CompareLayoutAndDataType) {

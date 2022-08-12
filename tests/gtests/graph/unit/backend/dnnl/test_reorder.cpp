@@ -40,7 +40,7 @@ TEST(Execute, ReorderData) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&reorder_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("reorder_pass");
     apass->run(g);
@@ -115,7 +115,7 @@ TEST(Execute, Int8Reorder) {
     ASSERT_EQ(agraph.add_op(&reorder), impl::status::success);
     ASSERT_EQ(agraph.add_op(&quant), impl::status::success);
 
-    ASSERT_EQ(agraph.build_graph(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), impl::status::success);
 
     impl::pass::pass_base_ptr apass = get_pass("int8_reorder_fusion");
     apass->run(agraph);
@@ -158,7 +158,7 @@ TEST(Compile, ReorderNegativeInput) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&reorder_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("reorder_pass");
     apass->run(g);
@@ -200,7 +200,7 @@ TEST(Execute, ReorderDataBf16) {
 
     impl::graph_t g(engine->kind());
     g.add_op(&reorder_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("reorder_pass");
     apass->run(g);
@@ -260,7 +260,7 @@ TEST(Execute, ReorderAddBf16) {
     ASSERT_EQ(agraph.add_op(&reorder), impl::status::success);
     ASSERT_EQ(agraph.add_op(&add), impl::status::success);
 
-    ASSERT_EQ(agraph.build_graph(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), impl::status::success);
 
     impl::pass::pass_base_ptr apass = get_pass("reorder_sum_fusion");
     apass->run(agraph);
@@ -310,7 +310,7 @@ TEST(Compile, ReorderAddGetInplacePair) {
     ASSERT_EQ(agraph.add_op(&reorder), impl::status::success);
     ASSERT_EQ(agraph.add_op(&add), impl::status::success);
 
-    ASSERT_EQ(agraph.build_graph(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), impl::status::success);
 
     impl::pass::pass_base_ptr apass = get_pass("reorder_sum_fusion");
     apass->run(agraph);
@@ -404,7 +404,7 @@ TEST(Execute, Int8ReorderAdd) {
     ASSERT_EQ(agraph.add_op(&add), impl::status::success);
     ASSERT_EQ(agraph.add_op(&quant), impl::status::success);
 
-    ASSERT_EQ(agraph.build_graph(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), impl::status::success);
 
     impl::pass::pass_base_ptr apass
             = get_pass(engine->kind() == impl::engine_kind::cpu

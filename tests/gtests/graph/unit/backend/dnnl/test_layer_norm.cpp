@@ -57,7 +57,7 @@ TEST(Execute, LayernormTraining) {
     layernorm_op.add_output(variance_lt);
 
     ASSERT_EQ(g.add_op(&layernorm_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("ln_pass");
     apass->run(g);
@@ -129,7 +129,7 @@ TEST(Execute, LayernormInference) {
     layernorm_op.add_output(dst_lt);
 
     ASSERT_EQ(g.add_op(&layernorm_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("ln_pass");
     apass->run(g);
@@ -186,7 +186,7 @@ TEST(Execute, LayernormInferenceWithoutScaleShift) {
     layernorm_op.add_output(dst_lt);
 
     ASSERT_EQ(g.add_op(&layernorm_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("ln_pass");
     apass->run(g);
@@ -294,7 +294,7 @@ TEST(Execute, LayerNormBackpropFp32) {
 
         impl::graph_t g(engine->kind());
         g.add_op(&ln_bwd_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass = get_pass("ln_bw_pass");
         apass->run(g);

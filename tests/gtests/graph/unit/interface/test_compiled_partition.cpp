@@ -71,7 +71,7 @@ TEST(CompiledPartitionCache, SingleOpCase) {
             // Create graph
             impl::graph::graph_t g {eng->kind()};
             g.add_op(&elt);
-            g.build_graph();
+            g.finalize();
 
             // Create single-op partition
             std::vector<const impl::graph::backend *> &backends

@@ -110,7 +110,7 @@ TEST(Graph, GetOutputOps) {
     ASSERT_EQ(agraph.add_op(&op0), impl::status::success);
     ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
     ASSERT_EQ(agraph.num_ops(), 2U);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.get_output_ops().size(), 1U);
     ASSERT_EQ(*(agraph.get_output_ops()[0]), op1);
 }
@@ -138,7 +138,7 @@ TEST(Graph, GetOutputOps2) {
     ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
     ASSERT_EQ(agraph.add_op(&op2), impl::status::success);
     ASSERT_EQ(agraph.num_ops(), 3U);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.get_ops()[1]
                       ->get_output_value(0)
                       ->get_consumers()[0]
@@ -172,9 +172,9 @@ TEST(Graph, BuildGraph) {
     ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
 
-    ASSERT_EQ(agraph.build_graph(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), impl::status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
-    ASSERT_EQ(agraph.build_graph(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), impl::status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
 }
 
@@ -199,7 +199,7 @@ TEST(Graph, InvalidOp) {
 
     /*
     ASSERT_EQ(agraph.run_pass(partition_policy::fusion), impl::status::invalid_graph);
-    ASSERT_EQ(agraph.build_graph(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), impl::status::success);
     ASSERT_EQ(agraph.run_pass(partition_policy::fusion), impl::status::success);
     */
 }
@@ -268,7 +268,7 @@ TEST(Graph, GetInputOutputEdges) {
     ASSERT_EQ(agraph.add_op(&op2), impl::status::success);
     ASSERT_EQ(agraph.add_op(&op3), impl::status::success);
     ASSERT_EQ(agraph.num_ops(), 4U);
-    agraph.build_graph();
+    agraph.finalize();
 
     auto ops = agraph.get_ops();
     ops.pop_back();
@@ -348,7 +348,7 @@ TEST(Graph, InferShape) {
     ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
     ASSERT_EQ(agraph.add_op(&op2), impl::status::success);
     ASSERT_EQ(agraph.num_ops(), 3U);
-    agraph.build_graph();
+    agraph.finalize();
 
     auto in_vals = agraph.get_input_values();
     ASSERT_EQ(in_vals.size(), 4U);
@@ -433,7 +433,7 @@ TEST(Graph, Rewrite) {
     ASSERT_EQ(g.add_op(&relu3), impl::status::success);
     ASSERT_EQ(g.add_op(&mm4), impl::status::success);
 
-    g.build_graph();
+    g.finalize();
     auto all_ops = g.get_ops();
 
     std::vector<impl::op_t *> fusion_ops = {all_ops[0].get(), all_ops[1].get(),

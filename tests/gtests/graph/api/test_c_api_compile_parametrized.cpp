@@ -116,6 +116,8 @@ public:
 
         ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, op), dnnl_success,
                 TEST_CONV2D_DESTROY);
+        ASSERT_EQ_SAFE(dnnl_graph_graph_finalize(agraph), dnnl_success,
+                TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_graph_filter(agraph, p.policy), dnnl_success,
                 TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),

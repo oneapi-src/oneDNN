@@ -66,6 +66,7 @@ TEST(APIPartition, PartitionTest) {
 
     g.add_op(conv);
     g.add_op(relu_op);
+    g.finalize();
 
     //create_partition
     auto partitions = g.get_partitions(partition::policy::fusion);
@@ -144,6 +145,7 @@ TEST(APIPartition, GetInputOutputIDs) {
     conv.set_attr<int64_t>(op::attr::groups, 1);
 
     g.add_op(conv);
+    g.finalize();
 
     // get partitions
     auto partitions = g.get_partitions(partition::policy::fusion);
@@ -194,6 +196,7 @@ TEST(APIPartition, UnsupportedPartitions) {
 
     g.add_op(wildcard);
     g.add_op(end);
+    g.finalize();
 
     std::vector<partition> partitions = g.get_partitions();
     ASSERT_EQ(partitions.size(), 2U);
@@ -223,6 +226,7 @@ TEST(APIPartition, AddInferShape) {
     add.add_outputs({lt_2});
 
     g.add_op(add);
+    g.finalize();
     auto ps = g.get_partitions();
     ASSERT_EQ(ps.size(), 1U);
 }

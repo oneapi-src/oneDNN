@@ -44,7 +44,7 @@ TEST(Execute, MatmulFp32) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&matmul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
     apass->run(g);
@@ -125,7 +125,7 @@ TEST(Execute, MatmulF16F16F16) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&matmul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
     apass->run(g);
@@ -181,7 +181,7 @@ TEST(Execute, MatmulBf16Bf16Bf16) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&matmul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
     apass->run(g);
@@ -252,7 +252,7 @@ TEST(Execute, MatmulNdx1d) {
 
             impl::graph_t g(engine->kind());
             g.add_op(&matmul_op);
-            g.build_graph();
+            g.finalize();
 
             impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
             apass->run(g);
@@ -345,7 +345,7 @@ TEST(Execute, Matmul1dxNd) {
 
             impl::graph_t g(engine->kind());
             g.add_op(&matmul_op);
-            g.build_graph();
+            g.finalize();
 
             impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
             apass->run(g);
@@ -414,7 +414,7 @@ TEST(Execute, Matmul3dx3d) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&matmul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
     apass->run(g);
@@ -479,7 +479,7 @@ TEST(Execute, MatmulBiasAdd) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -554,7 +554,7 @@ TEST(Execute, MatmulBiasAddPerTensorBroadcast) {
         impl::graph_t g(engine->kind());
         ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -629,7 +629,7 @@ TEST(Execute, MatmulBiasAddPerChannelBroadcast) {
         impl::graph_t g(engine->kind());
         ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -696,7 +696,7 @@ TEST(Compile, MatmulBiasAddUnsupportedBroadcast) {
         impl::graph_t g(engine->kind());
         ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -831,7 +831,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -986,7 +986,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
             g.add_op(&dqweight_op);
             g.add_op(&matmul_op);
             g.add_op(&qout_op);
-            g.build_graph();
+            g.finalize();
 
             impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
             impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -1153,7 +1153,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
             g.add_op(&dqweight_op);
             g.add_op(&matmul_op);
             g.add_op(&qout_op);
-            g.build_graph();
+            g.finalize();
 
             impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
             impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -1360,7 +1360,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
         g.add_op(&dqother_op);
         g.add_op(&add_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -1545,7 +1545,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasBinary) {
         g.add_op(&matmul_op);
         g.add_op(&binary_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -1767,7 +1767,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
         g.add_op(&add_op);
         g.add_op(&mul_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -1948,7 +1948,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2dX8s8f32) {
         g.add_op(&matmul_op);
         g.add_op(&dqother_op);
         g.add_op(&add_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -2090,7 +2090,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -2221,7 +2221,7 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
         g.add_op(&dqdata_op);
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -2366,7 +2366,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
         g.add_op(&gelu_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -2450,7 +2450,7 @@ TEST(Compile, MatmulAddGetInplacePair) {
     ASSERT_EQ(agraph.add_op(&mm), impl::status::success);
     ASSERT_EQ(agraph.add_op(&mm2), impl::status::success);
     ASSERT_EQ(agraph.add_op(&add), impl::status::success);
-    agraph.build_graph();
+    agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     impl::pass::pass_base_ptr apass1 = get_pass("matmul_post_ops_chain_fusion");
@@ -2607,7 +2607,7 @@ TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -2815,7 +2815,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
         g.add_op(&matmul_op);
         g.add_op(&add_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("int8_matmul_post_ops_fusion_cpu");
@@ -2948,7 +2948,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     g.add_op(&matmul_op);
     g.add_op(&tcdata_op);
     g.add_op(&tcweight_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -3105,7 +3105,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
     g.add_op(&tcweight_op);
     g.add_op(&tcother_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -3245,7 +3245,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddBF16U8s8bf16) {
     g.add_op(&tcdata_op);
     g.add_op(&tcweight_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -3416,7 +3416,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddAddBF16U8s8bf16) {
     g.add_op(&tcdata_op);
     g.add_op(&tcweight_op);
     g.add_op(&add_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -3562,7 +3562,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     g.add_op(&tcweight_op);
     g.add_op(&tcdst_op);
     g.add_op(&qout_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass(engine->kind() == impl::engine_kind::gpu
@@ -3737,7 +3737,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     g.add_op(&tcweight_op);
     g.add_op(&tcdst_op);
     g.add_op(&qout_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -3886,7 +3886,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     g.add_op(&gelu_op);
     g.add_op(&tcgelu_op);
     g.add_op(&qout_op);
-    g.build_graph();
+    g.finalize();
 
     auto &backend_ptr
             = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
@@ -4069,7 +4069,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     g.add_op(&gelu_op);
     g.add_op(&tcgelu_op);
     g.add_op(&qout_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
@@ -4122,7 +4122,7 @@ TEST(Execute, MatmulScalarOutput) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&matmul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
     apass->run(g);
@@ -4322,7 +4322,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         g.add_op(&dqother_op);
         g.add_op(&add_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         // prepare in/out full shape
         src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
@@ -4516,7 +4516,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
         g.add_op(&dqweight_op);
         g.add_op(&matmul_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
         weight_f32 = utils::logical_tensor_init(
@@ -4711,7 +4711,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
         g.add_op(&matmul_op);
         g.add_op(&relu_op);
         g.add_op(&qout_op);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
         impl::tensor_t weight_f32_ts(weight_f32, engine, weight_data.data());
@@ -4799,7 +4799,7 @@ TEST(Execute, MatmulReluFusion) {
     impl::graph_t g(eng->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
@@ -4857,7 +4857,7 @@ TEST(Execute, MatmulBiasFusion) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&matmul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -4924,7 +4924,7 @@ TEST(Execute, MatmulSumBroadcast1d) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
@@ -4991,7 +4991,7 @@ TEST(Execute, MatmulSumFusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
@@ -5064,7 +5064,7 @@ TEST(Execute, MatmulSumGeluFusion) {
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
@@ -5136,7 +5136,7 @@ TEST(Execute, MatmulSumReluFusion) {
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
@@ -5201,7 +5201,7 @@ TEST(Execute, MatmulBiasReluFusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -5266,7 +5266,7 @@ TEST(Execute, MatmulBiasGeluFusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -5334,7 +5334,7 @@ TEST(Execute, MatmulBiasRelu6Fusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&clamp_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -5402,7 +5402,7 @@ TEST(Execute, MatmulBiasClampFusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&clamp_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -5469,7 +5469,7 @@ TEST(Execute, MatmulBiasEluFusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&elu_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -5534,7 +5534,7 @@ TEST(Execute, MatmulBiasSigmoidFusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&sigmoid_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -5603,7 +5603,7 @@ TEST(Execute, MatmulBiasAddFusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");
@@ -5672,7 +5672,7 @@ TEST(Execute, MatmulDivFusion) {
     impl::graph_t g(engine->kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&div_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
@@ -5750,7 +5750,7 @@ TEST(Execute, MatmulDivAddFusion) {
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&div_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
@@ -5844,7 +5844,7 @@ TEST(Execute, MatmulSwapBinaryMulAddFusion) {
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&div_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
@@ -5972,7 +5972,7 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
     g.add_op(&matmul_op);
     g.add_op(&relu_op);
     g.add_op(&qout_op);
-    g.build_graph();
+    g.finalize();
 
     impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
     impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
@@ -6041,7 +6041,7 @@ TEST(Execute, MatmulStridedScalarOutput) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&matmul_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
     apass->run(g);
@@ -6121,7 +6121,7 @@ TEST(Execute, MatmulBiasAddReluFusion) {
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass
             = get_pass("matmul_bias_post_ops_chain_fusion");

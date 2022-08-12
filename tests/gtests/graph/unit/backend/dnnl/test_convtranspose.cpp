@@ -93,7 +93,7 @@ public:
 
         impl::graph_t g(eng->kind());
         g.add_op(&convtranspose_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_post_ops_fusion");
@@ -203,7 +203,7 @@ public:
 
         impl::graph_t g(eng->kind());
         g.add_op(&deconv_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_data_bwd_pass");
@@ -293,7 +293,7 @@ public:
 
         impl::graph_t g(eng->kind());
         g.add_op(&deconv_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_filter_bwd_pass");
@@ -404,7 +404,7 @@ public:
         impl::graph_t g(eng->kind());
         g.add_op(&convtranspose_op);
         g.add_op(&add_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_post_ops_fusion");
@@ -486,7 +486,7 @@ TEST(Compile, ConvtransposeFp32) {
 
     impl::graph_t g(eng->kind());
     g.add_op(&convtranspose_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
     apass->run(g);
@@ -634,7 +634,7 @@ TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     impl::engine_t *eng = get_engine();
     impl::graph_t g(eng->kind());
     g.add_op(&deconv_op);
-    g.build_graph();
+    g.finalize();
 
     impl::pass::pass_base_ptr apass = get_pass("convtranspose_filter_bwd_pass");
     apass->run(g);
@@ -737,7 +737,7 @@ TEST(operator_kernel, convtranspose_relu) {
         impl::graph_t g(eng->kind());
         g.add_op(&convtranspose_op);
         g.add_op(&relu_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_post_ops_fusion");
@@ -835,7 +835,7 @@ TEST(operator_kernel, convtranspose_swish) {
         g.add_op(&convtranspose_op);
         g.add_op(&sigmoid_op);
         g.add_op(&multiply_op);
-        g.build_graph();
+        g.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_post_ops_fusion");
@@ -1011,7 +1011,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
         g.add_op(&dqweight_node);
         g.add_op(&convtranspose_node);
         g.add_op(&qout_node);
-        g.build_graph();
+        g.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -1231,7 +1231,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
         graph.add_op(&convtranspose_node);
         graph.add_op(&eltwise_node);
         graph.add_op(&qout_node);
-        graph.build_graph();
+        graph.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -1430,7 +1430,7 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
         graph.add_op(&convtranspose_node);
         graph.add_op(&eltwise_node);
         // graph.add_op(&qout_node);
-        graph.build_graph();
+        graph.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -1593,7 +1593,7 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
         graph.add_op(&convtranspose_node);
         graph.add_op(&sigmoid_node);
         graph.add_op(&multiply_node);
-        graph.build_graph();
+        graph.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -1828,7 +1828,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         graph.add_op(&dqother_node);
         graph.add_op(&add_node);
         graph.add_op(&qout_node);
-        graph.build_graph();
+        graph.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -2060,7 +2060,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dMultiply) {
         graph.add_op(&dqother_node);
         graph.add_op(&binary_node);
         graph.add_op(&qout_node);
-        graph.build_graph();
+        graph.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -2257,7 +2257,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
         graph.add_op(&convtranspose_node);
         graph.add_op(&binary_node);
         graph.add_op(&qout_node);
-        graph.build_graph();
+        graph.finalize();
 
         impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
         impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
@@ -2510,7 +2510,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
         graph.add_op(&dqweight_node2);
         graph.add_op(&convtranspose_node2);
         graph.add_op(&qout_node2);
-        graph.build_graph();
+        graph.finalize();
 
         impl::pass::pass_base_ptr apass
                 = get_pass("int8_convtranspose_post_ops_fusion_cpu");
@@ -2696,7 +2696,7 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
 
         output_lts.push_back(lt_idx);
 
-        agraph.build_graph();
+        agraph.finalize();
 
         impl::tensor_t dst_case1_ts(
                 lt_vec[output_lts[0]], engine, case1_out_data.data());
