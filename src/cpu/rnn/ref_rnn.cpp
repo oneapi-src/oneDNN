@@ -322,12 +322,11 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         dst_iter_c_mdw.off(lay, dir, 0, 0));
                 cell_position |= c_state_last_iter;
             }
-
-            const auto cell_scratch_gates = rnn.n_iter_scratch_gates == 1
-                    ? scratch_gates_
-                    : scratch_gates_
-                            + iter * rnn.scratch_gates_nld
-                                    * rnn.scratch_gates_ld;
+            const size_t sg_start_idx = rnn.n_iter_scratch_gates == 1
+                    ? static_cast<size_t>(0)
+                    : static_cast<size_t>(iter) * rnn.scratch_gates_nld
+                            * rnn.scratch_gates_ld;
+            const auto cell_scratch_gates = &scratch_gates_[sg_start_idx];
 
             dst_iter_t *proj_ht = nullptr;
             if (rnn.is_lstm_projection) {

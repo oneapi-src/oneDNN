@@ -1065,12 +1065,13 @@ void set_workspace_sizes(rnn_conf_t &rnn, const rnn_desc_t &rd) {
             : (size_t)0;
     rnn.n_iter_scratch_gates
             = (rnn.merge_gemm_layer || rnn.merge_gemm_iter) ? rnn.n_iter : 1;
-    rnn.scratch_gates_size = rnn.n_iter_scratch_gates * rnn.scratch_gates_nld
-            * rnn.scratch_gates_ld * sizeof(typename T::scratch_t);
+    rnn.scratch_gates_size = sizeof(typename T::scratch_t)
+            * rnn.n_iter_scratch_gates * rnn.scratch_gates_nld
+            * rnn.scratch_gates_ld;
     rnn.scratch_ht_size
-            = rnn.scratch_ht_nld * rnn.scratch_ht_ld * sizeof(typename T::ht_t);
-    rnn.scratch_diff_ht_size = rnn.is_training ? rnn.scratch_diff_ht_nld
-                    * rnn.scratch_diff_ht_ld * sizeof(typename T::gemm_acc_t)
+            = sizeof(typename T::ht_t) * rnn.scratch_ht_nld * rnn.scratch_ht_ld;
+    rnn.scratch_diff_ht_size = rnn.is_training ? sizeof(typename T::gemm_acc_t)
+                    * rnn.scratch_diff_ht_nld * rnn.scratch_diff_ht_ld
                                                : (size_t)0;
 
     /* set other sizes */
