@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,10 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
                     && IMPLICATION(with_bias(),
                             one_of(weights_md(1)->data_type, f32, bf16))
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
+                            primitive_attr_t::skip_mask_t::post_ops,
+                            dst_md()->data_type)
+                    && attr()->post_ops_.check_sum_consistent_dt(
+                            dst_md()->data_type)
                     && inner_product_utils::post_ops_ok(
                             attr()->post_ops_, &dst_md_)
                     && set_default_params() == status::success

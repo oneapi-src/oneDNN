@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,7 +62,9 @@ struct ref_inner_product_fwd_t : public primitive_t {
                                     && IMPLICATION(
                                             src_type == f32, bia_type == f32))
                     && set_default_params(allow_all_tags) == status::success
-                    && attr()->has_default_values(smask_t::post_ops)
+                    && attr()->has_default_values(
+                            smask_t::post_ops | smask_t::sum_dt)
+                    && attr()->post_ops_.check_sum_consistent_dt(dst_type)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
