@@ -366,17 +366,17 @@ static inline bool isa_has_bf16(cpu_isa_t isa) {
 /* clang-format off */
 #define JIT_IMPL_NAME_HELPER(prefix, isa, suffix_if_any) \
     ((isa) == isa_any ? prefix STRINGIFY(any) : \
-    ((isa) == sse41 ? prefix STRINGIFY(sse41) : \
-    ((isa) == avx ? prefix STRINGIFY(avx) : \
-    ((isa) == avx2 ? prefix STRINGIFY(avx2) : \
-    ((isa) == avx2_vnni ? prefix STRINGIFY(avx2_vnni) : \
-    ((isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
-    ((isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
-    ((isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
-    ((isa) == avx512_core_fp16 ? prefix STRINGIFY(avx512_core_fp16) : \
-    ((isa) == avx512_core_bf16_amx_int8 ? prefix STRINGIFY(avx512_core_amx_int8) : \
-    ((isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_amx_bf16) : \
-    prefix suffix_if_any)))))))))))
+    (isa) == sse41 ? prefix STRINGIFY(sse41) : \
+    (isa) == avx ? prefix STRINGIFY(avx) : \
+    (isa) == avx2 ? prefix STRINGIFY(avx2) : \
+    (isa) == avx2_vnni ? prefix STRINGIFY(avx2_vnni) : \
+    (isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
+    (isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
+    (isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
+    (isa) == avx512_core_fp16 ? prefix STRINGIFY(avx512_core_fp16) : \
+    (isa) == avx512_core_bf16_amx_int8 ? prefix STRINGIFY(avx512_core_amx_int8) : \
+    (isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_amx_bf16) : \
+    prefix suffix_if_any)
 /* clang-format on */
 
 inline size_t data_type_vnni_granularity(data_type_t data_type) {
