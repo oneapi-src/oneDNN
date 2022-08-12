@@ -1421,15 +1421,13 @@ TEST(ExecuteSubgraphInt8, MatmulBiasBinary) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    std::vector<std::string> qtypes {"per_tensor", "per_channel"};
+    std::vector<std::string> qtypes {"per_channel"};
     std::vector<impl::op_kind_t> binary_kinds {impl::op_kind::Multiply,
             impl::op_kind::Divide, impl::op_kind::Maximum,
             impl::op_kind::Minimum, impl::op_kind::Subtract};
-    std::vector<std::vector<int64_t>> src_shapes {
-            {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
+    std::vector<std::vector<int64_t>> src_shapes {{3, 3, 8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
-    std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
+    std::vector<std::vector<int64_t>> dst_shapes {{3, 3, 8, 2}, {2}};
     for_(const auto &qtype : qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
     for_(size_t j = 0; j < weight_shapes.size(); ++j)

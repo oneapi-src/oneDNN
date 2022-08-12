@@ -2639,7 +2639,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
     impl::stream_t &strm = get_stream();
 
     std::vector<size_t> nds = {1, 2, 3};
-    std::vector<int64_t> groups = {1, 4};
+    std::vector<int64_t> groups = {1};
     std::vector<bool> with_biases = {true, false};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
@@ -3462,7 +3462,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
     impl::stream_t &strm = get_stream();
 
     std::vector<size_t> nds = {1, 2, 3};
-    std::vector<int64_t> groups = {1, 4};
+    std::vector<int64_t> groups = {1};
     std::vector<bool> with_biases = {true, false};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
