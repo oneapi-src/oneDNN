@@ -899,7 +899,7 @@ brgemm_merged_layer_t<src_t, weights_t, scratch_t,
     , max_nthr_(rnn_.nthr)
     , n_blocking_((rnn_.unfused_post_gemm) ? rnn_.N_blocks * rnn_.n_gates
                                            : rnn_.N_blocks)
-    , m_blocking_(rnn_.M_blocks)
+    , m_blocking_(rnn_.Mlayermerged_blocks)
     , work_amount_(n_blocking_ * m_blocking_)
     , Bl_n_offset_(rnn_.K1padded * rnn_.n_block)
     , Bl_g_offset_(rnn_.N_blocks * Bl_n_offset_)
