@@ -7,6 +7,14 @@
 --cfg=f16f16f32,f16
 --batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
 
+--dir=BWD_D
+--cfg=f32f16f16,f16
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--dir=BWD_WB
+--cfg=f16f32f16,f16
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
 --reset
 --mb=2
 --skip-impl=ref

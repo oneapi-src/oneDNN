@@ -112,13 +112,10 @@ struct ref_convolution_bwd_data_t : public primitive_t {
             bool ok = desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && platform::has_data_type_support(diff_src_type)
-                    && platform::has_data_type_support(wei_type)
                     && platform::has_data_type_support(diff_dst_type)
-                    && utils::one_of(diff_src_type, f32, bf16)
-                    && utils::one_of(wei_type, f32, bf16)
-                    && utils::one_of(diff_dst_type, f32, bf16)
-                    && diff_dst_type == wei_type
-                    && IMPLICATION(diff_dst_type == f32, diff_src_type == f32)
+                    && utils::one_of(diff_dst_type, f32, bf16, f16)
+                    && wei_type == diff_dst_type
+                    && utils::one_of(diff_src_type, f32, diff_dst_type)
                     && set_default_formats() && attr()->has_default_values();
 
             return ok ? status::success : status::unimplemented;
@@ -164,17 +161,11 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(diff_wei_type)
-                    && platform::has_data_type_support(diff_bia_type)
-                    && platform::has_data_type_support(diff_dst_type)
-                    && utils::one_of(src_type, f32, bf16)
-                    && utils::one_of(diff_wei_type, f32, bf16)
-                    && utils::one_of(diff_dst_type, f32, bf16)
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(diff_bia_type, f32, bf16)
-                                    && IMPLICATION(diff_dst_type == f32,
-                                            diff_bia_type == f32))
+                    && utils::one_of(src_type, f32, bf16, f16)
                     && diff_dst_type == src_type
-                    && IMPLICATION(diff_dst_type == f32, diff_wei_type == f32)
+                    && utils::one_of(diff_wei_type, f32, src_type)
+                    && utils::one_of(
+                            diff_bia_type, data_type::undef, f32, src_type)
                     && set_default_formats() && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }

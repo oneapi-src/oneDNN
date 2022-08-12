@@ -203,6 +203,14 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE(ref_convolution_bwd_data_t)
             nullptr,
         })},
+        {{backward_data, f32, f16, f16}, REG_BWD_D_PK({
+            CPU_INSTANCE(ref_convolution_bwd_data_t)
+            nullptr,
+        })},
+        {{backward_data, f16, f16, f16}, REG_BWD_D_PK({
+            CPU_INSTANCE(ref_convolution_bwd_data_t)
+            nullptr,
+        })},
         // BWD_W fp
         {{backward_weights, f32, f32, f32}, REG_BWD_PK({
             CPU_INSTANCE_X64(ip_convolution_bwd_weights_t)
@@ -240,6 +248,14 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AVX512(jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<bf16>)
             CPU_INSTANCE_AVX512(jit_avx512_core_bf16_convolution_bwd_weights_t)
             CPU_INSTANCE_AVX512(gemm_bf16_convolution_bwd_weights_t<bf16>)
+            CPU_INSTANCE(ref_convolution_bwd_weights_t)
+            nullptr,
+        })},
+        {{backward_weights, f16, f32, f16}, REG_BWD_PK({
+            CPU_INSTANCE(ref_convolution_bwd_weights_t)
+            nullptr,
+        })},
+        {{backward_weights, f16, f16, f16}, REG_BWD_PK({
             CPU_INSTANCE(ref_convolution_bwd_weights_t)
             nullptr,
         })},
