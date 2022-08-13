@@ -19,7 +19,9 @@
 
 #include <ostream>
 #include <string>
+#include <vector>
 #include "sc_expr.hpp"
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <util/any_map.hpp>
 namespace sc {
@@ -30,6 +32,17 @@ struct intrinsic_handler_t {
     intrinsic_handler_t(const std::string &name);
     virtual ~intrinsic_handler_t() = default;
 };
+
+// user defined struct for reading/writing at runtime.
+struct dyn_tsr_struct_t {
+    static constexpr const char *name = "dyn_tsr";
+    enum fields : int { data_ptr = 0, dim_ptr, ndims, dyn_mask };
+    static const sc_data_type_t dtypes[4];
+    static const size_t offsets[4];
+};
+
+sc_data_type_t get_dtype_from_struct_and_field(
+        const std::string &in, int field);
 
 // the indices of arguments of the brgemm intrinsices
 namespace brgemm_args {

@@ -378,7 +378,8 @@ public:
             if (v->linkage_ == linkage::local
                     && (!v->attr_
                             || !v->attr_->get_or_else(
-                                    attr_keys::tsr_dont_buf_sched, false))) {
+                                    attr_keys::tsr_dont_buf_sched, false))
+                    && !v->init_.defined()) {
                 out_[v->var_].create_ = tick_;
                 // set scope id for thread local tensor
                 if (in_parallel_for_) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,24 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_DEAD_WRITE_ELIMINATE_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_DEAD_WRITE_ELIMINATE_HPP
-
-#include "../function_pass.hpp"
-
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_DYN_TSR_TRANSFORM_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_DYN_TSR_TRANSFORM_HPP
+#include "../module_pass.hpp"
 namespace sc {
 namespace attr_keys {
-constexpr const char *no_dead_write = "pass.no_dead_write";
-}
+constexpr const char *plain_dims = "pass.plain_dims";
+constexpr const char *always_trans = "pass.always_trans";
+} // namespace attr_keys
 /**
- * Removes unread writes on local var (this feature is not done yet) and local
- * tensors
+ * Do dynamic tensor transform, tensor_node=>dynamic_tensor(void pointer in IR,
+ * actually runtime struct). Extract and define vars from tensor when enter the
+ * function. This pass only acts on tensors who has dynamic shape(var_node)
  * */
-class dead_write_eliminator_t : public function_pass_t {
+class dyn_tensor_transformer_t : public module_pass_t {
 public:
-    func_c operator()(func_c f) override;
+    func_c operator()(func_c f);
+    const_ir_module_ptr operator()(const_ir_module_ptr f) override;
 };
-
 } // namespace sc
 
 #endif

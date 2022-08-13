@@ -18,6 +18,8 @@
 #include "sc_expr.hpp"
 #include "sc_stmt.hpp"
 #include "ssa_data.hpp"
+#include <compiler/ir/builder.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 #include <util/array_ref.hpp>
 #include <util/weakptr_utils.hpp>
 
@@ -105,5 +107,13 @@ void get_direct_dependency_of_expr(
             callback(v.static_as<ssa_phi>()->values_);
             break;
     }
+}
+
+std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v) {
+    std::vector<expr> stride(v.size(), UINT64_C(1));
+    for (int i = v.size() - 2; i >= 0; --i) {
+        stride[i] = do_cast_and_fold(v[i + 1] * stride[i + 1]);
+    }
+    return stride;
 }
 } // namespace sc

@@ -17,6 +17,7 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_IR_UTILS_HPP
 
 #include <functional>
+#include <vector>
 #include "sc_expr.hpp"
 #include <util/array_ref.hpp>
 
@@ -26,6 +27,11 @@ namespace sc {
 // callback.
 void get_direct_dependency_of_expr(
         const expr &v, const std::function<void(array_ref<expr>)> &callback);
+/**
+ * calculate dense stride from tensor dims.
+ * @param v the input dims of tensor.
+ */
+std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v);
 } // namespace sc
 
 #endif

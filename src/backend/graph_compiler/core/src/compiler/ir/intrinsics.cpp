@@ -247,6 +247,37 @@ struct int_xor_handler_t : public binary_intrinsic_handler_t {
     int_xor_handler_t() : binary_intrinsic_handler_t("int_xor") {}
 };
 
+sc_data_type_t get_dtype_from_struct_and_field(
+        const std::string &in, int field) {
+    if (in == dyn_tsr_struct_t::name) {
+        return dyn_tsr_struct_t::dtypes[field];
+    } else {
+        COMPILE_ASSERT(false, "struct " << in << " has not been supported!");
+    }
+    return sc_data_type_t();
+}
+
+struct read_struct_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        assert(node.intrin_attrs_->has_key(intrin_attr::struct_name)
+                && node.intrin_attrs_->has_key(intrin_attr::struct_field));
+        node.dtype_ = get_dtype_from_struct_and_field(
+                node.intrin_attrs_->get<std::string>(intrin_attr::struct_name),
+                node.intrin_attrs_->get<int>(intrin_attr::struct_field));
+    }
+    read_struct_handler_t() : intrinsic_handler_t("read_struct") {}
+};
+
+struct write_struct_handler_t : public binary_intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.intrin_attrs_->has_key(intrin_attr::struct_name)
+                && node.intrin_attrs_->has_key(intrin_attr::struct_field));
+        binary_intrinsic_handler_t::on_initialize(node);
+    }
+    write_struct_handler_t() : binary_intrinsic_handler_t("write_struct") {}
+};
+
 struct brgemm_handler_t : public intrinsic_handler_t {
     size_t arg_cnt_;
     void on_initialize(intrin_call_node &node) override {
@@ -350,6 +381,8 @@ static std::unique_ptr<intrinsic_handler_t> handlers[]
                 utils::make_unique<shl_handler_t>(),
                 utils::make_unique<shr_handler_t>(),
                 utils::make_unique<permutex2var_handler_t>(),
+                utils::make_unique<read_struct_handler_t>(),
+                utils::make_unique<write_struct_handler_t>(),
                 utils::make_unique<brgemm_handler_t>(
                         brgemm_args::NUM_FULL_ARGS_STRIDE, "brgemm"),
                 utils::make_unique<brgemm_handler_t>(
@@ -362,5 +395,16 @@ static_assert(sizeof(handlers) / sizeof(handlers[0])
 intrinsic_handler_t &get_intrinsic_handler(intrin_type intrin) {
     return *handlers[static_cast<int>(intrin)];
 }
+
+#define OFFSET(struct_type, field) \
+    (size_t)(&(((struct_type *)nullptr)->field)) // NOLINT
+
+const sc_data_type_t dyn_tsr_struct_t::dtypes[4] = {
+        datatypes::pointer, datatypes::pointer, datatypes::s32, datatypes::u8};
+const size_t dyn_tsr_struct_t::offsets[4]
+        = {OFFSET(runtime::dynamic_tensor_t, data_),
+                OFFSET(runtime::dynamic_tensor_t, dims_),
+                OFFSET(runtime::dynamic_tensor_t, ndims_),
+                OFFSET(runtime::dynamic_tensor_t, dyn_mask_)};
 
 } // namespace sc

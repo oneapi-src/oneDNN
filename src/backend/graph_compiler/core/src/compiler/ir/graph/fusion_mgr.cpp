@@ -27,6 +27,7 @@
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/visitor.hpp>
+#include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
@@ -257,8 +258,7 @@ expr fusion_manager::allocate_tensor(
                     const std::shared_ptr<static_data_t> &init_value = nullptr,
                     bool global = false) {
                 auto shapes = lt.get_blocking_dims_expr(graph_);
-                auto strides = logical_tensor_t::compute_dense_stride_expr(
-                        graph_, shapes);
+                auto strides = dims_to_dense_stride(shapes);
                 tsr = builder::make_stensor(
                         name + std::to_string(alloc_tensor_count_++), shapes,
                         strides, output->details_.dtype_, addrspace, init_value)
@@ -551,8 +551,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                     auto blocking_dims
                             = input_cur->get_outputs()[0]
                                       ->details_.get_blocking_dims_expr(graph_);
-                    auto strides = logical_tensor_t::compute_dense_stride_expr(
-                            graph_, blocking_dims);
+                    auto strides = dims_to_dense_stride(blocking_dims);
                     auto arg_tsr = builder::make_stensor(
                             std::string("arg_tsr_") + std::to_string(arg_idx),
                             blocking_dims, strides,
@@ -597,8 +596,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                     auto dims
                             = cur->get_inputs()[0]
                                       ->details_.get_blocking_dims_expr(graph_);
-                    auto strides = logical_tensor_t::compute_dense_stride_expr(
-                            graph_, dims);
+                    auto strides = dims_to_dense_stride(dims);
                     auto arg_tsr = builder::make_stensor(
                             std::string("output") + std::to_string(output_idx),
                             dims, strides,

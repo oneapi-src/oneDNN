@@ -23,9 +23,12 @@
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <microkernel/builtin.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/any_map.hpp>
 
 namespace sc {
@@ -48,6 +51,23 @@ static std::vector<expr> make_args_by_intrinsic(const intrin_call_c &node) {
 static std::string get_exp_func_name(const intrin_call_c &node) {
     std::stringstream ss;
     ss << "_should_inline_exp_" << node->dtype_;
+    return ss.str();
+}
+
+static std::string get_read_struct_func_name(const intrin_call_c &node) {
+    auto &name
+            = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
+    auto &field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
+    std::stringstream ss;
+    ss << "_should_inline_read_struct_" << name << "_" << field;
+    return ss.str();
+}
+static std::string get_write_struct_func_name(const intrin_call_c &node) {
+    auto &name
+            = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
+    auto &field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
+    std::stringstream ss;
+    ss << "_should_inline_write_struct_" << name << "_" << field;
     return ss.str();
 }
 
@@ -222,6 +242,101 @@ static func_t create_exp_func(const intrin_call_c &node) {
     return the_exp_func;
 }
 
+static size_t get_field_offset(const std::string &in, int field) {
+    if (in == dyn_tsr_struct_t::name) {
+        return dyn_tsr_struct_t::offsets[field];
+    } else {
+        COMPILE_ASSERT(false, "struct " << in << " has not been supported!");
+    }
+    return 0;
+}
+
+static func_t create_read_struct_func(const intrin_call_c &node) {
+    builder::ir_builder_t builder;
+    auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
+    auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
+    auto dtype = get_dtype_from_struct_and_field(name, field);
+    _function_(dtype, read_struct, {node->args_[0]}) {
+        assert(node->args_.size() == 1);
+        expr util_tsr = builder::make_tensor("util_tsr", {1}, dtype);
+        util_tsr->attr().set(attr_keys::tsr_dont_buf_sched, true);
+        util_tsr->attr().set(attr_keys::no_dead_write, true);
+        size_t offset = get_field_offset(name, field);
+        builder::get_current_builder()->push_var_tensor_def(util_tsr,
+                linkage::local, builder::tensor_ptr(node->args_[0], {offset}));
+        expr ret = builder::make_indexing(util_tsr, 0);
+        _return_(ret);
+    }
+    return read_struct;
+}
+
+static func_t create_write_struct_func(const intrin_call_c &node) {
+    builder::ir_builder_t builder;
+    auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
+    auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
+    auto dtype = node->args_[1]->dtype_;
+    _function_(datatypes::void_t, write_struct, {node->args_[0]},
+            {builder::make_var(dtype, "_intrin_v")}) {
+        assert(node->args_.size() == 2);
+        assert(node->args_[1]->dtype_ == (dtype)
+                || node->args_[1]->dtype_.is_pointer());
+        _bind_(dyn_tsr, inval);
+        expr util_tsr = builder::make_tensor("util_tsr", {1}, dtype);
+        util_tsr->attr().set(attr_keys::tsr_dont_buf_sched, true);
+        util_tsr->attr().set(attr_keys::no_dead_write, true);
+        size_t offset = get_field_offset(name, field);
+        builder::get_current_builder()->push_var_tensor_def(util_tsr,
+                linkage::local, builder::tensor_ptr(dyn_tsr, {offset}));
+        builder::get_current_builder()->push_assign(
+                builder::make_indexing(util_tsr, 0), inval);
+    }
+    return write_struct;
+}
+
+static func_t create_read_struct_func_wrapper(const intrin_call_c &node) {
+    auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
+    auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
+    if (name == dyn_tsr_struct_t::name) {
+        if (field == dyn_tsr_struct_t::fields::data_ptr) {
+            static func_t base_func = create_read_struct_func(node);
+            return base_func;
+        } else if (field == dyn_tsr_struct_t::fields::dim_ptr) {
+            static func_t shape_func = create_read_struct_func(node);
+            return shape_func;
+        } else if (field == dyn_tsr_struct_t::fields::ndims) {
+            static func_t ndims_func = create_read_struct_func(node);
+            return ndims_func;
+        } else if (field == dyn_tsr_struct_t::fields::dyn_mask) {
+            static func_t mask_func = create_read_struct_func(node);
+            return mask_func;
+        }
+    }
+    COMPILE_ASSERT(false, "struct " << name << " has not supported!");
+    return func_t();
+}
+
+static func_t create_write_struct_func_wrapper(const intrin_call_c &node) {
+    auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
+    auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
+    if (name == dyn_tsr_struct_t::name) {
+        if (field == dyn_tsr_struct_t::fields::data_ptr) {
+            static func_t base_func = create_write_struct_func(node);
+            return base_func;
+        } else if (field == dyn_tsr_struct_t::fields::dim_ptr) {
+            static func_t shape_func = create_write_struct_func(node);
+            return shape_func;
+        } else if (field == dyn_tsr_struct_t::fields::ndims) {
+            static func_t ndims_func = create_write_struct_func(node);
+            return ndims_func;
+        } else if (field == dyn_tsr_struct_t::fields::dyn_mask) {
+            static func_t mask_func = create_write_struct_func(node);
+            return mask_func;
+        }
+    }
+    COMPILE_ASSERT(false, "struct " << name << " has not supported!");
+    return func_t();
+}
+
 using intrin_func_creator = func_t (*)(const intrin_call_c &node);
 using intrin_func_namer = std::string (*)(const intrin_call_c &node);
 using cast_func_creator = func_t (*)(context_ptr ctx, const cast_c &node);
@@ -340,6 +455,22 @@ public:
                 break;
             case intrin_type::saturated_cast:
                 return do_lower_saturated_cast(ret.checked_as<intrin_call_c>());
+                break;
+            case intrin_type::read_struct:
+                COMPILE_ASSERT(v->args_[0]->dtype_.get_pointer_element()
+                                == datatypes::u8,
+                        "User defined struct tensor should be a u8 tensor in "
+                        "IR.");
+                lower_func = &create_read_struct_func_wrapper;
+                namer_func = &get_read_struct_func_name;
+                break;
+            case intrin_type::write_struct:
+                COMPILE_ASSERT(v->args_[0]->dtype_.get_pointer_element()
+                                == datatypes::u8,
+                        "User defined struct tensor should be a u8 tensor in "
+                        "IR.");
+                lower_func = &create_write_struct_func_wrapper;
+                namer_func = &get_write_struct_func_name;
                 break;
             default: break;
         }

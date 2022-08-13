@@ -638,6 +638,27 @@ expr make_int_or(const expr_c &left, const expr_c &right);
 expr make_int_xor(const expr_c &left, const expr_c &right);
 
 /**
+ * Makes a node to read field from a struct.
+ * @param in dynamic tensor, should be a tensor with u8 pointer type
+ * @param struct_name name string of struct
+ * @param field_name name enum of field
+ * @return the created node
+ * */
+expr make_read_struct(const expr_c &in, const std::string &struct_name,
+        const int &field_name);
+
+/**
+ * Makes a node to write a field to struct.
+ * @param dyn_tsr dynamic tensor, should be a tensor with u8 pointer type
+ * @param in data tensor, should be a tensor with pointer type
+ * @param struct_name name string of struct
+ * @param field_name name enum of field
+ * @return the created node
+ * */
+expr make_write_struct(const expr_c &dyn_tsr, const expr_c &in,
+        const std::string &struct_name, const int &field_name);
+
+/**
  * Makes a logic_not (!) node
  * @param in the input expression, should be of boolean type
  * @return the created node

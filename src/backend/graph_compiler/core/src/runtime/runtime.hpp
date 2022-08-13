@@ -36,6 +36,11 @@ SC_API void sc_dump_tensor(void *tsr, const char *name, const char *shape,
         size_t size, size_t limit, const char *path, bool binary_fmt,
         uint64_t idtype);
 SC_API void sc_value_check(void *tsr, const char *name, size_t size);
+// dynamic
+SC_API void *sc_extract_dyn_base(void *tsr);
+SC_API void *sc_extract_dyn_shape(void *tsr);
+SC_API void sc_initialize_dyn_tsr(
+        void *dyn_tsr, void *tsr, void *shapes, uint8_t dyn_mask, int ndims);
 };
 
 namespace sc {

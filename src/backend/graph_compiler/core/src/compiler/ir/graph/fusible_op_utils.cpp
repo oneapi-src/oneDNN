@@ -27,6 +27,7 @@
 #include "outer_loop_generator.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
@@ -67,8 +68,7 @@ static std::vector<tensor_slice> make_tensor_slice(sc_graph_t &graph,
     for (size_t i = 0; i < data.size(); ++i) {
         std::vector<expr> dims
                 = data[i]->details_.get_blocking_dims_expr(graph);
-        std::vector<expr> strides
-                = logical_tensor_t::compute_dense_stride_expr(graph, dims);
+        std::vector<expr> strides = dims_to_dense_stride(dims);
         expr aexpr = builder::make_stensor(tensor_name + std::to_string(i),
                 dims, strides, data[i]->details_.dtype_);
         flattened.emplace_back(aexpr);

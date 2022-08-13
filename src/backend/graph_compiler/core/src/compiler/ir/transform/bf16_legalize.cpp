@@ -153,6 +153,8 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::permute:
         case intrin_type::broadcast:
         case intrin_type::permutex2var:
+        case intrin_type::read_struct:
+        case intrin_type::write_struct:
         case intrin_type::reinterpret: break;
         default:
             COMPILE_ASSERT(false, "Unsupport BF16 intrin type: " << v->type_);

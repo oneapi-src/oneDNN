@@ -1315,6 +1315,8 @@ enum class intrin_type {
     shl, // shift left
     shr, // shift right
     permutex2var,
+    read_struct, // read field from a struct
+    write_struct, // write a field to a struct
     // Below are micro-kernels, which should be lower to function call before
     // codegen
     brgemm,
@@ -1329,6 +1331,12 @@ constexpr const char *out_dtype = "out_dtype";
 constexpr const char *brgemm_extras = "intrin.brgemm_extras";
 // default true, may turn off when reduce axis has block tile.
 constexpr const char *allow_brgemm_fusion = "intrin.allow_brgemm_fusion";
+// the attr is the name of struct, string type.
+constexpr const char *struct_name = "intrin.struct_name";
+// the attr is used in read/write struct field, value is enum int.
+constexpr const char *struct_field = "intrin.struct_field";
+// datatype of field, sc_data_type_t
+constexpr const char *field_dtype = "intrin.field_dtype";
 } // namespace intrin_attr
 
 /**
@@ -1427,7 +1435,7 @@ SC_DEFINE_EXPR_NODE_PTR(low_level_intrin)
  * @param c the constant node
  * @return the constant value
  * */
-extern int64_t get_const_as_int(const constant_c &c);
+SC_INTERNAL_API extern int64_t get_const_as_int(const constant_c &c);
 
 /**
  * Gets the integer from the expr node. Will abort if the dtype

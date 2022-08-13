@@ -376,6 +376,22 @@ expr make_permutex2var(
             any_map_t());
 }
 
+expr make_read_struct(const expr_c &in, const std::string &struct_name,
+        const int &field_name) {
+    return make_expr<intrin_call_node>(intrin_type::read_struct,
+            std::vector<expr> {in.remove_const()},
+            any_map_t {{intrin_attr::struct_name, struct_name},
+                    {intrin_attr::struct_field, field_name}});
+}
+
+expr make_write_struct(const expr_c &in, const expr_c &field,
+        const std::string &struct_name, const int &field_name) {
+    return make_expr<intrin_call_node>(intrin_type::write_struct,
+            std::vector<expr> {in.remove_const(), field.remove_const()},
+            any_map_t {{intrin_attr::struct_name, struct_name},
+                    {intrin_attr::struct_field, field_name}});
+}
+
 GEN_BINARY(add);
 GEN_BINARY(sub);
 GEN_BINARY(mul);

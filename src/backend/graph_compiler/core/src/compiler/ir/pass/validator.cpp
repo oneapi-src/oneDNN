@@ -566,11 +566,21 @@ static void check_var_tensor_def(
             "Expecting var/tensor: " << v);
     if (v->init_.defined()) {
         if (!allow_tensor_view) {
-            COMPILE_ASSERT(v->var_.isa<var>(),
-                    "Tensor def cannot have init val " << v);
-            COMPILE_ASSERT(v->init_->dtype_ == v->var_->dtype_,
-                    "The init val has different type from the var definition "
-                            << v);
+            if (v->var_.isa<var>()) {
+                COMPILE_ASSERT(v->init_->dtype_ == v->var_->dtype_,
+                        "The init val has different type from the var "
+                        "definition "
+                                << v);
+            } else {
+                COMPILE_ASSERT(v->init_.isa<intrin_call>()
+                                && utils::is_one_of(
+                                        v->init_.static_as<intrin_call>()
+                                                ->type_,
+                                        intrin_type::read_struct),
+                        "The init val of tensor should come from dynamic "
+                        "extract intrin call "
+                                << v);
+            }
         }
     }
     if (!is_global && v->var_.isa<tensor>()) {

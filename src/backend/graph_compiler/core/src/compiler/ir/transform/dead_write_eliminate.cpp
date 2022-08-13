@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,9 +45,13 @@ public:
         if (dependency_analysis::get_dep_info(v.get()).depended_by_.size() == 0
                 && v->var_.isa<indexing>()) {
             auto tsr = v->var_.static_as<indexing>()->ptr_.checked_as<tensor>();
+            bool no_dead_write = tsr->attr_
+                    && tsr->attr_->get_or_else(attr_keys::no_dead_write, false);
+            bool is_pointer_buffer = tsr->elem_dtype_.is_pointer();
             bool is_read_buffer = tsr->attr().get_or_else("read_buffer", false);
             bool is_tensor_local
-                    = is_read_buffer || defined.find(tsr) != defined.end();
+                    = (is_read_buffer || defined.find(tsr) != defined.end())
+                    && !is_pointer_buffer && !no_dead_write;
 
             // if it is a store to indexing, and the target tensor is local, and
             // no other stmt depends on it, we can delete it

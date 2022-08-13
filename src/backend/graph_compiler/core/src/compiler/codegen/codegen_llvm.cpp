@@ -590,8 +590,10 @@ public:
                 base, generate_expr(v->idx_.front()));
         auto target_type = get_type(v->dtype_);
         if (target_type != ptr->getType()->getPointerElementType()) {
-            assert(llvm::cast<VectorType>(*target_type).getElementType()
-                    == ptr->getType()->getPointerElementType());
+            // allow pointer to pointer
+            assert(v->dtype_ == datatypes::pointer
+                    || llvm::cast<VectorType>(*target_type).getElementType()
+                            == ptr->getType()->getPointerElementType());
             ptr = builder_.CreatePointerCast(ptr, target_type->getPointerTo());
         }
         if (is_lvalue_mode) {
@@ -1144,8 +1146,8 @@ public:
             ptr = builder_.CreatePointerCast(
                     ptr, get_type(v->var_->dtype_)->getPointerTo());
         }
-        if (v->var_->dtype_.type_code_ == sc_data_etype::POINTER
-                && v->value_->dtype_.type_code_ != sc_data_etype::POINTER) {
+        if (v->var_->dtype_.is_pointer()
+                && v->value_->dtype_.type_code_ != v->var_->dtype_.type_code_) {
             val = builder_.CreatePointerCast(val, get_type(v->var_->dtype_));
         }
         if (v->value_->dtype_.lanes_ > 1 && v->var_.isa<indexing>()) {

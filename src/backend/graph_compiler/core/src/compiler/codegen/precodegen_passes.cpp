@@ -31,6 +31,7 @@
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/dyn_boundary_check.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
 #include <compiler/ir/transform/index2var.hpp>
 #include <compiler/ir/transform/index_flatten.hpp>
@@ -53,6 +54,7 @@ sequential_module_pass_t get_default_precodegen_passes(
         const context_ptr &ctx, bool gen_wrapper) {
     std::vector<module_pass_ptr> ret;
     ret.reserve(32);
+    ret.emplace_back(utils::make_unique<dyn_tensor_transformer_t>());
     if (gen_wrapper) {
         ret.emplace_back(utils::make_unique<interface_generalizer_t>());
     }

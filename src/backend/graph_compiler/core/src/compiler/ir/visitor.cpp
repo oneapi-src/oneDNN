@@ -138,6 +138,7 @@ expr ir_visitor_base_impl_t<is_inplace>::visit_impl(var v) {
 template <bool is_inplace>
 expr ir_visitor_base_impl_t<is_inplace>::visit_impl(tensor v) {
     std::vector<expr> newdims;
+    std::vector<expr> newplaindims;
     std::vector<expr> newstrides;
     changed_ = dispatch_expr_vector(v->dims_, newdims);
     changed_ |= dispatch_expr_vector(v->strides_, newstrides);
@@ -475,12 +476,14 @@ stmt ir_visitor_base_impl_t<is_inplace>::visit_impl(returns v) {
 template <bool is_inplace>
 stmt ir_visitor_base_impl_t<is_inplace>::visit_impl(define v) {
     expr init;
+    bool changed = false;
     if (v->init_.defined()) {
         init = dispatch_impl(v->init_);
-        changed_ = !init.ptr_same(v->init_);
+        changed = !init.ptr_same(v->init_);
     }
     auto var = dispatch_impl(v->var_);
-    changed_ |= !var.ptr_same(v->var_);
+    changed |= !var.ptr_same(v->var_);
+    changed_ = changed;
     if (is_inplace) {
         v->var_ = var;
         v->init_ = init;

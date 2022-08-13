@@ -27,6 +27,8 @@
 #include <compiler/ir/graph/quantization/quantize_op.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <compiler/ir/ir_utils.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <util/hash_utils.hpp>
 
 namespace sc {
@@ -315,22 +317,12 @@ bool logical_tensor_t::is_dense() {
 }
 
 std::vector<expr> logical_tensor_t::get_strides_expr(sc_graph_t &g) const {
-    return is_dynamic_ ? logical_tensor_t::compute_dense_stride_expr(
-                   g, get_blocking_dims_expr(g))
+    return is_dynamic_ ? dims_to_dense_stride(get_blocking_dims_expr(g))
                        : g.dims_to_expr(get_strides());
 }
 
 sc_dims logical_tensor_t::compute_dense_stride(const sc_dims &dims) {
     sc_dims strides(dims.size(), 1);
-    for (int i = dims.size() - 2; i >= 0; --i) {
-        strides[i] = dims[i + 1] * strides[i + 1];
-    }
-    return strides;
-}
-
-std::vector<expr> logical_tensor_t::compute_dense_stride_expr(
-        sc_graph_t &g, const std::vector<expr> &dims) {
-    std::vector<expr> strides(dims.size(), UINT64_C(1));
     for (int i = dims.size() - 2; i >= 0; --i) {
         strides[i] = dims[i + 1] * strides[i + 1];
     }
@@ -794,6 +786,8 @@ expr tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
     auto tsr = builder::make_stensor(name, blocking_exprs,
             tsrd.get_strides_expr(graph), tsrd.dtype_, address_space::automatic,
             nullptr);
+    tsr->attr().set(
+            attr_keys::plain_dims, graph.dims_to_expr(tsrd.get_plain_dims()));
     return tsr;
 }
 

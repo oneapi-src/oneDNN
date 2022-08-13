@@ -147,7 +147,7 @@ public:
             // dims
             auto ret = copy_attr(*v,
                     builder::make_stensor(v->name_, {range},
-                            std::vector<expr> {1}, v->elem_dtype_,
+                            std::vector<expr> {UINT64_C(1)}, v->elem_dtype_,
                             v->address_space_, v->init_value_));
             return ret;
         }

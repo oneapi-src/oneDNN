@@ -21,6 +21,7 @@
 #include "builder.hpp"
 #include "intrinsics.hpp"
 #include "ir_comparer.hpp"
+#include "ir_utils.hpp"
 #include "sc_expr.hpp"
 #include "sc_function.hpp"
 #include "ssa_data.hpp"
@@ -603,14 +604,6 @@ bool call_node::equals(expr_c v, ir_comparer &ctx) const {
         }
     }
     RETURN(ctx.expr_arr_equals(args_, other->args_));
-} // namespace sc
-
-static std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v) {
-    std::vector<expr> stride(v.size(), 1);
-    for (int i = v.size() - 2; i >= 0; --i) {
-        stride[i] = v[i + 1] * stride[i + 1];
-    }
-    return stride;
 }
 
 tensor_node::tensor_node(sc_data_type_t dtype, const std::string &name,
@@ -700,7 +693,8 @@ bool tensor_node::equals(expr_c v, ir_comparer &ctx) const {
     } else {
         if (other->init_value_) { RETURN(false); }
     }
-    RETURN(ctx.expr_arr_equals(dims_, other->dims_));
+    RETURN(ctx.expr_arr_equals(dims_, other->dims_)
+            && ctx.expr_arr_equals(strides_, other->strides_));
 }
 
 void tensorptr_node::to_string(ostream &os) const {
