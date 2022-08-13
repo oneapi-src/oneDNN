@@ -35,6 +35,8 @@
     F(sigmoid_backprop); \
     F(conv_fwd); \
     F(conv_fwd_core); \
+    F(conv_bwd_data); \
+    F(conv_bwd_weight); \
     F(batchnorm_inference); \
     F(batchnorm_forward_training); \
     F(batchnorm_training_backprop);

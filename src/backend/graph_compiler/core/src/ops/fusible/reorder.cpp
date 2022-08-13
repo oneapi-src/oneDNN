@@ -1522,11 +1522,13 @@ static void compute_fast_transpose(const context_ptr &ctx,
                                         - axis]
                                 % input_blocking_dims[in_axis];
             }
+            expr tmp_in = src.tptr_;
+            if (output_loop) { tmp_in = input; }
             auto assign = builder::make_assign_unattached(rows[i],
                     // here, use src.tptr instead of input is aimed to
                     // avoid input is tensor_view_op. Otherwise, it will
                     // throw illegal exception in tensor_shrink
-                    builder::make_indexing(src.tptr_, tmp_in_indexes, step));
+                    builder::make_indexing(tmp_in, tmp_in_indexes, step));
             assign->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
             cur_list.emplace_back(assign);
@@ -1575,8 +1577,10 @@ static void compute_fast_transpose(const context_ptr &ctx,
                                             - axis]
                                     % input_blocking_dims[in_axis];
                 }
+                expr tmp_in = src.tptr_;
+                if (output_loop) { tmp_in = input; }
                 auto brct_src = builder::make_broadcast(
-                        builder::make_indexing(src.tptr_, tmp_in_indexes, step),
+                        builder::make_indexing(tmp_in, tmp_in_indexes, step),
                         trans_lanes_bf16);
                 auto assign = builder::make_assign_unattached(rows[i],
                         // here, use src.tptr instead of input is aimed

@@ -17,6 +17,8 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include "templates/conv1x1_backprop_data.hpp"
+#include "templates/conv1x1_backprop_weight.hpp"
 #include "templates/conv_bwd.hpp"
 #include "templates/conv_fwd.hpp"
 #include <compiler/ir/graph/tunable_op.hpp>
@@ -295,50 +297,211 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-conv_bwd_op_t::conv_bwd_op_t(const std::vector<graph_tensor_ptr> &ins,
-        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-    : tunable_op_t("conv_bwd", ins, outs, attrs) {
-    COMPILE_ASSERT(info_.inputs_.size() == 2, "conv expects 2 inputs");
-    COMPILE_ASSERT(info_.outputs_.size() == 1, "conv expects 1 output");
-}
-
-body_generator_ptr conv_bwd_op_t::create_generator() {
-    auto &stride = attrs_.get<sc_dims>("strides");
-    auto &padding = attrs_.get<sc_dims>("paddings");
-    return utils::make_unique<gen_conv_bwd>(this, stride, padding,
-            graph::extract_detail_from_tensors(get_inputs()),
-            graph::extract_detail_from_tensors(get_outputs()));
-}
-
-float conv_bwd_op_t::get_gflop() {
-    return create_generator()->get_gflop();
-}
-
-void conv_bwd_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<format_stride_pair>> &supported_ins,
-        std::vector<std::vector<format_stride_pair>> &supported_outs) {
-    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
-    if (!config_data_) {
-        config_data_ = create_generator()->get_default_config(ctx);
-    }
-    const conv_fwd_config_t &tcfg = *config_data_.get_as<conv_fwd_config_t>();
-    in_formats.reserve(get_inputs().size());
-    in_formats.push_back({sc_data_format_t::NCHWc(tcfg.K_block)});
-    in_formats.push_back(
-            {sc_data_format_t::KCRSck(tcfg.C_block, tcfg.K_block)});
-    out_formats.push_back(
-            {sc_data_format_t(format_kinds::NKHWk, {tcfg.C_block})});
-    format_to_dense_format_stride_pair(
-            in_formats, out_formats, supported_ins, supported_outs);
-}
-
 sc_op_ptr conv_fwd_core_op_t::do_compensations(
         sc_graph_t &mgr, const context_ptr &ctx) {
     need_compensation_ = false;
     return shared_from_this();
 }
 
+conv_bwd_data_op_t::conv_bwd_data_op_t(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+    : tunable_op_t("conv_bwd_data", ins, outs, attrs) {
+    COMPILE_ASSERT(info_.inputs_.size() == 2, "conv_bwd_data expects 2 inputs");
+    COMPILE_ASSERT(
+            info_.outputs_.size() == 1, "conv_bwd_data expects 1 output");
+    ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
+}
+
+body_generator_ptr conv_bwd_data_op_t::create_generator() {
+    auto &stride = attrs_.get<sc_dims>("strides");
+    auto &padding = attrs_.get<sc_dims>("paddings");
+    const bool is_3d = ndims_ == 5;
+    int D = is_3d ? info_.inputs_[1]->details_.get_plain_dims()[2] : 1;
+    int R = is_3d ? info_.inputs_[1]->details_.get_plain_dims()[3]
+                  : info_.inputs_[1]->details_.get_plain_dims()[2];
+    int S = is_3d ? info_.inputs_[1]->details_.get_plain_dims()[4]
+                  : info_.inputs_[1]->details_.get_plain_dims()[3];
+    if (D == 1 && R == 1 && S == 1) {
+        return utils::make_unique<gen_conv1x1_backprop_data_t>(this, stride,
+                padding, graph::extract_detail_from_tensors(get_inputs()),
+                graph::extract_detail_from_tensors(get_outputs()));
+    } else {
+        COMPILE_ASSERT(0, "Currently only support conv1x1 backward for data.");
+    }
+}
+
+float conv_bwd_data_op_t::get_gflop() {
+    return create_generator()->get_gflop();
+}
+
+void conv_bwd_data_op_t::query_format(context_ptr ctx,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
+    if (!config_data_) {
+        config_data_ = create_generator()->get_default_config(ctx);
+    }
+    const conv_bwd_data_config_t &tcfg
+            = *config_data_.get_as<conv_bwd_data_config_t>();
+    const bool is_3d = ndims_ == 5;
+    in_formats.reserve(get_inputs().size());
+    /*
+    // supports NHWC plain format for input0
+    in_formats.push_back(
+            {is_3d ? sc_data_format_t(sc_data_format_kind_t(0, 2, 3, 4, 1))
+                   : sc_data_format_t(sc_data_format_kind_t(0, 2, 3, 1))});*/
+    in_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(tcfg.K_block)
+                                : sc_data_format_t::NCHWc(tcfg.K_block)});
+    if (info_.inputs_[0]->details_.dtype_ == datatypes::bf16) {
+        COMPILE_ASSERT(info_.inputs_[1]->details_.dtype_ == datatypes::bf16,
+                "The two inputs of conv_bwd_data_op_t should have the same "
+                "data "
+                "format");
+        // CKRSkc2k or CKDRSkc2k
+        in_formats.push_back(
+                {is_3d ? sc_data_format_t(
+                         sc_data_format_kind_t(1, 0, 2, 3, 4, 0, 1, 0),
+                         {tcfg.K_block, tcfg.C_block, 2})
+                       : sc_data_format_t(
+                               sc_data_format_kind_t(1, 0, 2, 3, 0, 1, 0),
+                               {tcfg.K_block, tcfg.C_block, 2})});
+    } else {
+        // CKRSkc or CKDRSkc
+        in_formats.push_back(
+                {is_3d ? sc_data_format_t(
+                         sc_data_format_kind_t(1, 0, 2, 3, 4, 0, 1),
+                         {tcfg.K_block, tcfg.C_block})
+                       : sc_data_format_t(
+                               sc_data_format_kind_t(1, 0, 2, 3, 0, 1),
+                               {tcfg.K_block, tcfg.C_block})});
+    }
+    /*
+    // support NHWK plain format for output
+    out_formats.push_back(
+            {is_3d ? sc_data_format_t(sc_data_format_kind_t(0, 2, 3, 4, 1))
+                   : sc_data_format_t(sc_data_format_kind_t(0, 2, 3, 1))});*/
+    out_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(tcfg.C_block)
+                                 : sc_data_format_t::NCHWc(tcfg.C_block)});
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
+}
+
+conv_bwd_weight_op_t::conv_bwd_weight_op_t(
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+    : tunable_op_t("conv_bwd_weight", ins, outs, attrs) {
+    COMPILE_ASSERT(
+            info_.inputs_.size() == 2, "conv_bwd_weight expects 2 inputs");
+    auto &in_data_dims = info_.inputs_[0]->details_.get_plain_dims();
+    auto &in_fwd_output_dims = info_.inputs_[1]->details_.get_plain_dims();
+    auto &weight_shape = attrs_.get<sc_dims>("weight_shape");
+    COMPILE_ASSERT(in_data_dims[0] == in_fwd_output_dims[0],
+            "The two inputs of conv_bwd_weight should have the same batch "
+            "size.");
+    ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
+    sc_dims expected_out_shape = {in_fwd_output_dims[1], in_data_dims[1]};
+    for (auto i : weight_shape) {
+        expected_out_shape.push_back(i);
+    }
+    if (info_.outputs_.empty()) {
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
+                this, sc_data_format_t(), expected_out_shape, datatypes::f32));
+    } else {
+        COMPILE_ASSERT(
+                info_.outputs_.size() == 1, "conv_bwd_weight expects 1 output");
+        COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
+                        == expected_out_shape,
+                "Bad out dims");
+    }
+}
+
+body_generator_ptr conv_bwd_weight_op_t::create_generator() {
+    auto &stride = attrs_.get<sc_dims>("strides");
+    auto &padding = attrs_.get<sc_dims>("paddings");
+    auto &weight_shape = attrs_.get<sc_dims>("weight_shape");
+    if (std::all_of(weight_shape.begin(), weight_shape.end(),
+                [](int x) { return x == 1; })) {
+        return utils::make_unique<gen_conv1x1_backprop_weight_t>(this, stride,
+                padding, graph::extract_detail_from_tensors(get_inputs()),
+                graph::extract_detail_from_tensors(get_outputs()),
+                gen_conv1x1_backprop_weight_t::generator_type_t::REDUCE_ALL);
+    } else {
+        COMPILE_ASSERT(
+                0, "Currently only support conv1x1 backward for weight.");
+    }
+}
+
+float conv_bwd_weight_op_t::get_gflop() {
+    return create_generator()->get_gflop();
+}
+
+void conv_bwd_weight_op_t::query_format(context_ptr ctx,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
+    if (!config_data_) {
+        config_data_ = create_generator()->get_default_config(ctx);
+    }
+    const conv_bwd_weight_config_t &tcfg
+            = *config_data_.get_as<conv_bwd_weight_config_t>();
+    const bool is_3d = ndims_ == 5;
+    in_formats.reserve(get_inputs().size());
+    // reduce on ALL, N(D)HWC x N(D)HWK = KC(D)RSck
+    in_formats.push_back(
+            {is_3d ? sc_data_format_t(sc_data_format_kind_t(0, 2, 3, 4, 1))
+                   : sc_data_format_t(sc_data_format_kind_t(0, 2, 3, 1))});
+    in_formats.push_back(
+            {is_3d ? sc_data_format_t(sc_data_format_kind_t(0, 2, 3, 4, 1))
+                   : sc_data_format_t(sc_data_format_kind_t(0, 2, 3, 1))});
+    out_formats.push_back(
+            {is_3d ? sc_data_format_t(
+                     sc_data_format_kind_t(0, 1, 2, 3, 4, 1, 0),
+                     {tcfg.C_block, tcfg.K_block})
+                   : sc_data_format_t(sc_data_format_kind_t(0, 1, 2, 3, 1, 0),
+                           {tcfg.C_block, tcfg.K_block})});
+    /*
+    // reserved for reduce on N, NC(D)HWnc(2c) x NK(D)HWkn = KC(D)RSkc
+    if (info_.inputs_[0]->details_.dtype_ == datatypes::bf16) {
+        COMPILE_ASSERT(info_.inputs_[1]->details_.dtype_ == datatypes::bf16,
+                "The two inputs of conv_bwd_weight_op_t should have the same "
+                "data "
+                "format");
+        in_formats.push_back(
+                {is_3d ? sc_data_format_t(
+                         sc_data_format_kind_t(0, 1, 2, 3, 4, 0, 1, 0),
+                         {tcfg.N_block, tcfg.C_block, 2})
+                       : sc_data_format_t(
+                               sc_data_format_kind_t(0, 1, 2, 3, 0, 1, 0),
+                               {tcfg.N_block, tcfg.C_block, 2})});
+    } else {
+        in_formats.push_back(
+                {is_3d ? sc_data_format_t(
+                         sc_data_format_kind_t(0, 1, 2, 3, 4, 0, 1),
+                         {tcfg.N_block, tcfg.C_block})
+                       : sc_data_format_t(
+                               sc_data_format_kind_t(0, 1, 2, 3, 0, 1),
+                               {tcfg.N_block, tcfg.C_block})});
+    }
+    in_formats.push_back(
+            {is_3d ? sc_data_format_t(
+                     sc_data_format_kind_t(0, 1, 2, 3, 4, 1, 0),
+                     {tcfg.K_block, tcfg.N_block})
+                   : sc_data_format_t(sc_data_format_kind_t(0, 1, 2, 3, 1, 0),
+                           {tcfg.K_block, tcfg.N_block})});
+    out_formats.push_back(
+            {is_3d ? sc_data_format_t(
+                     sc_data_format_kind_t(0, 1, 2, 3, 4, 0, 1),
+                     {tcfg.K_block, tcfg.C_block})
+                   : sc_data_format_t(sc_data_format_kind_t(0, 1, 2, 3, 0, 1),
+                           {tcfg.K_block, tcfg.C_block})});
+    */
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
+}
+
 } // namespace ops
 OP_REGISTER(::sc::ops::conv_fwd_core_op_t, conv_fwd_core)
-OP_REGISTER(::sc::ops::conv_bwd_op_t, conv_bwd)
+OP_REGISTER(::sc::ops::conv_bwd_data_op_t, conv_bwd_data)
+OP_REGISTER(::sc::ops::conv_bwd_weight_op_t, conv_bwd_weight)
+
 } // namespace sc

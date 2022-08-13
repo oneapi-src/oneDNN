@@ -18,6 +18,7 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_CONVOLUTION_HPP
 
 #include <vector>
+#include <compiler/ir/graph/graph_op.hpp>
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 
@@ -62,9 +63,9 @@ private:
     int ndims_ = 0;
 };
 
-class conv_bwd_op_t : public tunable_op_t {
+class SC_INTERNAL_API conv_bwd_data_op_t : public tunable_op_t {
 public:
-    conv_bwd_op_t(const std::vector<graph_tensor_ptr> &ins,
+    conv_bwd_data_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
@@ -72,13 +73,36 @@ public:
             override;
     body_generator_ptr create_generator() override;
     float get_gflop() override;
-
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override {
         // TODO(XXX)
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
     }
+
+private:
+    int ndims_ = 0;
 };
+
+class SC_INTERNAL_API conv_bwd_weight_op_t : public tunable_op_t {
+public:
+    conv_bwd_weight_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+    void query_format(context_ptr ctx,
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
+    body_generator_ptr create_generator() override;
+    float get_gflop() override;
+    void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override {
+        // TODO(XXX)
+        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+    }
+
+private:
+    int ndims_ = 0;
+};
+
 } // namespace ops
 } // namespace sc
 #endif

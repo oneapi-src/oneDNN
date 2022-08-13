@@ -72,6 +72,14 @@ void drop_same_op_on_output(sc_graph_t &graph, const graph_tensor_ptr &output) {
                        "elimination.";
             continue;
         }
+        // when uses is an output op, we should not remove the global buffer
+        auto temp_node = node.second->get_outputs()[0];
+        if (std::any_of(temp_node->uses_.begin(), temp_node->uses_.end(),
+                    [](const std::pair<int, sc_op_weak_ptr_t> &j) {
+                        return j.second->isa<output_op>();
+                    })) {
+            continue;
+        }
         same_op_map[node.second].push_back(i);
     }
     std::vector<std::pair<int, sc_op_ptr>> next_nodes(

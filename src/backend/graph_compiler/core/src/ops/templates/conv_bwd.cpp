@@ -30,22 +30,36 @@
 using namespace sc::builder;
 namespace sc {
 
-using ops::conv_bwd_config;
+using ops::conv_bwd_data_config_t;
 // clang-format off
-SC_CLASS(conv_bwd_config)
+SC_CLASS(conv_bwd_data_config_t)
   SC_FIELD(K_block)
   SC_FIELD(C_block)
+  SC_FIELD(tile_d)
   SC_FIELD(tile_p)
   SC_FIELD(tile_q)
   SC_FIELD(loop_sched)
 SC_CLASS_END();
 // clang-format on
 
+using ops::conv_bwd_weight_config_t;
+// clang-format off
+SC_CLASS(conv_bwd_weight_config_t)
+  SC_FIELD(K_block)
+  SC_FIELD(C_block)
+  SC_FIELD(N_block)
+  SC_FIELD(tile_p)
+  SC_FIELD(tile_q)
+  SC_FIELD(num_tile_n)
+  SC_FIELD(loop_sched)
+SC_CLASS_END();
+// clang-format on
+
 namespace ops {
 
-config_ptr gen_conv_bwd::get_default_config(context_ptr ctx) const {
-  auto ret = reflection::general_object_t::make<conv_bwd_config>();
-  conv_bwd_config &cfg = *ret.unchecked_get_as<conv_bwd_config>();
+config_ptr gen_conv_bwd_t::get_default_config(context_ptr ctx) const {
+  auto ret = reflection::general_object_t::make<conv_bwd_data_config_t>();
+  conv_bwd_data_config_t &cfg = *ret.unchecked_get_as<conv_bwd_data_config_t>();
   const auto weight_dim = get_weight_dims();
   if (weight_dim[0] % 32 == 0) {
     cfg.K_block = 32;
@@ -63,7 +77,7 @@ config_ptr gen_conv_bwd::get_default_config(context_ptr ctx) const {
   return std::move(ret);
 }
 
-gen_conv_bwd::gen_conv_bwd(sc_op *owner, const sc_dims &stride,
+gen_conv_bwd_t::gen_conv_bwd_t(sc_op *owner, const sc_dims &stride,
   const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
   std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs))
@@ -75,7 +89,7 @@ gen_conv_bwd::gen_conv_bwd(sc_op *owner, const sc_dims &stride,
     out_tensors_.size() == 1, "output logical tensor size should be two.");
 }
 
-float gen_conv_bwd::get_gflop() const {
+float gen_conv_bwd_t::get_gflop() const {
   float result = 0.0;
   /* implement */
   result = (float)get_input_dims()[0]
@@ -87,8 +101,9 @@ float gen_conv_bwd::get_gflop() const {
   return result;
 }
 
-void gen_conv_bwd::schedule_loops(context_ptr ctx,
-  const conv_bwd_config &config, stmt body, std::vector<for_loop> &fors) const {
+void gen_conv_bwd_t::schedule_loops(context_ptr ctx,
+  const conv_bwd_data_config_t &config, stmt body,
+  std::vector<for_loop> &fors) const {
   for_loop ln = fors.at(0), lc = fors.at(1), lp = fors.at(2);
   auto loop_sched = config.loop_sched;
   if (loop_sched == 1) {
@@ -97,9 +112,10 @@ void gen_conv_bwd::schedule_loops(context_ptr ctx,
   }
 }
 
-bool gen_conv_bwd::generate(context_ptr ctx, const conv_bwd_config &config,
-  fusion_manager *fusion, const std::vector<expr> &inputs,
-  const std::vector<expr> &outputs, std::vector<for_loop> &loops) const {
+bool gen_conv_bwd_t::generate(context_ptr ctx,
+  const conv_bwd_data_config_t &config, fusion_manager *fusion,
+  const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+  std::vector<for_loop> &loops) const {
   // Init
 
   int padding_h = padding_[0], padding_w = padding_[0];

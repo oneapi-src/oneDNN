@@ -66,9 +66,13 @@ static constexpr const char *temp_shrink_tag = "tensor_shrinker.def";
 /**
  * Due to in some cases, the brgemm may access discontinuous memory. If applied
  * tensor shrink, it should dynamically change leading dimension argument named
- * `LDX` in brgemm args list. E.g. For output[A,C,B,D], brgemm will write back
- * it partial result into [1,C,1,D] with LDC = B*D. However, the local buffer
- * should be shrinked into [C,D], but with new LDC = D.
+ * `LDX` in brgemm args list.
+ * E.g. 1) For output[A,C,B,D], brgemm will write back
+ *         it partial result into [1,C,1,D] with LDC = B*D. However, the local
+ *         buffer should be shrinked into [C,D], but with new LDC = D.
+ *      2) In strided writing cases, the LDC of the shrunk local buffer should
+ * be updated as well. For output[A,C,D,B] and its partial result [a,c,d,b], the
+ * old LDC=D*stride_w will be updated into LDC=d*stride_w.
  * */
 bool check_brgemm_LDX(
         std::vector<expr> &args, const expr &buffer, int LD_arg_idx) {
@@ -89,19 +93,55 @@ bool check_brgemm_LDX(
                 "Constant LDX is expected, but got " << ld_arg_const);
         int64_t LDX = get_expr_as_int(ld_arg_const);
         int64_t acc_orig = 1, acc_shrink = 1;
-        for (int64_t i = static_cast<int64_t>(shrink_info.shape_.size()) - 1;
-                i >= 0; i--) {
-            if (acc_orig == LDX) {
-                if (acc_shrink == acc_orig)
-                    return false;
-                else {
-                    args[LD_arg_idx] = make_expr<constant_node>(
-                            acc_shrink, datatypes::s32);
-                    return true;
-                }
+        // for conv_bwd_data stride_w > 1 cases
+        args[LD_arg_idx]->attr();
+        if (args[LD_arg_idx]->attr_->get_or_else("stride_w", 1) > 1) {
+            auto N_axes = args[LD_arg_idx]->attr_->get_or_else(
+                    "N_axes", std::vector<size_t> {});
+            // plain
+            if (N_axes.size() == 1) {
+                COMPILE_ASSERT(N_axes[0] == tsr->dims_.size() - 1,
+                        "currently only supports N is the last axis in plain "
+                        "brgemm");
+                acc_shrink = args[LD_arg_idx]->attr_->get<int>("stride_w")
+                        * get_expr_as_int(shrink_info.shape_.back());
+                args[LD_arg_idx]
+                        = make_expr<constant_node>(acc_shrink, datatypes::s32);
+                return true;
             }
-            acc_orig *= get_expr_as_int(tsr->dims_[i]);
-            acc_shrink *= get_expr_as_int(shrink_info.shape_[i]);
+            // blocking
+            for (int64_t i
+                    = static_cast<int64_t>(shrink_info.shape_.size()) - 1;
+                    i >= 0; i--) {
+                // when acc_orig > LDX, considering LDX that contains stride
+                if (acc_orig > LDX) {
+                    if (acc_shrink == acc_orig)
+                        return false;
+                    else {
+                        args[LD_arg_idx] = make_expr<constant_node>(
+                                acc_shrink, datatypes::s32);
+                        return true;
+                    }
+                }
+                acc_orig *= get_expr_as_int(tsr->dims_[i]);
+                acc_shrink *= get_expr_as_int(shrink_info.shape_[i]);
+            }
+        } else {
+            for (int64_t i
+                    = static_cast<int64_t>(shrink_info.shape_.size()) - 1;
+                    i >= 0; i--) {
+                if (acc_orig == LDX) {
+                    if (acc_shrink == acc_orig)
+                        return false;
+                    else {
+                        args[LD_arg_idx] = make_expr<constant_node>(
+                                acc_shrink, datatypes::s32);
+                        return true;
+                    }
+                }
+                acc_orig *= get_expr_as_int(tsr->dims_[i]);
+                acc_shrink *= get_expr_as_int(shrink_info.shape_[i]);
+            }
         }
         COMPILE_ASSERT(0,
                 "Unexpected LDX found: " << LDX

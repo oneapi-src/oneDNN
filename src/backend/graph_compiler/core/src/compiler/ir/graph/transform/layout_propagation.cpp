@@ -21,6 +21,7 @@
 #include "../dynamic_dispatch_key.hpp"
 #include "../fusible_op.hpp"
 #include "../graph_op.hpp"
+#include "../pass/pass.hpp"
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
 #include <ops/fusible/memory_movement.hpp>

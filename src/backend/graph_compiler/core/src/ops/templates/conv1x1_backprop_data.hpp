@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,37 +14,20 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_CONV_BWD_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_CONV_BWD_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_CONV1X1_BACKPROP_DATA_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_CONV1X1_BACKPROP_DATA_HPP
 
 #include <memory>
 #include <tuple>
 #include <vector>
+#include "conv_bwd.hpp"
 #include <ops/body_generator.hpp>
 namespace sc {
 
 namespace ops {
 
-struct conv_bwd_data_config_t {
-  int K_block;
-  int C_block;
-  int tile_d;
-  int tile_p;
-  int tile_q;
-  int loop_sched;
-};
-
-struct conv_bwd_weight_config_t {
-  int K_block;
-  int C_block;
-  int N_block;
-  int tile_p;
-  int tile_q;
-  int num_tile_n;
-  int loop_sched;
-};
-
-class gen_conv_bwd_t : public body_generator_t<conv_bwd_data_config_t> {
+class gen_conv1x1_backprop_data_t
+  : public body_generator_t<conv_bwd_data_config_t> {
 public:
   sc_dims stride_;
   sc_dims padding_;
@@ -56,12 +39,9 @@ public:
   using parent = body_generator_t<conv_bwd_data_config_t>;
   using parent::generate;
 
-  std::tuple<int, int> get_output_shape() {
-    return std::tuple<int, int> {get_output_dims()[2], get_output_dims()[3]};
-  }
-
-  gen_conv_bwd_t(sc_op *owner, const sc_dims &stride, const sc_dims &padding,
-    std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
+  gen_conv1x1_backprop_data_t(sc_op *owner, const sc_dims &stride,
+    const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
+    std::vector<logical_tensor_t> &&outs);
 
   float get_gflop() const override;
 
@@ -84,6 +64,9 @@ public:
 
   void schedule_loops(context_ptr ctx, const conv_bwd_data_config_t &config,
     stmt body, std::vector<for_loop> &fors) const override;
+
+private:
+  int ndims_ = 0;
 };
 } // namespace ops
 

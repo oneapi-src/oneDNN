@@ -150,35 +150,79 @@ void reduce_op_t::query_format(context_ptr ctx,
             out_formats.push_back(
                     {sc_data_format_t::get_plain_by_dims(out_shape_size)});
         } else {
-            COMPILE_ASSERT(plain_rd_axis_.size() == 1,
-                    "Currently we only support 1 reduce axis when input is "
-                    "blocking with keep_dims_=false.")
-            sc_data_format_t new_format;
-            auto &new_code = new_format.format_code_;
-            int new_code_i = 0;
-            for (int i = 0; i < in_fmt.format_code_.ndims(); i++) {
-                if (in_fmt.format_code_.get(i) < plain_rd_axis_[0]) {
-                    new_code.set(new_code_i, in_fmt.format_code_.get(i));
-                    new_code_i++;
-                } else if (in_fmt.format_code_.get(i) == plain_rd_axis_[0]) {
-                    continue;
-                } else {
-                    new_code.set(new_code_i, in_fmt.format_code_.get(i) - 1);
-                    new_code_i++;
+            if (static_cast<int>(plain_rd_axis_.size())
+                    == in_fmt.format_code_.norig_dims()) {
+                // all reduced
+                out_formats.push_back({sc_data_format_t(format_kinds::A)});
+            } else {
+                sc_data_format_t new_format;
+                auto &new_code = new_format.format_code_;
+                std::vector<int> old_code_idx, ordered_idx;
+                // plain part
+                for (int i = 0; i < in_fmt.format_code_.norig_dims(); i++) {
+                    if (std::all_of(plain_rd_axis_.begin(),
+                                plain_rd_axis_.end(), [&](int j) {
+                                    return j != in_fmt.format_code_.get(i);
+                                })) {
+                        old_code_idx.push_back(in_fmt.format_code_.get(i));
+                    }
                 }
-            }
-            if (!in_fmt.format_code_.collect_blocking_index(plain_rd_axis_[0])
-                            .empty()) {
-                if (in_fmt.format_code_
-                                .collect_blocking_index(plain_rd_axis_[0])
-                                .at(0)
-                        == 0) {
-                    new_format.blocks_[0] = in_fmt.blocks_[1];
+                for (int i = 0; i < static_cast<int>(old_code_idx.size());
+                        i++) {
+                    ordered_idx.push_back(i);
+                }
+                std::sort(ordered_idx.begin(), ordered_idx.end(),
+                        [&old_code_idx](int p, int q) -> bool {
+                            return old_code_idx[p] < old_code_idx[q];
+                        });
+                std::vector<int> new_code_idx(old_code_idx.size(), 0);
+                for (int i = 0; i < static_cast<int>(old_code_idx.size());
+                        i++) {
+                    new_code_idx[ordered_idx[i]] = i;
+                }
+                // remained blocking part
+                for (int i = in_fmt.format_code_.norig_dims();
+                        i < in_fmt.format_code_.ndims(); i++) {
+                    for (int j = 0; j < static_cast<int>(old_code_idx.size());
+                            j++) {
+                        if (old_code_idx[j] == in_fmt.format_code_.get(i)) {
+                            new_code_idx.push_back(j);
+                            break;
+                        }
+                    }
+                }
+                // infer new_format.format_code_ accoring to new_code_idx
+                for (int i = 0; i < static_cast<int>(new_code_idx.size());
+                        i++) {
+                    new_code.set(i, new_code_idx[i]);
+                }
+                // copy blocks_ to new_format
+                if (std::all_of(plain_rd_axis_.begin(), plain_rd_axis_.end(),
+                            [&](int i) {
+                                return !in_fmt.format_code_
+                                                .collect_blocking_index(i)
+                                                .empty();
+                            })) {
+                    int blocks_idx = 0;
+                    for (int i = in_fmt.format_code_.norig_dims();
+                            i < in_fmt.format_code_.ndims(); i++) {
+                        if (std::none_of(plain_rd_axis_.begin(),
+                                    plain_rd_axis_.end(), [&](int j) {
+                                        return in_fmt.format_code_.get(i) == j;
+                                    })) {
+                            new_format.blocks_[blocks_idx] = in_fmt.blocks_[i
+                                    - in_fmt.format_code_.norig_dims()];
+                            blocks_idx++;
+                        }
+                    }
                 } else {
                     new_format.blocks_[0] = in_fmt.blocks_[0];
+                    new_format.blocks_[1] = in_fmt.blocks_[1];
+                    new_format.blocks_[2] = in_fmt.blocks_[2];
+                    new_format.blocks_[3] = in_fmt.blocks_[3];
                 }
+                out_formats.push_back({new_format});
             }
-            out_formats.push_back({new_format});
         }
     }
     format_to_dense_format_stride_pair(
