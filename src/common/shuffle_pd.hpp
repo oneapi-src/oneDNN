@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,8 +41,9 @@ struct shuffle_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::shuffle_d:
-                *(const shuffle_desc_t **)result = desc();
+            case query::axis_s32: *(int *)result = desc()->axis; break;
+            case query::group_size_s64:
+                *(dim_t *)result = desc()->group_size;
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }

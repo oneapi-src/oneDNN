@@ -113,7 +113,6 @@ struct typesize_traits<1> {
     template <> \
     struct pkind_traits<primitive_kind::op> { \
         typedef CONCAT2(op, _desc_t) desc_type; \
-        static constexpr query_t query_d = query::CONCAT2(op, _d); \
     }
 PKIND_TRAITS_INST(convolution);
 PKIND_TRAITS_INST(deconvolution);

@@ -446,6 +446,12 @@ protected:
             ASSERT_TRUE(*data_desc == eltwise_prim_desc.src_desc());
         }
 
+        ASSERT_EQ(
+                eltwise_prim_desc.get_prop_kind(), prop_kind::forward_training);
+        ASSERT_EQ(eltwise_prim_desc.get_algorithm(), p.alg_kind);
+        ASSERT_EQ(eltwise_prim_desc.get_alpha(), p.alpha);
+        ASSERT_EQ(eltwise_prim_desc.get_beta(), p.beta);
+
         src = test::make_memory(eltwise_prim_desc.src_desc(), eng);
         auto dst = test::make_memory(eltwise_prim_desc.dst_desc(), eng);
         auto ref_dst = test::make_memory(eltwise_prim_desc.dst_desc(), eng);
@@ -512,6 +518,12 @@ protected:
         ASSERT_TRUE(
                 eltwise_bwd_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == eltwise_bwd_prim_desc.dst_desc());
+
+        ASSERT_EQ(eltwise_bwd_prim_desc.get_prop_kind(),
+                prop_kind::backward_data);
+        ASSERT_EQ(eltwise_bwd_prim_desc.get_algorithm(), p.alg_kind);
+        ASSERT_EQ(eltwise_bwd_prim_desc.get_alpha(), p.alpha);
+        ASSERT_EQ(eltwise_bwd_prim_desc.get_beta(), p.beta);
 
         eltwise_backward(eltwise_bwd_prim_desc)
                 .execute(strm,

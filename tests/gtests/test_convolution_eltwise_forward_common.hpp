@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -222,6 +222,9 @@ protected:
                     1., true);
         }
 
+        memory::dims strides = {cd.strh, cd.strw};
+        memory::dims dilations = {cd.dilh, cd.dilw};
+        memory::dims padL = {cd.padh, cd.padw};
         memory::dims padR = {cd.padh, cd.padw};
         for (int i = 0; i < 2; ++i) {
             if ((cd.ih - ((cd.kh - 1) * (cd.dilh + 1) + 1) + cd.padh + padR[0])
@@ -248,15 +251,21 @@ protected:
         auto conv_desc = with_bias
                 ? convolution_forward::desc(prop_kind::forward_scoring,
                         p.aalgorithm, c_src_desc, c_weights_desc, c_bias_desc,
-                        c_dst_desc, {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
-                        {cd.padh, cd.padw}, padR)
+                        c_dst_desc, strides, dilations, padL, padR)
                 : convolution_forward::desc(prop_kind::forward_scoring,
                         p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
-                        {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
-                        {cd.padh, cd.padw}, padR);
+                        strides, dilations, padL, padR);
 
         auto conv_primitive_desc
                 = convolution_forward::primitive_desc(conv_desc, attr, eng);
+
+        ASSERT_EQ(conv_primitive_desc.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(conv_primitive_desc.get_prop_kind(),
+                prop_kind::forward_scoring);
+        ASSERT_EQ(conv_primitive_desc.get_strides(), strides);
+        ASSERT_EQ(conv_primitive_desc.get_dilations(), dilations);
+        ASSERT_EQ(conv_primitive_desc.get_padding_l(), padL);
+        ASSERT_EQ(conv_primitive_desc.get_padding_r(), padR);
 
         EXPECT_ANY_THROW(convolution_forward(conv_primitive_desc, {}));
         convolution_forward(conv_primitive_desc)

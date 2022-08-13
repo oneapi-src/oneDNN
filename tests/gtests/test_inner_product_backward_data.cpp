@@ -205,6 +205,8 @@ protected:
                 ip_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS)
                 == ip_primitive_desc.weights_desc());
 
+        ASSERT_EQ(ip_primitive_desc.get_prop_kind(), prop_kind::backward_data);
+
         EXPECT_ANY_THROW(inner_product_backward_data(ip_primitive_desc, {}));
         inner_product_backward_data(ip_primitive_desc)
                 .execute(strm,

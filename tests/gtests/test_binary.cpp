@@ -158,6 +158,9 @@ protected:
             // test all pd ctors
             if (!has_zero_dim) test_fwd_pd_constructors<pd_t>(pd, aa, op_desc);
 
+            // test non-md query interfaces
+            ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
+
             EXPECT_ANY_THROW(binary(pd, {}));
             // default primitive ctor
             auto prim = binary();

@@ -69,4 +69,39 @@ TEST_F(pd_test_t, ConvTestEmpty) {
     }
 }
 
+TEST_F(pd_test_t, TestOptionalQueries) {
+    memory::desc a_md {
+            {10, 10}, memory::data_type::f32, memory::format_tag::ab};
+    memory::desc b_md {
+            {10, 10}, memory::data_type::f32, memory::format_tag::ab};
+    memory::desc c_md {
+            {10, 10}, memory::data_type::f32, memory::format_tag::ab};
+
+    auto pd = matmul::primitive_desc({a_md, b_md, c_md}, e);
+
+    ASSERT_TRUE(pd.get_strides().empty());
+    ASSERT_TRUE(pd.get_dilations().empty());
+    ASSERT_TRUE(pd.get_padding_l().empty());
+    ASSERT_TRUE(pd.get_padding_r().empty());
+    ASSERT_TRUE(pd.get_kernel().empty());
+    ASSERT_TRUE(pd.get_factors().empty());
+
+    ASSERT_EQ(pd.get_alpha(), 0.0f);
+    ASSERT_EQ(pd.get_beta(), 0.0f);
+    ASSERT_EQ(pd.get_epsilon(), 0.0f);
+    ASSERT_EQ(pd.get_k(), 0.0f);
+    ASSERT_EQ(pd.get_p(), 0.0f);
+
+    ASSERT_EQ(pd.get_flags(), 0x0U);
+    ASSERT_EQ(pd.get_local_size(), 0);
+    ASSERT_EQ(pd.get_group_size(), 0);
+    ASSERT_EQ(pd.get_axis(), -1);
+
+    ASSERT_EQ(pd.get_algorithm(), dnnl::algorithm::undef);
+    ASSERT_EQ(pd.get_cell_kind(), dnnl::algorithm::undef);
+    ASSERT_EQ(pd.get_activation_kind(), dnnl::algorithm::undef);
+
+    ASSERT_EQ(pd.get_prop_kind(), dnnl::prop_kind::undef);
+}
+
 } // namespace dnnl

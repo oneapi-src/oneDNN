@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -215,6 +215,10 @@ protected:
                 bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_fwd_pd.workspace_desc());
 
+        ASSERT_EQ(bnorm_fwd_pd.get_prop_kind(), pk);
+        ASSERT_EQ(bnorm_fwd_pd.get_epsilon(), p.epsilon);
+        ASSERT_EQ(bnorm_fwd_pd.get_flags(), flags);
+
         auto ws_desc = bnorm_fwd_pd.query_md(query::workspace_md);
         ws.reset(new test_memory(ws_desc, eng));
 
@@ -292,6 +296,10 @@ protected:
         ASSERT_TRUE(
                 bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_bwd_pd.workspace_desc());
+
+        ASSERT_EQ(bnorm_bwd_pd.get_prop_kind(), pk);
+        ASSERT_EQ(bnorm_bwd_pd.get_epsilon(), p.epsilon);
+        ASSERT_EQ(bnorm_bwd_pd.get_flags(), flags);
 
         auto ws_desc = bnorm_bwd_pd.query_md(dnnl::query::workspace_md);
         ws.reset(new test_memory(ws_desc, eng));

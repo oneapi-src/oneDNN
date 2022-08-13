@@ -41,9 +41,10 @@ struct batch_normalization_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::batch_normalization_d:
-                *(const batch_normalization_desc_t **)result = desc();
+            case query::epsilon_f32:
+                *(float *)result = desc()->batch_norm_epsilon;
                 break;
+            case query::flags: *(uint32_t *)result = desc()->flags; break;
             default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;

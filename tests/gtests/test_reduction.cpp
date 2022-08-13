@@ -105,6 +105,10 @@ protected:
         ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC) == src_desc);
         ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DST) == dst_desc);
 
+        ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(pd.get_p(), p.p);
+        ASSERT_EQ(pd.get_epsilon(), p.eps);
+
         const auto test_engine = pd.get_engine();
 
         auto mem_src = memory(src_desc, test_engine);

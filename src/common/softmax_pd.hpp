@@ -40,12 +40,13 @@ struct softmax_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::softmax_d:
-                *(const softmax_desc_t **)result = desc();
-                break;
             case query::primitive_kind:
                 *(primitive_kind_t *)result = desc()->primitive_kind;
                 break;
+            case query::alg_kind:
+                *(alg_kind_t *)result = desc()->alg_kind;
+                break;
+            case query::axis_s32: *(int *)result = desc()->softmax_axis; break;
             default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;

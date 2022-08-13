@@ -43,7 +43,16 @@ struct rnn_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::rnn_d: *(const rnn_desc_t **)result = desc(); break;
+            case query::cell_kind:
+                *(alg_kind_t *)result = desc()->cell_kind;
+                break;
+            case query::activation_kind:
+                *(alg_kind_t *)result = desc()->activation_kind;
+                break;
+            case query::direction:
+                *(rnn_direction_t *)result = desc()->direction;
+                break;
+            case query::alpha_f32: *(float *)result = desc()->alpha; break;
             default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;

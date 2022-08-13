@@ -134,7 +134,43 @@ private:
                 == queryDstIterC(pd));
     };
 
+    void test_primitive_param_queries(typename T::primitive_desc pd) {
+        auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
+
+        dnnl::algorithm expected_cell_kind = algorithm::undef;
+        if (is_vanilla_rnn) expected_cell_kind = algorithm::vanilla_rnn;
+        if (is_lstm) expected_cell_kind = algorithm::vanilla_lstm;
+        if (is_gru) expected_cell_kind = algorithm::vanilla_gru;
+        if (is_lbr_gru) expected_cell_kind = algorithm::lbr_gru;
+        if (is_augru) expected_cell_kind = algorithm::vanilla_augru;
+        if (is_lbr_augru) expected_cell_kind = algorithm::lbr_augru;
+
+        ASSERT_NE(expected_cell_kind, algorithm::undef);
+        ASSERT_EQ(pd.get_cell_kind(), expected_cell_kind);
+        ASSERT_EQ(pd.get_prop_kind(), p.aprop);
+        ASSERT_EQ(pd.get_direction(), p.direction);
+
+        if (is_vanilla_rnn) {
+            ASSERT_EQ(pd.get_alpha(), p.extra.alpha);
+            ASSERT_EQ(pd.get_beta(), p.extra.beta);
+            ASSERT_EQ(pd.get_activation_kind(), p.extra.activation);
+        } else {
+            ASSERT_EQ(pd.get_alpha(), 0.0f);
+            ASSERT_EQ(pd.get_beta(), 0.0f);
+            ASSERT_EQ(pd.get_activation_kind(), algorithm::undef);
+        }
+    }
+
 protected:
+    static constexpr bool is_lstm = std::is_same<T, lstm_forward>::value;
+    static constexpr bool is_vanilla_rnn
+            = std::is_same<T, vanilla_rnn_forward>::value;
+    static constexpr bool is_gru = std::is_same<T, gru_forward>::value;
+    static constexpr bool is_lbr_gru = std::is_same<T, lbr_gru_forward>::value;
+    static constexpr bool is_augru = std::is_same<T, augru_forward>::value;
+    static constexpr bool is_lbr_augru
+            = std::is_same<T, lbr_augru_forward>::value;
+
     void SetUp() override {
         auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
         catch_expected_failures(
@@ -147,8 +183,6 @@ protected:
                 = p.fmts.weights_peephole_fmt != memory::format_tag::undef;
         const bool is_lstm_projection
                 = p.fmts.weights_projection_fmt != memory::format_tag::undef;
-        const bool is_augru = std::is_same<T, augru_forward>::value
-                || std::is_same<T, lbr_augru_forward>::value;
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
         //@todo check algorithm is one of the supported by RNN
@@ -205,7 +239,7 @@ protected:
         auto dst_iter_c_md_any = memory::desc(
                 {dst_iter_c_dims}, prec, memory::format_tag::any);
 
-        auto attention_md_tgt = is_augru
+        auto attention_md_tgt = (is_augru || is_lbr_augru)
                 ? memory::desc({attention_dims}, prec, memory::format_tag::tnc)
                 : memory::desc();
         auto weights_layer_md_tgt = memory::desc(
@@ -258,6 +292,7 @@ protected:
         // test construction from a C pd
         ref_pd = typename T::primitive_desc(ref_pd.get());
         testExecArgQueries(ref_pd);
+        test_primitive_param_queries(ref_pd);
 
         // Query the descriptor for memory descriptors
         auto weights_layer_md_ref = ref_pd.weights_layer_desc();
@@ -370,7 +405,8 @@ protected:
                     weights_projection_ldio, weights_projection_ref);
         init_tensor(bias_ref, bias_tgt);
         init_tensor(src_layer_ref, src_layer_tgt);
-        if (is_augru) init_tensor(augru_attention_ref, augru_attention_tgt);
+        if (is_augru || is_lbr_augru)
+            init_tensor(augru_attention_ref, augru_attention_tgt);
         if (p.fmts.src_iter_fmt != memory::format_tag::undef) {
             init_tensor(src_iter_ref, src_iter_tgt);
             if (std::is_same<T, lstm_forward>::value)
@@ -407,6 +443,7 @@ protected:
                 p.extra.flags, p.extra.alpha, p.extra.beta);
         typename T::primitive_desc tgt_pd(tgt_d, eng);
         testExecArgQueries(tgt_pd);
+        test_primitive_param_queries(tgt_pd);
 
         EXPECT_ANY_THROW(T(tgt_pd, {}));
         T(tgt_pd).execute(strm,

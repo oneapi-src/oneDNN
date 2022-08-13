@@ -189,13 +189,6 @@ struct primitive_desc_t : public c_compatible {
                 *(dim_t *)result = scratchpad_size(scratchpad_mode::library);
                 break;
 
-            case query::op_d:
-                if (idx != 0 || op_desc() == nullptr)
-                    return status::invalid_arguments;
-                *(const_c_op_desc_t *)result
-                        = static_cast<const_c_op_desc_t>(op_desc());
-                break;
-
             case query::exec_arg_md: return safe_ret_md(arg_md(idx));
             case query::src_md: return safe_ret_md(src_md(idx));
             case query::diff_src_md: return safe_ret_md(diff_src_md(idx));

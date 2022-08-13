@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -201,6 +201,9 @@ protected:
         check_zero_tail<data_t_wei>(1, c_weights.get());
         check_zero_tail<data_t_dst>(1, c_dst.get());
 
+        memory::dims strides = {cd.strh, cd.strw};
+        memory::dims dilations = {cd.dilh, cd.dilw};
+        memory::dims padL = {cd.padh, cd.padw};
         memory::dims padR = {
                 right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
                 right_padding(cd.iw, cd.ow, cd.kw, cd.padw, cd.strw, cd.dilw)};
@@ -208,12 +211,10 @@ protected:
         auto conv_desc = with_bias
                 ? convolution_forward::desc(aprop_kind, p.aalgorithm,
                         c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
-                        {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
-                        {cd.padh, cd.padw}, padR)
+                        strides, dilations, padL, padR)
                 : convolution_forward::desc(aprop_kind, p.aalgorithm,
-                        c_src_desc, c_weights_desc, c_dst_desc,
-                        {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
-                        {cd.padh, cd.padw}, padR);
+                        c_src_desc, c_weights_desc, c_dst_desc, strides,
+                        dilations, padL, padR);
 
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, attr.mkl_attr, eng);
@@ -232,6 +233,13 @@ protected:
         ASSERT_TRUE(
                 conv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_BIAS)
                 == conv_primitive_desc.bias_desc());
+
+        ASSERT_EQ(conv_primitive_desc.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(conv_primitive_desc.get_prop_kind(), aprop_kind);
+        ASSERT_EQ(conv_primitive_desc.get_strides(), strides);
+        ASSERT_EQ(conv_primitive_desc.get_dilations(), dilations);
+        ASSERT_EQ(conv_primitive_desc.get_padding_l(), padL);
+        ASSERT_EQ(conv_primitive_desc.get_padding_r(), padR);
 
         EXPECT_ANY_THROW(convolution_forward(conv_primitive_desc, {}));
         convolution_forward(conv_primitive_desc)

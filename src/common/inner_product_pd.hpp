@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,9 +51,6 @@ struct inner_product_pd_t : public primitive_desc_t {
         switch (what) {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
-                break;
-            case query::inner_product_d:
-                *(const inner_product_desc_t **)result = desc();
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }

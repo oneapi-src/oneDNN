@@ -41,8 +41,8 @@ struct binary_pd_t : public primitive_desc_t {
 
     status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
-            case query::binary_d:
-                *(const binary_desc_t **)result = desc();
+            case query::alg_kind:
+                *(alg_kind_t *)result = desc()->alg_kind;
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }

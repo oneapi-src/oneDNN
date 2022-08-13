@@ -42,11 +42,26 @@ struct pooling_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::pooling_d:
-                *(const pooling_desc_t **)result = desc();
-                break;
             case query::primitive_kind:
                 *(primitive_kind_t *)result = desc_.primitive_kind;
+                break;
+            case query::alg_kind:
+                *(alg_kind_t *)result = desc()->alg_kind;
+                break;
+            case query::kernel:
+                *(const dims_t **)result = &desc()->kernel;
+                break;
+            case query::strides:
+                *(const dims_t **)result = &desc()->strides;
+                break;
+            case query::dilations:
+                *(const dims_t **)result = &desc()->dilation;
+                break;
+            case query::padding_l:
+                *(const dims_t **)result = &desc()->padding[0];
+                break;
+            case query::padding_r:
+                *(const dims_t **)result = &desc()->padding[1];
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }

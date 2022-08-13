@@ -284,6 +284,13 @@ protected:
                 p.test_ld.k);
         lrn_fwd_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
 
+        ASSERT_EQ(lrn_fwd_prim_desc.get_prop_kind(), p.aprop_kind);
+        ASSERT_EQ(lrn_fwd_prim_desc.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(lrn_fwd_prim_desc.get_alpha(), p.test_ld.alpha);
+        ASSERT_EQ(lrn_fwd_prim_desc.get_beta(), p.test_ld.beta);
+        ASSERT_EQ(lrn_fwd_prim_desc.get_local_size(), p.test_ld.local_size);
+        ASSERT_EQ(lrn_fwd_prim_desc.get_k(), p.test_ld.k);
+
         src = std::make_shared<test_memory>(*src_desc, eng);
         dst = std::make_shared<test_memory>(*dst_desc, eng);
 
@@ -317,6 +324,13 @@ protected:
                 lrn_desc, eng, lrn_fwd_prim_desc);
         // test construction from a C pd
         lrn_prim_desc = lrn_backward::primitive_desc(lrn_prim_desc.get());
+
+        ASSERT_EQ(lrn_prim_desc.get_prop_kind(), prop_kind::backward_data);
+        ASSERT_EQ(lrn_prim_desc.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(lrn_prim_desc.get_alpha(), p.test_ld.alpha);
+        ASSERT_EQ(lrn_prim_desc.get_beta(), p.test_ld.beta);
+        ASSERT_EQ(lrn_prim_desc.get_local_size(), p.test_ld.local_size);
+        ASSERT_EQ(lrn_prim_desc.get_k(), p.test_ld.k);
 
         fill_data<data_t>(src->get_size() / sizeof(data_t), src->get());
 

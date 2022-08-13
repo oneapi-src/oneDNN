@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,8 +56,20 @@ struct convolution_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case pkind_traits<base_pkind>::query_d:
-                *(const convolution_desc_t **)result = desc();
+            case query::alg_kind:
+                *(alg_kind_t *)result = desc()->alg_kind;
+                break;
+            case query::strides:
+                *(const dims_t **)result = &desc()->strides;
+                break;
+            case query::dilations:
+                *(const dims_t **)result = &desc()->dilates;
+                break;
+            case query::padding_l:
+                *(const dims_t **)result = &desc()->padding[0];
+                break;
+            case query::padding_r:
+                *(const dims_t **)result = &desc()->padding[1];
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }

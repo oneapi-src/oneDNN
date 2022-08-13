@@ -28,10 +28,10 @@ dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd) {
     return prim_kind;
 }
 
-dnnl_alg_kind_t query_conv_alg_kind(const_dnnl_primitive_desc_t pd) {
-    dnnl_convolution_desc_t *conv_op_desc = {nullptr};
-    dnnl_primitive_desc_query(pd, dnnl_query_convolution_d, 0, &conv_op_desc);
-    return conv_op_desc ? conv_op_desc->alg_kind : dnnl_alg_kind_undef;
+dnnl_alg_kind_t query_alg_kind(const_dnnl_primitive_desc_t pd) {
+    dnnl_alg_kind_t alg_kind = dnnl_alg_kind_undef;
+    dnnl_primitive_desc_query(pd, dnnl_query_alg_kind, 0, &alg_kind);
+    return alg_kind;
 }
 
 std::string query_impl_info(const_dnnl_primitive_desc_t pd) {
@@ -93,12 +93,6 @@ const_dnnl_primitive_desc_t query_pd(dnnl_primitive_t prim) {
     const_dnnl_primitive_desc_t pd {};
     dnnl_primitive_get_primitive_desc(prim, &pd);
     return pd;
-}
-
-const_dnnl_op_desc_t query_op_desc(const_dnnl_primitive_desc_t pd) {
-    const_dnnl_op_desc_t op_desc {};
-    dnnl_primitive_desc_query(pd, dnnl_query_op_d, 0, &op_desc);
-    return op_desc;
 }
 
 dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine) {

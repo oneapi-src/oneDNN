@@ -179,6 +179,13 @@ protected:
                 lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == lrn_prim_desc.workspace_desc());
 
+        ASSERT_EQ(lrn_prim_desc.get_prop_kind(), p.aprop_kind);
+        ASSERT_EQ(lrn_prim_desc.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(lrn_prim_desc.get_alpha(), ld.alpha);
+        ASSERT_EQ(lrn_prim_desc.get_beta(), ld.beta);
+        ASSERT_EQ(lrn_prim_desc.get_local_size(), ld.local_size);
+        ASSERT_EQ(lrn_prim_desc.get_k(), ld.k);
+
         auto l_src = test_memory(l_src_desc, eng);
         auto l_dst = test_memory(l_dst_desc, eng);
 

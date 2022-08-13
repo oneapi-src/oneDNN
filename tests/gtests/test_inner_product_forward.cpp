@@ -202,6 +202,8 @@ protected:
                 ip_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_BIAS)
                 == ip_primitive_desc.bias_desc());
 
+        ASSERT_EQ(ip_primitive_desc.get_prop_kind(), p.aprop_kind);
+
         EXPECT_ANY_THROW(inner_product_forward(ip_primitive_desc, {}));
         inner_product_forward(ip_primitive_desc)
                 .execute(strm,

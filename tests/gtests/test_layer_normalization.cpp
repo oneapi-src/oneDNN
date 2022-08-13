@@ -154,6 +154,10 @@ protected:
             ASSERT_TRUE(*src_md == lnorm_fwd_pd.src_desc());
         }
 
+        ASSERT_EQ(lnorm_fwd_pd.get_prop_kind(), pk);
+        ASSERT_EQ(lnorm_fwd_pd.get_epsilon(), epsilon);
+        ASSERT_EQ(lnorm_fwd_pd.get_flags(), flags);
+
         src = std::make_shared<test_memory>(lnorm_fwd_pd.src_desc(), eng);
         dst = std::make_shared<test_memory>(lnorm_fwd_pd.dst_desc(), eng);
 
@@ -220,6 +224,10 @@ protected:
         if (p.diff_src_tag != memory::format_tag::any) {
             ASSERT_TRUE(*diff_src_md == lnorm_bwd_pd.diff_src_desc());
         }
+
+        ASSERT_EQ(lnorm_bwd_pd.get_prop_kind(), pk);
+        ASSERT_EQ(lnorm_bwd_pd.get_epsilon(), epsilon);
+        ASSERT_EQ(lnorm_bwd_pd.get_flags(), flags);
 
         diff_src = std::make_shared<test_memory>(
                 lnorm_bwd_pd.diff_src_desc(), eng);

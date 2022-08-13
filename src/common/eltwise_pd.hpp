@@ -40,9 +40,11 @@ struct eltwise_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::eltwise_d:
-                *(const eltwise_desc_t **)result = desc();
+            case query::alg_kind:
+                *(alg_kind_t *)result = desc()->alg_kind;
                 break;
+            case query::alpha_f32: *(float *)result = desc()->alpha; break;
+            case query::beta_f32: *(float *)result = desc()->beta; break;
             default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;

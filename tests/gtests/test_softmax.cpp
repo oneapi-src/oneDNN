@@ -189,6 +189,11 @@ protected:
         ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DST) == dst_desc);
         if (p.dst_tag != tag::any) { ASSERT_TRUE(dst_md == dst_desc); }
 
+        // query primitive parameters
+        ASSERT_EQ(pd.get_prop_kind(), pk);
+        ASSERT_EQ(pd.get_axis(), p.axis);
+        ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
+
         // query for workspace
         const auto workspace_desc = pd.workspace_desc();
 
@@ -274,6 +279,11 @@ protected:
         // query for dst_desc via exec arg
         ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DST) == dst_desc);
         if (p.dst_tag != tag::any) { ASSERT_TRUE(dst_md == dst_desc); }
+
+        // query primitive parameters
+        ASSERT_EQ(pd.get_prop_kind(), prop_kind::backward_data);
+        ASSERT_EQ(pd.get_axis(), p.axis);
+        ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
 
         // check primitive returns zero_md for all rest md
         ASSERT_TRUE(pd.src_desc().is_zero());

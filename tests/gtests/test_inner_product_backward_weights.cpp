@@ -254,6 +254,9 @@ protected:
                             query::exec_arg_md, DNNL_ARG_DIFF_BIAS)
                 == ip_primitive_desc.diff_bias_desc());
 
+        ASSERT_EQ(
+                ip_primitive_desc.get_prop_kind(), prop_kind::backward_weights);
+
         EXPECT_ANY_THROW(inner_product_backward_weights(ip_primitive_desc, {}));
         inner_product_backward_weights(ip_primitive_desc)
                 .execute(strm,

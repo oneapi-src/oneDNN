@@ -209,6 +209,7 @@ void check_pool_fwd(const pool_test_params_t &p, const memory &src,
 template <typename data_t>
 class pooling_test_t : public ::testing::TestWithParam<pool_test_params_t> {
     pool_test_params_t p;
+    memory::dims strides, ker, dilation, pad_l, pad_r;
 
 protected:
     void SetUp() override {
@@ -240,6 +241,19 @@ protected:
         ASSERT_TRUE(
                 pool_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == pool_prim_desc.workspace_desc());
+
+        ASSERT_EQ(pool_prim_desc.get_prop_kind(), p.aprop_kind);
+        ASSERT_EQ(pool_prim_desc.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(pool_prim_desc.get_kernel(), ker);
+        ASSERT_EQ(pool_prim_desc.get_strides(), strides);
+        ASSERT_EQ(pool_prim_desc.get_padding_l(), pad_l);
+        ASSERT_EQ(pool_prim_desc.get_padding_r(), pad_r);
+
+        if (p.test_pd.dd == 0 && p.test_pd.dh == 0 && p.test_pd.dw == 0)
+            ASSERT_EQ(pool_prim_desc.get_dilations(),
+                    memory::dims(pool_prim_desc.src_desc().data.ndims - 2));
+        else
+            ASSERT_EQ(pool_prim_desc.get_dilations(), dilation);
     }
 
     void Test() {
@@ -261,7 +275,6 @@ protected:
                 : create_md(
                         {pd.mb, pd.c, pd.oh, pd.ow}, data_type, p.dst_format);
 
-        memory::dims strides, ker, dilation, pad_l, pad_r;
         if (p.ndims == 5) {
             strides = memory::dims({pd.strd, pd.strh, pd.strw});
             ker = memory::dims({pd.kd, pd.kh, pd.kw});

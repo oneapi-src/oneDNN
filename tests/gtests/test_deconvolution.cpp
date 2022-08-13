@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -129,7 +129,9 @@ private:
     engine eng;
     stream strm;
     bool with_bias;
+    memory::dims padL;
     memory::dims padR;
+    memory::dims strides;
 
 protected:
     void SetUp() override {
@@ -224,6 +226,8 @@ protected:
         bias = std::make_shared<test_memory>(*dec_bias_desc, eng);
         dst = std::make_shared<test_memory>(*dec_dst_desc, eng);
 
+        strides = {dd.strh, dd.strw};
+        padL = {dd.padh, dd.padw};
         padR = {right_padding(dd.oh, dd.ih, dd.kh, dd.padh, dd.strh, dd.dilh),
                 right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)};
         SKIP_IF_CUDA(p.sizes.padh < padR[0] || p.sizes.padw < padR[1],
@@ -232,6 +236,7 @@ protected:
         BackwardData();
         BackwardWeights();
     }
+
     void Forward() {
         auto aprop_kind = prop_kind::forward;
         deconvolution_test_params_t p = ::testing::TestWithParam<
@@ -253,11 +258,10 @@ protected:
                 ? deconvolution_forward::desc(aprop_kind,
                         algorithm::deconvolution_direct, *dec_src_desc,
                         *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
-                        {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR)
+                        strides, padL, padR)
                 : deconvolution_forward::desc(aprop_kind,
                         algorithm::deconvolution_direct, *dec_src_desc,
-                        *dec_weights_desc, *dec_dst_desc, {dd.strh, dd.strw},
-                        {dd.padh, dd.padw}, padR);
+                        *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
 
         auto deconv_primitive_desc
                 = deconvolution_forward::primitive_desc(deconv_desc, eng);
@@ -277,6 +281,13 @@ protected:
                             query::exec_arg_md, DNNL_ARG_BIAS)
                 == deconv_primitive_desc.bias_desc());
 
+        ASSERT_EQ(deconv_primitive_desc.get_algorithm(),
+                algorithm::deconvolution_direct);
+        ASSERT_EQ(deconv_primitive_desc.get_prop_kind(), aprop_kind);
+        ASSERT_EQ(deconv_primitive_desc.get_strides(), strides);
+        ASSERT_EQ(deconv_primitive_desc.get_padding_l(), padL);
+        ASSERT_EQ(deconv_primitive_desc.get_padding_r(), padR);
+
         EXPECT_ANY_THROW(deconvolution_forward(deconv_primitive_desc, {}));
         deconvolution_forward(deconv_primitive_desc)
                 .execute(strm,
@@ -288,7 +299,7 @@ protected:
 
         auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
                 algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
+                *con_dst_desc, strides, padL, padR);
 
         auto conv_primitive_desc
                 = convolution_forward::primitive_desc(conv_desc, eng);
@@ -327,18 +338,17 @@ protected:
         auto weights_tr = test::make_memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
-        auto deconv_desc = deconvolution_forward::desc(
-                prop_kind::forward_training, algorithm::deconvolution_direct,
-                *dec_src_desc, *dec_weights_desc, *dec_dst_desc,
-                {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
+        auto deconv_desc
+                = deconvolution_forward::desc(prop_kind::forward_training,
+                        algorithm::deconvolution_direct, *dec_src_desc,
+                        *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
 
         auto deconv_primitive_desc
                 = deconvolution_forward::primitive_desc(deconv_desc, eng);
 
         auto deconv_bwd_data_desc = deconvolution_backward_data::desc(
                 algorithm::deconvolution_direct, *dec_src_desc,
-                *dec_weights_desc, *dec_dst_desc, {dd.strh, dd.strw},
-                {dd.padh, dd.padw}, padR);
+                *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
         auto deconv_bwd_data_primitive_desc
                 = deconvolution_backward_data::primitive_desc(
                         deconv_bwd_data_desc, eng, deconv_primitive_desc);
@@ -357,6 +367,14 @@ protected:
                             query::exec_arg_md, DNNL_ARG_WEIGHTS)
                 == deconv_bwd_data_primitive_desc.weights_desc());
 
+        ASSERT_EQ(deconv_bwd_data_primitive_desc.get_algorithm(),
+                algorithm::deconvolution_direct);
+        ASSERT_EQ(deconv_bwd_data_primitive_desc.get_prop_kind(),
+                prop_kind::backward_data);
+        ASSERT_EQ(deconv_bwd_data_primitive_desc.get_strides(), strides);
+        ASSERT_EQ(deconv_bwd_data_primitive_desc.get_padding_l(), padL);
+        ASSERT_EQ(deconv_bwd_data_primitive_desc.get_padding_r(), padR);
+
         deconvolution_backward_data(deconv_bwd_data_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_DIFF_DST, dst->get()},
@@ -366,7 +384,7 @@ protected:
 
         auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
                 algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
+                *con_dst_desc, strides, padL, padR);
 
         auto conv_primitive_desc
                 = convolution_forward::primitive_desc(conv_desc, eng);
@@ -403,8 +421,8 @@ protected:
 
         auto deconv_bwd_weights_desc = deconvolution_backward_weights::desc(
                 algorithm::deconvolution_direct, *dec_src_desc,
-                *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
-                {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
+                *dec_weights_desc, *dec_bias_desc, *dec_dst_desc, strides, padL,
+                padR);
         auto deconv_bwd_weights_primitive_desc
                 = deconvolution_backward_weights::primitive_desc(
                         deconv_bwd_weights_desc, eng, deconv_primitive_desc);
@@ -422,6 +440,14 @@ protected:
                             query::exec_arg_md, DNNL_ARG_DIFF_BIAS)
                 == deconv_bwd_weights_primitive_desc.diff_bias_desc());
 
+        ASSERT_EQ(deconv_bwd_weights_primitive_desc.get_algorithm(),
+                algorithm::deconvolution_direct);
+        ASSERT_EQ(deconv_bwd_weights_primitive_desc.get_prop_kind(),
+                prop_kind::backward_weights);
+        ASSERT_EQ(deconv_bwd_weights_primitive_desc.get_strides(), strides);
+        ASSERT_EQ(deconv_bwd_weights_primitive_desc.get_padding_l(), padL);
+        ASSERT_EQ(deconv_bwd_weights_primitive_desc.get_padding_r(), padR);
+
         deconvolution_backward_weights(deconv_bwd_weights_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_DIFF_DST, dst->get()},
@@ -432,14 +458,14 @@ protected:
 
         auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
                 algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
+                *con_dst_desc, strides, padL, padR);
 
         auto conv_primitive_desc
                 = convolution_forward::primitive_desc(conv_desc, eng);
 
         auto conv_bwd_weights_desc = convolution_backward_weights::desc(
                 algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
-                *con_dst_desc, {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
+                *con_dst_desc, strides, padL, padR);
         deconv_bwd_weights_primitive_desc
                 = deconvolution_backward_weights::primitive_desc(
                         deconv_bwd_weights_primitive_desc

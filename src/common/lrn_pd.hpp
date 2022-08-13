@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,15 @@ struct lrn_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::lrn_d: *(const lrn_desc_t **)result = desc(); break;
+            case query::alg_kind:
+                *(alg_kind_t *)result = desc()->alg_kind;
+                break;
+            case query::alpha_f32: *(float *)result = desc()->lrn_alpha; break;
+            case query::beta_f32: *(float *)result = desc()->lrn_beta; break;
+            case query::local_size_s64:
+                *(dim_t *)result = desc()->local_size;
+                break;
+            case query::k_f32: *(float *)result = desc()->lrn_k; break;
             default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;

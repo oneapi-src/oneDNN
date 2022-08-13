@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,8 +50,11 @@ struct resampling_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::resampling_d:
-                *(const resampling_desc_t **)result = desc();
+            case query::alg_kind:
+                *(alg_kind_t *)result = desc()->alg_kind;
+                break;
+            case query::factors:
+                *(const float **)result = desc()->factors;
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }

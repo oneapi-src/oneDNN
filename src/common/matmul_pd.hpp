@@ -39,16 +39,6 @@ struct matmul_pd_t : public primitive_desc_t {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    status_t query(query_t what, int idx, void *result) const override {
-        switch (what) {
-            case query::matmul_d:
-                *(const matmul_desc_t **)result = desc();
-                break;
-            default: return primitive_desc_t::query(what, idx, result);
-        }
-        return status::success;
-    }
-
     arg_usage_t arg_usage(int arg) const override {
         const bool input = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS);
         if (input) return arg_usage_t::input;

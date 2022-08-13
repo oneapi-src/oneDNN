@@ -363,6 +363,19 @@ protected:
         ASSERT_TRUE(pool_bwd_prim_desc.query_md(
                             query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == pool_bwd_prim_desc.workspace_desc());
+
+        ASSERT_EQ(pool_bwd_prim_desc.get_prop_kind(), prop_kind::backward_data);
+        ASSERT_EQ(pool_bwd_prim_desc.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(pool_bwd_prim_desc.get_kernel(), ker);
+        ASSERT_EQ(pool_bwd_prim_desc.get_strides(), strides);
+        ASSERT_EQ(pool_bwd_prim_desc.get_padding_l(), pad_l);
+        ASSERT_EQ(pool_bwd_prim_desc.get_padding_r(), pad_r);
+
+        if (p.test_pd.dd == 0 && p.test_pd.dh == 0 && p.test_pd.dw == 0)
+            ASSERT_EQ(pool_prim_desc.get_dilations(),
+                    memory::dims(pool_prim_desc.src_desc().data.ndims - 2));
+        else
+            ASSERT_EQ(pool_prim_desc.get_dilations(), dilation);
     }
 
     void Forward() {
@@ -419,7 +432,6 @@ protected:
                         {{DNNL_ARG_DIFF_DST, diff_dst},
                                 {DNNL_ARG_DIFF_SRC, diff_src},
                                 {DNNL_ARG_WORKSPACE, workspace}});
-
         strm.wait();
 
         check_zero_tail<data_t>(0, diff_src);

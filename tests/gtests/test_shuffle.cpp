@@ -132,6 +132,10 @@ protected:
             ASSERT_TRUE(src_desc == shuffle_fwd_prim_desc.src_desc());
         }
 
+        ASSERT_EQ(shuffle_fwd_prim_desc.get_prop_kind(), p.aprop_kind);
+        ASSERT_EQ(shuffle_fwd_prim_desc.get_axis(), p.axis);
+        ASSERT_EQ(shuffle_fwd_prim_desc.get_group_size(), p.group_size);
+
         test_memory src(shuffle_fwd_prim_desc.src_desc(), eng);
         test_memory dst(shuffle_fwd_prim_desc.dst_desc(), eng);
 
@@ -172,6 +176,10 @@ protected:
         if (p.data_format != memory::format_tag::any) {
             ASSERT_TRUE(diff_src_desc == shuffle_prim_desc.diff_src_desc());
         }
+
+        ASSERT_EQ(shuffle_prim_desc.get_prop_kind(), prop_kind::backward_data);
+        ASSERT_EQ(shuffle_prim_desc.get_axis(), p.axis);
+        ASSERT_EQ(shuffle_prim_desc.get_group_size(), p.group_size);
 
         fill_data<data_t>(diff_dst.get_size() / sizeof(data_t), diff_dst.get());
 

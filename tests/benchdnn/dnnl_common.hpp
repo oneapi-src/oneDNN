@@ -413,8 +413,6 @@ int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
         const_dnnl_primitive_desc_t pd, res_t *res);
-int check_pd_w_and_wo_attr(
-        const_dnnl_primitive_desc_t pd, const attr_t &attr, res_t *res);
 int check_mem_size(const dnnl_memory_desc_t &md, res_t *res);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res);
 
@@ -544,6 +542,29 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
 }
 
 template <typename func_t, typename prb_t>
+int check_pd_w_and_wo_attr(dnnl_engine_t engine, const func_t &init_pd_func,
+        const prb_t *prb, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
+
+    if (!attr_same_pd_check || prb->attr.is_def()) return OK;
+
+    if (prb->attr.post_ops.convolution_index() != -1) return OK;
+
+    // Check that adding attributes doesn't cause a fall back to another impl.
+    auto *prb_mutable = const_cast<prb_t *>(prb);
+    auto old_attr = prb_mutable->attr;
+    prb_mutable->attr = attr_t();
+    init_pd_args_t<prb_t> init_pd_args_without_attr(
+            res, engine, prb_mutable, dir, hint);
+    DNN_SAFE(init_pd_func(init_pd_args_without_attr), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw(
+            init_pd_args_without_attr.pd);
+    prb_mutable->attr = old_attr;
+    SAFE(check_same_pd(pdw, res), WARN);
+    return OK;
+}
+
+template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, const prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr,
@@ -605,7 +626,9 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     res->impl_name = query_impl_info(pd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     // Check that adding attributes doesn't cause a fall back to another impl.
-    SAFE(check_pd_w_and_wo_attr(pd, prb->attr, res), WARN);
+    SAFE(check_pd_w_and_wo_attr(
+                 get_test_engine(), init_pd_func, prb, res, dir, hint),
+            WARN);
     // Check primitive descriptor is picked up from the cache, if applicable.
     SAFE(check_pd_cache(pd), WARN);
     // Check primitive is picked up from the cache, if applicable.

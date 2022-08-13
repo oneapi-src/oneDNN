@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,9 +36,11 @@ struct reduction_pd_t : public primitive_desc_t {
 
     status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
-            case query::reduction_d:
-                *(const reduction_desc_t **)result = desc();
+            case query::alg_kind:
+                *(alg_kind_t *)result = desc()->alg_kind;
                 break;
+            case query::p_f32: *(float *)result = desc()->p; break;
+            case query::epsilon_f32: *(float *)result = desc()->eps; break;
             default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;

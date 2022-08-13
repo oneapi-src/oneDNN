@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -210,6 +210,7 @@ private:
     std::shared_ptr<test_memory> src, dst, diff_src, diff_dst;
     std::shared_ptr<memory::desc> src_desc, dst_desc;
     std::vector<float> factors;
+    std::vector<float> expected_factors;
     resampling_forward::primitive_desc resampling_pd;
 
     resampling_test_params_t p;
@@ -269,6 +270,11 @@ protected:
         dst_desc = std::make_shared<memory::desc>(
                 dst_dims, data_type, p.src_format);
 
+        for (int i = 0; i < src_desc->data.ndims - 2; i++) {
+            expected_factors.push_back((double)dst_desc->data.dims[2 + i]
+                    / src_desc->data.dims[2 + i]);
+        }
+
         Forward();
         Backward();
     }
@@ -282,14 +288,19 @@ protected:
         resampling_pd = resampling_forward::primitive_desc(
                 resampling_pd.get()); // test construction from a C pd
 
-        if (true) {
+        {
             auto resampling_desc_no_dst = resampling_forward::desc(p.aprop_kind,
                     p.aalgorithm, factors, resampling_pd.src_desc());
             auto resampling_pd_no_dst = resampling_forward::primitive_desc(
                     resampling_desc_no_dst, eng);
             ASSERT_EQ(
                     resampling_pd.dst_desc(), resampling_pd_no_dst.dst_desc());
+            ASSERT_EQ(resampling_pd_no_dst.get_factors(), expected_factors);
         }
+
+        ASSERT_EQ(resampling_pd.get_prop_kind(), p.aprop_kind);
+        ASSERT_EQ(resampling_pd.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(resampling_pd.get_factors(), expected_factors);
 
         auto src = test::make_memory(resampling_pd.src_desc(), eng);
         auto dst = test::make_memory(resampling_pd.dst_desc(), eng);
@@ -323,6 +334,10 @@ protected:
                 = test::make_memory(resampling_bwd_pd.diff_dst_desc(), eng);
         auto diff_src_ref
                 = test::make_memory(resampling_bwd_pd.diff_src_desc(), eng);
+
+        ASSERT_EQ(resampling_bwd_pd.get_prop_kind(), prop_kind::backward_data);
+        ASSERT_EQ(resampling_bwd_pd.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(resampling_bwd_pd.get_factors(), expected_factors);
 
         fill_data<data_t>(
                 diff_dst.get_desc().get_size() / sizeof(data_t), diff_dst);

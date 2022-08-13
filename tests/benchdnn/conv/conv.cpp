@@ -494,8 +494,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    if (prb->alg == AUTO)
-        prb->alg = alg_kind2alg(query_conv_alg_kind(const_pd));
+    if (prb->alg == AUTO) prb->alg = alg_kind2alg(query_alg_kind(const_pd));
     prb->cfg = auto_cfg(prb->alg, prb->cfg);
 
     const auto &src_md = prb->dir == BWD_D

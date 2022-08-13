@@ -799,6 +799,8 @@ DNNL_DEFINE_BITMASK_OPS(rnn_flags)
 
 /// A direction of RNN primitive execution
 enum class rnn_direction {
+    /// Undefined RNN direction.
+    undef = dnnl_rnn_direction_undef,
     /// Unidirectional execution of RNN primitive from left to right.
     unidirectional_left2right = dnnl_unidirectional_left2right,
     /// Unidirectional execution of RNN primitive from right to left.
@@ -874,34 +876,44 @@ enum class query {
     /// cache blob ID (pointer to array)
     cache_blob_id = dnnl_query_cache_blob_id,
 
-    /// operation descriptor
-    op_d = dnnl_query_op_d,
-    /// convolution descriptor
-    convolution_d = dnnl_query_convolution_d,
-    /// deconvolution descriptor
-    deconvolution_d = dnnl_query_deconvolution_d,
-    /// shuffle descriptor
-    shuffle_d = dnnl_query_shuffle_d,
-    /// eltwise descriptor
-    eltwise_d = dnnl_query_eltwise_d,
-    /// lrn descriptor
-    lrn_d = dnnl_query_lrn_d,
-    /// batch normalization descriptor
-    batch_normalization_d = dnnl_query_batch_normalization_d,
-    /// inner product descriptor
-    inner_product_d = dnnl_query_inner_product_d,
-    /// rnn descriptor
-    rnn_d = dnnl_query_rnn_d,
-    /// binary descriptor
-    binary_d = dnnl_query_binary_d,
-    /// matmul descriptor
-    matmul_d = dnnl_query_matmul_d,
-    /// resampling descriptor
-    resampling_d = dnnl_query_resampling_d,
-    /// reduction descriptor
-    reduction_d = dnnl_query_reduction_d,
-    /// batch normalization descriptor
-    layer_normalization_d = dnnl_query_layer_normalization_d,
+    /// strides
+    strides = dnnl_query_strides,
+    /// dilations
+    dilations = dnnl_query_dilations,
+    /// left padding
+    padding_l = dnnl_query_padding_l,
+    /// right padding
+    padding_r = dnnl_query_padding_r,
+    /// epsilon
+    epsilon_f32 = dnnl_query_epsilon_f32,
+    /// flags
+    flags = dnnl_query_flags,
+    /// algorithm kind
+    alg_kind = dnnl_query_alg_kind,
+    /// alpha
+    alpha_f32 = dnnl_query_alpha_f32,
+    /// beta
+    beta_f32 = dnnl_query_beta_f32,
+    /// axis
+    axis_s32 = dnnl_query_axis_s32,
+    /// LRN parameter local size
+    local_size_s64 = dnnl_query_local_size_s64,
+    /// LRN parameter K
+    k_f32 = dnnl_query_k_f32,
+    /// Reduction parameter P
+    p_f32 = dnnl_query_p_f32,
+    /// Resampling parameter factors
+    factors = dnnl_query_factors,
+    /// RNN parameter cell kind
+    cell_kind = dnnl_query_cell_kind,
+    /// RNN parameter direction
+    direction = dnnl_query_direction,
+    /// RNN parameter activation kind
+    activation_kind = dnnl_query_activation_kind,
+    /// Pooling parameter kernel
+    kernel = dnnl_query_kernel,
+    /// Shuffle parameter group size
+    group_size_s64 = dnnl_query_group_size_s64,
 
     /// source memory desc
     src_md = dnnl_query_src_md,
@@ -3931,6 +3943,166 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
         return status == dnnl_success ? res : 0;
     }
 
+    /// Returns strides.
+    /// @returns Strides.
+    /// @returns An empty #dnnl::memory::dims if the primitive does not have
+    ///     a strides parameter.
+    memory::dims get_strides() const { return query_dims(query::strides); }
+
+    /// Returns dilations.
+    /// @returns Dilations.
+    /// @returns An empty #dnnl::memory::dims if the primitive does not have
+    ///     a dilations parameter.
+    memory::dims get_dilations() const { return query_dims(query::dilations); }
+
+    /// Returns a left padding.
+    /// @returns A left padding.
+    /// @returns An empty #dnnl::memory::dims if the primitive does not have
+    ///     a left padding parameter.
+    memory::dims get_padding_l() const { return query_dims(query::padding_l); }
+
+    /// Returns a right padding.
+    /// @returns A right padding.
+    /// @returns An empty #dnnl::memory::dims if the primitive does not have
+    ///     a right padding parameter.
+    memory::dims get_padding_r() const { return query_dims(query::padding_r); }
+
+    /// Returns an epsilon.
+    /// @returns An epsilon.
+    /// @returns Zero if the primitive does not have an epsilon parameter.
+    float get_epsilon() const { return query_f32(query::epsilon_f32); }
+
+    /// Returns flags.
+    /// @tparam T Flags enumeration type.
+    /// @returns Flags.
+    /// @returns Zero if the primitive does not have a flags parameter.
+    template <typename T = unsigned>
+    T get_flags() const {
+        unsigned res;
+        dnnl_status_t status
+                = dnnl_primitive_desc_query(get(), dnnl_query_flags, 0, &res);
+        return static_cast<T>(status == dnnl_success ? res : 0x0U);
+    }
+
+    /// Returns an algorithm kind.
+    /// @returns An algorithm kind.
+    /// @returns #dnnl::algorithm::undef if the primitive does not have an
+    ///     algorithm parameter.
+    dnnl::algorithm get_algorithm() const { return query_alg(query::alg_kind); }
+
+    /// Returns an alpha.
+    /// @returns An alpha.
+    /// @returns Zero if the primitive does not have an alpha parameter.
+    float get_alpha() const { return query_f32(query::alpha_f32); }
+
+    /// Returns a beta.
+    /// @returns A beta.
+    /// @returns Zero if the primitive does not have a beta parameter.
+    float get_beta() const { return query_f32(query::beta_f32); }
+
+    /// Returns an axis.
+    /// @returns An axis.
+    /// @returns A negative number if the primitive does not have an axis
+    ///     parameter.
+    int get_axis() const {
+        int res;
+        dnnl_status_t status = dnnl_primitive_desc_query(
+                get(), dnnl_query_axis_s32, 0, &res);
+        return status == dnnl_success ? res : -1;
+    }
+
+    /// Returns an LRN local size parameter.
+    /// @returns An LRN local size parameter.
+    /// @returns Zero if the primitive does not have an LRN local size
+    ///     parameter.
+    memory::dim get_local_size() const {
+        return query_s64(query::local_size_s64);
+    }
+
+    /// Returns an LRN K parameter.
+    /// @returns An LRN K parameter.
+    /// @returns Zero if the primitive does not have an LRN K parameter.
+    float get_k() const { return query_f32(query::k_f32); }
+
+    /// Returns a reduction P parameter.
+    /// @returns A reduction P parameter.
+    /// @returns Zero if the primitive does not have a reduction P parameter.
+    float get_p() const { return query_f32(query::p_f32); }
+
+    /// Returns a resampling factors parameters.
+    /// @returns A vector of factors.
+    /// @returns An empty vector if the primitive does not have a resampling
+    ///     factors parameter.
+    std::vector<float> get_factors() const {
+        float *factors;
+        dnnl_status_t status = dnnl_primitive_desc_query(
+                get(), dnnl_query_factors, 0, &factors);
+
+        const bool is_backward = get_prop_kind() != prop_kind::forward_training
+                && get_prop_kind() != prop_kind::forward_inference;
+        const dnnl_memory_desc_t *md = dnnl_primitive_desc_query_md(get(),
+                is_backward ? dnnl_query_diff_dst_md : dnnl_query_dst_md, 0);
+
+        return status == dnnl_success
+                ? std::vector<float>(factors, factors + (md->ndims - 2))
+                : std::vector<float> {};
+    }
+
+    /// Returns an RNN cell kind parameter.
+    /// @returns An RNN cell kind parameter.
+    /// @returns #dnnl::algorithm::undef if the primitive does not have an
+    ///     RNN cell kind parameter.
+    dnnl::algorithm get_cell_kind() const {
+        return query_alg(query::cell_kind);
+    }
+
+    /// Returns an RNN direction parameter.
+    /// @returns An RNN direction parameter.
+    /// @returns #dnnl::rnn_direction::undef if the primitive does not have
+    ///     an RNN direction parameter.
+    dnnl::rnn_direction get_direction() const {
+        dnnl_rnn_direction_t direction;
+        dnnl_status_t status = dnnl_primitive_desc_query(
+                get(), dnnl_query_direction, 0, &direction);
+        return status == dnnl_success
+                ? static_cast<dnnl::rnn_direction>(direction)
+                : dnnl::rnn_direction::undef;
+    }
+
+    /// Returns an RNN activation kind parameter.
+    /// @returns An RNN activation kind parameter.
+    /// @returns #dnnl::algorithm::undef if the primitive does not have an
+    ///     RNN activation kind parameter.
+    dnnl::algorithm get_activation_kind() const {
+        return query_alg(query::activation_kind);
+    }
+
+    /// Returns a pooling kernel parameter.
+    /// @returns A pooling kernel parameter.
+    /// @returns An empty #dnnl::memory::dims if the primitive does not have
+    ///     a pooling kernel parameter.
+    memory::dims get_kernel() const { return query_dims(query::kernel); }
+
+    /// Returns a shuffle group size parameter.
+    /// @returns A shuffle group size parameter.
+    /// @returns Zero if the primitive does not have a shuffle group size
+    ///     parameter.
+    memory::dim get_group_size() const {
+        return query_s64(query::group_size_s64);
+    }
+
+    /// Returns a propagation kind.
+    /// @returns A propagation kind.
+    /// @returns #dnnl::prop_kind::undef if the primitive does not have
+    ///     a propagation parameter.
+    dnnl::prop_kind get_prop_kind() const {
+        dnnl_prop_kind_t prop_kind;
+        dnnl_status_t status = dnnl_primitive_desc_query(
+                get(), dnnl_query_prop_kind, 0, &prop_kind);
+        return status == dnnl_success ? static_cast<dnnl::prop_kind>(prop_kind)
+                                      : dnnl::prop_kind::undef;
+    }
+
     /// Returns a memory descriptor.
     ///
     /// @note
@@ -4124,6 +4296,51 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     }
 
 protected:
+    /// Returns a float value.
+    /// @param what The value to query.
+    /// @returns The result of the query.
+    /// @returns Zero if the primitive doesn't support the query.
+    float query_f32(query what) const {
+        float res;
+        dnnl_status_t status = dnnl_primitive_desc_query(
+                get(), dnnl::convert_to_c(what), 0, &res);
+        return status == dnnl_success ? res : 0.0f;
+    }
+
+    /// Returns an #dnnl::algorithm value.
+    /// @param what The value to query.
+    /// @returns The result of the query.
+    /// @returns #dnnl::algorithm::undef if the primitive doesn't support
+    ///     the query.
+    algorithm query_alg(query what) const {
+        dnnl_alg_kind_t res;
+        dnnl_status_t status = dnnl_primitive_desc_query(
+                get(), dnnl::convert_to_c(what), 0, &res);
+        return status == dnnl_success ? static_cast<dnnl::algorithm>(res)
+                                      : algorithm::undef;
+    }
+
+    /// Returns a memory::dims value.
+    /// @param what The value to query.
+    /// @returns The result of the query.
+    /// @returns An empty #dnnl::memory::dims if the primitive doesn't support
+    ///     the query.
+    memory::dims query_dims(query what) const {
+        const bool is_backward = get_prop_kind() != prop_kind::forward_training
+                && get_prop_kind() != prop_kind::forward_inference;
+        const dnnl_memory_desc_t *md = dnnl_primitive_desc_query_md(get(),
+                is_backward ? dnnl_query_diff_dst_md : dnnl_query_dst_md, 0);
+
+        const int nspatial_dims = md ? md->ndims - 2 : 0;
+
+        dnnl_dims_t *c_dims;
+        dnnl_status_t status = dnnl_primitive_desc_query(
+                get(), dnnl::convert_to_c(what), 0, &c_dims);
+        return status == dnnl_success
+                ? memory::dims(*c_dims, *c_dims + nspatial_dims)
+                : memory::dims {};
+    }
+
     /// Resets the value of the handle to a clone of a C API primitive
     /// descriptor.
     /// @param pd A C API primitive descriptor to clone.
@@ -4925,6 +5142,24 @@ struct convolution_forward : public primitive {
         /// @returns A zero memory descriptor of the primitive does not have a
         ///     bias parameter.
         memory::desc bias_desc() const { return base::weights_desc(1); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_strides()const
+        memory::dims get_strides() const { return base::get_strides(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_dilations()const
+        memory::dims get_dilations() const { return base::get_dilations(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_l()const
+        memory::dims get_padding_l() const { return base::get_padding_l(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
+        memory::dims get_padding_r() const { return base::get_padding_r(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -5103,6 +5338,24 @@ struct convolution_backward_data : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
         memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_strides()const
+        memory::dims get_strides() const { return base::get_strides(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_dilations()const
+        memory::dims get_dilations() const { return base::get_dilations(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_l()const
+        memory::dims get_padding_l() const { return base::get_padding_l(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
+        memory::dims get_padding_r() const { return base::get_padding_r(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -5382,6 +5635,24 @@ struct convolution_backward_weights : public primitive {
         memory::desc diff_bias_desc() const {
             return base::diff_weights_desc(1);
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_strides()const
+        memory::dims get_strides() const { return base::get_strides(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_dilations()const
+        memory::dims get_dilations() const { return base::get_dilations(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_l()const
+        memory::dims get_padding_l() const { return base::get_padding_l(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
+        memory::dims get_padding_r() const { return base::get_padding_r(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -5665,6 +5936,24 @@ struct deconvolution_forward : public primitive {
 
         /// @copydoc dnnl::convolution_forward::primitive_desc::bias_desc()const
         memory::desc bias_desc() const { return base::weights_desc(1); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_strides()const
+        memory::dims get_strides() const { return base::get_strides(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_dilations()const
+        memory::dims get_dilations() const { return base::get_dilations(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_l()const
+        memory::dims get_padding_l() const { return base::get_padding_l(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
+        memory::dims get_padding_r() const { return base::get_padding_r(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -5840,6 +6129,24 @@ struct deconvolution_backward_data : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
         memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_strides()const
+        memory::dims get_strides() const { return base::get_strides(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_dilations()const
+        memory::dims get_dilations() const { return base::get_dilations(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_l()const
+        memory::dims get_padding_l() const { return base::get_padding_l(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
+        memory::dims get_padding_r() const { return base::get_padding_r(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6114,6 +6421,24 @@ struct deconvolution_backward_weights : public primitive {
         memory::desc diff_bias_desc() const {
             return base::diff_weights_desc(1);
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_strides()const
+        memory::dims get_strides() const { return base::get_strides(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_dilations()const
+        memory::dims get_dilations() const { return base::get_dilations(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_l()const
+        memory::dims get_padding_l() const { return base::get_padding_l(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
+        memory::dims get_padding_r() const { return base::get_padding_r(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6229,6 +6554,24 @@ struct lrn_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
         memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_alpha()const
+        float get_alpha() const { return base::get_alpha(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_beta()const
+        float get_beta() const { return base::get_beta(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_local_size()const
+        memory::dim get_local_size() const { return base::get_local_size(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_k()const
+        float get_k() const { return base::get_k(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6339,6 +6682,24 @@ struct lrn_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
         memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_alpha()const
+        float get_alpha() const { return base::get_alpha(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_beta()const
+        float get_beta() const { return base::get_beta(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_local_size()const
+        memory::dim get_local_size() const { return base::get_local_size(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_k()const
+        float get_k() const { return base::get_k(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6463,6 +6824,18 @@ struct eltwise_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        dnnl::algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_alpha()const
+        float get_alpha() const { return base::get_alpha(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_beta()const
+        float get_beta() const { return base::get_beta(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6574,6 +6947,18 @@ struct eltwise_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
         memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        dnnl::algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_alpha()const
+        float get_alpha() const { return base::get_alpha(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_beta()const
+        float get_beta() const { return base::get_beta(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6689,6 +7074,15 @@ struct softmax_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        dnnl::algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_axis()const
+        int get_axis() const { return base::get_axis(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6802,6 +7196,15 @@ struct softmax_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        dnnl::algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_axis()const
+        int get_axis() const { return base::get_axis(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6944,23 +7347,29 @@ struct batch_normalization_forward : public primitive {
         /// @returns Memory descriptor for variance.
         memory::desc variance_desc() const { return stat_desc(var); }
 
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
+        float get_epsilon() const { return base::get_epsilon(); }
+
+        /// Returns normalization flags.
+        /// @return Normalization flags.
+        normalization_flags get_flags() const {
+            return base::get_flags<normalization_flags>();
+        }
+
     private:
         enum {
             mean = 1,
             var = 2,
         };
         memory::desc stat_desc(int kind) const {
-            dnnl_batch_normalization_desc_t *p;
-            error::wrap_c_api(
-                    dnnl_primitive_desc_query(get(),
-                            dnnl::convert_to_c(query::batch_normalization_d), 0,
-                            &p),
-                    "could not retrieve a descriptor from a primitive "
-                    "descriptor for batch normalization forward propagation "
-                    "primitive");
-            return query_md(p->flags & dnnl_use_global_stats ? query::src_md
-                                                             : query::dst_md,
-                    kind);
+            const bool use_global_stats
+                    = (get_flags() & normalization_flags::use_global_stats)
+                    != normalization_flags::none;
+            return query_md(
+                    use_global_stats ? query::src_md : query::dst_md, kind);
         }
     };
 
@@ -7100,6 +7509,18 @@ struct batch_normalization_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
         memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
+        float get_epsilon() const { return base::get_epsilon(); }
+
+        /// Returns normalization flags.
+        /// @return Normalization flags.
+        normalization_flags get_flags() const {
+            return base::get_flags<normalization_flags>();
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -7262,23 +7683,29 @@ struct layer_normalization_forward : public primitive {
         /// @copydoc dnnl::batch_normalization_forward::primitive_desc::variance_desc()const
         memory::desc variance_desc() const { return stat_desc(var); }
 
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
+        float get_epsilon() const { return base::get_epsilon(); }
+
+        /// Returns normalization flags.
+        /// @return Normalization flags.
+        normalization_flags get_flags() const {
+            return base::get_flags<normalization_flags>();
+        }
+
     private:
         enum {
             mean = 1,
             var = 2,
         };
         memory::desc stat_desc(int kind) const {
-            dnnl_layer_normalization_desc_t *p;
-            error::wrap_c_api(
-                    dnnl_primitive_desc_query(get(),
-                            dnnl::convert_to_c(query::layer_normalization_d), 0,
-                            &p),
-                    "could not retrieve a descriptor from a primitive "
-                    "descriptor for layer normalization forward propagation "
-                    "primitive");
-            return query_md(p->flags & dnnl_use_global_stats ? query::src_md
-                                                             : query::dst_md,
-                    kind);
+            const bool use_global_stats
+                    = (get_flags() & normalization_flags::use_global_stats)
+                    != normalization_flags::none;
+            return query_md(
+                    use_global_stats ? query::src_md : query::dst_md, kind);
         }
     };
 
@@ -7445,6 +7872,18 @@ struct layer_normalization_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
         memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
+        float get_epsilon() const { return base::get_epsilon(); }
+
+        /// Returns normalization flags.
+        /// @return Normalization flags.
+        normalization_flags get_flags() const {
+            return base::get_flags<normalization_flags>();
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -7562,6 +8001,9 @@ struct inner_product_forward : public primitive {
         /// @copydoc dnnl::convolution_forward::primitive_desc::bias_desc()const
         memory::desc bias_desc() const { return base::weights_desc(1); }
 
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
     private:
         primitive_desc(const engine &aengine, prop_kind aprop_kind,
                 const memory::desc &src_desc, const memory::desc &weights_desc,
@@ -7668,6 +8110,9 @@ struct inner_product_backward_data : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
         memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -7781,6 +8226,9 @@ struct inner_product_backward_weights : public primitive {
         memory::desc diff_bias_desc() const {
             return base::diff_weights_desc(1);
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
 
     private:
         primitive_desc(const engine &aengine, const memory::desc &src_desc,
@@ -8029,21 +8477,37 @@ protected:
     rnn_primitive_desc_base(dnnl_primitive_desc_t pd,
             dnnl::prop_kind prop_kind1, dnnl::prop_kind prop_kind2,
             dnnl::algorithm cell_kind) {
-        dnnl_rnn_desc_t *rnn_d;
+
         dnnl_status_t rc;
-        rc = dnnl_primitive_desc_query(pd, dnnl_query_rnn_d, 0, &rnn_d);
+
+        dnnl_primitive_kind_t q_primitive_kind;
+        rc = dnnl_primitive_desc_query(
+                pd, dnnl_query_primitive_kind, 0, &q_primitive_kind);
         error::wrap_c_api(rc,
-                "could not retrieve a descriptor from a primitive descriptor "
+                "could not retrieve a primitive kind from a primitive "
+                "descriptor for an RNN primitive");
+
+        dnnl_prop_kind_t q_prop_kind;
+        rc = dnnl_primitive_desc_query(
+                pd, dnnl_query_prop_kind, 0, &q_prop_kind);
+        error::wrap_c_api(rc,
+                "could not retrieve a propagation kind from a primitive "
+                "descriptor for an RNN primitive");
+
+        dnnl_alg_kind_t q_cell_kind;
+        rc = dnnl_primitive_desc_query(
+                pd, dnnl_query_cell_kind, 0, &q_cell_kind);
+        error::wrap_c_api(rc,
+                "could not retrieve a cell kind from a primitive descriptor "
                 "for an RNN primitive");
 
         dnnl_prop_kind_t c_prop_kind1 = convert_to_c(prop_kind1);
         dnnl_prop_kind_t c_prop_kind2 = convert_to_c(prop_kind2);
         dnnl_alg_kind_t c_cell_kind = convert_to_c(cell_kind);
 
-        bool ok = rnn_d->primitive_kind == dnnl_rnn
-                && (rnn_d->prop_kind == c_prop_kind1
-                        || rnn_d->prop_kind == c_prop_kind2)
-                && rnn_d->cell_kind == c_cell_kind;
+        bool ok = q_primitive_kind == dnnl_rnn
+                && (q_prop_kind == c_prop_kind1 || q_prop_kind == c_prop_kind2)
+                && q_cell_kind == c_cell_kind;
 
         if (!ok)
             DNNL_THROW_ERROR(dnnl_invalid_arguments,
@@ -8204,6 +8668,26 @@ struct vanilla_rnn_forward : public primitive {
         memory::desc workspace_desc() const {
             return rnn_base::workspace_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_activation_kind()const
+        algorithm get_activation_kind() const {
+            return base::get_activation_kind();
+        }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_alpha()const
+        float get_alpha() const { return base::get_alpha(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_beta()const
+        float get_beta() const { return base::get_beta(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -8440,6 +8924,26 @@ struct vanilla_rnn_backward : public primitive {
         memory::desc diff_dst_iter_desc() const {
             return rnn_base::diff_dst_iter_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_activation_kind()const
+        algorithm get_activation_kind() const {
+            return base::get_activation_kind();
+        }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_alpha()const
+        float get_alpha() const { return base::get_alpha(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_beta()const
+        float get_beta() const { return base::get_beta(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -8766,6 +9270,15 @@ struct lstm_forward : public primitive {
         memory::desc workspace_desc() const {
             return rnn_base::workspace_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -9278,6 +9791,15 @@ struct lstm_backward : public primitive {
         memory::desc diff_dst_iter_c_desc() const {
             return rnn_base::diff_dst_iter_c_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -9435,6 +9957,15 @@ struct gru_forward : public primitive {
         memory::desc workspace_desc() const {
             return rnn_base::workspace_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -9658,6 +10189,15 @@ struct gru_backward : public primitive {
         memory::desc diff_dst_iter_desc() const {
             return rnn_base::diff_dst_iter_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -9818,6 +10358,15 @@ struct lbr_gru_forward : public primitive {
         memory::desc workspace_desc() const {
             return rnn_base::workspace_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -10044,6 +10593,15 @@ struct lbr_gru_backward : public primitive {
         memory::desc diff_dst_iter_desc() const {
             return rnn_base::diff_dst_iter_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -10209,6 +10767,15 @@ struct augru_forward : public primitive {
         memory::desc workspace_desc() const {
             return rnn_base::workspace_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -10448,6 +11015,15 @@ struct augru_backward : public primitive {
         memory::desc diff_dst_iter_desc() const {
             return rnn_base::diff_dst_iter_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -10615,6 +11191,15 @@ struct lbr_augru_forward : public primitive {
         memory::desc workspace_desc() const {
             return rnn_base::workspace_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -10857,6 +11442,15 @@ struct lbr_augru_backward : public primitive {
         memory::desc diff_dst_iter_desc() const {
             return rnn_base::diff_dst_iter_desc();
         }
+
+        /// @copydoc dnnl::primitive_desc_base::get_cell_kind()const
+        algorithm get_cell_kind() const { return base::get_cell_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_direction()const
+        rnn_direction get_direction() const { return base::get_direction(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -10949,6 +11543,15 @@ struct shuffle_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_axis()const
+        int get_axis() const { return base::get_axis(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_group_size()const
+        memory::dim get_group_size() const { return base::get_group_size(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -11031,6 +11634,15 @@ struct shuffle_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
         memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_axis()const
+        int get_axis() const { return base::get_axis(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_group_size()const
+        memory::dim get_group_size() const { return base::get_group_size(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -11139,6 +11751,9 @@ struct binary : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -11676,6 +12291,27 @@ struct pooling_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
         memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_strides()const
+        memory::dims get_strides() const { return base::get_strides(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_kernel()const
+        memory::dims get_kernel() const { return base::get_kernel(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_dilations()const
+        memory::dims get_dilations() const { return base::get_dilations(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_l()const
+        memory::dims get_padding_l() const { return base::get_padding_l(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
+        memory::dims get_padding_r() const { return base::get_padding_r(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -11805,6 +12441,27 @@ struct pooling_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
         memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_strides()const
+        memory::dims get_strides() const { return base::get_strides(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_kernel()const
+        memory::dims get_kernel() const { return base::get_kernel(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_dilations()const
+        memory::dims get_dilations() const { return base::get_dilations(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_l()const
+        memory::dims get_padding_l() const { return base::get_padding_l(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_padding_r()const
+        memory::dims get_padding_r() const { return base::get_padding_r(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -11913,6 +12570,9 @@ struct prelu_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -12021,6 +12681,9 @@ struct prelu_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
         memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        prop_kind get_prop_kind() const { return base::get_prop_kind(); }
     };
 
     /// Default constructor. Produces an empty object.
@@ -12130,6 +12793,15 @@ struct reduction : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_p()const
+        float get_p() const { return base::get_p(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
+        float get_epsilon() const { return base::get_epsilon(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_algorithm()const
+        algorithm get_algorithm() const { return base::get_algorithm(); }
     };
 
     /// Default constructor. Produces an empty object.

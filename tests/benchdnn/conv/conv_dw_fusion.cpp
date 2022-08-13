@@ -200,7 +200,7 @@ int doit(const prb_t *prb, res_t *res) {
     auto const_pd = query_pd(prim);
 
     if (prb->alg == alg_t::AUTO)
-        prb->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd));
+        prb->alg = conv::alg_kind2alg(query_alg_kind(const_pd));
     prb->cfg = auto_cfg(prb->alg, prb->cfg);
 
     const auto &src_md = prb->dir == BWD_D
@@ -264,7 +264,7 @@ int doit(const prb_t *prb, res_t *res) {
     auto const_pd0 = query_pd(prim0);
 
     if (p0->alg == alg_t::AUTO)
-        p0->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd0));
+        p0->alg = conv::alg_kind2alg(query_alg_kind(const_pd0));
     p0->cfg = auto_cfg(p0->alg, p0->cfg);
 
     const auto &src_md0 = p0->dir == BWD_D
@@ -316,7 +316,7 @@ int doit(const prb_t *prb, res_t *res) {
     auto const_pd1 = query_pd(prim1);
 
     if (p1->alg == alg_t::AUTO)
-        p1->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd1));
+        p1->alg = conv::alg_kind2alg(query_alg_kind(const_pd1));
     p1->cfg = auto_cfg(p1->alg, p1->cfg);
 
     const auto &src_md1 = prb->dir == BWD_D

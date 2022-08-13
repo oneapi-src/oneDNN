@@ -2255,6 +2255,8 @@ typedef enum {
 
 /// A direction of RNN primitive execution.
 typedef enum {
+    /// Undefined RNN direction.
+    dnnl_rnn_direction_undef = 0,
     /// Unidirectional execution of RNN primitive from left to right.
     dnnl_unidirectional_left2right,
     /// Unidirectional execution of RNN primitive from right to left.
@@ -2838,6 +2840,7 @@ typedef struct {
 /// #dnnl_query_primitive_kind      | #dnnl_primitive_kind_t *
 /// dnnl_query_*_s32                | int *
 /// dnnl_query_*_s64                | #dnnl_dim_t * (same as int64_t *)
+/// dnnl_query_*_f32                | float *
 /// dnnl_query_*_f64                | double *
 /// dnnl_query_*_str                | const char **
 /// #dnnl_query_op_d                | #const_dnnl_op_desc_t *
@@ -2845,6 +2848,17 @@ typedef struct {
 /// dnnl_query_*_\<op\>_d           | const dnnl_\<op\>_desc_t **
 /// dnnl_query_*_pd                 | #const_dnnl_primitive_desc_t *
 /// dnnl_query_cache_blob_id        | const uint8_t **
+/// dnnl_query_strides              | const #dnnl_dims_t **
+/// dnnl_query_dilations            | const #dnnl_dims_t **
+/// dnnl_query_padding_l            | const #dnnl_dims_t **
+/// dnnl_query_padding_r            | const #dnnl_dims_t **
+/// dnnl_query_flags                | unsigned *
+/// dnnl_query_alg_kind             | #dnnl_alg_kind_t *
+/// dnnl_query_factors              | const float **
+/// dnnl_query_cell_kind            | #dnnl_alg_kind_t *
+/// dnnl_query_direction            | #dnnl_rnn_direction_t *
+/// dnnl_query_activation_kind      | #dnnl_alg_kind_t *
+/// dnnl_query_kernel               | const #dnnl_dims_t **
 ///
 /// @note
 ///     Rule of thumb: all opaque types and structures are returned by
@@ -2884,26 +2898,25 @@ typedef enum {
     dnnl_query_cache_blob_id_size_s64, ///< size of cache blob ID in bytes
     dnnl_query_cache_blob_id, ///< cache blob  ID (pointer to array)
 
-    // memory and op descriptor section
-    dnnl_query_some_d = 64, ///< stub
-    dnnl_query_op_d, ///< op descriptor
-    dnnl_query_convolution_d, ///< convolution descriptor
-    dnnl_query_deconvolution_d, ///< deconvolution descriptor
-    dnnl_query_shuffle_d, ///< shuffle descriptor
-    dnnl_query_eltwise_d, ///< eltwise descriptor
-    dnnl_query_lrn_d, ///< lrn descriptor
-    dnnl_query_batch_normalization_d, ///< batch normalization descriptor
-    dnnl_query_inner_product_d, ///< inner product descriptor
-    dnnl_query_rnn_d, ///< rnn descriptor
-    dnnl_query_gemm_d, ///< GEMM descriptor (internal)
-    dnnl_query_binary_d, ///< binary descriptor
-    dnnl_query_matmul_d, ///< matrix multiplication (matmul) descriptor
-    dnnl_query_resampling_d, ///< resampling descriptor
-    dnnl_query_pooling_d, ///< pooling descriptor
-    dnnl_query_reduction_d, ///< reduction descriptor
-    dnnl_query_prelu_d, ///< prelu descriptor
-    dnnl_query_softmax_d, ///< softmax descriptor
-    dnnl_query_layer_normalization_d, ///< layer normalization descriptor
+    dnnl_query_strides, ///< strides
+    dnnl_query_dilations, ///< dilations
+    dnnl_query_padding_l, ///< left padding
+    dnnl_query_padding_r, ///< right padding
+    dnnl_query_epsilon_f32, ///< epsilon
+    dnnl_query_flags, ///< flags
+    dnnl_query_alg_kind, ///< algorithm kind
+    dnnl_query_alpha_f32, ///< alpha
+    dnnl_query_beta_f32, ///< beta
+    dnnl_query_axis_s32, ///< axis
+    dnnl_query_local_size_s64, ///< LRN parameter local size
+    dnnl_query_k_f32, ///< LRN parameter K
+    dnnl_query_p_f32, ///< Reduction parameter P
+    dnnl_query_factors, ///< Resampling parameter factors
+    dnnl_query_cell_kind, ///< RNN parameter cell kind
+    dnnl_query_direction, ///< RNN parameter direction
+    dnnl_query_activation_kind, ///< RNN parameter activation kind
+    dnnl_query_kernel, ///< Pooling parameter kernel
+    dnnl_query_group_size_s64, ///< Shuffle parameter group size
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub
