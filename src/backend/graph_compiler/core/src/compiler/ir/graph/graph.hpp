@@ -116,6 +116,8 @@ struct SC_API graph_tensor SC_EXTENDS_LEAK_CHECK(graph_tensor) {
     // the op nodes that use this tensor as input
     std::vector<std::pair<int, sc_op_weak_ptr_t>> uses_;
 
+    any_map_t attrs_;
+
     graph_tensor(sc_op *owner);
     graph_tensor(sc_op *owner, const logical_tensor_t &lt);
     graph_tensor(sc_op *owner, const sc_data_format_t &format,
