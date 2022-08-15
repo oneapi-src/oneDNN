@@ -398,8 +398,8 @@ public:
                 widths[i] = std::max(widths[i], r[i].length());
             }
         }
-        auto print = [&](std::ostream &out, int idx, const std::string &s) {
-            int w = widths[idx] + 2;
+        auto print = [&](std::ostream &out, size_t idx, const std::string &s) {
+            int w = (int)widths[idx] + 2;
             out << std::setw(w);
             out << (idx > 0 ? std::right : std::left);
             out << s;
