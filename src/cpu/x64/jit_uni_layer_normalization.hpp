@@ -102,8 +102,12 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
                             src_md()->data_type, f32, bf16, f16, s8, u8)
                     && utils::one_of(
                             dst_md()->data_type, f32, bf16, f16, s8, u8)
-                    && platform::has_data_type_support(src_md()->data_type)
-                    && platform::has_data_type_support(dst_md()->data_type)
+                    && IMPLICATION(utils::one_of(bf16, src_md()->data_type,
+                                           dst_md()->data_type),
+                            mayiuse(avx512_core))
+                    && IMPLICATION(utils::one_of(f16, src_md()->data_type,
+                                           dst_md()->data_type),
+                            mayiuse(avx512_core_fp16))
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
                     && attr()->has_default_values(skip_mask_t::oscale_runtime)
@@ -230,9 +234,14 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
                     && utils::one_of(src_md()->data_type, f32, bf16, f16)
                     && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
                     && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
-                    && platform::has_data_type_support(src_md()->data_type)
-                    && platform::has_data_type_support(diff_dst_md()->data_type)
-                    && platform::has_data_type_support(diff_src_md()->data_type)
+                    && IMPLICATION(utils::one_of(bf16, src_md()->data_type,
+                                           diff_dst_md()->data_type,
+                                           diff_src_md()->data_type),
+                            mayiuse(avx512_core))
+                    && IMPLICATION(utils::one_of(f16, src_md()->data_type,
+                                           diff_dst_md()->data_type,
+                                           diff_src_md()->data_type),
+                            mayiuse(avx512_core_fp16))
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
                     && attr()->has_default_values()
