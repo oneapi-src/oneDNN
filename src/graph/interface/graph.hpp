@@ -49,7 +49,6 @@ namespace graph = dnnl::impl::graph;
 namespace dnnl {
 namespace impl {
 namespace graph {
-fpmath_mode_t get_default_fpmath_mode();
 
 void rewrite(
         graph_t &agraph, const std::vector<std::vector<op_t *>> &fusion_ops);
@@ -84,7 +83,7 @@ private:
 
 public:
     dnnl_graph_graph(graph::engine_kind_t kind = graph::engine_kind::cpu)
-        : engine_kind_(kind), fpmath_mode_(graph::get_default_fpmath_mode()) {}
+        : engine_kind_(kind), fpmath_mode_(dnnl::impl::get_fpmath_mode()) {}
 
     dnnl_graph_graph(
             graph::engine_kind_t kind, graph::fpmath_mode_t fpmath_mode)

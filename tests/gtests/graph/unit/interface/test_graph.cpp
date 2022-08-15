@@ -450,14 +450,15 @@ TEST(Graph, Rewrite) {
 }
 
 TEST(Graph, SetFpmathMode) {
-    ASSERT_EQ(impl::get_default_fpmath_mode(), impl::fpmath_mode::strict);
+    using namespace dnnl::impl::graph;
+    ASSERT_EQ(dnnl::impl::get_fpmath_mode(), fpmath_mode::strict);
 
-    impl::graph_t graph;
-    ASSERT_EQ(graph.get_fpmath_mode(), impl::fpmath_mode::strict);
+    graph_t graph;
+    ASSERT_EQ(graph.get_fpmath_mode(), fpmath_mode::strict);
 
-    for (auto m : {impl::fpmath_mode::strict, impl::fpmath_mode::bf16,
-                 impl::fpmath_mode::f16, impl::fpmath_mode::any}) {
-        impl::graph_t graph2 {impl::engine_kind::cpu, m};
+    for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
+                 fpmath_mode::any}) {
+        graph_t graph2 {engine_kind::cpu, m};
         ASSERT_EQ(graph2.get_fpmath_mode(), m);
     }
 }

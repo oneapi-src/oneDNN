@@ -66,19 +66,6 @@ bool logical_tensor_sanity_check(
 namespace dnnl {
 namespace impl {
 namespace graph {
-fpmath_mode_t get_default_fpmath_mode() {
-    static fpmath_mode_t default_fpmath_mode = fpmath_mode::strict;
-    static std::string val = getenv_string_user("DEFAULT_FPMATH_MODE");
-    if (!val.empty()) {
-        if (val.compare("strict") == 0)
-            default_fpmath_mode = fpmath_mode::strict;
-        if (val.compare("bf16") == 0) default_fpmath_mode = fpmath_mode::bf16;
-        if (val.compare("f16") == 0) default_fpmath_mode = fpmath_mode::f16;
-        if (val.compare("tf32") == 0) default_fpmath_mode = fpmath_mode::tf32;
-        if (val.compare("any") == 0) default_fpmath_mode = fpmath_mode::any;
-    }
-    return default_fpmath_mode;
-}
 
 // function to do graph rewriting
 void rewrite(
