@@ -519,6 +519,13 @@ static void find_ths_and_ax_then_remove(
     s->seq_.erase(s->seq_.begin() + ax_in_parent); // remove ax from parent
 }
 
+static int *get_unroll_factor_attr(const for_loop_node_t *ths) {
+    if (ths->attr_) {
+        return ths->attr_->get_or_null<int>(stmt_attr_key::unroll_loop);
+    }
+    return nullptr;
+}
+
 static void do_merge(
         for_loop_node_t *ths, const stmt &parent, const for_loop &ax) {
     // now replace ax's variable with this->var_
@@ -535,6 +542,16 @@ static void do_merge(
     flatten_stmt_and_append(ths->body_, newbody);
     flatten_stmt_and_append(axbody, newbody);
     ths->body_ = make_stmt<stmts_node_t>(std::move(newbody));
+    if (auto unroll_ax = get_unroll_factor_attr(ax.get())) {
+        auto unroll_ths = get_unroll_factor_attr(ths);
+        if (!unroll_ths) {
+            ths->attr()[stmt_attr_key::unroll_loop] = *unroll_ax;
+        } else {
+            COMPILE_ASSERT(*unroll_ax == *unroll_ths,
+                    "Different unroll factors when merging the loops: "
+                            << *unroll_ths << "v.s." << *unroll_ax);
+        }
+    }
 }
 
 for_loop for_loop_node_t::merge(const stmt &parent, const for_loop &ax) {

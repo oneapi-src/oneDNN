@@ -50,6 +50,10 @@ enum class sc_stmt_type {
 namespace stmt_attr_key {
 // Boolean. If true, for_loop_node_t will be merged as possible
 constexpr const char *merge_loop = "merge_loop";
+// int. If is set, for_loop_node_t will be unrolled in loop_unroller pass.
+// The value is the unroll factor, see unroll() of for_loop_node_t. The value 0
+// is a special unroll factor, and it unrolls all iterations of the loop
+constexpr const char *unroll_loop = "unroll_loop";
 }; // namespace stmt_attr_key
 
 std::ostream &operator<<(std::ostream &os, sc_stmt_type val);

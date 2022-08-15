@@ -39,6 +39,7 @@
 #include <compiler/ir/transform/interface_generalize.hpp>
 #include <compiler/ir/transform/loop_invariant_code_motion.hpp>
 #include <compiler/ir/transform/loop_merge.hpp>
+#include <compiler/ir/transform/loop_unroll.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <compiler/ir/transform/simplify.hpp>
@@ -81,6 +82,7 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<bf16_eliminator_t>(ctx));
     ret.emplace_back(utils::make_unique<target_specific_lowering_cpu_t>(ctx));
     ret.emplace_back(module_function_pass_t::make<func_inliner_t>());
+    ret.emplace_back(module_function_pass_t::make<loop_unroller_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>());
 
     ret.emplace_back(utils::make_unique<kernel_lowering_cpu_t>(
