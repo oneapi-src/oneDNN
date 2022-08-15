@@ -95,6 +95,12 @@ bool check_brgemm_LDX(
         int64_t acc_orig = 1, acc_shrink = 1;
         // for conv_bwd_data stride_w > 1 cases
         args[LD_arg_idx]->attr();
+        if (args[LD_arg_idx]->attr_->get_or_else("plain_init", false)) {
+            acc_shrink = get_expr_as_int(shrink_info.shape_.back());
+            args[LD_arg_idx]
+                    = make_expr<constant_node>(acc_shrink, datatypes::s32);
+            return true;
+        }
         if (args[LD_arg_idx]->attr_->get_or_else("stride_w", 1) > 1) {
             auto N_axes = args[LD_arg_idx]->attr_->get_or_else(
                     "N_axes", std::vector<size_t> {});
@@ -130,7 +136,7 @@ bool check_brgemm_LDX(
             for (int64_t i
                     = static_cast<int64_t>(shrink_info.shape_.size()) - 1;
                     i >= 0; i--) {
-                if (acc_orig == LDX) {
+                if (acc_orig >= LDX) {
                     if (acc_shrink == acc_orig)
                         return false;
                     else {
@@ -300,6 +306,44 @@ public:
             return v;
         }
         return ir_visitor_t::visit(v);
+    }
+
+    stmt_c visit(evaluate_c v) override {
+        auto old_call_node = v->value_.static_as<call>();
+        auto old_args = old_call_node->args_;
+        auto evaluate = ir_visitor_t::visit(v).checked_as<evaluate_c>();
+        // after this visit(v) the c->args_[0] has been shrinked
+        // so old_args rather than new args_cpy can be used to
+        // judge whether we "should_shrink"
+        bool is_call
+                = evaluate->value_.defined() && evaluate->value_.isa<call>();
+        if (is_call) {
+            auto c = evaluate->value_.static_as<call>();
+            auto func = std::dynamic_pointer_cast<func_base>(c->func_);
+            // func can be a nullptr
+            if (func && func->name_ == "dnnl_brgemm_init") {
+                // old arg attributes are still available on visited args
+                auto args_cpy = c->args_;
+                std::vector<std::pair<int, int>> check_LDX_list = {
+                        {0, 3}, // {C, LDC}
+                };
+                bool changed = false;
+                for (auto &check_pair : check_LDX_list) {
+                    // need to check old_args's buffer to get the correct
+                    // "should_shrink" logic
+                    if (check_brgemm_LDX(args_cpy, old_args[check_pair.first],
+                                check_pair.second)) {
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    return copy_attr(*evaluate,
+                            builder::make_evaluate_unattached(
+                                    make_expr<call_node>(c->func_, args_cpy)));
+                }
+            }
+        }
+        return evaluate;
     }
 
     /**

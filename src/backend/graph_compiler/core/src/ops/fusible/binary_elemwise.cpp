@@ -729,6 +729,8 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
         for (auto &it : tcur) {
             bld->emit(it);
         }
+        // TODO(yifei): analyze whether this is safe enough
+        cur->attr()[stmt_attr_key::merge_loop] = true;
     } else {
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);

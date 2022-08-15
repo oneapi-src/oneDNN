@@ -192,6 +192,9 @@ constexpr const char *bwise_break_post_fuse = "bwise_break_post_fuse";
 constexpr const char *bwise_no_strided_dims = "bwise_no_strided_dims";
 // the name of the layer. Will be used to name the IR function
 constexpr const char *layer_name = "temp.name";
+// op marked with not_redundant will not be removed in horizontal same op
+// elimination
+constexpr const char *not_redundant = "temp.not_redundant";
 }; // namespace op_attr_key
 
 class sc_graph_t;

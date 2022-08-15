@@ -156,9 +156,14 @@ static graph_tensor_ptr get_linked_output_tsr(const graph_tensor_ptr &ltensor) {
         for (size_t i = 0; i < ltensor->uses_.size(); i++) {
             if (ltensor->uses_[i].second->isa<tensor_view_op_t>()) {
                 auto reshape = ltensor->uses_[i].second;
-                for (auto &cld : reshape->get_outputs()[0]->uses_) {
+                auto next_ltensor = reshape->get_outputs()[0];
+                for (auto &cld : next_ltensor->uses_) {
                     if (cld.second->isa<output_op>()) {
                         return cld.second->get_inputs()[cld.first];
+                    } else if (cld.second->isa<tensor_view_op_t>()) {
+                        auto cur_linked_out
+                                = get_linked_output_tsr(next_ltensor);
+                        if (cur_linked_out) { return cur_linked_out; }
                     }
                 }
             }

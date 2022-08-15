@@ -406,15 +406,22 @@ struct brg_desc_safe_t {
         auto choose_isa_type = [&]() {
             if (dnnl_dtypeA != dnnl_f32 && (arg.K < (4 / (int)dtype_size)))
                 return avx512_core_vnni;
-            int rd_block = dnnl_dtypeA == dnnl_bf16
+            int max_rd_block = dnnl_dtypeA == dnnl_bf16
                     ? 32
                     : (dnnl_dtypeA == dnnl_s8 || dnnl_dtypeA == dnnl_u8) ? 64
                                                                          : -1;
             // when no need for amx:
-            if (rd_block == -1) { return isa_any; }
+            if (max_rd_block == -1) { return isa_any; }
+            int dtype_block = max_rd_block == 32 ? 2 : 4;
+            int rd_block = dtype_block;
+            for (int i = max_rd_block; i > 0; i -= dtype_block) {
+                if (arg.K % i == 0) {
+                    rd_block = i;
+                    break;
+                }
+            }
             int rdb = arg.K / rd_block;
             int rdb_tail = arg.K % rd_block;
-            int dtype_block = rd_block == 32 ? 2 : 4;
             // if somehow invalid config for amx was generated anyway, make sure
             // it runs on vnni, which has less constraints
             if (rdb > 0 && rdb_tail > 0) { return avx512_core_vnni; }

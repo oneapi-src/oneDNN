@@ -61,6 +61,11 @@ void drop_same_op_on_output(sc_graph_t &graph, const graph_tensor_ptr &output) {
             same_op_map;
     for (size_t i = 0; i < output->uses_.size(); i++) {
         auto node = output->uses_[i];
+        // do not eliminate redundant ops marked as "temp.not_redundant"
+        if (node.second->attrs_.get_or_else(
+                    op_attr_key::not_redundant, false)) {
+            continue;
+        }
         if (node.second->get_inputs().empty()
                 || node.second->get_outputs().empty()) {
             continue;

@@ -940,7 +940,9 @@ void schedule_loop_body(
                         && (fused_number % run_threads) == 0))
             break;
         auto inner_loop = get_inner_for_loop(cur_loop.get());
-        if (inner_loop.defined() && !inner_loop->num_threads_) {
+        if (inner_loop.defined() && !inner_loop->num_threads_
+                && !inner_loop->attr().get_or_else(
+                        "temp.loop_no_fuse", false)) {
             std::unordered_map<expr, expr> cur_remap;
             outer_most_loop->fuse(
                     inner_loop, expr_remap ? &cur_remap : nullptr);

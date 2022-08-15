@@ -47,7 +47,7 @@ std::shared_ptr<sc_graph_t> relu_backprop_op::get_graph_impl() {
     // relu(x). otherwise, inputs0 is the src of forward
 
     sc_op_ptr select_one, mul;
-    if (attrs_.get_or_else("use_dst", false)) {
+    if (attrs_.get_or_else("use_dst", true)) {
         select_one = graph->make("select_one", {inputs[0]}, {}, {});
         mul = graph->make(
                 "mul", {inputs[1], select_one->get_outputs()[0]}, {}, {});

@@ -183,7 +183,8 @@ std::shared_ptr<sc_graph_t> conv_fwd_op_t::get_graph_impl() {
     }
 
     if (data_format == "NXC") {
-        // permute NCX to NXC
+        // conv_fwd_core's output is with NCX plain shape
+        // need to permute NCX to NXC
         conv = graph->make("transpose", conv->get_outputs(), {},
                 {{"order",
                         is_3D ? std::vector<int> {0, 2, 3, 4, 1}
@@ -216,7 +217,189 @@ void conv_fwd_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {}
 
+conv_bwd_data_op_t::conv_bwd_data_op_t(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    COMPILE_ASSERT(ins.size() == 2 || ins.size() == 3,
+            "conv_bwd_data's inputs size should be 2(output_delta, filter) or "
+            "3(output_delta, filter, output_shape).");
+    info_.inputs_ = ins;
+    info_.outputs_ = outs;
+    attrs_ = attrs;
+    op_name_ = "conv_bwd_data";
+    COMPILE_ASSERT(attrs_.has_key("output_shape"),
+            "conv_bwd_data currently does not support reading dynamic shape "
+            "passed as one of the input.");
+    auto out_shape = attrs_.get<sc_dims>("output_shape");
+    auto out_dtype = info_.inputs_[0]->details_.dtype_;
+    if (outs.empty()) {
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
+                this, sc_data_format_t(), out_shape, out_dtype));
+    } else {
+        COMPILE_ASSERT(
+                info_.outputs_.size() == 1, "conv_bwd_data expects 1 output.");
+        COMPILE_ASSERT(
+                info_.outputs_[0]->details_.get_plain_dims() == out_shape,
+                "Bad output shape for conv_bwd_data");
+        COMPILE_ASSERT(info_.outputs_[0]->details_.dtype_ == out_dtype,
+                "Bad output dtype for conv_bwd_data");
+    }
+}
+
+std::shared_ptr<sc_graph_t> conv_bwd_data_op_t::get_graph_impl() {
+    auto graph = std::make_shared<sc_graph_t>();
+    // create new input logical tensors
+    std::vector<graph_tensor_ptr> inputs, outputs;
+    inputs = remake_logical_tensors(info_.inputs_);
+    outputs = remake_logical_tensors(info_.outputs_);
+    auto ins = graph->make_input(inputs);
+    sc_op_ptr conv, graph_out;
+    graph_tensor_ptr output_delta = inputs[0], filter = inputs[1];
+
+    bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
+    auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
+    auto filter_format
+            = attrs_.get_or_else("filter_format", std::string("XIO"));
+    auto dim = inputs[0]->details_.get_plain_dims().size();
+    COMPILE_ASSERT(dim == 4 || dim == 5, "Only support conv2D and conv3D.");
+    auto is_3D = (dim == 5);
+
+    // insert transpose to make NXC --> NCX and XIO --> OIX
+    if (data_format == "NXC") {
+        auto permute_output_delta = graph->make("transpose", {output_delta}, {},
+                {{"order",
+                        is_3D ? std::vector<int> {0, 4, 1, 2, 3}
+                              : std::vector<int> {0, 3, 1, 2}}});
+        output_delta = permute_output_delta->get_outputs()[0];
+
+        // change output_shape attributes
+        auto output_shape = attrs_.get<sc_dims>("output_shape");
+        permute_shape_NXC2NCX(output_shape);
+        attrs_.set<sc_dims>("output_shape", output_shape);
+    }
+    if (filter_format == "XIO") {
+        auto permute_weight = graph->make("transpose", {filter}, {},
+                {{"order",
+                        is_3D ? std::vector<int> {4, 3, 0, 1, 2}
+                              : std::vector<int> {3, 2, 0, 1}}});
+        filter = permute_weight->get_outputs()[0];
+    }
+
+    conv = graph->make(
+            "conv_bwd_data_core", {output_delta, filter}, {}, attrs_);
+    if (is_bf16) {
+        conv = graph->make(
+                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    }
+
+    if (data_format == "NXC") {
+        // permute NCX to NXC
+        conv = graph->make("transpose", conv->get_outputs(), {},
+                {{"order",
+                        is_3D ? std::vector<int> {0, 2, 3, 4, 1}
+                              : std::vector<int> {0, 2, 3, 1}}});
+    }
+    graph->make_output(conv->get_outputs());
+    return graph;
+}
+
+void conv_bwd_data_op_t::query_format(context_ptr ctx,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {}
+
+conv_bwd_weight_op_t::conv_bwd_weight_op_t(
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    COMPILE_ASSERT(ins.size() == 2 || ins.size() == 3,
+            "conv_bwd_weight's inputs size should be 2(input_forward, "
+            "output_delta) or 3(input_forward, output_delta, filter_shape).");
+    info_.inputs_ = ins;
+    info_.outputs_ = outs;
+    attrs_ = attrs;
+    op_name_ = "conv_bwd_weight";
+    COMPILE_ASSERT(attrs_.has_key("filter_shape"),
+            "conv_bwd_weight currently does not support reading dynamic shape "
+            "passed as one of the input.");
+    auto out_shape = attrs_.get<sc_dims>("filter_shape");
+    auto out_dtype = info_.inputs_[0]->details_.dtype_;
+    if (outs.empty()) {
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
+                this, sc_data_format_t(), out_shape, out_dtype));
+    } else {
+        COMPILE_ASSERT(info_.outputs_.size() == 1,
+                "conv_bwd_weight expects 1 output.");
+        COMPILE_ASSERT(
+                info_.outputs_[0]->details_.get_plain_dims() == out_shape,
+                "Bad output shape for conv_bwd_weight");
+        COMPILE_ASSERT(info_.outputs_[0]->details_.dtype_ == out_dtype,
+                "Bad output dtype for conv_bwd_weight");
+    }
+}
+
+std::shared_ptr<sc_graph_t> conv_bwd_weight_op_t::get_graph_impl() {
+    auto graph = std::make_shared<sc_graph_t>();
+    // create new input logical tensors
+    std::vector<graph_tensor_ptr> inputs, outputs;
+    inputs = remake_logical_tensors(info_.inputs_);
+    outputs = remake_logical_tensors(info_.outputs_);
+    auto ins = graph->make_input(inputs);
+    sc_op_ptr conv, graph_out;
+    graph_tensor_ptr input = inputs[0], output_delta = inputs[1];
+
+    bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
+    auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
+    auto filter_format
+            = attrs_.get_or_else("filter_format", std::string("XIO"));
+    auto dim = inputs[0]->details_.get_plain_dims().size();
+    COMPILE_ASSERT(dim == 4 || dim == 5, "Only support conv2D and conv3D.");
+    auto is_3D = (dim == 5);
+
+    // insert transpose to make NXC --> NCX and XIO --> OIX
+    if (data_format == "NXC") {
+        auto permute_input = graph->make("transpose", {input}, {},
+                {{"order",
+                        is_3D ? std::vector<int> {0, 4, 1, 2, 3}
+                              : std::vector<int> {0, 3, 1, 2}}});
+        input = permute_input->get_outputs()[0];
+
+        auto permute_output_delta = graph->make("transpose", {output_delta}, {},
+                {{"order",
+                        is_3D ? std::vector<int> {0, 4, 1, 2, 3}
+                              : std::vector<int> {0, 3, 1, 2}}});
+        output_delta = permute_output_delta->get_outputs()[0];
+    }
+
+    if (filter_format == "XIO") {
+        // change filter_shape attributes
+        auto filter_shape = attrs_.get<sc_dims>("filter_shape");
+        permute_shape_XIO2OIX(filter_shape);
+        attrs_.set<sc_dims>("filter_shape", filter_shape);
+    }
+
+    conv = graph->make(
+            "conv_bwd_weight_core", {input, output_delta}, {}, attrs_);
+
+    if (is_bf16) {
+        conv = graph->make(
+                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    }
+    // insert transpose for output: OIX to XIO
+    if (filter_format == "XIO") {
+        conv = graph->make("transpose", conv->get_outputs(), {},
+                {{"order",
+                        is_3D ? std::vector<int> {2, 3, 4, 1, 0}
+                              : std::vector<int> {2, 3, 1, 0}}});
+    }
+    graph->make_output(conv->get_outputs());
+    return graph;
+}
+
+void conv_bwd_weight_op_t::query_format(context_ptr ctx,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {}
+
 } // namespace ops
 
 OP_REGISTER(::sc::ops::conv_fwd_op_t, conv_fwd)
+OP_REGISTER(::sc::ops::conv_bwd_data_op_t, conv_bwd_data)
+OP_REGISTER(::sc::ops::conv_bwd_weight_op_t, conv_bwd_weight)
 } // namespace sc

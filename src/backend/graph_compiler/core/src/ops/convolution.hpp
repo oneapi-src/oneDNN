@@ -63,9 +63,9 @@ private:
     int ndims_ = 0;
 };
 
-class SC_INTERNAL_API conv_bwd_data_op_t : public tunable_op_t {
+class SC_INTERNAL_API conv_bwd_data_core_op_t : public tunable_op_t {
 public:
-    conv_bwd_data_op_t(const std::vector<graph_tensor_ptr> &ins,
+    conv_bwd_data_core_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
@@ -83,9 +83,9 @@ private:
     int ndims_ = 0;
 };
 
-class SC_INTERNAL_API conv_bwd_weight_op_t : public tunable_op_t {
+class SC_INTERNAL_API conv_bwd_weight_core_op_t : public tunable_op_t {
 public:
-    conv_bwd_weight_op_t(const std::vector<graph_tensor_ptr> &ins,
+    conv_bwd_weight_core_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,

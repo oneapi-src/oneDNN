@@ -286,6 +286,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
   assert(loops.size() == 4 && "expected to have 4 level loops!");
   for_loop &ln = loops.at(0), &lk = loops.at(1), &ld = loops.at(2),
            &lp = loops.at(3);
+  for_loop lc;
   tensor input1;
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
     _tensor_(input_tmp, get_input_dtype(),
@@ -313,7 +314,10 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
   _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
     _named_for_(lk, k, 0, K_num_block) {
       if (config.loop_sched == 4 || config.loop_sched == 5) {
-        _for_(c_o, 0, C_num_block) {
+        // c_o shall not be fused; c_o == 0 is used for initialization
+        // merging c_o will forbid c_o == 0 to be always executed at first
+        // tagged as temp.loop_no_fuse
+        _named_for_(lc, c_o, 0, C_num_block) {
           _for_(p_o, 0, oh_ / config.tile_p) {
             _if_(c_o == 0) {
               sc::builtin::brgemm_init_update(
@@ -341,7 +345,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
             }
           }
         }
-
+        lc->attr().set("temp.loop_no_fuse", true);
         if (fusion) {
           fusion->create_output_fusion_anchor({tensor_slice(output,
             {{n, 1}, {k, 1}, {0, oh_}, {0, ow_}, {0, config.K_block}})});

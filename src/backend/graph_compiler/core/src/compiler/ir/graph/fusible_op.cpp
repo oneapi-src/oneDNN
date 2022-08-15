@@ -108,7 +108,7 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
         parti->buf_alloc_.update_input_buffer_info(this, parti);
     }
 
-    if (!parti->empty()) {
+    if (!parti->empty() && !this->isa<movement_op_t>()) {
         int base_idx = 0;
         if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
             // if bc side (smaller side) is the lhs, we need to set base_idx to
