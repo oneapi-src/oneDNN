@@ -1525,9 +1525,26 @@ struct conv_fwd_executable_t : public op_executable_t {
             const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
             const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
-                dnnl::reorder(psrc_mem, dst_mem)
-                        .execute(stream, const_cast<memory &>(psrc_mem),
-                                const_cast<memory &>(dst_mem));
+                // psrc_mem and dst_mem may have different data type bug same
+                // buffer size(u8 and s8) for such case, need to reorder
+                // psrc_mem to dst_mem with original data type
+                if (psrc_mem.get_desc().data_type()
+                                == dnnl::memory::data_type::s8
+                        && dst_mem.get_desc().data_type()
+                                == dnnl::memory::data_type::u8) {
+                    dnnl::memory::desc to_desc = dst_mem.get_desc();
+                    to_desc.data.data_type = psrc_mem.get_desc().data.data_type;
+                    const memory to_mem
+                            = dnnl::memory(to_desc, psrc_mem.get_engine());
+                    to_mem.set_data_handle(dst_mem.get_data_handle());
+                    dnnl::reorder(psrc_mem, to_mem)
+                            .execute(stream, const_cast<memory &>(psrc_mem),
+                                    const_cast<memory &>(to_mem));
+                } else {
+                    dnnl::reorder(psrc_mem, dst_mem)
+                            .execute(stream, const_cast<memory &>(psrc_mem),
+                                    const_cast<memory &>(dst_mem));
+                }
             }
         }
 
@@ -1543,12 +1560,36 @@ struct conv_fwd_executable_t : public op_executable_t {
             const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
             const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
             if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
-                auto prim = dnnl::reorder(psrc_mem, dst_mem);
-                auto e = dnnl::sycl_interop::execute(prim, stream,
-                        {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
-                                {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
-                        sycl_deps);
-                sycl_deps = {e};
+                // psrc_mem and dst_mem may have different data type bug same
+                // buffer size(u8 and s8) for such case, need to reorder
+                // psrc_mem to dst_mem with original data type
+                if (psrc_mem.get_desc().data_type()
+                                == dnnl::memory::data_type::s8
+                        && dst_mem.get_desc().data_type()
+                                == dnnl::memory::data_type::u8) {
+                    dnnl::memory::desc to_desc = dst_mem.get_desc();
+                    to_desc.data.data_type = psrc_mem.get_desc().data.data_type;
+                    const memory to_mem
+                            = dnnl::memory(to_desc, psrc_mem.get_engine());
+                    to_mem.set_data_handle(dst_mem.get_data_handle());
+                    auto prim = dnnl::reorder(psrc_mem, to_mem);
+                    auto e = dnnl::sycl_interop::execute(prim, stream,
+                            {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                    {DNNL_ARG_TO,
+                                            const_cast<memory &>(to_mem)}},
+                            sycl_deps);
+                    sycl_deps = {e};
+                    if (stream.get_engine().get_kind() == engine::kind::cpu)
+                        e.wait();
+                } else {
+                    auto prim = dnnl::reorder(psrc_mem, dst_mem);
+                    auto e = dnnl::sycl_interop::execute(prim, stream,
+                            {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                    {DNNL_ARG_TO,
+                                            const_cast<memory &>(dst_mem)}},
+                            sycl_deps);
+                    sycl_deps = {e};
+                }
             }
         }
         auto e = dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
