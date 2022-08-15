@@ -729,24 +729,19 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
                 src_c_blk = 4 / src_type_size;
                 src_n_blk = pick_block(mb, 8, 16);
             }
-        } else if (is_mad && is_f32_conv()) {
-            src_c_blk = (is_src_byte ? 32 : 16);
-            src_n_blk = pick_block(mb, 16);
         } else {
+            auto default_n_blk = src_type_size < 4 ? 32 : 16;
             src_c_blk = (is_src_byte ? 32 : 16);
-            src_n_blk = pick_block(mb, 16, 32);
+            src_n_blk = pick_block(mb, 16, default_n_blk);
         }
 
         // Set blocks for destination layout.
         int dst_n_blk = 1;
         int dst_c_blk = 1;
-        if (is_mad && is_f32_conv()) {
-            dst_c_blk = (is_dst_byte ? 32 : 16);
-            dst_n_blk = pick_block(mb, 16);
-        } else {
-            dst_c_blk = (is_dst_byte ? 32 : 16);
-            dst_n_blk = pick_block(mb, 16, 32);
-        }
+
+        auto default_n_blk = types::data_type_size(dst_data_type) < 4 ? 32 : 16;
+        dst_c_blk = (is_dst_byte ? 32 : 16);
+        dst_n_blk = pick_block(mb, 16, default_n_blk);
 
         if (with_groups && g > 1 && !is_dw) {
             if (ic % src_c_blk != 0) src_c_blk = 1;
