@@ -16,6 +16,7 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <memory>
@@ -88,7 +89,9 @@ static inline dnnl::graph::impl::logical_tensor_t logical_tensor_init(size_t id,
         val.layout.strides[val.ndims - 1] = 1;
         for (int s = val.ndims - 2; s >= 0; --s) {
             size_t si = static_cast<size_t>(s);
-            val.layout.strides[si] = dims[si + 1] * val.layout.strides[si + 1];
+            // replace 0 in shape to 1 when computing the strides
+            val.layout.strides[si] = std::max<impl::dim_t>(dims[si + 1], 1)
+                    * val.layout.strides[si + 1];
         }
     } else {
         // initialize layout field to avoid dirty data

@@ -386,52 +386,62 @@ memory::desc to_format_any(const memory::desc &adesc) {
 }
 
 dims get_ncx_strides(const dims &shape) {
-    dims strides(shape.size());
-    for (auto it = shape.begin(); it < shape.end(); ++it) {
+    auto _shape = shape;
+    // replace 0 in shape to 1 when computing the strides
+    for (size_t i = 0; i < _shape.size(); i++) {
+        if (_shape[i] == 0) _shape[i] = 1;
+    }
+    dims strides(_shape.size());
+    for (auto it = _shape.begin(); it < _shape.end(); ++it) {
         const auto val = std::accumulate(
-                std::next(it), shape.end(), 1, std::multiplies<dim_t>());
-        const auto dist = std::distance(shape.begin(), it);
+                std::next(it), _shape.end(), 1, std::multiplies<dim_t>());
+        const auto dist = std::distance(_shape.begin(), it);
         strides[static_cast<size_t>(dist)] = val;
     }
     return strides;
 }
 
 dims get_nxc_strides(const dims &shape) {
-    dims strides(shape.size());
+    auto _shape = shape;
+    // replace 0 in shape to 1 when computing the strides
+    for (size_t i = 0; i < _shape.size(); i++) {
+        if (_shape[i] == 0) _shape[i] = 1;
+    }
+    dims strides(_shape.size());
     dim tmp, tmp1, tmp2;
-    switch (shape.size()) {
+    switch (_shape.size()) {
         case 3:
-            strides[0] = shape[1] * shape[2];
+            strides[0] = _shape[1] * _shape[2];
             strides[1] = 1;
-            strides[2] = shape[1];
+            strides[2] = _shape[1];
             break;
         case 4:
-            tmp = shape[1] * shape[3];
-            strides[0] = tmp * shape[2];
+            tmp = _shape[1] * _shape[3];
+            strides[0] = tmp * _shape[2];
             strides[1] = 1;
             strides[2] = tmp;
-            strides[3] = shape[1];
+            strides[3] = _shape[1];
             break;
         case 5:
-            tmp1 = shape[1] * shape[4];
-            tmp2 = tmp1 * shape[3];
-            strides[0] = tmp2 * shape[2];
+            tmp1 = _shape[1] * _shape[4];
+            tmp2 = tmp1 * _shape[3];
+            strides[0] = tmp2 * _shape[2];
             strides[1] = 1;
             strides[2] = tmp2;
             strides[3] = tmp1;
-            strides[4] = shape[1];
+            strides[4] = _shape[1];
             break;
         case 6:
-            tmp1 = shape[1] * shape[5];
-            tmp2 = tmp1 * shape[3] * shape[4];
-            strides[0] = tmp2 * shape[2];
+            tmp1 = _shape[1] * _shape[5];
+            tmp2 = tmp1 * _shape[3] * _shape[4];
+            strides[0] = tmp2 * _shape[2];
             strides[1] = 1;
             strides[2] = tmp2;
-            strides[3] = tmp1 * shape[4];
+            strides[3] = tmp1 * _shape[4];
             strides[4] = tmp1;
-            strides[5] = shape[1];
+            strides[5] = _shape[1];
             break;
-        default: strides = get_ncx_strides(shape);
+        default: strides = get_ncx_strides(_shape);
     }
     return strides;
 }

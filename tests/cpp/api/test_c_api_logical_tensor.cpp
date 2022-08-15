@@ -164,6 +164,24 @@ TEST(CAPI, LogicalTensorInitWithDims) {
     ASSERT_EQ(lt.layout.strides[1], 3);
     ASSERT_EQ(lt.layout.strides[2], 1);
     ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);
+
+    // test 0-sized dimension tensor
+    dnnl_graph_dims_t zero_sized_dims = {2, 3, 0};
+    ASSERT_EQ(dnnl_graph_logical_tensor_init_with_dims(&lt, id, dnnl_graph_f32,
+                      3, zero_sized_dims, dnnl_graph_layout_type_strided,
+                      dnnl_graph_tensor_property_undef),
+            dnnl_graph_success);
+    ASSERT_EQ(lt.id, id);
+    ASSERT_EQ(lt.data_type, dnnl_graph_f32);
+    ASSERT_EQ(lt.ndims, 3);
+    ASSERT_EQ(lt.layout_type, dnnl_graph_layout_type_strided);
+    ASSERT_EQ(lt.dims[0], zero_sized_dims[0]);
+    ASSERT_EQ(lt.dims[1], zero_sized_dims[1]);
+    ASSERT_EQ(lt.dims[2], zero_sized_dims[2]);
+    ASSERT_EQ(lt.layout.strides[0], 3);
+    ASSERT_EQ(lt.layout.strides[1], 1);
+    ASSERT_EQ(lt.layout.strides[2], 1);
+    ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);
 }
 
 TEST(CAPI, LogicalTensorInitWithStrides) {

@@ -2160,3 +2160,57 @@ TEST(Execute, MulAddAdd) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
+
+TEST(Execute, AddEmptyInput) {
+    impl::op_t add_op(impl::op_kind::Add);
+    impl::engine_t &eng = get_engine();
+
+    // prepare logical tensor
+    impl::logical_tensor_t src0
+            = utils::logical_tensor_init(0, {2, 3, 0}, impl::data_type::f32);
+    impl::logical_tensor_t src1
+            = utils::logical_tensor_init(1, {2, 3, 0}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            3, impl::data_type::f32, impl::layout_type::any);
+
+    add_op.add_input(src0);
+    add_op.add_input(src1);
+    add_op.add_output(dst);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0, &src1};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t empty_lt;
+    cp.query_logical_tensor(dst.id, &empty_lt);
+    ASSERT_EQ(empty_lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(empty_lt.ndims, 3);
+    ASSERT_EQ(empty_lt.dims[0], 2);
+    ASSERT_EQ(empty_lt.dims[1], 3);
+    ASSERT_EQ(empty_lt.dims[2], 0);
+
+    impl::tensor_t src0_ts(src0, &eng, nullptr);
+    impl::tensor_t src1_ts(src1, &eng, nullptr);
+    impl::tensor_t dst_ts(dst, &eng, nullptr);
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+}

@@ -344,3 +344,67 @@ TEST(ExecuteSubgraphInt8, Concat) {
             /*rtol*/ 0.01f,
             /*atol*/ 1.f));
 }
+
+TEST(Execute, ConcatEmptyInput) {
+    impl::op_t concat_op(impl::op_kind::Concat);
+    concat_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::engine_t &eng = get_engine();
+
+    // prepare logical tensor
+    impl::logical_tensor_t src0
+            = utils::logical_tensor_init(0, {2, 3, 4}, impl::data_type::f32);
+    impl::logical_tensor_t src1
+            = utils::logical_tensor_init(1, {2, 0, 4}, impl::data_type::f32);
+    impl::logical_tensor_t src2
+            = utils::logical_tensor_init(2, {2, 3, 4}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            3, impl::data_type::f32, impl::layout_type::any);
+
+    concat_op.add_input(src0);
+    concat_op.add_input(src1);
+    concat_op.add_input(src2);
+    concat_op.add_output(dst);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&concat_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("concat_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0, &src1, &src2};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.ndims, 3);
+    ASSERT_EQ(lt.dims[0], 2);
+    ASSERT_EQ(lt.dims[1], 6);
+    ASSERT_EQ(lt.dims[2], 4);
+
+    test::vector<float> src0_data(24);
+    test::vector<float> src2_data(24);
+    test::vector<float> dst_data(48);
+
+    impl::tensor_t src0_ts(src0, &eng, src0_data.data());
+    impl::tensor_t src1_ts(src1, &eng, nullptr);
+    impl::tensor_t src2_ts(src2, &eng, src2_data.data());
+    impl::tensor_t dst_ts(dst, &eng, dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src0_ts, src1_ts, src2_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+}
