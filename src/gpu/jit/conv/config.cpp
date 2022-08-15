@@ -569,16 +569,17 @@ struct nc_block_t {
     // Ideally, this should only depend on data type, direction, mb, c, and g to
     // enable the same src/dst formats and avoid reorders between convolutions
     static nc_block_t get_default_blocking(type_t type, bool is_dw, int n,
-            int c, int g, bool is_input, bool is_small_ic) {
+            int c, int g, bool is_input, bool is_small_ic,
+            int min_block_size = 0, bool nc_order = true) {
         bool is_small_ic_input
                 = (type.size() <= 2 && is_input && !is_dw && is_small_ic);
+        auto default_c_blk = type.size() == 1 ? 32 : 16;
         auto c_block = [&]() {
             // Special case for small input channel shapes with dpas.
             if (is_small_ic_input) {
                 int packed_dword_elems = 4 / type.size();
                 return std::max(packed_dword_elems, utils::rnd_up_pow2(c));
             }
-            auto default_c_blk = type.size() == 1 ? 32 : 16;
             auto blk_dim = is_dw ? g : c;
             return pick_block_rnd_up(blk_dim, default_c_blk);
         }();
@@ -588,8 +589,8 @@ struct nc_block_t {
         // could be removed.
         if (g > 1 && !is_dw && c % c_block != 0) c_block = 1;
 
+        auto default_n_blk = type.size() < 4 ? 32 : 16;
         auto n_block = [&]() {
-            auto default_n_blk = type.size() < 4 ? 32 : 16;
             if (c_block == 1)
                 return 1;
             else if (is_small_ic_input)
@@ -598,7 +599,23 @@ struct nc_block_t {
                 return pick_block(n, 16, default_n_blk);
         }();
 
-        return nc_block_t(n_block, c_block);
+        // Require minimum block size, used to enable better message behavior
+        while (n_block * c_block * type.size() < min_block_size) {
+            // Prefer increasing blocks in dimensions with available data, and
+            // otherwise just increase c_block to meet requirements. Limit
+            // blocking dimensions to avoid untested edge cases.
+            if (c_block < c && c_block < default_c_blk)
+                c_block *= 2;
+            else if (n_block < n && n_block < default_n_blk)
+                n_block *= 2;
+            else {
+                c_block = utils::div_up(min_block_size, type.size() * n_block);
+                if (c_block > default_c_blk) c_block = default_c_blk;
+                break;
+            }
+        }
+
+        return nc_block_t(n_block, c_block, nc_order);
     }
 
 private:
@@ -696,77 +713,25 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
         bool allow_wei_reorder, bool allow_dst_reorder, std::string &src_tag,
         std::string &wei_tag, std::string &dst_tag, std::string &user_wei_tag) {
 
-    bool is_src_byte
-            = utils::one_of(src_data_type, data_type::s8, data_type::u8);
     auto src_compute_type = is_bwd_d ? c_data_type : a_data_type;
     auto dst_compute_type
             = is_fwd ? c_data_type : (is_bwd_d ? a_data_type : b_data_type);
     auto wei_compute_type = is_bwd_w ? c_data_type : b_data_type;
 
     int src_type_size = (int)types::data_type_size(src_compute_type);
-    bool is_dst_byte
-            = utils::one_of(dst_compute_type, data_type::s8, data_type::u8);
-    bool is_mad = (fma_kind == fma_kind_t::mad);
     int vec_size = hw_cfg.vec_size();
 
-    nc_block_t src_blk(1, 1), dst_blk(1, 1);
-    if (is_bwd_w) {
-        // The BWD_W implementation has some issues that prevent using
-        // consolidated blocking logic. This is mainly due to incorreclty
-        // handling some necessary layout transformations. This branch should be
-        // merged with the else branch after those issues are fixed.
+    // Prefer larger messages for large mb bwd_w
+    bool is_bwd_w_message_opt
+            = is_bwd_w && src_type_size <= 2 && allow_src_reorder && mb >= 16;
+    int min_block_size = is_bwd_w_message_opt ? 128 : 0;
+    bool nc_order = is_bwd_w_message_opt ? false : true;
 
-        // Set blocks for source layout.
-        int src_n_blk = 1;
-        int src_c_blk = 1;
-        bool src_nc_order = true;
-        if (is_small_ic() && !is_dw) {
-            if (is_dp_fma() && allow_src_reorder) {
-                src_c_blk = 4;
-                src_n_blk = pick_block(mb, 32 / src_type_size);
-                src_nc_order = false;
-            } else if (is_dp_fma()) {
-                src_c_blk = 4 / src_type_size;
-                src_n_blk = pick_block(mb, 8, 16);
-            }
-        } else {
-            auto default_n_blk = src_type_size < 4 ? 32 : 16;
-            src_c_blk = (is_src_byte ? 32 : 16);
-            src_n_blk = pick_block(mb, 16, default_n_blk);
-        }
-
-        // Set blocks for destination layout.
-        int dst_n_blk = 1;
-        int dst_c_blk = 1;
-
-        auto default_n_blk = types::data_type_size(dst_data_type) < 4 ? 32 : 16;
-        dst_c_blk = (is_dst_byte ? 32 : 16);
-        dst_n_blk = pick_block(mb, 16, default_n_blk);
-
-        if (with_groups && g > 1 && !is_dw) {
-            if (ic % src_c_blk != 0) src_c_blk = 1;
-            if (oc % dst_c_blk != 0) dst_c_blk = 1;
-        }
-
-        if (is_mad) {
-            int i_dim = (is_dw ? g : ic);
-            int o_dim = (is_dw ? g : oc);
-            if (src_c_blk / 2 > i_dim) src_c_blk = 1;
-            if (dst_c_blk / 2 > o_dim) dst_c_blk = 1;
-        }
-
-        if (src_c_blk == 1) src_n_blk = 1;
-        if (dst_c_blk == 1) dst_n_blk = 1;
-
-        src_blk = nc_block_t(src_n_blk, src_c_blk, src_nc_order);
-        dst_blk = nc_block_t(dst_n_blk, dst_c_blk);
-    } else {
-        // Set blocks for src/dst layout.
-        src_blk = nc_block_t::get_default_blocking(src_data_type, is_dw, mb, ic,
-                g, is_fwd || is_bwd_w, is_small_ic());
-        dst_blk = nc_block_t::get_default_blocking(
-                dst_data_type, is_dw, mb, oc, g, is_bwd_d || is_bwd_w, false);
-    }
+    nc_block_t src_blk = nc_block_t::get_default_blocking(src_compute_type,
+            is_dw, mb, ic, g, is_fwd || is_bwd_w, is_small_ic(), min_block_size,
+            nc_order);
+    nc_block_t dst_blk = nc_block_t::get_default_blocking(
+            dst_compute_type, is_dw, mb, oc, g, is_bwd_d || is_bwd_w, false);
 
     auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type, vec_size,
             fma_kind, is_bwd_d, is_small_ic(), g, oc, ic);
