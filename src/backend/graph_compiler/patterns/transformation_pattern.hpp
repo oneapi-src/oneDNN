@@ -50,7 +50,7 @@ public:
                 std::move(pbackend), std::move(pname));
     }
 
-    void run(impl::graph_t &agraph) override {
+    impl::status_t run(impl::graph_t &agraph) override {
         std::vector<impl::pass::FCreateV2Pattern> pfuncs
                 = get_attr<impl::pass::FCreateV2Pattern>("FCreateV2Pattern");
         pattern_utils_t pu;
@@ -74,6 +74,7 @@ public:
                 pu.set_partitions(agraph, matched_pairs_list, get_kind());
             }
         }
+        return impl::status::success;
     }
 };
 

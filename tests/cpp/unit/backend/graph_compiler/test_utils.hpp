@@ -1492,11 +1492,11 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
 
     impl::logical_tensor_t bmm_q_grad_weight;
     bmm_q_grad_weight = utils::logical_tensor_init(
-            logical_tensor_idx++, QKV_RESHAPED_SHAPE, dtype);
+            logical_tensor_idx++, MATMUL_V_OUTPUT_SHAPE, dtype);
 
     impl::logical_tensor_t bmm_k_grad_weight;
     bmm_k_grad_weight = utils::logical_tensor_init(
-            logical_tensor_idx++, QKV_RESHAPED_SHAPE, dtype);
+            logical_tensor_idx++, MATMUL_V_OUTPUT_SHAPE, dtype);
 
     impl::op_t reshape_bwd {
             op_idx++, impl::op_kind::StaticReshape, "reshape_bwd"};
