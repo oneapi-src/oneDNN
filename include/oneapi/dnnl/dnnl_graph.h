@@ -516,7 +516,7 @@ dnnl_status_t DNNL_API dnnl_graph_compiled_partition_destroy(
 
 /// Queries an input or output logical tensor according to tensor ID. If the
 /// tensor ID doesn't belong to any input or output of the compiled partition,
-/// an error status #dnnl_graph_invalid_arguments will be returned by the API.
+/// an error status #dnnl_invalid_arguments will be returned by the API.
 ///
 /// @param compiled_partition The handle of target compiled_partition.
 /// @param tid The unique id of required tensor.
@@ -538,7 +538,7 @@ dnnl_status_t DNNL_API dnnl_graph_compiled_partition_query_logical_tensor(
 /// which will probably cause unexpected incorrect results.
 ///
 /// @param compiled_partition The handle of target compiled_partition.
-/// @param num The number of in-place pairs.
+/// @param num_inplace_pairs The number of in-place pairs.
 /// @param inplace_pairs The handle of in-place pairs.
 /// @returns #dnnl_success on success or a status describing the error
 ///     otherwise.

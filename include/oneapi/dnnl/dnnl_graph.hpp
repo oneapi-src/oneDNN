@@ -26,7 +26,10 @@
 #include <utility>
 #include <vector>
 
-/// @addtogroup dnnl_graph_api oneDNN graph API
+/// @addtogroup dnnl_api
+/// @{
+
+/// @addtogroup dnnl_graph_api Graph API
 /// @{
 
 namespace dnnl {
@@ -107,7 +110,7 @@ using requires = typename std::enable_if<B, bool>::type;
 
 /// @} dnnl_graph_api_utils
 
-/// @addtogroup dnnl_graph_api_status
+/// @addtogroup dnnl_graph_api_status Status
 /// Definitions of status values returned by the library functions.
 ///
 /// @{
@@ -176,7 +179,7 @@ public:
 
 /// @} dnnl_graph_api_allocator
 
-/// @addtogroup dnnl_graph_api_engine
+/// @addtogroup dnnl_graph_api_engine Engine
 /// @{
 
 /// This API is a supplement for existing onednn engine API.
@@ -1433,7 +1436,7 @@ public:
     /// @param op An operation to be added.
     /// @param allow_exception A flag indicating whether the method is allowed
     ///     to throw an exception if it fails to add the op to the graph.
-    /// @returns #success or a status describing the error otherwise.
+    /// @returns #status::success or a status describing the error otherwise.
     status add_op(const op &op, bool allow_exception = true) {
         dnnl_status_t ret = dnnl_graph_add_op(get(), op.get());
 
@@ -1535,7 +1538,7 @@ inline void set_compiled_partition_cache_capacity(int capacity) {
 
 /// @} dnnl_graph_api_compiled_partition_cache
 
-/// @addtogroup dnnl_graph_constant_tensor_cache Constant Tensor Cache
+/// @addtogroup dnnl_graph_api_constant_tensor_cache Constant Tensor Cache
 ///
 /// A set of functions that provide constant tensor cache control
 ///
@@ -1575,5 +1578,7 @@ namespace dnnl = ::dnnl;
 } // namespace oneapi
 
 /// @} dnnl_graph_api
+
+/// @} dnnl_api
 
 #endif
