@@ -1041,7 +1041,7 @@ impl::status_t memory_planner_t::assign_external_inputs_buffer(
 
     // Get the live range of external inputs
     size_t time_point = 0;
-    impl::topo_order_visit(
+    impl::status_t ret = impl::topo_order_visit(
             impl::graph_t(subgraph).get_output_ops(), [&](op_t *op) {
                 auto in_vals = op->get_input_values();
                 for (auto &in_val : in_vals) {
@@ -1055,7 +1055,7 @@ impl::status_t memory_planner_t::assign_external_inputs_buffer(
                 return impl::status::success;
             });
 
-    return status::success;
+    return ret;
 }
 
 // Assign partition's output edges to user given external outputs buffer. Those
@@ -1405,7 +1405,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
 impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
         std::shared_ptr<subgraph_t> &sg, bool enable_standard_sharing) {
     size_t time_point = 0;
-    impl::topo_order_visit(sg->get_output_ops(), [&](op_t *cur_op) {
+    impl::status_t ret;
+    ret = impl::topo_order_visit(sg->get_output_ops(), [&](op_t *cur_op) {
         auto out_vals = cur_op->get_output_values();
         for (auto &out_val : out_vals) {
             auto out_buf = buffer_assignments_.at(out_val.get());
@@ -1495,7 +1496,7 @@ impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
         return impl::status::success;
     });
 
-    return status::success;
+    return ret;
 }
 
 // In this function, we will do the following things:

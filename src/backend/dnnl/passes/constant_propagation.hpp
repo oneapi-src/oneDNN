@@ -54,7 +54,7 @@ impl::status_t constant_propagation(std::shared_ptr<subgraph_t> &sg) {
     bool changed;
     do {
         changed = false;
-        impl::topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
+        auto ret = impl::topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
             size_t scpad_num
                     = with_scratchpad && has_scratchpad(op->get_kind()) ? 1 : 0;
             if (op->get_kind() == op_kind::dnnl_reorder
@@ -103,6 +103,8 @@ impl::status_t constant_propagation(std::shared_ptr<subgraph_t> &sg) {
             }
             return status::success;
         });
+
+        if (ret != impl::status::success) return ret;
     } while (changed);
     return impl::status::success;
 }

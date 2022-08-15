@@ -122,7 +122,10 @@ public:
     pass_base() = default;
 
     // the criteria of pass execution
-    virtual void run(graph &agraph) { UNUSED(agraph); }
+    virtual impl::status_t run(graph &agraph) {
+        UNUSED(agraph);
+        return impl::status::success;
+    }
     // save pass basic information into json
     virtual void save(utils::json::json_writer_t *writer) {
         writer->begin_object();

@@ -53,7 +53,7 @@ namespace impl {
 fpmath_mode_t get_default_fpmath_mode();
 void rewrite(impl::graph_t &agraph,
         const std::vector<std::vector<impl::op_t *>> &fusion_ops);
-}
+} // namespace impl
 } // namespace graph
 } // namespace dnnl
 
@@ -254,7 +254,8 @@ public:
      * \brief get list of partitions
      * \param list of partitions
      */
-    void get_ordered_partitions(std::vector<impl::partition_t *> &partitions);
+    impl::status_t get_ordered_partitions(
+            std::vector<impl::partition_t *> &partitions);
 
     /*!
      * \brief Build backend graph after add op is done

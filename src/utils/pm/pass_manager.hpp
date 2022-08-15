@@ -94,9 +94,10 @@ public:
     void print_passes(std::ostream *os);
 
     // run all passes enabled according to passConfig
-    void run_passes(graph &agraph, const std::string &pass_config_json,
+    impl::status_t run_passes(graph &agraph,
+            const std::string &pass_config_json,
             impl::partition_policy_t policy = impl::partition_policy::fusion);
-    void run_passes(graph &agraph, std::istream *fs,
+    impl::status_t run_passes(graph &agraph, std::istream *fs,
             impl::partition_policy_t policy = impl::partition_policy::fusion);
 };
 

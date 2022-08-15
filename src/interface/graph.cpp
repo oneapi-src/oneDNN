@@ -164,13 +164,13 @@ void rewrite(impl::graph_t &agraph,
 } // namespace graph
 } // namespace dnnl
 
-void dnnl_graph_graph::get_ordered_partitions(
+impl::status_t dnnl_graph_graph::get_ordered_partitions(
         std::vector<partition_t *> &partitions) {
     dnnl_graph_graph copied_graph(*this); // deep copy
 
     // Cluster ops that belong to same partition
     std::vector<std::vector<op_t *>> fusion_ops;
-    topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
+    auto ret = topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
         partition_impl_t *part = n->get_partition();
         if (!part) return impl::status::success;
         auto pos = std::find_if(fusion_ops.begin(), fusion_ops.end(),
@@ -185,6 +185,7 @@ void dnnl_graph_graph::get_ordered_partitions(
         }
         return impl::status::success;
     });
+    if (ret != impl::status::success) return ret;
 
     // Fuse ops that belong to same partition
     impl::rewrite(copied_graph, fusion_ops);
@@ -194,7 +195,7 @@ void dnnl_graph_graph::get_ordered_partitions(
     // and fused ops is not exactly same, which will break the
     // tests and examples
     size_t count = 0;
-    topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
+    ret = topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
         partition_impl_t *part = n->get_partition();
         if (part) {
             partitions[count]->init(part->shared_from_this());
@@ -202,6 +203,7 @@ void dnnl_graph_graph::get_ordered_partitions(
         }
         return impl::status::success;
     });
+    return ret;
 }
 
 status_t dnnl_graph_graph::build_graph() {

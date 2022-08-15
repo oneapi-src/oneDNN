@@ -72,9 +72,10 @@ void pass_manager_t::print_passes(std::ostream *os) {
     write.end_object();
 }
 
-void pass_manager_t::run_passes(
+impl::status_t pass_manager_t::run_passes(
         graph &agraph, std::istream *fs, impl::partition_policy_t policy) {
     UNUSED(policy);
+    impl::status_t status = impl::status::success;
     if (*fs) {
         std::list<pass_base_ptr> new_passes;
         json::json_reader_t read(fs);
@@ -101,7 +102,8 @@ void pass_manager_t::run_passes(
                 return first->get_priority() > second->get_priority();
             });
             for (auto &pass : new_passes) {
-                pass->run(agraph);
+                status = pass->run(agraph);
+                if (status != impl::status::success) return status;
             }
         } else {
             if (read_json) {
@@ -114,20 +116,29 @@ void pass_manager_t::run_passes(
             fflush(stdout);
             const std::list<pass_base_ptr> &passes = get_passes();
             for (auto &pass : passes) {
-                if (pass->get_enable()) { pass->run(agraph); }
+                if (pass->get_enable()) {
+                    status = pass->run(agraph);
+                    if (status != impl::status::success) return status;
+                }
             }
         }
     } else {
         const std::list<pass_base_ptr> &passes = get_passes();
         for (auto &pass : passes) {
-            if (pass->get_enable()) { pass->run(agraph); }
+            if (pass->get_enable()) {
+                status = pass->run(agraph);
+                if (status != impl::status::success) return status;
+            }
         }
     }
+
+    return impl::status::success;
 }
-void pass_manager_t::run_passes(graph &agraph,
+
+impl::status_t pass_manager_t::run_passes(graph &agraph,
         const std::string &pass_config_json, impl::partition_policy_t policy) {
     std::ifstream fs(pass_config_json.c_str());
-    run_passes(agraph, &fs, policy);
+    return run_passes(agraph, &fs, policy);
 }
 
 } // namespace pass

@@ -1084,7 +1084,7 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<op_t *> visited;
-        impl::topo_order_visit(
+        impl::status_t ret = impl::topo_order_visit(
                 impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
                     const auto &pops_fusible_map = get_post_ops_fusible_map();
 
@@ -1121,6 +1121,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     visited.insert(&post_op);
                     return impl::status::success;
                 });
+
+        if (ret != impl::status::success) return ret;
 
         if (fuse_groups.empty()) {
             changed = false;
@@ -2666,7 +2668,7 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<const op_t *> visited;
-        impl::topo_order_visit(
+        impl::status_t ret = impl::topo_order_visit(
                 impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
                     if (!reorder_op_set.count(op->get_kind())
                             || visited.count(op) != 0)
@@ -2721,6 +2723,8 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
                     visited.insert(&next_op);
                     return impl::status::success;
                 });
+
+        if (ret != impl::status::success) return ret;
 
         if (fuse_groups.empty()) {
             changed = false;

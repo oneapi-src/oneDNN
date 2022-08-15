@@ -407,7 +407,7 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
 
     out.open(file_name);
     out << "digraph G {\n";
-    topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
+    impl::status_t ret = topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
         const auto &cur_op_name = kind2str(op->get_kind());
         const size_t cur_op_id = get_op_identifier(op);
         if (op->num_inputs() > 0) {
@@ -428,6 +428,8 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
         }
         return status::success;
     });
+
+    if (ret != impl::status::success) return ret;
 
     // value str: (data_type):(logical tensor id):(layout type):(dims):(layout
     // desc):(property):(mem_info)
@@ -465,7 +467,7 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
 
     // dump inputs/outputs info
     // in(no)_(lt str) or out(no)_(lt str)
-    topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
+    ret = topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
         const auto &op_name = kind2str(op->get_kind());
         const size_t op_id = get_op_identifier(op);
         out << "\"" << op_name << "_" << op_id << "\"[label=\"" << op_name
@@ -487,6 +489,8 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
         return status::success;
     });
 
+    if (ret != impl::status::success) return ret;
+
     out << "}\n";
     out.close();
 #else
@@ -500,7 +504,7 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
 }
 
 status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
-    return topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
+    auto ret = topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
         // TODO(qun) Call each op's validator
         const impl::op_schema_t *opm
                 = impl::op_schema_registry_t::get_op_schema(op->get_kind());
@@ -610,6 +614,7 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
 
         return status::success;
     });
+    return ret;
 }
 
 void replace_op(op_ptr &org_op, op_ptr &new_op) {
@@ -669,7 +674,9 @@ std::vector<value_t *> get_constant_block_output_values(
         }
         return impl::status::success;
     };
-    impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(), func);
+    impl::status_t status = impl::topo_order_visit(
+            impl::graph_t(subgraph).get_output_ops(), func);
+    if (status != impl::status::success) return {};
     return ret;
 }
 

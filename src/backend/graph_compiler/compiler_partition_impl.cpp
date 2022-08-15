@@ -49,7 +49,7 @@ impl::status_t compiler_partition_impl_t::infer_shape(
     copied_ops_ = impl::graph_t::deep_copy(ops_);
     impl::graph_t temp_graph(copied_ops_);
     auto output_ops = temp_graph.get_output_ops();
-    topo_order_visit(output_ops, [&](op_t *cur_op) {
+    auto ret = topo_order_visit(output_ops, [&](op_t *cur_op) {
         const impl::op_schema_t *cur_op_schema
                 = impl::op_schema_registry_t::get_op_schema(cur_op->get_kind());
         assertm(cur_op_schema, "Can't infer shape for cur op: no schema");
@@ -109,7 +109,7 @@ impl::status_t compiler_partition_impl_t::infer_shape(
         }
         return impl::status::success;
     });
-    return impl::status::success;
+    return ret;
 }
 
 impl::status_t compiler_partition_impl_t::compile(
@@ -151,7 +151,8 @@ impl::status_t compiler_partition_impl_t::compile(
         }
         impl::graph_t temp_graph(copied_ops_);
         auto output_ops = temp_graph.get_output_ops();
-        topo_order_visit(output_ops, [&](op_t *cur_op) {
+        impl::status_t status;
+        status = topo_order_visit(output_ops, [&](op_t *cur_op) {
             std::vector<sc::graph_tensor_ptr> producer_lt, consumer_lt;
             // translate input value
             for (auto &in_value : cur_op->get_input_values()) {
@@ -199,6 +200,8 @@ impl::status_t compiler_partition_impl_t::compile(
             sub_graph.op_mapping_[cur_op->get_id()] = ret;
             return impl::status::success;
         });
+        if (status != impl::status::success) return status;
+
         sc::sc_graph_t &backend_graph_obj
                 = *dynamic_cast<sc::sc_graph_t *>(&sub_graph);
         if (!sc::check_graph_connection(backend_graph_obj)) {
