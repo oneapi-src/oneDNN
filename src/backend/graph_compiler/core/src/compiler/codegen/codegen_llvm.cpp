@@ -712,7 +712,8 @@ public:
 
     /**
      * Implementing LLVM-x86 intrinsics
-     * 1. first find the GCC/Clang built-in intrinsic name
+     * 1. first find the GCC/Clang built-in intrinsic name in
+     * https://github.com/llvm/llvm-project/blob/main/clang/lib/Headers
      *    e.g. Goto definition of _mm512_cvtusepi32_epi8, you will get
      *    __builtin_ia32_pmovusdb512_mask
      * 2. Find the built-in function name in
@@ -954,9 +955,19 @@ public:
                 auto inval1 = generate_expr(v->args_[0]);
                 auto inval2 = generate_expr(v->args_[1]);
                 auto inval3 = generate_expr(v->args_[2]);
-                current_val_ = builder_.CreateIntrinsic(
-                        Intrinsic::x86_avx512_vpermi2var_ps_128, {},
-                        {inval1, inval2, inval3});
+                switch (v->args_[0]->dtype_.type_code_) {
+                    case sc_data_etype::F32:
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx512_vpermi2var_ps_128, {},
+                                {inval1, inval2, inval3});
+                        break;
+                    case sc_data_etype::U8:
+                    default:
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx512_vpermi2var_qi_128, {},
+                                {inval1, inval2, inval3});
+                        break;
+                }
             } break;
             case intrin_type::unpack_high:
             case intrin_type::unpack_low: {

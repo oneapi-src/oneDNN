@@ -114,6 +114,13 @@ INLINE vec_u8x16 sc_select(
 }
 #endif
 
+#ifdef __AVX512VBMI__
+INLINE vec_u8x16 sc_permutex2var(
+        vec_u8x16 const &a, vec_u8x16 const &idx, vec_u8x16 const &b) {
+    return _mm_permutex2var_epi8(a.v, idx.v, b.v);
+}
+#endif
+
 INLINE vec_u8x16 sc_max(vec_u8x16 const &a, vec_u8x16 const &b) {
     return _mm_max_epu8(a.v, b.v);
 }
