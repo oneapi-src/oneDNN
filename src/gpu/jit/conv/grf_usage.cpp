@@ -32,8 +32,8 @@ std::string to_string(grf_usage_label_t label) {
 #define CASE(l) \
     case grf_usage_label_t::l: return #l;
         CASE(unknown)
-        CASE(c_buf)
         CASE(gmem_load)
+        CASE(out_buf)
         CASE(reorder)
         CASE(reserved)
         CASE(reused_headers)
@@ -267,7 +267,7 @@ public:
         int zp_usage = estimate_zero_point_usage();
 
         grf_usage_t info(cfg_.grf_size());
-        info.add(grf_usage_label_t::c_buf, c_buf_usage);
+        info.add(grf_usage_label_t::out_buf, c_buf_usage);
         info.add(grf_usage_label_t::gmem_load, gmem_load_usage);
         info.add(grf_usage_label_t::slm_store, slm_store_usage);
         info.add(grf_usage_label_t::slm_load, slm_load_usage);
@@ -607,19 +607,6 @@ private:
                 ir_error_not_expected() << "Can't collect GRF usage.";
             return false;
         }
-        for (auto label : {grf_usage_label_t::c_buf}) {
-            int count = 0;
-            for (auto &buf : buf_usage_.bufs())
-                if (buf_usage_.get_label(buf) == label) count++;
-            if (count != 1) {
-                if (!allow_errors)
-                    ir_error_not_expected()
-                            << "Expected exactly one buffer with label: "
-                            << label;
-                return false;
-            }
-        }
-
         for (auto &buf : buf_usage_.bufs()) {
             if (buf_usage_.get_label(buf) != grf_usage_label_t::unknown)
                 continue;
@@ -662,7 +649,10 @@ private:
 
     void mark_known_bufs(const expr_t &buf) {
         ir_assert(is_buffer(buf));
-        if (buf.as<var_t>().name.find("zp_") == 0) {
+        auto &name = buf.as<var_t>().name;
+        if (name == "b_reduced") {
+            set_label(buf, grf_usage_label_t::out_buf);
+        } else if (name.find("zp_") == 0) {
             set_label(buf, grf_usage_label_t::zero_points);
         }
     }
@@ -671,6 +661,7 @@ private:
         ir_assert(is_buffer(buf));
         auto &name = buf.as<var_t>().name;
         if (name.find("zp_") == 0) return true;
+        if (name == "b_reduced") return true;
         return false;
     }
 
@@ -708,7 +699,7 @@ private:
         ir_assert(is_buffer(dst));
         ir_assert(is_buffer(src1));
         ir_assert(is_buffer(src2));
-        set_label(dst, grf_usage_label_t::c_buf);
+        set_label(dst, grf_usage_label_t::out_buf);
     }
 
     int grf_size_;

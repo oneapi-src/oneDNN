@@ -6998,11 +6998,13 @@ void kernel_builder_t::build() {
     loop_stmt = inject_compute_loop_label(loop_stmt);
     loop_stmt = cb.inject_compute_alloc_stmts(loop_stmt);
 
-    auto c_store_stmt
-            = stmt_group_t::make(stmt_label_t::c_store(), cb.c_store_stmt());
+    stmt_t c_store_stmt;
+    c_store_stmt = c_store_stmt.append(cb.b_reduced_store_stmt());
+    c_store_stmt = c_store_stmt.append(cb.c_store_stmt());
+    c_store_stmt = stmt_group_t::make(stmt_label_t::c_store(), c_store_stmt);
+
     stmt_ = loop_stmt;
     stmt_ = stmt_seq_t::make(cb.zero_out_stmt(), stmt_);
-    stmt_ = stmt_seq_t::make(stmt_, cb.b_reduced_store_stmt());
     stmt_ = stmt_seq_t::make(stmt_, c_store_stmt);
 
     stmt_ = cb.inject_out_alloc_stmts(stmt_);

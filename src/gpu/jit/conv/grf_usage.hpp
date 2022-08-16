@@ -30,8 +30,8 @@ namespace jit {
 
 enum class grf_usage_label_t {
     unknown,
-    c_buf,
     gmem_load,
+    out_buf,
     reorder,
     reserved,
     reused_headers,
