@@ -44,7 +44,7 @@ static int check_known_skipped_case_graph(
     }
 
     check_known_skipped_case_graph_common(
-            {prb->dt}, normalize_tag(prb->tag, prb->ndims), prb->dir, res);
+            {prb->dt}, normalize_tag(prb->tag[0], prb->ndims), prb->dir, res);
     if (res->state == SKIPPED) return OK;
     /* GLOBAL STATS cannot be passed as DNNL Graph doesnt support this */
     if (prb->flags & ::lnorm::GLOB_STATS) {
@@ -87,7 +87,7 @@ fill_status_t append_graph_with_block(const ::lnorm::prb_t *prb) {
     const auto mean_id = graph.generate_id_for(op_id, lt_kind::MEAN);
     const auto var_id = graph.generate_id_for(op_id, lt_kind::VAR);
 
-    const auto common_dt = convert_dt(prb->dt);
+    const auto common_dt = convert_dt(prb->dt[0]);
     dims_t base_dims = prb->dims;
     dims_t stat_dims = get_stat_dims(prb->dims);
     dims_t ss_dims = {prb->c};
@@ -187,11 +187,11 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
     const bool keep_stats {prb->dir == FWD_D};
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
-    auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
+    auto src_dt = make_dnn_mem(ins[0], (prb->tag[0]).c_str());
     dnn_mem_t &dst_fp = src_fp; // in-place reference
     dnn_mem_t placeholder_dst_dt;
     if (!prb->inplace) {
-        placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
+        placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag[0]).c_str());
     }
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
@@ -312,11 +312,11 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         dnn_mem_t placeholder_d_src_dt;
         // backward pass
         auto d_dst_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
-        auto d_dst_dt = make_dnn_mem(ins[1], (prb->tag).c_str());
+        auto d_dst_dt = make_dnn_mem(ins[1], (prb->tag[0]).c_str());
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
         if (!prb->inplace) {
-            placeholder_d_src_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
+            placeholder_d_src_dt = make_dnn_mem(outs[0], (prb->tag[0]).c_str());
         }
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
