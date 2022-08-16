@@ -48,6 +48,10 @@ protected:
 
         const bool is_fwd = p.aprop_kind == prop_kind::forward_training
                 || p.aprop_kind == prop_kind::forward_inference;
+        const auto dt = data_traits<data_t>::data_type;
+
+        SKIP_IF(unsupported_data_type(dt),
+                "Engine does not support this data type.");
 
         SKIP_IF_CUDA(!cuda_check_format_tag(p.memory_format),
                 "Unsupported format tag");
@@ -59,11 +63,11 @@ protected:
             SKIP_IF_HIP(!hip_check_format_tag(p.diff_memory_format),
                     "Unsupported format tag");
         }
-        SKIP_IF_CUDA(data_traits<data_t>::data_type == memory::data_type::bf16,
-                "Unsupported datatype for CUDA");
+        SKIP_IF_CUDA(
+                dt == memory::data_type::bf16, "Unsupported datatype for CUDA");
         SKIP_IF_CUDA(p.axis != 1, "Unsupported axis values for CUDA");
-        SKIP_IF_HIP(data_traits<data_t>::data_type == memory::data_type::bf16,
-                "Unsupported datatype for HIP");
+        SKIP_IF_HIP(
+                dt == memory::data_type::bf16, "Unsupported datatype for HIP");
         SKIP_IF_HIP(p.axis != 1, "Unsupported axis values for HIP");
 
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
