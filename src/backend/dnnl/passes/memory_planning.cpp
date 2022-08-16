@@ -1346,14 +1346,14 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                 } else if (op->get_kind() == op_kind::dnnl_eltwise
                         || op->get_kind() == op_kind::dnnl_reduction
                         || op->get_kind() == op_kind::dnnl_shuffle
-                        || op->get_kind() == op_kind::permute
-                        || op->get_kind() == op_kind::to_group
-                        || op->get_kind() == op_kind::from_group
-                        || op->get_kind() == op_kind::expand
-                        || op->get_kind() == op_kind::squeeze
+                        || op->get_kind() == op_kind::dnnl_permute
+                        || op->get_kind() == op_kind::dnnl_to_group
+                        || op->get_kind() == op_kind::dnnl_from_group
+                        || op->get_kind() == op_kind::dnnl_expand
+                        || op->get_kind() == op_kind::dnnl_squeeze
                         || op->get_kind() == op_kind::dnnl_resampling
-                        || op->get_kind() == impl::op_kind::StaticReshape
-                        || op->get_kind() == impl::op_kind::StaticTranspose) {
+                        || op->get_kind() == op_kind::dnnl_reshape
+                        || op->get_kind() == op_kind::dnnl_transpose) {
                     prepare_args_for_siso_op(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_prelu) {
                     prepare_args_for_prelu(op, p_engine, mgr);

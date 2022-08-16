@@ -29,7 +29,7 @@ using namespace dnnl::graph::impl;
 using namespace dnnl::graph::tests::unit::utils;
 
 TEST(OpSchema, InferSqueezeOutputShape) {
-    const op_kind_t kind = impl::dnnl_impl::op_kind::squeeze;
+    const op_kind_t kind = impl::dnnl_impl::op_kind::dnnl_squeeze;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
     std::vector<std::vector<int64_t>> axes_list {{1}, {1, 2}, {-1}, {-1, -2}};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -59,7 +59,7 @@ TEST(OpSchema, InferSqueezeOutputShape) {
 }
 
 TEST(OpSchema, InferExpandOutputShape) {
-    const op_kind_t kind = impl::dnnl_impl::op_kind::expand;
+    const op_kind_t kind = impl::dnnl_impl::op_kind::dnnl_expand;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
 
     const std::vector<int64_t> src_shape {4};
@@ -94,7 +94,7 @@ TEST(OpSchema, InferExpandOutputShape) {
 }
 
 TEST(OpSchema, InferExpandOutputShapeBasedOnAxes) {
-    const op_kind_t kind = impl::dnnl_impl::op_kind::expand;
+    const op_kind_t kind = impl::dnnl_impl::op_kind::dnnl_expand;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
 
     const std::vector<std::vector<int64_t>> axes_list {

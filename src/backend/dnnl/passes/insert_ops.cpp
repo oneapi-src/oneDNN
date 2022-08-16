@@ -72,7 +72,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         if (!(need_permute_0 || need_permute_1 || need_permute_2)) return false;
 
         for (size_t i = 0; i < conv_op->num_inputs(); ++i) {
-            op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            op_ptr perm_op
+                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
 
             if (i == 0) {
@@ -154,7 +155,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             if (i > 1 && op->get_kind() == op_kind::dnnl_resampling_bwd)
                 continue;
 
-            op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            op_ptr perm_op
+                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
             perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
             perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
@@ -182,7 +184,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
 
         // permute output back to NXC
         if (require_output_permute) {
-            op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            op_ptr perm_op
+                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
             perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
             perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
@@ -192,7 +195,7 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             // Insert permute after prelu bprop second output
             if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
                 op_ptr perm_op_1
-                        = std::make_shared<impl::op_t>(op_kind::permute);
+                        = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
                 perm_op_1->set_attr<std::string>(
                         op_attr::permute_kind, "permute");
                 perm_op_1->set_attr<std::string>(op_attr::from_format, "NCX");
@@ -231,7 +234,8 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
 
         const int64_t new_axis = 1;
         cur_op->set_attr(op_attr::axis, new_axis);
-        op_ptr perm_src_op = std::make_shared<impl::op_t>(op_kind::permute);
+        op_ptr perm_src_op
+                = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
         perm_src_op->set_attr<std::string>(op_attr::permute_kind, "permute");
         perm_src_op->set_attr<std::string>(op_attr::from_format, "NXC");
         perm_src_op->set_attr<std::string>(op_attr::to_format, "NCX");
@@ -239,7 +243,8 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         to_be_inserted_ops.emplace_back(perm_src_op);
 
         // permute output back to NXC
-        op_ptr perm_dst_op = std::make_shared<impl::op_t>(op_kind::permute);
+        op_ptr perm_dst_op
+                = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
         perm_dst_op->set_attr<std::string>(op_attr::permute_kind, "permute");
         perm_dst_op->set_attr<std::string>(op_attr::from_format, "NCX");
         perm_dst_op->set_attr<std::string>(op_attr::to_format, "NXC");
@@ -268,7 +273,8 @@ impl::status_t insert_to_group_for_conv_or_deconv(
             return false;
         }
 
-        op_ptr to_group_op = std::make_shared<impl::op_t>(op_kind::to_group);
+        op_ptr to_group_op
+                = std::make_shared<impl::op_t>(op_kind::dnnl_to_group);
         to_group_op->set_attr<int64_t>(op_attr::groups, groups);
 
         op->set_attr<bool>(op_attr::canonicalized, true);
@@ -337,7 +343,7 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
 
             // insert to_group op
             op_ptr to_group_op
-                    = std::make_shared<impl::op_t>(op_kind::to_group);
+                    = std::make_shared<impl::op_t>(op_kind::dnnl_to_group);
             to_group_op->set_attr<int64_t>(op_attr::groups, group);
 
             insert_op_before(to_group_op, cur_op, 0);
@@ -373,7 +379,7 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
                     || cur_op->get_input_value(i)->get_logical_tensor().ndims
                             <= 1)
                 continue;
-            op_ptr transpose_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr transpose_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             transpose_op->set_attr<std::string>(
                     op_attr::permute_kind, "transpose");
             insert_op_before(transpose_op, cur_op, i);
@@ -399,7 +405,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
         // skip due to dnnl cannot reshape such kind of strided memory desc
         if (cur_op->get_input_value(0)->has_producer()
                 && cur_op->get_input_value(0)->get_producer().get_kind()
-                        == op_kind::permute) {
+                        == op_kind::dnnl_permute) {
             continue;
         }
 
@@ -420,7 +426,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
                 cur_op->get_input_value(0)->get_logical_tensor())
                                 .vdims();
         impl::dims expected_dims {-1, src_dims.back()};
-        auto reshape_op = std::make_shared<op_t>(impl::op_kind::StaticReshape);
+        auto reshape_op = std::make_shared<op_t>(op_kind::dnnl_reshape);
         reshape_op->set_attr<bool>(op_attr::special_zero, false);
         reshape_op->set_attr<std::vector<int64_t>>(
                 op_attr::shape, expected_dims);
@@ -429,7 +435,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
 
         impl::dims expected_dims2(src_dims);
         expected_dims2[expected_dims2.size() - 1] = 0;
-        auto reshape_op2 = std::make_shared<op_t>(impl::op_kind::StaticReshape);
+        auto reshape_op2 = std::make_shared<op_t>(op_kind::dnnl_reshape);
         reshape_op2->set_attr<bool>(op_attr::special_zero, true);
         reshape_op2->set_attr<std::vector<int64_t>>(
                 op_attr::shape, expected_dims2);
@@ -441,8 +447,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
                     cur_op->get_input_value(2)->get_logical_tensor())
                                          .vdims();
             impl::dims expected_dims3 {-1, post_src_dims.back()};
-            auto reshape_op3
-                    = std::make_shared<op_t>(impl::op_kind::StaticReshape);
+            auto reshape_op3 = std::make_shared<op_t>(op_kind::dnnl_reshape);
             reshape_op3->set_attr<bool>(op_attr::special_zero, false);
             reshape_op3->set_attr<std::vector<int64_t>>(
                     op_attr::shape, expected_dims3);
@@ -453,8 +458,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
                     cur_op->get_input_value(3)->get_logical_tensor())
                                          .vdims();
             impl::dims expected_dims3 {-1, post_src_dims.back()};
-            auto reshape_op3
-                    = std::make_shared<op_t>(impl::op_kind::StaticReshape);
+            auto reshape_op3 = std::make_shared<op_t>(op_kind::dnnl_reshape);
             reshape_op3->set_attr<bool>(op_attr::special_zero, false);
             reshape_op3->set_attr<std::vector<int64_t>>(
                     op_attr::shape, expected_dims3);
@@ -498,7 +502,7 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
 
         std::vector<int32_t> ori_ndims {new_src_ndims, new_wei_ndims};
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
-            auto expand_op = std::make_shared<op_t>(op_kind::expand);
+            auto expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
             if (i < 2) { // src and weight
                 auto ndims = ori_ndims[i];
                 if (ndims != 1) {
@@ -567,7 +571,7 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
 
         // insert squeeze ops
         if (!squeeze_dims.empty()) {
-            op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
+            op_ptr squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
             squeeze_op->set_attr<std::vector<int64_t>>(
                     op_attr::axes, squeeze_dims);
             insert_op_after(squeeze_op, cur_op, 0);
@@ -667,7 +671,7 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
         int32_t wei_ndims = wei_lt.ndims;
         // we only broadcast wei dims
         if (wei_ndims != src_ndims) {
-            auto expand_op = std::make_shared<op_t>(op_kind::expand);
+            auto expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
             expand_op->set_attr<int64_t>(op_attr::expand_to, src_ndims);
             // insert op before weights, which are the second input
             int wei_id = 1;
@@ -678,7 +682,8 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
                     && per_channel_broadcast) {
                 // If data format is NCX we need to permute expanded weights,
                 // which are in format NXC.
-                op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+                op_ptr perm_op
+                        = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
                 perm_op->set_attr<std::string>(
                         op_attr::permute_kind, "permute");
                 perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -735,14 +740,15 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
         int32_t wei_ndims = wei_lt.ndims;
         // we only broadcast wei dims
         if (wei_ndims != src_ndims) {
-            auto expand_op = std::make_shared<op_t>(op_kind::expand);
+            auto expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
             expand_op->set_attr<int64_t>(op_attr::expand_to, src_ndims);
             // insert expand before weights, which are the second input
             int wei_id = 1;
             insert_op_before(expand_op, cur_op, wei_id);
             to_be_inserted_ops.emplace_back(expand_op);
 
-            auto expand_op_diff_wei = std::make_shared<op_t>(op_kind::expand);
+            auto expand_op_diff_wei
+                    = std::make_shared<op_t>(op_kind::dnnl_expand);
             expand_op_diff_wei->set_attr<int64_t>(
                     op_attr::expand_to, src_ndims);
             // insert expand before diff_weights, which are the second output
@@ -753,7 +759,8 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
                     && per_channel_broadcast) {
                 // If data format is NCX we need to permute expanded weights,
                 // which are in format NXC.
-                op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+                op_ptr perm_op
+                        = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
                 perm_op->set_attr<std::string>(
                         op_attr::permute_kind, "permute");
                 perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -777,7 +784,7 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
                 squeeze_dims[0] = 0;
             }
 
-            op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
+            op_ptr squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
             squeeze_op->set_attr<std::vector<int64_t>>(
                     op_attr::axes, squeeze_dims);
             // Insert squeeze after diff weights, so that its dimensions
@@ -829,7 +836,7 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
             // insert expand OP before binary's src1 input
             if (post_op.get_kind() == op_kind::dnnl_binary) {
                 if (!post_binary_fusible(cur_op.get(), &post_op)) break;
-                op_ptr expand_op = std::make_shared<op_t>(op_kind::expand);
+                op_ptr expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
                 expand_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
                 insert_op_before(expand_op.get(), &post_op, src1_offset);
                 to_be_inserted_ops.emplace_back(expand_op);
@@ -850,7 +857,7 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
             cur_op_ptr = &post_op;
         }
 
-        op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
+        op_ptr squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
         squeeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
         // insert squeeze op after reduction or after its last post-op
         insert_op_after(squeeze_op.get(), cur_op_ptr, 0);
