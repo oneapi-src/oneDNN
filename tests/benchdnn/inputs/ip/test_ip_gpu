@@ -2,13 +2,13 @@
 --reset
 --dir=FWD_B,FWD_D
 --cfg=s8s8s32,s8s8s8,s8s8u8,u8s8s32,u8s8s8,u8s8u8
---attr-oscale=per_oc:2.25
+--attr-oscale=per_oc:2.25,per_oc:2.25*
 --attr-post-ops=sum:0.5,add:s8:per_tensor,linear:0.5:1.5:2, \
                 add:f32:per_oc+sum:0.25+relu:0.5
 --mb=2 --batch=set_gpu
 --mb=0 --batch=shapes_0d_gpu
 
---attr-oscale=common:2.25
+--attr-oscale=common:2.25,common:2.25*
 --attr-post-ops=sum:0.5,add:u8:per_tensor,linear:-0.5:0.5:0.5, \
                 add:f32:per_oc+abs+sum:0.5
 --batch=shapes_1d

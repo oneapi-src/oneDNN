@@ -98,6 +98,8 @@ struct prb_t : public prb_vdims_t {
         dst_dims[ndims - 1] = n;
 
         init_dst_rt_dims_mask();
+        mb = std::accumulate(dst_dims.begin(), dst_dims.end() - 2,
+                (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
         const auto nelems = std::accumulate(dst_dims.begin(), dst_dims.end(),
                 (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
         ops = 2. * nelems * k;
@@ -112,7 +114,7 @@ struct prb_t : public prb_vdims_t {
         if (dst_zp) zfree(dst_zp);
     }
 
-    int m, n, k;
+    int64_t m, n, k, mb;
     dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     std::vector<dnnl_data_type_t> dt;
     std::string stag, wtag, dtag;

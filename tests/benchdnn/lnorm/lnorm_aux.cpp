@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,13 +26,36 @@ flags_t str2flags(const char *str) {
     return flags;
 }
 
+void prb_t::generate_oscales() {
+    if (attr.oscale.is_def()) return;
+
+    assert(attr.oscale.policy == policy_t::COMMON);
+
+    if (attr.oscale.policy == policy_t::COMMON) {
+        scales = (float *)zmalloc(sizeof(float), 4);
+        SAFE_V(scales != nullptr ? OK : FAIL);
+        scales[0] = attr.oscale.scale;
+        return;
+    }
+}
+
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
+    bool has_default_dts = true;
+    for (const auto &i_dt : prb.dt)
+        has_default_dts = has_default_dts && i_dt == dnnl_f32;
+
     if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
-    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    if (canonical || !has_default_dts) s << "--dt=" << prb.dt << " ";
+    if (canonical || prb.tag != def.tag[0]) {
+        s << "--tag=";
+        if (prb.tag[1] != def.tag[0][1])
+            s << prb.tag[0] << ":" << prb.tag[1] << " ";
+        else
+            s << prb.tag[0] << " ";
+    }
     if (canonical || prb.stat_tag != def.stat_tag[0])
         s << "--stat_tag=" << prb.stat_tag << " ";
     if (canonical || prb.flags != def.flags[0])

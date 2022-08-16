@@ -11,3 +11,6 @@
 
 # bf16
 --batch=test_shuffle_bfloat16
+
+# f16
+--batch=test_shuffle_float16

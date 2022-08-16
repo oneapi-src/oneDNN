@@ -37,9 +37,21 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_tag : s.tag)
     for_(const auto &i_stat_tag : s.stat_tag)
     for_(const auto &i_flags : s.flags)
+    for_(const auto &i_oscale : s.oscale)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_inplace : s.inplace) {
-        auto attr = settings_t::get_attr(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_oscale, i_scratchpad_mode);
+
+        static constexpr int n_inputs = 2;
+        if (i_dt.size() != 1 && i_dt.size() != n_inputs) {
+            fprintf(stderr,
+                    "ERROR: lnorm driver: `dt` option expects either a single "
+                    "input or `%d` inputs in SRC, DST order. Current size is: "
+                    "\"%ld\"\n",
+                    n_inputs, (long)i_dt.size()),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
 
         const prb_t prb(s.prb_dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags,
                 attr, i_inplace, s.check_alg);
@@ -80,12 +92,13 @@ int bench(int argc, char **argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
                 || parse_dir(s.dir, def.dir, argv[0])
-                || parse_dt(s.dt, def.dt, argv[0])
-                || parse_tag(s.tag, def.tag, argv[0])
+                || parse_multi_dt(s.dt, def.dt, argv[0], "dt")
+                || parse_multi_tag(s.tag, def.tag, argv[0], "tag")
                 || parse_tag(s.stat_tag, def.stat_tag, argv[0], "stat_tag")
                 || parse_vector_option(s.flags, def.flags, str2flags, argv[0],
                         "flags", help_flags)
                 || parse_inplace(s.inplace, def.inplace, argv[0])
+                || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])

@@ -18,3 +18,6 @@
 
 # bf16
 --batch=test_lnorm_bfloat16
+
+# int8
+--batch=test_lnorm_int8

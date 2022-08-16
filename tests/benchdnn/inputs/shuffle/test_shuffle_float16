@@ -1,0 +1,10 @@
+--reset
+
+--dt=f16
+
+--dir=FWD_D
+--tag=abx,axb
+--batch=option_set_all
+
+--dir=BWD_D
+--batch=option_set_min

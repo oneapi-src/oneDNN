@@ -1,9 +1,9 @@
 --reset
 
---inplace=true,false
 --tag=abx,axb
 --stat_tag=any,undef,abx,axb
 
+--inplace=true
 --dt=f32,bf16,f16
 --dir=FWD_D
 --flags=,S,G,C,H,CH,GS
@@ -15,4 +15,23 @@
 
 --dir=BWD_DW
 --flags=S,GS,C,H
+--batch=shapes_ci
+
+# Different data type combinations
+--inplace=false
+--dt=bf16:f32,f32:bf16
+--dir=FWD_D,BWD_DW
+--flags=,CH
+--batch=shapes_ci
+
+--dt=f32:s8,f32:u8,bf16:s8,bf16:u8
+--dir=FWD_I
+--attr-oscale=common:64*
+--flags=,CH
+--batch=shapes_ci
+
+--dt=s8:f32,u8:f32,s8:bf16,u8:bf16
+--dir=FWD_I
+--attr-oscale=common:64*
+--flags=,CH
 --batch=shapes_ci
