@@ -298,7 +298,7 @@ INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardFloat, softmax_forward_test_float,
                         tag::undef, {2, 1011, 32, 1}, 2}));
 
 TEST_P(softmax_forward_test_bfloat16, TestsSoftmax) {}
-GPU_INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardBfloat16,
+INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardBfloat16,
         softmax_forward_test_bfloat16,
         ::testing::Values(test_params<bfloat16_t> {prop_kind::forward_training,
                                   tag::nchw, tag::undef, {2, -2, 128, 256}, 0,
