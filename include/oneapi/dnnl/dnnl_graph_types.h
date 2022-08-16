@@ -449,6 +449,7 @@ typedef enum {
     dnnl_graph_op_relu_backprop,
     dnnl_graph_op_reorder,
     dnnl_graph_op_round,
+    dnnl_graph_op_rsqrt,
     dnnl_graph_op_select,
     dnnl_graph_op_sigmoid,
     dnnl_graph_op_sigmoid_backprop,

@@ -1378,6 +1378,16 @@ DNNL_GRAPH_OP_SCHEMA(Round, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(Rsqrt, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T")
+                .set_output(0, "output", "output tensor", "T")
+                .set_type_constraints(
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(Sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(1)

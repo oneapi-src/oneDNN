@@ -214,6 +214,7 @@ const op_kind_t ReLU = dnnl_graph_op_relu;
 const op_kind_t ReLUBackprop = dnnl_graph_op_relu_backprop;
 const op_kind_t Reorder = dnnl_graph_op_reorder;
 const op_kind_t Round = dnnl_graph_op_round;
+const op_kind_t Rsqrt = dnnl_graph_op_rsqrt;
 const op_kind_t Select = dnnl_graph_op_select;
 const op_kind_t Sigmoid = dnnl_graph_op_sigmoid;
 const op_kind_t SigmoidBackprop = dnnl_graph_op_sigmoid_backprop;

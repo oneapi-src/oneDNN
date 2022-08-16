@@ -110,6 +110,7 @@ TEST(APIOp, CreateAllOps) {
             op::kind::ReLUBackprop,
             op::kind::Reorder,
             op::kind::Round,
+            op::kind::Rsqrt,
             op::kind::Select,
             op::kind::Sigmoid,
             op::kind::SigmoidBackprop,

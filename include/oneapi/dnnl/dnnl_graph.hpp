@@ -914,6 +914,7 @@ public:
         ReLUBackprop = dnnl_graph_op_relu_backprop,
         Reorder = dnnl_graph_op_reorder,
         Round = dnnl_graph_op_round,
+        Rsqrt = dnnl_graph_op_rsqrt,
         Select = dnnl_graph_op_select,
         Sigmoid = dnnl_graph_op_sigmoid,
         SigmoidBackprop = dnnl_graph_op_sigmoid_backprop,

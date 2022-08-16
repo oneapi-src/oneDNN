@@ -2150,6 +2150,23 @@ TEST(OpSchema, InferRoundOutputShape) {
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
+TEST(OpSchema, Rsqrt) {
+    const op_kind_t op_kind_ = op_kind::Rsqrt;
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<op_attr_t, bool> attrs_data = {};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferRsqrtOutputShape) {
+    const op_kind_t op_kind_ = op_kind::Rsqrt;
+
+    verify_single_in_identity_shape_infer(op_kind_);
+}
+
 TEST(OpSchema, Select) {
     const op_kind_t op_kind_ = op_kind::Select;
     const size_t expected_in_size = 3;
