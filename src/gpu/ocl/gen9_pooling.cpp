@@ -103,7 +103,23 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     conf.dispatch = compute_engine->create_dispatch(
             conf.is_backward ? src_mdw.md_ : dst_mdw.md_);
 
-    conf.dispatch.define_dim("MB", 0, conf.mb_padded, conf.chunks_per_mb_block);
+    auto arch = compute_engine->device_info()->gpu_arch();
+    bool is_pre_xe_hpc = arch < compute::gpu_arch_t::xe_hpc;
+    size_t input_sz_mb
+            = src_mdw.nelems() * src_mdw.data_type_size() / 1024 / 1024;
+    // heuristics: use batching on ATS-M for certain shapes for better perf.
+    if (!conf.is_backward && pd->attr()->post_ops_.has_default_values()
+            && is_pre_xe_hpc && ((float)input_sz_mb / conf.mb > 0.5)) {
+        conf.num_batches = utils::div_up(conf.mb_padded, conf.mb_block_size);
+    }
+    if (conf.num_batches > 1) {
+        conf.dispatch.define_dim("MB", 0,
+                nstl::min(conf.mb_block_size, conf.mb_padded),
+                conf.chunks_per_mb_block);
+    } else {
+        conf.dispatch.define_dim(
+                "MB", 0, conf.mb_padded, conf.chunks_per_mb_block);
+    }
     conf.dispatch.define_dim("C", 1, c_padded, conf.chunks_per_c_block);
 
     int ndims = conf.ndims;
@@ -129,7 +145,12 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.set_data_type(conf.src_dt);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
-    kernel_ctx.define_int("MB", conf.mb);
+    if (conf.num_batches > 1) {
+        kernel_ctx.define_int("MB", nstl::min(conf.mb_block_size, conf.mb));
+    } else {
+        kernel_ctx.define_int("MB", conf.mb);
+    }
+    kernel_ctx.define_int("MB_BLOCK_SIZE", conf.mb_block_size);
     kernel_ctx.define_int("C_W_PADDING", conf.c_padded);
     kernel_ctx.define_int("C_WO_PADDING", conf.c);
     kernel_ctx.define_int("ID", conf.id);
@@ -198,12 +219,16 @@ status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(0, src);
     arg_list.set(1, ws);
     arg_list.set(2, dst);
-    append_post_ops_to_arg_list(ctx, arg_list, 3, pd()->attr()->post_ops_);
+    append_post_ops_to_arg_list(ctx, arg_list, 4, pd()->attr()->post_ops_);
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
-
+    int num_batches = pd()->conf.num_batches;
+    for (int batch_iter = 0; batch_iter < num_batches; batch_iter++) {
+        arg_list.set(3, batch_iter);
+        status = parallel_for(ctx, nd_range, kernel_, arg_list);
+        if (status != status::success) return status;
+    }
     return status;
 }
 
