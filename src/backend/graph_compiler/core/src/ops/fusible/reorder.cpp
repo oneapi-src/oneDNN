@@ -1795,17 +1795,11 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     if (get_expr_as_int(dst.shape_[out_k2_pos]) % (is_bf16 ? 2 : 4) != 0)
         return false;
     if (!is_vnni_reorder) {
-        if (get_expr_as_int(dst.shape_[out_n_pos]) / 4 == 0) return false;
-        if (get_expr_as_int(dst.shape_[out_k_pos]) / 4 == 0) return false;
-        if (get_expr_as_int(src.shape_[in_N_pos]) / 4 == 0) return false;
-        if (get_expr_as_int(src.shape_[in_K_pos]) / (is_bf16 ? 8 : 16) == 0)
-            return false;
+        if (get_expr_as_int(dst.shape_[out_n_pos]) % 4 == 0) return false;
+        if (get_expr_as_int(dst.shape_[out_k_pos]) % 4 == 0) return false;
     } else {
-        if (get_expr_as_int(dst.shape_[out_n_pos]) / (is_bf16 ? 8 : 16) == 0)
+        if (get_expr_as_int(dst.shape_[out_n_pos]) % (is_bf16 ? 8 : 16) != 0)
             return false;
-        if (get_expr_as_int(src.shape_[in_N_pos]) / (is_bf16 ? 8 : 16) == 0)
-            return false;
-        if (get_expr_as_int(src.shape_[in_K_pos]) / 4 == 0) return false;
     }
 
     // new VNNI transpose currently only avaiable on spr
@@ -2015,6 +2009,7 @@ static void compute_vnni_reorder(const context_ptr &ctx,
             != math_utils::get_dims_product(output_blocking_dims)) {
         is_padding = true;
     }
+
     std::vector<expr> rows(4);
     std::vector<expr> iter_vars, iter_vars_2;
     std::vector<stmt_c> cur_list;
@@ -2355,7 +2350,14 @@ static void compute_vnni_reorder(const context_ptr &ctx,
             std::vector<stmt_c> cur_list_pad;
             // build padding if else case
             {
-                expr cond;
+                expr cond = true;
+                auto padding = builder::make_stmts_unattached(
+                        {builder::make_assign_unattached(
+                                builder::make_indexing(
+                                        output, out_indexes_2, 1),
+                                builder::make_constant({0UL},
+                                        sc_data_type_t(dtype.type_code_, 1)))});
+                cond = true;
                 std::vector<expr> tmp_in_indexes_2
                         = get_reorder_block2plain_indexes(
                                 out_indexes_2, output_format, plain_dims, cond);
@@ -2369,12 +2371,6 @@ static void compute_vnni_reorder(const context_ptr &ctx,
                                         output, out_indexes_2, 1),
                                 builder::make_indexing(
                                         input, in_indexes_2, 1))});
-                auto padding = builder::make_stmts_unattached(
-                        {builder::make_assign_unattached(
-                                builder::make_indexing(
-                                        output, out_indexes_2, 1),
-                                builder::make_constant({0UL},
-                                        sc_data_type_t(dtype.type_code_, 1)))});
                 auto cur = builder::make_if_else_unattached(
                         cond, assign_tail, padding);
                 cur_list_pad.emplace_back(cur);
@@ -2411,57 +2407,64 @@ static void compute_vnni_reorder(const context_ptr &ctx,
             vnni_condition = true;
             for (int i = static_cast<int>(output_blocking_dims.size()) - 1;
                     i >= 0; i--) {
+                auto temp_cond = (iter_vars.at(i) < dst.get_shape()[i]);
                 if (!is_vnni_reorder) { // vnni transpose
-                    if (i == out_n_axis[1] || i == out_k_axis[1]
-                            || i == out_k_axis[2]) {
-                        continue;
+                    if (i == out_n_axis[1] || i == out_k_axis[1]) {
+                        temp_cond = (iter_vars.at(i) < dst.get_shape()[i] / 4);
+                    } else if (i == out_k_axis[2]) {
+                        temp_cond = (iter_vars.at(i)
+                                < dst.get_shape()[i] / (is_bf16 ? 2 : 4));
                     }
                 } else { // vnni reorder
-                    if (i == out_n_axis[1] || (is_bf16 && i == out_k_axis[1])
+                    if (i == out_n_axis[1]) {
+                        temp_cond = (iter_vars.at(i)
+                                < dst.get_shape()[i] / (is_bf16 ? 8 : 16));
+                    } else if ((is_bf16 && i == out_k_axis[1])
                             || i == out_k_axis[2]) {
-                        continue;
+                        temp_cond = (iter_vars.at(i)
+                                < dst.get_shape()[i] / (is_bf16 ? 2 : 4));
                     }
                 }
-                vnni_condition = vnni_condition
-                        && (iter_vars.at(i) < dst.get_shape()[i]);
+                vnni_condition = vnni_condition && temp_cond;
             }
             cur = builder::make_if_else_unattached(
                     vnni_condition, cur, pad_cur);
         }
         stmt body;
 
-        expr_c iter_end;
+        expr iter_end;
         // for-loop-transforms only support step=1
         // we can only divide iter_end_ rather than multiply step_
         for (int i = static_cast<int>(output_blocking_dims.size()) - 1; i >= 0;
                 i--) {
+            if (is_padding) {
+                iter_end = (uint64_t)output_blocking_dims[i];
+            } else {
+                iter_end = dst.get_shape()[i];
+            }
             if (!is_vnni_reorder) { // vnni transpose
                 if (i == out_n_axis[1] || i == out_k_axis[1]) {
-                    iter_end = divide_and_ceil(dst.get_shape()[i],
+                    iter_end = divide_and_ceil(iter_end,
                             make_expr<constant_node>(static_cast<uint64_t>(4),
                                     dst.get_shape()[i]->dtype_));
                 } else if (i == out_k_axis[2]) {
-                    iter_end = divide_and_ceil(dst.get_shape()[i],
+                    iter_end = divide_and_ceil(iter_end,
                             make_expr<constant_node>(
                                     static_cast<uint64_t>(is_bf16 ? 2 : 4),
                                     dst.get_shape()[i]->dtype_));
-                } else {
-                    iter_end = (uint64_t)output_blocking_dims[i];
                 }
             } else { // vnni reorder
                 if (i == out_n_axis[1]) {
-                    iter_end = divide_and_ceil(dst.get_shape()[i],
+                    iter_end = divide_and_ceil(iter_end,
                             make_expr<constant_node>(
                                     static_cast<uint64_t>(is_bf16 ? 8 : 16),
                                     dst.get_shape()[i]->dtype_));
                 } else if ((is_bf16 && i == out_k_axis[1])
                         || i == out_k_axis[2]) {
-                    iter_end = divide_and_ceil(dst.get_shape()[i],
+                    iter_end = divide_and_ceil(iter_end,
                             make_expr<constant_node>(
                                     static_cast<uint64_t>(is_bf16 ? 2 : 4),
                                     dst.get_shape()[i]->dtype_));
-                } else {
-                    iter_end = (uint64_t)output_blocking_dims[i];
                 }
             }
 
