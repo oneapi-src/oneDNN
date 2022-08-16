@@ -29,6 +29,9 @@ namespace pass {
 using pb_graph_t = impl::utils::pm::pb_graph_t;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
+#define MLP_NUM_LAYER_LOWER_BOUND 2
+#define MLP_NUM_LAYER_UPPER_BOUND 11
+
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mlp_pattern)
 
 /*
@@ -84,9 +87,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     mlp_layer->create_input_port(0, matmul, 0);
                     mlp_layer->create_output_port(0, optional_activation, 0);
 
-                    // repeat layer for [2, 10) times
-                    pgraph->append_repetition(
-                            mlp_layer, {0, 0}, 2, 10, "rep_unit");
+                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
+                    pgraph->append_repetition(mlp_layer, {0, 0},
+                            MLP_NUM_LAYER_LOWER_BOUND,
+                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
                 });
 
 /*
@@ -161,9 +165,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
 
-                    // repeat layer for [2, 10) times
-                    pgraph->append_repetition(
-                            bwd_mlp_layer, {0, 0}, 2, 10, "rep_unit");
+                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
+                    pgraph->append_repetition(bwd_mlp_layer, {0, 0},
+                            MLP_NUM_LAYER_LOWER_BOUND,
+                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -232,9 +237,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
                     mlp_layer->create_input_port(0, dequantize_input, 0);
                     mlp_layer->create_output_port(0, quantize_output, 0);
 
-                    // repeat layer for [2, 10) times
-                    pgraph->append_repetition(
-                            mlp_layer, {0, 0}, 2, 10, "rep_unit");
+                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
+                    pgraph->append_repetition(mlp_layer, {0, 0},
+                            MLP_NUM_LAYER_LOWER_BOUND,
+                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
                 });
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
@@ -294,9 +300,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     mlp_layer->create_input_port(0, matmul, 0);
                     mlp_layer->create_output_port(0, optional_activation, 0);
 
-                    // repeat layer for [2, 10) times
-                    pgraph->append_repetition(
-                            mlp_layer, {0, 0}, 2, 10, "rep_unit");
+                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
+                    pgraph->append_repetition(mlp_layer, {0, 0},
+                            MLP_NUM_LAYER_LOWER_BOUND,
+                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
                 });
 
 /*
@@ -372,9 +379,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
 
-                    // repeat layer for [2, 10) times
-                    pgraph->append_repetition(
-                            bwd_mlp_layer, {0, 0}, 2, 10, "rep_unit");
+                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
+                    pgraph->append_repetition(bwd_mlp_layer, {0, 0},
+                            MLP_NUM_LAYER_LOWER_BOUND,
+                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
                 });
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
