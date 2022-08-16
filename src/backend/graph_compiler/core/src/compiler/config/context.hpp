@@ -18,12 +18,17 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_CONFIG_CONTEXT_HPP
 #include <memory>
 #include <string>
-#include "target_machine.hpp"
+#include <runtime/target_machine.hpp>
 
 namespace sc {
 namespace runtime {
 struct engine_t;
 }
+
+enum class jit_kind {
+    cfake = 0,
+    llvm,
+};
 
 struct scflags_t {
     enum class brgemm_t : int { dnnl = 0, max_num };
@@ -51,8 +56,8 @@ struct scflags_t {
 struct context_t {
     sc::runtime::engine_t *engine_;
     scflags_t flags_;
-    target_machine_t machine_;
-    context_t(const scflags_t &flags, target_machine_t &&machine,
+    runtime::target_machine_t machine_;
+    context_t(const scflags_t &flags, runtime::target_machine_t &&machine,
             runtime::engine_t *engine = nullptr);
     context_t(const context_t &) = default;
     uint32_t get_max_vector_lanes(sc_data_etype etype) const;

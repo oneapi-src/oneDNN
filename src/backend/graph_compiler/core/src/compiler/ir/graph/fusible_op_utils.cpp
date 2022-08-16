@@ -29,6 +29,8 @@
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
+#include <ops/fusible/memory_movement.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
 
@@ -80,6 +82,7 @@ static std::vector<tensor_slice> make_tensor_slice(sc_graph_t &graph,
 ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
         const context_ptr &ctx, bool check_parallel) {
     fusion_manager fmgr;
+    fmgr.get_graph().sync_dynamic_info_with_graph(op->get_owner_graph());
     std::vector<graph_tensor_ptr> ins;
     std::vector<graph_tensor_ptr> outs;
     for (auto &in : op->get_inputs()) {
@@ -93,6 +96,7 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
     COMPILE_ASSERT(
             copyable, "The fusible op should be copyable: " << op->op_name_);
     auto copied = copyable->copy(ins, outs, fmgr.get_graph());
+    copied->info_.cur_impl_ = op->info_.cur_impl_;
     COMPILE_ASSERT(copied->get_outputs().size() == 1,
             "Currently only support 1 output only");
     fmgr.make<output_op>(copied->get_outputs()[0]);

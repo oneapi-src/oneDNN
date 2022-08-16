@@ -19,7 +19,7 @@
 
 #include <memory>
 #include "dispatch_table.hpp"
-#include <runtime/data_format.hpp>
+#include <runtime/dispatch_key.hpp>
 
 namespace sc {
 namespace runtime {

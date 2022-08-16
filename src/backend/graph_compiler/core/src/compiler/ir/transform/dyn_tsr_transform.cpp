@@ -48,20 +48,26 @@ static expr create_dyn_tsr_from_tensor(
             {sizeof(runtime::dynamic_tensor_t)}, datatypes::u8);
     def_stmts.push_back(builder::make_var_tensor_def_unattached(dyn_tsr));
 
-    expr shape_tsr, dyn_mask, ndims;
+    expr shape_tsr, dyn_mask, ndims, dtype;
     if (placeholder.defined()) {
         shape_tsr = placeholder->attr().get<expr>(
                 "temp.dyn_shape_of_placeholder");
         ndims = builder::make_read_struct(placeholder, dyn_tsr_struct_t::name,
                 dyn_tsr_struct_t::fields::ndims);
+        dtype = builder::make_read_struct(placeholder, dyn_tsr_struct_t::name,
+                dyn_tsr_struct_t::fields::dtype);
         dyn_mask = builder::make_read_struct(placeholder,
                 dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dyn_mask);
     } else {
-        auto plain_dims
-                = tsr->attr_->get<std::vector<expr>>(attr_keys::plain_dims);
+        auto plain_dims = tsr->attr_->get<std::vector<expr>>(
+                attr_keys::plain_dims); // or in
         ndims = builder::make_constant({plain_dims.size()}, datatypes::s32);
         shape_tsr = builder::make_tensor(std::string("dyn_shape_") + name,
                 {plain_dims.size()}, datatypes::index);
+        int64_t etype = tsr->dtype_.is_etype_pointer()
+                ? tsr->dtype_.get_pointer_element().as_etype_int()
+                : tsr->dtype_.as_etype_int();
+        dtype = builder::make_constant({etype}, datatypes::u32);
         dyn_mask = builder::make_var(
                 datatypes::u8, std::string("dyn_mask_") + name);
         def_stmts.push_back(builder::make_var_tensor_def_unattached(shape_tsr));
@@ -91,6 +97,9 @@ static expr create_dyn_tsr_from_tensor(
     def_stmts.push_back(builder::make_evaluate_unattached(
             builder::make_write_struct(dyn_tsr, ndims, dyn_tsr_struct_t::name,
                     dyn_tsr_struct_t::fields::ndims)));
+    def_stmts.push_back(builder::make_evaluate_unattached(
+            builder::make_write_struct(dyn_tsr, dtype, dyn_tsr_struct_t::name,
+                    dyn_tsr_struct_t::fields::dtype)));
     def_stmts.push_back(
             builder::make_evaluate_unattached(builder::make_write_struct(
                     dyn_tsr, dyn_mask, dyn_tsr_struct_t::name,

@@ -27,7 +27,7 @@ class relu_backprop_op : public graph_op_t, public op_traits::auto_copyable_t {
 public:
     relu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)

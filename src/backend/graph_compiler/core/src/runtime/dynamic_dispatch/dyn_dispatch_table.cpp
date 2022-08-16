@@ -27,7 +27,7 @@ size_t dyn_dispatch_table_t::compute_linear_index(
     uint64_t cumulative_size = 1;
     uint64_t start = 0;
     for (uint64_t i = 0; i < number_of_args_; i++) {
-        data_format fmt = keys[i];
+        dispatch_key fmt = keys[i];
         uint32_t key = fmt.format_kind_;
         bool found = false;
         auto next_start = start + number_of_candidates_[i];
@@ -100,7 +100,7 @@ struct semi_dyn_dispatch_t {
     static size_t call(dyn_dispatch_table_t *ths, uint64_t *keys) {
         auto ptr = unrolled_find_t<0, first_num_candidates>::call(
                 &ths->format_look_up_table_[cum_sum],
-                data_format(keys[idx]).format_kind_);
+                dispatch_key(keys[idx]).format_kind_);
         return ptr * cum_product
                 + semi_dyn_dispatch_t<idx + 1, cum_sum + first_num_candidates,
                         cum_product * first_num_candidates,
@@ -114,7 +114,7 @@ struct semi_dyn_dispatch_t<idx, cum_sum, cum_product, first_num_candidates> {
     static size_t call(dyn_dispatch_table_t *ths, uint64_t *keys) {
         auto ptr = unrolled_find_t<0, first_num_candidates>::call(
                 &ths->format_look_up_table_[cum_sum],
-                data_format(keys[idx]).format_kind_);
+                dispatch_key(keys[idx]).format_kind_);
         return ptr * cum_product;
     }
 };

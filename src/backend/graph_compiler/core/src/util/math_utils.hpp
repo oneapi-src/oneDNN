@@ -79,6 +79,18 @@ std::vector<T> vector_rcp(const std::vector<T> &inputs) {
     utils::parallel(func, 0, inputs.size());
     return outputs;
 }
+
+inline int nearest_power_of_2(int in) {
+    if (in & (in - 1)) {
+        in |= in >> 1;
+        in |= in >> 2;
+        in |= in >> 4;
+        in |= in >> 8;
+        in |= in >> 16;
+        return in + 1;
+    }
+    return in == 0 ? 1 : in;
+}
 } // namespace math_utils
 } // namespace sc
 #endif

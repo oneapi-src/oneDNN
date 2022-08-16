@@ -85,12 +85,15 @@ public:
     std::shared_ptr<fusion_manager> mgr_;
     sc_graph_t main_op_;
     std::vector<bool> keep_outputs_ = {false};
+    // for dispatch
+    sc_op_ptr main_dispatch_op_;
+    expr main_table_var_;
     op_traits::post_fusion_acceptable_t *get_main_op() const;
     fused_op_t(const std::string &name, sc_graph_t &&main_op,
             std::shared_ptr<fusion_manager> fuse_mgr,
             const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     ir_module_ptr get_func(context_ptr ctx) override;
     bool is_valid(const context_ptr &) override;
     bool compare_contents(const sc_op *other) const override;
@@ -108,6 +111,13 @@ public:
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
     void collect_shrinked_axes_map(
             int bw_size, gt2axes_map &bw_axes_map) override;
+    virtual const dispatch_set_ptr &get_dispatch_key_set() const override;
+    virtual dispatch_set_ptr &get_dispatch_key_set() override;
+    void update_internal_graph_format(const op_dispatch_key_t &key);
+    ir_module_ptr get_dynamic_query_func(const context_ptr &ctx);
+    // return the impl alg candidates vector, element is int(not enum) because
+    // different ops have different impl algs.
+    std::vector<int> get_impl_dispatch_candidates() const override;
 };
 
 class horizontal_fused_op_t : public graph_op_t {
@@ -119,7 +129,7 @@ public:
 
     std::vector<sc_op_ptr> ops_to_merge_;
     ir_module_ptr get_func(context_ptr ctx) override;
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     void schedule_loops(const stmt &body);
 };
 
@@ -132,7 +142,7 @@ public:
     sc_dims bw_dims_;
     sc_graph_t bw_graph_;
     ir_module_ptr get_func(context_ptr ctx) override;
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     void schedule_loops(const stmt &body);
 };
 
@@ -145,7 +155,7 @@ public:
     sc_graph_t sub_graph_;
     std::shared_ptr<mixed_parti_t> parti_;
     ir_module_ptr get_func(context_ptr ctx) override;
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &) override;
     void schedule_loops(const stmt &body);
 };
 

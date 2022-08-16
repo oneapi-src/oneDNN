@@ -24,6 +24,7 @@
 
 #include <compiler/config/context.hpp>
 #include <compiler/ir/function_pass.hpp>
+#include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/sc_expr.hpp>
 #include <compiler/ir/sc_function.hpp>
 #include <unordered_map>
@@ -42,6 +43,9 @@ class SC_INTERNAL_API ir_module_t {
     // the global variables
     std::vector<define> module_vars_;
     std::unordered_map<std::string, define> var_symbols_;
+    // hold all op tables in ir module and pass to jit module for dynamic
+    // dispatch. the op function name -> op tables ptr
+    dispatch_table_map_t op_table_map_;
 
 public:
     // the attr keys for ir_module
@@ -85,6 +89,11 @@ public:
     const std::vector<define> &get_module_vars() const { return module_vars_; }
     std::vector<define> &get_module_vars() { return module_vars_; }
 
+    const dispatch_table_map_t &get_op_table_map() const {
+        return op_table_map_;
+    }
+    dispatch_table_map_t &get_op_table_map() { return op_table_map_; }
+
     // run the pass on all functions in this module
     void run_pass(function_pass_t &pass);
 
@@ -102,7 +111,8 @@ public:
             stmt *out_def_node = nullptr);
     // adds a global var def, handles renaming
     void add_global_var(define def);
-
+    // adds a pair of name and op table for dynamic dispatch
+    void add_op_table(const std::pair<std::string, op_dispatch_tables_ptr> &tb);
     // gets the entry func_t. nullable
     func_t get_entry_func() const {
         return entry_func_idx_ >= 0 ? contents_[entry_func_idx_] : func_t();

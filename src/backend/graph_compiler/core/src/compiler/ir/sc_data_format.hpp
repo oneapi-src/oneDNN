@@ -20,7 +20,7 @@
 #include <ostream>
 #include <vector>
 #include <compiler/dimensions.hpp>
-#include <runtime/data_format.hpp>
+#include <runtime/dispatch_key.hpp>
 #include <unordered_map>
 #include <util/def.hpp>
 #include <util/hash_utils.hpp>
@@ -310,7 +310,7 @@ struct SC_API sc_data_format_t {
                 sc_data_format_kind_t::get_plain_by_dims(shape_size));
     }
 
-    runtime::data_format to_runtime() const;
+    runtime::dispatch_key to_runtime() const;
 
     void to_string(std::ostream &os) const;
 };

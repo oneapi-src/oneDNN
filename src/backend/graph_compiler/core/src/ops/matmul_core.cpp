@@ -220,8 +220,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
             for (auto &k_b : blk_candidates) { // K
                 for (auto isp : is_padding) { // is_padding
                     for (auto out_plain :
-                            is_output_plain) { // output plain, always false in
-                        // dynamic
+                            is_output_plain) { // output plain, always
+                        // false in dynamic
                         if (is_dynamic_dim(M_block)
                                 || is_dynamic_dim(N_block)) {
                             if (is_dynamic_dim(M_block)) {
@@ -397,7 +397,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                         // break output plain if op is dynamic
                         if (dynamic) { break; }
                     }
-                    // break the padding judgement if it is static
+                    // break is padding loop if it is static
                     if (!dynamic) { break; }
                 }
                 // break the k loop if it is static
@@ -419,6 +419,18 @@ void matmul_core_op_t::query_format(context_ptr ctx,
             = pad_K_num * K_block;
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);
+}
+
+void matmul_core_op_t::set_config_by_key(const op_dispatch_key_t &key) {
+    assert(key.var_block_.size() == 3);
+    matmul_core_config_t &tcfg = *config_data_.get_as<matmul_core_config_t>();
+    tcfg.M_block = key.var_block_[2][0];
+    tcfg.N_block = key.var_block_[2][1];
+    tcfg.K_block = std::min(key.var_block_[0][1], key.var_block_[1][0]);
+}
+
+std::vector<int> matmul_core_op_t::get_impl_dispatch_candidates() const {
+    return get_default_impl_dispatch_candidates();
 }
 
 sc_op_ptr matmul_core_op_t::do_compensations(

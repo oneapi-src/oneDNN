@@ -27,18 +27,25 @@ namespace runtime {
  * @param data, raw data pointer.
  * @param dims, pointer to olain shape dimensions of tensor
  * @param ndims, number of shape dimensions
+ * @param dtype, datatype of the tensor
  * @param dyn_mask, pointer to a boolean list who match with pdims and indicate
  * which dimension is dynamic.
  * */
-struct dynamic_tensor_t {
+struct alignas(64) dynamic_tensor_t {
     dynamic_tensor_t() = default;
-    dynamic_tensor_t(void *data, sc_dim *dims, int ndims, uint8_t dyn_mask)
-        : data_(data), dims_(dims), ndims_(ndims), dyn_mask_(dyn_mask) {}
+    dynamic_tensor_t(void *data, sc_dim *dims, int ndims, uint32_t dtype,
+            uint8_t dyn_mask)
+        : data_(data)
+        , dims_(dims)
+        , ndims_(ndims)
+        , dtype_(dtype)
+        , dyn_mask_(dyn_mask) {}
     // the raw opaque data pointer.
     void *data_;
     sc_dim *dims_;
     // number of dimensions;
     int ndims_;
+    uint32_t dtype_;
     uint8_t dyn_mask_;
 };
 } // namespace runtime

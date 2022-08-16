@@ -95,11 +95,12 @@ sequential_module_pass_t get_default_precodegen_passes(
         ret.emplace_back(
                 module_function_pass_t::make<buffer_scheduler_t>(ctx, true));
     }
-    ret.emplace_back(utils::make_unique<closurizer_cpu_t>(
-            runtime_config_t::get().get_num_threads() == 1));
     if (ctx->flags_.boundary_check_) {
         ret.emplace_back(module_function_pass_t::make<dyn_boundary_check_t>());
     }
+    ret.emplace_back(utils::make_unique<closurizer_cpu_t>(
+            runtime_config_t::get().get_num_threads() == 1));
+
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>());
     ret.emplace_back(utils::make_unique<module_globals_resolver_t>());
     ret.emplace_back(

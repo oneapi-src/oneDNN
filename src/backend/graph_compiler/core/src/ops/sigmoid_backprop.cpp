@@ -34,8 +34,7 @@ sigmoid_backprop_op::sigmoid_backprop_op(
     op_name_ = "sigmoid_backprop";
 }
 
-std::shared_ptr<sc_graph_t> sigmoid_backprop_op::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void sigmoid_backprop_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -68,7 +67,6 @@ std::shared_ptr<sc_graph_t> sigmoid_backprop_op::get_graph_impl() {
     mul1 = graph->make("mul", {sub->get_outputs()[0], inputs1}, {}, {});
     // output
     graph->make_output(mul1->get_outputs());
-    return graph;
 }
 
 void sigmoid_backprop_op::query_format(context_ptr ctx,

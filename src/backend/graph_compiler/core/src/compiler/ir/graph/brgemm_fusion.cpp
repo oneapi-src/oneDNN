@@ -297,6 +297,14 @@ bool brgemm_fusion_register::can_register_brgemm_fusion(const stmt &body) {
     return valid_brgemm_node_.defined();
 }
 
+void brgemm_fusion_register::reset() {
+    can_register_next_ = true;
+    last_out_ = expr();
+    valid_brgemm_node_ = expr();
+    setting_.clear();
+    data_ = builtin::create_initialed_postops_data();
+}
+
 stmt brgemm_fusion_register::remake_brgemm_intrinsic_by_fusion(
         stmt body, expr c_buf) const {
     COMPILE_ASSERT(

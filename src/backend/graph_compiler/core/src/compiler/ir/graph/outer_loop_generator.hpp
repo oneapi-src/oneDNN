@@ -104,6 +104,9 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
         outer_loop_generator_t *gen, sc_op *op, fusion_manager *fmgr,
         bool check_parallel, bool just_check,
         std::vector<sc_op_ptr> &out_failed);
+// if the reorder is tensor view in dynamic, does not need fusion manager,
+// but do inplace itself.
+ir_module_ptr inplaced_reorder_get_func(sc_op *op, const context_ptr &ctx);
 } // namespace sc
 
 #endif

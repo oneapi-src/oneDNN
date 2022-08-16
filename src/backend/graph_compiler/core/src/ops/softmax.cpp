@@ -32,8 +32,7 @@ softmax_op::softmax_op(const std::vector<graph_tensor_ptr> &ins,
     op_name_ = "softmax";
 }
 
-std::shared_ptr<sc_graph_t> softmax_op::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void softmax_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -53,7 +52,6 @@ std::shared_ptr<sc_graph_t> softmax_op::get_graph_impl() {
             "div", {fexp->get_outputs()[0], freduce->get_outputs()[0]}, {}, {});
     // output
     graph->make_output(fdiv->get_outputs());
-    return graph;
 }
 
 void softmax_op::query_format(context_ptr ctx,

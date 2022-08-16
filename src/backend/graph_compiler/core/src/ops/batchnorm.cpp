@@ -36,8 +36,8 @@ batchnorm_inference_op::batchnorm_inference_op(
     op_name_ = "batchnorm_inference";
 }
 
-std::shared_ptr<sc_graph_t> batchnorm_inference_op::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void batchnorm_inference_op::get_graph_impl(
+        std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -74,7 +74,6 @@ std::shared_ptr<sc_graph_t> batchnorm_inference_op::get_graph_impl() {
             any_map_t({{"bc_axis", std::vector<int> {1}}}));
     // output
     graph->make_output(y1->get_outputs());
-    return graph;
 }
 
 void batchnorm_inference_op::query_format(context_ptr ctx,
@@ -108,8 +107,8 @@ batchnorm_forward_training_op::batchnorm_forward_training_op(
     op_name_ = "batchnorm_forward_training";
 }
 
-std::shared_ptr<sc_graph_t> batchnorm_forward_training_op::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void batchnorm_forward_training_op::get_graph_impl(
+        std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -276,7 +275,6 @@ std::shared_ptr<sc_graph_t> batchnorm_forward_training_op::get_graph_impl() {
     graph->make_output({add1->get_outputs()[0], add2->get_outputs()[0],
             add3->get_outputs()[0], new_mean->get_outputs()[0],
             new_var->get_outputs()[0]});
-    return graph;
 }
 
 void batchnorm_forward_training_op::query_format(context_ptr ctx,
@@ -312,8 +310,8 @@ batchnorm_training_backprop_op_t::batchnorm_training_backprop_op_t(
     op_name_ = "batchnorm_training_backprop";
 }
 
-std::shared_ptr<sc_graph_t> batchnorm_training_backprop_op_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void batchnorm_training_backprop_op_t::get_graph_impl(
+        std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -452,7 +450,6 @@ std::shared_ptr<sc_graph_t> batchnorm_training_backprop_op_t::get_graph_impl() {
         beta_delta_out = cast_out2->get_outputs()[0];
     }
     graph->make_output({x_delta_out, gamma_delta_out, beta_delta_out});
-    return graph;
 }
 
 void batchnorm_training_backprop_op_t::query_format(context_ptr ctx,

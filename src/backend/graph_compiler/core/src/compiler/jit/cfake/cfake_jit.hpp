@@ -77,7 +77,7 @@ public:
     std::shared_ptr<jit_module> make_jit_module(const std::string &inpath,
             const std::string &outpath, statics_table_t &&globals,
             bool has_generic_wrapper, bool managed_thread_pool);
-    static void set_target_machine(target_machine_t &tm);
+    static void set_target_machine(runtime::target_machine_t &tm);
 };
 
 } // namespace sc

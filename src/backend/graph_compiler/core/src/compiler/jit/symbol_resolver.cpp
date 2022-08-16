@@ -22,6 +22,7 @@
 #endif
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
+#include <runtime/dynamic_dispatch/op_query.hpp>
 #include <runtime/memorypool.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
@@ -71,6 +72,14 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
                             .thread_pool_table_->get_thread_id},
             {"sc_arrive_at_barrier", (void *)sc_arrive_at_barrier},
             {"sc_init_barrier", (void *)sc_init_barrier},
+            // dynamic query function
+            {"query_format_matmul_core_op",
+                    (void *)query_format_matmul_core_op},
+            {"query_format_unary_fusible_op",
+                    (void *)query_format_unary_fusible_op},
+            {"query_format_binary_fusible_op",
+                    (void *)query_format_binary_fusible_op},
+            {"query_format_reorder_op", (void *)query_format_reorder_op},
     };
     return table;
 }

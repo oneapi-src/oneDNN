@@ -19,6 +19,7 @@
 
 #include "../fusible_op.hpp"
 #include "../visitor.hpp"
+#include <compiler/ir/graph/dynamic_utils.hpp>
 #include <ops/fusible/memory_movement.hpp>
 
 namespace sc {
@@ -217,7 +218,8 @@ void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
     int reorder2tv = graph.attrs_.get_or_else("temp.reorder2tv", 1);
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
-        if (node->isa<reorder_op_t>() && reorder2tv && !node->is_dynamic()
+        if (node->isa<reorder_op_t>() && reorder2tv
+                && !can_op_be_dispatched(node)
                 && should_transform_reorder(node)) {
             auto tensor_view_out = node->get_outputs()[0]->copy();
             tensor_view_out->producer_owner_ = nullptr;

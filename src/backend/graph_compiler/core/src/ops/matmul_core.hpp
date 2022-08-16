@@ -57,6 +57,9 @@ public:
 
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
+
+    void set_config_by_key(const op_dispatch_key_t &key) override;
+    std::vector<int> get_impl_dispatch_candidates() const override;
 };
 
 blocking_axes_t get_mm_blocking_axes(const logical_tensor_t &inp,

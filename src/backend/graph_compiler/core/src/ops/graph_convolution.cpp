@@ -138,8 +138,7 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     }
 }
 
-std::shared_ptr<sc_graph_t> conv_fwd_op_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -210,7 +209,6 @@ std::shared_ptr<sc_graph_t> conv_fwd_op_t::get_graph_impl() {
     } else {
         graph->make_output(conv->get_outputs());
     }
-    return graph;
 }
 
 void conv_fwd_op_t::query_format(context_ptr ctx,
@@ -245,8 +243,7 @@ conv_bwd_data_op_t::conv_bwd_data_op_t(const std::vector<graph_tensor_ptr> &ins,
     }
 }
 
-std::shared_ptr<sc_graph_t> conv_bwd_data_op_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -299,7 +296,6 @@ std::shared_ptr<sc_graph_t> conv_bwd_data_op_t::get_graph_impl() {
                               : std::vector<int> {0, 2, 3, 1}}});
     }
     graph->make_output(conv->get_outputs());
-    return graph;
 }
 
 void conv_bwd_data_op_t::query_format(context_ptr ctx,
@@ -335,8 +331,7 @@ conv_bwd_weight_op_t::conv_bwd_weight_op_t(
     }
 }
 
-std::shared_ptr<sc_graph_t> conv_bwd_weight_op_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -390,7 +385,6 @@ std::shared_ptr<sc_graph_t> conv_bwd_weight_op_t::get_graph_impl() {
                               : std::vector<int> {2, 3, 1, 0}}});
     }
     graph->make_output(conv->get_outputs());
-    return graph;
 }
 
 void conv_bwd_weight_op_t::query_format(context_ptr ctx,

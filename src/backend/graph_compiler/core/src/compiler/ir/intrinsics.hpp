@@ -36,9 +36,9 @@ struct intrinsic_handler_t {
 // user defined struct for reading/writing at runtime.
 struct dyn_tsr_struct_t {
     static constexpr const char *name = "dyn_tsr";
-    enum fields : int { data_ptr = 0, dim_ptr, ndims, dyn_mask };
-    static const sc_data_type_t dtypes[4];
-    static const size_t offsets[4];
+    enum fields : int { data_ptr = 0, dim_ptr, ndims, dtype, dyn_mask };
+    static const sc_data_type_t dtypes[5];
+    static const size_t offsets[5];
 };
 
 sc_data_type_t get_dtype_from_struct_and_field(

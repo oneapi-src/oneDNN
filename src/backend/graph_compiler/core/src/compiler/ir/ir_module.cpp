@@ -20,6 +20,7 @@
 #include "builder.hpp"
 #include "pass/func_dependency.hpp"
 #include "visitor.hpp"
+#include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <unordered_set>
 #include <util/any_map.hpp>
 
@@ -100,6 +101,9 @@ ir_module_t *ir_module_t::merge(const ir_module_t &m) {
     add_resolved_func(m.get_contents());
     for (auto &v : m.module_vars_) {
         add_global_var(v);
+    }
+    for (auto &kv : m.op_table_map_) {
+        add_op_table(kv);
     }
     return this;
 }
@@ -203,6 +207,11 @@ void ir_module_t::add_resolved_func(const std::vector<func_t> &funcs) {
         replacer.dispatch_impl(f);
         contents_.emplace_back(f);
     }
+}
+
+void ir_module_t::add_op_table(
+        const std::pair<std::string, op_dispatch_tables_ptr> &tb) {
+    op_table_map_.insert(tb);
 }
 
 void ir_module_t::run_pass(function_pass_t &pass) {

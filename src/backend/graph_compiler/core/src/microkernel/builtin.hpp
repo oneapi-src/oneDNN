@@ -341,6 +341,20 @@ expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,
 // makes a call node to sc_value_check function
 expr call_value_check(expr tsr, expr name, expr size);
 
+// dynamic query format function evaluation at runtime.
+expr call_matmul_core_query_format(expr tb, expr out0, expr in0, expr in1,
+        expr ori_in0, expr ori_in1, expr out_format0, expr in_format0,
+        expr in_format1, expr ori_in_format0, expr ori_in_format1,
+        expr out_size, expr kernel);
+expr call_unary_fusible_op_query_format(expr tb, expr out0, expr in0,
+        expr out_foramt0, expr in_format0, expr out_size, expr kernel);
+expr call_binary_fusible_op_query_format(expr tb, expr out0, expr in0, expr in1,
+        expr out_format0, expr in_format0, expr in_format1, expr out_size,
+        expr kernel);
+expr call_reorder_op_query_format(expr tb, expr out0, expr in0,
+        expr out_foramt0, expr in_format0, expr out_size, expr kernel);
+expr call_cal_blocking_dims(expr placeholder, expr format);
+
 // gets the IR func for get_thread_id. @see thread_pool_table::get_thread_id
 func_t get_thread_id_func();
 

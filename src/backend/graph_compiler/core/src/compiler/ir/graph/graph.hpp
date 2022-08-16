@@ -353,7 +353,8 @@ public:
     virtual ~sc_op() = default;
     virtual float get_gflop();
     // Get op impl type candidates for dynamic dispatch. Default candidates are
-    // padding/no_padding.
+    // padding/no_padding. Return the impl alg candidates vector, element is
+    // int(not enum) because different ops have different impl algs.
     virtual std::vector<int> get_impl_dispatch_candidates() const;
 };
 
@@ -462,8 +463,8 @@ public:
             const std::vector<graph_tensor_ptr> &inputs,
             const any_map_t &attrs = any_map_t());
     sc_graph_t() = default;
-    sc_graph_t(sc_graph_t &&other) = default;
-    sc_graph_t &operator=(sc_graph_t &&other) = default;
+    sc_graph_t(sc_graph_t &&other);
+    sc_graph_t &operator=(sc_graph_t &&other);
     sc_graph_t(const sc_graph_t &other) = delete;
 };
 

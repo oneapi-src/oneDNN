@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include <algorithm>
+#include <limits>
 #include <vector>
 
 #include "dynamic_dispatch_key.hpp"
@@ -493,6 +494,25 @@ void sc_op::format_to_dense_format_stride_pair(
     }
 }
 
+sc_graph_t::sc_graph_t(sc_graph_t &&other)
+    : ops_(std::move(other.ops_))
+    , attrs_(std::move(other.attrs_))
+    , dyn_info_(std::move(other.dyn_info_)) {
+    for (auto &op : ops_) {
+        op->set_owner_graph(this);
+    }
+}
+
+sc_graph_t &sc_graph_t::operator=(sc_graph_t &&other) {
+    ops_ = std::move(other.ops_);
+    attrs_ = std::move(other.attrs_);
+    dyn_info_ = std::move(other.dyn_info_);
+    for (auto &op : ops_) {
+        op->set_owner_graph(this);
+    }
+    return *this;
+}
+
 size_t sc_graph_t::hash_contents() const {
     size_t seed = 0;
     op_visitor_t vis(op_visitor_t::dequeue_selector,
@@ -755,7 +775,7 @@ float sc_op::get_gflop() {
 }
 
 std::vector<int> sc_op::get_impl_dispatch_candidates() const {
-    return get_default_impl_dispatch_candidates();
+    return {};
 }
 
 namespace graph {

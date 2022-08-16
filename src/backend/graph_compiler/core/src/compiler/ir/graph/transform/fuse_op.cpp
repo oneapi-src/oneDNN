@@ -164,6 +164,9 @@ static void repartition(sc_graph_t &g, const op_dep_matrix_t &dep,
 
 /**
  * Copies the partition to the graph in fusion manager.
+ * @param g, the whole graph
+ * @param orig_2_fmgr_graph, original graph tensor => graph tensor in fmgr and
+ * fused op.
  * @param base_op_out the output tensor of the base op. It will be mapped to the
  * input0 of the graph in fmgr
  * @param fmgr
@@ -174,12 +177,11 @@ static void repartition(sc_graph_t &g, const op_dep_matrix_t &dep,
  * the fused op
  * */
 static std::vector<graph_tensor_ptr> copy_partition_to_fmgr(sc_graph_t &g,
+        std::unordered_map<graph_tensor_ptr, graph_tensor_ptr>
+                &orig_2_fmgr_graph,
         const graph_tensor_ptr &base_op_out, fusion_manager *fmgr,
         fusion_partition_t &partition, std::string &op_name, bool keep_output,
         std::vector<graph_tensor_ptr> &out_output_tsr) {
-    // the mapping for original LT in original ops to fuse => the LT in the
-    // graph of fmgr
-    std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> orig_2_fmgr_graph;
     // if there is a base op, add an input_op for it in fmgr
     if (base_op_out) {
         orig_2_fmgr_graph[base_op_out]
@@ -240,6 +242,7 @@ static std::vector<graph_tensor_ptr> copy_partition_to_fmgr(sc_graph_t &g,
                 // graph
                 out_output_tsr.emplace_back(
                         std::make_shared<graph_tensor>(nullptr, out->details_));
+                orig_2_fmgr_graph[out_output_tsr.back()] = outtsr;
                 // save the mapping of the tensor to be replaced => new tensor
                 partition.output_replace_map[out] = out_output_tsr.back();
             }
@@ -247,6 +250,8 @@ static std::vector<graph_tensor_ptr> copy_partition_to_fmgr(sc_graph_t &g,
         auto copyable = op->dyn_cast<op_traits::copyable_t>();
         assert(copyable);
         auto copied = copyable->copy(fmgr_in, fmgr_out, fmgr->get_graph());
+        // manual copy the dispatch key set here.
+        copied->get_dispatch_key_set() = op->get_dispatch_key_set();
         copied->attrs_[attr_key_orig_op] = op;
 
         // build the fused op name
@@ -350,6 +355,9 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
     copied_op_graph.sync_dynamic_info_with_graph(g);
     std::vector<graph_tensor_ptr> fused_op_out;
     bool multi_use = false;
+    // the mapping for original LT in original ops to fuse => the LT in the
+    // graph of fmgr
+    std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> orig_2_fmgr_graph;
     if (op) {
         // check if all uses of the base op is in the target partition
         // if there is a use outside of the partition, we should keep the
@@ -373,8 +381,8 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
             op_name = op->op_name_;
         }
         auto fused_op_addtional_in = copy_partition_to_fmgr(g,
-                op->get_outputs()[0], fmgr.get(), *post_fusion_partition,
-                op_name, multi_use, fused_op_out);
+                orig_2_fmgr_graph, op->get_outputs()[0], fmgr.get(),
+                *post_fusion_partition, op_name, multi_use, fused_op_out);
         fused_op_in = op->get_inputs();
         fused_op_in.insert(fused_op_in.end(), fused_op_addtional_in.begin(),
                 fused_op_addtional_in.end());
@@ -382,9 +390,16 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
                 copy_logical_tsr(op->get_inputs()));
         auto copy_of_main_op = copyable->copy(dummy_inop->get_outputs(),
                 copy_logical_tsr(op->get_outputs()), copied_op_graph);
+        // manual copy the dispatch key set here.
+        copy_of_main_op->get_dispatch_key_set() = op->get_dispatch_key_set();
+        for (size_t i = 0; i < op->get_inputs().size(); i++) {
+            orig_2_fmgr_graph[op->get_inputs()[i]]
+                    = dummy_inop->get_outputs()[i];
+        }
     } else {
-        fused_op_in = copy_partition_to_fmgr(g, nullptr, fmgr.get(),
-                *post_fusion_partition, op_name, multi_use, fused_op_out);
+        fused_op_in = copy_partition_to_fmgr(g, orig_2_fmgr_graph, nullptr,
+                fmgr.get(), *post_fusion_partition, op_name, multi_use,
+                fused_op_out);
     }
 
     // if the last reorder is vnni format, do not fuse
@@ -443,7 +458,8 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
             std::move(copied_op_graph), fmgr,
             /*ins*/ fused_op_in,
             /*outs*/
-            fused_op_out, any_map_t {});
+            fused_op_out,
+            any_map_t {{"temp.orig_to_inner_ltsrs", orig_2_fmgr_graph}});
     fused_op_ptr->set_owner_graph(&g);
     if (multi_use) { fused_op_ptr->keep_outputs_[0] = true; }
     // todo: cache the get func result
@@ -497,6 +513,8 @@ SC_INTERNAL_API void fuse_ops(sc_graph_t &g, const context_ptr &ctx) {
     do_partition(g, dep, op_2_partition, {});
 
     std::vector<sc_op_ptr> fused_ops;
+    std::vector<std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> *>
+            orig_2_fmgr_refs;
 
     constexpr int MAX_ITER = 20;
     // phase 2, try fusion partitions with base ops. May re-partition the graph
@@ -514,6 +532,10 @@ SC_INTERNAL_API void fuse_ops(sc_graph_t &g, const context_ptr &ctx) {
                         g, dep, op, post_fusion_partition, op_2_partition);
                 if (fused_op) {
                     fused_ops.emplace_back(fused_op);
+                    orig_2_fmgr_refs.emplace_back(
+                            &fused_op->attrs_.get<std::unordered_map<
+                                     graph_tensor_ptr, graph_tensor_ptr>>(
+                                    "temp.orig_to_inner_ltsrs"));
                     fused_op->attrs_[attr_key_partition]
                             = std::weak_ptr<fusion_partition_t>(
                                     post_fusion_partition);
@@ -539,6 +561,10 @@ SC_INTERNAL_API void fuse_ops(sc_graph_t &g, const context_ptr &ctx) {
                     g, dep, nullptr, parti, op_2_partition);
             if (fused_op) {
                 fused_ops.emplace_back(fused_op);
+                orig_2_fmgr_refs.emplace_back(
+                        &fused_op->attrs_.get<std::unordered_map<
+                                 graph_tensor_ptr, graph_tensor_ptr>>(
+                                "temp.orig_to_inner_ltsrs"));
                 fused_op->attrs_[attr_key_partition]
                         = std::weak_ptr<fusion_partition_t>(parti);
                 break;
@@ -560,6 +586,14 @@ SC_INTERNAL_API void fuse_ops(sc_graph_t &g, const context_ptr &ctx) {
         for (auto &old_new : partition->output_replace_map) {
             auto &old = old_new.first;
             auto &newv = old_new.second;
+            // Update orig_2_fmgr map inside each op.
+            for (auto &orig_2_fmgr : orig_2_fmgr_refs) {
+                auto it = orig_2_fmgr->find(old);
+                if (it != orig_2_fmgr->end()) {
+                    (*orig_2_fmgr)[newv] = it->second;
+                    orig_2_fmgr->erase(it);
+                }
+            }
             old->replace_with(newv);
             assert(tsr_replace_map.find(old) == tsr_replace_map.end());
             tsr_replace_map.insert(old_new);

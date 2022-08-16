@@ -28,7 +28,7 @@ class batchnorm_inference_op : public graph_op_t,
 public:
     batchnorm_inference_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)
@@ -61,7 +61,7 @@ class batchnorm_forward_training_op : public graph_op_t,
 public:
     batchnorm_forward_training_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)
@@ -89,7 +89,7 @@ class batchnorm_training_backprop_op_t : public graph_op_t,
 public:
     batchnorm_training_backprop_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)

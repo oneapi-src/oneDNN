@@ -385,7 +385,7 @@ for_loop for_loop_node_t::fuse(
 
     var_ = vout;
     iter_begin_ = make_expr<constant_node>(int64_t(0), var1->dtype_);
-    iter_end_ = constant_folder_t()(auto_caster_t()(outer_len)).remove_const();
+    iter_end_ = do_cast_and_fold(outer_len).remove_const();
     step_ = make_expr<constant_node>(int64_t(1), var1->dtype_);
 
     body_ = std::move(newbody);

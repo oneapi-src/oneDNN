@@ -84,8 +84,7 @@ quantize_op_t::quantize_op_t(
         const std::vector<graph_tensor_ptr> &ins, const any_map_t &attrs)
     : quantize_op_t(ins, std::vector<graph_tensor_ptr>(), attrs) {}
 
-std::shared_ptr<sc_graph_t> quantize_op_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void quantize_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -147,7 +146,6 @@ std::shared_ptr<sc_graph_t> quantize_op_t::get_graph_impl() {
     auto int8_cast = graph->make("cast", div_scale->get_outputs(), {},
             {{"dtype", qinfos.dtype_}, {"saturated", true}});
     graph->make_output(int8_cast->get_outputs());
-    return graph;
 }
 
 void quantize_op_t::query_format(context_ptr ctx,
@@ -180,8 +178,7 @@ dequantize_op_t::dequantize_op_t(
         const std::vector<graph_tensor_ptr> &ins, const any_map_t &attrs)
     : dequantize_op_t(ins, std::vector<graph_tensor_ptr>(), attrs) {}
 
-std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void dequantize_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -225,8 +222,7 @@ std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph_impl() {
             {f32_cast->get_outputs()[0], const_scales->get_outputs()[0]}, {},
             {});
     graph->make_output(mul_scale->get_outputs());
-    return graph;
-} // namespace quantize
+}
 
 void dequantize_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
@@ -263,8 +259,7 @@ dynamic_quantize_op_t::dynamic_quantize_op_t(
     op_name_ = "dynamic_quantize";
 }
 
-std::shared_ptr<sc_graph_t> dynamic_quantize_op_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void dynamic_quantize_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -284,7 +279,6 @@ std::shared_ptr<sc_graph_t> dynamic_quantize_op_t::get_graph_impl() {
     auto int8_cast = graph->make("cast", div_scale->get_outputs(), {},
             {{"dtype", qinfos.dtype_}, {"saturated", true}});
     graph->make_output(int8_cast->get_outputs());
-    return graph;
 }
 
 void dynamic_quantize_op_t::query_format(context_ptr ctx,
@@ -321,8 +315,8 @@ dynamic_dequantize_op_t::dynamic_dequantize_op_t(
     op_name_ = "dynamic_dequantize";
 }
 
-std::shared_ptr<sc_graph_t> dynamic_dequantize_op_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void dynamic_dequantize_op_t::get_graph_impl(
+        std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -342,7 +336,6 @@ std::shared_ptr<sc_graph_t> dynamic_dequantize_op_t::get_graph_impl() {
     auto mul_scale
             = graph->make("mul", {f32_cast->get_outputs()[0], scales}, {}, {});
     graph->make_output(mul_scale->get_outputs());
-    return graph;
 }
 
 void dynamic_dequantize_op_t::query_format(context_ptr ctx,

@@ -66,6 +66,22 @@ void mark_read_or_write_buffers(std::vector<expr> &args, bool is_read);
 func_t create_func_decl_for_op(
         sc_op *op, std::vector<expr> &ins, std::vector<expr> &outs);
 
+/**
+ * Creates an empty query format function declaration for an op. The function
+ * will have the name `query_format_op::op_name_`. Its arguments are composed of
+ * the Op's outputs and then the Op's inputs and their formats.
+ * @param op the op
+ * @param ins the vector of input args
+ * function
+ * @param outs the vector of output args
+ * @param in_fmts the vector of input format args
+ * @param out_fmts the vector of output format args
+ * @return the generated IR function for the Op. Its body is an empty stmts node
+ * */
+func_t create_query_func_decl_for_op(sc_op *op, std::vector<expr> &ins,
+        std::vector<expr> &outs, std::vector<expr> &in_fmts,
+        std::vector<expr> &out_fmts);
+
 ltensors extract_detail_from_tensors(
         const std::vector<std::shared_ptr<graph_tensor>> &);
 } // namespace graph

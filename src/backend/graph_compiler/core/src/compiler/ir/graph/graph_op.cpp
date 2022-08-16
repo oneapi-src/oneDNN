@@ -39,11 +39,16 @@ ir_module_ptr graph_op_t::get_func(context_ptr ctx) {
 }
 
 std::shared_ptr<sc_graph_t> graph_op_t::get_graph() {
-    return get_graph_impl();
+    auto g = std::make_shared<sc_graph_t>();
+    g->sync_dynamic_info_with_graph(get_owner_graph());
+    get_graph_impl(g);
+    return g;
 }
 
 std::shared_ptr<sc_graph_t> configurable_graph_op_t::get_graph() {
-    auto g = get_graph_impl();
+    auto g = std::make_shared<sc_graph_t>();
+    g->sync_dynamic_info_with_graph(get_owner_graph());
+    get_graph_impl(g);
     // set config space;
     return g;
 }
@@ -115,8 +120,8 @@ nested_graph_op_t::nested_graph_op_t(const std::string &op_name,
     graph_.reset_op_ids();
 }
 
-std::shared_ptr<sc_graph_t> nested_graph_op_t::get_graph_impl() {
-    return std::make_shared<sc_graph_t>(copy_graph(graph_));
+void nested_graph_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
+    graph = std::make_shared<sc_graph_t>(copy_graph(graph_));
 }
 
 // linter has a false alarm to treat copy here as a STL function

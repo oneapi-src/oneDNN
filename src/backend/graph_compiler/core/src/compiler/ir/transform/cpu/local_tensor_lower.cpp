@@ -75,6 +75,8 @@ public:
                 tsr->dims_.size() == 1, "tensor_lower_impl needs 1D tensors");
         // check if it is staticaly-shaped and shape is small
         size_t sz = utils::get_sizeof_type(tsr->elem_dtype_);
+        expr_c alloc_size;
+
         bool is_const = true;
         const auto &dim = tsr->dims_[0];
         if (!dim.isa<constant>()) {
@@ -86,10 +88,11 @@ public:
             // if the tensor is small enough
             return v;
         }
-        expr_c alloc_size = is_const
+        alloc_size = is_const
                 ? expr(sz)
                 : auto_caster_t()(tsr->dims_[0]
                         * utils::get_sizeof_type(tsr->elem_dtype_));
+
         bool thread_loca = tsr->attr_
                 && tsr->attr_->get_or_else("is_thread_buffer", false);
         // a large local tensor/dynamic tensor
@@ -114,11 +117,20 @@ public:
                 bool thread_loca = (*itr)->attr_
                         && (*itr)->attr_->get_or_else(
                                 "is_thread_buffer", false);
-                auto the_call = builder::make_evaluate_unattached(
+                stmt the_call = builder::make_evaluate_unattached(
                         builder::make_call(get_cpu_temp_free_func(thread_loca),
                                 {cur_rtl_ctx_, *itr}));
-                // if the last stmt is ret, should insert before it. Otherwise,
-                // append to the last position
+                if ((*itr)->attr_
+                        && (*itr)->attr_->get_or_else(
+                                "temp.may_inplace", false)) {
+                    assert((*itr).isa<tensor>());
+                    auto tsr = (*itr).static_as<tensor>();
+                    the_call = builder::make_if_else_unattached(
+                            tsr->dims_[0] > UINT64_C(0), the_call, stmt());
+                }
+
+                // if the last stmt is ret, should insert before it.
+                // Otherwise, append to the last position
                 auto pos = is_ret ? (seq.end() - 1) : seq.end();
                 seq.insert(pos, the_call);
             }

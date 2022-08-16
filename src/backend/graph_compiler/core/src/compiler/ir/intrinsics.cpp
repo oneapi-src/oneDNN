@@ -399,12 +399,13 @@ intrinsic_handler_t &get_intrinsic_handler(intrin_type intrin) {
 #define OFFSET(struct_type, field) \
     (size_t)(&(((struct_type *)nullptr)->field)) // NOLINT
 
-const sc_data_type_t dyn_tsr_struct_t::dtypes[4] = {
-        datatypes::pointer, datatypes::pointer, datatypes::s32, datatypes::u8};
-const size_t dyn_tsr_struct_t::offsets[4]
+const sc_data_type_t dyn_tsr_struct_t::dtypes[5] = {datatypes::pointer,
+        datatypes::pointer, datatypes::s32, datatypes::u32, datatypes::u8};
+const size_t dyn_tsr_struct_t::offsets[5]
         = {OFFSET(runtime::dynamic_tensor_t, data_),
                 OFFSET(runtime::dynamic_tensor_t, dims_),
                 OFFSET(runtime::dynamic_tensor_t, ndims_),
+                OFFSET(runtime::dynamic_tensor_t, dtype_),
                 OFFSET(runtime::dynamic_tensor_t, dyn_mask_)};
 
 } // namespace sc

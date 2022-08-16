@@ -13,29 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_UTILS_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_UTILS_HPP
+#include <stdint.h>
 
-#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OPS_IMPL_TYPE_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OPS_IMPL_TYPE_HPP
 
 namespace sc {
-namespace runtime {
-/**
- * @brief Get the dynamic config single block from the plain dynamic dimension
- *
- * @param in the dynamic dimension
- * @param has_48 default true, candidates are [16, 32, 48, 64], if false,
- * candidates are [16, 32, 64].
- * @return the selected block config
- */
-int get_dyn_cfg_single(int in, bool has_48 = true);
+// Predefine all ops' impl algorithm type here.
 
-void deep_copy_dynamic_tensor(
-        dynamic_tensor_t *out, const dynamic_tensor_t *in);
+//  impl algorithm type, include normal(padding)/no padding select.
+enum impl_etype_t : int {
+    normal = 0, // default generate rule
+    no_padding = 1, // generate without padding
+};
 
-uint64_t calculate_blocking_dims(void *placeholder, uint64_t *format);
-
-} // namespace runtime
 } // namespace sc
 
 #endif

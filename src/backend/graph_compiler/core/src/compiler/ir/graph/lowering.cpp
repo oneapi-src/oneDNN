@@ -26,9 +26,19 @@
 #include "pass/pass.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/dynamic_utils.hpp>
+#include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/ir_utils.hpp>
+#include <compiler/ir/pass/ir_copy_internal.hpp>
+#include <compiler/ir/transform/buffer_schedule.hpp>
+#include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <compiler/ir/transform/index2var.hpp>
 #include <microkernel/builtin.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/matmul_core.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <unordered_map>
 #include <util/scoped_timer.hpp>
 
@@ -102,7 +112,7 @@ static expr make_global_string(
 
 static void make_dump_tensor_call(const std::vector<expr> &outs,
         const sc_op_ptr &node, const ir_module_ptr &ret_mod,
-        const func_t &callee, int &global_str_counter,
+        const std::string &callee_name, int &global_str_counter,
         result_dump_config_t &dump_config, const expr &dump_out_path,
         stmts_node_t *target_body) {
     for (size_t i = 0; i < outs.size(); i++) {
@@ -111,7 +121,7 @@ static void make_dump_tensor_call(const std::vector<expr> &outs,
         if (!out.isa<tensor>()) continue;
         auto tsr = out.checked_as<tensor>();
         std::stringstream tensor_name;
-        tensor_name << callee->name_ << '.' << tsr->name_ << '.'
+        tensor_name << callee_name << '.' << tsr->name_ << '.'
                     << graph_tsr->details_.get_format();
         auto namestr = make_global_string(
                 ret_mod, tensor_name.str(), global_str_counter);
@@ -134,13 +144,13 @@ static void make_dump_tensor_call(const std::vector<expr> &outs,
 }
 
 static void make_value_check_call(const std::vector<expr> &outs,
-        const ir_module_ptr &ret_mod, const func_t &callee,
+        const ir_module_ptr &ret_mod, const std::string &callee_name,
         int &global_str_counter, stmts_node_t *target_body) {
     for (auto &out : outs) {
         auto tsr = out.checked_as<tensor>();
         if (tsr->elem_dtype_.type_code_ != sc_data_etype::F32) { continue; }
         auto namestr = make_global_string(
-                ret_mod, callee->name_ + "." + tsr->name_, global_str_counter);
+                ret_mod, callee_name + "." + tsr->name_, global_str_counter);
         size_t total_shape1 = utils::get_sizeof_type(tsr->elem_dtype_);
         for (auto &dimv : tsr->dims_) {
             total_shape1 *= get_const_as_int(dimv.checked_as<constant_c>());
@@ -172,6 +182,15 @@ static graph_tensor_ptr get_linked_output_tsr(const graph_tensor_ptr &ltensor) {
     return nullptr;
 }
 
+static bool has_output_uses(const graph_tensor_ptr &ltensor) {
+    if (!ltensor->uses_.empty()) {
+        for (size_t i = 0; i < ltensor->uses_.size(); i++) {
+            if (ltensor->uses_[i].second->isa<output_op>()) { return true; }
+        }
+    }
+    return false;
+}
+
 struct lowering_visitor_state_t {
     std::unordered_map<graph_tensor_ptr, size_t> tensor_pending_refcount_;
     op_visitor_t::updater_func topo_sorter_;
@@ -183,16 +202,20 @@ struct lowering_visitor_state_t {
     std::list<sc_op_ptr>::iterator input_op_itr;
     size_t cur_tick_ = 0;
     size_t max_tensor_size_;
+    bool is_dynamic_;
 
     lowering_visitor_state_t(sc_graph_t &g)
         : topo_sorter_ {op_visitor_t::create_DAG_updater(g.ops_.size())}
         , op_exec_tick_(g.ops_.size())
         , op_visited_(g.ops_.size()) {
         max_tensor_size_ = 0;
-        for (auto &op : g.ops_) {
-            for (auto &tsr : op->get_outputs()) {
-                max_tensor_size_ = std::max(max_tensor_size_,
-                        tsr->details_.get_blocking_byte_size());
+        is_dynamic_ = g.is_dynamic();
+        if (!is_dynamic_) {
+            for (auto &op : g.ops_) {
+                for (auto &tsr : op->get_outputs()) {
+                    max_tensor_size_ = std::max(max_tensor_size_,
+                            tsr->details_.get_blocking_byte_size());
+                }
             }
         }
     }
@@ -278,8 +301,11 @@ struct lowering_visitor_state_t {
                 } else {
                     ref_count_modifier = in->uses_.size();
                 }
-                float cur_tsr = float(in->details_.get_blocking_byte_size())
-                        / ref_count_modifier / max_tensor_size_ * heat_modifier;
+                float cur_tsr = is_dynamic_
+                        ? heat_modifier
+                        : float(in->details_.get_blocking_byte_size())
+                                / ref_count_modifier / max_tensor_size_
+                                * heat_modifier;
                 cur_score += cur_tsr;
             }
         }
@@ -297,8 +323,10 @@ struct lowering_visitor_state_t {
                                 use.second.get(), distance_to_visited));
             }
             float cur_tsr = (distance - 1) * distance_factor
-                    + float(out->details_.get_blocking_byte_size())
-                            / max_tensor_size_;
+                    + (is_dynamic_ ? 1.f
+                                   : float(out->details_
+                                                     .get_blocking_byte_size())
+                                            / max_tensor_size_);
             cur_score -= cur_tsr;
         }
         return cur_score;
@@ -379,10 +407,554 @@ std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
 }
 } // namespace graph
 
+static bool need_query_next_first(const sc_op_ptr &node) {
+    return node->get_outputs()[0]->details_.get_format_candidates().size() > 1;
+}
+
+expr call_op_dynamic_query_function(
+        const sc_op_ptr &op, const std::vector<expr> &args) {
+    if (op->isa<ops::matmul_core_op_t>()) {
+        assert(args.size() == 13);
+        return builtin::call_matmul_core_query_format(args[0], args[1], args[2],
+                args[3], args[4], args[5], args[6], args[7], args[8], args[9],
+                args[10], args[11], args[12]);
+    } else if (op->isa<unary_elementwise_op_t>()) {
+        assert(args.size() == 7);
+        return builtin::call_unary_fusible_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else if (op->isa<binary_elementwise_op_t>()) {
+        assert(args.size() == 9);
+        return builtin::call_binary_fusible_op_query_format(args[0], args[1],
+                args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
+    } else if (op->isa<reorder_op_t>()) {
+        assert(args.size() == 7);
+        return builtin::call_reorder_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else {
+        COMPILE_ASSERT(
+                false, "unsupported op query function: " << op->op_name_);
+    }
+    return expr();
+}
+
+class tv_tsr_replacer_t : public ir_copier_impl_t {
+public:
+    using ir_copier_impl_t::dispatch;
+    using ir_copier_impl_t::view;
+    tv_tsr_replacer_t(std::unordered_map<expr_c, expr> &replace_map,
+            bool create_var_tensor = false)
+        : ir_copier_impl_t(replace_map, create_var_tensor) {}
+    void view(define_c v) override {
+        if (replace_map_.find(v->var_) != replace_map_.end()) {
+            returned_stmt_ = builder::make_stmts_unattached({});
+        } else {
+            ir_copier_impl_t::view(v);
+        }
+    }
+};
+
 static void add_def_comments(const stmt &def_node, graph_tensor *t) {
     std::stringstream ss;
     t->details_.to_string(ss);
     def_node->attr()["comments"] = std::vector<std::string> {ss.str()};
+}
+
+enum op_kinds : int {
+    kother = 0,
+    kinput,
+    koutput,
+    kconstant,
+    kreorder,
+    kreshape,
+};
+
+struct general_lower_params_t {
+    ir_module_ptr ret_mod;
+    std::unordered_map<graph_tensor_ptr, tsr_info_t> &ltsr_rtsr;
+    sc_graph_t &graph;
+    stmts func_body;
+    stmts init_body;
+    int &tensor_counter;
+    int &global_tensor_counter;
+    bool is_graph_dynamic;
+};
+
+expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
+        bool is_arg, int const_type,
+        info_etype_t type = info_etype_t::real_tensor) {
+    bool tsr_is_dynamic = t->details_.is_dynamic();
+    auto itr = gp.ltsr_rtsr.find(t);
+    if (itr == gp.ltsr_rtsr.end()) {
+        gp.ltsr_rtsr[t] = tsr_info_t();
+        itr = gp.ltsr_rtsr.find(t);
+        itr->second.count_ = gp.tensor_counter++;
+    } else {
+        if (type == info_etype_t::real_tensor
+                && itr->second.tensor_.defined()) {
+            return itr->second.tensor_;
+        }
+        if (type == info_etype_t::placeholder
+                && itr->second.placeholder_.defined()) {
+            return itr->second.placeholder_;
+        }
+        if (type == info_etype_t::format && itr->second.format_.defined()) {
+            return itr->second.format_;
+        }
+        if (type == info_etype_t::out_size && itr->second.size_.defined()) {
+            return itr->second.size_;
+        }
+    }
+    sc_op *linked_output = nullptr;
+    if (!is_arg) {
+        for (auto &use : t->uses_) {
+            // finds if any of the use of the tensor is marked output
+            if (use.second->isa<output_op>()) {
+                is_arg = true;
+                linked_output = use.second.get();
+                break;
+            }
+        }
+    }
+    if (is_arg || const_type != const_kind::not_const) {
+        // input/output and const tsr don't need placeholder
+        if (gp.is_graph_dynamic) {
+            COMPILE_ASSERT(t->details_.get_format_candidates().size() <= 1,
+                    "Input/output/constant tsr should have only empty or "
+                    "one "
+                    "format candidate");
+        }
+        if (type == info_etype_t::placeholder) {
+            type = info_etype_t::real_tensor;
+        }
+    }
+    std::vector<expr> dims, strides;
+    sc_data_type_t tsr_dtype;
+    expr tsr;
+
+    std::string tensor_name = graph::get_tensor_name(t.get(), linked_output);
+    if (tensor_name.empty()) {
+        tensor_name
+                = std::string("buffer_") + std::to_string(itr->second.count_);
+    }
+    if (type == info_etype_t::real_tensor) {
+        bool multi_candidates = gp.is_graph_dynamic
+                && t->details_.get_format_candidates().size() > 1;
+        expr dyn_tsr_size;
+        if (multi_candidates) {
+            assert(itr->second.size_.defined());
+            dyn_tsr_size = builder::make_indexing(itr->second.size_, {0});
+            dyn_tsr_size->attr().set(attr_keys::no_index2var, true);
+        }
+
+        dims = multi_candidates ? std::vector<expr> {dyn_tsr_size}
+                                : t->details_.get_blocking_dims_expr(gp.graph);
+        strides = multi_candidates ? std::vector<expr> {UINT64_C(1)}
+                                   : t->details_.get_strides_expr(gp.graph);
+        tsr_dtype = t->details_.dtype_;
+        tsr = builder::make_stensor(tensor_name, dims, strides, tsr_dtype);
+        tsr->attr()[attr_keys::plain_dims]
+                = gp.graph.dims_to_expr(t->details_.get_plain_dims());
+        if (itr->second.placeholder_.defined()) {
+            // for dynamic tensor transform
+            tsr->attr()["temp.dyn_placeholder"] = itr->second.placeholder_;
+        }
+        itr->second.tensor_ = tsr;
+        if (is_arg || const_type != const_kind::not_const) {
+            itr->second.placeholder_ = tsr;
+            if (gp.is_graph_dynamic) {
+                tsr->attr().set(attr_keys::always_trans, true);
+            }
+        }
+    } else if (type == info_etype_t::placeholder) {
+        if (itr->second.tensor_.defined()) {
+            // first check if the real tensor exist
+            tsr = itr->second.tensor_;
+            itr->second.placeholder_ = tsr;
+            tsr->attr().set(attr_keys::always_trans, true);
+        } else {
+            tensor_name += "_placeholder";
+            dims = std::vector<expr> {sizeof(runtime::dynamic_tensor_t)};
+            tsr_dtype = datatypes::u8;
+            tsr = builder::make_tensor(tensor_name, dims, tsr_dtype);
+            itr->second.placeholder_ = tsr;
+        }
+    } else if (type == info_etype_t::format) {
+        tensor_name += "_format";
+        if (is_arg || const_type != const_kind::not_const) {
+            std::vector<uint64_t> init_format
+                    = {uint64_t(t->details_.get_format().to_runtime())};
+            tsr = builder::make_tensor(tensor_name, {UINT64_C(1)},
+                    datatypes::index, address_space::automatic,
+                    std::make_shared<static_data_t>(init_format));
+        } else {
+            tsr = builder::make_tensor(
+                    tensor_name, {UINT64_C(1)}, datatypes::index);
+        }
+        itr->second.format_ = tsr;
+    } else {
+        assert(type == info_etype_t::out_size);
+        tensor_name += "_size";
+        tsr = builder::make_tensor(
+                tensor_name, {UINT64_C(1)}, datatypes::index);
+        itr->second.size_ = tsr;
+    }
+    if (type == info_etype_t ::real_tensor) {
+        stmt def_node;
+        if (!is_arg) {
+            if (const_type != const_kind::not_const) {
+                if (const_type == const_kind::global_const) {
+                    auto folded_name = "folded_const_"
+                            + std::to_string(gp.global_tensor_counter++);
+                    tsr = copy_attr(*tsr,
+                            gp.ret_mod->make_global_stensor(
+                                    tsr.checked_as<tensor>()->elem_dtype_,
+                                    folded_name,
+                                    tsr.checked_as<tensor>()->dims_,
+                                    tsr.checked_as<tensor>()->strides_,
+                                    linkage::private_global, &def_node));
+                    // global tensor does not need cache.
+                    tsr->attr_->set("temp.dyn_placeholder", expr());
+                    if (auto const_node
+                            = t->producer_owner_->dyn_cast<constant_op_t>()) {
+                        auto const_value = const_node->get_constant_values();
+                        tsr.checked_as<tensor>()->init_value_ = const_value;
+                    }
+                    if (gp.is_graph_dynamic) {
+                        tsr->attr().set(attr_keys::always_trans, true);
+                    }
+                    itr->second.tensor_ = tsr;
+                    itr->second.placeholder_ = tsr;
+                } else {
+                    def_node = builder::make_var_tensor_def_unattached(tsr);
+                    gp.init_body->seq_.emplace_back(def_node);
+                }
+            } else {
+                if (tsr_is_dynamic) {
+                    assert(itr->second.placeholder_.defined()
+                            && itr->second.format_.defined());
+                }
+                def_node = builder::make_var_tensor_def_unattached(tsr);
+                gp.func_body->seq_.emplace_back(def_node);
+            }
+        }
+        if (def_node.defined()) { add_def_comments(def_node, t.get()); }
+    } else if (type == info_etype_t::placeholder) {
+        // placeholder
+        // if use tensor as plhd, do nothing.
+        if (!itr->second.tensor_.defined()) {
+            gp.func_body->seq_.emplace_back(
+                    builder::make_var_tensor_def_unattached(tsr));
+            std::string name;
+            if (tsr.isa<tensor>()) {
+                name = tsr.checked_as<tensor>()->name_;
+            } else {
+                assert(tsr.isa<tensorptr>());
+                name = tsr.checked_as<tensorptr>()
+                                ->base_->ptr_.checked_as<tensor>()
+                                ->name_
+                        + "_tptr";
+            }
+            auto shape_tsr = builder::make_tensor(
+                    std::string("dyn_shape_") + tsr.checked_as<tensor>()->name_,
+                    {t->details_.get_plain_dims().size()}, datatypes::index);
+            tsr->attr().set("temp.dyn_shape_of_placeholder", shape_tsr);
+            gp.func_body->seq_.emplace_back(
+                    builder::make_var_tensor_def_unattached(shape_tsr));
+            gp.func_body->seq_.emplace_back(builder::make_evaluate_unattached(
+                    builder::make_write_struct(tsr, shape_tsr,
+                            dyn_tsr_struct_t::name,
+                            dyn_tsr_struct_t::fields::dim_ptr)));
+            gp.func_body->seq_.emplace_back(builder::make_evaluate_unattached(
+                    builder::make_write_struct(tsr,
+                            builder::make_constant(
+                                    {t->details_.get_plain_dims().size()},
+                                    datatypes::s32),
+                            dyn_tsr_struct_t::name,
+                            dyn_tsr_struct_t::fields::ndims)));
+            gp.func_body->seq_.emplace_back(builder::make_evaluate_unattached(
+                    builder::make_write_struct(tsr,
+                            builder::make_constant(
+                                    {static_cast<int64_t>(
+                                            t->details_.dtype_.as_etype_int())},
+                                    datatypes::u32),
+                            dyn_tsr_struct_t::name,
+                            dyn_tsr_struct_t::fields::dtype)));
+        }
+    } else if (type == info_etype_t::format) {
+        // placeholder can be replaced by tensor while format can't
+        if (is_arg || const_type != const_kind::not_const) {
+            gp.ret_mod->add_global_var(builder::make_var_tensor_def_unattached(
+                    tsr, linkage::private_global)
+                                               .checked_as<define>());
+        } else {
+            gp.func_body->seq_.emplace_back(
+                    builder::make_var_tensor_def_unattached(tsr));
+        }
+    } else if (type == info_etype_t::out_size) {
+        if (const_type == const_kind::not_const) {
+            gp.func_body->seq_.emplace_back(
+                    builder::make_var_tensor_def_unattached(tsr));
+        }
+    }
+    return tsr;
+};
+
+expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
+        std::vector<expr> &op_dispatch_kernel, const sc_op_ptr &node,
+        op_kinds kind) {
+    std::vector<expr> plhd_ins, fmt_ins;
+    std::vector<expr> plhd_outs, fmt_outs, size_outs;
+    bool need_dispatch = node->get_dispatch_key_set()->set_.size() > 1;
+    // current input
+    for (auto &ltensor : node->get_inputs()) {
+        auto const_type = ltensor->producer_owner_->attrs_.get_or_else(
+                "constant", const_kind::not_const);
+        plhd_ins.emplace_back(get_or_create_tensor(
+                gp, ltensor, false, const_type, info_etype_t::placeholder));
+        fmt_ins.emplace_back(get_or_create_tensor(
+                gp, ltensor, false, const_type, info_etype_t::format));
+    }
+    // input before reorder
+    if (node->isa<tunable_op_t>()
+            || (node->isa<fused_op_t>()
+                    && node->stc_cast<fused_op_t>()->get_main_op())) {
+        auto &inputs = node->get_inputs();
+        auto query_sz = inputs.size();
+        if (node->isa<fused_op_t>()) {
+            query_sz = node->stc_cast<fused_op_t>()
+                               ->main_op_.ops_[1]
+                               ->get_inputs()
+                               .size();
+        }
+        for (size_t i = 0; i < query_sz; i++) {
+            auto ltensor = node->get_inputs()[i];
+            auto node_before = ltensor->producer_owner_;
+            auto const_type_before = node_before->attrs_.get_or_else(
+                    "constant", const_kind::not_const);
+            // find the buffer before reorder.
+            if (node_before->isa<reorder_op_t>()
+                    && (node_before->attrs_.as_map().empty()
+                            || node_before->attrs_.get_or_else(
+                                       "constant", const_kind::not_const)
+                                    == const_kind::not_const)) {
+                ltensor = node_before->get_inputs()[0];
+            }
+            plhd_ins.emplace_back(get_or_create_tensor(gp, ltensor, false,
+                    const_type_before, info_etype_t::placeholder));
+            fmt_ins.emplace_back(get_or_create_tensor(gp, ltensor, false,
+                    const_type_before, info_etype_t::format));
+        }
+    }
+    auto const_type
+            = node->attrs_.get_or_else("constant", const_kind::not_const);
+    for (auto &ltensor : node->get_outputs()) {
+        expr plhd, fmt, size;
+        if (kind == kinput) {
+            // use real tensor instead of placeholder.
+            plhd = get_or_create_tensor(
+                    gp, ltensor, true, const_type, info_etype_t::real_tensor);
+            fmt = get_or_create_tensor(
+                    gp, ltensor, true, const_type, info_etype_t::format);
+        } else if (kind == kconstant) {
+            plhd = get_or_create_tensor(gp, ltensor, false,
+                    const_kind::global_const, info_etype_t::real_tensor);
+            fmt = get_or_create_tensor(gp, ltensor, false,
+                    const_kind::global_const, info_etype_t::format);
+        } else {
+            plhd = get_or_create_tensor(
+                    gp, ltensor, false, const_type, info_etype_t::placeholder);
+            // expect for output tsr
+            if (!plhd.defined()) {
+                plhd = get_or_create_tensor(gp, ltensor, false, const_type,
+                        info_etype_t::real_tensor);
+            }
+            fmt = get_or_create_tensor(
+                    gp, ltensor, false, const_type, info_etype_t::format);
+            size = get_or_create_tensor(
+                    gp, ltensor, false, const_type, info_etype_t::out_size);
+        }
+        plhd_outs.emplace_back(plhd);
+        fmt_outs.emplace_back(fmt);
+        size_outs.emplace_back(size);
+    }
+    // Pruning, because the format propagation is broken after reorder,
+    // so it doesn't need query to deliver formats. Notes that only
+    // reorder could, other ops should propagate their format even does
+    // not need dispatch.
+    if ((node->isa<reorder_op_t>() && !need_dispatch)
+            || const_type != const_kind::not_const) {
+        return expr();
+    }
+    expr dyn_ker_ptr;
+    // update dynamic query format
+    if (!op_dispatch_kernel[node->logical_op_id_].defined()) {
+        if (!utils::is_one_of(kind, kinput, koutput, kreshape, kconstant)) {
+            auto &table_map = gp.ret_mod->get_op_table_map();
+            auto func_name = node->op_name_ + "__"
+                    + std::to_string(node->logical_op_id_) + "_ptr";
+            auto table_name = func_name + "_table";
+            auto table_it = table_map.find(table_name);
+            auto table_var = builder::make_var(datatypes::pointer, table_name);
+            auto table_ptr = table_it != table_map.end()
+                    ? table_it->second
+                    : std::make_shared<op_dispatch_tables_t>();
+            dyn_ker_ptr = builder::make_tensor(
+                    func_name, {UINT64_C(1)}, datatypes::pointer);
+            std::vector<expr> query_func_args;
+            query_func_args.emplace_back(table_var);
+            query_func_args.insert(
+                    query_func_args.end(), plhd_outs.begin(), plhd_outs.end());
+            query_func_args.insert(
+                    query_func_args.end(), plhd_ins.begin(), plhd_ins.end());
+            query_func_args.insert(
+                    query_func_args.end(), fmt_outs.begin(), fmt_outs.end());
+            query_func_args.insert(
+                    query_func_args.end(), fmt_ins.begin(), fmt_ins.end());
+            query_func_args.insert(
+                    query_func_args.end(), size_outs.begin(), size_outs.end());
+            query_func_args.push_back(dyn_ker_ptr);
+            expr query_call; // call node
+            if (node->isa<fused_op_t>()) {
+                auto fused_node = node->stc_cast<fused_op_t>();
+                auto query_mod = fused_node->get_dynamic_query_func(ctx);
+                query_func_args[0] = fused_node->main_table_var_;
+                gp.ret_mod->merge(*query_mod);
+                assert(table_ptr);
+                query_call = builder::make_call(
+                        query_mod->get_entry_func(), query_func_args);
+
+            } else {
+                auto table_ptr = std::make_shared<op_dispatch_tables_t>();
+                gp.ret_mod->add_op_table(std::make_pair(table_name, table_ptr));
+                initialize_format_table_with_op(node, table_ptr);
+                query_call
+                        = call_op_dynamic_query_function(node, query_func_args);
+            }
+            stmts_node_t *target_body = gp.func_body.get();
+            if (table_it == table_map.end()) {
+                auto table_def = builder::make_var_tensor_def_unattached(
+                        table_var, linkage::private_global);
+                gp.ret_mod->add_global_var(table_def.checked_as<define>());
+            }
+            target_body->seq_.emplace_back(
+                    builder::make_var_tensor_def_unattached(dyn_ker_ptr));
+            target_body->seq_.emplace_back(
+                    builder::make_evaluate_unattached(query_call));
+            op_dispatch_kernel[node->logical_op_id_]
+                    = builder::make_indexing(dyn_ker_ptr, 0);
+            op_dispatch_kernel[node->logical_op_id_]->attr().set(
+                    attr_keys::no_index2var, true);
+            op_dispatch_kernel[node->logical_op_id_]->attr().set(
+                    attr_keys::always_trans, true);
+        }
+    }
+    return dyn_ker_ptr;
+}
+
+static void set_op_dispatch_key(
+        const sc_op_ptr &node, const op_dispatch_key_t &key) {
+    if (node->isa<fused_op_t>()) {
+        node->stc_cast<fused_op_t>()->update_internal_graph_format(key);
+    } else {
+        if (auto tunable_node = node->dyn_cast<tunable_op_t>()) {
+            tunable_node->set_config_by_key(key);
+        }
+        auto &inputs = node->get_inputs();
+        auto &outputs = node->get_outputs();
+        int idx = 0;
+        for (auto &in : inputs) {
+            in->details_.set_format(key.in_out_formats_[idx++]);
+        }
+        for (auto &out : outputs) {
+            out->details_.set_format(key.in_out_formats_[idx++]);
+        }
+    }
+    node->info_.cur_impl_ = key.impl_;
+}
+
+std::pair<expr, expr> get_reshape_tptr(general_lower_params_t &gp,
+        const graph_tensor_ptr &old_tsr, const graph_tensor_ptr &new_tsr,
+        int const_type, op_kinds kind) {
+    auto base_tsr
+            = get_or_create_tensor(gp, old_tsr, kind == kinput, const_type);
+    size_t ndims;
+    if (base_tsr.isa<tensorptr>()) {
+        ndims = base_tsr.static_as<tensorptr>()->shape_.size();
+    } else {
+        assert(base_tsr.isa<tensor>());
+        ndims = base_tsr.static_as<tensor>()->dims_.size();
+    }
+    std::vector<expr_c> base_idx(ndims, expr(0));
+    std::vector<expr> new_shape_tmp
+            = new_tsr->details_.get_blocking_dims_expr(gp.graph);
+    std::vector<expr_c> new_shape(new_shape_tmp.begin(), new_shape_tmp.end());
+    auto new_tptr = builder::tensor_ptr(base_tsr, base_idx, new_shape);
+    new_tptr->attr().set(attr_keys::plain_dims,
+            gp.graph.dims_to_expr(new_tsr->details_.get_plain_dims()));
+    return std::make_pair(base_tsr, new_tptr);
+}
+
+void create_op_tensors(general_lower_params_t &gp, std::vector<expr> &ins,
+        std::vector<expr> &outs, const sc_op_ptr &node, op_kinds kind) {
+    int const_type
+            = node->attrs_.get_or_else("constant", const_kind::not_const);
+    for (auto &ltensor : node->get_inputs()) {
+        // As the traversal is not in order, so the constant type of
+        // tensor should be decided by the node before.
+        ins.emplace_back(get_or_create_tensor(gp, ltensor, false, const_type));
+    }
+    for (auto &ltensor : node->get_outputs()) {
+        if (kind == kconstant) {
+            get_or_create_tensor(gp, ltensor, false, const_kind::global_const);
+        } else if (kind == kreshape) {
+            COMPILE_ASSERT(node->get_inputs().size() == 1,
+                    "Reshape should have 1 input");
+            // If the output of tensor view is output of graph
+            if (gp.ltsr_rtsr.find(ltensor) != gp.ltsr_rtsr.end()
+                    && has_output_uses(ltensor)) {
+                break;
+            }
+            auto out_tsr_pair = get_reshape_tptr(
+                    gp, node->get_inputs()[0], ltensor, const_type, kind);
+            auto it = gp.ltsr_rtsr.find(ltensor);
+            if (it != gp.ltsr_rtsr.end() && it->second.tensor_.defined()) {
+                COMPILE_ASSERT(gp.is_graph_dynamic,
+                        "If output tsr of tensor view is defined, it "
+                        "should in dynamic mode.");
+                // the tsr replace map for tensor view op. Because in
+                // dynamic mode, the output of tensor view may be
+                // traversed first.
+                std::unordered_map<expr_c, expr> tv_replace_map;
+                tv_replace_map.insert(std::make_pair(
+                        it->second.tensor_, out_tsr_pair.second));
+                tv_tsr_replacer_t cpy(tv_replace_map, false);
+                gp.func_body = cpy.dispatch(gp.func_body)
+                                       .remove_const()
+                                       .checked_as<stmts>();
+                gp.init_body = cpy.dispatch(gp.init_body)
+                                       .remove_const()
+                                       .checked_as<stmts>();
+            }
+            gp.ltsr_rtsr[ltensor].tensor_ = out_tsr_pair.second;
+        } else {
+            graph_tensor_ptr out_tsr;
+            // for pattern like node->reshape->output
+            if (auto out_tsr = get_linked_output_tsr(ltensor)) {
+                gp.ltsr_rtsr[ltensor].tensor_ = get_reshape_tptr(
+                        gp, out_tsr, ltensor, const_type, kind)
+                                                        .second;
+                outs.emplace_back(gp.ltsr_rtsr[ltensor].tensor_);
+            } else {
+                outs.emplace_back(get_or_create_tensor(
+                        gp, ltensor, kind == kinput, const_type));
+            }
+        }
+    }
+}
+
+static std::string get_dispatch_callee_name(const expr &kernel) {
+    assert(kernel.isa<indexing>());
+    return kernel.checked_as<indexing>()->ptr_.checked_as<tensor>()->name_;
 }
 
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
@@ -405,8 +977,11 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
             graph.attrs_.get_or_else<std::string>("temp.name", "main_entry"),
             params, func_body, datatypes::void_t);
     // todo: logical tensor should also have an unique id
-    std::unordered_map<graph_tensor_ptr, expr> ltsr_rtsr;
-    std::unordered_map<expr, expr> ltsr_gtsr;
+    // tsr_info_t include dynamic placeholder(dynamic tensor with empty
+    // datapointer) and runtime format.
+    std::unordered_map<graph_tensor_ptr, tsr_info_t> ltsr_rtsr;
+    // function pointer
+    std::vector<expr> op_dispatch_kernel(graph.ops_.size());
     int tensor_counter = 0;
     int global_tensor_counter = 0;
     auto ret_mod = ir_module_t::from_entry_func(ctx, func);
@@ -421,141 +996,67 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     if (graph.attrs_.get_or_else("folded_input", false)) {
         ret_mod->attr_.set("folded_input", true);
     }
-    auto get_or_create_tensor = [&](const graph_tensor_ptr &t, bool is_arg,
-                                        int const_type) -> expr {
-        auto itr = ltsr_rtsr.find(t);
-        if (itr != ltsr_rtsr.end()) { return itr->second; }
-        sc_op *linked_output = nullptr;
-        if (!is_arg) {
-            for (auto &use : t->uses_) {
-                // finds if any of the use of the tensor is marked output
-                if (use.second->isa<output_op>()) {
-                    is_arg = true;
-                    linked_output = use.second.get();
-                    break;
-                }
-            }
-        }
-
-        std::vector<expr> dims = t->details_.get_blocking_dims_expr(graph);
-        std::vector<expr> strides = dims_to_dense_stride(dims);
-
-        std::string tensor_name
-                = graph::get_tensor_name(t.get(), linked_output);
-        if (tensor_name.empty()) {
-            tensor_name
-                    = std::string("buffer_") + std::to_string(tensor_counter);
-        }
-        expr tsr = builder::make_stensor(
-                tensor_name, dims, strides, t->details_.dtype_);
-        tensor_counter++;
-        ltsr_rtsr.insert(std::make_pair(t, tsr));
-        stmt def_node;
-        if (!is_arg) {
-            if (const_type != const_kind::not_const) {
-                if (const_type == const_kind::global_const) {
-                    tsr = ret_mod->make_global_stensor(
-                            tsr.checked_as<tensor>()->elem_dtype_,
-                            "folded_const_"
-                                    + std::to_string(global_tensor_counter++),
-                            tsr.checked_as<tensor>()->dims_,
-                            tsr.checked_as<tensor>()->strides_,
-                            linkage::private_global, &def_node);
-                    if (auto const_node
-                            = t->producer_owner_->dyn_cast<constant_op_t>()) {
-                        auto const_value = const_node->get_constant_values();
-                        tsr.checked_as<tensor>()->init_value_ = const_value;
-                    }
-                    ltsr_rtsr[t] = tsr;
-                } else {
-                    def_node = builder::make_var_tensor_def_unattached(tsr);
-                    init_body->seq_.emplace_back(def_node);
-                }
-            } else {
-                def_node = builder::make_var_tensor_def_unattached(tsr);
-                func_body->seq_.emplace_back(def_node);
-            }
-        }
-        if (def_node.defined()) { add_def_comments(def_node, t.get()); }
-        return tsr;
-    };
+    bool is_graph_dynamic = graph.is_dynamic();
+    general_lower_params_t gp {ret_mod, ltsr_rtsr, graph, func_body, init_body,
+            tensor_counter, global_tensor_counter, is_graph_dynamic};
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
-        std::vector<expr> ins;
-        std::vector<expr> outs;
+        std::vector<expr> ins, outs;
         // special kinds of Ops that we need to take care of
-        enum op_kinds {
-            other = 0,
-            input,
-            output,
-            constant,
-            reshape,
-        } kind = other;
+        op_kinds kind = kother;
         if (node->isa<input_op>()) {
-            kind = input;
+            kind = kinput;
         } else if (node->isa<output_op>()) {
-            kind = output;
+            kind = koutput;
         } else if (node->isa<constant_op_t>()) {
-            kind = constant;
+            kind = kconstant;
             if (node->attrs_.get_or_else("constant", const_kind::not_const)
                     == const_kind::not_const) {
                 node->attrs_.set("constant", const_kind::global_const);
             }
+        } else if (node->isa<reorder_op_t>()) {
+            // todo: assume reorder is fused break in dynamic now.
+            kind = kreorder;
         } else if (node->isa<tensor_view_op_t>()) {
-            kind = reshape;
+            kind = kreshape;
         }
-        auto get_reshape_tptr = [&](const graph_tensor_ptr &old_tsr,
-                                        const graph_tensor_ptr &new_tsr,
-                                        int const_type, op_kinds kind) {
-            auto base_tsr
-                    = get_or_create_tensor(old_tsr, kind == input, const_type);
-            auto ndims = old_tsr->details_.get_blocking_dims().size();
-            std::vector<expr_c> base_idx(ndims, expr(0));
-            auto &new_int_shape = new_tsr->details_.get_blocking_dims();
-            std::vector<expr_c> new_shape = graph.dims_to_expr_c(new_int_shape);
-            return builder::tensor_ptr(base_tsr, base_idx, new_shape);
-        };
+        // if the node is reorder, query its uses op first.
+        if (is_graph_dynamic) {
+            if (kind == kreorder
+                    && node->attrs_.get_or_else(
+                               "constant", const_kind::not_const)
+                            == const_kind::not_const
+                    && need_query_next_first(node)) {
+                auto query_node
+                        = node->get_outputs()[0]->uses_[0].second.lock();
+                create_op_query_func(
+                        ctx, gp, op_dispatch_kernel, query_node, kind);
+            }
+            create_op_query_func(ctx, gp, op_dispatch_kernel, node, kind);
+        }
+        // tensor decl should put after query functions.
+        create_op_tensors(gp, ins, outs, node, kind);
+        if (is_graph_dynamic && kind == kreorder
+                && node->attrs_.get_or_else("constant", const_kind::not_const)
+                        == const_kind::not_const) {
+            outs[0]->attr().set("temp.may_inplace", true);
+        }
         int const_type
                 = node->attrs_.get_or_else("constant", const_kind::not_const);
-        for (auto &ltensor : node->get_inputs()) {
-            ins.emplace_back(get_or_create_tensor(ltensor, false, const_type));
-        }
-        for (auto &ltensor : node->get_outputs()) {
-            if (kind == constant) {
-                get_or_create_tensor(ltensor, false, const_kind::global_const);
-            } else if (kind == reshape) {
-                COMPILE_ASSERT(node->get_inputs().size() == 1,
-                        "Reshape should have 1 input");
-                if (ltsr_rtsr.find(ltensor) != ltsr_rtsr.end()) { break; }
-                ltsr_rtsr[ltensor] = get_reshape_tptr(
-                        node->get_inputs()[0], ltensor, const_type, kind);
-            } else {
-                graph_tensor_ptr out_tsr;
-                // for pattern like node->reshape->output
-                if (auto out_tsr = get_linked_output_tsr(ltensor)) {
-                    ltsr_rtsr[ltensor] = get_reshape_tptr(
-                            out_tsr, ltensor, const_type, kind);
-                    outs.emplace_back(ltsr_rtsr[ltensor]);
-                } else {
-                    outs.emplace_back(get_or_create_tensor(
-                            ltensor, kind == input, const_type));
-                }
-            }
-        }
         switch (kind) {
-            case input: {
+            case kinput: {
                 for (auto &v : outs) {
                     params.emplace_back(v);
                 }
                 break;
             }
-            case output: {
+            case koutput: {
                 for (auto &v : ins) {
                     params.emplace_back(v);
                 }
                 break;
             }
-            case constant:
-            case reshape: {
+            case kconstant:
+            case kreshape: {
                 break;
                 // nothing to do.
             }
@@ -563,24 +1064,68 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 std::vector<expr> exprargs;
                 exprargs.insert(exprargs.end(), outs.begin(), outs.end());
                 exprargs.insert(exprargs.end(), ins.begin(), ins.end());
-                auto mod = node->get_func(ctx);
-                ret_mod->merge(*mod);
-                auto callee = mod->get_entry_func();
+                expr kernel_call;
+                std::string callee_name;
+                bool need_dispatch
+                        = node->get_dispatch_key_set()->set_.size() > 1;
+                if (need_dispatch) {
+                    assert(is_graph_dynamic);
+                    assert(op_dispatch_kernel[node->logical_op_id_].defined());
+                    callee_name = get_dispatch_callee_name(
+                            op_dispatch_kernel[node->logical_op_id_]);
+                    std::string table_name = callee_name + "_table";
+                    auto &key_set = node->get_dispatch_key_set()->set_;
+                    int dyn_idx = 0;
+                    for (auto &key : key_set) {
+                        set_op_dispatch_key(node, key);
+                        // todo: add padding support
+                        auto mod = node->get_func(ctx);
+                        auto func = mod->get_entry_func();
+                        func->attr().set(attr_keys::always_trans, true);
+                        func->name_ += "_" + std::to_string(dyn_idx);
+                        func->decl_->name_ = func->name_;
+                        ret_mod->merge(*mod);
+                        if (!dyn_idx) {
+                            // mark the first function as prototype.
+                            op_dispatch_kernel[node->logical_op_id_]
+                                    ->attr()
+                                    .set("prototype", mod->get_entry_func());
+                        }
+                        auto cur_table
+                                = ret_mod->get_op_table_map()[table_name];
+                        assert(cur_table);
+                        add_dispatch_symbol_to_kernel_table(
+                                cur_table, key, func->name_);
+                        dyn_idx++;
+                    }
+                    kernel_call = make_expr<call_node>(
+                            op_dispatch_kernel[node->logical_op_id_], exprargs);
+                } else {
+                    // no dispatch
+                    auto mod = node->get_func(ctx);
+                    ret_mod->merge(*mod);
+                    auto callee = mod->get_entry_func();
+                    if (is_graph_dynamic) {
+                        callee->attr().set(attr_keys::always_trans, true);
+                        callee->decl_->attr().set(
+                                attr_keys::always_trans, true);
+                    }
+                    callee_name = callee->name_;
+                    kernel_call = builder::make_call(callee, exprargs);
+                }
                 stmts_node_t *target_body
                         = (const_type != const_kind::not_const)
                         ? init_body.get()
                         : func_body.get();
                 target_body->seq_.emplace_back(
-                        builder::make_evaluate_unattached(
-                                builder::make_call(callee, exprargs)));
-
+                        builder::make_evaluate_unattached(kernel_call));
                 if (ctx->flags_.value_check_) {
-                    make_value_check_call(outs, ret_mod, callee,
+                    make_value_check_call(outs, ret_mod, callee_name,
                             global_str_counter, target_body);
                 }
                 if (dump_config.enabled_
-                        && dump_config.should_function_dump(callee->name_)) {
-                    make_dump_tensor_call(outs, node, ret_mod, callee,
+                        && dump_config.should_function_dump(callee_name)) {
+                    make_dump_tensor_call(outs, node, ret_mod, callee_name,
                             global_str_counter, dump_config, dump_out_path,
                             target_body);
                 }
@@ -596,7 +1141,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     COMPILE_ASSERT(itr != ltsr_rtsr.end(),
                             "Cannot find the input op in the generated "
                             "function");
-                    new_param.emplace_back(itr->second);
+                    new_param.emplace_back(itr->second.tensor_);
                 }
             } else if (auto outop = v->dyn_cast<output_op>()) {
                 for (auto &out : outop->get_inputs()) {
@@ -604,7 +1149,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     COMPILE_ASSERT(itr != ltsr_rtsr.end(),
                             "Cannot find the output op in the generated "
                             "function");
-                    new_param.emplace_back(itr->second);
+                    new_param.emplace_back(itr->second.tensor_);
                 }
             } else {
                 COMPILE_ASSERT(false,
@@ -636,6 +1181,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     }
     func->params_ = std::move(params);
     func->decl_->params_ = func->params_;
+    func->body_ = std::move(func_body);
     if (utils::compiler_configs_t::get().print_pass_result_) {
         SC_MODULE_INFO << ret_mod;
     }

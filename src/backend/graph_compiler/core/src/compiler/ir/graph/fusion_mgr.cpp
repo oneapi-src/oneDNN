@@ -434,9 +434,16 @@ void fusion_manager::do_prepare_fusion_data(fdata_map &fdmap) {
 struct buffer_reuse_identity {
     buffer_reuse_identity() = default;
     sc_data_type_t dtype_;
-    sc_dims shapes_;
+    std::vector<expr> shapes_;
     bool operator==(const buffer_reuse_identity &other) const {
-        return dtype_ == other.dtype_ && shapes_ == other.shapes_;
+        if (shapes_.size() != other.shapes_.size()) { return false; }
+        for (size_t i = 0; i < shapes_.size(); i++) {
+            if (!do_cast_and_fold(shapes_[i])
+                            ->equals(do_cast_and_fold(other.shapes_[i]))) {
+                return false;
+            }
+        }
+        return dtype_ == other.dtype_;
     }
 };
 
@@ -775,17 +782,18 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
     buffer_identity_count buf_cnt_map;
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
-    auto get_or_set_buffer_reuse = [&](const expr &tsr, const sc_dims &shapes) {
-        auto tsr1 = tsr.checked_as<tensor>();
-        sc_data_type_t dtype = tsr1->elem_dtype_;
-        auto id = buffer_reuse_identity {dtype, shapes};
-        auto it = buf_cnt_map.find(id);
-        if (it != buf_cnt_map.end()) {
-            it->second.push_back(tsr);
-        } else {
-            buf_cnt_map[id] = tsr_reuse_vec {tsr};
-        }
-    };
+    auto get_or_set_buffer_reuse
+            = [&](const expr &tsr, std::vector<expr> &shapes) {
+                  auto tsr1 = tsr.checked_as<tensor>();
+                  sc_data_type_t dtype = tsr1->elem_dtype_;
+                  auto id = buffer_reuse_identity {dtype, shapes};
+                  auto it = buf_cnt_map.find(id);
+                  if (it != buf_cnt_map.end()) {
+                      it->second.push_back(tsr);
+                  } else {
+                      buf_cnt_map[id] = tsr_reuse_vec {tsr};
+                  }
+              };
     // declare real tensor in fdata, and put it at the beginning of ss
     auto declare_tensor_ = [&](const graph_tensor_ptr &gt_ptr,
                                    std::vector<stmt> &ss, int anchor_id) {
@@ -833,12 +841,11 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
         COMPILE_ASSERT(!range_list.empty(), "empty range list found")
         if (range_list.size() != 1) return;
         auto shapes_expr = get_slice_shape(range_list[0]);
-        auto shapes = get_expr_to_dims(shapes_expr);
         buf->attr()[tensor_shrinker_attrs::should_shrink]
                 = tensor_shrinker_t::shrink_info_t {
                         /*base*/ get_slice_idx(range_list[0]),
                         /*shape*/ shapes_expr, stmts()};
-        if (buf.isa<tensor>()) { get_or_set_buffer_reuse(buf, shapes); }
+        if (buf.isa<tensor>()) { get_or_set_buffer_reuse(buf, shapes_expr); }
     };
 
     for (int i = static_cast<int>(sorted_ops_.size()) - 1; i >= 0; i--) {
@@ -892,12 +899,13 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
                         "Currently only single slice is supported for input op")
                 auto range = range_list[0];
                 auto shapes_expr = get_slice_shape(range);
-                auto shapes = get_expr_to_dims(shapes_expr);
                 tsr->attr()[tensor_shrinker_attrs::should_shrink]
                         = tensor_shrinker_t::shrink_info_t {
                                 /*base*/ get_slice_idx(range),
                                 /*shape*/ shapes_expr, stmts()};
-                if (tsr.isa<tensor>()) { get_or_set_buffer_reuse(tsr, shapes); }
+                if (tsr.isa<tensor>()) {
+                    get_or_set_buffer_reuse(tsr, shapes_expr);
+                }
                 // set declare info
                 auto &decl_anchor_stmt
                         = fanchor_list_.at(real_anchor).anchor_position_;
@@ -1594,6 +1602,10 @@ void fusion_manager::transform_graph(const context_ptr &ctx, bool has_main_op) {
             if (rd->can_split_op()) { rd->split_op(ctx, graph_, 1); }
         }
     }
+}
+
+void fusion_manager::reset_brgemm_register_infos() {
+    brg_fusion_reg_.reset();
 }
 
 } // namespace sc

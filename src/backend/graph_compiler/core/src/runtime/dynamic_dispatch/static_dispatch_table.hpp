@@ -20,14 +20,14 @@
 #include <array>
 #include <assert.h>
 #include "dispatch_table.hpp"
-#include <runtime/data_format.hpp>
+#include <runtime/dispatch_key.hpp>
 
 namespace sc {
 namespace runtime {
 
 template <uint64_t... values>
 struct static_dispatch_keys {
-    using linearizer = data_format::linear_converter<values...>;
+    using linearizer = dispatch_key::linear_converter<values...>;
     static constexpr int num_of_values = linearizer::idx + 1;
 };
 
@@ -37,7 +37,7 @@ struct static_dispatch_trait {
     static constexpr int value = First::num_of_values * next_trait::value;
     static constexpr int num_keys = next_trait::num_keys + 1;
     static uint64_t compute(uint64_t *keys) {
-        return First::linearizer::call(data_format(keys[index]))
+        return First::linearizer::call(dispatch_key(keys[index]))
                 * next_trait::value
                 + next_trait::compute(keys);
     }
@@ -48,7 +48,7 @@ struct static_dispatch_trait<index, First> {
     static constexpr int value = First::num_of_values;
     static constexpr int num_keys = 1;
     static uint64_t compute(uint64_t *keys) {
-        return First::linearizer::call(data_format(keys[index]));
+        return First::linearizer::call(dispatch_key(keys[index]));
     }
 };
 

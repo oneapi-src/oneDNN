@@ -96,6 +96,8 @@ public:
     }
     void break_brgemm_fusion();
     bool can_register_brgemm_fusion(const stmt &body);
+    // reset all status in brgemm fusion.
+    void reset_brgemm_register_infos();
 
     int get_input_idx(sc_op *) const;
     int get_output_idx(sc_op *) const;

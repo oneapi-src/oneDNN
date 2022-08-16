@@ -216,13 +216,13 @@ void sc_data_format_t::to_string(std::ostream &os) const {
     os << *this << "\n";
 }
 
-runtime::data_format sc_data_format_t::to_runtime() const {
-    COMPILE_ASSERT(format_code_.ndims() < runtime::data_format::meta::MAX_DIMS,
-            "Cannot convert this sc_data_format_t to runtime data_format");
+runtime::dispatch_key sc_data_format_t::to_runtime() const {
+    COMPILE_ASSERT(format_code_.ndims() < runtime::dispatch_key::meta::MAX_DIMS,
+            "Cannot convert this sc_data_format_t to runtime dispatch_key");
     COMPILE_ASSERT(blocks_[0] < 256 && blocks_[1] < 256,
-            "The blocks are too large for runtime data_format");
-    return runtime::data_format(
-            static_cast<uint64_t>(format_code_), blocks_[0], blocks_[1], false);
+            "The blocks are too large for runtime dispatch_key");
+    return runtime::dispatch_key(static_cast<uint64_t>(format_code_),
+            blocks_[0], blocks_[1], 0, format_code_.is_plain());
 }
 
 std::ostream &operator<<(std::ostream &os, const sc_data_format_t &in) {

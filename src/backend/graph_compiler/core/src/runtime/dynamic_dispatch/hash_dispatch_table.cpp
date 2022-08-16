@@ -27,6 +27,7 @@ hash_dispatch_table_t::hash_dispatch_table_t(uint32_t num_args, size_t capacity)
     , size_per_entry_(num_args * sizeof(uint64_t) + sizeof(void *))
     , buffer_ {new char[size_per_entry_ * capacity]}
     , capacity_(capacity) {
+    assert((capacity_ & (capacity_ - 1)) == 0);
     memset(buffer_.get(), 0, size_per_entry_ * capacity);
 }
 

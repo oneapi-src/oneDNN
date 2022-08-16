@@ -53,7 +53,12 @@ public:
 
     expr_c visit(call_c v) override {
         func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
-        if (!the_func) { return ir_visitor_t::visit(v); }
+        expr the_expr;
+        if (!the_func) {
+            the_expr = expr(std::dynamic_pointer_cast<expr_base>(v->func_));
+            assert(the_expr.defined() && the_expr->attr_->has_key("prototype"));
+            the_func = the_expr->attr_->get<func_t>("prototype");
+        }
         auto itr = map->find(the_func->name_);
         if (itr == map->end()) {
             // if is parallel-call function
@@ -92,6 +97,11 @@ public:
         ret.insert(ret.begin(), 2, expr());
         ret[0] = current_rtl_ctx;
         ret[1] = current_base;
+        if (the_expr.defined()) {
+            auto new_expr = the_expr->remake();
+            new_expr->attr_->set("prototype", itr->second->decl_);
+            return copy_attr(*v, make_expr<call_node>(new_expr, ret));
+        }
         return copy_attr(*v, builder::make_call(itr->second->decl_, ret));
     }
 

@@ -61,6 +61,9 @@ public:
 
     void set_config(const config_ptr &config) override;
     void set_config_if_empty(context_ptr ctx, body_generator_base_t *p);
+    virtual void set_config_by_key(const op_dispatch_key_t &key) {
+        throw std::runtime_error("unimplemented");
+    }
 
     config_ptr get_default_config(context_ptr ctx) override;
 

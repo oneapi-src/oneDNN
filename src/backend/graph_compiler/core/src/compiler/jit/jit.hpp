@@ -23,6 +23,7 @@
 #include <vector>
 #include <compiler/ir/ir_module.hpp>
 #include <runtime/context.hpp>
+#include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/generic_val.hpp>
 
 namespace sc {
@@ -99,6 +100,8 @@ public:
 class SC_INTERNAL_API jit_module {
 public:
     statics_table_t globals_;
+    // runtime op table for dynamic shape/format infer and dispatch.
+    runtime::dispatch_table_map_t op_tables_;
     // the unique id for a JIT module in a process scope
     size_t module_id_;
     // whether to use managed thread pool
@@ -113,6 +116,11 @@ public:
     virtual std::vector<std::string> get_temp_filenames() const {
         return std::vector<std::string>();
     }
+
+    // upate kerenl values of op_tables_ with address of specific function.
+    // call the self-update function after jit module is created.
+    virtual void update_runtime_op_tables(const const_ir_module_ptr &ir_mod);
+
     virtual ~jit_module() = default;
 };
 
@@ -178,7 +186,8 @@ public:
     // negotiate with the JIT engine and get the target machine with as
     // many flags as possible the JIT can support in the user given target
     // machine
-    static void set_target_machine(jit_kind kind, target_machine_t &tm);
+    static void set_target_machine(
+            jit_kind kind, runtime::target_machine_t &tm);
 };
 } // namespace sc
 

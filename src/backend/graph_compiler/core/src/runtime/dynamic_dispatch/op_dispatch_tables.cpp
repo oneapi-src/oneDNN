@@ -13,29 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_UTILS_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_UTILS_HPP
 
-#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
-
+#include "op_dispatch_tables.hpp"
+#include <assert.h>
+#include <string.h>
 namespace sc {
 namespace runtime {
-/**
- * @brief Get the dynamic config single block from the plain dynamic dimension
- *
- * @param in the dynamic dimension
- * @param has_48 default true, candidates are [16, 32, 48, 64], if false,
- * candidates are [16, 32, 64].
- * @return the selected block config
- */
-int get_dyn_cfg_single(int in, bool has_48 = true);
 
-void deep_copy_dynamic_tensor(
-        dynamic_tensor_t *out, const dynamic_tensor_t *in);
+void op_dispatch_tables_t::set_format_table_keys(uint64_t *keys,
+        uint64_t num_keys, uint64_t *values, uint64_t num_values) {
+    assert(format_table_);
+    if (void *v = format_table_->get(keys, num_keys)) {
+        memcpy(v, values, num_values * sizeof(uint64_t));
+    } else {
+        std::unique_ptr<uint64_t[]> new_values(new uint64_t[num_values]);
+        memcpy(new_values.get(), values, num_values * sizeof(uint64_t));
+        format_table_->set(keys, num_keys, new_values.get());
+        format_values_.emplace_back(std::move(new_values));
+    }
+}
 
-uint64_t calculate_blocking_dims(void *placeholder, uint64_t *format);
-
+op_dispatch_tables_t::~op_dispatch_tables_t() {
+    kernel_dispatch_func_ = nullptr;
+}
 } // namespace runtime
 } // namespace sc
-
-#endif

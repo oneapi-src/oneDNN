@@ -109,11 +109,12 @@ static expr_c create_cast_f32_to_bf16(const context_ptr &ctx, const cast_c &v) {
     }
     // non-fast trunc
     if (in->dtype_.lanes_ > 1) {
-        COMPILE_ASSERT(ctx->machine_.device_type_ == target_machine_t::type::cpu
+        COMPILE_ASSERT(ctx->machine_.device_type_
+                                == runtime::target_machine_t::type::cpu
                         && ctx->machine_.cpu_flags_.fAVX512F,
                 "bf16 only support in avx512.");
     }
-    if (ctx->machine_.device_type_ == target_machine_t::type::cpu
+    if (ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu
             && ctx->machine_.cpu_flags_.fAVX512BF16) {
         /* todo: add it to instrinsic for special tag */
         return copy_attr(*v, builder::make_cast(v->dtype_, in));
@@ -275,13 +276,15 @@ static func_t create_write_struct_func(const intrin_call_c &node) {
     auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
     auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
     auto dtype = node->args_[1]->dtype_;
+
     _function_(datatypes::void_t, write_struct, {node->args_[0]},
             {builder::make_var(dtype, "_intrin_v")}) {
         assert(node->args_.size() == 2);
         assert(node->args_[1]->dtype_ == (dtype)
                 || node->args_[1]->dtype_.is_pointer());
         _bind_(dyn_tsr, inval);
-        expr util_tsr = builder::make_tensor("util_tsr", {1}, dtype);
+        expr util_tsr = builder::make_tensor("util_tsr", {1},
+                dtype.is_pointer() ? datatypes::pointer : dtype);
         util_tsr->attr().set(attr_keys::tsr_dont_buf_sched, true);
         util_tsr->attr().set(attr_keys::no_dead_write, true);
         size_t offset = get_field_offset(name, field);
@@ -306,6 +309,9 @@ static func_t create_read_struct_func_wrapper(const intrin_call_c &node) {
         } else if (field == dyn_tsr_struct_t::fields::ndims) {
             static func_t ndims_func = create_read_struct_func(node);
             return ndims_func;
+        } else if (field == dyn_tsr_struct_t::fields::dtype) {
+            static func_t dtype_func = create_read_struct_func(node);
+            return dtype_func;
         } else if (field == dyn_tsr_struct_t::fields::dyn_mask) {
             static func_t mask_func = create_read_struct_func(node);
             return mask_func;
@@ -328,6 +334,9 @@ static func_t create_write_struct_func_wrapper(const intrin_call_c &node) {
         } else if (field == dyn_tsr_struct_t::fields::ndims) {
             static func_t ndims_func = create_write_struct_func(node);
             return ndims_func;
+        } else if (field == dyn_tsr_struct_t::fields::dtype) {
+            static func_t dtype_func = create_write_struct_func(node);
+            return dtype_func;
         } else if (field == dyn_tsr_struct_t::fields::dyn_mask) {
             static func_t mask_func = create_write_struct_func(node);
             return mask_func;

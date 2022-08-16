@@ -185,6 +185,7 @@ filo_memory_pool_t::~filo_memory_pool_t() {
 using stream_t = sc::runtime::stream_t;
 extern "C" SC_API void *sc_aligned_malloc(
         stream_t *pstream, size_t sz) noexcept {
+    if (sz == 0) { return nullptr; }
     return sc::runtime::get_tls(pstream).main_memory_pool_.alloc(pstream, sz);
 }
 

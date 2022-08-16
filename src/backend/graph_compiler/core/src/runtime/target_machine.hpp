@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,14 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_CONFIG_TARGET_MACHINE_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_CONFIG_TARGET_MACHINE_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_TARGET_MACHINE_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_TARGET_MACHINE_HPP
 #include <memory>
 #include <utility>
-#include <compiler/ir/sc_data_type.hpp>
+#include "data_type.hpp"
 #include <util/def.hpp>
 namespace sc {
-
-enum class jit_kind {
-    cfake = 0,
-    llvm,
-};
-
+namespace runtime {
 struct machine_flags_t {
     unsigned int max_simd_bits;
     SC_INTERNAL_API uint32_t get_max_vector_lanes(sc_data_etype etype) const;
@@ -96,6 +91,7 @@ struct SC_INTERNAL_API target_machine_t {
         device_flags_ = std::move(other.device_flags_);
         return *this;
     }
+    target_machine_t &operator=(const target_machine_t &other);
 
     static void set_simd_length_and_max_cpu_threads(cpu_flags_t &tm);
 
@@ -105,5 +101,8 @@ private:
 
 SC_INTERNAL_API target_machine_t get_native_target_machine();
 
+SC_API target_machine_t &get_runtime_target_machine();
+SC_API void set_runtime_target_machine(const target_machine_t &);
+} // namespace runtime
 } // namespace sc
 #endif

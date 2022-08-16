@@ -32,6 +32,7 @@ struct brgemm_fusion_register {
     bool can_register_brgemm_fusion(const stmt &body);
     stmt remake_brgemm_intrinsic_by_fusion(
             stmt body, expr c_buf = get_ir_null()) const;
+    void reset();
     bool can_register_next_ = true;
     expr last_out_;
     expr valid_brgemm_node_;

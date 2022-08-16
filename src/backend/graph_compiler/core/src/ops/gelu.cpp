@@ -46,8 +46,7 @@ gelu_backprop_op::gelu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
     op_name_ = "gelu_backprop";
 }
 
-std::shared_ptr<sc_graph_t> gelu_op::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void gelu_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -96,11 +95,9 @@ std::shared_ptr<sc_graph_t> gelu_op::get_graph_impl() {
     }
     // output
     graph->make_output(mul5->get_outputs());
-    return graph;
 }
 
-std::shared_ptr<sc_graph_t> gelu_backprop_op::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void gelu_backprop_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -201,7 +198,6 @@ std::shared_ptr<sc_graph_t> gelu_backprop_op::get_graph_impl() {
     auto mul10 = graph->make("mul", {add4->get_outputs()[0], inputs1}, {}, {});
     // output
     graph->make_output(mul10->get_outputs());
-    return graph;
 }
 
 void gelu_op::query_format(context_ptr ctx,

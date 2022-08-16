@@ -26,6 +26,7 @@
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/ir_comparer.hpp>
+#include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <runtime/config.hpp>
@@ -48,6 +49,10 @@ for_loop get_next_inner_loop(const for_loop &cur_loop) {
 }
 
 static int64_t get_loop_range(const for_loop &loop) {
+    if (!loop->iter_begin_.isa<constant>() || !loop->iter_end_.isa<constant>()
+            || !loop->step_.isa<constant>()) {
+        return dimensions::dynamic_any;
+    }
     return (get_const_as_int(loop->iter_end_.checked_as<constant>())
                    - get_const_as_int(loop->iter_begin_.checked_as<constant>()))
             / get_const_as_int(loop->step_.checked_as<constant>());
@@ -65,9 +70,14 @@ static void fuse_outer_loops(for_loop outer_loop) {
     if (!loop_can_be_fused(loops[0])) { return; }
     int64_t fused_number = get_loop_range(loops[0]);
     for (size_t i = 1; i < loops.size() - 1; i++) {
-        if (fused_number >= max_fused_number) { break; }
+        if (fused_number != dimensions::dynamic_any
+                && fused_number >= max_fused_number) {
+            break;
+        }
         if (!loop_can_be_fused(loops[i])) { break; }
-        fused_number = fused_number * get_loop_range(loops[i]);
+        if (fused_number != dimensions::dynamic_any) {
+            fused_number = fused_number * get_loop_range(loops[i]);
+        }
         loops[0]->fuse(loops[i]);
     }
 }
@@ -457,10 +467,12 @@ void top_level_anchor_generator_t::schedule_loops(context_ptr ctx,
         auto body_seqs = body.checked_as<stmts>()->seq_;
         for (size_t i = 0; i < body_seqs.size(); i++) {
             if (body_seqs[i].isa<for_loop>()) {
+                body_seqs[i].static_as<for_loop>()->kind_ = for_type::PARALLEL;
                 fuse_outer_loops(body_seqs[i].checked_as<for_loop>());
             }
         }
     } else if (body.isa<for_loop>()) {
+        body.checked_as<for_loop>()->kind_ = for_type::PARALLEL;
         fuse_outer_loops(body.checked_as<for_loop>());
     }
 }
@@ -560,6 +572,27 @@ ir_module_ptr lower_fusion_manager(const context_ptr &ctx,
             ctx, gen, op, fmgr, check_parallel, false, out_failed);
     COMPILE_ASSERT(ret, "Fusible Op generation failed");
     return ret;
+}
+
+ir_module_ptr inplaced_reorder_get_func(sc_op *op, const context_ptr &ctx) {
+    auto modu = std::make_shared<ir_module_t>(ctx);
+
+    std::vector<expr> ins;
+    // real_outs are the output tensors in the function arguments
+    std::vector<expr> real_outs;
+    auto func = graph::create_func_decl_for_op(op, ins, real_outs);
+    builder::ir_builder_t bld;
+    bld.push_scope();
+    bld.push_evaluate(builder::make_write_struct(real_outs[0],
+            builder::make_read_struct(ins[0], dyn_tsr_struct_t::name,
+                    dyn_tsr_struct_t::fields::data_ptr),
+            dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::data_ptr));
+    bld.push_returns(true);
+    auto body = bld.pop_scope();
+    func->body_ = std::move(body);
+    modu->add_func({func});
+    modu->set_entry_func_idx(0);
+    return modu;
 }
 
 } // namespace sc

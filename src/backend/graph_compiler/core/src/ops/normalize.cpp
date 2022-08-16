@@ -109,8 +109,7 @@ normalize_common_t::normalize_common_t(const normalize_kind &kind,
     }
 }
 
-std::shared_ptr<sc_graph_t> normalize_common_t::get_graph_impl() {
-    auto graph = std::make_shared<sc_graph_t>();
+void normalize_common_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
@@ -219,7 +218,6 @@ std::shared_ptr<sc_graph_t> normalize_common_t::get_graph_impl() {
         }
         graph->make_output(foutput->get_outputs());
     }
-    return graph;
 }
 
 void normalize_common_t::query_format(context_ptr ctx,

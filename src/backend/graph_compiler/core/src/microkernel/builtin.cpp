@@ -457,6 +457,88 @@ std::vector<expr> create_initialed_postops_data() {
     return data;
 }
 
+// dynamic query format function call
+expr call_matmul_core_query_format(expr tb, expr out0, expr in0, expr in1,
+        expr ori_in0, expr ori_in1, expr out_format0, expr in_format0,
+        expr in_format1, expr ori_in_format0, expr ori_in_format1,
+        expr out_size, expr kernel) {
+    static func_t matmul_core_query_f = make_func("query_format_matmul_core_op",
+            {make_var(datatypes::pointer, "op_table"),
+                    make_var(datatypes::pointer, "out"),
+                    make_var(datatypes::pointer, "inp0"),
+                    make_var(datatypes::pointer, "inp1"),
+                    make_var(datatypes::pointer, "ori_inp0"),
+                    make_var(datatypes::pointer, "ori_inp1"),
+                    make_var(datatypes::pointer, "out_fmt"),
+                    make_var(datatypes::pointer, "inp_fmt0"),
+                    make_var(datatypes::pointer, "inp_fmt1"),
+                    make_var(datatypes::pointer, "ori_inp_fmt0"),
+                    make_var(datatypes::pointer, "ori_inp_fmt1"),
+                    make_var(datatypes::pointer, "out_size"),
+                    make_var(datatypes::pointer, "kernel")},
+            stmt(), datatypes::void_t);
+    return matmul_core_query_f(std::move(tb), std::move(out0), std::move(in0),
+            std::move(in1), std::move(ori_in0), std::move(ori_in1),
+            std::move(out_format0), std::move(in_format0),
+            std::move(in_format1), std::move(ori_in_format0),
+            std::move(ori_in_format1), std::move(out_size), std::move(kernel));
+}
+expr call_unary_fusible_op_query_format(expr tb, expr out0, expr in0,
+        expr out_format0, expr in_format0, expr out_size, expr kernel) {
+    static func_t unary_query_f = make_func("query_format_unary_fusible_op",
+            {make_var(datatypes::pointer, "op_table"),
+                    make_var(datatypes::pointer, "out"),
+                    make_var(datatypes::pointer, "inp"),
+                    make_var(datatypes::pointer, "out_fmt"),
+                    make_var(datatypes::pointer, "inp_fmt"),
+                    make_var(datatypes::pointer, "out_size"),
+                    make_var(datatypes::pointer, "kernel")},
+            stmt(), datatypes::void_t);
+    return unary_query_f(std::move(tb), std::move(out0), std::move(in0),
+            std::move(out_format0), std::move(in_format0), std::move(out_size),
+            std::move(kernel));
+}
+expr call_binary_fusible_op_query_format(expr tb, expr out0, expr in0, expr in1,
+        expr out_format0, expr in_format0, expr in_format1, expr out_size,
+        expr kernel) {
+    static func_t binary_query_f = make_func("query_format_binary_fusible_op",
+            {make_var(datatypes::pointer, "op_table"),
+                    make_var(datatypes::pointer, "out"),
+                    make_var(datatypes::pointer, "inp0"),
+                    make_var(datatypes::pointer, "inp1"),
+                    make_var(datatypes::pointer, "out_fmt"),
+                    make_var(datatypes::pointer, "inp_fmt0"),
+                    make_var(datatypes::pointer, "inp_fmt1"),
+                    make_var(datatypes::pointer, "out_size"),
+                    make_var(datatypes::pointer, "kernel")},
+            stmt(), datatypes::void_t);
+    return binary_query_f(std::move(tb), std::move(out0), std::move(in0),
+            std::move(in1), std::move(out_format0), std::move(in_format0),
+            std::move(in_format1), std::move(out_size), std::move(kernel));
+}
+expr call_reorder_op_query_format(expr tb, expr out0, expr in0,
+        expr out_format0, expr in_format0, expr out_size, expr kernel) {
+    static func_t reorder_query_f = make_func("query_format_reorder_op",
+            {make_var(datatypes::pointer, "op_table"),
+                    make_var(datatypes::pointer, "out"),
+                    make_var(datatypes::pointer, "inp"),
+                    make_var(datatypes::pointer, "out_fmt"),
+                    make_var(datatypes::pointer, "inp_fmt"),
+                    make_var(datatypes::pointer, "out_size"),
+                    make_var(datatypes::pointer, "kernel")},
+            stmt(), datatypes::void_t);
+    return reorder_query_f(std::move(tb), std::move(out0), std::move(in0),
+            std::move(out_format0), std::move(in_format0), std::move(out_size),
+            std::move(kernel));
+}
+expr call_cal_blocking_dims(expr placeholder, expr format) {
+    static func_t cal_blocking_f = make_func("calculate_blocking_dims",
+            {make_var(datatypes::pointer, "placeholder"),
+                    make_var(datatypes::pointer, "format")},
+            stmt(), datatypes::index);
+    return cal_blocking_f(std::move(placeholder), std::move(format));
+}
+
 static func_t set_pure_function(func_t f) {
     f->attr()[function_attrs::pure] = true;
     return f;
@@ -488,4 +570,5 @@ func_t get_init_barrier_func() {
 }
 
 } // namespace builtin
+
 } // namespace sc

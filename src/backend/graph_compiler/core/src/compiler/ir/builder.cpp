@@ -27,25 +27,29 @@
 #include <util/any_map.hpp>
 
 namespace sc {
-expr copy_attr(const expr_base &ths, expr &&newexpr) {
-    if (ths.attr_) {
-        newexpr->attr_ = utils::make_unique<any_map_t>(*ths.attr_);
+static void merge_attrs(std::unique_ptr<any_map_t> &mergeto,
+        const std::unique_ptr<any_map_t> &mergefrom) {
+    if (mergeto) {
+        auto &ths_attr_map = mergefrom->as_map();
+        mergeto->as_map().insert(ths_attr_map.begin(), ths_attr_map.end());
+    } else {
+        mergeto = utils::make_unique<any_map_t>(*mergefrom);
     }
+}
+
+expr copy_attr(const expr_base &ths, expr &&newexpr) {
+    if (ths.attr_) { merge_attrs(newexpr->attr_, ths.attr_); }
     return std::move(newexpr);
 }
 
 stmt copy_attr(const stmt_base_t &ths, stmt &&newstmt) {
-    if (ths.attr_) {
-        newstmt->attr_ = utils::make_unique<any_map_t>(*ths.attr_);
-    }
+    if (ths.attr_) { merge_attrs(newstmt->attr_, ths.attr_); }
     return std::move(newstmt);
 }
 
-func_t copy_attr(const func_base &ths, func_t &&newstmt) {
-    if (ths.attr_) {
-        newstmt->attr_ = utils::make_unique<any_map_t>(*ths.attr_);
-    }
-    return std::move(newstmt);
+func_t copy_attr(const func_base &ths, func_t &&newfunc) {
+    if (ths.attr_) { merge_attrs(newfunc->attr_, ths.attr_); }
+    return std::move(newfunc);
 }
 
 static std::vector<expr> vector_remove_const(const std::vector<expr_c> &v) {

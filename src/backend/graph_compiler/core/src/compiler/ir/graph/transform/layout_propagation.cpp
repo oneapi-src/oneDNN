@@ -49,7 +49,7 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
                 out_format_stride.first, out_format_stride.second);
         return;
     }
-
+    bool is_graph_dynamic = graph.is_dynamic();
     auto &in_format = in->details_.get_format();
     auto dispatch_key = op_dispatch_key_t(
             std::vector<sc_data_format_t> {in_format, out_format_stride.first});
@@ -66,18 +66,21 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
             ret->attrs_.set("out_format", out_format_stride.first);
             ret->attrs_.set("out_stride", out_format_stride.second);
             // map reorder's in/out
-            auto &dynamic_formats = ret->get_dispatch_key_set()->set_;
-            if (dynamic_formats.find(dispatch_key) == dynamic_formats.end()) {
-                ret->get_outputs()[0]->details_.add_format_candidate(
-                        out_format_stride.first);
-                dynamic_formats.insert(dispatch_key);
+            if (is_graph_dynamic) {
+                auto &dynamic_formats = ret->get_dispatch_key_set()->set_;
+                if (dynamic_formats.find(dispatch_key)
+                        == dynamic_formats.end()) {
+                    ret->get_outputs()[0]->details_.add_format_candidate(
+                            out_format_stride.first);
+                    dynamic_formats.insert(dispatch_key);
+                }
             }
         }
     }
     bool create_reorder = !ret;
     if (create_reorder) {
         ret = graph.make("reorder", {in}, {},
-                {{"out_format", out_format_stride.first},
+                {{"internal", true}, {"out_format", out_format_stride.first},
                         {"out_stride", out_format_stride.second},
                         {op_attr_key::no_fuse, // work around for conv
                                 // graph. will be dropped
@@ -85,7 +88,8 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
                                 graph.attrs_.get_or_else(
                                         "reorder_not_to_fuse", false)}});
         // map reorder's in/out
-        ret->get_dispatch_key_set()->set_.insert(dispatch_key);
+        if (is_graph_dynamic)
+            ret->get_dispatch_key_set()->set_.insert(dispatch_key);
         ret->get_outputs()[0]->details_.add_format_candidate(
                 out_format_stride.first);
         reorder_map[in][cur_op] = ret;
@@ -137,7 +141,8 @@ static void check_input_format(const std::vector<sc::graph_tensor_ptr> &ins) {
 
 static void insert_reorder_for_output_op(reorder_map_t &reorder_map,
         const sc_op_ptr &node, bool is_out_plain, bool is_input_plain,
-        sc_graph_t &graph, reorder_callback_type &insert_reorder_callback) {
+        bool is_graph_dynamic, sc_graph_t &graph,
+        reorder_callback_type &insert_reorder_callback) {
     auto given_target_formats
             = node->attrs_.get_or_null<std::vector<sc_data_format_t>>(
                     "target_formats");
@@ -156,7 +161,6 @@ static void insert_reorder_for_output_op(reorder_map_t &reorder_map,
                 "Output op's target_strides' size should be equal to "
                 "number of tensors");
     }
-    bool is_graph_dynamic = graph.is_dynamic();
     for (size_t i = 0; i < node->get_inputs().size(); ++i) {
         auto &in_detail = node->get_inputs()[i]->details_;
         sc_data_format_t target_format;
@@ -223,6 +227,7 @@ static void combine_layout_and_impl_dispatch(sc_graph_t &graph) {
     for (auto &op : ops) {
         if (!op->is_dynamic()) { continue; }
         auto impl_candidates = op->get_impl_dispatch_candidates();
+        if (impl_candidates.empty() || !op->is_dynamic()) { continue; }
         auto &key_set = op->get_dispatch_key_set()->set_;
         dispatch_key_set_t::inner_set_t new_set(key_set);
         for (auto key : key_set) {
@@ -244,7 +249,8 @@ SC_INTERNAL_API void layout_propagation(
         sc_graph_t &graph, const context_ptr &ctx) {
     bool is_input_plain = graph.attrs_.get_or_else(
             sc_graph_t::attr_key_t::is_input_plain, true);
-    bool is_graph_dynamic = graph.is_dynamic();
+    bool is_graph_dynamic = graph.is_dynamic()
+            && graph.attrs_.get_or_else("allow_dynamic", true);
     std::vector<sc_op_ptr> sorted_ops;
     sorted_ops.reserve(graph.ops_.size());
     std::vector<size_t> num_choices;
@@ -319,7 +325,8 @@ SC_INTERNAL_API void layout_propagation(
     auto do_visit = [&](const sc_op_ptr &node) {
         if (node->isa<output_op>()) {
             insert_reorder_for_output_op(reorder_map, node, is_out_plain,
-                    is_input_plain, graph, insert_reorder_callback);
+                    is_input_plain, is_graph_dynamic, graph,
+                    insert_reorder_callback);
         } else if (node->isa<input_op>() || node->isa<constant_op_t>()) {
             update_output_formats(node->info_.outputs_, {}, 0);
         } else {
@@ -387,26 +394,24 @@ SC_INTERNAL_API void layout_propagation(
                     if (is_graph_dynamic) {
                         for (size_t i = input_format_candidates.size(); i > 0;
                                 i--) {
-                            dispatch_format.push_back(input_format_candidates[i
-                                    - 1][format_idx % format_choice[i - 1]]);
                             inputs[i - 1]->details_.set_format(
                                     input_format_candidates[i - 1][format_idx
                                             % format_choice[i - 1]]);
                             format_idx /= format_choice[i - 1];
                         }
-                        std::reverse(
-                                dispatch_format.begin(), dispatch_format.end());
                     } else {
                         COMPILE_ASSERT(total_format_choice == 1,
                                 "Static traverses one format at a time.");
                     }
                     // tunable op should return same formats in dynamic
                     // shape.
-                    if (is_graph_dynamic && !node->isa<tunable_op_t>()) {
-                        assert(cur_layout_choice == 0);
-                        reset_in_out_supported_pairs();
-                        node->query_format(
-                                ctx, in_supported_pairs, out_supported_pairs);
+                    if (is_graph_dynamic) {
+                        if (!node->isa<tunable_op_t>()) {
+                            assert(cur_layout_choice == 0);
+                            reset_in_out_supported_pairs();
+                            node->query_format(ctx, in_supported_pairs,
+                                    out_supported_pairs);
+                        }
                     }
                     // need to unify input formats
                     // todo: should check add_op input shape, output shape
@@ -436,10 +441,14 @@ SC_INTERNAL_API void layout_propagation(
                                 insert_reorder_op(graph, reorder_map, inputs[i],
                                         i, target_fs_pair, node, is_input_plain,
                                         insert_reorder_callback);
+                                dispatch_format[i] = target_fs_pair.first;
                             } else if (!insert_reorder_callback) {
                                 // if static and no need of reorder
                                 remove_inserted_reorder_op(
                                         graph, reorder_map, inputs[i], node);
+                            }
+                            if (is_graph_dynamic) {
+                                dispatch_format.push_back(target_fs_pair.first);
                             }
                         }
                         if (is_graph_dynamic && !node->isa<tunable_op_t>()) {
@@ -487,7 +496,10 @@ SC_INTERNAL_API void layout_propagation(
                             = inputs[0]->details_.get_format_candidates();
                     auto old_format = inputs[0]->details_.get_format();
                     for (auto &candidate : format_candidates) {
+                        std::vector<sc_data_format_t> dispatch_format;
+                        dispatch_format.reserve(inputs.size() + outputs.size());
                         inputs[0]->details_.set_format(candidate);
+                        dispatch_format.push_back(candidate);
                         in_supported_pairs.clear();
                         out_supported_pairs.clear();
                         node->query_format(
@@ -495,6 +507,10 @@ SC_INTERNAL_API void layout_propagation(
                         assert(out_supported_pairs[0].size() == 1);
                         update_output_formats(node->info_.outputs_,
                                 out_supported_pairs, cur_layout_choice);
+                        dispatch_format.push_back(
+                                out_supported_pairs[0][0].first);
+                        node->get_dispatch_key_set()->set_.insert(
+                                dispatch_format);
                     }
                     inputs[0]->details_.set_format(old_format);
                 }

@@ -158,6 +158,7 @@ public:
     }
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
+    std::vector<int> get_impl_dispatch_candidates() const override;
     bool check_padding() const;
     bool use_output_loop() const;
     bool support_output_loop() const;

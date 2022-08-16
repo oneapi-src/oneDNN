@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -262,6 +262,9 @@ class indexing2var_impl_t : public ir_visitor_t {
     }
 
     expr_c visit(indexing_c v) override {
+        if (v->attr_ && v->attr_->get_or_else(attr_keys::no_index2var, false)) {
+            return v;
+        }
         tensor_cache_ptr out_cache;
         return visit_indexing(std::move(v), true, out_cache);
     }

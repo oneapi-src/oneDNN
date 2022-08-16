@@ -24,11 +24,11 @@
 #include <stdexcept>
 #include <string.h>
 #include <compiler/codegen/codegen_c.hpp>
-#include <compiler/config/target_machine.hpp>
 #include <compiler/jit/jit.hpp>
 #include <compiler/jit/symbol_resolver.hpp>
 #include <runtime/config.hpp>
 #include <runtime/memorypool.hpp> // to get the path of the runtime library
+#include <runtime/target_machine.hpp>
 #include <unordered_map>
 #include <util/scoped_timer.hpp>
 #include <util/string_utils.hpp>
@@ -42,7 +42,7 @@
 
 SC_MODULE(cfakejit)
 namespace sc {
-
+using namespace runtime;
 static std::atomic<int32_t> cnt {0};
 
 #ifdef _WIN32
@@ -207,8 +207,10 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
             = codegen_to_cpp(of, module, generate_wrapper, managed_thread_pool);
     of.close();
 
-    return make_jit_module(inpath, outpath, std::move(attr_table),
+    auto ret = make_jit_module(inpath, outpath, std::move(attr_table),
             generate_wrapper, managed_thread_pool);
+    ret->update_runtime_op_tables(module);
+    return ret;
 }
 
 void *cfake_jit_module_t::get_address_of_symbol(const std::string &name) {

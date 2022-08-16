@@ -26,15 +26,24 @@
 #include "tunable_op.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/dynamic_utils.hpp>
+#include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/graph/mixed_partition.hpp>
+#include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
+#include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/unary_elemwise.hpp>
+#include <ops/matmul_core.hpp>
 #include <runtime/config.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -123,6 +132,67 @@ func_t create_func_decl_for_op(
     auto func = builder::make_func(func_name, args,
             make_stmt<stmts_node_t>(std::vector<stmt>()), datatypes::boolean);
     // func->attr()["Gflop"] = gen_ptr->get_gflop();
+    return func;
+}
+
+func_t create_query_func_decl_for_op(sc_op *op, std::vector<expr> &ins,
+        std::vector<expr> &ori_ins, std::vector<expr> &outs,
+        std::vector<expr> &in_fmts, std::vector<expr> &ori_in_fmts,
+        std::vector<expr> &out_fmts, std::vector<expr> &out_sizes,
+        expr &kernel) {
+    func_t func = create_func_decl_for_op(op, ins, outs);
+    in_fmts.resize(ins.size());
+    out_fmts.resize(outs.size());
+    out_sizes.resize(outs.size());
+    sc_op *tunable_op = nullptr;
+    assert(op->isa<fused_op_t>());
+    if (!op->stc_cast<fused_op_t>()->main_op_.empty()) {
+        tunable_op = op->stc_cast<fused_op_t>()->main_op_.ops_[1].get();
+        auto sz = tunable_op->get_inputs().size();
+        auto &graph = op->get_owner_graph();
+        for (size_t i = 0; i < sz; i++) {
+            auto ori_in = graph::tensor_detail_to_ir_tensor(graph,
+                    std::string("__ori_ins_") + std::to_string(i),
+                    op->get_inputs()[i]->details_);
+            ori_in->attr().set(attr_keys::always_trans, true);
+            ori_ins.emplace_back(ori_in);
+            ori_in_fmts.emplace_back(builder::make_tensor(
+                    ori_in.static_as<tensor>()->name_ + "_format",
+                    {UINT64_C(1)}, datatypes::index));
+        }
+    }
+    std::transform(ins.begin(), ins.end(), in_fmts.begin(), [](const expr &in) {
+        in->attr().set(attr_keys::always_trans, true);
+        return builder::make_tensor(in.static_as<tensor>()->name_ + "_format",
+                {UINT64_C(1)}, datatypes::index);
+    });
+    std::transform(
+            outs.begin(), outs.end(), out_fmts.begin(), [](const expr &in) {
+                in->attr().set(attr_keys::always_trans, true);
+                return builder::make_tensor(
+                        in.static_as<tensor>()->name_ + "_format",
+                        {UINT64_C(1)}, datatypes::index);
+            });
+    std::transform(
+            outs.begin(), outs.end(), out_sizes.begin(), [](const expr &in) {
+                return builder::make_tensor(
+                        in.static_as<tensor>()->name_ + "_size", {UINT64_C(1)},
+                        datatypes::index);
+            });
+    // table should be get from module global data, here is only for the
+    // alignment to other functions.
+    auto table = builder::make_var(datatypes::pointer, "dummy_table");
+    std::vector<expr> args = func->params_;
+    args.insert(args.begin(), table);
+    args.insert(args.end(), ori_ins.begin(), ori_ins.end());
+    args.insert(args.end(), out_fmts.begin(), out_fmts.end());
+    args.insert(args.end(), in_fmts.begin(), in_fmts.end());
+    args.insert(args.end(), ori_in_fmts.begin(), ori_in_fmts.end());
+    args.insert(args.end(), out_sizes.begin(), out_sizes.end());
+    kernel = builder::make_var(datatypes::pointer, "func_kernel");
+    args.push_back(kernel);
+    func->params_ = args;
+    func->name_ = std::string("query_format_") + func->name_;
     return func;
 }
 } // namespace graph
@@ -231,8 +301,15 @@ bool fused_op_t::is_valid(const context_ptr &ctx) {
     return main_op_.ops_[1]->is_valid(ctx);
 }
 
-std::shared_ptr<sc_graph_t> fused_op_t::get_graph_impl() {
+void fused_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     throw std::runtime_error("fused_op_t::get_graph Not implemented");
+}
+
+sc_op_ptr find_first_dispatch_op(const std::vector<sc_op_ptr> &ops) {
+    for (auto &op : ops) {
+        if (can_op_be_dispatched(op)) { return op; }
+    }
+    COMPILE_ASSERT(false, "Invalid input ops");
     return nullptr;
 }
 
@@ -248,6 +325,12 @@ fused_op_t::fused_op_t(const std::string &name, sc_graph_t &&main_op,
         attrs_.set("horizontal_merge",
                 main_op_.ops_[1]->attrs_.get_or_else(
                         "horizontal_merge", horizontal_merge_type::no_merge));
+        if (is_dynamic()) { main_dispatch_op_ = main_op_.ops_[1]; }
+        main_op_.ops_[0]->set_owner_graph(&main_op_);
+        main_op_.ops_[1]->set_owner_graph(&main_op_);
+    } else {
+        auto &ops = mgr_->get_graph().ops_;
+        if (is_dynamic()) { main_dispatch_op_ = find_first_dispatch_op(ops); }
     }
     op_name_ = name;
 }
@@ -591,9 +674,318 @@ size_t fused_op_t::hash_contents() const {
     return seed;
 }
 
+const dispatch_set_ptr &fused_op_t::get_dispatch_key_set() const {
+    if (!main_dispatch_op_) {
+        assert(info_.dispatch_key_set_);
+        return info_.dispatch_key_set_;
+    }
+    return main_dispatch_op_->get_dispatch_key_set();
+}
+
+dispatch_set_ptr &fused_op_t::get_dispatch_key_set() {
+    if (!main_dispatch_op_) {
+        if (!info_.dispatch_key_set_) {
+            info_.dispatch_key_set_ = std::make_shared<dispatch_key_set_t>();
+        }
+        return info_.dispatch_key_set_;
+    }
+    return main_dispatch_op_->get_dispatch_key_set();
+}
+
+ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
+    auto modu = std::make_shared<ir_module_t>(ctx);
+    mgr_->get_graph().sync_dynamic_info_with_graph(get_owner_graph());
+    auto orig_2_fmgr_graph = attrs_.get<
+            std::unordered_map<graph_tensor_ptr, graph_tensor_ptr>>(
+            "temp.orig_to_inner_ltsrs");
+    std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> fmgr_2_orig;
+    for (auto &kv : orig_2_fmgr_graph) {
+        fmgr_2_orig[kv.second] = kv.first;
+    }
+    // inner graph logical tensor visit states, for query pruning.
+    std::unordered_map<graph_tensor_ptr, bool> visited;
+    std::vector<expr> ins, outs, in_fmts, out_fmts, ori_ins, ori_in_fmts,
+            out_sizes;
+    expr main_table_var, kernel;
+    bool kernel_has_been_dispatched = false;
+    size_t inp_idx = 0, out_idx = 0;
+    auto func = graph::create_query_func_decl_for_op(this, ins, ori_ins, outs,
+            in_fmts, ori_in_fmts, out_fmts, out_sizes, kernel);
+    // inner logical tensor => real tensor, out_size and format.
+    std::unordered_map<graph_tensor_ptr, tsr_info_t> ltsr2rtsr;
+    // build query function body
+    builder::ir_builder_t bld;
+    bld.push_scope();
+    expr dummy_kernel = builder::make_var(datatypes::pointer, "dummy_kernel");
+    bld.push_var_tensor_def(dummy_kernel, linkage::local);
+    expr dummy_size = builder::make_tensor("dummy_size", {1}, datatypes::index);
+    bld.push_var_tensor_def(dummy_size, linkage::local);
+    main_table_var = builder::make_var(datatypes::pointer,
+            op_name_ + "__" + std::to_string(logical_op_id_) + "_ptr_table");
+    auto inp_op_in_mgr = mgr_->get_graph().get_input_ops();
+    int inner_tsr_count = 0;
+    auto &inputs = get_inputs();
+    auto &outputs = get_outputs();
+    for (auto &in : inputs) {
+        auto it = orig_2_fmgr_graph.find(in);
+        COMPILE_ASSERT(it != orig_2_fmgr_graph.end(),
+                "Can not find input/output tensor in fused op inner map.");
+        ltsr2rtsr[it->second]
+                = tsr_info_t(ins[inp_idx], expr(), in_fmts[inp_idx], expr());
+        inp_idx++;
+    }
+    for (auto &out : outputs) {
+        auto it = orig_2_fmgr_graph.find(out);
+        COMPILE_ASSERT(it != orig_2_fmgr_graph.end(),
+                "Can not find input/output tensor in fused op inner map.");
+        ltsr2rtsr[it->second] = tsr_info_t(
+                outs[out_idx], expr(), out_fmts[out_idx], out_sizes[out_idx]);
+        out_idx++;
+    }
+    auto get_or_create_tsr_and_fmt = [&](const graph_tensor_ptr &in) {
+        auto it = ltsr2rtsr.find(in);
+        if (it != ltsr2rtsr.end()) { return it->second; }
+        auto rtsr
+                = builder::make_tensor("tsr_" + std::to_string(inner_tsr_count),
+                        {sizeof(runtime::dynamic_tensor_t)}, datatypes::u8);
+        auto shape_tsr = builder::make_tensor(
+                "dyn_shape_tsr_" + std::to_string(inner_tsr_count),
+                {in->details_.get_plain_dims().size()}, datatypes::index);
+        auto out_fmt = builder::make_tensor(
+                "format_" + std::to_string(inner_tsr_count), {1UL},
+                datatypes::index);
+        bld.push_var_tensor_def(rtsr);
+        bld.push_var_tensor_def(shape_tsr);
+        bld.push_evaluate(builder::make_write_struct(rtsr, shape_tsr,
+                dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dim_ptr));
+        bld.push_var_tensor_def(out_fmt);
+        inner_tsr_count++;
+        auto ret = tsr_info_t(rtsr, expr(), out_fmt, dummy_size);
+        ltsr2rtsr[in] = ret;
+        return ret;
+    };
+    auto need_inner_query = [&](const sc_op_ptr &node, int &main_idx) {
+        auto &inputs = node->get_inputs();
+        auto &outputs = node->get_outputs();
+        for (size_t i = 0; i < inputs.size(); i++) {
+            auto &in = inputs[i];
+            if (!(visited[in]
+                        || fmgr_2_orig[in]->producer_owner_->attrs_.get_or_else(
+                                   "constant", const_kind::not_const)
+                                != const_kind::not_const)) {
+                return true;
+            }
+        }
+        if (node->isa<binary_elementwise_op_t>()) {
+            main_idx = 1
+                    - node->stc_cast<binary_elementwise_op_t>()
+                              ->get_broadcast_input();
+        }
+        for (size_t i = 0; i < outputs.size(); i++) {
+            auto &out = outputs[i];
+            for (size_t j = 0; j < out->uses_.size(); j++) {
+                if (out->uses_[j].second->isa<output_op>()) { return true; }
+            }
+        }
+        return false;
+    };
+    auto update_op_visited = [&](const sc_op_ptr &node) {
+        for (auto &in : node->get_inputs()) {
+            visited[in] = true;
+        }
+        for (auto &out : node->get_outputs()) {
+            visited[out] = true;
+        }
+    };
+    auto add_global_table_var = [&](const std::string &table_name,
+                                        const op_dispatch_tables_ptr &table_ptr,
+                                        const expr &table_var) {
+        modu->add_op_table(std::make_pair(table_name, table_ptr));
+        auto table_def = builder::make_var_tensor_def_unattached(
+                table_var, linkage::private_global);
+        modu->add_global_var(table_def.checked_as<define>());
+    };
+    if (!main_op_.empty()) {
+        auto op = main_op_.ops_[1];
+        if (op->isa<ops::matmul_core_op_t>()) {
+            auto table_ptr = std::make_shared<op_dispatch_tables_t>();
+            expr in0 = ins[0], in1 = ins[1];
+            expr in_fmt0 = in_fmts[0], in_fmt1 = in_fmts[1];
+            expr ori_in0 = ori_ins[0], ori_in1 = ori_ins[1];
+            expr ori_in_fmt0 = ori_in_fmts[0], ori_in_fmt1 = ori_in_fmts[1];
+            expr out_rtsr, out_fmt, out_size;
+            add_global_table_var(main_table_var.checked_as<var>()->name_,
+                    table_ptr, main_table_var);
+            assert(inp_op_in_mgr[0]->get_outputs().size() == 1);
+            auto rhs = get_or_create_tsr_and_fmt(
+                    inp_op_in_mgr[0]->get_outputs()[0]);
+            visited[op->get_inputs()[0]] = true;
+            visited[op->get_inputs()[0]] = true;
+            visited[inp_op_in_mgr[0]->get_outputs()[0]] = true;
+            out_rtsr = rhs.tensor_;
+            out_fmt = rhs.format_;
+            out_size = rhs.size_;
+            bld.push_evaluate(builtin::call_matmul_core_query_format(
+                    main_table_var, out_rtsr, in0, in1, ori_in0, ori_in1,
+                    out_fmt, in_fmt0, in_fmt1, ori_in_fmt0, ori_in_fmt1,
+                    out_size, kernel));
+            main_table_var_ = main_table_var;
+            initialize_format_table_with_op(op, table_ptr);
+            kernel_has_been_dispatched = true;
+        } else {
+            COMPILE_ASSERT(false, "Currently dynamic only support matmul op.");
+        }
+    }
+    for (auto &op : mgr_->get_graph().ops_) {
+        size_t in_size = op->get_inputs().size();
+        size_t out_size = op->get_outputs().size();
+        std::vector<tsr_info_t> op_outs(out_size), op_ins(in_size);
+        for (size_t i = 0; i < out_size; i++) {
+            op_outs[i] = get_or_create_tsr_and_fmt(op->get_outputs()[i]);
+        }
+        for (size_t i = 0; i < in_size; i++) {
+            op_ins[i] = get_or_create_tsr_and_fmt(op->get_inputs()[i]);
+        }
+        if (op->isa<input_op>() || op->isa<output_op>()
+                || op->isa<tensor_view_op_t>() || op->isa<constant_op_t>()) {
+            continue;
+        }
+        expr cur_kernel = dummy_kernel;
+        expr table_var;
+        std::string table_name;
+        if (!kernel_has_been_dispatched) {
+            table_var = main_table_var;
+            table_name = main_table_var.checked_as<var>()->name_;
+        } else {
+            table_name = op_name_ + "__" + std::to_string(logical_op_id_)
+                    + "_inner__" + std::to_string(op->logical_op_id_)
+                    + "_table";
+            table_var = builder::make_var(datatypes::pointer, table_name);
+        }
+        auto table_ptr = std::make_shared<op_dispatch_tables_t>();
+
+        if (!kernel_has_been_dispatched) {
+            main_table_var_ = table_var;
+            kernel_has_been_dispatched = true;
+            cur_kernel = kernel;
+        }
+        int main_idx = 0;
+        if (op->isa<unary_elementwise_op_impl_t>()) {
+            if (!kernel_has_been_dispatched || need_inner_query(op, main_idx)) {
+                add_global_table_var(table_name, table_ptr, table_var);
+                initialize_format_table_with_op(op, table_ptr);
+                bld.push_evaluate(builtin::call_unary_fusible_op_query_format(
+                        table_var, op_outs[0].tensor_, op_ins[0].tensor_,
+                        op_outs[0].format_, op_ins[0].format_, op_outs[0].size_,
+                        cur_kernel));
+            } else {
+                auto &out = op->get_outputs()[0];
+                ltsr2rtsr[out] = op_ins[main_idx];
+            }
+        } else if (op->isa<binary_elementwise_op_impl_t>()) {
+            if (!kernel_has_been_dispatched || need_inner_query(op, main_idx)) {
+                add_global_table_var(table_name, table_ptr, table_var);
+                initialize_format_table_with_op(op, table_ptr);
+                bld.push_evaluate(builtin::call_binary_fusible_op_query_format(
+                        table_var, op_outs[0].tensor_, op_ins[0].tensor_,
+                        op_ins[1].tensor_, op_outs[0].format_,
+                        op_ins[0].format_, op_ins[1].format_, op_outs[0].size_,
+                        cur_kernel));
+            } else {
+                auto &out = op->get_outputs()[0];
+                ltsr2rtsr[out] = op_ins[main_idx];
+            }
+        } else if (op->isa<reorder_op_t>()) {
+            // Currently reorder is the last op of fusion pattern, so always
+            // query.
+            add_global_table_var(table_name, table_ptr, table_var);
+            bld.push_evaluate(builtin::call_reorder_op_query_format(table_var,
+                    op_outs[0].tensor_, op_ins[0].tensor_, op_outs[0].format_,
+                    op_ins[0].format_, op_outs[0].size_, cur_kernel));
+        } else {
+            COMPILE_ASSERT(false,
+                    "Currently dynamic fusbile op only support unary/binary.");
+        }
+        update_op_visited(op);
+    }
+    bld.push_returns(true);
+    auto body = bld.pop_scope();
+    func->body_ = std::move(body);
+    modu->add_func({func});
+    modu->set_entry_func_idx(0);
+    return modu;
+}
+
+std::vector<int> fused_op_t::get_impl_dispatch_candidates() const {
+    if (!main_op_.empty()) {
+        return main_op_.ops_[1]->get_impl_dispatch_candidates();
+    }
+    auto &ops = mgr_->get_graph().ops_;
+    for (auto &op : ops) {
+        if (op->isa<input_op>() || op->isa<output_op>()
+                || op->isa<constant_op_t>()) {
+            continue;
+        }
+        return op->get_impl_dispatch_candidates();
+    }
+    return {};
+}
+
+void fused_op_t::update_internal_graph_format(const op_dispatch_key_t &key) {
+    if (!main_op_.empty()) {
+        auto &inp = main_op_.ops_[0];
+        auto &inputs = inp->get_outputs();
+        auto &node_inputs = get_inputs();
+        assert(inputs.size() + 1 == key.in_out_formats_.size());
+        for (size_t i = 0; i < inputs.size(); i++) {
+            inputs[i]->details_.set_format(key.in_out_formats_[i]);
+            node_inputs[i]->details_.set_format(key.in_out_formats_[i]);
+        }
+        auto top = main_op_.ops_[1]->dyn_cast<tunable_op_t>();
+        assert(top);
+        top->set_config_by_key(key);
+        top->info_.cur_impl_ = key.impl_;
+        // tunable op output
+        mgr_->get_graph().ops_[0]->get_outputs()[0]->details_.set_format(
+                key.in_out_formats_[inputs.size()]);
+    } else {
+        auto num_set = key.in_out_formats_.size() - 1;
+        auto inputs = mgr_->get_graph().get_input_ops();
+        assert(inputs.size() >= num_set);
+        for (size_t i = 0; i < num_set; i++) {
+            inputs[i]->get_outputs()[0]->details_.set_format(
+                    key.in_out_formats_[i]);
+        }
+    }
+    auto &inner_graph = mgr_->get_graph();
+    inner_graph.attrs_.set("allow_dynamic", false);
+    inner_graph.attrs_.set("is_output_plain", false);
+    layout_propagation(inner_graph);
+    // update impl_type
+    auto &ops = inner_graph.ops_;
+    for (auto &op : ops) {
+        if (op->isa<input_op>() || op->isa<output_op>()
+                || op->isa<constant_op_t>()) {
+            continue;
+        }
+        op->info_.cur_impl_ = key.impl_;
+    }
+    // sync node output format with inner graph
+    auto &node_outputs = get_outputs();
+    auto outputs = mgr_->get_graph().get_output_ops();
+    assert(outputs.size() == node_outputs.size());
+    for (size_t i = 0; i < outputs.size(); i++) {
+        node_outputs[i]->details_.set_format(
+                outputs[i]->get_inputs()[0]->details_.get_format());
+    }
+}
+
 ir_module_ptr fused_op_t::get_func(context_ptr ctx) {
+    main_op_.sync_dynamic_info_with_graph(get_owner_graph());
+    mgr_->get_graph().sync_dynamic_info_with_graph(get_owner_graph());
     std::vector<sc_op_ptr> out_failed;
     auto ret = try_get_func(ctx, false, out_failed);
+    mgr_->reset_brgemm_register_infos();
     COMPILE_ASSERT(ret && out_failed.empty(),
             "Fusion failed. Fallback not implemented");
     return ret;
@@ -780,9 +1172,8 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     return modu;
 }
 
-std::shared_ptr<sc_graph_t> horizontal_fused_op_t::get_graph_impl() {
+void horizontal_fused_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     throw std::runtime_error("horiaontal_fused_op::get_graph Not implemented");
-    return nullptr;
 }
 
 horizontal_fused_op_t::horizontal_fused_op_t(const std::string &name,
@@ -982,9 +1373,8 @@ void mixed_fuse_op_t::schedule_loops(const stmt &body) {
     }
 }
 
-std::shared_ptr<sc_graph_t> mixed_fuse_op_t::get_graph_impl() {
+void mixed_fuse_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     throw std::runtime_error("mixed_fuse_op_t::get_graph Not implemented");
-    return nullptr;
 }
 
 ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
@@ -1182,9 +1572,8 @@ void batchwise_fused_op_t::schedule_loops(const stmt &body) {
     schedule_loop_body(body);
 }
 
-std::shared_ptr<sc_graph_t> batchwise_fused_op_t::get_graph_impl() {
+void batchwise_fused_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     throw std::runtime_error("batchwise_fused_op_t::get_graph Not implemented");
-    return nullptr;
 }
 
 } // namespace sc

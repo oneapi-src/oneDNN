@@ -48,7 +48,10 @@ public:
             std::vector<std::vector<format_stride_pair>> &supported_outs)
             override {};
 
-    virtual std::shared_ptr<sc_graph_t> get_graph_impl() = 0;
+    // the param graph is created by upper function and passed to this function.
+    // It should be an empty graph and already synced with external graph.
+    // For the alignment of outer and inner dynamic graph.
+    virtual void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) = 0;
 
     virtual std::shared_ptr<sc_graph_t> get_graph();
 
@@ -101,7 +104,7 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs,
             sc_graph_t &&graph);
 
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
 
     // linter has a false alarm to treat copy here as a STL function
     sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT

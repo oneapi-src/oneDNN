@@ -137,9 +137,11 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     auto init_func = reinterpret_cast<init_func_t>(
             resolve_llvm_symbol(engine, "__sc_init__"));
     if (init_func) { init_func(nullptr, attr_table.data_.data_); }
-    return std::make_shared<llvm_jit_module>(
+    auto ret = std::make_shared<llvm_jit_module>(
             std::unique_ptr<llvm::ExecutionEngine>(engine), std::move(llvm_ctx),
             std::move(attr_table), std::move(outlisteners), use_managed_tp);
+    ret->update_runtime_op_tables(module);
+    return ret;
 }
 
 llvm_jit_module::llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,

@@ -26,6 +26,23 @@ namespace graph {
 std::string get_tensor_name(graph_tensor *t, sc_op *linked_output);
 }
 
+struct tsr_info_t {
+    expr tensor_;
+    expr placeholder_;
+    expr format_;
+    expr size_;
+    int count_ = 0;
+    tsr_info_t() = default;
+    tsr_info_t(const expr &tensor, const expr &placeholder, const expr &format,
+            const expr &size)
+        : tensor_(tensor)
+        , placeholder_(placeholder)
+        , format_(format)
+        , size_(size) {}
+};
+
+enum info_etype_t { real_tensor, placeholder, format, out_size };
+
 /**
  * Generates the ir_module_t from the OP graph
  * @param ctx the context

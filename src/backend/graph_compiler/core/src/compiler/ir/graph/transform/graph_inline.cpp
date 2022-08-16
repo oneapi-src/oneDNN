@@ -98,6 +98,7 @@ static void do_inline_graph(
                 (*tunable_op_map)[corresponding_node].push_back(op);
             }
             full_graph.ops_.emplace_back(op);
+            op->set_owner_graph(&full_graph);
         }
     }
 }
