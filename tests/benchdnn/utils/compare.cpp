@@ -167,6 +167,8 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
     const auto dt = got_mem.dt();
     const bool has_eltwise = attr.post_ops.eltwise_index() != -1;
+    const bool has_exp_eltwise
+            = attr.post_ops.find(attr_t::post_ops_t::kind_t::EXP) >= 0;
 
     // Atomics to be updated in parallel section, non-atomics - in sequential.
     std::atomic<bool> all_ok(true);
@@ -211,9 +213,11 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                 ok = args.diff <= experimental_tolerated_trh;
             }
             // For eltwise it also may happen that threshold is really small,
-            // but absolute difference is really big.
-            if (!ok && has_eltwise && (fabsf(args.exp) > 1e+5f)) {
-                ok = args.rel_diff <= std::max(epsilon_dt(dt), 5e-7f);
+            // but absolute difference is really big. Also exponent is a special
+            // transcendental post-op that has accuracy issues with older isa.
+            if (!ok && has_eltwise
+                    && (fabsf(args.exp) > 1e+5f || has_exp_eltwise)) {
+                ok = args.rel_diff <= std::max(epsilon_dt(dt), 5e-6f);
             }
             // Binary MAX, MIN and comparison operations post-ops may return
             // different results for different backends when NaN is one of
