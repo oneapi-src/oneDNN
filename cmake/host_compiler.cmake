@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
             platform_gnu_x64_arch_ccxx_flags(DPCPP_HOST_COMPILER_OPTS)
         else()
             # Assumption is that the passed flags are compatible with GNU compiler
-            append(DPCPP_HOST_COMPILER_OPTS ${DNNL_ARCH_OPT_FLAGS})
+            append(DPCPP_HOST_COMPILER_OPTS "${DNNL_ARCH_OPT_FLAGS}")
         endif()
     else()
         message(FATAL_ERROR "The DNNL_DPCPP_HOST_COMPILER option is only supported for DNNL_TARGET_ARCH=X64")
