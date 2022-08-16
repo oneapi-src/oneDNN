@@ -6,3 +6,6 @@
 
 --skip-impl=ref,x64:gemm      # ! test jit version only
 --batch=option_set_combined_postops
+
+--skip-impl=ref
+--batch=option_set_all_eltwise_postops

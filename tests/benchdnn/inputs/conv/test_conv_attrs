@@ -7,6 +7,10 @@
 --skip-impl=ref,x64:gemm      # ! test jit version only
 --batch=option_set_combined_postops
 
+--cfg=f32,f16,bf16bf16bf16,u8s8u8
+--skip-impl=ref
+--batch=option_set_all_eltwise_postops
+
 # f32_wino
 --reset --alg=wino --cfg=f32_wino
 --mb=2
