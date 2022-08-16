@@ -406,10 +406,12 @@ private:
             }
         }
         int sub_tiles = cfg_.a_sub_tiles * cfg_.b_sub_tiles;
-        int zp_mask0_regs
-                = 2 * utils::div_up(sp_iter_dim * sizeof(uint32_t), reg_bytes_);
+        int zp_mask0_regs = 2
+                * utils::div_up(
+                        sp_iter_dim * (int)sizeof(uint32_t), reg_bytes_);
         int zp_mask1_regs = sub_tiles
-                * utils::div_up(sp_iter_dim * sizeof(uint16_t), reg_bytes_);
+                * utils::div_up(
+                        sp_iter_dim * (int)sizeof(uint16_t), reg_bytes_);
         int zp_buf_regs = sub_tiles * utils::div_up(128, reg_bytes_);
         int zp_header_regs = sub_tiles;
         int zp_let_regs = 4;

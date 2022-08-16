@@ -6171,7 +6171,7 @@ private:
             }
         }
         ir_assert(parts.size() % dpas.size() == 0);
-        const int loop_size = parts.size() / dpas.size();
+        const int loop_size = int(parts.size()) / int(dpas.size());
         for (int i = 0; i < int(dpas.size()); i++) {
             full = full.append(dpas[i]);
             const auto k = (i + int(dpas.size()) / 2) % int(dpas.size());
@@ -7482,7 +7482,7 @@ bool reorder_kernel_builder_t::try_build(const std::vector<int> &iter_blocks,
         schedule.reorder(ordered);
     }
 
-    for (size_t i = 0; i < fused_idxs.size(); i++) {
+    for (int i = 0; i < (int)fused_idxs.size(); i++) {
         auto &vec = fused_idxs[i];
         if (vec.empty()) continue;
         auto var = (vec.size() == 1 ? vec[0] : schedule.fuse(vec));
