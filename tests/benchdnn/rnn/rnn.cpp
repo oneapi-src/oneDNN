@@ -878,8 +878,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
             [&, prb](const compare::compare_t::driver_check_func_args_t &args) {
                 // Limitation from current filling.
                 // TODO: find a better filling to get rid of this...
-                if ((prb->alg == LBR_GRU || prb->alg == LBR_AUGRU
-                            || prb->alg == VANILLA_RNN)
+                if ((prb->alg == VANILLA_GRU || prb->alg == LBR_AUGRU
+                            || prb->alg == VANILLA_RNN || prb->alg == LBR_GRU)
                         && prb->prop == dnnl_backward) {
                     return args.diff < args.trh;
                 }
