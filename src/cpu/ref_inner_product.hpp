@@ -52,15 +52,11 @@ struct ref_inner_product_fwd_t : public primitive_t {
                     && platform::has_data_type_support(wei_type)
                     && platform::has_data_type_support(bia_type)
                     && platform::has_data_type_support(dst_type)
-                    && utils::one_of(src_type, f32, bf16)
-                    && utils::one_of(wei_type, f32, bf16)
-                    && utils::one_of(dst_type, f32, bf16)
-                    && src_type == wei_type
-                    && IMPLICATION(src_type == f32, dst_type == f32)
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16)
-                                    && IMPLICATION(
-                                            src_type == f32, bia_type == f32))
+                    && utils::one_of(src_type, f32, bf16, f16)
+                    && wei_type == src_type
+                    && utils::one_of(dst_type, f32, src_type)
+                    && IMPLICATION(
+                            with_bias(), utils::one_of(bia_type, f32, src_type))
                     && set_default_params(allow_all_tags) == status::success
                     && attr()->has_default_values(
                             smask_t::post_ops | smask_t::sum_dt)
@@ -107,12 +103,9 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
                     && platform::has_data_type_support(diff_src_type)
                     && platform::has_data_type_support(wei_type)
                     && platform::has_data_type_support(diff_dst_type)
-                    && utils::one_of(diff_src_type, f32, bf16)
-                    && utils::one_of(wei_type, f32, bf16)
-                    && utils::one_of(diff_dst_type, f32, bf16)
-                    && diff_dst_type == wei_type
-                    && IMPLICATION(diff_dst_type == f32, diff_src_type == f32)
-                    && attr()->has_default_values()
+                    && utils::one_of(diff_src_type, f32, wei_type)
+                    && utils::one_of(wei_type, f32, bf16, f16)
+                    && diff_dst_type == wei_type && attr()->has_default_values()
                     && set_default_params(allow_all_tags) == status::success;
             return ok ? status::success : status::unimplemented;
         }
@@ -149,17 +142,11 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
                     && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(diff_wei_type)
                     && platform::has_data_type_support(diff_bia_type)
-                    && platform::has_data_type_support(diff_dst_type)
-                    && utils::one_of(src_type, f32, bf16)
-                    && utils::one_of(diff_wei_type, f32, bf16)
-                    && utils::one_of(diff_dst_type, f32, bf16)
+                    && utils::one_of(src_type, f32, bf16, f16)
+                    && utils::one_of(diff_wei_type, f32, src_type)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(diff_bia_type, f32, bf16)
-                                    && IMPLICATION(diff_dst_type == f32,
-                                            diff_bia_type == f32))
-                    && diff_dst_type == src_type
-                    && IMPLICATION(diff_dst_type == f32, diff_wei_type == f32)
-                    && attr()->has_default_values()
+                            utils::one_of(diff_bia_type, f32, src_type))
+                    && diff_dst_type == src_type && attr()->has_default_values()
                     && set_default_params(allow_all_tags) == status::success;
             return ok ? status::success : status::unimplemented;
         }

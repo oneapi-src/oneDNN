@@ -121,7 +121,8 @@ std::vector<format_tag_t> get_desired_weights_tag(
         const jit_brgemm_primitive_conf_t &jbgp) {
     using namespace format_tag;
     const int n_sp_dims = jbgp.ndims - 2;
-    if (jbgp.wei_dt == data_type::f32) {
+    const bool is_not_vnni_tag = utils::one_of(jbgp.wei_dt, f32, f16);
+    if (is_not_vnni_tag) {
         return {pick(n_sp_dims, OI16i64o, OIw16i64o, OIhw16i64o, OIdhw16i64o),
                 pick(n_sp_dims, OI16i32o, OIw16i32o, OIhw16i32o, OIdhw16i32o),
                 pick(n_sp_dims, OI16i16o, OIw16i16o, OIhw16i16o, OIdhw16i16o)};
@@ -830,7 +831,7 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.use_buffer_a = true;
     const bool is_oc_big_2_pow = jbgp.oc >= 512 && math::is_pow2(jbgp.oc);
     const bool is_huge_oc = jbgp.oc >= 4 * 1024;
-    jbgp.use_buffer_b = jbgp.dst_dt == bf16 || is_oc_big_2_pow || is_huge_oc;
+    jbgp.use_buffer_b = jbgp.dst_dt != f32 || is_oc_big_2_pow || is_huge_oc;
     const bool os_dim_dominating = jbgp.os >= 5 * (jbgp.ic + jbgp.oc);
     const int big_nb_os_threshold = is_amx_bf16 ? 64 : 256;
     jbgp.ip_bwd_w_local_buffers_for_input_tensors
@@ -879,6 +880,10 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     }
 
     return status::success;
+}
+
+size_t buf_dt_size(data_type_t dt) {
+    return types::data_type_size(dt == data_type::f16 ? data_type::f32 : dt);
 }
 
 status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
@@ -950,6 +955,14 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
                             && jbgp.src_dt == f32,
                     everyone_is(bf16, jbgp.src_dt, jbgp.dst_dt)
                             && jbgp.wei_dt == f32);
+    const bool is_f16 = everyone_is(f16, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt)
+            || pick_by_prop_kind(jbgp.prop_kind,
+                    everyone_is(f16, jbgp.src_dt, jbgp.wei_dt)
+                            && jbgp.dst_dt == f32,
+                    everyone_is(f16, jbgp.wei_dt, jbgp.dst_dt)
+                            && jbgp.src_dt == f32,
+                    everyone_is(f16, jbgp.src_dt, jbgp.dst_dt)
+                            && jbgp.wei_dt == f32);
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     jbgp.is_bf32 = is_f32 && attr.fpmath_mode_ == fpmath_mode::bf16
             && isa == avx512_core_bf16_amx_bf16;
@@ -964,15 +977,13 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     if (!IMPLICATION(is_f32, jbgp.is_bf32 || (isa == avx512_core)))
         return status::unimplemented;
 
+    if (!one_of(true, is_int8, is_bf16, is_f16, is_f32))
+        return status::unimplemented;
     if (is_int8) {
         jbgp.acc_dt = s32;
         jbgp.with_scales = true;
-    } else if (is_bf16) {
-        jbgp.acc_dt = f32;
-    } else if (is_f32) {
-        jbgp.acc_dt = f32;
     } else
-        return status::unimplemented;
+        jbgp.acc_dt = f32;
 
     // Dispatch small shapes to VNNI for better performance
     const bool is_amx_int8 = jbgp.isa == avx512_core_bf16_amx_int8;
@@ -1064,6 +1075,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
 
     size_t sc_size = sizeof(brgemm_batch_element_t);
     size_t n_elems = (size_t)jbgp.nthr * jbgp.adjusted_batch_size;
+
     if (jbgp.brg_type == brgemm_addr) {
         scratchpad.book(key_brgemm_primitive_batch, n_elems, sc_size, 64);
     }
@@ -1113,17 +1125,16 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 * num_os_chunks_per_thread * jbgp.gemm_batch_size
                 * jbgp.os_block * jbgp.ic_block * jbgp.nb_ic_blocking;
         scratchpad.book(key_brgemm_primitive_buffer_a,
-                jbgp.nthr * num_elems_per_thread,
-                types::data_type_size(jbgp.src_dt));
+                jbgp.nthr * num_elems_per_thread, buf_dt_size(jbgp.src_dt));
     } else if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_data) {
         scratchpad.book(key_brgemm_primitive_buffer_a,
                 (size_t)jbgp.nthr * jbgp.os_block * jbgp.LDA,
-                types::data_type_size(jbgp.dst_dt));
+                buf_dt_size(jbgp.dst_dt));
     } else if (jbgp.use_buffer_a) { // FWD
         scratchpad.book(key_brgemm_primitive_buffer_a,
                 (size_t)jbgp.nthr * jbgp.LDA * jbgp.os_block
                         * jbgp.nb_os_blocking,
-                types::data_type_size(jbgp.src_dt));
+                buf_dt_size(jbgp.src_dt));
     }
 
     if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_weights) {
@@ -1135,7 +1146,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 * jbgp.gemm_batch_size * jbgp.os_block * jbgp.LDB;
         scratchpad.book(key_brgemm_primitive_buffer_b,
                 (size_t)jbgp.nthr * num_elems_per_thread,
-                types::data_type_size(jbgp.dst_dt));
+                buf_dt_size(jbgp.dst_dt));
     }
 
     if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_data) {
@@ -1144,15 +1155,15 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         if (!jbgp.ip_bwd_d_global_b_transpose)
             scratchpad.book(key_brgemm_primitive_buffer_b,
                     (dim_t)jbgp.nthr * jbgp.gemm_batch_size * size_B,
-                    types::data_type_size(jbgp.wei_dt));
+                    buf_dt_size(jbgp.wei_dt));
         else
             scratchpad.book(key_brgemm_primitive_buffer_b,
                     (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
-                    types::data_type_size(jbgp.wei_dt));
+                    buf_dt_size(jbgp.wei_dt));
     }
 
     if (jbgp.prop_kind == dnnl_backward_weights && jbgp.with_bias
-            && (jbgp.bia_dt == bf16 || jbgp.nthr_mb > 1)) {
+            && (jbgp.bia_dt != f32 || jbgp.nthr_mb > 1)) {
         int nbuffers = jbgp.nthr_mb - (jbgp.bia_dt == f32);
         scratchpad.book(key_iprod_bias_bf16_convert_wsp,
                 (size_t)nbuffers * jbgp.oc, types::data_type_size(jbgp.acc_dt));

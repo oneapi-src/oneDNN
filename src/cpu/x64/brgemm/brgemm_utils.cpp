@@ -51,7 +51,7 @@ void init_kernel_datatype(
             && (dt_b == data_type::s8);
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
     brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
-    brg->is_f16 = (dt_a == data_type::f16) && (dt_b == data_type::f16);
+    brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
     assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
 }
 

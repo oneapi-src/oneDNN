@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,10 +50,14 @@ protected:
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "GPU takes a lot of time to complete this test.");
 
-        bool supports_bf16 = false;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-        supports_bf16
+        const bool supports_bf16
                 = dnnl::impl::cpu::platform::has_data_type_support(dnnl_bf16);
+        const bool supports_f16
+                = dnnl::impl::cpu::platform::has_data_type_support(dnnl_f16);
+#else
+        const bool supports_bf16 = false;
+        const bool supports_f16 = false;
 #endif
 
         bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
@@ -92,6 +96,9 @@ protected:
             bool cfg_has_bf16 = i_cfg[0] == dt::bf16 || i_cfg[1] == dt::bf16
                     || i_cfg[2] == dt::bf16;
             if (cfg_has_bf16 && !supports_bf16) continue;
+            bool cfg_has_f16 = i_cfg[0] == dt::f16 || i_cfg[1] == dt::f16
+                    || i_cfg[2] == dt::f16;
+            if (cfg_has_f16 && !supports_f16) continue;
 
             for (unsigned stag = start_tag; stag < end_tag; stag++) {
                 src_tag = static_cast<tag>(stag);

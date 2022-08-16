@@ -57,9 +57,15 @@ struct jit_brgemm_kernel_diff_bias_t : public jit_generator {
         , ddst_dt_(ajbgp.dst_dt)
         , bia_dt_(ajbgp.bia_dt)
         , acc_dt_(ajbgp.acc_dt)
-        , ddst_typesize_(types::data_type_size(ddst_dt_))
         , bia_typesize_(types::data_type_size(bia_dt_))
-        , acc_typesize_(types::data_type_size(acc_dt_)) {}
+        , acc_typesize_(types::data_type_size(acc_dt_)) {
+
+        ddst_dt_ = (ajbgp.isa == avx512_core_fp16 && ajbgp.use_buffer_b)
+                ? data_type::f32
+                : ajbgp.dst_dt;
+        ddst_typesize_ = types::data_type_size(ddst_dt_);
+        mult_ = data_type_vnni_granularity(ddst_dt_);
+    }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_diff_bias_t)
 
@@ -72,6 +78,7 @@ private:
     int ddst_typesize_;
     int bia_typesize_;
     int acc_typesize_;
+    int mult_;
 
     using reg64_t = const Xbyak::Reg64;
     // Register decomposition
@@ -85,7 +92,9 @@ private:
 
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
+    Xbyak::Opmask k_f16_perm_mask = Xbyak::Opmask(4);
     Xbyak::Zmm vreg_unit = Xbyak::Zmm(31);
+    Xbyak::Zmm vreg_perm = Xbyak::Zmm(30);
 
     const int n_max_regs_ = 4;
 
@@ -96,16 +105,75 @@ private:
                 : zmm_in;
     }
 
+    Xbyak::Zmm get_bias_reg(int n) const { return Xbyak::Zmm(n); }
+    Xbyak::Ymm get_bias_reg_lower(int n) const { return Xbyak::Ymm(n); }
+    Xbyak::Zmm get_ddst_reg(int n) const { return Xbyak::Zmm(n + n_max_regs_); }
+
+    void accumulate_bias(int idx, bool mask_flag) {
+        auto vddst = get_ddst_reg(idx);
+        auto vddst_load = zmm_mask(vddst, mask_flag, false, k_tail_mask);
+        auto vbias = get_bias_reg(idx);
+        if (ddst_dt_ == data_type::f16) {
+            // As we do not have fp16_vnni, we add twice to accumulate
+            // adjacent elements.
+            for (int i = 0; i < 2; ++i) {
+                auto addr = ptr[aux_reg_ddst
+                        + ddst_typesize_ * mult_ * idx * brg_.ld_block + i * 2];
+                vmovups(vddst_load, addr);
+                vpermw(vddst | k_f16_perm_mask | T_z, vreg_perm, vddst);
+                vcvtph2psx(vddst, Xbyak::Ymm(vddst.getIdx()));
+                vaddps(vbias, vbias, vddst);
+            }
+        } else {
+            auto addr = ptr[aux_reg_ddst
+                    + ddst_typesize_ * mult_ * idx * brg_.ld_block];
+            vmovups(vddst_load, addr);
+            if (ddst_dt_ == data_type::bf16)
+                vdpbf16ps(vbias, vreg_unit, vddst);
+            else
+                vaddps(vbias, vbias, vddst);
+        }
+    }
+
+    void store(int idx, bool mask_flag) {
+        auto addr = ptr[reg_bias + bia_typesize_ * idx * brg_.ld_block];
+        auto vbias = get_bias_reg(idx);
+        auto vbias_lower = get_bias_reg_lower(idx);
+        switch (bia_dt_) {
+            case data_type::bf16:
+                vcvtneps2bf16(vbias_lower, vbias);
+                if (mask_flag) {
+                    vmovdqu16(addr,
+                            zmm_mask(vbias, mask_flag, true, k_tail_mask));
+                } else {
+                    vmovups(addr, vbias_lower);
+                }
+                break;
+            case data_type::f16:
+                vcvtps2ph(vbias_lower, vbias, 0x4);
+                if (mask_flag) {
+                    vmovdqu16(addr,
+                            zmm_mask(vbias, mask_flag, true, k_tail_mask));
+                } else {
+                    vmovups(addr, vbias_lower);
+                }
+                break;
+            case data_type::f32:
+                vmovups(addr,
+                        zmm_mask(get_bias_reg(idx), mask_flag, true,
+                                k_tail_mask));
+                break;
+            default: assert("Unsupported bias data type");
+        }
+    }
+
     void loop_by_N(int n_loop, int nb_tail) {
 
         mov(aux_reg_ddst, reg_ddst);
-        int mult = ddst_dt_ == data_type::bf16 ? 2 : 1;
+
         int n_iters = n_loop;
         if (nb_tail > 0) n_iters--;
         Xbyak::Label k_loop, init_zero, init_done;
-        auto get_bias_reg = [=](int n) { return Xbyak::Zmm(n); };
-        auto get_bias_reg_lower = [=](int n) { return Xbyak::Ymm(n); };
-        auto get_ddst_reg = [=](int n) { return Xbyak::Zmm(n + n_max_regs_); };
         int n_ = 0;
 
         test(reg_flag, FLAG_REDUCE_FIRST);
@@ -129,37 +197,16 @@ private:
         }
         L(init_done);
 
-        mov(reg_k_iter, utils::div_up(brg_.reduce_dim, mult));
+        mov(reg_k_iter, utils::div_up(brg_.reduce_dim, mult_));
         L(k_loop);
         {
             int n_ = 0;
-            for (; n_ < n_iters; n_++) {
-                auto vddst = get_ddst_reg(n_);
-                auto vbias = get_bias_reg(n_);
-                auto addr = ptr[aux_reg_ddst
-                        + ddst_typesize_ * mult * n_ * brg_.ld_block];
-                vmovups(vddst, addr);
-                if (ddst_dt_ == data_type::bf16)
-                    vdpbf16ps(vbias, vreg_unit, vddst);
-                else
-                    vaddps(vbias, vbias, vddst);
-            }
+            for (; n_ < n_iters; n_++)
+                accumulate_bias(n_, false);
 
-            if (nb_tail > 0) {
-                auto vddst = get_ddst_reg(n_);
-                auto vddst_load = zmm_mask(vddst, true, false, k_tail_mask);
-                auto vbias = get_bias_reg(n_);
+            if (nb_tail > 0) accumulate_bias(n_, true);
 
-                auto addr = ptr[aux_reg_ddst
-                        + ddst_typesize_ * mult * n_ * brg_.ld_block];
-                vmovups(vddst_load, addr);
-                if (ddst_dt_ == data_type::bf16)
-                    vdpbf16ps(vbias, vreg_unit, vddst);
-                else
-                    vaddps(vbias, vbias, vddst);
-            }
-
-            add(aux_reg_ddst, ddst_typesize_ * mult * brg_.LDB);
+            add(aux_reg_ddst, ddst_typesize_ * mult_ * brg_.LDB);
 
             sub(reg_k_iter, 1);
             jnz(k_loop, T_NEAR);
@@ -184,30 +231,12 @@ private:
 
         L(store_final);
         n_ = 0;
-        for (; n_ < n_iters; n_++) {
-            auto vbias = get_bias_reg(n_);
-            auto addr = ptr[reg_bias + bia_typesize_ * n_ * brg_.ld_block];
-            if (bia_dt_ == data_type::bf16) {
-                auto vbias_lower = get_bias_reg_lower(n_);
-                vcvtneps2bf16(vbias_lower, vbias);
-                vmovups(addr, vbias_lower);
-            } else
-                vmovups(addr, vbias);
-        }
-        if (nb_tail > 0) {
-            auto addr = ptr[reg_bias + bia_typesize_ * n_ * brg_.ld_block];
-            if (bia_dt_ == data_type::bf16) {
-                auto vbias = get_bias_reg(n_);
-                auto vbias_lower = get_bias_reg_lower(n_);
-                vcvtneps2bf16(vbias_lower, vbias);
-                auto vbias_store = zmm_mask(vbias, true, true, k_tail_mask);
-                vmovdqu16(addr, vbias_store);
-            } else {
-                auto vbias
-                        = zmm_mask(get_bias_reg(n_), true, true, k_tail_mask);
-                vmovups(addr, vbias);
-            }
-        }
+
+        for (; n_ < n_iters; n_++)
+            store(n_, false);
+
+        if (nb_tail > 0) store(n_, true);
+
         L(store_done);
     }
 
@@ -239,22 +268,41 @@ private:
             vpbroadcastw(vreg_unit, reg_unit_val);
         }
 
+        Xbyak::Label f16_perm_table;
+        if (ddst_dt_ == data_type::f16) {
+            const auto half_mask = size_t((1 << 16) - 1);
+            mov(reg_mask, half_mask);
+            kmovq(k_f16_perm_mask, reg_mask);
+
+            mov(reg_mask, f16_perm_table);
+            vmovups(vreg_perm | k_f16_perm_mask | T_z, ptr[reg_mask]);
+        }
+
         mov(reg_ddst, ptr[param1 + GET_OFF(ptr_diff_dst)]);
         mov(reg_bias_acc, ptr[param1 + GET_OFF(ptr_diff_bias_acc)]);
         mov(reg_bias, ptr[param1 + GET_OFF(ptr_diff_bias)]);
         mov(reg_flag, ptr[param1 + GET_OFF(flags)]);
 
-        int mult = ddst_dt_ == data_type::bf16 ? 2 : 1;
         for (int nb_ = 0; nb_ < n_loop; nb_++) {
             loop_by_N(n_max_regs_, 0);
 
-            add(reg_ddst, ddst_typesize_ * mult * n_max_regs_ * brg_.ld_block);
+            add(reg_ddst, ddst_typesize_ * mult_ * n_max_regs_ * brg_.ld_block);
             add(reg_bias, bia_typesize_ * n_max_regs_ * brg_.ld_block);
             add(reg_bias_acc, acc_typesize_ * n_max_regs_ * brg_.ld_block);
         }
 
         if (n_loop_tail > 0) loop_by_N(n_loop_tail, nb_tail);
         postamble();
+
+        if (ddst_dt_ == data_type::f16) {
+            // convert interleaved vnni data with holes to packed.
+            const uint16_t f16_prm_array[16] = {
+                    0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
+            align(64);
+            L(f16_perm_table);
+            for (int i = 0; i < 16; ++i)
+                dw(f16_prm_array[i]);
+        }
     }
 };
 

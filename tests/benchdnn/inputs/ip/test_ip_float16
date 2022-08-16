@@ -1,0 +1,20 @@
+--reset
+
+--dir=FWD_B
+--cfg=f16,f16f16f32
+--batch=set_all --batch=shapes_0d --batch=shapes_regression
+
+--dir=BWD_D
+--cfg=f16,f32f16f16
+--batch=set_all --batch=shapes_0d --batch=shapes_regression
+
+--dir=BWD_WB
+--cfg=f16,f16f32f16
+--batch=set_all --batch=shapes_0d
+
+# attributes
+--dir=FWD_B
+--cfg=f16,f16f16f32
+--attr-post-ops=linear:1:1:2.5,add:s32,sum:0.5+mul:s32:per_oc+relu:0.5
+--mb=2 --batch=set_all
+--mb=0 --batch=shapes_0d

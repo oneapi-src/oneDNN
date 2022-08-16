@@ -704,6 +704,290 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
     postamble();
 }
 
+struct jit_brgemm_trans_m_k_f16_t : public jit_brgemm_trans_src_t,
+                                    public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_m_k_f16_t)
+
+    jit_brgemm_trans_m_k_f16_t(const jit_brgemm_primitive_conf_t *conf)
+        : jit_brgemm_trans_src_t(conf), jit_generator(jit_name()) {}
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+
+    enum {
+        typesize_in = sizeof(float16_t),
+        typesize_out = sizeof(float),
+        transpose_size = 16
+    };
+    dim_t src_stride = 0, tr_src_stride = 0;
+
+    opmask_t k3333 = k1;
+    opmask_t k5555 = k2;
+    opmask_t kAAAA = k3;
+    opmask_t kCCCC = k4;
+    opmask_t k0F0F = k5;
+    opmask_t kF0F0 = k6;
+    opmask_t kTail = k7;
+
+    reg64_t reg_src_base = rax;
+    reg64_t reg_tr_src_base = rbx;
+
+    reg64_t reg_src = r8;
+    reg64_t reg_tr_src = r9;
+    reg64_t reg_loop_K = r10;
+    reg64_t reg_loop_M = r11;
+    reg64_t reg_loop_batch = r12;
+    reg64_t reg_tr_src_tmp = r13;
+    reg32_t regw_tmp = r14d;
+
+    void transpose_16x16(int nrows, int ncolumns = transpose_size);
+    void generate() override;
+};
+
+void jit_brgemm_trans_m_k_f16_t::transpose_16x16(int nrows, int ncolumns) {
+    assert(nrows >= 0 && nrows <= transpose_size);
+    static_assert(transpose_size == 16, "Unsupported transpose size");
+    if (!nrows) return;
+
+    auto src_zmm = [=](int i) {
+        assert(i >= 0 && i < 16);
+        return Zmm(i);
+    };
+
+    auto tmp_zmm = [=](int i) {
+        assert(i >= 0 && i < 16);
+        return Zmm(16 + i);
+    };
+
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    auto load = [=](int i) {
+        auto src_load = src_zmm(i);
+        if (i >= nrows) {
+            vpxord(src_load, src_load, src_load);
+            return;
+        }
+
+        if (ncolumns < transpose_size) {
+            kmovw(kTail, (1 << ncolumns) - 1);
+            src_load = src_zmm(i) | kTail | T_z;
+        }
+        vcvtph2psx(src_load, EVEX_compress_addr(reg_src, i * src_stride));
+    };
+
+    auto store = [=](Zmm r, int i) {
+        mov(reg_tr_src_tmp, reg_tr_src);
+        if (nrows < transpose_size) kmovw(kTail, (1 << nrows) - 1);
+
+        // Xbyak does not allow k0 to be specified explicitly via the '|'
+        // operator, so we have to do this via a method call (implicitly
+        // EVEX encoding uses k0 to mean 'no mask')
+        const bool partial_store = nrows < transpose_size;
+        const auto k = partial_store ? kTail : k0;
+        auto base = reg_tr_src_tmp;
+        base.setOpmaskIdx(k.getIdx(), true);
+
+        const auto addr = EVEX_compress_addr(base, i * tr_src_stride);
+        vmovups(addr, r);
+    };
+
+    auto transpose16x8 = [=](int base_idx) {
+        assert(base_idx == 0 || base_idx == 8);
+
+        // swap 1
+        for (int i = 0; i < 4; i++) {
+            const int src_idx0 = base_idx + i * 2;
+            const int src_idx1 = src_idx0 + 1;
+
+            const int next_src_idx0 = src_idx0 + 2;
+            const int next_src_idx1 = src_idx1 + 2;
+            const bool load_next = base_idx == 0 || i < 3;
+
+            if (base_idx == 0 && i == 0) {
+                load(src_idx0);
+                if (src_idx1 < nrows)
+                    load(src_idx1);
+                else
+                    vpxord(src_zmm(src_idx1), src_zmm(src_idx1),
+                            src_zmm(src_idx1));
+            }
+
+            const auto tmp0 = tmp_zmm(src_idx0);
+            const auto tmp1 = tmp_zmm(src_idx1);
+            const auto src0 = src_zmm(src_idx0);
+            const auto src1 = src_zmm(src_idx1);
+
+            if (next_src_idx0 < nrows && load_next) load(next_src_idx0);
+            valignd(tmp0, src0, src0, 0x1);
+
+            if (next_src_idx1 < nrows && load_next) load(next_src_idx1);
+            valignd(tmp1, src1, src1, 0xf);
+
+            vmovaps(src0 | kAAAA, tmp1);
+            vmovaps(src1 | k5555, tmp0);
+        }
+        // swap 2
+        for (int i = 0; i < 4; i++) {
+            const int select_half = (i < 2) ? 0 : 2;
+            const int src_idx0 = base_idx + i + select_half + 0;
+            const int src_idx2 = src_idx0 + 2;
+
+            const auto tmp0 = tmp_zmm(src_idx0);
+            const auto tmp1 = tmp_zmm(src_idx2);
+            const auto src0 = src_zmm(src_idx0);
+            const auto src2 = src_zmm(src_idx2);
+
+            valignd(tmp0, src0, src0, 0x2);
+            valignd(tmp1, src2, src2, 0xe);
+            vmovaps(src2 | k3333, tmp0);
+            vmovaps(src0 | kCCCC, tmp1);
+        }
+
+        // swap 4
+        for (int i = 0; i < 4; i++) {
+            const int src_idx0 = base_idx + i;
+            const int src_idx4 = src_idx0 + 4;
+
+            const auto tmp0 = tmp_zmm(src_idx0);
+            const auto src0 = src_zmm(src_idx0);
+            const auto src4 = src_zmm(src_idx4);
+
+            vmovaps(tmp0, src0);
+            vshuff32x4(src0 | kF0F0, src4, src4, 0xb1);
+            vshuff32x4(src4 | k0F0F, tmp0, tmp0, 0xb1);
+        }
+    };
+
+    auto fixup16x16 = [=]() {
+        // swap 8
+        const auto max_iters_phase_1 = std::min(ncolumns, 8);
+        for (int i = 0; i < max_iters_phase_1; i++) {
+            const auto tmp = tmp_zmm(i);
+            const auto src0 = src_zmm(i);
+            const auto src8 = src_zmm(8 + i);
+            vshuff64x2(tmp, src0, src8, 0x44);
+            store(tmp, i);
+        }
+
+        const auto max_iters_phase_2 = std::min(ncolumns - 8, 8);
+        for (int i = 0; i < max_iters_phase_2; i++) {
+            const auto tmp = tmp_zmm(8 + i);
+            const auto src0 = src_zmm(i);
+            const auto src8 = src_zmm(8 + i);
+            vshuff64x2(tmp, src0, src8, 0xee);
+            store(tmp, 8 + i);
+        }
+    };
+
+    transpose16x8(0);
+    transpose16x8(8);
+    fixup16x16();
+}
+
+void jit_brgemm_trans_m_k_f16_t::generate() {
+    preamble();
+    assert(conf_->ic_block % transpose_size == 0);
+    const int os_block = conf_->os_block;
+    const int last_os_block_tail = conf_->K_tail % transpose_size;
+    const int ic_tail = conf_->M_tail % transpose_size;
+    src_stride = conf_->ic * typesize_in;
+    tr_src_stride = conf_->LDA * typesize_out;
+    const dim_t m_src_shift = transpose_size * typesize_in;
+    const dim_t m_tr_src_shift = tr_src_stride * transpose_size;
+
+    const dim_t batch_src_shift = src_stride * os_block;
+    const dim_t batch_tr_src_shift = tr_src_stride * conf_->M;
+
+    mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
+    mov(reg_loop_K, ptr[param1 + GET_OFF(current_K)]);
+
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    kmovw(k3333, 0x3333); // 0011001100110011
+    kmovw(k5555, 0x5555); // 0101010101010101
+    kmovw(kAAAA, 0xaaaa); // 1010101010101010
+    kmovw(kCCCC, 0xcccc); // 1100110011001100
+    kmovw(k0F0F, 0x0f0f); // 0000111100001111
+    kmovw(kF0F0, 0xf0f0); // 1111000011110000
+
+    auto compute_M = [=](bool is_os_tail) {
+        const auto nrows = is_os_tail ? last_os_block_tail : transpose_size;
+        mov(reg_loop_M, ptr[param1 + GET_OFF(current_M)]);
+        mov(reg_src, reg_src_base);
+        mov(reg_tr_src, reg_tr_src_base);
+        Label M_loop, M_tail_or_done, M_done;
+        if (ic_tail > 0) {
+            cmp(reg_loop_M, transpose_size);
+            jl(M_tail_or_done, T_NEAR);
+        }
+
+        L(M_loop);
+        transpose_16x16(nrows, transpose_size);
+        if (conf_->ic_block > transpose_size) {
+            add(reg_src, m_src_shift);
+            add(reg_tr_src, m_tr_src_shift);
+            sub(reg_loop_M, transpose_size);
+            cmp(reg_loop_M, transpose_size);
+            jge(M_loop, T_NEAR);
+        } else {
+            jmp(M_done, T_NEAR);
+        }
+
+        L(M_tail_or_done);
+        if (ic_tail > 0) {
+            cmp(reg_loop_M, 0);
+            jle(M_done, T_NEAR);
+
+            transpose_16x16(nrows, ic_tail);
+        }
+        L(M_done);
+    };
+
+    auto compute_batch = [=](bool is_os_tail) {
+        Label batch_loop;
+        L(batch_loop);
+
+        compute_M(is_os_tail);
+        add(reg_src_base, batch_src_shift);
+        add(reg_tr_src_base, batch_tr_src_shift);
+
+        sub(reg_loop_batch, 1);
+        jnz(batch_loop, T_NEAR);
+    };
+
+    Label K_tail;
+    if (last_os_block_tail > 0) {
+        cmp(reg_loop_K, transpose_size);
+        jl(K_tail, T_NEAR);
+    }
+
+    compute_batch(false);
+
+    if (last_os_block_tail > 0) {
+        Label K_done;
+        jmp(K_done, T_NEAR);
+
+        L(K_tail);
+        compute_batch(true);
+        L(K_done);
+    }
+
+    postamble();
+}
+
 void jit_brgemm_copy_to_coarse_t::copy_row_blks(int num_row_blks) {
     int rnd_row_blks = div_up(num_row_blks, row_loop_unroll);
 
@@ -1354,6 +1638,192 @@ void jit_copy_f32_t::generate() {
     postamble();
 }
 
+struct jit_copy_f16_t : public jit_brgemm_trans_to_vnni_t,
+                        public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_copy_f16_t)
+    jit_copy_f16_t(const jit_brgemm_primitive_conf_t *conf,
+            jit_brgemm_trans_to_vnni_t::matrix_to_transform_t
+                    matrix_to_transform)
+        : jit_brgemm_trans_to_vnni_t(conf, matrix_to_transform)
+        , jit_generator(jit_name()) {
+
+        // matrix_to_transform_ == matrix_B, copy(f16) -> f32
+        // matrix_to_transform_ == matrix_C, copy(f32) -> f16 + zero_pad
+        if (matrix_to_transform_ == matrix_B) {
+            row_block = conf_->os_block;
+            row_tail = conf_->os % row_block;
+            col_block = conf_->oc_block * conf_->nb_oc_blocking;
+            col_tail = conf_->oc % col_block;
+            typesize_in = types::data_type_size(data_type::f16);
+            typesize_out = types::data_type_size(data_type::f32);
+            src_stride = conf_->oc * typesize_in;
+            tr_src_stride = conf_->LDB * typesize_out;
+            src_batch_shift = src_stride * row_block;
+            tr_src_batch_shift = tr_src_stride * row_block;
+        } else { // matrix_C
+            row_block = conf_->os_block;
+            row_tail = conf_->os % row_block;
+            col_block = conf_->oc_block * conf_->nb_oc_blocking;
+            col_tail = conf_->oc % col_block;
+            typesize_in = types::data_type_size(data_type::f32);
+            typesize_out = types::data_type_size(data_type::f16);
+            src_stride = conf_->LDB * typesize_in;
+            tr_src_stride = conf_->LDB * typesize_out;
+            src_batch_shift = src_stride * row_block;
+            tr_src_batch_shift = tr_src_stride * row_block;
+        }
+
+        col_shift_in = column_step * typesize_in;
+        col_shift_out = column_step * typesize_out;
+    }
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+    using zmm = const Xbyak::Zmm;
+
+    enum {
+        column_step = 16,
+        num_regs = 32,
+    };
+
+    size_t typesize_in = 0;
+    size_t typesize_out = 0;
+
+    int row_block = 0, row_tail = 0;
+    int col_block = 0, col_tail = 0;
+    dim_t src_stride = 0, tr_src_stride = 0;
+    dim_t src_batch_shift = 0, tr_src_batch_shift = 0;
+    dim_t col_shift_in = 0;
+    dim_t col_shift_out = 0;
+
+    opmask_t mask_tail = k2;
+
+    reg64_t reg_src = r8;
+    reg64_t reg_tr_src = r9;
+    reg64_t reg_loop_batch = r10;
+    reg64_t reg_loop_row = r11;
+    reg64_t reg_loop_col = r12;
+    reg32_t regw_tmp = r14d;
+    reg64_t reg_long_offt = r15;
+
+    void copy_block(bool is_row_tail, bool is_col_tail);
+    void generate() override;
+};
+
+void jit_copy_f16_t::copy_block(bool is_row_tail, bool is_col_tail) {
+
+    const int nrows = is_row_tail && matrix_to_transform_ != matrix_C
+            ? row_tail
+            : row_block;
+    const int ncolumns = is_col_tail && matrix_to_transform_ != matrix_C
+            ? col_tail
+            : col_block;
+
+    auto kmovd = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovd(k, regw_tmp);
+    };
+
+    const int nc_tail = ncolumns % column_step;
+    if (nc_tail > 0) kmovd(mask_tail, (1 << nc_tail) - 1);
+
+    auto get_zmm = [=](int i) { return Zmm(i % num_regs); };
+
+    auto load = [=](int r, int cb) {
+        auto src_reg = get_zmm(r * cb);
+        const bool is_tail
+                = nc_tail > 0 && ncolumns - cb * column_step < column_step;
+        auto src_load = is_tail ? src_reg | mask_tail | T_z : src_reg;
+        const dim_t offset = r * src_stride + cb * col_shift_in;
+        auto addr = EVEX_compress_addr_safe(reg_src, offset, reg_long_offt);
+        if (matrix_to_transform_ == matrix_B)
+            vcvtph2psx(src_load, addr);
+        else { // matrix_c
+            if (r < nrows)
+                vmovups(src_load, addr);
+            else
+                vpxord(src_load, src_load, src_load);
+        }
+    };
+
+    auto store = [=](int r, int cb) {
+        auto reg = get_zmm(r * cb);
+        const dim_t offset = r * tr_src_stride + cb * col_shift_out;
+        auto addr = EVEX_compress_addr_safe(reg_tr_src, offset, reg_long_offt);
+        if (matrix_to_transform_ == matrix_B)
+            vmovups(addr, reg);
+        else // matrix_C
+            vcvtps2ph(addr, reg, 0x4);
+    };
+
+    for_(int r = 0; r < nrows; r++)
+    for (int cb = 0; cb < div_up(ncolumns, column_step); cb++) {
+        load(r, cb);
+        store(r, cb);
+    }
+}
+
+void jit_copy_f16_t::generate() {
+    preamble();
+
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
+    mov(reg_loop_row, ptr[param1 + GET_OFF(current_row_size)]);
+    mov(reg_loop_col, ptr[param1 + GET_OFF(current_col_size)]);
+
+    auto compute_batch = [=](bool is_row_tail, bool is_col_tail) {
+        Label batch_loop;
+        L(batch_loop);
+
+        copy_block(is_row_tail, is_col_tail);
+        add(reg_src, src_batch_shift);
+        add(reg_tr_src, tr_src_batch_shift);
+
+        sub(reg_loop_batch, 1);
+        jnz(batch_loop, T_NEAR);
+    };
+
+    auto compute_rows = [=](bool is_col_tail) {
+        Label row_done;
+        if (row_tail > 0) {
+            Label row_common;
+            cmp(reg_loop_row, row_block);
+            je(row_common, T_NEAR);
+
+            compute_batch(true, is_col_tail);
+            jmp(row_done, T_NEAR);
+
+            L(row_common);
+        }
+
+        compute_batch(false, is_col_tail);
+        L(row_done);
+    };
+
+    Label col_done;
+    if (col_tail > 0) {
+        Label col_common;
+        cmp(reg_loop_col, col_block);
+        je(col_common, T_NEAR);
+
+        compute_rows(true);
+        jmp(col_done, T_NEAR);
+
+        L(col_common);
+    }
+
+    compute_rows(false);
+    L(col_done);
+
+    postamble();
+}
+
 struct jit_brgemm_trans_wei_f32_t : public jit_brgemm_trans_wei_t,
                                     public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_wei_f32_t)
@@ -1888,6 +2358,310 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
     postamble();
 }
 
+struct jit_brgemm_trans_wei_f16_t : public jit_brgemm_trans_wei_t,
+                                    public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_wei_f16_t)
+
+    jit_brgemm_trans_wei_f16_t(const jit_brgemm_primitive_conf_t *conf)
+        : jit_brgemm_trans_wei_t(conf), jit_generator(jit_name()) {}
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+
+    enum {
+        typesize_in = sizeof(int16_t),
+        typesize_out = sizeof(float),
+        transpose_size = 16
+    };
+    dim_t src_stride = 0, tr_src_stride = 0;
+
+    opmask_t k3333 = k1;
+    opmask_t k5555 = k2;
+    opmask_t kAAAA = k3;
+    opmask_t kCCCC = k4;
+    opmask_t k0F0F = k5;
+    opmask_t kF0F0 = k6;
+    opmask_t kTail = k7;
+
+    reg64_t reg_src_base = rax;
+    reg64_t reg_tr_src_base = rbx;
+
+    reg64_t reg_src = r8;
+    reg64_t reg_tr_src = r9;
+    reg64_t reg_loop_N = r10;
+    reg64_t reg_loop_K = r11;
+    reg64_t reg_loop_batch = r12;
+    reg64_t reg_tr_src_tmp = r13;
+    reg32_t regw_tmp = r14d;
+    reg64_t imm_addr64 = r15;
+
+    Xbyak::Zmm v_abcdefgh_to_abefcdgh = zmm31;
+
+    void transpose_16x16(int nrows, int ncolumns = transpose_size);
+    void generate() override;
+};
+
+void jit_brgemm_trans_wei_f16_t::transpose_16x16(int nrows, int ncolumns) {
+    assert(nrows >= 0 && nrows <= transpose_size);
+    static_assert(transpose_size == 16, "Unsupported transpose size");
+    if (!nrows) return;
+
+    auto src_zmm = [=](int i) {
+        assert(i >= 0 && i < 16);
+        return Zmm(i);
+    };
+
+    auto tmp_zmm = [=](int i) {
+        assert(i >= 0 && i < 16);
+        return Zmm(16 + i);
+    };
+
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    auto load = [=](int i) {
+        auto src_load = src_zmm(i);
+        if (ncolumns < transpose_size) {
+            kmovw(kTail, (1 << ncolumns) - 1);
+            src_load = src_zmm(i) | kTail | T_z;
+        }
+        // TODO: Maybe do tranformations in fp16 data type and at the end
+        // cvt to f32. Thus reducing instructions
+        vcvtph2psx(src_load, EVEX_compress_addr(reg_src, i * src_stride));
+    };
+
+    auto store = [=](Zmm r, int i) {
+        mov(reg_tr_src_tmp, reg_tr_src);
+        if (nrows < transpose_size) kmovw(kTail, (1 << nrows) - 1);
+
+        // Xbyak does not allow k0 to be specified explicitly via the '|'
+        // operator, so we have to do this via a method call (implicitly
+        // EVEX encoding uses k0 to mean 'no mask')
+        bool partial_store = nrows < transpose_size;
+        auto k = partial_store ? kTail : k0;
+        auto base = reg_tr_src_tmp;
+        base.setOpmaskIdx(k.getIdx(), true);
+
+        auto addr = EVEX_compress_addr(base, i * tr_src_stride);
+        vmovups(addr, r);
+    };
+
+    auto transpose16x8 = [=](int base_idx) {
+        assert(base_idx == 0 || base_idx == 8);
+
+        // swap 1
+        for (int i = 0; i < 4; i++) {
+            int src_idx0 = base_idx + i * 2;
+            int src_idx1 = src_idx0 + 1;
+
+            int next_src_idx0 = src_idx0 + 2;
+            int next_src_idx1 = src_idx1 + 2;
+            bool load_next = base_idx == 0 || i < 3;
+
+            if (base_idx == 0 && i == 0) {
+                load(src_idx0);
+                if (src_idx1 < nrows)
+                    load(src_idx1);
+                else
+                    vpxord(src_zmm(src_idx1), src_zmm(src_idx1),
+                            src_zmm(src_idx1));
+            }
+
+            auto tmp0 = tmp_zmm(src_idx0);
+            auto tmp1 = tmp_zmm(src_idx1);
+            auto src0 = src_zmm(src_idx0);
+            auto src1 = src_zmm(src_idx1);
+
+            if (next_src_idx0 < nrows && load_next) load(next_src_idx0);
+            valignd(tmp0, src0, src0, 0x1);
+
+            if (next_src_idx1 < nrows && load_next) load(next_src_idx1);
+            valignd(tmp1, src1, src1, 0xf);
+
+            vmovaps(src0 | kAAAA, tmp1);
+            vmovaps(src1 | k5555, tmp0);
+        }
+        // swap 2
+        for (int i = 0; i < 4; i++) {
+            int select_half = (i < 2) ? 0 : 2;
+            int src_idx0 = base_idx + i + select_half + 0;
+            int src_idx2 = src_idx0 + 2;
+
+            auto tmp0 = tmp_zmm(src_idx0);
+            auto tmp1 = tmp_zmm(src_idx2);
+            auto src0 = src_zmm(src_idx0);
+            auto src2 = src_zmm(src_idx2);
+
+            valignd(tmp0, src0, src0, 0x2);
+            valignd(tmp1, src2, src2, 0xe);
+            vmovaps(src2 | k3333, tmp0);
+            vmovaps(src0 | kCCCC, tmp1);
+        }
+
+        // swap 4
+        for (int i = 0; i < 4; i++) {
+            int src_idx0 = base_idx + i;
+            int src_idx4 = src_idx0 + 4;
+
+            auto tmp0 = tmp_zmm(src_idx0);
+            auto src0 = src_zmm(src_idx0);
+            auto src4 = src_zmm(src_idx4);
+
+            vmovaps(tmp0, src0);
+            vshuff32x4(src0 | kF0F0, src4, src4, 0xb1);
+            vshuff32x4(src4 | k0F0F, tmp0, tmp0, 0xb1);
+        }
+    };
+
+    auto fixup16x16 = [=]() {
+        // swap 8
+        for (int i = 0; i < 8; i++) {
+            auto tmp = tmp_zmm(i);
+            auto src0 = src_zmm(i);
+            auto src8 = src_zmm(8 + i);
+            vshuff64x2(tmp, src0, src8, 0x44);
+            store(tmp, i);
+        }
+
+        for (int i = 0; i < 8; i++) {
+            auto tmp = tmp_zmm(8 + i);
+            auto src0 = src_zmm(i);
+            auto src8 = src_zmm(8 + i);
+            vshuff64x2(tmp, src0, src8, 0xee);
+            store(tmp, 8 + i);
+        }
+    };
+
+    transpose16x8(0);
+    transpose16x8(8);
+    fixup16x16();
+}
+
+void jit_brgemm_trans_wei_f16_t::generate() {
+    preamble();
+    assert(conf_->oc_block % transpose_size == 0);
+    int fwd_ic_block = conf_->simd_w;
+    int fwd_oc_block = 0;
+    switch (conf_->wei_tag) {
+        case OI16i64o:
+        case OIw16i64o:
+        case OIhw16i64o:
+        case OIdhw16i64o:
+        case OI8i64o2i:
+        case OIw8i64o2i:
+        case OIhw8i64o2i:
+        case OIdhw8i64o2i:
+        case OI16i64o2i:
+        case OIw16i64o2i:
+        case OIhw16i64o2i:
+        case OIdhw16i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
+        case OI16i32o:
+        case OIw16i32o:
+        case OIhw16i32o:
+        case OIdhw16i32o:
+        case OI8i32o2i:
+        case OIw8i32o2i:
+        case OIhw8i32o2i:
+        case OIdhw8i32o2i:
+        case OI16i32o2i:
+        case OIw16i32o2i:
+        case OIhw16i32o2i:
+        case OIdhw16i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
+        default: fwd_oc_block = conf_->simd_w;
+    };
+
+    int oc_tail = conf_->K_tail % transpose_size;
+    int ic_block = conf_->ic_block;
+    int ic_tail = conf_->N_tail % transpose_size;
+    src_stride = fwd_oc_block * typesize_in;
+    tr_src_stride = ic_block * typesize_out;
+    dim_t N_src_shift = (conf_->kd * conf_->kh * conf_->kw * fwd_ic_block)
+            * fwd_oc_block * typesize_in;
+    dim_t N_tr_src_shift = conf_->simd_w * typesize_out;
+    dim_t K_src_shift = conf_->simd_w * typesize_in;
+    dim_t K_tr_src_shift = conf_->ic_block * conf_->simd_w * typesize_out;
+
+    mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
+    mov(reg_loop_K, ptr[param1 + GET_OFF(current_K)]);
+
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    kmovw(k3333, 0x3333); // 0011001100110011
+    kmovw(k5555, 0x5555); // 0101010101010101
+    kmovw(kAAAA, 0xaaaa); // 1010101010101010
+    kmovw(kCCCC, 0xcccc); // 1100110011001100
+    kmovw(k0F0F, 0x0f0f); // 0000111100001111
+    kmovw(kF0F0, 0xf0f0); // 1111000011110000
+
+    auto compute_N = [=](bool is_oc_tail) {
+        mov(reg_loop_N, ptr[param1 + GET_OFF(current_N)]);
+        mov(reg_src, reg_src_base);
+        mov(reg_tr_src, reg_tr_src_base);
+        Label N_loop, N_loop_tail;
+
+        cmp(reg_loop_N, transpose_size);
+        jl(N_loop_tail, T_NEAR);
+
+        L(N_loop);
+
+        transpose_16x16(transpose_size, is_oc_tail ? oc_tail : transpose_size);
+        add(reg_src, N_src_shift);
+        add(reg_tr_src, N_tr_src_shift);
+
+        sub(reg_loop_N, transpose_size);
+        cmp(reg_loop_N, transpose_size);
+        jge(N_loop, T_NEAR);
+
+        L(N_loop_tail);
+        if (ic_tail > 0) {
+            Label N_loop_done;
+            cmp(reg_loop_N, 0);
+            jle(N_loop_done, T_NEAR);
+            transpose_16x16(ic_tail, is_oc_tail ? oc_tail : transpose_size);
+            L(N_loop_done);
+        }
+    };
+
+    Label K_loop, K_tail;
+    if (oc_tail > 0) {
+        cmp(reg_loop_K, transpose_size);
+        jl(K_tail, T_NEAR);
+    }
+
+    L(K_loop);
+    compute_N(false);
+    add(reg_src_base, K_src_shift);
+    add(reg_tr_src_base, K_tr_src_shift);
+
+    sub(reg_loop_K, transpose_size);
+    cmp(reg_loop_K, transpose_size);
+    jge(K_loop, T_NEAR);
+
+    L(K_tail);
+    if (oc_tail > 0) {
+        Label K_loop_done;
+        cmp(reg_loop_K, 0);
+        jle(K_loop_done, T_NEAR);
+
+        compute_N(true);
+        L(K_loop_done);
+    }
+
+    postamble();
+}
+
 struct jit_amx_ip_trans_diff_wei_to_vnni_t : public jit_amx_ip_trans_diff_wei,
                                              public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_amx_ip_trans_diff_wei_to_vnni)
@@ -2109,15 +2883,22 @@ void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
 status_t create_brgemm_trans_src(
         std::unique_ptr<jit_brgemm_trans_src_t> &trans_ker,
         const jit_brgemm_primitive_conf_t *conf) {
-    if (conf->prop_kind == dnnl_backward_weights
-            && conf->src_dt == data_type::f32)
+
+    if (conf->prop_kind != dnnl_backward_weights)
+        return status::invalid_arguments;
+
+    if (conf->src_dt == data_type::f32) {
         CHECK(safe_ptr_assign(trans_ker, new jit_brgemm_trans_m_k_f32_t(conf)));
-    else if (conf->prop_kind == dnnl_backward_weights
-            && conf->src_dt == data_type::bf16)
+    } else if (conf->prop_kind == dnnl_backward_weights
+            && conf->src_dt == data_type::bf16) {
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_brgemm_trans_m_k_bf16_t(conf)));
-    else
+    } else if (conf->src_dt == data_type::f16) {
+        assert(conf->isa == avx512_core_fp16);
+        CHECK(safe_ptr_assign(trans_ker, new jit_brgemm_trans_m_k_f16_t(conf)));
+    } else {
         return status::invalid_arguments;
+    }
 
     return trans_ker->create_kernel();
 }
@@ -2138,16 +2919,21 @@ status_t create_brgemm_trans_to_vnni(
         std::unique_ptr<jit_brgemm_trans_to_vnni_t> &trans_ker,
         const jit_brgemm_primitive_conf_t *conf,
         jit_brgemm_trans_to_vnni_t::matrix_to_transform_t matrix_to_transform) {
-    if (conf->prop_kind == dnnl_backward_weights
-            && conf->dst_dt == data_type::bf16)
-        CHECK(safe_ptr_assign(
-                trans_ker, new jit_trans_to_vnni_t(conf, matrix_to_transform)));
-    else if (conf->prop_kind == dnnl_backward_weights
-            && conf->dst_dt == data_type::f32)
+    if (conf->prop_kind != dnnl_backward_weights)
+        return status::invalid_arguments;
+
+    if (conf->dst_dt == data_type::f32) {
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_copy_f32_t(conf, matrix_to_transform)));
-    else
+    } else if (conf->dst_dt == data_type::bf16) {
+        CHECK(safe_ptr_assign(
+                trans_ker, new jit_trans_to_vnni_t(conf, matrix_to_transform)));
+    } else if (conf->dst_dt == data_type::f16) {
+        CHECK(safe_ptr_assign(
+                trans_ker, new jit_copy_f16_t(conf, matrix_to_transform)));
+    } else {
         return status::invalid_arguments;
+    }
 
     return trans_ker->create_kernel();
 }
@@ -2155,14 +2941,20 @@ status_t create_brgemm_trans_to_vnni(
 status_t create_brgemm_trans_wei(
         std::unique_ptr<jit_brgemm_trans_wei_t> &trans_ker,
         const jit_brgemm_primitive_conf_t *conf) {
-    if (conf->prop_kind == dnnl_backward_data && conf->wei_dt == data_type::f32)
+
+    if (conf->prop_kind != dnnl_backward_data) return status::invalid_arguments;
+
+    if (conf->wei_dt == data_type::f32) {
         CHECK(safe_ptr_assign(trans_ker, new jit_brgemm_trans_wei_f32_t(conf)));
-    else if (conf->prop_kind == dnnl_backward_data
-            && conf->wei_dt == data_type::bf16)
+    } else if (conf->wei_dt == data_type::bf16) {
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_brgemm_trans_wei_bf16_t(conf)));
-    else
+    } else if (conf->wei_dt == data_type::f16) {
+        assert(conf->isa == avx512_core_fp16);
+        CHECK(safe_ptr_assign(trans_ker, new jit_brgemm_trans_wei_f16_t(conf)));
+    } else {
         return status::invalid_arguments;
+    }
 
     return trans_ker->create_kernel();
 }

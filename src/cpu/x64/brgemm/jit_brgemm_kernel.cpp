@@ -1663,7 +1663,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
     } else
         rd_loop = brg.rd_block;
 
-    auto broadcast = [=](Vmm v1, size_t offset, bool is_tail) {
+    auto broadcast = [=](Vmm v1, size_t offset, bool is_tail, data_type_t dt) {
         if (is_tail) {
             vpxord(v1, v1, v1);
             Xmm xmm_tmp = Xmm(v1.getIdx());
@@ -1671,11 +1671,11 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     xmm_tmp, reg_aux_A, offset, rd_tail_size * brg.typesize_A);
             vpbroadcastd(v1, xmm_tmp);
         } else {
-            if (brg.is_f32)
+            if (dt == data_type::f32)
                 vbroadcastss(v1, ptr[reg_aux_A + offset]);
-            else if (brg.is_bf16 || brg.is_int8)
+            else if (one_of(dt, data_type::bf16, data_type::s8, data_type::u8))
                 vpbroadcastd(v1, ptr[reg_aux_A + offset]);
-            else if (brg.is_f16)
+            else if (dt == data_type::f16)
                 vcvtph2psx(v1, ptr_b[reg_aux_A + offset]);
         }
 
@@ -1769,13 +1769,13 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                 const auto bd_by_load_bytes = (bd >= bd_e - rows_by_load_bytes
                         || brg.brgattr.wary_tail_read);
                 broadcast(bcst(bd), A_offset(bd, rd),
-                        have_to_load_bytes && bd_by_load_bytes);
+                        have_to_load_bytes && bd_by_load_bytes, brg.dt_a);
             }
             for (int ld = 0; ld < ld_block2; ld++) {
                 const auto addr = ptr[reg_aux_B + B_offset(ld, rd)];
                 const Vmm vmm_load
                         = vmm_mask(load(), is_ld_tail, false, ld_tail_mask);
-                if (brg.is_f16) {
+                if (brg.dt_b == data_type::f16) {
                     vcvtph2psx(vmm_load, addr);
                 } else if (is_ld_tail) {
                     if (is_superset(brg.isa_impl, avx512_core)) {
@@ -1804,7 +1804,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                 const auto addr = ptr[reg_aux_B + B_offset(ld, rd)];
                 const Vmm vmm_load
                         = vmm_mask(load(ld), is_ld_tail, false, ld_tail_mask);
-                if (brg.is_f16) {
+                if (brg.dt_b == data_type::f16) {
                     vcvtph2psx(vmm_load, addr);
                 } else if (is_ld_tail) {
                     if (is_superset(brg.isa_impl, avx512_core)) {
@@ -1828,7 +1828,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                             = (bd >= bd_e - rows_by_load_bytes
                                     || brg.brgattr.wary_tail_read);
                     broadcast(bcst(), A_offset(bd, rd),
-                            have_to_load_bytes && bd_by_load_bytes);
+                            have_to_load_bytes && bd_by_load_bytes, brg.dt_a);
                 }
                 if (prefetch_count_B < ld_block2) {
                     prefetcht0(ptr[reg_aux_B + B_offset(prefetch_count_B++, rd)

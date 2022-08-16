@@ -78,6 +78,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d);
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp);
 status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp);
+size_t buf_dt_size(data_type_t dt);
 
 } // namespace brgemm_inner_product_utils
 

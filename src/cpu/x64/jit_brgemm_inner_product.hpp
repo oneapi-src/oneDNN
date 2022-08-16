@@ -56,25 +56,19 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             auto src_dt = invariant_src_md()->data_type;
             auto dst_dt = invariant_dst_md()->data_type;
             auto wei_dt = invariant_wei_md()->data_type;
+            const bool is_int8 = one_of(src_dt, u8, s8);
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             auto skip_mask = skip_mask_t::post_ops;
-            if (one_of(src_dt, u8, s8))
-                skip_mask |= skip_mask_t::oscale | skip_mask_t::oscale_runtime;
+            if (is_int8) skip_mask |= skip_mask_t::oscale;
 
             bool ok = is_fwd() && mayiuse(isa)
                     && expect_data_types(src_dt, wei_dt, data_type::undef,
                             dst_dt, data_type::undef)
-                    && IMPLICATION(with_bias(),
-                            ((one_of(src_dt, u8, s8)
-                                     && one_of(bias_md_.data_type, f32, bf16,
-                                             s32, s8, u8))
-                                    || (one_of(src_dt, bf16)
-                                            && one_of(bias_md_.data_type, f32,
-                                                    bf16))
-                                    || (one_of(src_dt, f32)
-                                            && one_of(
-                                                    bias_md_.data_type, f32))))
+                    && IMPLICATION(with_bias() && is_int8,
+                            one_of(bias_md_.data_type, f32, bf16, s32, s8, u8))
+                    && IMPLICATION(with_bias() && !is_int8,
+                            one_of(bias_md_.data_type, f32, src_dt))
                     && attr()->has_default_values(skip_mask, dst_dt)
                     && attr()->post_ops_.check_sum_consistent_dt(dst_dt)
                     && !has_zero_dim_memory();
@@ -239,12 +233,10 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && !has_zero_dim_memory() && mayiuse(isa)
-                    && ((diff_dst_dt == data_type::bf16
-                                && wei_dt == data_type::bf16
-                                && utils::one_of(diff_src_dt, data_type::bf16,
-                                        data_type::f32))
-                            || utils::everyone_is(data_type::f32, diff_dst_dt,
-                                    wei_dt, diff_src_dt))
+                    && utils::one_of(diff_dst_dt, data_type::f32,
+                            data_type::bf16, data_type::f16)
+                    && wei_dt == diff_dst_dt
+                    && utils::one_of(diff_src_dt, data_type::f32, diff_dst_dt)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
@@ -257,6 +249,9 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             const float alpha = 1.0;
             const float beta = 1.0;
             const float beta_init = 0.0;
+            const auto dt_b = isa == avx512_core_fp16 && jbgp_.use_buffer_b
+                    ? data_type::f32
+                    : wei_dt;
 
             for_(int i_bs = 0; i_bs < 2; i_bs++)
             for_(int i_init = 0; i_init < 2; i_init++)
@@ -273,7 +268,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
                 brgemm_t &brg = brg_descs_[idx];
                 CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, diff_dst_dt,
-                        wei_dt, false, false, brgemm_row_major, alpha, vbeta,
+                        dt_b, false, false, brgemm_row_major, alpha, vbeta,
                         jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
 
                 auto LDD = jbgp_.ic_without_padding;
@@ -408,12 +403,10 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
 
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && !has_zero_dim_memory() && mayiuse(isa)
-                    && ((src_dt == data_type::bf16
-                                && diff_dst_type == data_type::bf16
-                                && utils::one_of(diff_wei_type, data_type::bf16,
-                                        data_type::f32))
-                            || utils::everyone_is(data_type::f32, src_dt,
-                                    diff_dst_type, diff_wei_type))
+                    && utils::one_of(src_dt, data_type::f32, data_type::bf16,
+                            data_type::f16)
+                    && diff_dst_type == src_dt
+                    && utils::one_of(diff_wei_type, data_type::f32, src_dt)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
@@ -425,6 +418,12 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             const float alpha = 1.0;
             const float beta = 1.0;
             const float beta_init = 0.0;
+            const auto dt_a = isa == avx512_core_fp16 && jbgp_.use_buffer_a
+                    ? data_type::f32
+                    : jbgp_.src_dt;
+            const auto dt_b = isa == avx512_core_fp16 && jbgp_.use_buffer_b
+                    ? data_type::f32
+                    : jbgp_.dst_dt;
 
             for_(int i_bs = 0; i_bs < 2; i_bs++)
             for_(int i_init = 0; i_init < 2; i_init++)
@@ -439,9 +438,9 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
                 if (idx < 0) continue;
                 brgemm_t &brg = brg_descs_[idx];
-                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, jbgp_.src_dt,
-                        jbgp_.dst_dt, false, false, brgemm_row_major, alpha,
-                        vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
+                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, dt_a, dt_b,
+                        false, false, brgemm_row_major, alpha, vbeta, jbgp_.LDA,
+                        jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
                 if (isa == avx512_core_bf16_amx_bf16) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = bs;
