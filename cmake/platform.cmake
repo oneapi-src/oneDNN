@@ -83,6 +83,10 @@ macro(platform_gnu_nowarn_ccxx_flags var gnu_version)
 endmacro()
 
 if(DNNL_WITH_SYCL)
+    # Clang cannot vectorize some loops with #pragma omp simd and gets
+    # very upset. Tell it that it's okay and that we love it
+    # unconditionally.
+    append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
     # Suppress self-comparison warning to avoid false positives in macros such
     # as JIT_IMPL_NAME_HELPER.
     append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-tautological-compare")
