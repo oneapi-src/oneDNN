@@ -1743,6 +1743,28 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::compute_diff_weights(
     }
 }
 
+void jit_avx512_core_amx_convolution_bwd_weights_t::store_in_vnni_format(
+        const thread_info_t *ti) const {
+    const auto &jcp = kernel_->jcp;
+
+    for_(int g = ti->g_start; g < ti->g_end; g++)
+    for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; oc_b++)
+    for_(int ic_b = ti->ic_b_start; ic_b < ti->ic_b_start + ti->ic_b_work;
+            ic_b += 2)
+    {
+        jit_conv_call_s p = jit_conv_call_s();
+
+        bfloat16_t *output = (bfloat16_t *)ti->diff_weights
+                + wei_offset_ext(g, oc_b, (ic_b / 2), 0);
+        float *input = ti->wei_bia_reduction + wei_offset_int(g, oc_b, ic_b, 0);
+
+        p.src = (void *)input;
+        p.dst = (void *)output;
+        p.last_ic_block = ((ic_b + 1) >= jcp.nb_ic) ? 1 : 0;
+        (*diff_wei_trans_kernel_)(&p);
+    }
+}
+
 void jit_avx512_core_amx_convolution_bwd_weights_t::
         reduce_and_convert_diff_weights_and_bias(
                 const thread_info_t *ti) const {
@@ -1755,31 +1777,11 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::
     const bool is_bf16_out = diff_weights_d.data_type() == data_type::bf16;
     const bool is_bf16_bias = jcp.with_bias && jcp.bia_dt == data_type::bf16;
 
-    auto store_in_vnni_format = [&]() {
-        for_(int g = ti->g_start; g < ti->g_end; g++)
-        for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; oc_b++)
-        for_(int ic_b = ti->ic_b_start; ic_b < ti->ic_b_start + ti->ic_b_work;
-                ic_b += 2)
-        {
-            jit_conv_call_s p = jit_conv_call_s();
-
-            bfloat16_t *output = (bfloat16_t *)ti->diff_weights
-                    + wei_offset_ext(g, oc_b, (ic_b / 2), 0);
-            float *input
-                    = ti->wei_bia_reduction + wei_offset_int(g, oc_b, ic_b, 0);
-
-            p.src = (void *)input;
-            p.dst = (void *)output;
-            p.last_ic_block = ((ic_b + 1) >= jcp.nb_ic) ? 1 : 0;
-            (*diff_wei_trans_kernel_)(&p);
-        }
-    };
-
     if (nthr_mb_ == 1) {
         if (is_bf16_out) {
             // reduction is not required, only conversion
             if (jcp.transform_to_vnni) {
-                store_in_vnni_format();
+                store_in_vnni_format(ti);
             } else {
                 for_(int g = ti->g_start; g < ti->g_end; g++)
                 for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; oc_b++) {
@@ -1898,11 +1900,9 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::
         }
     }
 
-    if (jcp.transform_to_vnni) {
-        // TODO: double check if a barrier is needed here
-        if (jcp.global_transpose)
-            simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
-        store_in_vnni_format();
+    if (jcp.transform_to_vnni && jcp.global_transpose) {
+        simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
+        store_in_vnni_format(ti);
     }
 }
 
@@ -1997,6 +1997,14 @@ void jit_avx512_core_amx_convolution_bwd_weights_t::execute_backward_weights(
             assert(nthr_ == nthr);
             thread_info_t thread_info(this, ctx, ithr);
             reduce_and_convert_diff_weights_and_bias(&thread_info);
+        });
+    }
+
+    if (jcp.transform_to_vnni && !jcp.global_transpose) {
+        parallel(nthr_, [&](const int ithr, const int nthr) {
+            assert(nthr_ == nthr);
+            thread_info_t thread_info(this, ctx, ithr);
+            store_in_vnni_format(&thread_info);
         });
     }
 

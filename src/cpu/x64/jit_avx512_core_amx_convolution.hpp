@@ -262,6 +262,7 @@ private:
     void compute_diff_weights_3d(const thread_info_t *) const;
     void compute_diff_weights(const thread_info_t *) const;
     void reduce_and_convert_diff_weights_and_bias(const thread_info_t *) const;
+    void store_in_vnni_format(const thread_info_t *) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
