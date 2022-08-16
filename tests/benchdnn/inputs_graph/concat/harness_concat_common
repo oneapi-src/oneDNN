@@ -2,6 +2,7 @@
 --stag=nchw:nchw             --axis=1 64x128x28x28:64x128x28x28
                              --axis=0 1x4096x14x14:1x4096x14x14
 --stag=nchw:nchw:nchw        --axis=3 8x16x384x64:8x16x384x384:8x16x384x384
+--stag=nchw:nchw:nchw        --axis=3 8x16x384x64:8x16x384x384:8x16x384x0
 
 --dtag=nhwc
 --stag=nhwc:nhwc:nhwc        --axis=0 1x128x150x150:1x128x150x150:1x128x150x150

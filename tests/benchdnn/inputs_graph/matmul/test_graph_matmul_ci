@@ -36,3 +36,7 @@
 --attr-fpmath=strict,bf16,tf32 
 --attr-post-ops=mul:f32 
 8x6x197x64:8x6x64x197:8x6x197x197
+
+# 0-sized dimension input
+--reset
+384x4096:4096x0:384x0
