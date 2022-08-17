@@ -51,14 +51,14 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             && one_of(dst_dt, u8, s8, s32, f32, bf16);
     const bool is_bf16
             = everyone_is(bf16, src_dt, wei_dt) && one_of(dst_dt, bf16, f32);
+    const bool is_f16
+            = everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32);
 
     auto check_bias = [&]() -> bool {
+        const auto bia_dt = weights_md(1)->data_type;
         const bool is_bia_dt_correct
-                = (is_int8
-                          && one_of(weights_md(1)->data_type, f32, s32, s8, u8,
-                                  bf16))
-                || (is_bf16 && one_of(weights_md(1)->data_type, f32, bf16))
-                || (is_f32 && weights_md(1)->data_type == f32);
+                = IMPLICATION(is_int8, one_of(bia_dt, f32, s32, s8, u8, bf16))
+                && IMPLICATION(!is_int8, one_of(bia_dt, f32, src_dt));
         return IMPLICATION(with_bias(), is_bia_dt_correct && is_bias_1xN());
     };
 
@@ -71,9 +71,10 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     auto check_attr_zero_points
             = [&]() -> bool { return attr()->zero_points_.common(); };
 
-    const bool problem_dt_correct = is_int8 || is_bf16 || is_f32;
-    bool ok = mayiuse(isa) && problem_dt_correct && !has_zero_dim_memory()
-            && !has_runtime_dims_or_strides()
+    const bool problem_dt_correct = is_int8 || is_bf16 || is_f32 || is_f16;
+    bool ok = mayiuse(isa) && problem_dt_correct
+            && IMPLICATION(is_f16, isa == avx512_core_fp16)
+            && !has_zero_dim_memory() && !has_runtime_dims_or_strides()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
@@ -578,8 +579,12 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
-
-        (*copy_B_kernel_)(&ctx);
+        if (bgmmc.blocked_B && isa == avx512_core_fp16) {
+            cvt_float16_to_float((float *)ctx.tr_src, (float16_t *)ctx.src,
+                    bgmmc.wei_n_blk * ctx.current_K_iters);
+        } else {
+            (*copy_B_kernel_)(&ctx);
+        }
     }
 
     if (is_K_tail) {
@@ -590,8 +595,12 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
-
-        (*copy_B_kernel_)(&ctx);
+        if (bgmmc.blocked_B && isa == avx512_core_fp16) {
+            cvt_float16_to_float((float *)ctx.tr_src, (float16_t *)ctx.src,
+                    bgmmc.wei_n_blk * ctx.current_K_iters);
+        } else {
+            (*copy_B_kernel_)(&ctx);
+        }
     }
 }
 
@@ -1090,6 +1099,7 @@ private:
 
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;
 template struct brgemm_matmul_t<avx512_core_bf16_amx_bf16>;
+template struct brgemm_matmul_t<avx512_core_fp16>;
 template struct brgemm_matmul_t<avx512_core_bf16>;
 template struct brgemm_matmul_t<avx512_core_vnni>;
 template struct brgemm_matmul_t<avx512_core>;
