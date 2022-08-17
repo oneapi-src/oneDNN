@@ -13,7 +13,7 @@ on the engine kind:
 | API                                                                                  | `dnnl::engine::kind::cpu`              | `dnnl::engine::kind::gpu`                  |
 | ------------------------------------------------------------------------------------ | -------------------------------------- | ------------------------------------------ |
 | dnnl::engine(engine::kind, int)                                                      | DPC++ devices: CPU (OpenCL)            | DPC++ devices: GPU (OpenCL and Level Zero) |
-| dnnl::sycl_interop::make_engine(const cl::sycl::device &, const cl::sycl::context &) | DPC++ devices: CPU (OpenCL) and host   | DPC++ devices: GPU (OpenCL and Level Zero) |
+| dnnl::sycl_interop::make_engine(const sycl::device &, const sycl::context &) | DPC++ devices: CPU (OpenCL) and host   | DPC++ devices: GPU (OpenCL and Level Zero) |
 
 The host device in DPC++ does not require a backend and is implemented in the
 DPC++ runtime directly.

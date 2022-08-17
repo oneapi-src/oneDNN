@@ -90,13 +90,13 @@ gpu::sycl::sycl_in_memory_arg_t sycl_usm_memory_storage_t::get_in_memory_arg(
 }
 
 gpu::sycl::sycl_out_memory_arg_t sycl_usm_memory_storage_t::get_out_memory_arg(
-        stream_t *stream, cl::sycl::handler &cgh) const {
+        stream_t *stream, ::sycl::handler &cgh) const {
     return get_memory_arg<::sycl::access::mode::write>(this, stream, cgh);
 }
 
 gpu::sycl::sycl_inout_memory_arg_t
 sycl_usm_memory_storage_t::get_inout_memory_arg(
-        stream_t *stream, cl::sycl::handler &cgh) const {
+        stream_t *stream, ::sycl::handler &cgh) const {
     return get_memory_arg<::sycl::access::mode::read_write>(this, stream, cgh);
 }
 

@@ -108,11 +108,11 @@ public:
     }
 
     gpu::sycl::sycl_in_memory_arg_t get_in_memory_arg(
-            stream_t *stream, cl::sycl::handler &cgh) const override;
+            stream_t *stream, ::sycl::handler &cgh) const override;
     gpu::sycl::sycl_out_memory_arg_t get_out_memory_arg(
-            stream_t *stream, cl::sycl::handler &cgh) const override;
+            stream_t *stream, ::sycl::handler &cgh) const override;
     gpu::sycl::sycl_inout_memory_arg_t get_inout_memory_arg(
-            stream_t *stream, cl::sycl::handler &cgh) const override;
+            stream_t *stream, ::sycl::handler &cgh) const override;
 
 protected:
     status_t init_allocate(size_t size) override {
