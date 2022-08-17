@@ -195,7 +195,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
 }
 
 static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-        const rnn_conf_t &conf, const rnn_offsets_t &off) {
+        const rnn_conf_t &conf, const rnn_offsets_t &off, int subgroup_size) {
 
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
     kernel_ctx.define_int("IS_TRAINING", conf.is_training);
@@ -245,6 +245,8 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("N_PARTS_WEI_ST", conf.n_parts_weights_iter);
     kernel_ctx.define_int("N_PARTS_WEI_I", conf.n_parts_weights_layer);
+
+    kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
 
     def_offsets(off.src_layer_off, kernel_ctx, "SRC_L", conf.src_layer_ndims);
     def_offsets(off.src_iter_off, kernel_ctx, "SRC_I", conf.src_iter_ndims);
@@ -457,6 +459,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             = utils::downcast<const compute::compute_engine_t *>(engine);
 
     is_xe_hpc = compute_engine->is_xe_hpc();
+    subgroup_size = compute_engine->device_info()->max_subgroup_size();
+    max_eus_per_wg = compute_engine->device_info()->max_eus_per_wg();
 
     const alg_kind_t cell_kind = this->desc()->cell_kind;
 
@@ -803,7 +807,8 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
             = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
 
     compute::kernel_ctx_t kernel_ctx;
-    status_t status = init_kernel_ctx(kernel_ctx, pd()->conf, pd()->off);
+    status_t status = init_kernel_ctx(
+            kernel_ctx, pd()->conf, pd()->off, pd()->subgroup_size);
     CHECK(status);
 
     std::vector<const char *> kernel_names

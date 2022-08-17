@@ -23,7 +23,7 @@ namespace ocl {
 
 template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
-    auto nd_range = compute::nd_range_t({dhc, batch});
+    auto nd_range = get_nd_range({dhc, batch});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
@@ -48,7 +48,7 @@ template elemwise_sig(ref_rnn_bwd_t::rnn_elemwise);
 
 template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
-    auto nd_range = compute::nd_range_t({dhc, batch});
+    auto nd_range = get_nd_range({dhc, batch});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
@@ -73,7 +73,7 @@ template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise);
 
 template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
-    auto nd_range = compute::nd_range_t({dhc, batch});
+    auto nd_range = get_nd_range({dhc, batch});
 
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
@@ -100,7 +100,7 @@ template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
 
 template <prop_kind_t aprop>
 elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
-    auto nd_range = compute::nd_range_t({dhc, batch});
+    auto nd_range = get_nd_range({dhc, batch});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
@@ -125,7 +125,7 @@ template elemwise_sig_gru_lbr(ref_rnn_bwd_t::gru_lbr_elemwise);
 
 template <prop_kind_t aprop>
 elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
-    auto nd_range = compute::nd_range_t({dhc, batch});
+    auto nd_range = get_nd_range({dhc, batch});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_

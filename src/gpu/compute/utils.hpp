@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,6 +67,22 @@ public:
             global_range_[i] = (i < n) ? *(global_range.begin() + i) : 1;
             if (with_local_range_) {
                 local_range_[i] = (i < n) ? *(local_range.begin() + i) : 1;
+            }
+        }
+    }
+
+    template <typename int_type>
+    nd_range_t(const std::vector<int_type> &global_range,
+            const std::vector<int_type> &local_range = {}) {
+        with_local_range_ = (local_range.size() > 0);
+        if (with_local_range_) {
+            assert(global_range.size() == local_range.size());
+        }
+        size_t n = global_range.size();
+        for (size_t i = 0; i < 3; i++) {
+            global_range_[i] = (i < n) ? global_range[i] : 1;
+            if (with_local_range_) {
+                local_range_[i] = (i < n) ? local_range[i] : 1;
             }
         }
     }

@@ -106,6 +106,8 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         data_type_t src_type;
         data_type_t weights_type;
         bool is_xe_hpc;
+        int subgroup_size;
+        int max_eus_per_wg;
 
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
@@ -183,6 +185,24 @@ protected:
 private:
     status_t execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    compute::nd_range_t get_nd_range(std::vector<int> gws) const {
+        // Try to schedule one local thread per eu
+        int subgroup_size = pd()->subgroup_size;
+        int lws_max = pd()->max_eus_per_wg * subgroup_size;
+        std::vector<int> lws;
+        lws.reserve(gws.size());
+        for (int i = 0; i < gws.size(); i++) {
+            int l_dim = 2 * gws[i] < lws_max ? utils::rnd_up_pow2(gws[i])
+                                             : lws_max;
+            if (i == 0 && l_dim < subgroup_size) l_dim = subgroup_size;
+            lws.emplace_back(l_dim);
+            gws[i] = utils::rnd_up(gws[i], l_dim);
+            lws_max = lws_max / l_dim;
+        }
+
+        return compute::nd_range_t(gws, lws);
+    }
 
     // set the class names
     grid_execution_sig(linear_execution);
