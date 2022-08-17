@@ -349,11 +349,25 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
 
     const auto &tensor_dims = std::get<0>(GetParam());
     const auto format_tag = std::get<2>(GetParam());
+    const auto &binary_po_mem_dt = std::get<3>(GetParam());
 
-    auto src_md = memory::desc(tensor_dims, memory::data_type::u8, format_tag);
-    auto weights_md
-            = memory::desc(tensor_dims, memory::data_type::s8, format_tag);
-    auto dst_md = memory::desc(tensor_dims, memory::data_type::s8, format_tag);
+    SKIP_IF(unsupported_data_type(binary_po_mem_dt),
+            "Engine does not support this data type.");
+
+    // Currently, f16 binary post-ops are only supported for f16 primitive.
+    const auto src_dt = binary_po_mem_dt == memory::data_type::f16
+            ? memory::data_type::f16
+            : memory::data_type::u8;
+    const auto wei_dt = binary_po_mem_dt == memory::data_type::f16
+            ? memory::data_type::f16
+            : memory::data_type::s8;
+    const auto dst_dt = binary_po_mem_dt == memory::data_type::f16
+            ? memory::data_type::f16
+            : memory::data_type::s8;
+
+    auto src_md = memory::desc(tensor_dims, src_dt, format_tag);
+    auto weights_md = memory::desc(tensor_dims, wei_dt, format_tag);
+    auto dst_md = memory::desc(tensor_dims, dst_dt, format_tag);
     auto bia_md = memory::desc();
 
     auto matmul_d = matmul::desc(src_md, weights_md, bia_md, dst_md);
@@ -378,9 +392,6 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
     ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
 
     const auto &binary_po_tensor_dims = std::get<1>(GetParam());
-    const auto &binary_po_mem_dt = std::get<3>(GetParam());
-    SKIP_IF(unsupported_data_type(binary_po_mem_dt),
-            "Engine does not support this data type.");
     memory::desc src1_po_md(
             binary_po_tensor_dims, binary_po_mem_dt, format_tag);
     ops.append_binary(algorithm::binary_add, src1_po_md);

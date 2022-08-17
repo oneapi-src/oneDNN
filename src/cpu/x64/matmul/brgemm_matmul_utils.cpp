@@ -121,6 +121,7 @@ status_t check_isa_with_datatype(
                     one_of(isa, avx512_core_bf16_amx_int8, avx512_core_vnni))
             && IMPLICATION(bm_conf_utils.is_bf16(),
                     one_of(isa, avx512_core_bf16_amx_bf16, avx512_core_bf16))
+            && IMPLICATION(bm_conf_utils.is_f16(), isa == avx512_core_fp16)
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
                     mayiuse(avx512_core_vnni));
     return ok ? status::success : status::unimplemented;
@@ -134,6 +135,8 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , f32_dt(utils::everyone_is(f32, bgmmc.src_dt, bgmmc.wei_dt, bgmmc.dst_dt))
     , bf16_dt(utils::everyone_is(bf16, bgmmc.src_dt, bgmmc.wei_dt)
               && one_of(bgmmc.dst_dt, bf16, f32))
+    , f16_dt(utils::everyone_is(f16, bgmmc.src_dt, bgmmc.wei_dt)
+              && one_of(bgmmc.dst_dt, f16, f32))
     , int8_dt(utils::one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
               && one_of(bgmmc.dst_dt, u8, s8, s32, f32, bf16))
     , bf32_dt(f32_dt && attr.fpmath_mode_ == fpmath_mode::bf16
@@ -156,7 +159,7 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
               blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
               blocked_32n_B_layout_tag, blocked_16n_B_layout_tag))
     , n_blk_fixed((!B_any_layout) && blocked_B_layouts_allowed) {
-    assert(int8_dt || bf16_dt || f32_dt || bf32_dt);
+    assert(int8_dt || bf16_dt || f16_dt || f32_dt || bf32_dt);
 }
 
 status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
@@ -226,7 +229,8 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
         CHECK(memory_desc_init_by_tag(A_md, desired_A_tag));
         bgmmc.src_tag = desired_A_tag;
     } else {
-        bgmmc.src_tag = (this->is_bf16() || this->is_f32() || this->is_bf32())
+        bgmmc.src_tag = (this->is_bf16() || this->is_f32() || this->is_bf32()
+                                || this->is_f16())
                 ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd, adbc)
                 : memory_desc_matches_one_of_tag(
@@ -526,7 +530,7 @@ struct matmul_avx512_blocking_params_t {
                 bgmmc.acc_dt, bgmmc.dst_dt, bgmmc.with_sum);
         bgmmc.LDA = (bgmmc.src_tag == acbd && !bgmmc.use_buffer_a
                         ? bgmmc.A_strides[1] / bgmmc.a_dt_sz
-                        : get_actual_lda(bgmmc.use_buffer_a, bgmmc.a_dt_sz));
+                        : get_actual_lda(bgmmc.use_buffer_a, bgmmc.tr_a_dt_sz));
     }
 };
 
@@ -836,6 +840,12 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         bgmmc.wei_dt = bf16;
         bgmmc.tr_a_dt_sz = types::data_type_size(bf16);
         bgmmc.tr_b_dt_sz = types::data_type_size(bf16);
+    } else if (bm_conf_utils.is_f16()) {
+        // Similar to bf32, convert input data before compute
+        bgmmc.src_dt = f32;
+        bgmmc.wei_dt = f32;
+        bgmmc.tr_a_dt_sz = types::data_type_size(f32);
+        bgmmc.tr_b_dt_sz = types::data_type_size(f32);
     }
 
     bgmmc.acc_dt = bm_conf_utils.is_int8() ? s32 : f32;
@@ -920,6 +930,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             = (bgmmc.is_amx
                       && ((bgmmc.K % bgmmc.required_k_granularity != 0)
                               || bm_conf_utils.is_bf32()))
+            || bm_conf_utils.is_f16()
             || bgmmc.wei_zp_type != brgemm_broadcast_t::none
             || bgmmc.transposed_A || lda_is_big_2pow;
     bgmmc.use_buffer_a = is_copy_a_required;
@@ -1014,8 +1025,8 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     bgmmc.buffer_a_per_thread_sz
             = bgmmc.buffer_a_chunk_shift_along_m * bgmmc.M_chunk_size;
 
-    bgmmc.buffer_b_chunk_sz
-            = bgmmc.b_dt_sz * bgmmc.LDB * rnd_up(bgmmc.K_blk, bgmmc.wei_k_blk);
+    bgmmc.buffer_b_chunk_sz = bgmmc.tr_b_dt_sz * bgmmc.LDB
+            * rnd_up(bgmmc.K_blk, bgmmc.wei_k_blk);
     bgmmc.buffer_b_per_thread_sz
             = bgmmc.buffer_b_chunk_sz * bgmmc.brgemm_batch_size;
 

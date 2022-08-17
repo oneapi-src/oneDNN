@@ -208,7 +208,8 @@ struct brgemm_matmul_conf_utils_t {
         bool is_pow2 = math::is_pow2(bgmmc.N);
         bool use_copy_buffer = IMPLICATION(
                 this->is_f32(), use_heuristic && (big_LDB && is_pow2));
-        return (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
+        return this->is_f16()
+                || (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
                 || this->check_is_transposed(bgmmc.wei_tag)
                 || (bgmmc.wei_tag == format_tag::acbd)
                 || (bgmmc.wei_tag == format_tag::adbc);
@@ -246,6 +247,8 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_bf16() const { return bf16_dt; }
 
+    inline bool is_f16() const { return f16_dt; }
+
     inline bool is_int8() const { return int8_dt; }
 
     inline bool is_bf32() const { return bf32_dt; }
@@ -271,7 +274,7 @@ struct brgemm_matmul_conf_utils_t {
 private:
     brgemm_matmul_conf_t &bgmmc;
 
-    const bool f32_dt, bf16_dt, int8_dt, bf32_dt;
+    const bool f32_dt, bf16_dt, f16_dt, int8_dt, bf32_dt;
     const bool A_any_layout;
     const bool B_any_layout;
     const bool C_any_layout;
