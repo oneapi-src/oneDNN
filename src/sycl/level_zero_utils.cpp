@@ -27,7 +27,6 @@
 #error "Level Zero is supported on Linux and Windows only"
 #endif
 
-#include <CL/sycl.hpp>
 #include <level_zero/ze_api.h>
 
 #if !defined(__SYCL_COMPILER_VERSION)

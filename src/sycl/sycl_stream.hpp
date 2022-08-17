@@ -41,7 +41,6 @@
 #include <memory>
 #include <utility>
 #include <CL/cl.h>
-#include <CL/sycl.hpp>
 
 namespace dnnl {
 namespace impl {

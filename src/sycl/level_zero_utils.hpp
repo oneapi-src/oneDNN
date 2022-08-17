@@ -21,8 +21,6 @@
 #include <string>
 #include <vector>
 
-#include <CL/sycl.hpp>
-
 #include "gpu/compute/kernel.hpp"
 #include "sycl/sycl_compat.hpp"
 

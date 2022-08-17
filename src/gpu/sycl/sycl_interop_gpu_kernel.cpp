@@ -14,13 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/sycl.hpp>
-
+#include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/profile.hpp"
-#include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
 #include "gpu/zero_pad_struct.h"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/profile.hpp"

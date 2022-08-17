@@ -17,8 +17,6 @@
 #include "sycl/sycl_buffer_memory_storage.hpp"
 #include "sycl/sycl_engine_base.hpp"
 
-#include <CL/sycl.hpp>
-
 #include "common/guard_manager.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"

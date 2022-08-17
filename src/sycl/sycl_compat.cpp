@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/sycl.hpp>
 #include <level_zero/ze_api.h>
 #include <type_traits>
 

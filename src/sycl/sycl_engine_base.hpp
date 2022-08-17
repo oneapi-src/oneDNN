@@ -19,8 +19,6 @@
 
 #include <memory>
 
-#include <CL/sycl/backend/opencl.hpp>
-
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/memory_storage.hpp"
@@ -36,8 +34,6 @@
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
 #include "sycl/sycl_engine_id.hpp"
 #endif
-
-#include <CL/sycl.hpp>
 
 namespace dnnl {
 namespace impl {

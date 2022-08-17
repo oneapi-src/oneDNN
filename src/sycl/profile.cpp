@@ -16,7 +16,6 @@
 
 #include <mutex>
 #include <vector>
-#include <CL/sycl.hpp>
 
 #include "sycl/profile.hpp"
 

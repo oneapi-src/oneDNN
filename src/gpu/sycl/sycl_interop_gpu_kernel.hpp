@@ -19,9 +19,9 @@
 
 #include <assert.h>
 #include <string>
-#include <CL/sycl.hpp>
 
 #include "gpu/compute/compute.hpp"
+#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {

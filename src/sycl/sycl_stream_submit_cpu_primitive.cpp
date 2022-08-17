@@ -33,7 +33,6 @@
 #include <exception>
 #include <tuple>
 #include <vector>
-#include <CL/sycl.hpp>
 
 namespace dnnl {
 namespace impl {
