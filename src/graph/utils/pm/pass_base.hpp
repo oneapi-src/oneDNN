@@ -46,29 +46,8 @@ using pass_base_ptr = std::shared_ptr<pass_base>;
 
 // FCreatePattern: a function for defining pattern.
 // One pass can have several FCreatePattern functions.
-using FCreatePattern = std::function<void(pattern *apattern)>;
-
-// FCreateV2Pattern: a function for defining pattern.
-// One pass can have several FCreateV2Pattern functions.
-using FCreateV2Pattern
+using FCreatePattern
         = std::function<void(const std::shared_ptr<pb_graph_t> &pattern_graph)>;
-
-// FCreateOptPattern: a function for defining optimized pattern,
-// which is used in the graph rewriting part to rewrite the pattern
-// to optimized pattern.
-// One pass can only have one FCreateOptPattern function.
-using FCreateOptPattern = std::function<void(pattern *opt_pattern)>;
-
-// FCreateV2FusedOp: a function for defining fused op,
-// which is used in the graph rewriting part to rewrite the pattern
-// to a fused op.
-// One pass can only have one FCreateV2FusedOp function.
-using FCreateV2FusedOp = std::function<std::shared_ptr<op_t>()>;
-
-// FRequirement: a function to check if a graph op can meet the
-// requirement of a pattern op
-// One pattern op can have several FRequirement function.
-using FRequirement = std::function<bool(op_t *graph_op)>;
 
 class pattern {
 private:

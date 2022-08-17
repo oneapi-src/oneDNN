@@ -111,8 +111,8 @@ public:
             return;
 
         // we can have only one optimized pattern
-        std::vector<graph::pass::FCreateV2Pattern> pfuncs
-                = get_attr<graph::pass::FCreateV2Pattern>("FCreateV2Pattern");
+        std::vector<graph::pass::FCreatePattern> pfuncs
+                = get_attr<graph::pass::FCreatePattern>("FCreatePattern");
 
         FCreateKernel kernel_creator
                 = get_attr<FCreateKernel>("FCreateKernel")[0];

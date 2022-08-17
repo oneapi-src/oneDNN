@@ -47,9 +47,8 @@ public:
 
     // the criteria of pass execution
     void run(graph_t &agraph) override {
-        graph::pass::FCreateV2Pattern pfunc
-                = get_attr<graph::pass::FCreateV2Pattern>(
-                        "FCreateV2Pattern")[0];
+        graph::pass::FCreatePattern pfunc
+                = get_attr<graph::pass::FCreatePattern>("FCreatePattern")[0];
         pattern_utils_t pu;
         std::shared_ptr<utils::pm::pb_graph_t> pgraph
                 = std::make_shared<utils::pm::pb_graph_t>("pgraph");

@@ -31,7 +31,7 @@ namespace pattern {
 namespace pm = graph::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2Pattern = graph::pass::FCreateV2Pattern;
+using FCreatePattern = graph::pass::FCreatePattern;
 
 bool check_if_constant_weight(op_t *op) {
     const auto &in_value = op->get_input_value(0);
@@ -50,7 +50,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(matmul_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, matmul_post_ops_chain_fusion)
         .set_priority(8.8f)
         .set_kind(partition_kind::matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *pmatmul
                             = pgraph->append_op(graph::op_kind::MatMul);
@@ -105,7 +105,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, matmul_bias_post_ops_chain_fusion)
         .set_priority(8.9f)
         .set_kind(partition_kind::matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *pmatmul
                             = pgraph->append_op(graph::op_kind::MatMul);
@@ -155,7 +155,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *pmatmul
                             = pgraph->append_op(graph::op_kind::MatMul);
@@ -214,7 +214,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -244,7 +244,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -297,7 +297,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(9.9f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "dequant_data");
@@ -396,7 +396,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(9.9f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "dequant_data");
@@ -496,7 +496,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -538,7 +538,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -597,7 +597,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.4f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -715,7 +715,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.4f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -829,7 +829,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
         .set_priority(5.0f)
         .set_kind(partition_kind::quantized_mha)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto query_reshape = pgraph->append_op(
                             graph::op_kind::StaticReshape, "query_reshape");
@@ -916,7 +916,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
         .set_priority(20.0f)
         .set_kind(partition_kind::mha)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto query_reshape = pgraph->append_op(
                             graph::op_kind::StaticReshape, "query_reshape");
@@ -1014,7 +1014,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bf16_MHA_fusion)
         .set_priority(5.0f)
         .set_kind(partition_kind::quantized_mha)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto query_reshape = pgraph->append_op(
                             graph::op_kind::StaticReshape, "query_reshape");
@@ -1139,7 +1139,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -1178,7 +1178,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_matmul_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);

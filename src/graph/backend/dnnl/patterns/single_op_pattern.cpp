@@ -27,7 +27,7 @@ namespace dnnl_impl {
 namespace pattern {
 
 using pb_graph_t = graph::utils::pm::pb_graph_t;
-using FCreateV2Pattern = graph::pass::FCreateV2Pattern;
+using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(single_op_pass)
 
@@ -36,7 +36,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(single_op_pass)
     DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pname) \
             .set_priority(p) \
             .set_kind(partition_kind::misc_post_ops) \
-            .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
+            .set_attr<FCreatePattern>("FCreatePattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
                         pgraph->append_op(graph::op_kind::op); \
                     }) \
@@ -148,7 +148,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, Reorder, float_reorder, 8.f)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_pass)
         .set_priority(8.f)
         .set_kind(partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *p_interpolate
                             = pgraph->append_op(graph::op_kind::Interpolate,
@@ -162,7 +162,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_pass)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_bwd_pass)
         .set_priority(8.f)
         .set_kind(partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *p_interpolate_bwd
                             = pgraph->append_op(
@@ -195,7 +195,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_bwd_pass)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, typecast_pass)
         .set_priority(8.f)
         .set_kind(partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *p_tc = pgraph->append_op(
                             graph::op_kind::TypeCast, "p-typecast");
@@ -209,7 +209,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, typecast_pass)
 #define DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(pname, bname, op, p) \
     DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(bname, pname) \
             .set_priority(p) \
-            .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
+            .set_attr<FCreatePattern>("FCreatePattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
                         graph::utils::pm::pb_op_t *reduction \
                                 = pgraph->append_op(graph::op_kind::op); \
@@ -246,7 +246,7 @@ DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceSum, 8.f)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_pass)
         .set_priority(8.f)
         .set_kind(partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *softplus = pgraph->append_op(
                             graph::op_kind::SoftPlus, "softplus");
@@ -259,7 +259,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_pass)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_bw_pass)
         .set_priority(8.f)
         .set_kind(partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *softplus_bw = pgraph->append_op(
                             graph::op_kind::SoftPlusBackprop, "softplus_bw");

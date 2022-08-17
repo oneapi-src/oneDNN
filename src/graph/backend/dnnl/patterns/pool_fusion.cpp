@@ -30,14 +30,14 @@ namespace pattern {
 namespace pm = graph::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2Pattern = graph::pass::FCreateV2Pattern;
+using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(pool_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
         .set_priority(9.9f)
         .set_kind(partition_kind::pooling_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto ppool = pgraph->append_alternation(
                             {graph::op_kind::AvgPool, graph::op_kind::MaxPool},
@@ -69,7 +69,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_cpu)
         .set_priority(10.0f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_pooling_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto pdequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "pdequnt_data");
@@ -105,7 +105,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_gpu)
         .set_priority(10.0f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_pooling_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto pdequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "pdequnt_data");

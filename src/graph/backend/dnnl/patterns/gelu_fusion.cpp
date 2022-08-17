@@ -28,13 +28,13 @@ namespace pattern {
 namespace pm = graph::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2Pattern = graph::pass::FCreateV2Pattern;
+using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(gelu_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, gelu_fusion)
         .set_kind(partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto pow = pgraph->append_op(graph::op_kind::Pow, "pow");
                     auto multiply_1
@@ -55,7 +55,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, gelu_fusion)
                     pgraph->append_op(graph::op_kind::Multiply,
                             {in_edge(0, multiply_3, 0)}, "multiply_4");
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto div = pgraph->append_op(graph::op_kind::Divide, "div");
                     auto erf = pgraph->append_op(

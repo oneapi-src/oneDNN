@@ -28,14 +28,14 @@ namespace pattern {
 namespace pm = graph::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2Pattern = graph::pass::FCreateV2Pattern;
+using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(bn_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
         .set_priority(8.8f)
         .set_kind(partition_kind::batch_norm_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bn = pgraph->append_op(
                             graph::op_kind::BatchNormInference);
@@ -49,7 +49,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bwd_relu_bwd_fusion)
         .set_priority(8.8f)
         .set_kind(partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto relu_bwd
                             = pgraph->append_op(graph::op_kind::ReLUBackprop);

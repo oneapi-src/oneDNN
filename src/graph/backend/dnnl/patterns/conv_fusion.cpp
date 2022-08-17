@@ -31,7 +31,7 @@ namespace pattern {
 namespace pm = graph::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2Pattern = graph::pass::FCreateV2Pattern;
+using FCreatePattern = graph::pass::FCreatePattern;
 
 namespace {
 template <bool GROUPED>
@@ -341,7 +341,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
         .set_priority(10.2f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *conv
                             = pgraph->append_op(graph::op_kind::Convolution);
@@ -387,7 +387,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "dequant_data");
@@ -500,7 +500,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "dequant_data");
@@ -635,7 +635,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "dequant_data");
@@ -731,7 +731,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "dequant_data");
@@ -856,7 +856,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_cpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -941,7 +941,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
@@ -1022,7 +1022,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_simple_resblock_fusion)
         .set_priority(5.f) // low priority to avoid current functionality
         .set_kind(partition_kind::residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *conv0
                             = pgraph->append_op(graph::op_kind::Convolution);
@@ -1057,7 +1057,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, conv_bias_relu_conv_bias_relu_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(partition_kind::residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *relu0 = conv_bias_relu(pgraph, nullptr);
                     conv_bias_relu(pgraph, relu0);
@@ -1070,7 +1070,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, conv_bias_relu_conv_bias_add_relu_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(partition_kind::residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *relu0 = conv_bias_relu(pgraph, nullptr);
                     conv_bias_add_relu(pgraph, relu0, nullptr);
@@ -1083,11 +1083,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, identical_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(partition_kind::residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     identical_bottleneck_resblock(pgraph, nullptr);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     identical_bottleneck_resblock(pgraph, nullptr, false, true);
                 })
@@ -1099,11 +1099,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, convolutional_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(partition_kind::residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     convolutional_bottleneck_resblock(pgraph, nullptr);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     convolutional_bottleneck_resblock(
                             pgraph, nullptr, false, true);
@@ -1117,7 +1117,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_conv_bias_relu_conv_bias_relu_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *quant_dst0
                             = int8_conv_bias_relu(pgraph, nullptr);
@@ -1131,11 +1131,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_identical_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     int8_identical_bottleneck_resblock(pgraph, nullptr);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     int8_identical_bottleneck_resblock(
                             pgraph, nullptr, false, true);
@@ -1148,11 +1148,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl,
         int8_convolutional_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     int8_convolutional_bottleneck_resblock(pgraph, nullptr);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     int8_convolutional_bottleneck_resblock(
                             pgraph, nullptr, false, true);
@@ -1165,7 +1165,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_resnet50_stage_1_4_fusion)
         .set_priority(22.f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1173,7 +1173,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     output = int8_identical_bottleneck_resblock(pgraph, output);
                     output = int8_identical_bottleneck_resblock(pgraph, output);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1190,7 +1190,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_2_fusion)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1200,7 +1200,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_2_fusion)
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1218,7 +1218,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_2_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_3_fusion)
         .set_priority(22.2f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1228,7 +1228,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_3_fusion)
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1246,7 +1246,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_resnet34_stage_1_4_fusion)
         .set_priority(22.f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_identical_basic_resblock(pgraph, nullptr);
@@ -1260,7 +1260,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_2_fusion)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_basic_resblock(pgraph, nullptr);
@@ -1276,7 +1276,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_2_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_3_fusion)
         .set_priority(22.2f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_basic_resblock(pgraph, nullptr);
@@ -1293,14 +1293,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, f32_resnet50_stage_1_4_fusion)
         .set_priority(22.f) // high priority to support itex
         .set_kind(partition_kind::residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = convolutional_bottleneck_resblock(pgraph, nullptr);
                     output = identical_bottleneck_resblock(pgraph, output);
                     output = identical_bottleneck_resblock(pgraph, output);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = convolutional_bottleneck_resblock(
@@ -1317,7 +1317,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_2_fusion)
         .set_priority(22.1f) // high priority to support itex
         .set_kind(partition_kind::residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = convolutional_bottleneck_resblock(pgraph, nullptr);
@@ -1326,7 +1326,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_2_fusion)
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = identical_bottleneck_resblock(pgraph, output);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = convolutional_bottleneck_resblock(
@@ -1344,7 +1344,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_2_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_3_fusion)
         .set_priority(22.2f) // high priority to support itex
         .set_kind(partition_kind::residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = convolutional_bottleneck_resblock(pgraph, nullptr);
@@ -1352,7 +1352,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_3_fusion)
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = identical_bottleneck_resblock(pgraph, output);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = convolutional_bottleneck_resblock(
@@ -1371,7 +1371,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_1_fusion)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock_v2(
@@ -1390,7 +1390,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_2_fusion)
         .set_priority(22.2f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock_v2(
@@ -1410,7 +1410,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_3_fusion)
         .set_priority(22.3f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock_v2(
@@ -1428,7 +1428,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_4_fusion)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock_v2(
@@ -1456,7 +1456,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
         .set_priority(9.7f)
         .set_kind(partition_kind::convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *pconv
                             = pgraph->append_op(graph::op_kind::Convolution);
@@ -1537,7 +1537,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
         .set_priority(9.8f)
         .set_kind(partition_kind::convolution_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *conv = pgraph->append_op(
                             graph::op_kind::Convolution, "conv");
@@ -1601,7 +1601,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
                     pgraph->append_optional(
                             popt_tc_graph, {in_edge(0, prep, 0)}, "popt_tc");
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *conv = pgraph->append_op(
                             graph::op_kind::Convolution, "conv");
@@ -1671,7 +1671,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_enable(false)
         .set_kind(partition_kind::convolution_backprop_post_ops)
         .set_priority(9.7f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *wildcard = pgraph->append_op(
                             graph::op_kind::Wildcard, "pwild");
@@ -1694,7 +1694,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_enable(true)
         .set_priority(22.f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1704,7 +1704,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     output = int8_identical_bottleneck_resblock(
                             pgraph, output, true);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1727,7 +1727,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_enable(true)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1737,7 +1737,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, true);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1761,7 +1761,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_enable(true)
         .set_priority(22.2f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1771,7 +1771,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, true);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
@@ -1793,7 +1793,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_enable(true)
         .set_priority(23.f) // high priority to support lz models
         .set_kind(partition_kind::quantized_residual_conv_blocks)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     // stage 1
@@ -1821,7 +1821,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, true);
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *output = nullptr;
                     // stage 1

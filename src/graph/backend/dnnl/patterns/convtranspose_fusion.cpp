@@ -28,7 +28,7 @@ namespace pattern {
 namespace pm = graph::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2Pattern = graph::pass::FCreateV2Pattern;
+using FCreatePattern = graph::pass::FCreatePattern;
 
 bool check_scales_equal_to_1(op_t *op) {
     auto scales = op->get_attr<std::vector<float>>(op_attr::scales);
@@ -76,7 +76,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind::quantized_convtranspose_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "dequant_data");
@@ -178,7 +178,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind::quantized_convtranspose_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
                             graph::op_kind::Dequantize, "dequant_data");
@@ -282,7 +282,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, convtranspose_post_ops_fusion)
         .set_priority(10.4f)
         .set_kind(partition_kind::convtranspose_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     // convtranspose
                     auto convtranspose = pgraph->append_op(
