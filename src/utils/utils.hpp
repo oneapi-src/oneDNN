@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cassert>
 #include <climits>
+#include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -196,6 +197,14 @@ inline std::string thread_id_to_str(std::thread::id id) {
     std::stringstream ss;
     ss << id;
     return ss.str();
+}
+
+inline int div_and_ceil(float x, float y) {
+    return std::ceil(x / y);
+}
+
+inline int div_and_floor(float x, float y) {
+    return std::floor(x / y);
 }
 
 #define DNNL_GRAPH_DISALLOW_COPY_AND_ASSIGN(T) \

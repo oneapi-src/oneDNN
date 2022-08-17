@@ -697,9 +697,9 @@ status_t infer_pool_output_shape(op_t *n,
         dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
         dim_t out_value;
         if (rounding_type == "ceil") {
-            out_value = (padded - dilated - 1) / strides[i] + 2;
+            out_value = utils::div_and_ceil(padded - dilated, strides[i]) + 1;
         } else {
-            out_value = (padded - dilated) / strides[i] + 1;
+            out_value = utils::div_and_floor(padded - dilated, strides[i]) + 1;
         }
         output_sp.push_back(out_value);
     }
