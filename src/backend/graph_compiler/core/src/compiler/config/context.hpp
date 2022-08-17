@@ -43,6 +43,7 @@ struct scflags_t {
     brgemm_t brgemm_backend_ = brgemm_t::dnnl;
     bool kernel_optim_ = true;
     bool index2var_ = true;
+    bool tensor2var_ = true;
     bool print_ir_ = false;
     bool ssa_passes_ = false;
     bool brgemm_use_amx_ = false;

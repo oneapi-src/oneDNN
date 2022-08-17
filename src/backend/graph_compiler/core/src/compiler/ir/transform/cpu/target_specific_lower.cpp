@@ -26,6 +26,7 @@
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <microkernel/builtin.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
@@ -262,6 +263,7 @@ static func_t create_read_struct_func(const intrin_call_c &node) {
         expr util_tsr = builder::make_tensor("util_tsr", {1}, dtype);
         util_tsr->attr().set(attr_keys::tsr_dont_buf_sched, true);
         util_tsr->attr().set(attr_keys::no_dead_write, true);
+        util_tsr->attr().set(attr_keys::no_tensor2var, true);
         size_t offset = get_field_offset(name, field);
         builder::get_current_builder()->push_var_tensor_def(util_tsr,
                 linkage::local, builder::tensor_ptr(node->args_[0], {offset}));
@@ -287,6 +289,7 @@ static func_t create_write_struct_func(const intrin_call_c &node) {
                 dtype.is_pointer() ? datatypes::pointer : dtype);
         util_tsr->attr().set(attr_keys::tsr_dont_buf_sched, true);
         util_tsr->attr().set(attr_keys::no_dead_write, true);
+        util_tsr->attr().set(attr_keys::no_tensor2var, true);
         size_t offset = get_field_offset(name, field);
         builder::get_current_builder()->push_var_tensor_def(util_tsr,
                 linkage::local, builder::tensor_ptr(dyn_tsr, {offset}));

@@ -19,6 +19,7 @@
 #include <vector>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/ir_comparer.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/viewer.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -220,6 +221,12 @@ class indexing2var_impl_t : public ir_visitor_t {
             indexing_c v, bool is_read, tensor_cache_ptr &out_cache) {
         auto ret = ir_visitor_t::visit(std::move(v)).as<indexing_c>();
         auto tsr = ret->ptr_.as<tensor>();
+        if (tsr->attr_
+                && tsr->attr_->get_or_else(attr_keys::must_tensor2var, false)) {
+            // if the tensor is marked to be transformed to var, no need to
+            // optimize
+            return ret;
+        }
         auto itr = cached_index_.find(tsr);
         if (itr != cached_index_.end()) {
             // if the tensor is cached

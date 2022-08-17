@@ -23,6 +23,7 @@
 #include "dyn_tsr_transform.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/util_module_passes.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <microkernel/builtin.hpp>
@@ -64,6 +65,7 @@ static expr create_dyn_tsr_from_tensor(
         ndims = builder::make_constant({plain_dims.size()}, datatypes::s32);
         shape_tsr = builder::make_tensor(std::string("dyn_shape_") + name,
                 {plain_dims.size()}, datatypes::index);
+        shape_tsr->attr().set(attr_keys::no_tensor2var, true);
         int64_t etype = tsr->dtype_.is_etype_pointer()
                 ? tsr->dtype_.get_pointer_element().as_etype_int()
                 : tsr->dtype_.as_etype_int();
@@ -299,6 +301,8 @@ public:
                         auto dyn_shape_tsr = builder::make_tensor(
                                 std::string("dyn_shape_") + old_tsr->name_,
                                 {plain_dims.size()}, datatypes::index);
+                        dyn_shape_tsr->attr().set(
+                                attr_keys::no_tensor2var, true);
                         auto def = builder::make_var_tensor_def_unattached(
                                 dyn_shape_tsr, linkage::local,
                                 builder::make_read_struct(dyn_tsr,
@@ -317,6 +321,7 @@ public:
                     // base tensor define, may be tensor ptr
                     if (old_tsr.isa<tensor>()) {
                         old_tsr->attr().set(attr_keys::no_dead_write, true);
+                        old_tsr->attr().set(attr_keys::no_tensor2var, true);
                         auto def = builder::make_var_tensor_def_unattached(
                                 old_tsr, linkage::local,
                                 builder::make_read_struct(dyn_tsr,

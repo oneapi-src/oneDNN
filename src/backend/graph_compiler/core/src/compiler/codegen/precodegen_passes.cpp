@@ -44,6 +44,7 @@
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <compiler/ir/transform/simplify.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/transform/tensor_init.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/transform/value_numbering.hpp>
@@ -54,7 +55,7 @@ namespace sc {
 sequential_module_pass_t get_default_precodegen_passes(
         const context_ptr &ctx, bool gen_wrapper) {
     std::vector<module_pass_ptr> ret;
-    ret.reserve(32);
+    ret.reserve(64);
     ret.emplace_back(utils::make_unique<dyn_tensor_transformer_t>());
     if (gen_wrapper) {
         ret.emplace_back(utils::make_unique<interface_generalizer_t>());
@@ -70,6 +71,7 @@ sequential_module_pass_t get_default_precodegen_passes(
     }
     ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<func_inliner_t>());
+    ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>());
     ret.emplace_back(module_function_pass_t::make<loop_merger_t>());
     ret.emplace_back(module_function_pass_t::make<tensor_init_t>(ctx));
@@ -90,6 +92,9 @@ sequential_module_pass_t get_default_precodegen_passes(
     if (ctx->flags_.dead_write_elimination_) {
         ret.emplace_back(
                 module_function_pass_t::make<dead_write_eliminator_t>());
+    }
+    if (ctx->flags_.tensor2var_) {
+        ret.emplace_back(module_function_pass_t::make<tensor2var_t>());
     }
     if (ctx->flags_.buffer_schedule_ > 0) {
         ret.emplace_back(
