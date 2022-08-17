@@ -28,8 +28,7 @@ namespace pattern {
 namespace pm = impl::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph = pm::pb_graph_t;
-using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
-using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
 
 /*!
  * \brief This provides shuffle-related fusion
@@ -44,7 +43,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(shuffle_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, shuffle_fusion)
         .set_priority(8.2f)
         .set_kind(impl::partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
                     pm::pb_op_t *reshape0
                             = pgraph->append_op(impl::op_kind::StaticReshape);

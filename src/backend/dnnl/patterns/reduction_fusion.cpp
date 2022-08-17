@@ -31,8 +31,7 @@ namespace pattern {
 namespace pm = impl::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
-using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
 
 namespace {
 bool check_attributes(op_t *graph_op) {
@@ -55,7 +54,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(reduction_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reduction_post_ops_fusion)
         .set_priority(8.4f)
         .set_kind(impl::partition_kind::reduction_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *reduction = pgraph->append_alternation(
                             {impl::op_kind::ReduceL1, impl::op_kind::ReduceL2,

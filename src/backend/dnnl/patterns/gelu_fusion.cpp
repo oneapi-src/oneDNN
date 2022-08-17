@@ -28,8 +28,7 @@ namespace pattern {
 namespace pm = impl::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
-using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
 
 /*!
  * \brief This provides GELU fusion.
@@ -42,7 +41,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(gelu_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, gelu_fusion)
         .set_kind(impl::partition_kind::misc_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto pow = pgraph->append_op(impl::op_kind::Pow, "pow");
                     auto multiply_1 = pgraph->append_op(impl::op_kind::Multiply,
@@ -60,7 +59,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, gelu_fusion)
                     pgraph->append_op(impl::op_kind::Multiply,
                             {in_edge(0, multiply_3, 0)}, "multiply_4");
                 })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto div = pgraph->append_op(impl::op_kind::Divide, "div");
                     auto erf = pgraph->append_op(

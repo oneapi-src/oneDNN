@@ -27,7 +27,7 @@ namespace compiler_impl {
 namespace pass {
 
 using pb_graph_t = impl::utils::pm::pb_graph_t;
-using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
 
 #define MLP_NUM_LAYER_LOWER_BOUND 2
 #define MLP_NUM_LAYER_UPPER_BOUND 11
@@ -49,7 +49,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern)
         .set_priority(5.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
                     auto matmul = mlp_layer->append_op(
@@ -109,7 +109,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_backward_pattern)
         .set_priority(5.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bwd_mlp_layer
                             = std::make_shared<pb_graph_t>("bwd_mlp_layer");
@@ -192,7 +192,7 @@ repetition unit:
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
         .set_priority(6.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
 
@@ -262,7 +262,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern)
         .set_priority(5.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
                     auto matmul = mlp_layer->append_op(
@@ -322,7 +322,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_backward_pattern)
         .set_priority(5.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bwd_mlp_layer
                             = std::make_shared<pb_graph_t>("bwd_mlp_layer");

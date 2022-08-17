@@ -30,8 +30,7 @@ namespace pattern {
 namespace pm = impl::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
-using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
-using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
 
 /*!
  * \brief This provides binary-related fusion, i.e.
@@ -47,7 +46,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(binary_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reciprocal_multiply_fusion)
         .set_priority(8.2f)
         .set_kind(impl::partition_kind::binary_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto reciprocal = pgraph->append_op(
                             impl::op_kind::Reciprocal, "reciprocal");
@@ -62,7 +61,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reciprocal_multiply_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, binary_post_ops_fusion)
         .set_priority(8.3f)
         .set_kind(impl::partition_kind::binary_post_ops)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+        .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto binary_op = pgraph->append_alternation(
                             get_binary_ops(), "binary_op");

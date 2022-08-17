@@ -35,7 +35,7 @@ const oport_t OUT0 = 0;
 //
 // All pattern starts with a "pb_graph"
 //
-TEST(PatternMatcherV2, Graph) {
+TEST(PatternMatcher, Graph) {
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
 
     ASSERT_NE(pgraph, nullptr);
@@ -96,7 +96,7 @@ TEST(PatternMatcherV2, Graph) {
 // exposed as part of the match. The order depends on matcher
 // implementation.
 //
-TEST(PatternMatcherV2, GraphAppendLeafOp) {
+TEST(PatternMatcher, GraphAppendLeafOp) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     // Grow internal graph
     // Leaf pattern op "Add"
@@ -110,7 +110,7 @@ TEST(PatternMatcherV2, GraphAppendLeafOp) {
 // A vector of all in coming edges to the new op can passed to
 // append_op for non leaf pattern ops
 //
-TEST(PatternMatcherV2, GraphAppendNonLeafOp) {
+TEST(PatternMatcher, GraphAppendNonLeafOp) {
     auto graphp = std::make_shared<pb_graph_t>("conv_bias");
     // Grow internal graph
     // Convolution -> BiasAdd
@@ -158,7 +158,7 @@ TEST(PatternMatcherV2, GraphAppendNonLeafOp) {
     }
 }
 
-TEST(PatternMatcherV2, GraphNoAllowSideOutput) {
+TEST(PatternMatcher, GraphNoAllowSideOutput) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto op0 = graphp->append_op(Convolution, "pconv");
     auto op1 = graphp->append_op(BiasAdd, {in_edge(IN0, op0, OUT0)}, "pbias");
@@ -193,7 +193,7 @@ TEST(PatternMatcherV2, GraphNoAllowSideOutput) {
     EXPECT_FALSE(match_pattern(internal_op, graphp, fusion_ops));
 }
 
-TEST(PatternMatcherV2, ConvAddFusion) {
+TEST(PatternMatcher, ConvAddFusion) {
     // conv + add fusion
     std::shared_ptr<pb_graph_t> pattern_graph
             = std::make_shared<pb_graph_t>("pgraph");
@@ -224,7 +224,7 @@ TEST(PatternMatcherV2, ConvAddFusion) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
-TEST(PatternMatcherV2, FailToFuseConvAdd) {
+TEST(PatternMatcher, FailToFuseConvAdd) {
     // conv = add fusion
     std::shared_ptr<pb_graph_t> pattern_graph
             = std::make_shared<pb_graph_t>("pgraph");
@@ -254,7 +254,7 @@ TEST(PatternMatcherV2, FailToFuseConvAdd) {
             agraph.get_ops()[0].get(), pattern_graph, fusion_ops));
 }
 
-TEST(PatternMatcherV2, ConvAddFusionCase2) {
+TEST(PatternMatcher, ConvAddFusionCase2) {
     std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
 
     auto pconv = pattern_graph->append_op(Convolution, "pconv");
@@ -292,7 +292,7 @@ TEST(PatternMatcherV2, ConvAddFusionCase2) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
-TEST(PatternMatcherV2, CommutativeInputBothConstrained) {
+TEST(PatternMatcher, CommutativeInputBothConstrained) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     std::shared_ptr<pb_graph_t> pattern_graph
             = std::make_shared<pb_graph_t>("pgraph");
@@ -343,7 +343,7 @@ TEST(PatternMatcherV2, CommutativeInputBothConstrained) {
     }
 }
 
-TEST(PatternMatcherV2, CommutativeInput) {
+TEST(PatternMatcher, CommutativeInput) {
     std::shared_ptr<pb_graph_t> pattern_graph
             = std::make_shared<pb_graph_t>("pgraph");
     auto pconv0 = pattern_graph->append_op(Convolution, "pconv0");
@@ -406,7 +406,7 @@ TEST(PatternMatcherV2, CommutativeInput) {
 // Convolution + BiasAdd + Tanh
 // Convolution + BiasAdd + Sqrt
 //
-TEST(PatternMatcherV2, ConvBiasActivationFusion) {
+TEST(PatternMatcher, ConvBiasActivationFusion) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto pconv = graphp->append_op(Convolution, "pconv");
     auto pbias
@@ -445,7 +445,7 @@ TEST(PatternMatcherV2, ConvBiasActivationFusion) {
 // Convolution + BiasAdd + Add + ReLU
 // Convolution + BiasAdd + Add + ELU
 //
-TEST(PatternMatcherV2, ConvBiasSumActivationFusion) {
+TEST(PatternMatcher, ConvBiasSumActivationFusion) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto pconv = graphp->append_op(Convolution, "pconv");
     auto pbias
@@ -491,7 +491,7 @@ TEST(PatternMatcherV2, ConvBiasSumActivationFusion) {
 //
 // MatMul + BiasAdd + Add
 //
-TEST(PatternMatcherV2, MatmulBiasSumFusion) {
+TEST(PatternMatcher, MatmulBiasSumFusion) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto pmatmul = graphp->append_op(MatMul, "pmatmul");
     auto pbias = graphp->append_op(
@@ -536,7 +536,7 @@ TEST(PatternMatcherV2, MatmulBiasSumFusion) {
 // MatMul + Sigmoid
 // MatMul + Clamp
 //
-TEST(PatternMatcherV2, MatmulActivationFusion) {
+TEST(PatternMatcher, MatmulActivationFusion) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto pmat = graphp->append_op(MatMul, "pmatmul");
     auto pact = graphp->append_alternation(
@@ -570,7 +570,7 @@ TEST(PatternMatcherV2, MatmulActivationFusion) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
-TEST(PatternMatcherV2, ConvSwishFusion) {
+TEST(PatternMatcher, ConvSwishFusion) {
     // conv_swish pass
     //   conv
     //   |   |
@@ -616,7 +616,7 @@ TEST(PatternMatcherV2, ConvSwishFusion) {
     ASSERT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcherV2, ConvSumEltwiseFusion) {
+TEST(PatternMatcher, ConvSumEltwiseFusion) {
     // conv + sum + (Relu / Elu / Clamp / Square / Tanh / Abs / Sqrt)
     std::shared_ptr<pb_graph_t> pattern_graph
             = std::make_shared<pb_graph_t>("pgraph");
@@ -670,7 +670,7 @@ TEST(PatternMatcherV2, ConvSumEltwiseFusion) {
 // Input or Output "n" of the alternation node connects to
 // Input of Output "n" of the alternative.
 //
-TEST(PatternMatcherV2, Alternation) {
+TEST(PatternMatcher, Alternation) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     // MatMul -> (Add | Multiply)
     auto pmatmul = graphp->append_op(MatMul, "pmatmul");
@@ -718,7 +718,7 @@ TEST(PatternMatcherV2, Alternation) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
-TEST(PatternMatcherV2, AlternationWithConsumer) {
+TEST(PatternMatcher, AlternationWithConsumer) {
     /*
     pattern:
           matmul
@@ -794,7 +794,7 @@ TEST(PatternMatcherV2, AlternationWithConsumer) {
 // output port to input port mapping.
 // The mapping has to be given as an argument to append_repetition.
 //
-TEST(PatternMatcherV2, Repetition) {
+TEST(PatternMatcher, Repetition) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     // Pattern that captures
     // MatMul -> (Add | Multiply) -> ReLU
@@ -844,7 +844,7 @@ TEST(PatternMatcherV2, Repetition) {
     ASSERT_EQ(fusion_ops.size(), 4);
 }
 
-TEST(PatternMatcherV2, RepetitionFail) {
+TEST(PatternMatcher, RepetitionFail) {
     /* 
     Pattern:
      MatMul
@@ -900,7 +900,7 @@ TEST(PatternMatcherV2, RepetitionFail) {
 // output to input port mapping isn't needed since the body does not repeat
 // more than once.
 //
-TEST(PatternMatcherV2, Optional) {
+TEST(PatternMatcher, Optional) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     // Pattern that captures
     // MatMul -> ReLU
@@ -978,7 +978,7 @@ TEST(PatternMatcherV2, Optional) {
 // create_input_port/create_output_port is still needed for
 // setting up the contact interface for nested patterns.
 //
-TEST(PatternMatcherV2, ComplexRepetition) {
+TEST(PatternMatcher, ComplexRepetition) {
     auto graphp = std::make_shared<pb_graph_t>("pmaingraph");
     // Basic building block
     // Convolution + (BatchNormInference)? + ReLU
@@ -1122,7 +1122,7 @@ TEST(PatternMatcherV2, ComplexRepetition) {
     ASSERT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcherV2, ParallelMatmul) {
+TEST(PatternMatcher, ParallelMatmul) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     // Pattern that captures shared input to three MatMuls
     //            |--> MatMul
@@ -1169,7 +1169,7 @@ TEST(PatternMatcherV2, ParallelMatmul) {
     ASSERT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcherV2, OptionalInput) {
+TEST(PatternMatcher, OptionalInput) {
     /*Pattern                  Graph
      Dq0     Dq1            Dq0     Dq1
       |      |               |       |
@@ -1231,7 +1231,7 @@ TEST(PatternMatcherV2, OptionalInput) {
 // (NODE1 | NODE2 | NODE3) represents alternation of NODE1, NODE2 and NODE3
 // (Matmul -> (((ReLU | Sigmoid | Tanh)))*)*
 //
-TEST(PatternMatcherV2, NestedMatchingFailure) {
+TEST(PatternMatcher, NestedMatchingFailure) {
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
     auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
     auto matmul_layer = mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
@@ -1268,7 +1268,7 @@ TEST(PatternMatcherV2, NestedMatchingFailure) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
-TEST(PatternMatcherV2, RepetitionWithMultipleConsumers) {
+TEST(PatternMatcher, RepetitionWithMultipleConsumers) {
     /* pattern
        conv
         |
@@ -1320,7 +1320,7 @@ TEST(PatternMatcherV2, RepetitionWithMultipleConsumers) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
-TEST(PatternMatcherV2, MultipleConsumer) {
+TEST(PatternMatcher, MultipleConsumer) {
     /*Pattern
      Transpose
       /     \____________
@@ -1365,7 +1365,7 @@ TEST(PatternMatcherV2, MultipleConsumer) {
     ASSERT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcherV2, MultipleConsumerDifferentPartition) {
+TEST(PatternMatcher, MultipleConsumerDifferentPartition) {
     /*Pattern
      Matmul
       |
@@ -1456,7 +1456,7 @@ TEST(PatternMatcherV2, MultipleConsumerDifferentPartition) {
     ASSERT_EQ(fusion_ops.size(), 5);
 }
 
-TEST(PatternMatcherV2, NestedRepetitionOptional) {
+TEST(PatternMatcher, NestedRepetitionOptional) {
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
     auto matmul = mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
@@ -1502,7 +1502,7 @@ TEST(PatternMatcherV2, NestedRepetitionOptional) {
     ASSERT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcherV2, RepetitionExternalOutput) {
+TEST(PatternMatcher, RepetitionExternalOutput) {
     /*
     pattern:
           matmul                    \
@@ -1587,7 +1587,7 @@ TEST(PatternMatcherV2, RepetitionExternalOutput) {
     ASSERT_EQ(fusion_ops.size(), 4);
 }
 
-TEST(PatternMatcherV2, RepetitionExternalOutputSwapOrder) {
+TEST(PatternMatcher, RepetitionExternalOutputSwapOrder) {
     /*
     pattern:
           matmul                    \
@@ -1679,7 +1679,7 @@ TEST(PatternMatcherV2, RepetitionExternalOutputSwapOrder) {
     ASSERT_EQ(fusion_ops.size(), 4);
 }
 
-TEST(PatternMatcherV2, CyclicCheck) {
+TEST(PatternMatcher, CyclicCheck) {
     /*
     pattern:
           matmul
@@ -1734,7 +1734,7 @@ TEST(PatternMatcherV2, CyclicCheck) {
     EXPECT_FALSE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
 }
 
-TEST(PatternMatcherV2, UndirectCyclicCheck) {
+TEST(PatternMatcher, UndirectCyclicCheck) {
     /*
     pattern:
           matmul
@@ -1800,7 +1800,7 @@ TEST(PatternMatcherV2, UndirectCyclicCheck) {
     EXPECT_FALSE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
 }
 
-TEST(PatternMatcherV2, ComplexCyclicCheck) {
+TEST(PatternMatcher, ComplexCyclicCheck) {
     /*
     pattern:
           matmul                   \
@@ -1882,7 +1882,7 @@ TEST(PatternMatcherV2, ComplexCyclicCheck) {
     EXPECT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcherV2, ComplexUndirectCyclicCheck) {
+TEST(PatternMatcher, ComplexUndirectCyclicCheck) {
     /*
     pattern:
           matmul                   \
@@ -1972,7 +1972,7 @@ TEST(PatternMatcherV2, ComplexUndirectCyclicCheck) {
     EXPECT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcherV2, OptionalSubgraphFailure) {
+TEST(PatternMatcher, OptionalSubgraphFailure) {
     /*
         [   \    /
             matmul
@@ -2021,7 +2021,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure) {
     ASSERT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcherV2, OptionalSubgraphFailure2) {
+TEST(PatternMatcher, OptionalSubgraphFailure2) {
     /*
            [   \     /
                matmul
@@ -2068,7 +2068,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure2) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
-TEST(PatternMatcherV2, OptionalSubgraphFailure3) {
+TEST(PatternMatcher, OptionalSubgraphFailure3) {
     /*
             [  \     /
                matmul
@@ -2113,7 +2113,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure3) {
     ASSERT_EQ(fusion_ops.size(), 2);
 }
 
-TEST(PatternMatcherV2, OptionalSubgraphFailure4) {
+TEST(PatternMatcher, OptionalSubgraphFailure4) {
     /*
             [  \     /
                matmul
@@ -2162,7 +2162,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure4) {
     ASSERT_EQ(fusion_ops.size(), 1);
 }
 
-TEST(PatternMatcherV2, ShouldNotMatchIdenticalResblock) {
+TEST(PatternMatcher, ShouldNotMatchIdenticalResblock) {
     // pattern:
     //     |               |
     //   conv              |
@@ -2299,7 +2299,7 @@ TEST(PatternMatcherV2, ShouldNotMatchIdenticalResblock) {
     EXPECT_FALSE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
 }
 
-TEST(PatternMatcherV2, RepetitionOportExternalOutput) {
+TEST(PatternMatcher, RepetitionOportExternalOutput) {
     /*
     pattern:
         matmul                     \

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,15 +28,14 @@ namespace fake_impl {
 namespace pass {
 
 using pb_graph_t = utils::pm::pb_graph_t;
-using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
-using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
+using FCreatePattern = impl::pass::FCreatePattern;
 
 FAKE_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
 
 #define FAKE_BACKEND_SINGLE_OP_TRANSFORM(name, backend, p) \
     FAKE_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
             .set_priority(p) \
-            .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
+            .set_attr<FCreatePattern>("FCreatePattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
                         pgraph->append_op(op_kind::Wildcard); \
                     });

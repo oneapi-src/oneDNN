@@ -24,7 +24,7 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_v2_patterns.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
     )
 

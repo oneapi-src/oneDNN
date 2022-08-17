@@ -113,8 +113,8 @@ public:
             return impl::status::success;
 
         // we can have only one optimized pattern
-        std::vector<impl::pass::FCreateV2Pattern> pfuncs
-                = get_attr<impl::pass::FCreateV2Pattern>("FCreateV2Pattern");
+        std::vector<impl::pass::FCreatePattern> pfuncs
+                = get_attr<impl::pass::FCreatePattern>("FCreatePattern");
 
         FCreateKernel kernel_creator
                 = get_attr<FCreateKernel>("FCreateKernel")[0];

@@ -50,8 +50,8 @@ public:
     }
 
     impl::status_t run(impl::graph_t &agraph) override {
-        std::vector<impl::pass::FCreateV2Pattern> pfuncs
-                = get_attr<impl::pass::FCreateV2Pattern>("FCreateV2Pattern");
+        std::vector<impl::pass::FCreatePattern> pfuncs
+                = get_attr<impl::pass::FCreatePattern>("FCreatePattern");
         pattern_utils_t pu;
         for (auto &pfunc : pfuncs) {
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph
