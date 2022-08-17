@@ -93,7 +93,8 @@ public:
     ~jit_uni_lrn_kernel_t();
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_kernel_t);
-    static constexpr int VECTOR_LENGTH = (isa == avx512_core ? 16 : 8);
+    static constexpr int VECTOR_LENGTH
+            = (isa & avx512_core_bit) == avx512_core_bit ? 16 : 8;
 
 protected:
     using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
