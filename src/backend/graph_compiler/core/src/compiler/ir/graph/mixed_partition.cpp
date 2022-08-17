@@ -399,8 +399,11 @@ void mxp_buffer_allocator::merge(mxp_buffer_allocator &other,
         if (g2b_map_.haskey(other_g2b.first)) {
             auto existed_buf = g2b_map_.get(other_g2b.first);
             buffer_map[other_g2b.second] = existed_buf;
-            if (binded_mxp_->is_parti_cut(other_g2b.first)
-                    && other.binded_mxp_->is_parti_cut(other_g2b.first))
+            if ((binded_mxp_->is_parti_inp(other_g2b.first)
+                        && other.binded_mxp_->is_parti_inp(other_g2b.first))
+                    || (binded_mxp_->is_parti_out(other_g2b.first)
+                            && other.binded_mxp_->is_parti_out(
+                                    other_g2b.first)))
                 continue;
             COMPILE_ASSERT(common_buffer_anchor,
                     "Conflict buffer: "
@@ -734,6 +737,138 @@ bool check_parti_connectionship(mixed_parti_t *A, mixed_parti_t *B) {
     return false;
 }
 
+bool try_merge_mixed_parti_parallel(
+        mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+    if (A->get_root() == B->get_root()) return false;
+    if (!A->func_.get() || !B->func_.get()) return false;
+    if (!check_parti_connectionship(A, B)) return false;
+
+    auto outer_loops_A = A->get_outer_loops(),
+         outer_loops_B = B->get_outer_loops();
+    if (outer_loops_A.empty() || outer_loops_B.empty()) return false;
+
+    auto outermost_loop_A = outer_loops_A[0],
+         outermost_loop_B = outer_loops_B[0];
+
+    // Currently, parallel merge could only depend explict loop attr to ensure
+    // op dependency.
+    if (!outermost_loop_A->attr().get_or_else(
+                stmt_attr_key::parallel_merge_loop, false)
+            || !outermost_loop_B->attr().get_or_else(
+                    stmt_attr_key::parallel_merge_loop, false)) {
+        return false;
+    } else {
+        COMPILE_ASSERT(outermost_loop_A->kind_ == for_type::PARALLEL
+                        && (outermost_loop_A->num_threads_ > 1),
+                "parallel loop with num threads larger than 1 are expected")
+        COMPILE_ASSERT(outermost_loop_B->kind_ == for_type::PARALLEL
+                        && (outermost_loop_B->num_threads_ > 1),
+                "parallel loop with num threads larger than 1 are expected")
+    }
+    if (outermost_loop_A->iter_begin_.isa<constant_c>()
+            && outermost_loop_A->iter_end_.isa<constant_c>()
+            && outermost_loop_A->step_.isa<constant_c>()
+            && outermost_loop_B->iter_begin_.isa<constant_c>()
+            && outermost_loop_B->iter_end_.isa<constant_c>()
+            && outermost_loop_B->step_.isa<constant_c>()) {
+        auto A_begin = get_expr_as_int(outermost_loop_A->iter_begin_),
+             A_end = get_expr_as_int(outermost_loop_A->iter_end_),
+             A_step = get_expr_as_int(outermost_loop_A->step_),
+             B_begin = get_expr_as_int(outermost_loop_B->iter_begin_),
+             B_end = get_expr_as_int(outermost_loop_B->iter_end_),
+             B_step = get_expr_as_int(outermost_loop_B->step_);
+        auto A_thread = outermost_loop_A->num_threads_,
+             B_thread = outermost_loop_B->num_threads_;
+        if (!(A_begin == B_begin && A_end == B_end && A_step == B_step
+                    && A_thread == B_thread))
+            return false;
+    } else {
+        return false;
+    }
+
+    // evaluate two partition by cost model
+    float score_A = A->evaluate_perf(), score_B = B->evaluate_perf();
+
+    SC_MODULE_INFO << "parallel merging two partition:";
+    SC_MODULE_INFO << A->func_;
+    SC_MODULE_INFO << B->func_;
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 1: Merge func_
+     * * * * * * * * * * * * * * * * */
+    std::unordered_map<expr, expr> expr_map;
+    expr_map[outermost_loop_A->var_] = outermost_loop_B->var_;
+
+    auto common_fanchor
+            = A->lookup_anchor_map(get_anchor_inside_loop(A, outermost_loop_A));
+    auto common_other_fanchor
+            = B->lookup_anchor_map(get_anchor_inside_loop(B, outermost_loop_B));
+    // create common anchor if necessary
+    if (!common_fanchor) {
+        auto s = builder::make_stmts_unattached({}).checked_as<stmts>();
+        set_parent_node(s, outermost_loop_A);
+        outermost_loop_A->body_.checked_as<stmts>()->seq_.emplace_back(s);
+        // dummy fsmap, the tensor belongs to this scope will not be shrinked
+        fslice_map fsmap;
+        common_fanchor = std::make_shared<fuse_anchor_map_t>(s, fsmap);
+    } else if (common_other_fanchor) {
+        common_fanchor->merge(common_other_fanchor);
+    }
+    A->fanchors_.emplace_back(common_fanchor);
+
+    common_fanchor->commit_stmt(outermost_loop_B->body_);
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 2: Merge fanchor_
+     * * * * * * * * * * * * * * * * */
+    A->fanchors_.insert(
+            A->fanchors_.end(), B->fanchors_.begin(), B->fanchors_.end());
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 3: Merge buffer_
+     * * * * * * * * * * * * * * * * */
+    std::unordered_map<expr, expr> buffer_map;
+    A->buf_alloc_.merge(B->buf_alloc_, buffer_map,
+            std::make_pair(common_fanchor, common_other_fanchor));
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 4: Merge buffer_
+     * * * * * * * * * * * * * * * * */
+    expr_map.insert(buffer_map.begin(), buffer_map.end());
+    mxp_replacer_t expr_reper(expr_map);
+    // 1. func->body
+    expr_reper.replace_func(A->func_);
+    // 2. fanchor->fsmap->slice_range
+    expr_reper.replace_anchor(A->fanchors_);
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 5: Merge op_anchor_map_
+     * * * * * * * * * * * * * * * * */
+    A->op_anchor_map_.insert(
+            B->op_anchor_map_.begin(), B->op_anchor_map_.end());
+
+    // call base merge
+    A->fusion_partition_t::merge(
+            static_cast<fusion_partition_t *>(B)->shared_from_this());
+
+    A->func_->name_ += "_parallel_merge_" + B->func_->name_;
+
+    SC_MODULE_INFO << "parallel merging result:";
+    SC_MODULE_INFO << A->func_;
+
+    // clear merged parti
+    B->clear();
+
+    float score_C = A->evaluate_perf();
+
+    if (score_C < std::max(score_A, score_B)) {
+        SC_MODULE_WARN << "Merging these two partition may cause performance "
+                          "drop, no fall-back strategy found";
+    }
+
+    return true;
+}
+
 bool try_merge_mixed_parti_horizontally(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
     if (A->get_root() == B->get_root()) return false;
@@ -745,6 +880,10 @@ bool try_merge_mixed_parti_horizontally(
     auto outer_loops_A = A->get_outer_loops(),
          outer_loops_B = B->get_outer_loops();
     if (outer_loops_A.empty() || outer_loops_B.empty()) return false;
+
+    if (outer_loops_A[0]->num_threads_ > 0
+            || outer_loops_B[0]->num_threads_ > 0)
+        return false;
 
     if (A->ctx_->flags_.use_cost_model_) {
         auto A_parallelism = evaluate_loop_parallel_balance(outer_loops_A),
@@ -871,15 +1010,21 @@ bool try_merge_mixed_parti_vertically(
 
     auto cmp_loop_range = [](const for_loop &A, const for_loop &B) -> int64_t {
         if (!(A->iter_begin_.isa<constant_c>() && A->iter_end_.isa<constant_c>()
+                    && A->step_.isa<constant_c>()
                     && B->iter_begin_.isa<constant_c>()
-                    && B->iter_end_.isa<constant_c>())) {
+                    && B->iter_end_.isa<constant_c>()
+                    && B->step_.isa<constant_c>())) {
             return 0;
         }
         auto A_begin = get_expr_as_int(A->iter_begin_),
              A_end = get_expr_as_int(A->iter_end_),
+             A_step = get_expr_as_int(A->step_),
              B_begin = get_expr_as_int(B->iter_begin_),
-             B_end = get_expr_as_int(B->iter_end_);
-        return (A_begin == B_begin && A_end == B_end) ? (A_end - A_begin) : 0;
+             B_end = get_expr_as_int(B->iter_end_),
+             B_step = get_expr_as_int(B->step_);
+        return (A_begin == B_begin && A_end == B_end && A_step == B_step)
+                ? (A_end - A_begin)
+                : 0;
     };
 
     sc_dims loop_range_vec;
@@ -934,11 +1079,7 @@ bool try_merge_mixed_parti_vertically(
         // redirect parent node
         set_parent_node(max_be_merged_ss, max_to_merge_anchor);
     } else {
-        if (dep_flag != parti_dep::no_dep) return false;
-        max_to_merge_ss.checked_as<stmts>()->seq_.emplace_back(
-                max_be_merged_ss);
-        // redirect parent node
-        set_parent_node(max_be_merged_ss, max_to_merge_ss);
+        return false;
     }
 
     // var and tensor replace map
@@ -1748,7 +1889,7 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
 using crossover_alg = std::function<void(
         std::vector<mixed_parti_t::ptr> &op_2_partition, op_dep_matrix_t &dep)>;
 
-void brute_crossover(
+void horizontal_crossover(
         std::vector<mixed_parti_t::ptr> &op_2_partition, op_dep_matrix_t &dep) {
     SC_MODULE_INFO << "Using brute forced crossover Alg...";
     auto op_size = op_2_partition.size();
@@ -1760,6 +1901,21 @@ void brute_crossover(
             if (!parti_B) continue;
             try_merge_mixed_parti_horizontally(
                     parti_A.get(), parti_B.get(), dep);
+        }
+    }
+}
+
+void parallel_crossover(
+        std::vector<mixed_parti_t::ptr> &op_2_partition, op_dep_matrix_t &dep) {
+    SC_MODULE_INFO << "Using brute forced crossover Alg...";
+    auto op_size = op_2_partition.size();
+    for (size_t i = 0; i < op_size; i++) {
+        auto parti_A = op_2_partition[i];
+        if (!parti_A) continue;
+        for (size_t j = i; j < op_size; j++) {
+            auto parti_B = op_2_partition[j];
+            if (!parti_B) continue;
+            try_merge_mixed_parti_parallel(parti_A.get(), parti_B.get(), dep);
         }
     }
 }
@@ -1792,7 +1948,8 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
         if (do_partition(ctx, graph, dep, op_2_partition, op_mask)) break;
     }
 
-    std::vector<crossover_alg> algs = {brute_crossover};
+    std::vector<crossover_alg> algs
+            = {horizontal_crossover, parallel_crossover};
     crossover_partition(op_2_partition, dep, algs);
 
     std::vector<sc_op_ptr> fused_ops;

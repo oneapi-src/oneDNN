@@ -58,6 +58,10 @@ constexpr const char *unroll_loop = "unroll_loop";
 
 // for_loop. It represents the root loop invloving reduce computation
 constexpr const char *reduce_root_loop = "reduce_root_loop";
+
+// Boolean. If true, for_loop_node_t will be merged by parallel, currently only
+// available for parallel loop with `thread_num > 1`
+constexpr const char *parallel_merge_loop = "parallel_merge_loop";
 }; // namespace stmt_attr_key
 
 std::ostream &operator<<(std::ostream &os, sc_stmt_type val);
