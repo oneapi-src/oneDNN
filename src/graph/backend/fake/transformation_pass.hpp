@@ -37,8 +37,7 @@ namespace pass {
 class transformation_pass_t : public graph::pass::pass_base {
 public:
     explicit transformation_pass_t(std::string pbackend, std::string pname)
-        : graph::pass::pass_base(graph::pass::pass_type::kTransformation,
-                std::move(pbackend), std::move(pname)) {}
+        : graph::pass::pass_base(std::move(pbackend), std::move(pname)) {}
 
     static graph::pass::pass_base_ptr create(
             std::string pbackend, std::string pname) {
