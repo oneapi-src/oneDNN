@@ -686,6 +686,10 @@ status_t ref_deconvolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
             compute_bias<bf16, bf16>(ctx);
         else if (dbia_type == f32 && ddst_type == bf16)
             compute_bias<f32, bf16>(ctx);
+        else if (utils::everyone_is(f16, dbia_type, ddst_type))
+            compute_bias<f16, f16>(ctx);
+        else if (dbia_type == f32 && ddst_type == f16)
+            compute_bias<f32, f16>(ctx);
         else {
             assert(!"unsupported data type");
             return status::runtime_error;
@@ -701,6 +705,10 @@ template void ref_deconvolution_bwd_weights_t::compute_bias<f32, f32>(
 template void ref_deconvolution_bwd_weights_t::compute_bias<f32, bf16>(
         const exec_ctx_t &ctx) const;
 template void ref_deconvolution_bwd_weights_t::compute_bias<bf16, bf16>(
+        const exec_ctx_t &ctx) const;
+template void ref_deconvolution_bwd_weights_t::compute_bias<f32, f16>(
+        const exec_ctx_t &ctx) const;
+template void ref_deconvolution_bwd_weights_t::compute_bias<f16, f16>(
         const exec_ctx_t &ctx) const;
 } // namespace cpu
 } // namespace impl

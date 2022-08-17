@@ -336,10 +336,9 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             auto wei_type = desc()->weights_desc.data_type;
             auto ddst_type = desc()->diff_dst_desc.data_type;
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && (utils::everyone_is(f32, dsrc_type, wei_type, ddst_type)
-                            || (utils::one_of(dsrc_type, f32, bf16)
-                                    && utils::everyone_is(
-                                            bf16, wei_type, ddst_type)))
+                    && utils::one_of(wei_type, f32, bf16, f16)
+                    && ddst_type == wei_type
+                    && utils::one_of(dsrc_type, wei_type, f32)
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
@@ -439,10 +438,9 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             auto dwei_type = desc()->diff_weights_desc.data_type;
             auto ddst_type = desc()->diff_dst_desc.data_type;
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && (utils::everyone_is(f32, src_type, dwei_type, ddst_type)
-                            || (utils::one_of(dwei_type, f32, bf16)
-                                    && utils::everyone_is(
-                                            bf16, src_type, ddst_type)))
+                    && utils::one_of(src_type, f32, bf16, f16)
+                    && ddst_type == src_type
+                    && utils::one_of(dwei_type, src_type, f32)
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
