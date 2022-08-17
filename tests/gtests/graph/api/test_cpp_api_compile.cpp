@@ -369,7 +369,9 @@ INSTANTIATE_TEST_SUITE_P(Test_Average_Pool_Compile, test_average_pool_compile_t,
                 pool_params_t {{1, 1, 4, 4}, {1, 1, 2, 3}, {2, 2}, {3, 1},
                         {0, 0}, {0, 0}, {0, 0}, false, "NCX", "ceil", "None"},
                 pool_params_t {{1, 1, 4, 4}, {1, 1, 2, 3}, {2, 2}, {3, 1},
-                        {0, 0}, {0, 0}, {0, 0}, true, "NCX", "ceil", "None"}));
+                        {0, 0}, {0, 0}, {0, 0}, true, "NCX", "ceil", "None"},
+                pool_params_t {{1, 1, 60, 60}, {1, 1, 30, 30}, {3, 3}, {2, 2},
+                        {0, 0}, {1, 1}, {0, 0}, false, "NCX", "ceil", "None"}));
 
 class test_max_pool_compile_t : public ::testing::TestWithParam<pool_params_t> {
 public:

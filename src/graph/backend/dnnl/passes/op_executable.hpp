@@ -374,7 +374,7 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     dims kernel = op->get_attr<dims>(op_attr::kernel);
     dims pads_begin = op->get_attr<dims>(op_attr::pads_begin);
     dims pads_end = op->get_attr<dims>(op_attr::pads_end);
-    dims dilations(strides.size(), 0);
+    dims dilations(strides.size(), 1);
     if (op->has_attr(op_attr::dilations)
             && (op->get_attr<std::string>(op_attr::kind) == "maxpool")) {
         dilations = op->get_attr<dims>(op_attr::dilations);
@@ -401,6 +401,10 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     if (op->has_attr(op_attr::rounding_type)) {
         rounding_type = op->get_attr<std::string>(op_attr::rounding_type);
     }
+
+    // oneDNN pooling primitive doesn't support ceil mode, so we need to add
+    // additional padding right to simulate the ceil mode by using floor mode,
+    // and then exclude those additional paddings when doing average.
     if (rounding_type == "ceil") {
         dims src_sp = src.dims();
         src_sp.erase(src_sp.begin(), src_sp.begin() + 2);
@@ -408,10 +412,10 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
         output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
         for (size_t i = 0; i < kernel.size(); ++i) {
             dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-            if (op->get_attr<std::string>(op_attr::kind) == "avgpool")
-                dilated += 1;
-            dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
-                    - src_sp[i] - pads_begin[i];
+            // calculate the expected padded input size according to floor mode
+            // formula: output = (padded - dilated) / strides + 1
+            dim_t expected_padded = (output_sp[i] - 1) * strides[i] + dilated;
+            dim_t cur_pads_end = expected_padded - src_sp[i] - pads_begin[i];
             new_pads_end[i] = cur_pads_end;
         }
         adj_pad = true;
@@ -428,6 +432,7 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
         }
     } else if (op->get_attr<std::string>(op_attr::kind) == "avgpool") {
         const bool exclude_pad = op->get_attr<bool>(op_attr::exclude_pad);
+        dilations = dims(src.dims().size(), 0);
         algo = (exclude_pad || adj_pad)
                 ? algorithm::pooling_avg_exclude_padding
                 : algorithm::pooling_avg_include_padding;
