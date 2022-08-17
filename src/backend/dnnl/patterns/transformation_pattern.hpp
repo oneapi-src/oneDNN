@@ -96,8 +96,7 @@ inline void pattern_utils_t::init_partition(
 class transformation_pass_t : public impl::pass::pass_base {
 public:
     explicit transformation_pass_t(std::string pbackend, std::string pname)
-        : impl::pass::pass_base(impl::pass::pass_type::kTransformation,
-                std::move(pbackend), std::move(pname)) {}
+        : impl::pass::pass_base(std::move(pbackend), std::move(pname)) {}
 
     static impl::pass::pass_base_ptr create(
             std::string pbackend, std::string pname) {

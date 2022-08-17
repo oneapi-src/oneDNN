@@ -41,9 +41,6 @@ namespace pass {
 using pb_graph_t = utils::pm::pb_graph_t;
 using graph = impl::graph_t;
 
-/*! \brief pass type */
-enum class pass_type { kAnalysis = 0, kTransformation = 1 };
-
 class pass_base;
 class pattern;
 using pass_base_ptr = std::shared_ptr<pass_base>;
@@ -114,10 +111,8 @@ public:
  */
 class pass_base {
 public:
-    pass_base(pass_type ptype, std::string pbackend, std::string pname)
-        : type_(ptype)
-        , backend_(std::move(pbackend))
-        , name_(std::move(pname)) {}
+    pass_base(std::string pbackend, std::string pname)
+        : backend_(std::move(pbackend)), name_(std::move(pname)) {}
 
     pass_base() = default;
 
@@ -130,11 +125,6 @@ public:
     virtual void save(utils::json::json_writer_t *writer) {
         writer->begin_object();
         writer->write_keyvalue("pass_name", name_);
-        if (type_ == pass_type::kTransformation) {
-            writer->write_keyvalue("pass_type", std::string("Transformation"));
-        } else {
-            writer->write_keyvalue("pass_type", std::string("Analysis"));
-        }
         writer->write_keyvalue("pass_backend", backend_);
         writer->write_keyvalue("priority", priority_);
         writer->write_keyvalue("enable", enable_);
@@ -145,10 +135,8 @@ public:
     // load pass basic information from json
     virtual void load(utils::json::json_reader_t *reader) {
         utils::json::read_helper_t helper;
-        std::string type;
         std::string kind;
         helper.declare_field("pass_name", &name_);
-        helper.declare_field("pass_type", &type);
         helper.declare_field("pass_backend", &backend_);
         helper.declare_field("priority", &priority_);
         helper.declare_field("enable", &enable_);
@@ -159,8 +147,6 @@ public:
     }
 
     virtual ~pass_base() = default;
-
-    pass_type get_pass_type() { return type_; }
 
     std::string get_pass_backend() { return backend_; }
 
@@ -240,7 +226,6 @@ protected:
     std::unordered_multimap<std::string, impl::utils::any_t> attrs_;
 
 private:
-    pass_type type_ {};
     std::string backend_ {};
     std::string name_ {};
     float priority_ {5.0f};
