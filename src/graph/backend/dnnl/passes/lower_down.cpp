@@ -2639,9 +2639,10 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     auto &mgr = sg->fusion_info_mgr_;
     auto &p_engine = sg->p_engine_;
+    auto &pd_cache = sg->pd_cache_;
 
     auto fuse_two_adjacent_reorders
-            = [&mgr, &p_engine](std::vector<op_ptr> &subgraph,
+            = [&mgr, &p_engine, &pd_cache](std::vector<op_ptr> &subgraph,
                       bool &changed) -> status_t {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
@@ -2815,7 +2816,9 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             out_val->set_producer(*fused_op);
 
             auto scratchpad_val = insert_empty_scratchpad(fused_op);
-            const auto &pd = create_reorder_pd(fused_op, *p_engine, mgr);
+            const auto &pd
+                    = create_reorder_pd(fused_op, *p_engine, mgr, pd_cache)
+                              .first;
             const memory::desc scratchpad_desc = pd.scratchpad_desc();
             auto status = fill_layout_info(scratchpad_val, scratchpad_desc);
             if (status != status::success) return status;

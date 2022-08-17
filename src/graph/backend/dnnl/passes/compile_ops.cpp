@@ -87,11 +87,12 @@ status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
             exec = std::make_shared<pool_bwd_executable_t>(
                     cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_concat) {
-            exec = std::make_shared<concat_executable_t>(cur_op, p_engine, mgr);
+            exec = std::make_shared<concat_executable_t>(
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_mul_scales
                 || cur_op->get_kind() == op_kind::dnnl_reorder) {
             exec = std::make_shared<reorder_executable_t>(
-                    cur_op, p_engine, mgr);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_constant_scales) {
             exec = std::make_shared<fvec_to_fvec_filler>(
                     cur_op, op_attr::scales);
@@ -135,21 +136,18 @@ status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
             exec = std::make_shared<resampling_bwd_executable_t>(
                     cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
-            exec = std::make_shared<sum_executable_t>(cur_op, p_engine, mgr);
+            exec = std::make_shared<sum_executable_t>(
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
             exec = std::make_shared<binary_executable_t>(
                     cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_softmax) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_softmax
+                || cur_op->get_kind() == op_kind::dnnl_logsoftmax) {
             exec = std::make_shared<softmax_executable_t>(
                     cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd
+                || cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
             exec = std::make_shared<softmax_bwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax) {
-            exec = std::make_shared<logsoftmax_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
-            exec = std::make_shared<logsoftmax_bwd_executable_t>(
                     cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_reduction) {
             exec = std::make_shared<reduction_executable_t>(

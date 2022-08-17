@@ -53,9 +53,10 @@ create_conv_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::convolution_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::convolution_forward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     // prepare the operator attributes
@@ -127,9 +128,10 @@ create_deconv_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::deconvolution_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::deconvolution_forward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     // prepare the operator attributes
@@ -189,10 +191,10 @@ create_deconv_bwd_data_pd(std::shared_ptr<op_t> &op,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<
-                        dnnl::deconvolution_backward_data::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::deconvolution_backward_data::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     // prepare the operator attributes
@@ -244,10 +246,10 @@ create_deconv_bwd_weights_pd(std::shared_ptr<op_t> &op,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<
-                        dnnl::deconvolution_backward_weights::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::deconvolution_backward_weights::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     // prepare the operator attributes
@@ -296,9 +298,9 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::matmul::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<dnnl::matmul::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -362,9 +364,10 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::pooling_v2_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::pooling_v2_forward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dims strides = op->get_attr<dims>(op_attr::strides);
@@ -448,9 +451,10 @@ create_pool_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::pooling_v2_backward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::pooling_v2_backward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dims strides = op->get_attr<dims>(op_attr::strides);
@@ -542,10 +546,10 @@ create_batchnorm_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<
-                        dnnl::batch_normalization_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::batch_normalization_forward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     float epsilon = op->get_attr<float>(op_attr::epsilon);
@@ -602,10 +606,10 @@ create_batchnorm_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<
-                        dnnl::batch_normalization_backward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::batch_normalization_backward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     float epsilon = op->get_attr<float>(op_attr::epsilon);
@@ -647,10 +651,10 @@ create_layernorm_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<
-                        dnnl::layer_normalization_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::layer_normalization_forward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     float epsilon = 1e-5;
@@ -685,10 +689,10 @@ inline std::pair<dnnl::layer_normalization_backward::primitive_desc, bool>
 create_layernorm_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<
-                        dnnl::layer_normalization_backward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::layer_normalization_backward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -725,9 +729,10 @@ create_conv_bwd_data_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::convolution_backward_data::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::convolution_backward_data::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     // prepare the operator attributes
@@ -779,10 +784,10 @@ create_conv_bwd_weights_pd(std::shared_ptr<op_t> &op,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<
-                        dnnl::convolution_backward_weights::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::convolution_backward_weights::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     // prepare the operator attributes
@@ -832,9 +837,9 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::eltwise_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::eltwise_forward::primitive_desc>(pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     float alpha = 0.f, beta = 0.f;
@@ -875,9 +880,9 @@ inline std::pair<dnnl::eltwise_backward::primitive_desc, bool>
 create_eltwise_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::eltwise_backward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::eltwise_backward::primitive_desc>(pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -916,8 +921,15 @@ create_eltwise_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
     return {pd, true};
 }
 
-inline dnnl::sum::primitive_desc create_dnnl_sum_pd(std::shared_ptr<op_t> &op,
-        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+inline std::pair<dnnl::sum::primitive_desc, bool> create_dnnl_sum_pd(
+        std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        auto pd = impl::graph::utils::any_cast<dnnl::sum::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
+    }
+
     std::vector<dnnl::memory::desc> src_descs;
     src_descs.reserve(op->num_inputs());
     for (const auto &in_val : op->get_input_values()) {
@@ -933,11 +945,19 @@ inline dnnl::sum::primitive_desc create_dnnl_sum_pd(std::shared_ptr<op_t> &op,
 
     dnnl::sum::primitive_desc pd(dst_desc, scales, src_descs, p_engine);
 
-    return pd;
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
 }
 
-inline dnnl::concat::primitive_desc create_concat_pd(std::shared_ptr<op_t> &op,
-        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+inline std::pair<dnnl::concat::primitive_desc, bool> create_concat_pd(
+        std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {impl::graph::utils::any_cast<dnnl::concat::primitive_desc>(
+                        pd_cache.at(op.get())),
+                false};
+    }
     // Here we force to use plain-in-plain-out (acdb) for 4D case to make
     // sure good performance of DensenNet121 (reducing reorder overhead).
     // But for other cases like 2D/3D (e.g. DLRM), we just use default
@@ -979,8 +999,9 @@ inline dnnl::concat::primitive_desc create_concat_pd(std::shared_ptr<op_t> &op,
 
     dnnl::concat::primitive_desc pd(
             dst, static_cast<int>(axis), src_mds, p_engine, prm_attr);
+    pd_cache.insert({op.get(), pd});
 
-    return pd;
+    return {pd, true};
 }
 
 inline std::pair<dnnl::resampling_forward::primitive_desc, bool>
@@ -988,9 +1009,10 @@ create_resampling_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::resampling_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::resampling_forward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -1031,9 +1053,10 @@ create_resampling_bwd_pd(std::shared_ptr<op_t> &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::resampling_backward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::resampling_backward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -1078,9 +1101,9 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::binary::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<dnnl::binary::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -1116,9 +1139,9 @@ inline std::pair<dnnl::prelu_forward::primitive_desc, bool> create_prelu_pd(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::prelu_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::prelu_forward::primitive_desc>(pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -1148,9 +1171,9 @@ create_prelu_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::prelu_backward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::prelu_backward::primitive_desc>(pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -1187,12 +1210,13 @@ create_prelu_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
 
 inline std::pair<dnnl::softmax_v2_forward::primitive_desc, bool>
 create_softmax_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
-        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache, dnnl::algorithm algo) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::softmax_v2_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::softmax_v2_forward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -1211,6 +1235,11 @@ create_softmax_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
     int64_t axis = op->get_attr<int64_t>(op_attr::axis);
     if (axis < 0) { axis += src.data.ndims; }
 
+    const dnnl::algorithm algo
+            = op->get_kind() == dnnl_impl::op_kind::dnnl_logsoftmax
+            ? dnnl::algorithm::softmax_log
+            : dnnl::algorithm::softmax_accurate;
+
     dnnl::softmax_v2_forward::primitive_desc pd;
     pd = dnnl::softmax_v2_forward::primitive_desc(
             {prop_kind::forward_inference, algo, src, dst,
@@ -1224,12 +1253,13 @@ create_softmax_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
 
 inline std::pair<dnnl::softmax_v2_backward::primitive_desc, bool>
 create_softmax_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
-        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache, dnnl::algorithm algo) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::softmax_v2_backward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::softmax_v2_backward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -1256,6 +1286,11 @@ create_softmax_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
     dnnl::memory::desc src = dst;
     src.data.data_type = diff_src.data.data_type;
 
+    const dnnl::algorithm algo
+            = op->get_kind() == dnnl_impl::op_kind::dnnl_logsoftmax_bwd
+            ? dnnl::algorithm::softmax_log
+            : dnnl::algorithm::softmax_accurate;
+
     auto hint_fwd_pd = dnnl::softmax_v2_forward::primitive_desc(
             {prop_kind::forward_training, algo, src, dst,
                     static_cast<int>(axis)},
@@ -1274,9 +1309,9 @@ inline std::pair<dnnl::shuffle_forward::primitive_desc, bool> create_shuffle_pd(
         std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::shuffle_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<
+                dnnl::shuffle_forward::primitive_desc>(pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     const int group = static_cast<int>(op->get_attr<int64_t>(op_attr::groups));
@@ -1307,9 +1342,9 @@ inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::reduction::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
+        auto pd = impl::graph::utils::any_cast<dnnl::reduction::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
     }
 
     dnnl::primitive_attr prm_attr;
@@ -1343,9 +1378,15 @@ inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
     return {pd, true};
 }
 
-inline dnnl::reorder::primitive_desc create_reorder_pd(
+inline std::pair<dnnl::reorder::primitive_desc, bool> create_reorder_pd(
         std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
-        fusion_info_mgr_t &mgr) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        auto pd = impl::graph::utils::any_cast<dnnl::reorder::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, false};
+    }
+
     dnnl::primitive_attr prm_attr;
     if (op->has_attr(op_attr::fusion_info_key)
             && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
@@ -1400,7 +1441,9 @@ inline dnnl::reorder::primitive_desc create_reorder_pd(
 
     auto pd = dnnl::reorder::primitive_desc(
             p_engine, in_md, p_engine, out_md, prm_attr);
-    return pd;
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
 }
 
 struct op_executable_t {
@@ -1482,9 +1525,8 @@ struct const_memory_filler_t : public op_executable_t {
                 const_cast<target_dt *>(attr_data_.data()));
         const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
         auto sycl_queue = dnnl::sycl_interop::get_queue(stream);
-        auto e = sycl_queue
-                .memcpy(dst_mem.get_data_handle(), data_handle,
-                        dst_mem.get_desc().get_size());
+        auto e = sycl_queue.memcpy(dst_mem.get_data_handle(), data_handle,
+                dst_mem.get_desc().get_size());
         return e;
     }
 #endif
@@ -1915,8 +1957,8 @@ private:
 
 struct concat_executable_t : public op_executable_t {
     concat_executable_t(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
-            fusion_info_mgr_t &mgr) {
-        pd_ = create_concat_pd(op, p_engine, mgr);
+            fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
+        pd_ = create_concat_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::concat(pd_);
     }
 
@@ -2088,8 +2130,9 @@ private:
 
 struct reorder_executable_t : public op_executable_t {
     reorder_executable_t(std::shared_ptr<op_t> &op,
-            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-        pd_ = create_reorder_pd(op, p_engine, mgr);
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_reorder_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::reorder(pd_);
         if (op->has_attr(op_attr::with_sum))
             with_sum_ = op->get_attr<bool>(op_attr::with_sum);
@@ -2813,8 +2856,8 @@ private:
 
 struct sum_executable_t : public op_executable_t {
     sum_executable_t(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
-            fusion_info_mgr_t &mgr) {
-        pd_ = create_dnnl_sum_pd(op, p_engine, mgr);
+            fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
+        pd_ = create_dnnl_sum_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::sum(pd_);
     }
 
@@ -2844,9 +2887,7 @@ struct softmax_executable_t : public op_executable_t {
     softmax_executable_t(std::shared_ptr<op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_softmax_pd(
-                op, p_engine, mgr, pd_cache, dnnl::algorithm::softmax_accurate)
-                      .first;
+        pd_ = create_softmax_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::softmax_v2_forward(pd_);
     }
 
@@ -2876,73 +2917,7 @@ struct softmax_bwd_executable_t : public op_executable_t {
     softmax_bwd_executable_t(std::shared_ptr<op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_softmax_bwd_pd(
-                op, p_engine, mgr, pd_cache, dnnl::algorithm::softmax_accurate)
-                      .first;
-        prim_ = dnnl::softmax_v2_backward(pd_);
-    }
-
-    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
-
-    void execute(const stream &stream,
-            const std::unordered_map<int, memory> &args) const override {
-        prim_.execute(stream, args);
-    }
-
-#ifdef DNNL_WITH_SYCL
-    ::sycl::event execute_sycl(const stream &stream,
-            const std::unordered_map<int, memory> &args,
-            const std::vector<::sycl::event> &deps = {}) const override {
-        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
-        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
-        return e;
-    }
-#endif
-
-private:
-    dnnl::softmax_v2_backward::primitive_desc pd_;
-    dnnl::softmax_v2_backward prim_;
-};
-
-struct logsoftmax_executable_t : public op_executable_t {
-    logsoftmax_executable_t(std::shared_ptr<op_t> &op,
-            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-            pd_cache_t &pd_cache) {
-        pd_ = create_softmax_pd(
-                op, p_engine, mgr, pd_cache, dnnl::algorithm::softmax_log)
-                      .first;
-        prim_ = dnnl::softmax_v2_forward(pd_);
-    }
-
-    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
-
-    void execute(const stream &stream,
-            const std::unordered_map<int, memory> &args) const override {
-        prim_.execute(stream, args);
-    }
-
-#ifdef DNNL_WITH_SYCL
-    ::sycl::event execute_sycl(const stream &stream,
-            const std::unordered_map<int, memory> &args,
-            const std::vector<::sycl::event> &deps = {}) const override {
-        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
-        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
-        return e;
-    }
-#endif
-
-private:
-    dnnl::softmax_v2_forward::primitive_desc pd_;
-    dnnl::softmax_v2_forward prim_;
-};
-
-struct logsoftmax_bwd_executable_t : public op_executable_t {
-    logsoftmax_bwd_executable_t(std::shared_ptr<op_t> &op,
-            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-            pd_cache_t &pd_cache) {
-        pd_ = create_softmax_bwd_pd(
-                op, p_engine, mgr, pd_cache, dnnl::algorithm::softmax_log)
-                      .first;
+        pd_ = create_softmax_bwd_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::softmax_v2_backward(pd_);
     }
 

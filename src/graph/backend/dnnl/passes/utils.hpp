@@ -47,7 +47,7 @@ namespace graph {
 namespace dnnl_impl {
 
 struct op_executable_t;
-using pd_cache_t = std::unordered_map<op_t *, dnnl::primitive_desc>;
+using pd_cache_t = std::unordered_map<op_t *, impl::graph::utils::any_t>;
 
 // The subgraph_t class is a subclass of graph_t, which is used as the only
 // parameter of transformation passes. Each transformation pass will process the
