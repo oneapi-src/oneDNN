@@ -87,8 +87,7 @@ struct mxp_buffer_allocator {
     void update_output_buffer_info(sc_op *op, mixed_parti_t *parti);
 
     // set shrink info
-    void declare_and_shrink_tensor(
-            std::unordered_map<sc_op *, fuse_anchor_map_ptr> &op_anchor_map_);
+    void declare_and_shrink_tensor();
     /** merge two buffer allocator
      * @param: common_anchor_pair: the common anchor overlapped when two
      * partition merged. `first` comes from this partition, and `second` comes

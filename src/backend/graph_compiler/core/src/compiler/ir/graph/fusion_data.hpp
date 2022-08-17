@@ -192,6 +192,21 @@ struct fuse_anchor_t {
         : anchor_position_(std::move(pos)), anchor_slice_(std::move(slice)) {};
 };
 
+struct iter_fuse_anchor_t {
+    stmts anchor_position_;
+    expr iter_;
+    expr tsr_;
+    slice_range_list slice_list_;
+    iter_fuse_anchor_t() = default;
+    iter_fuse_anchor_t(
+            stmts pos, expr iter, expr tsr, slice_range_list slice_list)
+        : anchor_position_(pos)
+        , iter_(iter)
+        , tsr_(tsr)
+        , slice_list_(slice_list) {}
+    bool defined() const { return anchor_position_.defined(); }
+};
+
 struct fuse_anchor_map_t {
     stmts anchor_position_;
     fslice_map fsmap_;

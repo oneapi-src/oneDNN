@@ -184,11 +184,12 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
     COMPILE_ASSERT(in_slice_size, "No input slice found for " << op_name_);
 
     // generate IR
-    builder::ir_builder_t bld;
-    bld.push_scope();
+    stmts ss = builder::make_stmts_unattached({}).checked_as<stmts>();
     // unwrapper tensor slice, for compute_block, it just accpet single
     // tensor_slice
+    bool use_cached_anchor = false;
     for (size_t i = 0; i < in_slice_size; i++) {
+        stmt compute_core;
         std::vector<const tensor_slice *> new_inputs_ptr(inputs.size());
         std::vector<tensor_slice *> new_outputs_ptr(outputs.size());
         std::transform(inputs.begin(), inputs.end(), new_inputs_ptr.begin(),
@@ -196,12 +197,42 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
 
         std::transform(outputs.begin(), outputs.end(), new_outputs_ptr.begin(),
                 [&i](std::vector<tensor_slice> &out) { return &out[i]; });
+        builder::ir_builder_t bld;
+        bld.push_scope();
         compute_block(parti->ctx_, new_outputs_ptr, new_inputs_ptr);
+        compute_core = bld.pop_scope();
+        if (committed_anchor->anchor_position_->attr().has_key("iter_anchor")) {
+            auto iter = committed_anchor->anchor_position_->attr().get<expr>(
+                    "iter_anchor");
+            std::vector<stmts> cached_iter_anchor;
+            if (committed_anchor->anchor_position_->attr().has_key(
+                        "cached_iter_anchor")) {
+                cached_iter_anchor = committed_anchor->anchor_position_->attr()
+                                             .get<std::vector<stmts>>(
+                                                     "cached_iter_anchor");
+            }
+            if (cached_iter_anchor.size() < in_slice_size) {
+                cached_iter_anchor.push_back(compute_core.checked_as<stmts>());
+                committed_anchor->anchor_position_->attr()["cached_iter_anchor"]
+                        = cached_iter_anchor;
+            } else {
+                ss = cached_iter_anchor.at(i);
+                use_cached_anchor = true;
+            }
+            if (!use_cached_anchor) {
+                compute_core = make_stmt<if_else_node_t>(
+                        iter == i, compute_core, stmt());
+            }
+            ss->seq_.emplace_back(compute_core);
+        } else {
+            ss->seq_.insert(ss->seq_.begin(),
+                    compute_core.checked_as<stmts>()->seq_.begin(),
+                    compute_core.checked_as<stmts>()->seq_.end());
+        }
     }
-    auto ss = bld.pop_scope().checked_as<stmts>();
 
     // commit into anchor
-    committed_anchor->commit_stmts(ss);
+    if (!use_cached_anchor) committed_anchor->commit_stmts(ss);
 }
 
 void fusible_op_t::query_format(context_ptr ctx,
