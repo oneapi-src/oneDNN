@@ -53,29 +53,33 @@ errors.
 
 The table below shows supported name configurations for this driver:
 
-| src  | wei  | dst  | acc  | cfg             | notes
-|:---  |:---  |:---  |:---  |:---             |:---
-| f32  | f32  | f32  | f32  | f32             | inference optimized for sse4.1+, training for avx2+
-| f32  | f32  | s8   | f32  | f32f32s8        | Only for GPU
-| u8   | s8   | f32  | s32  | u8s8f32         | optimized for processors with support of avx512vl, FWD_x only.
-| u8   | s8   | s32  | s32  | u8s8s32         | same as above
-| u8   | s8   | s8   | s32  | u8s8s8          | same as above
-| u8   | s8   | u8   | s32  | u8s8u8          | same as above
-| s8   | s8   | f32  | s32  | s8s8f32         | same as above
-| s8   | s8   | s32  | s32  | s8s8s32         | same as above
-| s8   | s8   | s8   | s32  | s8s8s8          | same as above
-| s8   | s8   | u8   | s32  | s8s8u8          | same as above
-| f32  | f32  | f32  | f32  | f32_wino        | Winograd-based convolution.
-| u8   | s8   | f32  | s32  | u8s8f32_wino    | same as above
-| u8   | s8   | s32  | s32  | u8s8s32_wino    | same as above
-| u8   | s8   | s8   | s32  | u8s8s8_wino     | same as above
-| u8   | s8   | u8   | s32  | u8s8u8_wino     | same as above
-| f16  | f16  | f16  | f32  | f16             | optimized for processors with support of avx512-fp16
-| f16  | f16  | s8   | f32  | f16f16s8        | Only for GPU
-| bf16 | bf16 | bf16 | f32  | bf16bf16bf16    | optimized for processors with support of avx512vl + VNNI
-| bf16 | bf16 | f32  | f32  | bf16bf16f32     | same as above
-| bf16 | f32  | bf16 | f32  | bf16f32bf16     | same as above
-| f32  | bf16 | bf16 | f32  | f32bf16bf16     | same as above
+For data type support, refer to [data types](https://oneapi-src.github.io/oneDNN/dev_guide_data_types.html)
+and [convolution primitive](https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#data-types)
+documentation.
+
+| src  | wei  | dst  | acc  | cfg             |
+|:---  |:---  |:---  |:---  |:---             |
+| f32  | f32  | f32  | f32  | f32             |
+| f32  | f32  | s8   | f32  | f32f32s8        |
+| u8   | s8   | f32  | s32  | u8s8f32         |
+| u8   | s8   | s32  | s32  | u8s8s32         |
+| u8   | s8   | s8   | s32  | u8s8s8          |
+| u8   | s8   | u8   | s32  | u8s8u8          |
+| s8   | s8   | f32  | s32  | s8s8f32         |
+| s8   | s8   | s32  | s32  | s8s8s32         |
+| s8   | s8   | s8   | s32  | s8s8s8          |
+| s8   | s8   | u8   | s32  | s8s8u8          |
+| f32  | f32  | f32  | f32  | f32_wino        |
+| u8   | s8   | f32  | s32  | u8s8f32_wino    |
+| u8   | s8   | s32  | s32  | u8s8s32_wino    |
+| u8   | s8   | s8   | s32  | u8s8s8_wino     |
+| u8   | s8   | u8   | s32  | u8s8u8_wino     |
+| f16  | f16  | f16  | f32  | f16             |
+| f16  | f16  | s8   | f32  | f16f16s8        |
+| bf16 | bf16 | bf16 | f32  | bf16bf16bf16    |
+| bf16 | bf16 | f32  | f32  | bf16bf16f32     |
+| bf16 | f32  | bf16 | f32  | bf16f32bf16     |
+| f32  | bf16 | bf16 | f32  | f32bf16bf16     |
 
 ## Essence of Testing
 
