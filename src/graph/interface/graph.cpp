@@ -419,7 +419,16 @@ status_t DNNL_API dnnl_graph_graph_get_partition_num(
 
 status_t DNNL_API dnnl_graph_graph_get_partitions(
         graph_t *graph, size_t num, partition_t **partition) {
-    if (graph == nullptr) { return status::invalid_graph; }
+    if (utils::any_null(graph, partition) || num == 0) {
+        return status::invalid_graph;
+    }
+
+    // allocate partitions
+    for (size_t i = 0; i < num; i++) {
+        partition[i] = new partition_t();
+    }
+
+    // initialize partitions
     std::vector<partition_t *> partitions {partition, partition + num};
     graph->get_ordered_partitions(partitions);
 #ifdef DNNL_ENABLE_GRAPH_DUMP

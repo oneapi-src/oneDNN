@@ -320,18 +320,11 @@ dnnl_status_t DNNL_API dnnl_graph_op_get_kind(
 /// @addtogroup dnnl_graph_api_partition
 /// @{
 
-/// Creates a new empty partition.
-///
-/// @param partition The handle of the output partition.
-/// @returns #dnnl_success on success or a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_graph_partition_create(
-        dnnl_graph_partition_t *partition);
-
 /// Creates a new partition with a given operator and engine kind. The API is
 /// used to create a partition from an operation directly without creating the
 /// graph and calling `get_partitions()`. The output partition contains only one
-/// operation.
+/// operation specified by the parameter. The output partition instance should
+/// be destroyed via #dnnl_graph_partition_destroy after use.
 ///
 /// @param partition The handle of output partition.
 /// @param op The operation used to create partition.
@@ -635,15 +628,19 @@ dnnl_status_t DNNL_API dnnl_graph_graph_filter(
 dnnl_status_t DNNL_API dnnl_graph_graph_get_partition_num(
         const_dnnl_graph_graph_t graph, size_t *num);
 
-/// Returns the partitions from a filtered graph.
+/// Returns the partitions from a filtered graph. Output partition instances
+/// will be written into the parameter `partitions`. Users need to make sure
+/// `partitions` is valid and has enough space to accept the partition
+/// instances. Each output partition instance should be destroyed via
+/// #dnnl_graph_partition_destroy explicitly after use.
 ///
 /// @param graph The target graph.
 /// @param num The number of partitions.
-/// @param partition Output the partitions.
+/// @param partitions Output the partitions.
 /// @returns #dnnl_success on success or a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_graph_graph_get_partitions(dnnl_graph_graph_t graph,
-        size_t num, dnnl_graph_partition_t *partition);
+        size_t num, dnnl_graph_partition_t *partitions);
 
 /// @} dnnl_graph_api_graph
 

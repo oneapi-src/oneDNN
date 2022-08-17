@@ -123,8 +123,6 @@ public:
         ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
                 dnnl_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(part_num, 1U, TEST_CONV2D_DESTROY);
-        ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-                TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(
                 dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
                 dnnl_success, TEST_CONV2D_DESTROY);

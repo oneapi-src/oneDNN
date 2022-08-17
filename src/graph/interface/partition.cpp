@@ -42,13 +42,6 @@
 
 using namespace dnnl::impl::graph;
 
-status_t DNNL_API dnnl_graph_partition_create(partition_t **partition) {
-    if (partition == nullptr) return status::invalid_arguments;
-
-    *partition = new partition_t();
-    return status::success;
-}
-
 /// This allows to create a partition directly with an op and an engine kind.
 /// In order to not break backend API and change the existing graph and
 /// partition implementation, we internally construct a temporal graph object,

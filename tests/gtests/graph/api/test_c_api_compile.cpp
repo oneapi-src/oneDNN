@@ -109,8 +109,6 @@ TEST(CAPI, CompileBN) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_BN_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_BN_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_BN_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_BN_DESTROY);
@@ -226,8 +224,6 @@ TEST(CAPI, CompileConv2D) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILED_CONV2D_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILED_CONV2D_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILED_CONV2D_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILED_CONV2D_DESTROY);
@@ -343,8 +339,6 @@ TEST(CAPI, CompileGroupedConv2D) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_GROUND_CONV2D_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_GROUND_CONV2D_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_GROUND_CONV2D_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_GROUND_CONV2D_DESTROY);
@@ -502,8 +496,6 @@ TEST(CAPI, CompileConv2DBiasSum) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_CONV2D_BIAS_SUM_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_CONV2D_BIAS_SUM_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_CONV2D_BIAS_SUM_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_CONV2D_BIAS_SUM_DESTROY);
@@ -704,10 +696,6 @@ TEST(CAPI, CompileConv2DSumConv2D) {
         } \
     } while (0);
 
-    for (size_t i = 0; i < part_num; ++i) {
-        ASSERT_EQ_SAFE(dnnl_graph_partition_create(partition + i), dnnl_success,
-                COMPILE_CONV2D_SUM_CONV2D_DESTROY_PLUS);
-    }
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partitions(agraph, part_num, partition),
             dnnl_success, COMPILE_CONV2D_SUM_CONV2D_DESTROY_PLUS);
     for (size_t i = 0; i < part_num; ++i) {
@@ -946,10 +934,6 @@ TEST(CAPI, CompileSumConv2DStridedBN) {
         } \
     } while (0);
 
-    for (size_t i = 0; i < part_num; ++i) {
-        ASSERT_EQ_SAFE(dnnl_graph_partition_create(partition + i), dnnl_success,
-                COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
-    }
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partitions(agraph, part_num, partition),
             dnnl_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
     for (size_t i = 0; i < part_num; ++i) {
@@ -1100,8 +1084,6 @@ TEST(CAPI, CompileConv2DWithUnknownShape) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
@@ -1210,8 +1192,6 @@ TEST(CAPI, CompileMaxPool) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILED_POOL_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILED_POOL_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILED_POOL_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILED_POOL_DESTROY);
@@ -1308,8 +1288,6 @@ TEST(CAPI, CompileMaxPoolWithStridedOutput) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILED_POOL_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILED_POOL_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILED_POOL_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILED_POOL_DESTROY);
@@ -1403,9 +1381,6 @@ TEST(CAPI, CompileAdd) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_ADD_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_ADD_DESTROY);
-
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_ADD_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_ADD_DESTROY);
@@ -1570,8 +1545,6 @@ TEST(CAPI, CompileConvBN) {
     dnnl_graph_graph_get_partition_num(agraph, &part_num);
 
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_CONV_BN_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_CONV_BN_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_CONV_BN_DESTROY);
@@ -1733,8 +1706,6 @@ TEST(CAPI, CompileGroupedConvBN) {
     dnnl_graph_graph_get_partition_num(agraph, &part_num);
 
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_GROUPED_CONV_BN_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_GROUPED_CONV_BN_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_GROUPED_CONV_BN_DESTROY);
@@ -1914,10 +1885,6 @@ TEST(CAPI, CompileConvBNStandalone) {
     dnnl_graph_graph_get_partition_num(agraph, &part_num);
 
     ASSERT_EQ_SAFE(part_num, 2U, COMPILE_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition[0]), dnnl_success,
-            COMPILE_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition[1]), dnnl_success,
-            COMPILE_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partitions(agraph, part_num, partition),
             dnnl_success, COMPILE_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_compiled_partition_create(
@@ -2027,8 +1994,6 @@ TEST(CAPI, CompileMatmulAdd1D) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_MATMUL_ADD_1D_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_MATMUL_ADD_1D_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_MATMUL_ADD_1D_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_MATMUL_ADD_1D_DESTROY);
@@ -2151,8 +2116,6 @@ TEST(CAPI, CompileMatmulAddActivation) {
         ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
                 dnnl_success, COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
         ASSERT_EQ_SAFE(part_num, 1U, COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
-        ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-                COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
         ASSERT_EQ_SAFE(
                 dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
                 dnnl_success, COMPILE_MATMUL_ADD_ACTIVATION_DESTROY);
@@ -2228,9 +2191,6 @@ TEST(CAPI, CompileSoftmax) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_SOFTMAX_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_SOFTMAX_DESTROY);
-
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_SOFTMAX_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_SOFTMAX_DESTROY);
@@ -2311,9 +2271,6 @@ TEST(CAPI, CompileSoftmaxBackward) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_SOFTMAX_BWD_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_SOFTMAX_BWD_DESTROY);
-
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_SOFTMAX_BWD_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_SOFTMAX_BWD_DESTROY);
@@ -2387,9 +2344,6 @@ TEST(CAPI, CompileLogSoftmax) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_LOGSOFTMAX_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_LOGSOFTMAX_DESTROY);
-
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_LOGSOFTMAX_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_LOGSOFTMAX_DESTROY);
@@ -2463,9 +2417,6 @@ TEST(CAPI, CompileWildcard) {
     ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
             dnnl_success, COMPILE_WILDCARD_DESTROY);
     ASSERT_EQ_SAFE(part_num, 1U, COMPILE_WILDCARD_DESTROY);
-
-    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition), dnnl_success,
-            COMPILE_WILDCARD_DESTROY);
     ASSERT_EQ_SAFE(
             dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
             dnnl_success, COMPILE_WILDCARD_DESTROY);
@@ -2494,9 +2445,6 @@ TEST(CAPI, PartitionInvalidArguments) {
     uint8_t supported = 0;
     dnnl_graph_partition_t part = nullptr;
 
-    res = dnnl_graph_partition_create(nullptr);
-    ASSERT_EQ(res, dnnl_invalid_arguments);
-
     res = dnnl_success;
     res = dnnl_graph_partition_create_with_op(nullptr, nullptr, kind);
     ASSERT_EQ(res, dnnl_invalid_arguments);
@@ -2516,12 +2464,6 @@ TEST(CAPI, PartitionInvalidArguments) {
     res = dnnl_success;
     res = dnnl_graph_partition_get_engine_kind(nullptr, &kind);
     ASSERT_EQ(res, dnnl_invalid_arguments);
-
-    res = dnnl_graph_partition_create(&part);
-    if (res != dnnl_success) {
-        dnnl_graph_partition_destroy(part);
-        ASSERT_TRUE(false);
-    }
 
     res = dnnl_success;
     res = dnnl_graph_partition_create_with_op(&part, nullptr, kind);

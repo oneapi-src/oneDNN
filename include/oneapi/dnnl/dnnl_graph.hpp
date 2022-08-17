@@ -1493,11 +1493,9 @@ public:
         out_list.reserve(num);
 
         std::vector<dnnl_graph_partition_t> partitions(num);
-        for (auto &p : partitions) {
-            error::wrap_c_api(dnnl_graph_partition_create(&p),
-                    "could not create partition");
-        }
-        dnnl_graph_graph_get_partitions(get(), num, partitions.data());
+        error::wrap_c_api(
+                dnnl_graph_graph_get_partitions(get(), num, partitions.data()),
+                "could not get partitions from the graph");
 
         for (auto p : partitions) {
             out_list.emplace_back(p);

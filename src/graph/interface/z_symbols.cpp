@@ -182,10 +182,6 @@ status_t DNNL_API dnnl_graph_set_compiled_partition_cache_capacity(
     return status::unimplemented;
 }
 
-status_t DNNL_API dnnl_graph_partition_create(partition_t **partition) {
-    return status::unimplemented;
-}
-
 status_t DNNL_API dnnl_graph_partition_create_with_op(
         partition_t **partition, const op_t *op, dnnl_engine_kind_t ekind) {
     return status::unimplemented;
