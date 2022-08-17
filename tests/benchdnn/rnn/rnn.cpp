@@ -142,8 +142,8 @@ int check_s8s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
     // alignment as packed buffer is aligned internally and the offset
     // is kept in the metadata.
     // Works fine with dnn_mem_t as it is align to 2MB large page boundary
-    dnn_mem_t mem_s8_src(mem_fp.md_, dnnl_s8, get_cpu_engine());
-    dnn_mem_t mem_s8_dst(mem_dt.md_, dnnl_s8, get_test_engine());
+    dnn_mem_t mem_s8_src(mem_fp.md_, dnnl_s8, tag::abx, get_cpu_engine());
+    dnn_mem_t mem_s8_dst(mem_dt.md_, get_test_engine());
 
     /* 1. compute f32_plain --quant--> s8_plain_quantized */
     /* Do fixed partitioning to have same filling for any number of threads */

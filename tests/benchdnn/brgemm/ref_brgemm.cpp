@@ -52,7 +52,7 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
 
     const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
 
-    dnn_mem_t dst_tmp(dst_m, dnnl_f32, tag::undef, dst_m.engine());
+    dnn_mem_t dst_tmp(dst_m, dnnl_f32, tag::abx, dst_m.engine());
 
     const auto alpha = prb->alpha;
     const auto beta = prb->beta;

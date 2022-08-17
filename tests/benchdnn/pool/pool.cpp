@@ -263,10 +263,10 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &d_scratchpad_md = query_md(const_bpd, DNNL_ARG_SCRATCHPAD);
 
         dnn_mem_t d_dst_fp = dnn_mem_t(d_dst_md, fp, tag, ref_engine);
-        d_dst_dt = dnn_mem_t(d_dst_md, prb->cfg[DST].dt, test_engine);
+        d_dst_dt = dnn_mem_t(d_dst_md, test_engine);
 
         dnn_mem_t d_src_fp = dnn_mem_t(d_src_md, fp, tag, ref_engine);
-        d_src_dt = dnn_mem_t(d_src_md, prb->cfg[SRC].dt, test_engine);
+        d_src_dt = dnn_mem_t(d_src_md, test_engine);
 
         scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);
 
