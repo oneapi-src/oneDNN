@@ -204,10 +204,12 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             nullptr,
         })},
         {{backward_data, f32, f16, f16}, REG_BWD_D_PK({
+            CPU_INSTANCE_AVX512(brgemm_convolution_bwd_t<avx512_core_fp16>)
             CPU_INSTANCE(ref_convolution_bwd_data_t)
             nullptr,
         })},
         {{backward_data, f16, f16, f16}, REG_BWD_D_PK({
+            CPU_INSTANCE_AVX512(brgemm_convolution_bwd_t<avx512_core_fp16>)
             CPU_INSTANCE(ref_convolution_bwd_data_t)
             nullptr,
         })},
