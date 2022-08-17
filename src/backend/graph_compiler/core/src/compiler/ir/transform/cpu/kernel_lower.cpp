@@ -41,6 +41,19 @@ struct hash<sc::brgemm::postop_setting_t> {
         return ret;
     }
 };
+
+template <>
+struct hash<std::pair<sc::sc_brgemm_bd_mask_t, int>> {
+    std::size_t operator()(
+            const std::pair<sc::sc_brgemm_bd_mask_t, int> &bdmask_pair) const {
+        size_t ret = 0;
+        for (auto &m : bdmask_pair.first) {
+            sc::hash_combine(ret, m);
+        }
+        sc::hash_combine(ret, bdmask_pair.second);
+        return ret;
+    }
+};
 } // namespace std
 namespace sc {
 using namespace builtin;
@@ -122,18 +135,32 @@ static expr get_brgemm_attrs_arg(const ir_module_ptr &mod,
 static std::pair<expr, expr> get_brgemm_bd_mask_arg(const ir_module_ptr &mod,
         const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
         const expr &bd_mask_len, const int bd_mask_set_num,
-        std::unordered_map<sc_brgemm_bd_mask_t, std::pair<expr, expr>> &cache,
+        std::unordered_map<std::pair<sc_brgemm_bd_mask_t, int>,
+                std::pair<expr, expr>> &cur_cache,
+        std::unordered_map<sc_brgemm_bd_mask_t, expr> &full_cached,
         std::vector<std::vector<stmt>> &brg_bd_mask_arr_assignment) {
     size_t sz = bd_mask.size();
+    auto bd_mask_pair
+            = std::pair<sc_brgemm_bd_mask_t, int>(bd_mask, bd_mask_set_num);
     if (sz == 0) { return std::pair<expr, expr>(get_ir_null(), get_ir_null()); }
-    if (cache.find(bd_mask) != cache.end()) { return cache[bd_mask]; }
-    size_t tsr_sz = sz;
-    auto init = std::make_shared<static_data_t>(bd_mask);
-    expr full_bd_mask = builder::make_tensor("__brgemm_full_bd_mask", {tsr_sz},
-            datatypes::u8, address_space::automatic, init);
-    mod->add_global_var(builder::make_var_tensor_def_unattached(
-            full_bd_mask, linkage::private_global)
-                                .static_as<define>());
+    if (cur_cache.find(bd_mask_pair) != cur_cache.end()) {
+        return cur_cache[bd_mask_pair];
+    }
+
+    expr full_bd_mask;
+    if (full_cached.find(bd_mask) == full_cached.end()) {
+        size_t tsr_sz = sz;
+        auto init = std::make_shared<static_data_t>(bd_mask);
+        expr full_bd_mask_ = builder::make_tensor("__brgemm_full_bd_mask",
+                {tsr_sz}, datatypes::u8, address_space::automatic, init);
+        mod->add_global_var(builder::make_var_tensor_def_unattached(
+                full_bd_mask_, linkage::private_global)
+                                    .static_as<define>());
+        full_bd_mask = full_bd_mask_;
+        full_cached[bd_mask] = full_bd_mask;
+    } else {
+        full_bd_mask = full_cached[bd_mask];
+    }
 
     expr bd_mask_arr = mod->make_global_tensor(datatypes::pointer,
             "__brgemm_bd_mask_arr", {bd_mask_set_num}, linkage::private_global);
@@ -145,7 +172,7 @@ static std::pair<expr, expr> get_brgemm_bd_mask_arg(const ir_module_ptr &mod,
     }
     brg_bd_mask_arr_assignment.push_back(bd_mask_arr_assignment);
     auto ret = std::pair<expr, expr>(bd_mask_arr, bd_mask_arr[bd_mask_idx]);
-    cache[bd_mask] = ret;
+    cur_cache[bd_mask_pair] = ret;
 
     return ret;
 }
@@ -366,8 +393,10 @@ public:
     // brgemm init stmts includes postops_data/c_buf
     std::vector<stmt_c> brg_postop_init_;
     std::unordered_map<std::vector<int64_t>, expr> attrs_cache_;
-    std::unordered_map<sc_brgemm_bd_mask_t, std::pair<expr, expr>>
-            bd_mask_cache_;
+    std::unordered_map<std::pair<sc_brgemm_bd_mask_t, int>,
+            std::pair<expr, expr>>
+            cur_bd_mask_cache_;
+    std::unordered_map<sc_brgemm_bd_mask_t, expr> full_bd_mask_cache_;
     std::unordered_map<sc_brgemm_postops_setting_t, expr> postop_set_cache_;
     std::vector<std::vector<stmt>> sc_kernel_cache_assignment_;
     std::vector<std::vector<stmt>> brg_bd_mask_arr_assignment_;
@@ -381,10 +410,10 @@ public:
     expr_c optimize_kernel_call(brgemm_mode mode, scflags_t::brgemm_t backend,
             expr_c v, const std::vector<expr> &args, const std::string &name,
             init_func_t init_func, run_func_t run_func, float beta,
-            bool has_postop) {
+            bool has_postop, bool use_bdmask) {
         std::vector<expr_c> cached_args;
 
-        if (brg_use_bdmask_) {
+        if (use_bdmask) {
             int num_full_args = (mode == brgemm_mode::stride)
                     ? brgemm_args::NUM_FULL_ARGS_STRIDE
                     : brgemm_args::NUM_FULL_ARGS_LIST;
@@ -525,9 +554,10 @@ public:
                 "brg_postops_data.size() is expected to be "
                         << brgemm::postops_data_init_func_nargs << ", but got "
                         << brg_postops_data.size());
-
+        bool use_bdmask = false;
         validate_brgemm_attrs(
-                brg_attrs, bd_mask, brg_bdmask_set_num_, brg_use_bdmask_);
+                brg_attrs, bd_mask, brg_bdmask_set_num_, use_bdmask);
+        brg_use_bdmask_ |= use_bdmask;
 
         // layout of opt_args:
         //    | basic_args | postops_data list(11 elems) | c_buf | bdmask_idx
@@ -543,12 +573,13 @@ public:
         opt_args.emplace_back(brg_attrs_arg);
         // bd mask
         expr bd_mask_arr = get_ir_null(), cur_bd_mask = get_ir_null();
-        if (brg_use_bdmask_) {
+        if (use_bdmask) {
             expr bd_mask_idx = v->args_[num_full_args - 1];
             expr bd_mask_len = v->args_[brgemm_args::M];
             auto bd_mask_arg = get_brgemm_bd_mask_arg(mod_, bd_mask,
                     bd_mask_idx, bd_mask_len, brg_bdmask_set_num_,
-                    bd_mask_cache_, brg_bd_mask_arr_assignment_);
+                    cur_bd_mask_cache_, full_bd_mask_cache_,
+                    brg_bd_mask_arr_assignment_);
             bd_mask_arr = bd_mask_arg.first;
             cur_bd_mask = bd_mask_arg.second;
         }
@@ -614,7 +645,7 @@ public:
             auto ret = optimize_kernel_call(mode, backend, v, opt_args,
                     f->name_, brgemm_init_kernel_cache, brgemm_run,
                     extras->cpu_.init_ ? 0.0f : 1.0f,
-                    !brg_postops_setting.empty());
+                    !brg_postops_setting.empty(), use_bdmask);
             if (ret.ptr_same(v)) { return builder::make_call(f, no_opt_args); }
             return ret;
         }
