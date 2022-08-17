@@ -14,9 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/sycl.hpp>
-
 #include "common/c_types_map.hpp"
+#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {

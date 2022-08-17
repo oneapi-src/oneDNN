@@ -15,9 +15,9 @@
 *******************************************************************************/
 
 #include "sycl/sycl_utils.hpp"
+#include "sycl/sycl_compat.hpp"
 
 #include "sycl/level_zero_utils.hpp"
-#include <CL/sycl/backend/opencl.hpp>
 
 #ifdef DNNL_SYCL_CUDA
 // Do not include sycl_cuda_utils.hpp because it's intended for use in

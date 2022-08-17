@@ -14,10 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/sycl/backend/opencl.hpp>
-
-#include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_device_info.hpp"
+#include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_utils.hpp"
 
 #include "gpu/ocl/ocl_engine.hpp"

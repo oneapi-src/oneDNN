@@ -17,8 +17,9 @@
 #ifndef SYCL_SYCL_COMPAT_HPP
 #define SYCL_SYCL_COMPAT_HPP
 
-#include "gpu/compute/compute.hpp"
 #include "sycl/sycl_utils.hpp"
+
+#include "gpu/compute/compute.hpp"
 
 namespace dnnl {
 namespace impl {

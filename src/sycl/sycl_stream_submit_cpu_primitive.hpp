@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "sycl/sycl_stream_cpu_thunk.hpp"
+#include "sycl/sycl_utils.hpp"
 
 #include <vector>
-#include <CL/sycl.hpp>
 
 namespace dnnl {
 namespace impl {

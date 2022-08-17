@@ -23,8 +23,6 @@
 #include "sycl/sycl_engine_base.hpp"
 #include "sycl/sycl_utils.hpp"
 
-#include <CL/sycl.hpp>
-
 namespace dnnl {
 namespace impl {
 namespace sycl {

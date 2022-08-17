@@ -23,7 +23,20 @@
 #include "gpu/ocl/ocl_utils.hpp"
 
 #include <vector>
+
+#if !defined(__INTEL_LLVM_COMPILER) \
+        || (defined(__INTEL_LLVM_COMPILER) \
+                && __INTEL_LLVM_COMPILER < 20230000)
+#define DNNL_USE_SYCL121_HEADERS 1
+#else
+#define DNNL_USE_SYCL121_HEADERS 0
+#endif
+
+#if DNNL_USE_SYCL121_HEADERS
 #include <CL/sycl.hpp>
+#else
+#include <sycl/sycl.hpp>
+#endif
 
 #if defined(__INTEL_LLVM_COMPILER)
 #if (__INTEL_LLVM_COMPILER < 20220000)

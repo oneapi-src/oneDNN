@@ -25,7 +25,6 @@
 #include "sycl/sycl_memory_storage_base.hpp"
 
 #include <memory>
-#include <CL/sycl.hpp>
 
 namespace dnnl {
 namespace impl {

@@ -17,8 +17,6 @@
 #ifndef GPU_SYCL_SYCL_GPU_ENGINE_HPP
 #define GPU_SYCL_SYCL_GPU_ENGINE_HPP
 
-#include <CL/sycl.hpp>
-
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"

@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/sycl.hpp>
-
 #include "oneapi/dnnl/dnnl_sycl.h"
 
 #include "common/c_types_map.hpp"

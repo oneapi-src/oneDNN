@@ -16,8 +16,6 @@
 
 #include "sycl/sycl_usm_memory_storage.hpp"
 
-#include <CL/sycl.hpp>
-
 #include "common/guard_manager.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"

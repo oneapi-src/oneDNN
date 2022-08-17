@@ -26,7 +26,13 @@
 #include <vector>
 #include <unordered_map>
 
+#if !defined(__INTEL_LLVM_COMPILER) \
+        || (defined(__INTEL_LLVM_COMPILER) \
+                && __INTEL_LLVM_COMPILER < 20230000)
 #include <CL/sycl.hpp>
+#else
+#include <sycl/sycl.hpp>
+#endif
 
 #include "oneapi/dnnl/dnnl.hpp"
 #include "oneapi/dnnl/dnnl_sycl.h"

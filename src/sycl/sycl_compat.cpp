@@ -14,12 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/sycl.hpp>
 #include <level_zero/ze_api.h>
 #include <type_traits>
 
 #include "oneapi/dnnl/dnnl_config.h"
 #include "sycl/sycl_utils.hpp"
+
+#if DNNL_USE_SYCL121_HEADERS
+#include <CL/sycl/backend/opencl.hpp>
+#else
+#include <sycl/backend/opencl.hpp>
+#endif
 
 #if DNNL_USE_SYCL121_API
 #include <CL/sycl/backend/level_zero.hpp>
