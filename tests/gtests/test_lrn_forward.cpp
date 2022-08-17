@@ -511,34 +511,34 @@ INSTANTIATE_TEST_SUITE_P(
 
 // ------------- fp16 ----------------------
 TEST_P(lrn_fp16, TestsLRN) {}
-GPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForwardZeroDim, lrn_fp16, ForwardZeroDim_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(TestLRNForwardEF, lrn_fp16, ForwardEF_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw16c_padded, lrn_fp16,
+INSTANTIATE_TEST_SUITE_P(TestLRNForwardEF, lrn_fp16, ForwardEF_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw16c_padded, lrn_fp16,
         Forward_nChw16c_padded_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForward_nChw8c_padded, lrn_fp16, Forward_nChw8c_padded_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(TestLRNForward, lrn_fp16, Forward_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(TestLRNForwardNHWC, lrn_fp16, ForwardNHWC_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(TestLRNForward, lrn_fp16, Forward_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNForwardNHWC, lrn_fp16, ForwardNHWC_cases());
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForward_nChw8c, lrn_fp16, Forward_nChw8c_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForward_nChw16c, lrn_fp16, Forward_nChw16c_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetForwardNCHW, lrn_fp16, AlexnetForwardNCHW_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetForwardNHWC, lrn_fp16, AlexnetForwardNHWC_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetForward_nChw8c, lrn_fp16, AlexnetForward_nChw8c_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForward_nChw16c, lrn_fp16,
+INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForward_nChw16c, lrn_fp16,
         AlexnetForward_nChw16c_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1ForwardNCHW, lrn_fp16,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1ForwardNCHW, lrn_fp16,
         GoogleNetV1ForwardNCHW_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw8c, lrn_fp16,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw8c, lrn_fp16,
         GoogleNetV1Forward_nChw8c_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw16c, lrn_fp16,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw16c, lrn_fp16,
         GoogleNetV1Forward_nChw16c_cases());
-GPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNRCNNForwardBlocked, lrn_fp16, RCNNForwardBlocked_cases());
 // This tests compatibility with Intel MKL-DNN v0.14
 GPU_INSTANTIATE_TEST_SUITE_P(TestLRNRegressionWeightFormat, lrn_fp16,

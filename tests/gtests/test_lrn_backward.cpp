@@ -257,7 +257,8 @@ protected:
         ASSERT_EQ(true,
                 dnnl::impl::utils::one_of(data_type,
                         dnnl::memory::data_type::f32,
-                        dnnl::memory::data_type::bf16));
+                        dnnl::memory::data_type::bf16,
+                        dnnl::memory::data_type::f16));
 
         test_lrn_desc_t ld = p.test_ld;
 
@@ -484,15 +485,41 @@ static auto RegressionWeightFormat_cases = [](algorithm lk) {
             RegressionWeightFormat_cases( \
                     lk)); // This tests compatibility with Intel MKL-DNN v0.14
 
+#define CPU_INST_TEST_CASE_PLAIN(test, lk) \
+    TEST_P(test, TestsLRN) {} \
+    CPU_INSTANTIATE_TEST_SUITE_P(Backward_padded, test, padded_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(BackwardEF, test, EF_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P( \
+            Backward_nChw16c_padded, test, nChw16c_padded_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P( \
+            Backward_nChw8c_padded, test, nChw8c_padded_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(LRN, test, cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(NHWC, test, NHWC_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(nChw8c, test, nChw8c_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(nChw16c, test, nChw16c_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(CaffeNCHW, test, CaffeNCHW_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(CaffeNHWC, test, CaffeNHWC_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(AlexnetNCHW, test, AlexnetNCHW_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(AlexnetNHWC, test, AlexnetNHWC_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P( \
+            GoogleNetV1NCHW, test, GoogleNetV1NCHW_cases(lk)); \
+    CPU_INSTANTIATE_TEST_SUITE_P(RegressionWeightFormat, test, \
+            RegressionWeightFormat_cases( \
+                    lk)); // This tests compatibility with Intel MKL-DNN v0.14
+
 using float_across = lrn_test_t<float>;
 using float_within = lrn_test_t<float>;
 using bfloat16_across = lrn_test_t<bfloat16_t>;
 using bfloat16_within = lrn_test_t<bfloat16_t>;
+using float16_across = lrn_test_t<float16_t>;
+using float16_within = lrn_test_t<float16_t>;
 
 INST_TEST_CASE(float_across, algorithm::lrn_across_channels)
 INST_TEST_CASE(bfloat16_across, algorithm::lrn_across_channels)
+CPU_INST_TEST_CASE_PLAIN(float16_across, algorithm::lrn_across_channels)
 
 INST_TEST_CASE(float_within, algorithm::lrn_within_channel)
 INST_TEST_CASE(bfloat16_within, algorithm::lrn_within_channel)
+CPU_INST_TEST_CASE_PLAIN(float16_within, algorithm::lrn_within_channel)
 
 } // namespace dnnl

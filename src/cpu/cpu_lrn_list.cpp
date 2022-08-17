@@ -44,6 +44,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<sse41, f32>)
             CPU_INSTANCE(ref_lrn_fwd_t<f32>)
             CPU_INSTANCE(ref_lrn_fwd_t<bf16>)
+            CPU_INSTANCE(ref_lrn_fwd_t<f16>)
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
@@ -54,6 +55,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_X64(jit_uni_lrn_bwd_t<avx2, f32>)
             CPU_INSTANCE(ref_lrn_bwd_t<f32>)
             CPU_INSTANCE(ref_lrn_bwd_t<bf16>)
+            CPU_INSTANCE(ref_lrn_bwd_t<f16>)
             nullptr,
         })},
     });

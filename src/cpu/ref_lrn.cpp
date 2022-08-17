@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -396,6 +396,37 @@ ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nhwc>(
         const exec_ctx_t &ctx) const;
 template status_t
 ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::any>(
+        const exec_ctx_t &ctx) const;
+
+template status_t
+ref_lrn_fwd_t<data_type::f16>::execute_forward<format_tag::nChw16c>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_fwd_t<data_type::f16>::execute_forward<format_tag::nChw8c>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_fwd_t<data_type::f16>::execute_forward<format_tag::nchw>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_fwd_t<data_type::f16>::execute_forward<format_tag::nhwc>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_fwd_t<data_type::f16>::execute_forward<format_tag::any>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_bwd_t<data_type::f16>::execute_backward<format_tag::nChw16c>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_bwd_t<data_type::f16>::execute_backward<format_tag::nChw8c>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_bwd_t<data_type::f16>::execute_backward<format_tag::nchw>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_bwd_t<data_type::f16>::execute_backward<format_tag::nhwc>(
+        const exec_ctx_t &ctx) const;
+template status_t
+ref_lrn_bwd_t<data_type::f16>::execute_backward<format_tag::any>(
         const exec_ctx_t &ctx) const;
 
 } // namespace cpu
