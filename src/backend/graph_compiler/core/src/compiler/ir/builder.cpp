@@ -336,6 +336,16 @@ expr make_reduce_mul(const expr_c &v) {
             std::vector<expr> {v.remove_const()}, any_map_t());
 }
 
+expr make_reduce_max(const expr_c &v) {
+    return make_expr<intrin_call_node>(intrin_type::reduce_max,
+            std::vector<expr> {v.remove_const()}, any_map_t());
+}
+
+expr make_reduce_min(const expr_c &v) {
+    return make_expr<intrin_call_node>(intrin_type::reduce_min,
+            std::vector<expr> {v.remove_const()}, any_map_t());
+}
+
 expr make_broadcast(const expr_c &v, int lanes) {
     return make_expr<intrin_call_node>(intrin_type::broadcast,
             std::vector<expr> {v.remove_const()}, any_map_t {{"lanes", lanes}});

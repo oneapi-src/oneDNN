@@ -164,15 +164,11 @@ void normalize_common_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // x^2
     auto fsquare = graph->make("mul", {inputs0, inputs0}, {}, {}); // 1
     // mean of x^2
-    auto fsqd_mean = graph->make("reduce", {fsquare->get_outputs()[0]}, {},
-            {
-                    {"need_mean", true},
-                    {"rd_axis", rd_axis},
-                    {"rd_op", 0},
-            }); // 2
+    auto fsqd_mean = graph->make("reduce_mean", {fsquare->get_outputs()[0]}, {},
+            {{"rd_axis", rd_axis}}); // 2
     // mean of X
-    auto fmean = graph->make("reduce", {inputs0}, {},
-            {{"need_mean", true}, {"rd_axis", rd_axis}, {"rd_op", 0}}); // 3
+    auto fmean = graph->make(
+            "reduce_mean", {inputs0}, {}, {{"rd_axis", rd_axis}}); // 3
     // square of mean
     auto fmean_sqd = graph->make("mul",
             {fmean->get_outputs()[0], fmean->get_outputs()[0]}, {}, {}); // 4

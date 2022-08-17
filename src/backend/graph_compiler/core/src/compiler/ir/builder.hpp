@@ -403,6 +403,20 @@ expr make_rsqrt(const expr_c &v);
 expr make_reduce_add(const expr_c &v);
 
 /**
+ * Makes an reduce max node
+ * @param v the input value
+ * @return the created node
+ * */
+expr make_reduce_max(const expr_c &v);
+
+/**
+ * Makes an reduce min node
+ * @param v the input value
+ * @return the created node
+ * */
+expr make_reduce_min(const expr_c &v);
+
+/**
  * Makes an reduce mul node
  * @param v the input value
  * @return the created node

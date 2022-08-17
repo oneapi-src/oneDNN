@@ -141,6 +141,24 @@ struct reduce_mul_handler_t : public intrinsic_handler_t {
     reduce_mul_handler_t() : intrinsic_handler_t("reduce_mul") {}
 };
 
+struct reduce_max_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = node.args_[0]->dtype_;
+        node.dtype_.lanes_ = 1;
+    }
+    reduce_max_handler_t() : intrinsic_handler_t("reduce_max") {}
+};
+
+struct reduce_min_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = node.args_[0]->dtype_;
+        node.dtype_.lanes_ = 1;
+    }
+    reduce_min_handler_t() : intrinsic_handler_t("reduce_min") {}
+};
+
 struct broadcast_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         assert(node.args_.size() == 1);
@@ -365,6 +383,8 @@ static std::unique_ptr<intrinsic_handler_t> handlers[]
                 utils::make_unique<rsqrt_handler_t>(),
                 utils::make_unique<reduce_add_handler_t>(),
                 utils::make_unique<reduce_mul_handler_t>(),
+                utils::make_unique<reduce_max_handler_t>(),
+                utils::make_unique<reduce_min_handler_t>(),
                 utils::make_unique<fmadd_handler_t>(),
                 utils::make_unique<unpack_low_handler_t>(),
                 utils::make_unique<unpack_high_handler_t>(),

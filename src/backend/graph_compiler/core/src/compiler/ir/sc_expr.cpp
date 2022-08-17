@@ -102,6 +102,8 @@ ostream &operator<<(ostream &os, intrin_type val) {
         HANDLE_CASE(rsqrt)
         HANDLE_CASE(reduce_add)
         HANDLE_CASE(reduce_mul)
+        HANDLE_CASE(reduce_max)
+        HANDLE_CASE(reduce_min)
         HANDLE_CASE(fmadd)
         HANDLE_CASE(unpack_low)
         HANDLE_CASE(unpack_high)

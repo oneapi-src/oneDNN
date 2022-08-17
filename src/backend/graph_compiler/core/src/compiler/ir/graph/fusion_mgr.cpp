@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <atomic>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <utility>
 #include "../easy_build.hpp"
@@ -526,6 +527,28 @@ void reset_buffer_hint_by_count(buffer_identity_count &buf_cnt_map) {
     }
 }
 
+void do_rd_op_init(expr &tsr, reduce_operator rd_op) {
+    switch (rd_op) {
+        case reduce_operator::mul:
+            tsr.checked_as<tensor>()->init_value_
+                    = tensor_node::make_tensor_initializer(1.0f);
+            break;
+        case reduce_operator::max:
+            tsr.checked_as<tensor>()->init_value_
+                    = tensor_node::make_tensor_initializer(
+                            -std::numeric_limits<float>::infinity());
+            break;
+        case reduce_operator::min:
+            tsr.checked_as<tensor>()->init_value_
+                    = tensor_node::make_tensor_initializer(
+                            std::numeric_limits<float>::infinity());
+            break;
+        default:
+            tsr.checked_as<tensor>()->init_value_
+                    = tensor_node::get_zero_tensor_initializer();
+    }
+}
+
 void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
         const std::vector<expr> &outs, const std::vector<expr> &inargs) {
     if (graph_.empty()) { return; }
@@ -618,14 +641,12 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 auto owner_op = cur->get_inputs()[0]->producer_owner_;
                 if (auto coll_op = owner_op->dyn_cast<reduce_collect_op_t>()) {
                     if (coll_op->is_place_holder_op()) {
-                        tsr.checked_as<tensor>()->init_value_
-                                = tensor_node::get_zero_tensor_initializer();
+                        do_rd_op_init(tsr, coll_op->get_rd_op());
                         fdmap.get(owner_op->get_inputs()[0]).set_buffer(tsr);
                     }
                 } else if (auto comp_op
                         = owner_op->dyn_cast<reduce_compute_op_t>()) {
-                    tsr.checked_as<tensor>()->init_value_
-                            = tensor_node::get_zero_tensor_initializer();
+                    do_rd_op_init(tsr, comp_op->get_rd_op());
                 }
             }
             // update tensors' last_access
@@ -709,8 +730,8 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 if (out_i_detail.need_alloc_) {
                     auto tsr = allocate_tensor(outputs[i], fdmap);
                     if (cur->isa<reduce_compute_op_t>()) {
-                        tsr.checked_as<tensor>()->init_value_
-                                = tensor_node::get_zero_tensor_initializer();
+                        auto cur_op = cur->dyn_cast<reduce_compute_op_t>();
+                        do_rd_op_init(tsr, cur_op->get_rd_op());
                     }
                 }
                 assert(out_i_detail.buffer_allocated());

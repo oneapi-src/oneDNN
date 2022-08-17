@@ -874,18 +874,63 @@ public:
                 ret->setFastMathFlags(builder_.getFastMathFlags());
                 current_val_ = ret;
             } break;
-            case intrin_type::reduce_add: {
+            case intrin_type::reduce_add:
+            case intrin_type::reduce_mul:
+            case intrin_type::reduce_max:
+            case intrin_type::reduce_min: {
+                Intrinsic::ID cur_intrinsic = Intrinsic::not_intrinsic;
+#if SC_LLVM_BACKEND > 10
+#define LLVM_INTRINSIC_EXP_V2(name) Intrinsic::vector_reduce_##name
+#define LLVM_INTRINSIC_EXP LLVM_INTRINSIC_EXP_V2
+#elif SC_LLVM_BACKEND > 8
+#define LLVM_INTRINSIC_EXP_V2(name) \
+    Intrinsic::experimental_vector_reduce_v2_##name
+#define LLVM_INTRINSIC_EXP(name) Intrinsic::experimental_vector_reduce_##name
+#else
+#define LLVM_INTRINSIC_EXP_V2(name) Intrinsic::experimental_vector_reduce_##name
+#define LLVM_INTRINSIC_EXP LLVM_INTRINSIC_EXP_V2
+#endif
+                if (v->type_ == intrin_type::reduce_add) {
+                    if (cate == CATE_FLOAT) {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP_V2(fadd);
+                    } else {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP(add);
+                    }
+                } else if (v->type_ == intrin_type::reduce_mul) {
+                    if (cate == CATE_FLOAT) {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP_V2(fmul);
+                    } else {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP(mul);
+                    }
+                } else if (v->type_ == intrin_type::reduce_max) {
+                    if (cate == CATE_FLOAT) {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP(fmax);
+                    } else if (cate == CATE_INT) {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP(smax);
+                    } else if (cate == CATE_UINT) {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP(umax);
+                    }
+                } else if (v->type_ == intrin_type::reduce_min) {
+                    if (cate == CATE_FLOAT) {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP(fmin);
+                    } else if (cate == CATE_INT) {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP(smin);
+                    } else if (cate == CATE_UINT) {
+                        cur_intrinsic = LLVM_INTRINSIC_EXP(umin);
+                    }
+                }
                 assert(v->args_.size() == 1);
                 auto inval = generate_expr(v->args_[0]);
-                if (cate == CATE_FLOAT) {
+                if ((v->type_ == intrin_type::reduce_add
+                            || v->type_ == intrin_type::reduce_mul)
+                        && cate == CATE_FLOAT) {
                     current_val_ = builder_.CreateIntrinsic(
 #if SC_LLVM_BACKEND > 10
-                            Intrinsic::vector_reduce_fadd, {inval->getType()},
+                            cur_intrinsic, {inval->getType()},
 #elif SC_LLVM_BACKEND > 8
-                            Intrinsic::experimental_vector_reduce_v2_fadd,
-                            {inval->getType()},
+                            cur_intrinsic, {inval->getType()},
 #else
-                            Intrinsic::experimental_vector_reduce_fadd,
+                            cur_intrinsic,
                             {get_type(v->dtype_), get_type(v->dtype_),
                                     inval->getType()},
 #endif
@@ -897,9 +942,9 @@ public:
                 } else {
                     current_val_ = builder_.CreateIntrinsic(
 #if SC_LLVM_BACKEND > 10
-                            Intrinsic::vector_reduce_add, {inval->getType()},
+                            cur_intrinsic, {inval->getType()},
 #else
-                            Intrinsic::experimental_vector_reduce_add,
+                            cur_intrinsic,
                             {get_type(v->dtype_), inval->getType()},
 #endif
                             {inval});

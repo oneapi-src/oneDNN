@@ -271,6 +271,8 @@ public:
             case intrin_type::rsqrt:
             case intrin_type::reduce_add:
             case intrin_type::reduce_mul:
+            case intrin_type::reduce_max:
+            case intrin_type::reduce_min:
             case intrin_type::fmadd:
             case intrin_type::unpack_low:
             case intrin_type::unpack_high:

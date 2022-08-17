@@ -32,6 +32,32 @@
 
 namespace sc {
 
+static inline any_map_t add_key(const any_map_t &attrs, int rd_op_) {
+    auto ret = attrs;
+    ret["rd_op"] = rd_op_;
+    return ret;
+}
+
+reduce_sum_op_t::reduce_sum_op_t(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+    : reduce_op_t(ins, outs,
+            add_key(attrs, static_cast<int>(reduce_operator::add))) {}
+
+reduce_prod_op_t::reduce_prod_op_t(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+    : reduce_op_t(ins, outs,
+            add_key(attrs, static_cast<int>(reduce_operator::mul))) {}
+
+reduce_max_op_t::reduce_max_op_t(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+    : reduce_op_t(ins, outs,
+            add_key(attrs, static_cast<int>(reduce_operator::max))) {}
+
+reduce_min_op_t::reduce_min_op_t(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+    : reduce_op_t(ins, outs,
+            add_key(attrs, static_cast<int>(reduce_operator::min))) {}
+
 bool slice_full_on_axes(
         const sc_dims &dim, slice_range ranges, const std::vector<int> &axes) {
     for (auto &ax : axes) {
@@ -72,7 +98,6 @@ reduce_op_t::reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
     plain_rd_axis_ = attrs.get<std::vector<int>>("rd_axis");
     rd_op_ = reduce_operator(attrs.get<int>("rd_op"));
     keep_dims_ = attrs.get_or_else("keep_dims", true);
-    need_mean_ = attrs.get_or_else("need_mean", false);
 
     auto &old_reduce_dims = ins[0]->details_.get_plain_dims();
     std::sort(plain_rd_axis_.begin(), plain_rd_axis_.end());
@@ -123,15 +148,13 @@ reduce_op_t::reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
     op_name_ = "reduce";
 }
 
-reduce_op_t::reduce_op_t(graph_tensor_ptr v, const std::string &rd_name,
-        const std::vector<int> &rd_axis, reduce_operator rd_op, bool keep_dims,
-        bool need_mean)
+reduce_op_t::reduce_op_t(graph_tensor_ptr v, const std::vector<int> &rd_axis,
+        reduce_operator rd_op, bool keep_dims)
     : reduce_op_t({std::move(v)}, {},
             {{"rd_axis", rd_axis}, {"rd_op", static_cast<int>(rd_op)},
-                    {"keep_dims", keep_dims}, {"need_mean", need_mean}}) {
+                    {"keep_dims", keep_dims}}) {
     // default is need_allocate
     info_.tensor_share_info_ = {};
-    rd_name_ = rd_name;
 }
 
 void reduce_op_t::query_format(context_ptr ctx,
@@ -351,9 +374,9 @@ void reduce_op_t::pre_slice_ranges(
 // reduction is not equal to src, so it will allocate a new buffer
 static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
         const tensor_slice &dst, reduce_operator rd_op,
-        std::vector<int> rd_axis, bool keep_dims, bool need_mean,
-        const std::string &rd_name, const vectorized_info_t &vx_info,
-        sc_data_type_t dtype, any_map_t &attrs, size_t wkld = 0UL) {
+        std::vector<int> rd_axis, bool keep_dims,
+        const vectorized_info_t &vx_info, sc_data_type_t dtype,
+        any_map_t &attrs, size_t wkld = 0UL) {
     // nested loop vars
     std::vector<expr> iter_vars;
     // the indices for multiple inputs. First dim: the input, Second
@@ -379,17 +402,11 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
      * */
     // use src_indices.at(0) as default
     auto &src_idx = src_indices.at(0);
-    int reduce_num = 1;
+
     for (unsigned i = 0; i < src.at(0)->nslice_dims(); i++) {
         iter_vars.emplace_back(builder::make_var(datatypes::index,
                 std::string("_fuseiter") + fusion_create_idx()));
         src_idx.emplace_back(iter_vars.back());
-        if (rd_axis.end()
-                != std::find(
-                        rd_axis.begin(), rd_axis.end(), static_cast<int>(i))) {
-            reduce_num *= get_const_as_int(
-                    src.at(0)->get_shape().at(i).checked_as<constant>());
-        }
     }
     // dst.ranges_ is equal to dst.tptr_->dims() in this case, because it
     // will be newly allocated.
@@ -411,10 +428,19 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     stmt body, cur;
     auto reduce_value
             = builder::make_var(sc_data_type_t(dtype.type_code_, vx_info.lanes),
-                    "reduce_" + rd_name + fusion_create_var_idx());
-    auto asnode = make_stmt<assign_node_t>(reduce_value,
-            make_expr<constant_node>((int64_t)0,
-                    sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+                    "reduce_" + fusion_create_var_idx());
+    stmt asnode;
+    if (dtype.type_code_ == sc_data_etype::F32) {
+        float init_value = rd_op == reduce_operator::mul ? 1 : 0;
+        asnode = make_stmt<assign_node_t>(reduce_value,
+                make_expr<constant_node>(init_value,
+                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+    } else {
+        uint64_t init_value = rd_op == reduce_operator::mul ? 1 : 0;
+        asnode = make_stmt<assign_node_t>(reduce_value,
+                make_expr<constant_node>(init_value,
+                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+    }
     auto define_reduce
             = make_stmt<define_node_t>(reduce_value, linkage::local, expr());
 
@@ -443,19 +469,17 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     for (auto i : new_loop_order) {
         if (i == new_loop_order.front()) {
             if (rd_op == reduce_operator::add) {
-                if (need_mean) {
-                    cur = make_stmt<assign_node_t>(reduce_value,
-                            builder::make_fmadd(indexed_input,
-                                    make_expr<constant_node>(1.0f / reduce_num,
-                                            sc_data_type_t::f32(vx_info.lanes)),
-                                    reduce_value));
-                } else {
-                    cur = make_stmt<assign_node_t>(reduce_value,
-                            builder::make_add(indexed_input, reduce_value));
-                }
+                cur = make_stmt<assign_node_t>(reduce_value,
+                        builder::make_add(indexed_input, reduce_value));
             } else if (rd_op == reduce_operator::mul) {
                 cur = make_stmt<assign_node_t>(reduce_value,
                         builder::make_mul(indexed_input, reduce_value));
+            } else if (rd_op == reduce_operator::max) {
+                cur = make_stmt<assign_node_t>(reduce_value,
+                        builder::make_max(indexed_input, reduce_value));
+            } else if (rd_op == reduce_operator::min) {
+                cur = make_stmt<assign_node_t>(reduce_value,
+                        builder::make_min(indexed_input, reduce_value));
             }
         }
         body = cur.isa<stmts>()
@@ -480,17 +504,23 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
                 cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
                         asnode, std::move(cur),
                         make_stmt<assign_node_t>(indexed_target,
-                                need_mean
-                                        ? (vx_info.lanes > 1 && last_axis_reduce
-                                                          ? builder::make_reduce_mul( // NOLINT
-                                                                  reduce_value)
-                                                          : reduce_value)
-                                                / reduce_num
-                                        : (vx_info.lanes > 1
-                                                  && last_axis_reduce)
-                                                ? builder::make_reduce_mul(
-                                                        reduce_value)
-                                                : reduce_value)});
+                                (vx_info.lanes > 1 && last_axis_reduce)
+                                        ? builder::make_reduce_mul(reduce_value)
+                                        : reduce_value)});
+            } else if (rd_op == reduce_operator::max) {
+                cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
+                        asnode, std::move(cur),
+                        make_stmt<assign_node_t>(indexed_target,
+                                (vx_info.lanes > 1 && last_axis_reduce)
+                                        ? builder::make_reduce_max(reduce_value)
+                                        : reduce_value)});
+            } else if (rd_op == reduce_operator::min) {
+                cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
+                        asnode, std::move(cur),
+                        make_stmt<assign_node_t>(indexed_target,
+                                (vx_info.lanes > 1 && last_axis_reduce)
+                                        ? builder::make_reduce_min(reduce_value)
+                                        : reduce_value)});
             }
             cur->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
@@ -579,8 +609,7 @@ void reduce_op_t::compute_block(context_ptr ctx,
     }
 
     compute_block_reduce(inputs, *dst[0], rd_op_, real_rd_axis, keep_dims_,
-            need_mean_, rd_name_, vx_info_, info_.inputs_[0]->details_.dtype_,
-            attrs_, wkld);
+            vx_info_, info_.inputs_[0]->details_.dtype_, attrs_, wkld);
 }
 
 size_t reduce_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
@@ -647,14 +676,9 @@ graph_tensor_ptr reduce_op_t::split_op(
         if (num_threads > 1) new_dims.insert(new_dims.begin(), num_threads);
         first_out->details_.set_blocking_dims(new_dims);
     }
-    uint64_t reduce_mean_num = 1;
-    if (need_mean_) {
-        for (auto ax : plain_rd_axis_) {
-            reduce_mean_num *= get_inputs()[0]->details_.get_plain_dims()[ax];
-        }
-    }
-    auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
-            rd_name_, rd_ax, rd_op_, keep_dims_, need_mean_, reduce_mean_num);
+
+    auto first = graph.make<reduce_compute_op_t>(
+            get_inputs()[0], first_out, rd_ax, rd_op_, keep_dims_);
 
     sc_op_ptr second;
     if (num_threads > 1) {
@@ -664,13 +688,14 @@ graph_tensor_ptr reduce_op_t::split_op(
         }
         // add a standalone reduce op after partial reduce
         second = graph.make("reduce", {first_out}, {second_out},
-                {{"rd_name", rd_name_}, {"rd_axis", std::move(rx_ax)},
+                {
+                        {"rd_axis", std::move(rx_ax)},
                         {"rd_op", static_cast<int>(rd_op_)},
-                        {"keep_dims", false}, {"need_mean", false}});
+                        {"keep_dims", false},
+                });
     } else {
-        second = graph.make<reduce_collect_op_t>(first_out, second_out,
-                rd_name_, rd_ax, rd_op_, keep_dims_, need_mean_,
-                reduce_mean_num);
+        second = graph.make<reduce_collect_op_t>(
+                first_out, second_out, rd_ax, rd_op_, keep_dims_);
     }
     if (is_bf16) {
         auto out_tsr = second_out->copy();
@@ -702,15 +727,9 @@ void reduce_impl_op_t::pre_slice_ranges(
 }
 
 reduce_impl_op_t::reduce_impl_op_t(const graph_tensor_ptr &in,
-        const graph_tensor_ptr &old_out, const std::string &rd_name,
-        const std::vector<int> &rd_axis, reduce_operator rd_op, bool keep_dims,
-        bool need_mean, uint64_t reduce_mean_num)
-    : real_rd_axis_(rd_axis)
-    , rd_op_(rd_op)
-    , rd_name_(rd_name)
-    , keep_dims_(keep_dims)
-    , need_mean_(need_mean)
-    , reduce_mean_num_(reduce_mean_num) {
+        const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
+        reduce_operator rd_op, bool keep_dims)
+    : real_rd_axis_(rd_axis), rd_op_(rd_op), keep_dims_(keep_dims) {
     info_.inputs_ = {in};
     info_.outputs_ = {old_out};
     std::sort(real_rd_axis_.begin(), real_rd_axis_.end());
@@ -723,19 +742,15 @@ const std::vector<int> &reduce_impl_op_t::get_rd_axis() const {
 
 sc_op_ptr reduce_compute_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
-    return mgr.make<reduce_compute_op_t>(ins.at(0), outs.at(0), rd_name_,
-            real_rd_axis_, rd_op_, keep_dims_, need_mean_, reduce_mean_num_);
+    return mgr.make<reduce_compute_op_t>(
+            ins.at(0), outs.at(0), real_rd_axis_, rd_op_, keep_dims_);
 }
 
 reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
-        const graph_tensor_ptr &old_out, const std::string &rd_name,
-        const std::vector<int> &rd_axis, reduce_operator rd_op, bool keep_dims,
-        bool need_mean, uint64_t reduce_mean_num)
-    : reduce_impl_op_t(in, old_out, rd_name, rd_axis, rd_op, keep_dims,
-            need_mean, reduce_mean_num) {
+        const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
+        reduce_operator rd_op, bool keep_dims)
+    : reduce_impl_op_t(in, old_out, rd_axis, rd_op, keep_dims) {
     op_name_ = "reduce_compute";
-    COMPILE_ASSERT(!(rd_op == reduce_operator::mul && need_mean),
-            "Cannot compute mean on reduce_mul");
 
     size_t in_dims = in->details_.get_blocking_dims().size();
     size_t expected_dims = in_dims;
@@ -796,7 +811,6 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
     bool is_partial = is_partial_reduce();
-    int64_t reduce_num = reduce_mean_num_;
     auto ths = this;
     auto func = [&](const std::vector<expr> &in,
                         std::vector<expr::lvalue_proxy_t> &out) -> stmt {
@@ -844,18 +858,7 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
         switch (ths->rd_op_) {
             case reduce_operator::add:
                 operand = in[0];
-                if (ths->need_mean_) {
-                    auto the_const = make_expr<constant_node>(
-                            1.0f / reduce_num, sc_data_type_t::f32(lanes));
-                    if (lanes > 1) {
-                        result = builder::make_fmadd(
-                                operand, the_const, indexing_nd);
-                    } else {
-                        result = indexing_nd + operand * the_const;
-                    }
-                } else {
-                    result = indexing_nd + operand;
-                }
+                result = indexing_nd + operand;
                 break;
             case reduce_operator::mul:
                 operand = in[0];
@@ -873,11 +876,9 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
 }
 
 reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
-        const graph_tensor_ptr &old_out, const std::string &rd_name,
-        const std::vector<int> &rd_axis, reduce_operator rd_op, bool keep_dims,
-        bool need_mean, uint64_t reduce_mean_num)
-    : reduce_impl_op_t(in, old_out, rd_name, rd_axis, rd_op, keep_dims,
-            need_mean, reduce_mean_num) {
+        const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
+        reduce_operator rd_op, bool keep_dims)
+    : reduce_impl_op_t(in, old_out, rd_axis, rd_op, keep_dims) {
     op_name_ = "reduce_collect";
     if (in->details_.get_blocking_dims()
             == old_out->details_.get_blocking_dims()) {
@@ -889,8 +890,8 @@ reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
 
 sc_op_ptr reduce_collect_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
-    return mgr.make<reduce_collect_op_t>(ins.at(0), outs.at(0), rd_name_,
-            real_rd_axis_, rd_op_, keep_dims_, need_mean_, reduce_mean_num_);
+    return mgr.make<reduce_collect_op_t>(
+            ins.at(0), outs.at(0), real_rd_axis_, rd_op_, keep_dims_);
 }
 
 void reduce_collect_op_t::infer_slice_ranges(
@@ -935,7 +936,6 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
         auto vec_lanes = vectorize_step(
                 ctx, info_.inputs_[0]->details_.dtype_.type_code_);
         vx_info_.lanes = 1;
-        int64_t reduce_num = vec_lanes;
         auto ths = this;
         auto func = [&](const std::vector<expr> &in,
                             std::vector<expr::lvalue_proxy_t> &out) -> stmt {
@@ -970,5 +970,8 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
                 builder::make_stmts_unattached({}));
     }
 }
-
+OP_REGISTER(reduce_sum_op_t, reduce_sum)
+OP_REGISTER(reduce_prod_op_t, reduce_prod)
+OP_REGISTER(reduce_max_op_t, reduce_max)
+OP_REGISTER(reduce_min_op_t, reduce_min)
 } // namespace sc

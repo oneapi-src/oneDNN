@@ -318,6 +318,8 @@ void validate_impl_t::view(intrin_call_c v) {
             break;
         case intrin_type::reduce_add:
         case intrin_type::reduce_mul:
+        case intrin_type::reduce_max:
+        case intrin_type::reduce_min:
             validate_type(v);
             COMPILE_ASSERT(v->args_.size() == 1,
                     "reduce expects 1 argument, "

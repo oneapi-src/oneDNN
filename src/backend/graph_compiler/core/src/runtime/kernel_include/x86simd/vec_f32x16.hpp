@@ -132,6 +132,14 @@ INLINE float sc_reduce_mul(vec_f32x16 const &a) {
     return _mm512_reduce_mul_ps(a.v);
 }
 
+INLINE float sc_reduce_max(vec_f32x16 const &a) {
+    return _mm512_reduce_max_ps(a.v);
+}
+
+INLINE float sc_reduce_min(vec_f32x16 const &a) {
+    return _mm512_reduce_min_ps(a.v);
+}
+
 INLINE vec_f32x16 sc_fmadd(
         vec_f32x16 const &a, vec_f32x16 const &b, vec_f32x16 const &c) {
     return _mm512_fmadd_ps(a.v, b.v, c.v);

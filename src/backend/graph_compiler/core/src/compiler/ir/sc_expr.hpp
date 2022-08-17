@@ -1290,6 +1290,8 @@ enum class intrin_type {
     rsqrt,
     reduce_add,
     reduce_mul,
+    reduce_max,
+    reduce_min,
     fmadd,
     unpack_low,
     unpack_high,

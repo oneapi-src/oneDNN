@@ -30,6 +30,11 @@
     F(add); \
     F(reorder); \
     F(reduce); \
+    F(reduce_sum); \
+    F(reduce_prod); \
+    F(reduce_max); \
+    F(reduce_mean); \
+    F(reduce_min); \
     F(relu); \
     F(relu_backprop); \
     F(sigmoid_backprop); \

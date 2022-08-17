@@ -351,6 +351,12 @@ void codegen_c_vis::view(intrin_call_c v) {
         case intrin_type::reduce_mul:
             unary_func_codegen_c(v, "sc_reduce_mul");
             break;
+        case intrin_type::reduce_max:
+            unary_func_codegen_c(v, "sc_reduce_max");
+            break;
+        case intrin_type::reduce_min:
+            unary_func_codegen_c(v, "sc_reduce_min");
+            break;
         case intrin_type::fmadd: trinary_func_codegen_c(v, "sc_fmadd"); break;
         case intrin_type::unpack_low:
             *os << "sc_unpack_low(";

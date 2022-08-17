@@ -26,6 +26,8 @@ namespace sc {
 enum class reduce_operator : int {
     add = 0,
     mul,
+    max,
+    min,
 };
 
 // reduce op
@@ -43,10 +45,13 @@ public:
     reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
 
-    reduce_op_t(graph_tensor_ptr v, const std::string &rd_name,
-            const std::vector<int> &rd_axis,
+    reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs,
+            const reduce_operator &rd_op_, const any_map_t &attrs);
+
+    reduce_op_t(graph_tensor_ptr v, const std::vector<int> &rd_axis,
             reduce_operator rd_op = reduce_operator::add,
-            bool keep_dims = false, bool need_mean = true);
+            bool keep_dims = false);
     uint32_t get_lanes() const { return vx_info_.lanes; }
     // get real reduce axis, generaly, you should set rd_axis on plain format
     // semantics.
@@ -71,34 +76,50 @@ private:
     std::vector<int> plain_rd_axis_;
     // type of reduction
     reduce_operator rd_op_;
-    // name of reduce_op_t
-    std::string rd_name_;
     // if keep_dims=True, if will retain length=1 even though be reduced.
     bool keep_dims_;
-    // whether need to compute mean
-    bool need_mean_;
     // use vectorized
     vectorized_info_t vx_info_;
 };
 
-// reduce_add_op_t is derived from reduce_op_t
-class reduce_add_op_t : public reduce_op_t {
+// reduce_sum_op_t is derived from reduce_op_t
+class reduce_sum_op_t : public reduce_op_t {
 public:
-    reduce_add_op_t(graph_tensor_ptr v, const std::string &rd_name,
-            const std::vector<int> &rd_axis, bool keep_dims = false,
-            bool need_mean = true)
-        : reduce_op_t(std::move(v), rd_name, rd_axis, reduce_operator::add,
-                keep_dims, need_mean) {}
+    reduce_sum_op_t(graph_tensor_ptr v, const std::vector<int> &rd_axis,
+            bool keep_dims = false)
+        : reduce_op_t(std::move(v), rd_axis, reduce_operator::add, keep_dims) {}
+    reduce_sum_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
 };
 
-// reduce_mul_op_t is derived from reduce_op_t
-class reduce_mul_op_t : public reduce_op_t {
+// reduce_prod_op_t is derived from reduce_op_t
+class reduce_prod_op_t : public reduce_op_t {
 public:
-    reduce_mul_op_t(graph_tensor_ptr v, const std::string &rd_name,
-            const std::vector<int> &rd_axis, bool keep_dims = false,
-            bool need_mean = true)
-        : reduce_op_t(std::move(v), rd_name, rd_axis, reduce_operator::mul,
-                keep_dims, need_mean) {}
+    reduce_prod_op_t(graph_tensor_ptr v, const std::vector<int> &rd_axis,
+            bool keep_dims = false)
+        : reduce_op_t(std::move(v), rd_axis, reduce_operator::mul, keep_dims) {}
+    reduce_prod_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+};
+
+// reduce_max_op_t is derived from reduce_op_t
+class reduce_max_op_t : public reduce_op_t {
+public:
+    reduce_max_op_t(graph_tensor_ptr v, const std::vector<int> &rd_axis,
+            bool keep_dims = false)
+        : reduce_op_t(std::move(v), rd_axis, reduce_operator::max, keep_dims) {}
+    reduce_max_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+};
+
+// reduce_min_op_t is derived from reduce_op_t
+class reduce_min_op_t : public reduce_op_t {
+public:
+    reduce_min_op_t(graph_tensor_ptr v, const std::vector<int> &rd_axis,
+            bool keep_dims = false)
+        : reduce_op_t(std::move(v), rd_axis, reduce_operator::min, keep_dims) {}
+    reduce_min_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
 };
 
 class reduce_impl_op_t : public fusible_op_t {
@@ -112,26 +133,22 @@ public:
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
 
     reduce_impl_op_t(const graph_tensor_ptr &in,
-            const graph_tensor_ptr &old_out, const std::string &rd_name,
-            const std::vector<int> &rd_axis, reduce_operator rd_op,
-            bool keep_dims, bool need_mean, uint64_t reduce_mean_num);
+            const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
+            reduce_operator rd_op, bool keep_dims);
     // get real sorted reduce axis
     const std::vector<int> &get_rd_axis() const;
+    // get type of reduction
+    const reduce_operator get_rd_op() const { return rd_op_; }
 
 protected:
     // the axis which need reduction
     std::vector<int> real_rd_axis_;
     // type of reduction
     reduce_operator rd_op_;
-    // name of reduce_op_t
-    std::string rd_name_;
     // if keep_dims=True, if will retain length=1 even though be reduced.
     bool keep_dims_;
-    // whether need to compute mean
-    bool need_mean_;
     // use vectorized
     vectorized_info_t vx_info_;
-    uint64_t reduce_mean_num_;
 };
 
 /**
@@ -153,9 +170,8 @@ public:
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
     reduce_compute_op_t(const graph_tensor_ptr &in,
-            const graph_tensor_ptr &old_out, const std::string &rd_name,
-            const std::vector<int> &rd_axis, reduce_operator rd_op,
-            bool keep_dims, bool need_mean, uint64_t reduce_mean_num);
+            const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
+            reduce_operator rd_op, bool keep_dims);
     bool is_partial_reduce() const;
     // NOLINT because false alarm on copy()
     sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
@@ -171,9 +187,8 @@ public:
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
     reduce_collect_op_t(const graph_tensor_ptr &in,
-            const graph_tensor_ptr &old_out, const std::string &rd_name,
-            const std::vector<int> &rd_axis, reduce_operator rd_op,
-            bool keep_dims, bool need_mean, uint64_t reduce_mean_num);
+            const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
+            reduce_operator rd_op, bool keep_dims);
     bool is_place_holder_op() const;
     sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
             const std::vector<graph_tensor_ptr> &outs,

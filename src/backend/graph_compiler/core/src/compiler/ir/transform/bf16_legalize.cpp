@@ -109,6 +109,8 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::rsqrt:
         case intrin_type::reduce_add:
         case intrin_type::reduce_mul:
+        case intrin_type::reduce_max:
+        case intrin_type::reduce_min:
         case intrin_type::fmadd:
         case intrin_type::isnan:
             for (size_t i = 0; i < v->args_.size(); i++) {
