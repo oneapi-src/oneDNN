@@ -72,8 +72,7 @@ public:
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs) override {
         // We don't need to resort the inputs and outputs
-        return kernel_->execute((const dnnl_partition_impl_t *)nullptr,
-                g_stream, inputs, outputs);
+        return kernel_->execute(g_stream, inputs, outputs);
     }
 
 #ifdef DNNL_WITH_SYCL
@@ -83,7 +82,7 @@ public:
             const std::vector<::sycl::event> &sycl_deps,
             ::sycl::event *sycl_event) override {
         // We don't need to resort the inputs and outputs
-        return kernel_->execute_sycl((const dnnl_partition_impl_t *)nullptr,
+        return kernel_->execute_sycl(
                 g_stream, inputs, outputs, sycl_deps, sycl_event);
     }
 #endif
