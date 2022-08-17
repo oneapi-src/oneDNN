@@ -74,7 +74,7 @@ struct ref_eltwise_fwd_t {
         switch (alg) {
             case eltwise_relu: d = relu_fwd(s, alpha); break;
             case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
-            default: d = cl::sycl::nan(0u);
+            default: d = ::sycl::nan(0u);
         }
         return d;
     }

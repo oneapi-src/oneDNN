@@ -32,11 +32,11 @@ public:
     virtual memory_kind_t memory_kind() const = 0;
 
     virtual gpu::sycl::sycl_in_memory_arg_t get_in_memory_arg(
-            stream_t *stream, cl::sycl::handler &cgh) const = 0;
+            stream_t *stream, ::sycl::handler &cgh) const = 0;
     virtual gpu::sycl::sycl_out_memory_arg_t get_out_memory_arg(
-            stream_t *stream, cl::sycl::handler &cgh) const = 0;
+            stream_t *stream, ::sycl::handler &cgh) const = 0;
     virtual gpu::sycl::sycl_inout_memory_arg_t get_inout_memory_arg(
-            stream_t *stream, cl::sycl::handler &cgh) const = 0;
+            stream_t *stream, ::sycl::handler &cgh) const = 0;
 
     static gpu::sycl::sycl_in_memory_arg_t empty_in_memory_arg(
             stream_t *stream, ::sycl::handler &cgh);
