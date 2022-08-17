@@ -40,29 +40,31 @@
 #include "utils/dnnl_query.hpp"
 #include "utils/parallel.hpp"
 
-dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine)
-    : dnn_mem_t(md, engine, handle_info_t::allocate()) {}
 dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
         const handle_info_t &handle_info) {
-    active_ = (initialize(md, engine, handle_info) == OK);
+    md_ = md;
+    active_ = (initialize(engine, handle_info) == OK);
 }
 
-dnn_mem_t::dnn_mem_t(
-        const dnnl_memory_desc_t &md, dnnl_data_type_t dt, dnnl_engine_t engine)
-    : dnn_mem_t(md, dt, std::string(tag::undef), engine) {}
 dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine) {
-    active_ = (initialize(md, dt, tag, engine) == OK);
+    md_ = dnn_mem_t::init_md(md.ndims, md.dims, dt, tag);
+    active_ = (initialize(engine) == OK);
 }
 
 dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine) {
-    active_ = (initialize(ndims, dims, dt, tag, engine) == OK);
+    md_ = dnn_mem_t::init_md(ndims, dims, dt, tag);
+    active_ = (initialize(engine) == OK);
 }
 
 dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
         const dnnl_dims_t strides, dnnl_engine_t engine) {
-    active_ = (initialize(ndims, dims, dt, strides, engine) == OK);
+    auto status
+            = dnnl_memory_desc_init_by_strides(&md_, ndims, dims, dt, strides);
+    (void)status;
+    assert(status == dnnl_success);
+    active_ = (initialize(engine) == OK);
 }
 
 dnn_mem_t::dnn_mem_t(const dnn_mem_t &rhs, dnnl_data_type_t dt,
@@ -499,17 +501,9 @@ int dnn_mem_t::initialize_memory_create(const handle_info_t &handle_info) {
     return OK;
 }
 
-int dnn_mem_t::initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-        const std::string &tag, dnnl_engine_t engine,
-        const handle_info_t &handle_info) {
+int dnn_mem_t::initialize(
+        dnnl_engine_t engine, const handle_info_t &handle_info) {
     is_mapped_ = false;
-
-    if (tag == tag::undef) {
-        md_ = md;
-        md_.data_type = dt;
-    } else {
-        md_ = dnn_mem_t::init_md(md.ndims, md.dims, dt, tag);
-    }
     engine_ = engine;
     engine_kind_ = query_engine_kind(engine_);
 
@@ -531,28 +525,6 @@ int dnn_mem_t::initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
     // Keep memory mapped and unmap only before execution
     map();
 
-    return OK;
-}
-
-int dnn_mem_t::initialize(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
-        const handle_info_t &handle_info) {
-    return initialize(md, md.data_type, tag::undef, engine, handle_info);
-}
-
-int dnn_mem_t::initialize(int ndims, const dnnl_dims_t dims,
-        dnnl_data_type_t dt, const std::string &tag, dnnl_engine_t engine) {
-    dnnl_memory_desc_t xmd;
-    xmd = dnn_mem_t::init_md(ndims, dims, dt, tag);
-    SAFE(initialize(xmd, engine), CRIT);
-    return OK;
-}
-
-int dnn_mem_t::initialize(int ndims, const dnnl_dims_t dims,
-        dnnl_data_type_t dt, const dnnl_dims_t strides, dnnl_engine_t engine) {
-    dnnl_memory_desc_t xmd;
-    DNN_SAFE(dnnl_memory_desc_init_by_strides(&xmd, ndims, dims, dt, strides),
-            CRIT);
-    SAFE(initialize(xmd, engine), CRIT);
     return OK;
 }
 

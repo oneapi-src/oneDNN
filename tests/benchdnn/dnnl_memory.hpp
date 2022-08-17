@@ -41,17 +41,13 @@ struct dnn_mem_t {
     };
 
     dnn_mem_t() { map(); }
-    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine);
     dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
-            const handle_info_t &handle_info);
+            const handle_info_t &handle_info = handle_info_t::allocate());
+    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
+            const std::string &tag, dnnl_engine_t engine);
 
     dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
             const std::string &tag, dnnl_engine_t engine);
-    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-            const std::string &tag, dnnl_engine_t engine);
-    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-            dnnl_engine_t engine);
-
     dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
             const dnnl_dims_t strides, dnnl_engine_t engine);
 
@@ -212,15 +208,8 @@ private:
     int initialize_memory_create_opencl(const handle_info_t &handle_info);
     int initialize_memory_create(const handle_info_t &handle_info);
 
-    int initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-            const std::string &tag, dnnl_engine_t engine,
+    int initialize(dnnl_engine_t engine,
             const handle_info_t &handle_info = handle_info_t::allocate());
-    int initialize(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
-            const handle_info_t &handle_info = handle_info_t::allocate());
-    int initialize(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
-            const std::string &tag, dnnl_engine_t engine);
-    int initialize(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
-            const dnnl_dims_t strides, dnnl_engine_t engine);
 
     int cleanup();
 };
