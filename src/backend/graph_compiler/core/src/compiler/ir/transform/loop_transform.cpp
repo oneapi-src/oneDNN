@@ -276,7 +276,8 @@ void for_loop_node_t::unroll(uint64_t factor, const stmt &parent) {
     }
 }
 
-for_loop for_loop_node_t::split(int64_t block) {
+for_loop for_loop_node_t::split(
+        int64_t block, std::unordered_map<expr, expr> *expr_remap) {
     COMPILE_ASSERT(isvalid(), "Transforming an invalid for-loop");
     int64_t min, max, step;
     get_constant_from_for_loop(this, min, max, step);
@@ -312,6 +313,7 @@ for_loop for_loop_node_t::split(int64_t block) {
         remapped = remapped + make_expr<constant_node>(min, var_->dtype_);
     }
     std::unordered_map<var_node *, expr> remap = {{varptr.get(), remapped}};
+    if (expr_remap) { expr_remap->insert(std::make_pair(varptr, remapped)); }
     var_inplace_replacer_t pass(&remap);
     pass.dispatch_impl(body_);
 
@@ -460,6 +462,11 @@ void for_loop_node_t::reorder(stmt parent, std::vector<for_loop> &&ax) {
                                     << " in the given axises to reorder");
         cur = get_inner_for_loop(cur.get());
     }
+
+    // redirect parent node
+    std::weak_ptr<stmt_base_t> owner = ax.back().impl;
+    inner_body->attr()["builder.parent_node"] = owner;
+
     ax.back()->body_ = std::move(inner_body);
     cur = ax.back();
     if (ax.size() > 1) {

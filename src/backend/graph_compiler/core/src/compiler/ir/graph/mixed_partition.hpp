@@ -166,6 +166,8 @@ struct mixed_parti_t : fusion_partition_t {
     std::vector<for_loop> get_outer_loops(
             fuse_anchor_map_ptr fanchor = nullptr);
 
+    void try_split_outermost_loop(int64_t block);
+
     // return op whether in op_anchor_map_
     bool ready_for_op(sc_op *op) const;
 

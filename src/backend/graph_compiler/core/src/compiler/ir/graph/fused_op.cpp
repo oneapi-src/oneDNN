@@ -1326,7 +1326,7 @@ void schedule_loop_body(
     while (true) {
         fused_number *= (get_expr_as_int(cur_loop->iter_end_)
                 - get_expr_as_int(cur_loop->iter_begin_));
-        if (fused_number / run_threads > 8
+        if (fused_number / run_threads > 12
                 || (fused_number >= run_threads
                         && (fused_number % run_threads) == 0))
             break;

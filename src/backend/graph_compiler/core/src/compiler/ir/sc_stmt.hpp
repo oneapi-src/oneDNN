@@ -345,7 +345,8 @@ public:
      * @param block the length of the inner loop
      * @return the for_loop node_ptr of the inner loop
      * */
-    ptr_type split(int64_t block);
+    ptr_type split(int64_t block,
+            std::unordered_map<expr, expr> *expr_remap = nullptr);
 
     /**
      * Do in-place fusion of two nested loop. This is a reverse operaion of

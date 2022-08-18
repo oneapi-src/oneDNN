@@ -996,6 +996,40 @@ bool try_merge_mixed_parti_horizontally(
     return true;
 }
 
+static sc_dim get_loops_range(const for_loop &loop) {
+    if (!(loop->iter_begin_.isa<constant_c>()
+                && loop->iter_end_.isa<constant_c>())) {
+        return (int64_t)0;
+    }
+    return get_expr_as_int(loop->iter_end_)
+            - get_expr_as_int(loop->iter_begin_);
+}
+
+static sc_dim get_loops_range_prod(const std::vector<for_loop> &loops) {
+    sc_dim prod_res = 1;
+    for (auto &l : loops) {
+        prod_res *= get_loops_range(l);
+    }
+    return prod_res;
+}
+
+void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
+    auto outer_loops_A = A->get_outer_loops(),
+         outer_loops_B = B->get_outer_loops();
+    if (outer_loops_A.empty() || outer_loops_B.empty()) return;
+    if (outer_loops_A.size() == outer_loops_B.size()) return;
+
+    auto outermost_loop_A_range = get_loops_range(outer_loops_A[0]),
+         outermost_loop_B_range = get_loops_range(outer_loops_B[0]);
+    if (outermost_loop_A_range == outermost_loop_B_range) {
+        return;
+    } else if (outermost_loop_A_range <= outermost_loop_B_range) {
+        B->try_split_outermost_loop(outermost_loop_A_range);
+    } else {
+        A->try_split_outermost_loop(outermost_loop_B_range);
+    }
+}
+
 bool try_merge_mixed_parti_vertically(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
     if (A->get_root() == B->get_root()) return false;
@@ -1003,27 +1037,54 @@ bool try_merge_mixed_parti_vertically(
     auto dep_flag = check_parti_dep(A, B, g);
     // if two partition inter-depends each other, could not merge them
     if (dep_flag == parti_dep::inter_dep) return false;
-    mixed_parti_t *pa_to_merge = (dep_flag == parti_dep::l_dep_r) ? B : A,
-                  *parti_be_merged = (dep_flag == parti_dep::l_dep_r) ? A : B;
+    mixed_parti_t *pa_to_merge, *parti_be_merged;
+
+    try_align_parti_outer_loops(A, B);
+
+    auto outer_loops_A = A->get_outer_loops(),
+         outer_loops_B = B->get_outer_loops();
+    if (outer_loops_A.empty() || outer_loops_B.empty()) return false;
+
+    if (dep_flag == parti_dep::no_dep) {
+        auto loops_dim_A = get_loops_range_prod(outer_loops_A),
+             loops_dim_B = get_loops_range_prod(outer_loops_B);
+        if (loops_dim_A >= loops_dim_B) {
+            pa_to_merge = A;
+            parti_be_merged = B;
+        } else {
+            pa_to_merge = B;
+            parti_be_merged = A;
+        }
+    } else {
+        pa_to_merge = (dep_flag == parti_dep::l_dep_r) ? B : A;
+        parti_be_merged = (dep_flag == parti_dep::l_dep_r) ? A : B;
+    }
+
     auto outer_loops_to_merge = pa_to_merge->get_outer_loops(),
          outer_loops_be_merged = parti_be_merged->get_outer_loops();
 
-    auto cmp_loop_range = [](const for_loop &A, const for_loop &B) -> int64_t {
-        if (!(A->iter_begin_.isa<constant_c>() && A->iter_end_.isa<constant_c>()
-                    && A->step_.isa<constant_c>()
-                    && B->iter_begin_.isa<constant_c>()
-                    && B->iter_end_.isa<constant_c>()
-                    && B->step_.isa<constant_c>())) {
+    auto cmp_loop_range = [](const for_loop &to_merge,
+                                  const for_loop &be_merged) -> int64_t {
+        if (!(to_merge->iter_begin_.isa<constant_c>()
+                    && to_merge->iter_end_.isa<constant_c>()
+                    && to_merge->step_.isa<constant_c>()
+                    && be_merged->iter_begin_.isa<constant_c>()
+                    && be_merged->iter_end_.isa<constant_c>()
+                    && be_merged->step_.isa<constant_c>())) {
             return 0;
         }
-        auto A_begin = get_expr_as_int(A->iter_begin_),
-             A_end = get_expr_as_int(A->iter_end_),
-             A_step = get_expr_as_int(A->step_),
-             B_begin = get_expr_as_int(B->iter_begin_),
-             B_end = get_expr_as_int(B->iter_end_),
-             B_step = get_expr_as_int(B->step_);
-        return (A_begin == B_begin && A_end == B_end && A_step == B_step)
-                ? (A_end - A_begin)
+        auto to_merge_begin = get_expr_as_int(to_merge->iter_begin_),
+             to_merge_end = get_expr_as_int(to_merge->iter_end_),
+             to_merge_step = get_expr_as_int(to_merge->step_),
+             be_merged_begin = get_expr_as_int(be_merged->iter_begin_),
+             be_merged_end = get_expr_as_int(be_merged->iter_end_),
+             be_merge_step = get_expr_as_int(be_merged->step_);
+        return ((to_merge_begin == be_merged_begin
+                        && to_merge_end == be_merged_end
+                        && to_merge_step == be_merge_step)
+                       || (be_merged_begin == 0
+                               && be_merged_end == 1)) // support broadcast loop
+                ? (to_merge_end - to_merge_begin)
                 : 0;
     };
 
@@ -1114,8 +1175,14 @@ bool try_merge_mixed_parti_vertically(
     // merge outer loop anchor
     std::unordered_set<fuse_anchor_map_ptr> be_merged_anchor_masks;
     for (size_t i = 0; i < merged_loop_size; i++) {
+        // support broadcast loop
         expr_map[outer_loops_be_merged[i]->var_]
-                = outer_loops_to_merge[i]->var_;
+                = ((get_expr_as_int(outer_loops_be_merged[i]->iter_begin_) == 0)
+                          && (get_expr_as_int(
+                                      outer_loops_be_merged[i]->iter_end_)
+                                  == 1))
+                ? expr(0)
+                : outer_loops_to_merge[i]->var_;
         auto be_merged_anchor = get_anchor_inside_loop(
                      parti_be_merged, outer_loops_be_merged[i]),
              to_merge_anchor
@@ -1395,6 +1462,24 @@ std::vector<for_loop> mixed_parti_t::get_outer_loops(
         }
     }
     return outer_loops;
+}
+
+void mixed_parti_t::try_split_outermost_loop(int64_t block) {
+    auto outer_loops = get_outer_loops();
+    if (outer_loops.empty()) return;
+    auto outermost_loop = outer_loops[0];
+    auto outermost_loop_range = get_expr_as_int(outermost_loop->iter_end_)
+            - get_expr_as_int(outermost_loop->iter_begin_);
+    if (outermost_loop_range % block != 0) return;
+    if (!outermost_loop->step_.isa<constant>()
+            || get_expr_as_int(outermost_loop->step_) != 1)
+        return;
+
+    std::unordered_map<expr, expr> remap;
+    // change IR and record replace map
+    outermost_loop->split(outermost_loop_range / block, &remap);
+    mxp_replacer_t expr_reper(remap);
+    expr_reper.replace_anchor(fanchors_);
 }
 
 void mixed_parti_t::buffer_schedule() {
@@ -1933,7 +2018,7 @@ using crossover_alg = std::function<void(
 
 void horizontal_crossover(
         std::vector<mixed_parti_t::ptr> &op_2_partition, op_dep_matrix_t &dep) {
-    SC_MODULE_INFO << "Using brute forced crossover Alg...";
+    SC_MODULE_INFO << "Applying horizontal merge crossover algorithm...";
     auto op_size = op_2_partition.size();
     for (size_t i = 0; i < op_size; i++) {
         auto parti_A = op_2_partition[i];
@@ -1949,7 +2034,7 @@ void horizontal_crossover(
 
 void parallel_crossover(
         std::vector<mixed_parti_t::ptr> &op_2_partition, op_dep_matrix_t &dep) {
-    SC_MODULE_INFO << "Using brute forced crossover Alg...";
+    SC_MODULE_INFO << "Applying parallel merge crossover algorithm...";
     auto op_size = op_2_partition.size();
     for (size_t i = 0; i < op_size; i++) {
         auto parti_A = op_2_partition[i];
