@@ -744,32 +744,6 @@ private:
     object_map_t<expr_t, std::vector<modulus_info_t>> modulus_infos_;
 };
 
-// Determine the maximum constant factor of an expression, returns 0 in the
-// special case that the expression evaluates to 0.
-int64_t get_max_const_factor(const expr_t &e, const constraint_set_t &cset);
-
-// Simplifies expression using rewriting rules.
-expr_t simplify_rewrite(const expr_t &e);
-
-// Simplifies expression or statement. An optional constraint set is used to
-// pass known equalities and inequalities which may be used for simplification.
-object_t simplify(const object_t &obj, const constraint_set_t &cset = {});
-
-// Searches for expression patterns to reduce them to the equivalent ternary
-// operations.
-expr_t simplify_rewrite_with_ternary(const expr_t &e, bool recursive = true);
-
-// Moves constants to the right hand side of an expression.
-// Example: (c0 + x) op c1 -> x op (c1 - c0)
-expr_t simplify_cmp_move_const_to_rhs(const expr_t &e);
-
-// Reduces left and right hand sides of an expression.
-// Example: A * x < A * B -> x < B (if A > 0).
-expr_t simplify_cmp_reduce_lhs_rhs(const expr_t &e);
-
-// Propagates shuffle down the expression tree for more effective vectorization.
-expr_t simplify_propagate_shuffle(const expr_t &e);
-
 // Pre-defined functions.
 namespace funcs {
 

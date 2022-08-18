@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/jit/conv/pass/simplify.hpp"
+
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -22,6 +24,7 @@
 
 #include "common/cpp_compat.hpp"
 #include "common/math_utils.hpp"
+#include "gpu/jit/conv/builder_utils.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
@@ -2216,6 +2219,13 @@ std::vector<expr_t> cvt_expr_to_nary_op_args(const expr_t &e) {
     auto *nary = e.as_ptr<nary_op_t>();
     if (nary) return nary->args;
     return {e};
+}
+
+stmt_t simplify(const stmt_t &s, ir_context_t &ir_ctx) {
+    trace_start();
+    auto ret = simplify(s, ir_ctx.cset());
+    trace_pass("simplify_pass", ret, ir_ctx);
+    return ret;
 }
 
 } // namespace jit

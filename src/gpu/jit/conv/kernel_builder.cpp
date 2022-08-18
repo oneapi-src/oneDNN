@@ -33,8 +33,8 @@
 #include "gpu/jit/conv/fma_support.hpp"
 #include "gpu/jit/conv/gemm_schedule.hpp"
 #include "gpu/jit/conv/ir.hpp"
-#include "gpu/jit/conv/ir_pass.hpp"
 #include "gpu/jit/conv/message_support.hpp"
+#include "gpu/jit/conv/pass/pass.hpp"
 #include "gpu/jit/conv/pipeline.hpp"
 #include "gpu/jit/conv/post_op_support.hpp"
 #include "gpu/jit/conv/reduce_support.hpp"
@@ -2502,12 +2502,12 @@ void kernel_builder_t::build() {
                 stmt_, ir_ctx, cfg_, cb.ab_slm_size());
     } else if (!cfg_.do_pipeline_unroll && cfg_.use_prefetch) {
         // Simplify to remove loops with only 1 iteration
-        stmt_ = simplify_pass(stmt_, ir_ctx);
+        stmt_ = simplify(stmt_, ir_ctx);
         stmt_ = inject_prefetch_pipeline(stmt_, ir_ctx, cfg_);
     }
     stmt_ = inject_slm_reorder(stmt_, ir_ctx, cfg_, tg_grid_);
     stmt_ = lift_buffer_offsets_in_send(stmt_, ir_ctx);
-    stmt_ = simplify_pass(stmt_, ir_ctx);
+    stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = inject_send(stmt_, ir_ctx);
     stmt_ = split_wide_stores(stmt_, ir_ctx);
     stmt_ = lift_alloc(stmt_, ir_ctx, cfg_);
@@ -2527,7 +2527,7 @@ void kernel_builder_t::build() {
     }
     stmt_ = fixup_if_conditions(stmt_, ir_ctx);
     stmt_ = unroll_loops(stmt_, ir_ctx);
-    stmt_ = simplify_pass(stmt_, ir_ctx);
+    stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     if (cfg_.hoist_masks_from_compute_loop) {
         stmt_ = remove_spurious_send_mask_cast(stmt_, ir_ctx);
@@ -3023,13 +3023,13 @@ bool reorder_kernel_builder_t::try_build(const std::vector<int> &iter_blocks,
     stmt_ = inject_alloc_stmts(stmt_, allocs);
     stmt_ = inject_external_var_let(stmt_, ir_ctx);
 
-    stmt_ = simplify_pass(stmt_, ir_ctx);
+    stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = lift_buffer_offsets_in_send(stmt_, ir_ctx);
     stmt_ = inject_send(stmt_, ir_ctx);
     stmt_ = split_wide_stores(stmt_, ir_ctx);
     stmt_ = eliminate_common_subexprs(
             stmt_, ir_ctx, hw_cfg_.regs() * hw_cfg_.grf_size());
-    stmt_ = simplify_pass(stmt_, ir_ctx);
+    stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 

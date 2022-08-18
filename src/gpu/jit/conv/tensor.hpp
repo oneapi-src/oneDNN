@@ -30,6 +30,7 @@
 
 #include "common/memory_desc_wrapper.hpp"
 #include "gpu/jit/conv/ir.hpp"
+#include "gpu/jit/conv/pass/simplify.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
 namespace dnnl {

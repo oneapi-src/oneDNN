@@ -20,6 +20,7 @@
 #include "common/optional.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/ir_core.hpp"
+#include "gpu/jit/conv/pass/simplify.hpp"
 #include "gpu/jit/conv/register_allocator.hpp"
 
 namespace dnnl {
