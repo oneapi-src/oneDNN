@@ -119,15 +119,17 @@ float activation_bwd(float s, float alpha, float cliping) {
 #endif
 }
 
-__kernel void ref_rnn_copy_init_layer(__global char *ws,
-        __global char *src_base, __global char *scratch_diff_states, int lr,
-        int rl) {
+__attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
+ref_rnn_copy_init_layer(__global char *ws, __global char *src_base,
+        __global char *scratch_diff_states, int lr, int rl) {
 
 #if IS_FWD
 
     const int it = get_global_id(2);
     const int b = get_global_id(1);
     const int c = get_global_id(0);
+    if (c >= SLC || b >= BATCH || it >= N_ITER) return;
+
     __global WS_STATE_DATA_T *dst;
     __global WS_STATE_DATA_T *dst_base
             = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
@@ -147,6 +149,7 @@ __kernel void ref_rnn_copy_init_layer(__global char *ws,
 
     const int it = get_global_id(1);
     const int b = get_global_id(0);
+    if (b >= BATCH || it >= N_ITER) return;
 
     __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)scratch_diff_states;
 

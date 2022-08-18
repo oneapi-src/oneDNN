@@ -1223,7 +1223,8 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.set(3, (cl_int)lr);
         arg_list.set(4, (cl_int)rl);
 
-        parallel_for(ctx, compute::nd_range_t({slc, batch, n_iter}),
+        parallel_for(ctx,
+                compute::nd_range_t(get_nd_range({slc, batch, n_iter})),
                 copy_init_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
@@ -1233,7 +1234,7 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.set(3, (cl_int)0);
         arg_list.set(4, (cl_int)0);
 
-        parallel_for(ctx, compute::nd_range_t({batch, n_iter}),
+        parallel_for(ctx, compute::nd_range_t(get_nd_range({batch, n_iter})),
                 copy_init_layer_kernel_, arg_list);
     }
 }
