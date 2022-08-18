@@ -37,26 +37,6 @@
 
 namespace sc {
 namespace ops {
-template <typename T>
-static std::vector<T> merge_vec(
-        const std::vector<T> &a, const std::vector<T> &b) {
-    std::vector<T> result(a);
-    for (auto it : b) {
-        result.push_back(it);
-    }
-    return result;
-}
-
-static sc_data_type_t infer_out_dtype(
-        const std::vector<graph_tensor_ptr> &ins) {
-    if (ins.at(0)->details_.dtype_ == datatypes::u8
-            || ins.at(0)->details_.dtype_ == datatypes::s8) {
-        assert(ins.at(1)->details_.dtype_ == datatypes::s8);
-        return datatypes::s32;
-    }
-    return datatypes::f32;
-}
-
 blocking_axes_t get_mm_blocking_axes(const logical_tensor_t &inp,
         const logical_tensor_t &wei, const logical_tensor_t &out) {
     auto generate_axes_by_num = [](int num) {
@@ -112,9 +92,11 @@ matmul_core_op_t::matmul_core_op_t(const std::vector<graph_tensor_ptr> &ins,
     } else {
         COMPILE_ASSERT(
                 info_.outputs_.size() == 1, "matmul_core expects 1 output");
-        COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
-                        == expected_out_shape,
-                "Bad out dims");
+        if (!is_dynamic()) {
+            COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
+                            == expected_out_shape,
+                    "Bad out dims");
+        }
     }
     // record padded_K of input A for matmul_core
     attrs_["temp.padded_A_K"] = std::make_shared<VConst>();
@@ -135,9 +117,24 @@ float matmul_core_op_t::get_gflop() {
 sc_dims matmul_core_op_t::get_batch_dims() const {
     auto &A_dims = info_.inputs_[0]->details_.get_plain_dims();
     auto &B_dims = info_.inputs_[1]->details_.get_plain_dims();
+    return get_batch_dims_impl(A_dims, B_dims);
+}
+
+sc_dims matmul_core_op_t::get_batch_dims_impl(
+        const sc_dims &A_dims, const sc_dims &B_dims) {
     return A_dims.size() > B_dims.size()
             ? sc_dims {A_dims.begin(), A_dims.end() - 2}
             : sc_dims {B_dims.begin(), B_dims.end() - 2};
+}
+
+sc_data_type_t matmul_core_op_t::infer_out_dtype(
+        const std::vector<graph_tensor_ptr> &ins) {
+    if (ins.at(0)->details_.dtype_ == datatypes::u8
+            || ins.at(0)->details_.dtype_ == datatypes::s8) {
+        assert(ins.at(1)->details_.dtype_ == datatypes::s8);
+        return datatypes::s32;
+    }
+    return datatypes::f32;
 }
 
 void matmul_core_op_t::query_format(context_ptr ctx,

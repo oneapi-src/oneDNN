@@ -21,7 +21,9 @@
 #include <vector>
 #include <unordered_map>
 
+#include <compiler/dimensions.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
+#include <util/def.hpp>
 namespace sc {
 class sc_op;
 struct op_dispatch_key_t;
@@ -49,5 +51,12 @@ void initialize_format_table_with_op(
 void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
         const op_dispatch_key_t &keys, const std::string &func_name);
 bool can_op_be_dispatched(const std::shared_ptr<sc_op> &op);
+namespace runtime {
+struct dynamic_tensor_t;
+}
+struct graph_tensor;
+SC_API runtime::dynamic_tensor_t convert_graph_tensor_to_dynamic_tensor(
+        const std::shared_ptr<graph_tensor> &in, void *data_ptr = nullptr,
+        sc_dim *shape_ptr = nullptr);
 } // namespace sc
 #endif

@@ -18,6 +18,8 @@
 #include <numeric>
 #include <utility>
 #include "compiler/ir/graph/fusible_op.hpp"
+#include "matmul_core.hpp"
+#include "templates/utils.hpp"
 #include <util/math_utils.hpp>
 
 namespace sc {
@@ -30,9 +32,28 @@ matmul_op::matmul_op(const std::vector<graph_tensor_ptr> &ins,
     COMPILE_ASSERT((ins[0]->details_.get_plain_dims().size() >= 2
                            && ins[1]->details_.get_plain_dims().size() >= 2),
             "matrix a and matrix b shape should be bigger or equal than 2.");
-    COMPILE_ASSERT((outs.size() == 1), "matmul outputs size should be 1");
     info_.inputs_ = ins;
-    info_.outputs_ = outs;
+    auto &A_dims = info_.inputs_[0]->details_.get_plain_dims();
+    auto &B_dims = info_.inputs_[1]->details_.get_plain_dims();
+    bool trans_a = attrs.get_or_else("transpose_a", false);
+    bool trans_b = attrs.get_or_else("transpose_b", false);
+    sc_dims expected_out_shape
+            = {merge_vec(matmul_core_op_t::get_batch_dims_impl(A_dims, B_dims),
+                    {A_dims[A_dims.size() - (trans_a ? 1 : 2)],
+                            B_dims[B_dims.size() - (trans_b ? 2 : 1)]})};
+    if (outs.empty()) {
+        assert(is_dynamic());
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
+                sc_data_format_t(), expected_out_shape,
+                matmul_core_op_t::infer_out_dtype(ins)));
+    } else {
+        info_.outputs_ = outs;
+        if (!is_dynamic()) {
+            COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
+                            == expected_out_shape,
+                    "Bad out dims");
+        }
+    }
     for (auto &op : info_.outputs_) {
         op->producer_owner_ = this;
     }

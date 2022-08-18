@@ -736,7 +736,7 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
     // input before reorder
     if (node->isa<tunable_op_t>()
             || (node->isa<fused_op_t>()
-                    && node->stc_cast<fused_op_t>()->get_main_op())) {
+                    && !node->stc_cast<fused_op_t>()->main_op_.ops_.empty())) {
         auto &inputs = node->get_inputs();
         auto query_sz = inputs.size();
         if (node->isa<fused_op_t>()) {

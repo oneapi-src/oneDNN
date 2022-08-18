@@ -98,6 +98,15 @@ inline std::pair<int, int> get_amx_reduce_and_tile_factor(
   return std::make_pair(reduce_factor, tile_factor);
 }
 
+template <typename T>
+std::vector<T> merge_vec(const std::vector<T> &a, const std::vector<T> &b) {
+  std::vector<T> result(a);
+  for (auto it : b) {
+    result.push_back(it);
+  }
+  return result;
+}
+
 inline std::vector<int> get_dynamic_block_candidates(bool has_48 = true) {
   return has_48 ? std::vector<int> {16, 32, 48, 64}
                 : std::vector<int> {16, 32, 64};

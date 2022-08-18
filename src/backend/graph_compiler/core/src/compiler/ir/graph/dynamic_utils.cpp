@@ -94,6 +94,21 @@ bool can_op_be_dispatched(const sc_op_ptr &op) {
             && op->get_dispatch_key_set()->set_.size() > 1;
 }
 
+runtime::dynamic_tensor_t convert_graph_tensor_to_dynamic_tensor(
+        const graph_tensor_ptr &in, void *data_ptr, sc_dim *shape_ptr) {
+    runtime::dynamic_tensor_t ret;
+    auto &plain_dims = in->details_.get_plain_dims();
+    ret.data_ = data_ptr;
+    ret.dims_ = shape_ptr;
+    ret.ndims_ = static_cast<int>(plain_dims.size());
+    ret.dtype_ = static_cast<uint32_t>(in->details_.dtype_.type_code_);
+    ret.dyn_mask_ = 0;
+    for (int i = 0; i < static_cast<int>(plain_dims.size()); i++) {
+        if (is_dynamic_dim(plain_dims[i])) { ret.dyn_mask_ |= (1 << i); }
+    }
+    return ret;
+}
+
 expr divide_and_ceil(const expr &v, const expr &d) {
     return do_cast_and_fold((v + d - 1) / d);
 }

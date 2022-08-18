@@ -40,6 +40,9 @@ public:
     body_generator_ptr create_generator() override;
     float get_gflop() override;
     sc_dims get_batch_dims() const;
+    static sc_dims get_batch_dims_impl(const sc_dims &, const sc_dims &);
+    static sc_data_type_t infer_out_dtype(
+            const std::vector<graph_tensor_ptr> &);
     sc_op_ptr do_compensations(
             sc_graph_t &mgr, const context_ptr &ctx) override;
     sc_op_ptr get_data_compensation(sc_graph_t &mgr);
