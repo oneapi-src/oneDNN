@@ -235,21 +235,12 @@ DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMin, 8.f)
 DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceProd, 8.f)
 DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceSum, 8.f)
 
-#define SOFTPLUS_ATTR_CHECK() \
-    append_decision_function([](op_t *graph_op) -> bool { \
-        const auto beta = graph_op->get_attr<int64_t>(op_attr::beta); \
-        if (beta != -1 && beta != 1) return false; \
-        return true; \
-    })
-
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_pass)
         .set_priority(8.f)
         .set_kind(impl::partition_kind::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    impl::utils::pm::pb_op_t *softplus = pgraph->append_op(
-                            impl::op_kind::SoftPlus, "softplus");
-                    softplus->SOFTPLUS_ATTR_CHECK();
+                    pgraph->append_op(impl::op_kind::SoftPlus, "softplus");
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_eltwise_fwd>();
@@ -260,9 +251,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_bw_pass)
         .set_kind(impl::partition_kind::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    impl::utils::pm::pb_op_t *softplus_bw = pgraph->append_op(
+                    pgraph->append_op(
                             impl::op_kind::SoftPlusBackprop, "softplus_bw");
-                    softplus_bw->SOFTPLUS_ATTR_CHECK();
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<eltwise_bwd_t>();

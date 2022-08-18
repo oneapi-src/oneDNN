@@ -369,22 +369,34 @@ TEST(Execute, SigmoidBackward) {
 
 TEST(Execute, SoftPlus) {
     test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
+            0, -1, 0.0723652, -0.0364869, 40, -25, 0.188521, -0.729739, 44.317};
     test::vector<float> ref_dst_case1 = {-0.693147, -1.31326, -0.657619,
-            -0.711557, -0, -50, -0.603322, -1.12315, -0};
+            -0.711557, -0, -25, -0.603322, -1.12315, -0};
     test::vector<float> ref_dst_case2 = {0.693147, 0.313262, 0.729984, 0.67507,
-            40, 0, 0.791844, 0.393416, 88.371};
+            40, 0, 0.791844, 0.393416, 44.317};
+    test::vector<float> ref_dst_case3 = {-0.346574, -1.06346, -0.311699,
+            -0.36515, -0, -25, -0.261146, -0.834203, -0};
+    test::vector<float> ref_dst_case4 = {0.346574, 0.063464, 0.384064, 0.328663,
+            40, 0, 0.449667, 0.104465, 44.317};
 
     dnnl::graph::impl::dims dims {1, 3, 3};
     const std::map<impl::op_attr_t, int64_t> attrs_data_case1 {
             {impl::op_attr::beta, -1}};
     const std::map<impl::op_attr_t, int64_t> attrs_data_case2 {
             {impl::op_attr::beta, 1}};
+    const std::map<impl::op_attr_t, int64_t> attrs_data_case3 {
+            {impl::op_attr::beta, -2}};
+    const std::map<impl::op_attr_t, int64_t> attrs_data_case4 {
+            {impl::op_attr::beta, 2}};
 
     test_eltwise_common(src, ref_dst_case1, dims, impl::op_kind::SoftPlus,
             "softplus", attrs_data_case1);
     test_eltwise_common(src, ref_dst_case2, dims, impl::op_kind::SoftPlus,
             "softplus", attrs_data_case2);
+    test_eltwise_common(src, ref_dst_case3, dims, impl::op_kind::SoftPlus,
+            "softplus", attrs_data_case3);
+    test_eltwise_common(src, ref_dst_case4, dims, impl::op_kind::SoftPlus,
+            "softplus", attrs_data_case4);
 }
 
 TEST(Execute, SoftPlusBackward) {
@@ -396,17 +408,29 @@ TEST(Execute, SoftPlusBackward) {
             -0.0284842, 2.97385e-16, 0, 0.341607, -0.147739, 0};
     test::vector<float> ref_diff_src_case2 {1.5, -1.88259, 0.0100823,
             -0.0274636, 70, 0, 0.412478, -0.0712156, 88.5838};
+    test::vector<float> ref_diff_src_case3 {1.5, -6.16558, 0.00902748,
+            -0.0289941, 1.2634e-33, 0, 0.306793, -0.177672, 0};
+    test::vector<float> ref_diff_src_case4 {1.5, -0.83442, 0.0104333,
+            -0.0269537, 70, 0, 0.447293, -0.0412833, 88.5838};
 
     dnnl::graph::impl::dims dims {1, 3, 3};
     const std::map<impl::op_attr_t, int64_t> attrs_data_case1 {
             {impl::op_attr::beta, -1}};
     const std::map<impl::op_attr_t, int64_t> attrs_data_case2 {
             {impl::op_attr::beta, 1}};
+    const std::map<impl::op_attr_t, int64_t> attrs_data_case3 {
+            {impl::op_attr::beta, -2}};
+    const std::map<impl::op_attr_t, int64_t> attrs_data_case4 {
+            {impl::op_attr::beta, 2}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case1, dims,
             impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case1);
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case2, dims,
             impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case2);
+    test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case3, dims,
+            impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case3);
+    test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case4, dims,
+            impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case4);
 }
 
 TEST(Execute, Sqrt) {
