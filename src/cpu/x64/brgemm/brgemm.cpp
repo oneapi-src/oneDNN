@@ -235,6 +235,14 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     brg->LDD = LDD;
     const auto dt_d = dst_md->data_type;
 
+    // check that bias and output data type are supported by isa
+    if (!IMPLICATION(one_of(data_type::bf16, dt_bias, dt_d),
+                is_superset(brg->isa_impl, avx512_core)))
+        return status::unimplemented;
+    if (!IMPLICATION(one_of(data_type::f16, dt_bias, dt_d),
+                is_superset(brg->isa_impl, avx512_core_fp16)))
+        return status::unimplemented;
+    // check that combination of data types is allowed
     if ((brg->dt_a == data_type::u8 && brg->dt_b == data_type::s8)
             && (!one_of(dt_d, data_type::u8, data_type::s8, data_type::s32,
                     data_type::f32, data_type::bf16))
