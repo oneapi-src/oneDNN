@@ -358,7 +358,23 @@ static status_t layout_propagation_for_eltwise_bwd(op_ptr &op,
 static status_t layout_propagation_for_binary(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    using ltw = graph::logical_tensor_wrapper_t;
     status_t status = status::success;
+
+    // if with zero dimension, the binary op will take no effect, we just
+    // complete the layout propagation process by using dummy dst md.
+    if (ltw(op->get_input_value(0)->get_logical_tensor()).has_zero_dim()
+            || ltw(op->get_input_value(1)->get_logical_tensor())
+                       .has_zero_dim()) {
+        value_ptr dst = op->get_output_value(0);
+        status = fill_layout_info(dst,
+                to_ncx_format(
+                        make_dnnl_memory_desc(dst->get_logical_tensor())));
+        if (status != status::success) return status;
+
+        return fill_layout_info(op->get_output_value(1), dnnl::memory::desc {});
+    }
+
     const auto &pd_flag_pair = create_binary_pd(op, p_engine, mgr, pd_cache);
     const auto &pd = pd_flag_pair.first;
     const auto is_first_time = pd_flag_pair.second;
@@ -430,7 +446,23 @@ static status_t layout_propagation_for_shuffle(op_ptr &op,
 static status_t layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    using ltw = graph::logical_tensor_wrapper_t;
     status_t status = status::success;
+
+    // if with zero dimension, the matmul op will take no effect, we just
+    // complete the layout propagation process by using dummy dst md.
+    if (ltw(op->get_input_value(0)->get_logical_tensor()).has_zero_dim()
+            || ltw(op->get_input_value(1)->get_logical_tensor())
+                       .has_zero_dim()) {
+        value_ptr dst = op->get_output_value(0);
+        status = fill_layout_info(dst,
+                to_ncx_format(
+                        make_dnnl_memory_desc(dst->get_logical_tensor())));
+        if (status != status::success) return status;
+
+        return fill_layout_info(op->get_output_value(1), dnnl::memory::desc {});
+    }
+
     const auto &pd_flag_pair = create_matmul_pd(op, p_engine, mgr, pd_cache);
     const auto &pd = pd_flag_pair.first;
     const auto is_first_time = pd_flag_pair.second;

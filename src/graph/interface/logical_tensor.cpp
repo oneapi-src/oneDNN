@@ -217,13 +217,15 @@ status_t DNNL_API dnnl_graph_logical_tensor_init_with_dims(
         std::copy(dims, dims + ndims, val.dims);
         // sanity check for dims
         bool sanity = true && std::all_of(dims, dims + ndims, [](int64_t v) {
-            return v > 0;
+            return v >= 0;
         });
         if (sanity && ltype == layout_type::strided) {
             // initialize strides
             val.layout.strides[ndims - 1] = 1;
             for (int s = ndims - 2; s >= 0; --s) {
-                val.layout.strides[s] = dims[s + 1] * val.layout.strides[s + 1];
+                // replace 0 in shape to 1 when computing the strides
+                val.layout.strides[s] = std::max<impl::dim_t>(dims[s + 1], 1)
+                        * val.layout.strides[s + 1];
             }
         } else {
             // initialize strides with -1

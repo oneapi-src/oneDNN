@@ -6152,3 +6152,59 @@ TEST(Execute, MatmulBiasAddReluFusion) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
 }
+
+TEST(Execute, MatmulEmptyInput) {
+    impl::op_t matmul_op(impl::op_kind::MatMul);
+    impl::engine_t *eng = get_engine();
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 3, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(1, {2, 4, 0}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            3, impl::data_type::f32, impl::layout_type::any);
+
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+
+    impl::graph_t g(eng->kind());
+    g.add_op(&matmul_op);
+    g.finalize();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+
+    impl::logical_tensor_t empty_lt;
+    cp.query_logical_tensor(dst.id, &empty_lt);
+    ASSERT_EQ(empty_lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(empty_lt.ndims, 3);
+    ASSERT_EQ(empty_lt.dims[0], 2);
+    ASSERT_EQ(empty_lt.dims[1], 3);
+    ASSERT_EQ(empty_lt.dims[2], 0);
+
+    test::vector<float> src_data {-2.0, -1.5};
+
+    impl::tensor_t src_ts(src, eng, src_data.data());
+    impl::tensor_t weight_ts(weight, eng, nullptr);
+    impl::tensor_t dst_ts(dst, eng, nullptr);
+
+    impl::stream_t *strm = get_stream();
+    ASSERT_EQ(cp.execute(strm, {src_ts, weight_ts}, {dst_ts}),
+            impl::status::success);
+    strm->wait();
+}

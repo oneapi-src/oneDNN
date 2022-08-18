@@ -1462,13 +1462,18 @@ struct op_executable_t {
 #endif
 };
 
-struct memory_reparser_t : public op_executable_t {
+// This class is a dummy executable which doesn't do any actual computation.
+// This dummy executable can be used to:
+// - support data formatting ops like permute/reshape/transpose
+// - support zero-volume tensor (empty tensor) like (1024, 64)x(64, 0)
+//
+// In the execute_sycl fuction, we will run a dummy sycl kernel to gather all
+// the input events
+struct dummy_impl_t : public op_executable_t {
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
         UNUSED(stream);
-        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
-                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
-                "memory_parser must be inplaced");
+        UNUSED(args);
     }
 
 #ifdef DNNL_WITH_SYCL
@@ -1476,9 +1481,6 @@ struct memory_reparser_t : public op_executable_t {
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
         UNUSED(stream);
-        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
-                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
-                "memory_parser must be inplaced");
 
         // Fast path: if only one event, return it.
         if (deps.size() == 1) return deps[0];
@@ -1492,6 +1494,27 @@ struct memory_reparser_t : public op_executable_t {
             cgh.single_task<class dnnl_graph_dummy_kernel>([]() {});
         });
         return e;
+    }
+#endif
+};
+
+struct memory_reparser_t : public dummy_impl_t {
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
+                "memory_parser must be inplaced");
+        dummy_impl_t::execute(stream, args);
+    }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    ::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<::sycl::event> &deps = {}) const override {
+        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
+                "memory_parser must be inplaced");
+        return dummy_impl_t::execute_sycl(stream, args, deps);
     }
 #endif
 };
@@ -1770,6 +1793,16 @@ private:
 struct matmul_executable_t : public op_executable_t {
     matmul_executable_t(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
             fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
+        using ltw = graph::logical_tensor_wrapper_t;
+        // if with zero dimension, the matmul op will take no effect, we
+        // construct a dummy kernel
+        if (ltw(op->get_input_value(0)->get_logical_tensor()).has_zero_dim()
+                || ltw(op->get_input_value(1)->get_logical_tensor())
+                           .has_zero_dim()) {
+            is_dummy_ = true;
+            return;
+        }
+
         pd_ = create_matmul_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::matmul(pd_);
 
@@ -1793,6 +1826,8 @@ struct matmul_executable_t : public op_executable_t {
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
+        if (is_dummy_) { return dummy_impl_.execute(stream, args); }
+
         if (with_sum_) {
             memory &dst_mem
                     = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
@@ -1811,6 +1846,8 @@ struct matmul_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
+        if (is_dummy_) { return dummy_impl_.execute_sycl(stream, args, deps); }
+
         auto sycl_deps = deps;
         if (with_sum_) {
             memory &dst_mem
@@ -1837,6 +1874,8 @@ private:
     dnnl::matmul::primitive_desc pd_;
     dnnl::matmul prim_;
     bool with_sum_ {false};
+    bool is_dummy_ {false};
+    dummy_impl_t dummy_impl_;
 };
 
 struct eltwise_executable_t : public op_executable_t {
@@ -1902,6 +1941,16 @@ private:
 struct binary_executable_t : public op_executable_t {
     binary_executable_t(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
             fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
+        using ltw = graph::logical_tensor_wrapper_t;
+        // if with zero dimension, the binary op will take no effect, we
+        // construct a dummy kernel
+        if (ltw(op->get_input_value(0)->get_logical_tensor()).has_zero_dim()
+                || ltw(op->get_input_value(1)->get_logical_tensor())
+                           .has_zero_dim()) {
+            is_dummy_ = true;
+            return;
+        }
+
         pd_ = create_binary_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::binary(pd_);
 
@@ -1913,6 +1962,8 @@ struct binary_executable_t : public op_executable_t {
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
+        if (is_dummy_) { return dummy_impl_.execute(stream, args); }
+
         if (with_sum_) {
             memory &dst_mem
                     = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
@@ -1932,6 +1983,8 @@ struct binary_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
+        if (is_dummy_) { return dummy_impl_.execute_sycl(stream, args, deps); }
+
         auto sycl_deps = deps;
         if (with_sum_) {
             memory &dst_mem
@@ -1958,6 +2011,8 @@ private:
     dnnl::binary::primitive_desc pd_;
     dnnl::binary prim_;
     bool with_sum_ {false};
+    bool is_dummy_ {false};
+    dummy_impl_t dummy_impl_;
 };
 
 struct concat_executable_t : public op_executable_t {

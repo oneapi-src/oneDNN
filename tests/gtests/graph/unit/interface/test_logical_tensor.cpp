@@ -65,6 +65,16 @@ TEST(LogicalTensor, CreateWithShape) {
     ASSERT_EQ(lt_4.id, id);
     ASSERT_EQ(lt_4.ndims, 4);
     ASSERT_EQ(lt_4.data_type, impl::data_type::f32);
+
+    impl::logical_tensor_t lt_5
+            = utils::logical_tensor_init(id, {4, 5, 0}, impl::data_type::f32);
+    ASSERT_EQ(lt_5.id, id);
+    ASSERT_EQ(lt_5.ndims, 3);
+    ASSERT_EQ(lt_5.data_type, impl::data_type::f32);
+    ASSERT_EQ(lt_5.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt_5.layout.strides[0], 5);
+    ASSERT_EQ(lt_5.layout.strides[1], 1);
+    ASSERT_EQ(lt_5.layout.strides[2], 1);
 }
 
 TEST(LogicalTensor, Copy) {
