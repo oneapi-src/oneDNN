@@ -49,7 +49,8 @@
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
 extern "C" dnnl_status_t dnnl_impl_gpu_set_profiling(int flag);
 extern "C" dnnl_status_t dnnl_impl_gpu_reset_profiling();
-extern "C" dnnl_status_t dnnl_impl_gpu_get_profiling_time(uint64_t *time);
+extern "C" dnnl_status_t dnnl_impl_gpu_get_profiling_info(
+        uint64_t &time, double &freq);
 #endif
 
 int check_pd_cache(const_dnnl_primitive_desc_t pd) {
@@ -322,7 +323,7 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args, res_t *res) {
     return execute_and_wait(exec_func, engine, args, res);
 }
 
-void maybe_enable_profiling() {
+void enable_gpu_profiling() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (!is_bench_mode(PROF)) return;
@@ -330,7 +331,7 @@ void maybe_enable_profiling() {
 #endif
 }
 
-void maybe_disable_profiling() {
+void disable_gpu_profiling() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (!is_bench_mode(PROF)) return;
@@ -339,12 +340,19 @@ void maybe_disable_profiling() {
 #endif
 }
 
-void maybe_reset_profiling(uint64_t *nsec) {
+void reset_gpu_profiling() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (!is_bench_mode(PROF)) return;
-    if (nsec) DNN_SAFE_V(dnnl_impl_gpu_get_profiling_time(nsec));
     DNN_SAFE_V(dnnl_impl_gpu_reset_profiling());
+#endif
+}
+
+void get_gpu_profiling_info(uint64_t &nsec, double &freq) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (!is_bench_mode(PROF)) return;
+    DNN_SAFE_V(dnnl_impl_gpu_get_profiling_info(nsec, freq));
 #endif
 }
 
@@ -387,7 +395,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
-    maybe_reset_profiling();
+    reset_gpu_profiling();
 
     bool is_first_loop = true;
     while (true) {
@@ -398,8 +406,10 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
 
         if (is_bench_mode(PROF)) {
             uint64_t nsec = 0;
-            maybe_reset_profiling(&nsec);
-            t.stamp(cur_batch_times, 0, nsec / 1e6);
+            double freq = 0;
+            get_gpu_profiling_info(nsec, freq);
+            reset_gpu_profiling();
+            t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
         } else {
             t.stamp(cur_batch_times);
         }
@@ -419,6 +429,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             is_first_loop = false;
         }
     }
+
     return OK;
 }
 
@@ -1014,7 +1025,7 @@ static void maybe_print_cpu_engine_error_message() {
 }
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
-    maybe_enable_profiling();
+    enable_gpu_profiling();
     size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
     dnnl_status_t status = dnnl_engine_create(&engine_, engine_kind, idx);
     if (engine_kind == dnnl_cpu && status != dnnl_success)

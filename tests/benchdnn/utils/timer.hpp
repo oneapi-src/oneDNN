@@ -47,7 +47,8 @@ struct timer_t {
 
     void stamp(int add_times = 1);
 
-    void stamp(int add_times, int64_t add_ticks, double add_ms) {
+    void stamp_with_frequency(int add_times, double add_ms, double freq) {
+        uint64_t add_ticks = (uint64_t)(add_ms * freq / 1e3);
         stop(add_times, add_ticks, add_ms);
     }
 

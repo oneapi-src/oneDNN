@@ -802,7 +802,7 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
 int execute_and_wait(
         dnnl_primitive_t prim, const args_t &args, res_t *res = nullptr);
 
-void maybe_reset_profiling(uint64_t *nsec = nullptr);
+void reset_gpu_profiling();
 int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args);
 int measure_perf(res_t *res, dnnl_primitive_t prim, args_t &args);
 
