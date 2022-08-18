@@ -724,6 +724,32 @@ void reorder_op_t::infer_slice_ranges(
             = search_known_slice_ranges(this, fsmap, stat_map);
     if (known_ranges_map.empty()) return;
     auto input_slice_list = known_ranges_map[0];
+
+    bool optmized_slice_check = !stat_map.is_recursive_mode()
+            && support_optmized_kernel(stat_map.get_context());
+
+    auto ths = this;
+    auto check_required_slice = [&stat_map, &ths](const graph_tensor_ptr &gt,
+                                        const slice_range_list &range_list,
+                                        int required_axis_from_end) {
+        auto gt_dims = gt->details_.get_blocking_dims();
+        std::vector<int> required_axes;
+        for (size_t i = gt_dims.size() - required_axis_from_end;
+                i < gt_dims.size(); i++) {
+            required_axes.emplace_back(i);
+        }
+        if (range_list.size() == 1
+                && !slice_full_on_axes(gt_dims, range_list[0], required_axes)) {
+            stat_map.append_ops_by_status(ths, infer_status_code::RETRY);
+            return false;
+        }
+        return true;
+    };
+
+    if (optmized_slice_check
+            && !check_required_slice(get_inputs()[0], input_slice_list, 2))
+        return;
+
     slice_range_list reorder_ranges_list;
 
     infer_reorder_slice(
@@ -744,7 +770,13 @@ void reorder_op_t::infer_slice_ranges(
                 return;
             }
         }
+    } else {
+        if (optmized_slice_check
+                && !check_required_slice(
+                        get_outputs()[0], reorder_ranges_list, 2))
+            return;
     }
+
     fsmap.get(get_outputs()[0]) = reorder_ranges_list;
 }
 
@@ -2635,6 +2667,37 @@ bool reorder_op_t::use_output_loop() const {
 
 bool reorder_op_t::support_output_loop() const {
     return get_output_format().is_blocking();
+}
+
+bool reorder_op_t::support_optmized_kernel(const context_ptr &ctx) const {
+    bool is_innermost_dim_strided
+            = info_.inputs_[0]->details_.get_strides().back() != 1
+            || info_.outputs_[0]->details_.get_strides().back() != 1;
+    auto &input_format = info_.inputs_[0]->details_.get_format();
+    auto &output_format = info_.outputs_[0]->details_.get_format();
+
+    auto dtype = info_.inputs_[0]->details_.dtype_;
+    auto input_blocking_shapes
+            = sc_data_format_t::get_blocking_shapes(plain_dims_, input_format);
+    auto output_blocking_shapes
+            = sc_data_format_t::get_blocking_shapes(plain_dims_, output_format);
+    sc_graph_t g;
+    auto toy_inp_tsr = builder::make_tensor(std::string("dummy_inp"),
+            g.dims_to_expr(input_blocking_shapes), dtype);
+    auto toy_out_tsr = builder::make_tensor(std::string("dummy_out"),
+            g.dims_to_expr(output_blocking_shapes), dtype);
+    auto src = tensor_slice(toy_inp_tsr), dst = tensor_slice(toy_out_tsr);
+
+    std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis;
+    bool is_vnni_reorder = false;
+    return (!is_innermost_dim_strided && !is_dynamic()
+                   && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis,
+                           out_a_axis, out_b_axis, plain_dims_, input_format,
+                           output_format, src, dst, dtype))
+            || (!is_dynamic()
+                    && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis,
+                            out_a_axis, out_b_axis, plain_dims_, input_format,
+                            output_format, src, dst, dtype, is_vnni_reorder));
 }
 
 void reorder_op_t::compute_block(context_ptr ctx,

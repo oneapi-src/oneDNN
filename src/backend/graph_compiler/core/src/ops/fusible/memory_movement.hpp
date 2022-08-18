@@ -162,6 +162,7 @@ public:
     bool check_padding() const;
     bool use_output_loop() const;
     bool support_output_loop() const;
+    bool support_optmized_kernel(const context_ptr &ctx) const;
     sc_dims get_bwise_fuse_shrink_dims() override;
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
     void collect_shrinked_axes_map(
