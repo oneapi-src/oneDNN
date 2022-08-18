@@ -2095,8 +2095,9 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
         auto ld_block2 = (brg.ldb2 > 0)
                 ? brg.ld_block2
                 : ((brg.ldb2_tail > 0) ? brg.ldb2_tail : 1);
+        const int free_vregs = max_vregs - brg.req_s8s8_compensation;
         n_bcast_1_load = brg.is_int8
-                && ((brg.bd_block * (ld_block2 + 1) < max_vregs)
+                && ((brg.bd_block * (ld_block2 + 1) < free_vregs)
                         && (bd_blocks_for_rd_tail == 0)
                         && (rows_for_rd_tail == 0));
         if (brg.brgattr.hint_loop_order != brgemm_lo_default)
