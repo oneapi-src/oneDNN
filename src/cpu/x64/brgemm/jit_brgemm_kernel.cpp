@@ -588,6 +588,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::cvt2ps(data_type_t type_in,
     } else {
         uni_vpxor(vmm_in, vmm_in, vmm_in);
         load_data_skip_zmm(this, type_in, vmm_in, op.getAddress(), tail_size);
+        if (types::is_integral_dt(type_in)) vcvtdq2ps(vmm_in, vmm_in);
         return;
     }
     switch (type_in) {
