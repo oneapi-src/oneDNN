@@ -66,6 +66,7 @@ static expr create_dyn_tsr_from_tensor(
         shape_tsr = builder::make_tensor(std::string("dyn_shape_") + name,
                 {plain_dims.size()}, datatypes::index);
         shape_tsr->attr().set(attr_keys::no_tensor2var, true);
+        shape_tsr->attr().set(attr_keys::no_dead_write, true);
         int64_t etype = tsr->dtype_.is_etype_pointer()
                 ? tsr->dtype_.get_pointer_element().as_etype_int()
                 : tsr->dtype_.as_etype_int();

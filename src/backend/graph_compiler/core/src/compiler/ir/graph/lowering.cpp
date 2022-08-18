@@ -33,8 +33,10 @@
 #include <compiler/ir/pass/ir_copy_internal.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
+#include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/index2var.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <microkernel/builtin.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/matmul_core.hpp>
@@ -657,6 +659,8 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
             auto shape_tsr = builder::make_tensor(
                     std::string("dyn_shape_") + tsr.checked_as<tensor>()->name_,
                     {t->details_.get_plain_dims().size()}, datatypes::index);
+            shape_tsr->attr().set(attr_keys::no_dead_write, true);
+            shape_tsr->attr().set(attr_keys::no_tensor2var, true);
             tsr->attr().set("temp.dyn_shape_of_placeholder", shape_tsr);
             gp.func_body->seq_.emplace_back(
                     builder::make_var_tensor_def_unattached(shape_tsr));
@@ -671,14 +675,29 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                                     datatypes::s32),
                             dyn_tsr_struct_t::name,
                             dyn_tsr_struct_t::fields::ndims)));
+            uint64_t etype = t->details_.dtype_.is_etype_pointer()
+                    ? t->details_.dtype_.get_pointer_element().as_etype_int()
+                    : t->details_.dtype_.as_etype_int();
+            gp.func_body->seq_.emplace_back(builder::make_evaluate_unattached(
+                    builder::make_write_struct(tsr,
+                            builder::make_constant({etype}, datatypes::u32),
+                            dyn_tsr_struct_t::name,
+                            dyn_tsr_struct_t::fields::dtype)));
+            auto plain_shapes
+                    = gp.graph.dims_to_expr(t->details_.get_plain_dims());
+            uint64_t dyn_mask_int = 0;
+            for (size_t i = 0; i < plain_shapes.size(); i++) {
+                gp.func_body->seq_.emplace_back(builder::make_assign_unattached(
+                        builder::make_indexing(shape_tsr, {i}),
+                        plain_shapes[i]));
+                dyn_mask_int |= ((!plain_shapes[i].isa<constant>()) << i);
+            }
             gp.func_body->seq_.emplace_back(builder::make_evaluate_unattached(
                     builder::make_write_struct(tsr,
                             builder::make_constant(
-                                    {static_cast<int64_t>(
-                                            t->details_.dtype_.as_etype_int())},
-                                    datatypes::u32),
+                                    {dyn_mask_int}, datatypes::u8),
                             dyn_tsr_struct_t::name,
-                            dyn_tsr_struct_t::fields::dtype)));
+                            dyn_tsr_struct_t::fields::dyn_mask)));
         }
     } else if (type == info_etype_t::format) {
         // placeholder can be replaced by tensor while format can't

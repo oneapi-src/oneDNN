@@ -21,6 +21,7 @@
 #include <compiler/ir/builder.hpp>
 #include <util/any_map.hpp>
 
+SC_MODULE(pass.tensor2var)
 namespace sc {
 
 struct tensor2var_result_t {
@@ -117,8 +118,14 @@ public:
                         if (result->tensor_len_ % result->simd_len_ != 0) {
                             result->can_replace_ = false;
                         }
-                        if (result->tensor_len_ / result->simd_len_ > 8) {
+                        if (result->tensor_len_ / result->simd_len_ > 16) {
                             result->can_replace_ = false;
+                            SC_MODULE_INFO
+                                    << "Cannot perform tensor2var on "
+                                    << v->ptr_
+                                    << " because it is too large: length="
+                                    << result->tensor_len_
+                                    << ", simd_len=" << result->simd_len_;
                         }
                         result->referenced_ = std::vector<bool>(
                                 result->tensor_len_ / result->simd_len_);

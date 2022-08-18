@@ -128,10 +128,9 @@ create_default_graph_flow(const context_ptr &ctx) {
     return std::make_tuple(pre_tune_passes, post_tune_passes);
 }
 
-const std::tuple<std::vector<basic_graph_pass_ptr>,
-        std::vector<basic_graph_pass_ptr>> &
+std::tuple<std::vector<basic_graph_pass_ptr>, std::vector<basic_graph_pass_ptr>>
 get_graph_passes(const context_ptr &ctx) {
-    static auto passes = create_default_graph_flow(ctx);
+    auto passes = create_default_graph_flow(ctx);
     return passes;
 }
 
@@ -194,7 +193,7 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         SC_MODULE_INFO << "Use default config";
     }
 
-    auto &passes_tuple = get_graph_passes(ctx);
+    auto passes_tuple = get_graph_passes(ctx);
     const std::vector<basic_graph_pass_ptr> *prepass
             = pre_tune_pass ? pre_tune_pass : &std::get<0>(passes_tuple);
     const std::vector<basic_graph_pass_ptr> *postpass

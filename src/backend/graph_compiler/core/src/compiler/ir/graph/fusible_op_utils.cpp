@@ -301,7 +301,8 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
         const vectorized_info_t &vx_info,
         const mask_compute_func_t &compute_lanes,
         const mask_compute_func_t &compute_scalar, any_map_t &attrs,
-        size_t wkld, bool use_mask, const tensor_slice *expand_loop_by) {
+        size_t wkld, bool use_mask, const tensor_slice *expand_loop_by,
+        bool unroll_inner_loop) {
     if (!expand_loop_by) { expand_loop_by = &dst; }
     // nested loop vars
     std::vector<expr> iter_vars;
@@ -402,6 +403,9 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                         ss.size() > 1 ? make_stmt<stmts_node_t>(std::move(ss))
                                       : s,
                         true, for_type::NORMAL);
+                if (unroll_inner_loop) {
+                    cur->attr()[stmt_attr_key::unroll_loop] = 0;
+                }
                 tcur.emplace_back(cur);
             }
             if (tail) {
@@ -413,6 +417,9 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                 cur = make_stmt<for_loop_node_t>(tail_var, expr(floor),
                         expr(floor + tail), expr(1), bld->pop_scope(), true,
                         for_type::NORMAL);
+                if (unroll_inner_loop) {
+                    cur->attr()[stmt_attr_key::unroll_loop] = 0;
+                }
                 tcur.emplace_back(cur);
                 // create fusible output anchor as demand
                 create_fusible_output_anchor(
@@ -454,6 +461,9 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                 cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
                         expand_loop_by->get_shape().at(i), expr(1),
                         bld->pop_scope(), true, for_type::NORMAL);
+                if (unroll_inner_loop) {
+                    cur->attr()[stmt_attr_key::unroll_loop] = 0;
+                }
             }
         }
     }
@@ -666,7 +676,7 @@ expr transform_tptr2stsr(const expr &tptr) {
 float evaluate_loop_parallel_balance(const sc_dims &loop_ranges) {
     sc_dim prod = get_dims_product(loop_ranges);
     const int run_threads = runtime_config_t::get().get_num_threads();
-    bool parallelism = (prod / run_threads > 12)
+    bool parallelism = (prod / run_threads > 8)
             || (prod % run_threads == 0 && prod >= run_threads);
     return parallelism ? 1.0f : ((prod % run_threads) / float(run_threads));
 }

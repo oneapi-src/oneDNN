@@ -21,6 +21,7 @@
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/parallel_workload_attr.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <microkernel/builtin.hpp>
 #include <util/any_map.hpp>
@@ -122,6 +123,17 @@ public:
                             static_cast<uint64_t>(1), body, true,
                             for_type::NORMAL);
                     seq.emplace_back(body);
+                } else {
+                    bool must_tensor2var = tsr->attr_
+                            && tsr->attr_->get_or_else(
+                                    attr_keys::must_tensor2var, false);
+                    // no remainder loop, try unroll
+                    if (len / step <= 8 || must_tensor2var) {
+                        seq.back()
+                                .remove_const()
+                                ->attr()[stmt_attr_key::unroll_loop]
+                                = 0;
+                    }
                 }
             } else {
                 expr itr = builder::make_var(datatypes::index, "itr");

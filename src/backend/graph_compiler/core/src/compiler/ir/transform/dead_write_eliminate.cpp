@@ -46,7 +46,10 @@ public:
                 && v->var_.isa<indexing>()) {
             auto tsr = v->var_.static_as<indexing>()->ptr_.checked_as<tensor>();
             bool no_dead_write = tsr->attr_
-                    && tsr->attr_->get_or_else(attr_keys::no_dead_write, false);
+                    && (tsr->attr_->get_or_else(attr_keys::no_dead_write, false)
+                            || tsr->attr_->get_or_else(
+                                    dependency_analysis::attr_directly_accessed,
+                                    false));
             bool is_pointer_buffer = tsr->elem_dtype_.is_pointer();
             bool is_read_buffer = tsr->attr().get_or_else("read_buffer", false);
             bool is_tensor_local

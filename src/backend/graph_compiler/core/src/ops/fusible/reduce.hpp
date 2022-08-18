@@ -23,6 +23,19 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 
 namespace sc {
+
+namespace op_traits {
+struct maybe_split_optimized_t : public virtual op_base_trait_t {
+    // returns true if the reduce_op can be splitted into reduce_compute +
+    // reduce_collect
+    virtual bool can_split_op() const = 0;
+    // split into reduce_compute + reduce_collect
+    virtual graph_tensor_ptr split_op(
+            const context_ptr &ctx, sc_graph_t &graph, int num_threads)
+            = 0;
+};
+} // namespace op_traits
+
 enum class reduce_operator : int {
     add = 0,
     mul,
@@ -33,7 +46,8 @@ enum class reduce_operator : int {
 // reduce op
 class reduce_op_t : public fusible_op_t,
                     public op_traits::auto_copyable_t,
-                    public op_traits::batchwise_shrinkable_t {
+                    public op_traits::batchwise_shrinkable_t,
+                    public op_traits::maybe_split_optimized_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -66,10 +80,10 @@ public:
 
     // returns true if the reduce_op can be splitted into reduce_compute +
     // reduce_collect
-    bool can_split_op() const;
+    bool can_split_op() const override;
     // split into reduce_compute + reduce_collect
-    graph_tensor_ptr split_op(
-            const context_ptr &ctx, sc_graph_t &graph, int num_threads);
+    graph_tensor_ptr split_op(const context_ptr &ctx, sc_graph_t &graph,
+            int num_threads) override;
 
 private:
     // the axis which need reduction
@@ -161,35 +175,51 @@ protected:
  * If there is parallelism in the reduction axis, reduce_compute_op will do
  * partial reduction on the thread-shared tensor. Another reduce_op will collect
  * the result and do final reduction.
+ * To optimize frequent memory load-store to thread-shared tensor, we further
+ * transform reduce_compute_op in partial-reduction mode into
+ * local-reduce_compute_op + copy-reduce_collect_op pair when the reduction
+ * buffer is small enough to be held in registers. The local-reduce_compute_op's
+ * output will be a small local tensor instead of a thread-shared global tensor.
+ * The local tensor will be further optimized to registers. A
+ * copy-reduce_collect_op will copy the local tensor (registers, after
+ * tensor2var optimization) to the final global thread-shared tensor.
  * */
 class reduce_compute_op_t : public reduce_impl_op_t,
-                            public op_traits::copyable_t {
+                            public op_traits::copyable_t,
+                            public op_traits::maybe_split_optimized_t {
 public:
+    bool local_mode_;
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
     reduce_compute_op_t(const graph_tensor_ptr &in,
             const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
-            reduce_operator rd_op, bool keep_dims);
+            reduce_operator rd_op, bool keep_dims, bool local_mode);
     bool is_partial_reduce() const;
     // NOLINT because false alarm on copy()
     sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
             const std::vector<graph_tensor_ptr> &outs,
             sc_graph_t &mgr) override;
+    // split global-partial-reduce-compute into
+    // local-reduce-compute+copy-reduce-collect
+    bool can_split_op() const override;
+    graph_tensor_ptr split_op(const context_ptr &ctx, sc_graph_t &graph,
+            int num_threads) override;
 };
 
 class reduce_collect_op_t : public reduce_impl_op_t,
                             public op_traits::copyable_t {
 public:
+    enum kind { NOOP, LAST_AXIS_COLLECT, COPY } op_;
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs) override;
     reduce_collect_op_t(const graph_tensor_ptr &in,
             const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
-            reduce_operator rd_op, bool keep_dims);
-    bool is_place_holder_op() const;
+            reduce_operator rd_op, bool keep_dims, kind op);
+    bool is_place_holder_op() const { return op_ == NOOP; }
     sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
             const std::vector<graph_tensor_ptr> &outs,
             sc_graph_t &mgr) override;

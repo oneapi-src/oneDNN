@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <vector>
 #include "../ir_comparer.hpp"
 #include "../viewer.hpp"
+#include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
@@ -116,12 +117,39 @@ public:
                 == v2->attr_->get<dependency_t>(attr_key).depends_on_;
     }
 
-    void add_tensor_depends_on_top_level_access(const tensor_c &tsr) {
+    // returns true when two indices can be proven not the same
+    // currently only check the constant indices
+    bool indexing_definitely_not_same(
+            const indexing_c &v1, const indexing_c &v2) {
+        assert(v1->idx_.size() == v2->idx_.size());
+        for (unsigned i = 0; i < v1->idx_.size(); i++) {
+            if (!v1->idx_[i].isa<constant>()) { return false; }
+            if (!v2->idx_[i].isa<constant>()) { return false; }
+            if (v1->idx_[i]->dtype_ != v2->idx_[i]->dtype_) { return false; }
+            if (v1->idx_[i].static_as<constant>()->value_
+                    == v2->idx_[i].static_as<constant>()->value_) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void add_tensor_depends_on_top_level_access(
+            const tensor_c &tsr, const indexing_c &v) {
         auto itr = tsr_accesses.find(tsr);
         if (itr != tsr_accesses.end()) {
             for (auto &access : itr->second) {
                 auto other_owner = get_indexing_owner(access);
-                add_to_dependency(cur_stmt.remove_const().get(), other_owner);
+                if (v.defined()) {
+                    if (indexing_definitely_not_same(
+                                access.checked_as<indexing_c>(), v)) {
+                        // if the access and v are definitely not the same, no
+                        // need to add dependency
+                    } else {
+                        add_to_dependency(
+                                cur_stmt.remove_const().get(), other_owner);
+                    }
+                }
             }
         }
     }
@@ -132,14 +160,34 @@ public:
         if (itr != tsr_accesses_in_loop.end()) {
             for (auto &access : itr->second) {
                 auto other_owner = get_indexing_owner(access);
-                add_to_dependency(cur_stmt.remove_const().get(), other_owner);
-                if (v.defined()
-                        && !indexing_same(access.checked_as<indexing_c>(), v)) {
-                    add_to_dependency(
-                            other_owner, cur_stmt.remove_const().get());
+                if (v.defined()) {
+                    if (indexing_definitely_not_same(
+                                access.checked_as<indexing_c>(), v)) {
+                        // if the access's index is proven not be the same of v,
+                        // no need to add dependency
+                    } else if (indexing_same(
+                                       access.checked_as<indexing_c>(), v)) {
+                        // if the access's index is the same expr of v, no need
+                        // to add reverse dependency, since v happens after
+                        // access
+                        add_to_dependency(
+                                cur_stmt.remove_const().get(), other_owner);
+                    } else {
+                        // if the access's index may be the same of v,
+                        // conservatively add reverse dependency
+                        add_to_dependency(
+                                cur_stmt.remove_const().get(), other_owner);
+                        add_to_dependency(
+                                other_owner, cur_stmt.remove_const().get());
+                    }
                 }
             }
         }
+    }
+
+    void view(define_c v) override {
+        if (!v->var_.isa<tensor>()) { dispatch(v->var_); }
+        if (v->init_.defined()) { dispatch(v->init_); }
     }
 
     // indexing's base tensor will not go here
@@ -147,7 +195,16 @@ public:
         ir_viewer_t::view(v);
         const auto &tsr = v;
         add_tensor_depends_on_loop_access(tsr, indexing_c());
-        add_tensor_depends_on_top_level_access(tsr);
+        add_tensor_depends_on_top_level_access(tsr, indexing_c());
+        v.remove_const()->attr()[attr_directly_accessed] = true;
+    }
+
+    void view(tensorptr_c v) override {
+        ir_viewer_t::view(v);
+        v->base_->ptr_.checked_as<tensor_c>()
+                .remove_const()
+                ->attr()[attr_directly_accessed]
+                = true;
     }
 
     void view(indexing_c v) override {
@@ -171,7 +228,7 @@ public:
 
         auto tsr = v->ptr_.checked_as<tensor>();
         add_tensor_depends_on_loop_access(tsr, v);
-        add_tensor_depends_on_top_level_access(tsr);
+        add_tensor_depends_on_top_level_access(tsr, v);
         if (loop_depth > 0) { tsr_accesses_in_loop[tsr].insert(v); }
         tsr_accesses[tsr].insert(v);
     }

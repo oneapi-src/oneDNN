@@ -225,8 +225,8 @@ public:
             }
             if (changed) {
                 return copy_attr(*intrin,
-                        make_expr<intrin_call_node>(intrin_type::brgemm,
-                                args_cpy, *intrin->intrin_attrs_));
+                        make_expr<intrin_call_node>(intrin->type_, args_cpy,
+                                *intrin->intrin_attrs_));
             }
         }
         // TODO(xxx): add implement for list brgemm, if necessary

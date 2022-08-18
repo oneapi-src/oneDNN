@@ -82,7 +82,8 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
         const mask_compute_func_t &compute_scalar, any_map_t &attrs,
         size_t wkld = 0UL, bool use_mask = false,
         const tensor_slice *expand_loop_by
-        = nullptr /*by default expand loop by dst*/);
+        = nullptr /*by default expand loop by dst*/,
+        bool unroll_inner_loop = false);
 expr make_select_by_mask(const expr &, const expr &, const expr &, uint32_t);
 void compute_mask_and_generate_condition(
         const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,

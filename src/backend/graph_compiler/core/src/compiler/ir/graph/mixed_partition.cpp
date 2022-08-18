@@ -1590,13 +1590,14 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
 }
 
 bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
+        mxp_buffer_allocator &buf_alloc,
         std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> &graph2orig) {
     bool reduce_contained = false;
     std::unordered_set<sc_op_ptr> tunable_op_set;
     for (auto &op : g.ops_) {
         if (op->isa<tunable_op_t>()) {
             tunable_op_set.insert(op);
-        } else if (op->isa<reduce_op_t>()) {
+        } else if (op->isa<op_traits::maybe_split_optimized_t>()) {
             reduce_contained = true;
         }
     }
@@ -1606,11 +1607,14 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
     if (!tunable_op_set.empty()) {
         auto ops = g.ops_;
         op_dep_matrix_t dep(g);
-        std::unordered_set<reduce_op_t *> splited_reduce_set;
+        std::unordered_set<op_traits::maybe_split_optimized_t *>
+                splited_reduce_set;
+
         std::for_each(ops.begin(), ops.end(),
                 [&dep, &tunable_op_set, &splited_reduce_set](
                         const sc_op_ptr &op) {
-                    if (auto red_op = op->dyn_cast<reduce_op_t>()) {
+                    if (auto red_op = op->dyn_cast<
+                                      op_traits::maybe_split_optimized_t>()) {
                         if (std::any_of(tunable_op_set.begin(),
                                     tunable_op_set.end(),
                                     [&dep, &op](const sc_op_ptr &tun) {
@@ -1623,9 +1627,39 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
 
         if (!splited_reduce_set.empty()) {
             std::for_each(splited_reduce_set.begin(), splited_reduce_set.end(),
-                    [&g, &ctx, &graph2orig](reduce_op_t *red_op) {
+                    [&g, &buf_alloc, &ctx, &graph2orig](
+                            op_traits::maybe_split_optimized_t *red_op) {
+                        auto op = dynamic_cast<sc_op *>(red_op);
+                        // pre-check
+                        if (op->isa<reduce_compute_op_t>()) {
+                            auto gt = op->get_outputs()[0];
+                            COMPILE_ASSERT(
+                                    graph2orig.find(gt) != graph2orig.end(),
+                                    "could not find original graph tensor")
+                            auto orig_gt = graph2orig[gt];
+                            auto buf = buf_alloc.g2b_map_.get(orig_gt);
+                            COMPILE_ASSERT(buf_alloc.tsr_anch_map_.find(buf)
+                                            != buf_alloc.tsr_anch_map_.end(),
+                                    "Could not find "
+                                            << buf
+                                            << " in tensor-to-anchor map")
+                            auto anchor = buf_alloc.tsr_anch_map_[buf];
+                            auto slice_range_list = anchor->fsmap_.get(
+                                    buf_alloc.b2g_map_[buf]);
+                            if (slice_range_list.size() != 1) return;
+                            auto shape = get_slice_shape(slice_range_list[0]);
+                            auto prod
+                                    = get_dims_product(get_expr_to_dims(shape));
+                            auto tsr_simd_len = vectorize_step(ctx,
+                                    get_real_tensor(buf)
+                                            ->elem_dtype_.type_code_);
+                            constexpr int max_register_tol = 16;
+                            if (prod % tsr_simd_len != 0
+                                    || (prod / tsr_simd_len) > max_register_tol)
+                                return;
+                        };
                         if (red_op->can_split_op()) {
-                            auto orig_out = red_op->get_outputs()[0];
+                            auto orig_out = op->get_outputs()[0];
                             auto new_out = red_op->split_op(ctx, g, 1);
                             auto iter = graph2orig.find(orig_out);
                             if (iter != graph2orig.end()) {
@@ -1775,8 +1809,9 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
 
     std::shared_ptr<mixed_fuse_op_t> fused_op;
 
-    redo_flag
-            = (redo_flag || try_optimize_reduce(ctx, sub_graph, graph_2_orig));
+    redo_flag = (redo_flag
+            || try_optimize_reduce(
+                    ctx, sub_graph, parti.buf_alloc_, graph_2_orig));
 
     if (!g.attrs_.get_or_else("temp.mixed_partition_hint.retried_graph", false)
             && redo_flag) {
@@ -1823,14 +1858,21 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                         /*outs*/
                         new_outs, any_map_t {});
             } else {
-                COMPILE_ASSERT(op->isa<input_op>() || op->isa<output_op>()
-                                || op->isa<constant_op_t>(),
-                        "Unexpected op type found after retry: "
-                                << op->op_name_)
+                if (!op->isa<input_op>() && !op->isa<output_op>()
+                        && !op->isa<constant_op_t>()) {
+                    // reset
+                    fused_op = nullptr;
+                    SC_MODULE_WARN
+                            << "Unexpected op type found after partition redo: "
+                            << op->op_name_
+                            << ", fall-back to original partition which may "
+                               "cause performance dropping, please check it";
+                    break;
+                }
             }
         }
-        COMPILE_ASSERT(fused_op, "No mixed fused op found");
-    } else {
+    }
+    if (!fused_op) {
         // mark read/write buffer
         graph::mark_read_or_write_buffers(arg_ins, true);
         graph::mark_read_or_write_buffers(arg_out, false);

@@ -365,6 +365,8 @@ union union_val {
         f32 = val_f32;
         unused = 0;
     }
+    bool operator==(const union_val &v) const { return u64 == v.u64; }
+    bool operator!=(const union_val &v) const { return u64 != v.u64; }
 };
 
 class expr_base;

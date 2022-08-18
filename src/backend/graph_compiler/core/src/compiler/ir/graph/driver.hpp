@@ -61,9 +61,9 @@ basic_graph_pass_ptr create_graph_pass(const std::string &name, pass_func func,
 // enabled_ is true. If pass has dependencies and executed by sepcial situations
 // like: assuming having analaysis_xxx pass return tue, a pass will be opened
 // (enabled_ sets true) and the passes it depends on also need to be opened.
-SC_API const std::tuple<std::vector<basic_graph_pass_ptr>,
-        std::vector<basic_graph_pass_ptr>> &
-get_graph_passes(const context_ptr &ctx = nullptr);
+SC_API std::tuple<std::vector<basic_graph_pass_ptr>,
+        std::vector<basic_graph_pass_ptr>>
+get_graph_passes(const context_ptr &ctx);
 
 /**
  * @param graph orginal graph

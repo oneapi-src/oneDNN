@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ namespace sc {
 
 namespace dependency_analysis {
 constexpr const char *attr_key = "ir_analysis.dependency";
+// if a tensor is directly accessed (take pointer of a tensor)
+constexpr const char *attr_directly_accessed = "ir_analysis.directly_accessed";
 // std::weak_ptr cannot be hashed. Use a trick to bypass it
 using stmt_weak_set = utils::weakptr_hashset_t<stmt_base_t>;
 struct dependency_t {

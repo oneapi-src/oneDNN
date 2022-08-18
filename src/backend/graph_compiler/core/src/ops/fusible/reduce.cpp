@@ -27,6 +27,7 @@
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
 
@@ -304,10 +305,16 @@ static slice_range_list infer_output_slice_range(bool is_reduce_compute,
 void update_reduce_op_fsmap(sc_op *ths, const graph_tensor_ptr &input,
         fslice_map &fsmap, infer_status_map_t &stat_map,
         const std::vector<int> &real_rd_axis) {
+    auto required_axes = real_rd_axis;
+    if (auto red_coll = ths->dyn_cast<reduce_collect_op_t>()) {
+        if (red_coll->op_ == reduce_collect_op_t::kind::COPY) {
+            required_axes.erase(required_axes.begin());
+        }
+    }
     auto &src_dim = input->details_.get_blocking_dims();
     // check the slice range whether meet the least demand of reduce op
     for (auto &src_range : fsmap.get(input)) {
-        if (!slice_full_on_axes(src_dim, src_range, real_rd_axis)) {
+        if (!slice_full_on_axes(src_dim, src_range, required_axes)) {
             ths->attrs_.set(
                     op_attr_key::fused_mode_hint, op_attr_key::break_pre_fuse);
             stat_map.append_ops_by_status(ths, infer_status_code::RETRY);
@@ -673,12 +680,12 @@ graph_tensor_ptr reduce_op_t::split_op(
     } else {
         // if partial reduce, the output has a leading dimension of thread id
         auto new_dims = first_out->details_.get_blocking_dims();
-        if (num_threads > 1) new_dims.insert(new_dims.begin(), num_threads);
+        if (num_threads > 1) { new_dims.insert(new_dims.begin(), num_threads); }
         first_out->details_.set_blocking_dims(new_dims);
     }
 
-    auto first = graph.make<reduce_compute_op_t>(
-            get_inputs()[0], first_out, rd_ax, rd_op_, keep_dims_);
+    auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
+            rd_ax, rd_op_, keep_dims_, /*local_mode*/ false);
 
     sc_op_ptr second;
     if (num_threads > 1) {
@@ -694,8 +701,10 @@ graph_tensor_ptr reduce_op_t::split_op(
                         {"keep_dims", false},
                 });
     } else {
-        second = graph.make<reduce_collect_op_t>(
-                first_out, second_out, rd_ax, rd_op_, keep_dims_);
+        second = graph.make<reduce_collect_op_t>(first_out, second_out, rd_ax,
+                rd_op_, keep_dims_,
+                last_axis ? reduce_collect_op_t::LAST_AXIS_COLLECT
+                          : reduce_collect_op_t::NOOP);
     }
     if (is_bf16) {
         auto out_tsr = second_out->copy();
@@ -740,16 +749,48 @@ const std::vector<int> &reduce_impl_op_t::get_rd_axis() const {
     return real_rd_axis_;
 }
 
+bool reduce_compute_op_t::can_split_op() const {
+    if (runtime_config_t::get().get_num_threads() == 1) { return true; }
+    auto last_axis = get_inputs()[0]->details_.get_blocking_dims().size() - 1;
+    bool last_axis_reduce
+            = static_cast<unsigned>(real_rd_axis_.back()) == last_axis;
+    return is_partial_reduce() && !last_axis_reduce;
+}
+
+graph_tensor_ptr reduce_compute_op_t::split_op(
+        const context_ptr &ctx, sc_graph_t &graph, int num_threads) {
+    assert(can_split_op());
+
+    auto first_out = get_outputs()[0]->copy();
+    first_out->producer_owner_ = nullptr;
+    auto second_out = get_outputs()[0]->copy();
+    second_out->producer_owner_ = nullptr;
+
+    // remove the thread-id dimension
+    auto new_first_dims = first_out->details_.get_blocking_dims();
+    new_first_dims.erase(new_first_dims.begin());
+    first_out->details_.set_blocking_dims(new_first_dims);
+
+    auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
+            real_rd_axis_, rd_op_, keep_dims_, /*local_mode*/ true);
+    auto second = graph.make<reduce_collect_op_t>(first_out, second_out,
+            real_rd_axis_, rd_op_, keep_dims_, reduce_collect_op_t::COPY);
+    get_outputs()[0]->replace_with(second_out);
+    remove();
+    return second_out;
+}
+
 sc_op_ptr reduce_compute_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
-    return mgr.make<reduce_compute_op_t>(
-            ins.at(0), outs.at(0), real_rd_axis_, rd_op_, keep_dims_);
+    return mgr.make<reduce_compute_op_t>(ins.at(0), outs.at(0), real_rd_axis_,
+            rd_op_, keep_dims_, local_mode_);
 }
 
 reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
         const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
-        reduce_operator rd_op, bool keep_dims)
-    : reduce_impl_op_t(in, old_out, rd_axis, rd_op, keep_dims) {
+        reduce_operator rd_op, bool keep_dims, bool local_mode)
+    : reduce_impl_op_t(in, old_out, rd_axis, rd_op, keep_dims)
+    , local_mode_(local_mode) {
     op_name_ = "reduce_compute";
 
     size_t in_dims = in->details_.get_blocking_dims().size();
@@ -776,7 +817,7 @@ reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
 
 bool reduce_compute_op_t::is_partial_reduce() const {
     // single thread can do first axis reduction without partial reduce
-    return real_rd_axis_.front() == 0
+    return !local_mode_ && real_rd_axis_.front() == 0
             && runtime_config_t::get().get_num_threads() != 1;
 }
 
@@ -815,6 +856,10 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
     auto func = [&](const std::vector<expr> &in,
                         std::vector<expr::lvalue_proxy_t> &out) -> stmt {
         indexing indexing_nd = out[0].get().checked_as<indexing>();
+        if (ths->local_mode_) {
+            dst[0]->get_real_tensor()->attr()[attr_keys::must_tensor2var]
+                    = true;
+        }
         auto lanes = indexing_nd->dtype_.lanes_;
         // if keep dims, set reduction axis to 0, else remove the axis from
         // indexing node
@@ -872,13 +917,13 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
 
     compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
             mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
-            false, inputs[0]);
+            false, inputs[0], /*unroll*/ local_mode_);
 }
 
 reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
         const graph_tensor_ptr &old_out, const std::vector<int> &rd_axis,
-        reduce_operator rd_op, bool keep_dims)
-    : reduce_impl_op_t(in, old_out, rd_axis, rd_op, keep_dims) {
+        reduce_operator rd_op, bool keep_dims, reduce_collect_op_t::kind op)
+    : reduce_impl_op_t(in, old_out, rd_axis, rd_op, keep_dims), op_(op) {
     op_name_ = "reduce_collect";
     if (in->details_.get_blocking_dims()
             == old_out->details_.get_blocking_dims()) {
@@ -891,7 +936,7 @@ reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
 sc_op_ptr reduce_collect_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
     return mgr.make<reduce_collect_op_t>(
-            ins.at(0), outs.at(0), real_rd_axis_, rd_op_, keep_dims_);
+            ins.at(0), outs.at(0), real_rd_axis_, rd_op_, keep_dims_, op_);
 }
 
 void reduce_collect_op_t::infer_slice_ranges(
@@ -906,28 +951,43 @@ void reduce_collect_op_t::infer_slice_ranges(
     auto &real_rd_axis = get_rd_axis();
     update_reduce_op_fsmap(this, input, fsmap, stat_map, real_rd_axis);
     if (!stat_map.is_recursive_mode() && stat_map.is_retry()) return;
-    if (!is_place_holder_op()) {
+    if (op_ == LAST_AXIS_COLLECT) {
         // if is not placeholder op, and don't keep dims, we will add an
         // additional axis at the end, when in reduce_compute. need to drop
         // the last axis
         for (auto &range : known_ranges_list) {
             range.pop_back();
         }
+    } else if (op_ == COPY) {
+        // if is copy-mode, the output has an additional dimension for thread-id
+        for (auto &range : known_ranges_list) {
+            range.insert(range.begin(), std::pair<expr, expr> {0, 1});
+        }
     }
     fsmap.get(get_outputs()[0]) = known_ranges_list;
-}
-
-bool reduce_collect_op_t::is_place_holder_op() const {
-    bool last_axis_reduce = get_inputs()[0]->details_.get_blocking_dims()
-            != get_outputs()[0]->details_.get_blocking_dims();
-    return !last_axis_reduce;
 }
 
 void reduce_collect_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
-    bool last_axis_reduce = !is_place_holder_op();
-    if (last_axis_reduce) {
+    if (op_ == COPY) {
+        vx_info_.axis = dst[0]->get_shape().size() - 1;
+        auto vec_lanes = vectorize_step(
+                ctx, info_.inputs_[0]->details_.dtype_.type_code_);
+        vx_info_.lanes = vec_lanes;
+        auto ths = this;
+        auto func = [&](const std::vector<expr> &in,
+                            std::vector<expr::lvalue_proxy_t> &out) -> stmt {
+            indexing out_nd = out[0].get().checked_as<indexing>();
+            //  add the axis to indexing node
+            out_nd->idx_.insert(
+                    out_nd->idx_.begin(), builtin::get_thread_id_func()());
+            return builder::make_assign_unattached(out[0], in[0]);
+        };
+        compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
+                mask_compute_func_t(func), mask_compute_func_t(func), attrs_, 0,
+                false, dst[0], /*unroll*/ true);
+    } else if (op_ == LAST_AXIS_COLLECT) {
         // set default vectorized information
         auto &real_rd_axis = get_rd_axis();
         auto last_axis
