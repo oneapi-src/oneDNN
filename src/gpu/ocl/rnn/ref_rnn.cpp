@@ -1102,7 +1102,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
-        int lay, int iter, int n_gates, int dhc, int batch,
+        int lay, int iter, int n_bias, int dhc, int batch,
         const memory_storage_t &scratch_gates,
         const memory_storage_t &scratch_cell,
         const memory_storage_t &diff_bias) const {
@@ -1115,7 +1115,7 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
     arg_list.set(4, scratch_gates);
     arg_list.set(5, scratch_cell);
 
-    auto nd_range = compute::nd_range_t({n_gates, dhc});
+    auto nd_range = get_nd_range({dhc, n_bias});
 
     parallel_for(ctx, nd_range, gates_reduction_kernel_, arg_list);
 }

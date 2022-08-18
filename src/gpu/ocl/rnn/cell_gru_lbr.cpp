@@ -86,7 +86,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         gemm_primitive(engine, ctx, scratch_cell, 0, workspace,
                 cell_ws_iter_offset, diff_weights_iter, cell_diff_wei_iter_off,
                 gemm_diff_wei_iter);
-        gates_reduction(ctx, dir, lay, iter, rnn.n_gates, rnn.dhc, rnn.mb,
+        gates_reduction(ctx, dir, lay, iter, rnn.n_gates + 1, rnn.dhc, rnn.mb,
                 scratch_gates, scratch_cell, diff_bias);
     }
 }

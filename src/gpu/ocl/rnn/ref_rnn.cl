@@ -920,29 +920,31 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *ws,
 #endif
 }
 
-__kernel void ref_rnn_gates_reduction(int dir, int lay, int iter,
+__attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
+ref_rnn_gates_reduction(int dir, int lay, int iter,
         __global DIFF_DATA_T *diff_bias_base, __global char *scratch_gates,
         __global char *scratch_cell) {
 #if !IS_FWD
-    const int i = get_global_id(0); // n_gates
-    const int k = get_global_id(1); // dhc
+    const int k = get_global_id(0); // dhc
+    const int i = get_global_id(1); // n_bias
+
+    const int n_bias_max = (CELL_KIND == LBR_GRU) ? 4 : 3;
+    if (k >= DHC || i >= n_bias_max) return;
 
     __global DIFF_DATA_T *diff_bias
             = diff_bias_base + DIFF_BIAS_OFF(lay, dir, 0, 0);
-    __global SRC_DATA_T *gates = (__global SRC_DATA_T *)(scratch_gates)
-            + OFF_SCRATCH_MEM(iter, 0, 0, 0);
+    __global SRC_DATA_T *gates;
+    int i_ = i;
+    if (CELL_KIND == LBR_GRU && i == 3) {
+        gates = (__global SRC_DATA_T *)(scratch_cell);
+        i_ = 2;
+    } else
+        gates = (__global SRC_DATA_T *)(scratch_gates)
+                + OFF_SCRATCH_MEM(iter, 0, 0, 0);
 
     for (int j = 0; j < BATCH; j++) {
-        diff_bias[i * DHC + k] += SRC_TO_REF(gates[CELL_SCRATCH_MEM(j, i, k)]);
+        diff_bias[i * DHC + k] += SRC_TO_REF(gates[CELL_SCRATCH_MEM(j, i_, k)]);
     }
-
-#if CELL_KIND == LBR_GRU
-    __global SRC_DATA_T *gate_r = (__global SRC_DATA_T *)(scratch_cell);
-    // Adding i == 0 to run this loop only once
-    for (int j = 0; j < BATCH && i == 0; j++) {
-        diff_bias[3 * DHC + k] += SRC_TO_REF(gate_r[CELL_SCRATCH_MEM(j, 2, k)]);
-    }
-#endif
 
 #endif
 }
