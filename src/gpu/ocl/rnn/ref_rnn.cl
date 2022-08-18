@@ -240,7 +240,8 @@ __kernel void ref_rnn_copy_init_iter(__global char *ws, __global char *src_base,
 #endif
 }
 
-__kernel void ref_rnn_copy_res_layer(__global char *ws, __global char *dst_base,
+__attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
+ref_rnn_copy_res_layer(__global char *ws, __global char *dst_base,
         __global char *scratch_diff_states, int lr, int rl
 #if IS_FWD
         ,
@@ -253,6 +254,7 @@ __kernel void ref_rnn_copy_res_layer(__global char *ws, __global char *dst_base,
     const int s = get_global_id(0);
 
 #if IS_FWD
+    if (s >= DHC || b >= BATCH || it >= N_ITER) return;
     __global WS_STATE_DATA_T *src
             = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
     __global DST_DATA_T *dst = (__global DST_DATA_T *)(dst_base);
@@ -298,6 +300,7 @@ __kernel void ref_rnn_copy_res_layer(__global char *ws, __global char *dst_base,
     }
 #else // BWD
 
+    if (s >= SLC || b >= BATCH || it >= N_ITER) return;
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)(scratch_diff_states);
     __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(dst_base);
     int dir = 0;
