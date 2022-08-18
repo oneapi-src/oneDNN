@@ -115,11 +115,13 @@ status_t set_and_or_check_formats(const convolution_desc_t &desc,
     // Currently this means:
     // - int8 with any forward prop_kind on any isa
     // - fp32/bf16 with any prop_kind on avx512_core and higher
+    // - f16
+    const auto wei_dt = weights_md.data_type;
     const bool is_set_allowed = false
-            || (utils::one_of(
-                        weights_md.data_type, data_type::f32, data_type::bf16)
+            || (utils::one_of(wei_dt, data_type::f32, data_type::bf16)
                     && mayiuse(avx512_core))
-            || (is_fwd && weights_md.data_type == data_type::s8);
+            || (is_fwd && wei_dt == data_type::s8)
+            || (wei_dt == data_type::f16 && mayiuse(avx512_core_fp16));
 
     // NOTE: Only plain layouts should be supported since the dims of
     // dst_md_ must be reshaped from {N, C, H, W} to {N, C}. If the
