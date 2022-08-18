@@ -2970,6 +2970,93 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
         const ngen::InstructionModifier &mod, const reg_buf_data_t &dst,
         reg_buf_data_t &src);
 
+// Rewrites a single-src instruction to avoid GRF boundary issues.
+struct op_plan_t {
+private:
+    template <typename... ArgT>
+    using op_t = std::function<void(ArgT...)>;
+
+    using inst_mod_t = ngen::InstructionModifier;
+    using reg_data_t = ngen::RegData;
+    using single_src_op_t = op_t<inst_mod_t, reg_data_t, reg_data_t>;
+
+public:
+    op_plan_t(int grf_size) : grf_size_(grf_size) {}
+
+    void operator()(const single_src_op_t &op, inst_mod_t mod, reg_data_t dst,
+            reg_data_t src) const {
+        fixup(op, mod, dst, src);
+    }
+
+private:
+    void fixup(const single_src_op_t &op, inst_mod_t mod, reg_data_t dst,
+            reg_data_t src) const {
+        // Rewrite src0 to cross GRF boundaries using vertical striding
+        auto exec_size = mod.getExecSize();
+        auto offset = src.getOffset();
+        auto width = src.getWidth();
+        auto hs = src.getHS();
+        auto vs = src.getVS();
+        auto size = src.getBytes();
+
+        if (!width) width = exec_size;
+        auto height = exec_size / width;
+        auto grf_elems = grf_size_ / size;
+
+        bool crosses_grf_boundary = false;
+        auto begin = offset;
+        for (int i = 0; i < height; ++i) {
+            auto reg_off = begin % grf_elems;
+            crosses_grf_boundary
+                    |= (reg_off + (width - 1) * hs + 1 > grf_elems);
+            begin += vs;
+        }
+
+        if (!crosses_grf_boundary) {
+            // op is valid
+            op(mod, dst, src);
+        } else if (vs == width * hs) {
+            // rewrite src as a valid access with shorter width and vs
+            auto elems_to_grf_boundary = (grf_elems - offset - 1) / hs + 1;
+            auto tentative_width = utils::rnd_down_pow2(elems_to_grf_boundary);
+            while (tentative_width > 1) {
+                if (elems_to_grf_boundary % tentative_width == 0) break;
+                tentative_width /= 2;
+            }
+
+            set_contiguous_region(src, tentative_width, hs);
+            op(mod, dst, src);
+        } else {
+            // break op into multiple row-wise ops
+            mod.setExecSize(width);
+            set_contiguous_region(src, width, hs);
+            for (int i = 0; i < height; ++i) {
+                fixup(op, mod, dst, src);
+                shift_offset(dst, width * dst.getHS());
+                shift_offset(src, vs);
+            }
+        }
+    }
+
+    void set_contiguous_region(reg_data_t &rr, int width, int hs) const {
+        if (width > 1)
+            rr.setRegion(width * hs, width, hs);
+        else
+            // Each element occupies its own row. width = 1 requires hs = 0
+            rr.setRegion(hs, 1, 0);
+    }
+
+    void shift_offset(reg_data_t &rr, int offset) const {
+        auto new_offset = rr.getOffset() + offset;
+        auto type_size = rr.getBytes();
+        auto grf_elems = grf_size_ / type_size;
+        rr.setBase(rr.getBase() + new_offset / grf_elems);
+        rr.setOffset(new_offset % grf_elems);
+    };
+
+    int grf_size_;
+};
+
 template <typename GeneratorT>
 bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         ngen_register_scope_t &scope, int width, const reg_buf_data_t &_src,
@@ -2994,8 +3081,15 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     int max_step = 8;
 
     const int grf_size = ngen::GRF::bytes(hw);
+    op_plan_t plan = grf_size;
     auto tmp = scope.alloc_reg_buf_data(
             utils::div_up(int(batch * sizeof(uint32_t)), grf_size));
+
+    using inst_mod_t = ngen::InstructionModifier;
+    using reg_data_t = ngen::RegData;
+    auto mov = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
+        host->emov(mod, dst, src);
+    };
 
     for (int i = 0; i < width; i += batch) {
         int i_beg = i;
@@ -3009,7 +3103,7 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto t = tmp.subregister((ii - i_beg) * 4, small_type)(4);
             ngen::InstructionModifier mod = esize;
             if (dst_type == small_type) mod |= host->sat;
-            host->emov(mod, t, s(1));
+            plan(mov, mod, t, s(1));
             ii += esize;
         }
         for (int ii = i_beg; ii < i_end;) {
@@ -3018,7 +3112,7 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             auto d = dst.subregister(ii, esize, dst_type_size);
             auto t = tmp.subregister((ii - i_beg) * 4, small_type)(4);
-            host->emov(esize, d(1), t);
+            plan(mov, esize, d(1), t);
             ii += esize;
         }
     }
@@ -3066,6 +3160,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool src_f = (src_type == ngen::DataType::f);
     bool src_xf = src_bf || src_f || src_hf;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));
+    op_plan_t plan = grf_size;
 
     auto get_step = [&]() {
         int step = (width < 16 ? 8 : 16);
@@ -3080,6 +3175,15 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return step;
     };
 
+    using inst_mod_t = ngen::InstructionModifier;
+    using reg_data_t = ngen::RegData;
+    auto shl16 = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
+        host->eshl(mod, dst, src, 16);
+    };
+    auto mov = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
+        host->emov(mod, dst, src);
+    };
+
     // bf16 -> f32:
     // - bf16 must be packed: use left shift instead.
     if (src_bf && dst_f) {
@@ -3092,7 +3196,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     i, esize, src_stride_bytes, ngen::DataType::uw);
             auto d = dst.subregister(
                     i, esize, dst_stride_bytes, ngen::DataType::ud);
-            host->eshl(esize, d(dst_stride), s(src_stride), 16);
+            plan(shl16, esize, d(dst_stride), s(src_stride));
         }
         return;
     }
@@ -3136,10 +3240,10 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 // d -> b.
                 if (dst_stride_bytes == 1) {
                     auto t = tmp.subregister(0, dst_type)(4);
-                    host->emov(esize | host->sat, t, s(1));
-                    host->emov(esize, d(1), t);
+                    plan(mov, esize | host->sat, t, s(1));
+                    plan(mov, esize, d(1), t);
                 } else {
-                    host->emov(esize | host->sat, d(4), s(1));
+                    plan(mov, esize | host->sat, d(4), s(1));
                 }
             } else {
                 // b -> d.
@@ -3148,14 +3252,14 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     // Direct x8 -> x32 scalar cast is not always
                     // supported. Use intermediate cast to s16.
                     auto t = tmp.subregister(0, ngen::DataType::w)(1);
-                    host->emov(esize, t, s);
-                    host->emov(esize, d, t);
+                    plan(mov, esize, t, s);
+                    plan(mov, esize, d, t);
                 } else if (src_stride_bytes == 1) {
                     auto t = tmp.subregister(0, src_type)(4);
-                    host->emov(esize, t, s(1));
-                    host->emov(esize, d(1), t);
+                    plan(mov, esize, t, s(1));
+                    plan(mov, esize, d(1), t);
                 } else {
-                    host->emov(esize, d(1), s(4));
+                    plan(mov, esize, d(1), s(4));
                 }
             }
         }
@@ -3184,11 +3288,11 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             }
             if (s.offset() != 0) {
                 auto t = tmp.format(0, src_type, esize, src_stride);
-                host->emov(esize, t, s);
+                plan(mov, esize, t, s);
                 s = t;
             }
-            host->emov(esize, d, s);
-            if (!d_half_grf_aligned) host->emov(esize, d_old, d);
+            plan(mov, esize, d, s);
+            if (!d_half_grf_aligned) plan(mov, esize, d_old, d);
         }
         return;
     }
@@ -3242,13 +3346,13 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 align_src_dst_offset(host, scope, esize, d, s);
                 s = s.reinterpret(src_type);
             }
-            host->emov(esize, d, s);
+            plan(mov, esize, d, s);
 
             if (do_d0_align) {
                 auto i_type = to_ngen(type_t::u(ngen::getBytes(dst_type) * 8));
                 auto d_int = d_old.reinterpret(i_type);
                 auto s_int = d.reinterpret(i_type);
-                host->emov(esize, d_int, s_int);
+                plan(mov, esize, d_int, s_int);
             }
         }
         return;
@@ -3270,15 +3374,15 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     esize, dst_stride);
             if (s.offset() != 0) {
                 auto t = tmp0.format(0, src_type, esize, src_stride);
-                host->emov(esize, t, s);
+                plan(mov, esize, t, s);
                 s = t;
             }
             if (d.offset() != 0) {
                 auto t = tmp1.format(0, dst_type, esize, dst_stride);
-                host->emov(esize, t, s);
+                plan(mov, esize, t, s);
                 s = t;
             }
-            host->emov(esize, d, s);
+            plan(mov, esize, d, s);
         }
         return;
     }
@@ -3294,7 +3398,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 esize, src_stride);
         auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
                 esize, dst_stride);
-        host->emov(esize, d, s);
+        plan(mov, esize, d, s);
     }
 }
 
