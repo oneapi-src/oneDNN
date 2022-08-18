@@ -43,7 +43,7 @@ struct settings_t : public base_settings_t {
 
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
-    std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
+    std::vector<std::vector<std::string>> stag {{tag::abx, tag::any}};
     std::vector<std::string> dtag {tag::any};
     std::vector<alg_t> alg {alg_t::ADD};
 

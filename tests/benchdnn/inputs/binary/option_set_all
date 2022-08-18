@@ -1,5 +1,5 @@
 # same src0 and src1 tags
---stag=abx:abx             3x5x6x9:3x5x6x9
+--stag=abx:any             3x5x6x9:3x5x6x9
                            5x3x2x9:1x3x2x9
                            4x4x4x4:4x4x1x4
                            32x17x2x3:32x17x1x1
@@ -18,7 +18,7 @@
                            2x3x16:1x3x1
                            1000x60:1000x60 # NCF
 
---stag=axb:axb             3x5x6x9:3x5x6x9
+--stag=axb:any             3x5x6x9:3x5x6x9
                            5x48x2x9:5x1x2x9
                            4x4x4x4:4x4x4x1
                            3x5x6x9:1x1x1x9
@@ -31,7 +31,7 @@
                            8x16x7:8x16
                            12x12:1x12
 
---stag=aBx16b:aBx16b       1x1x1:1x1x1
+--stag=aBx16b:any          1x1x1:1x1x1
                            2x12x3:2x12x3
                            2x44x3:2x44x3
                            2x12x3x4:2x12x3x4
@@ -47,7 +47,7 @@
                            8x16x12:8x16
                            8x16x14:8x16
 
---stag=aBx8b:aBx8b         1x1x1:1x1x1
+--stag=aBx8b:any           1x1x1:1x1x1
                            2x12x3:2x12x3
                            2x44x3:2x44x3
                            2x12x3x4:2x12x3x4
@@ -60,14 +60,14 @@
                            8x15x5x7:1
                            8x16x7:8x16
 
---stag=ABx16a16b:ABx16a16b 32x16x3x4:32x16x3x4
+--stag=ABx16a16b:any       32x16x3x4:32x16x3x4
                            32x10x3x4:32x10x3x4
                            2x32x5x7:2x32x5x1
                            16x15x5x7:1x15x1x1
                            16x15x5x7:1x1x1x7
                            16x15x5x7:1
 
---stag=aBx32b:aBx32b       2x16x3x4:2x16x3x4
+--stag=aBx32b:any          2x16x3x4:2x16x3x4
 
 
 # different src0 and src1 tags
