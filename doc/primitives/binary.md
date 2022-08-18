@@ -54,7 +54,7 @@ argument index as specified by the following table.
 
  * The dimensions of both sources must match unless either is equal to one.
 
- * The \dst memory format can be either specified explicitly or by
+ * \f$\src_1\f$ and \dst memory formats can be either specified explicitly or by
    #dnnl::memory::format_tag::any (recommended), in which case the primitive
    will derive the most appropriate memory format based on the format of the
    source 0 tensor. The \dst tensor dimensions must match the ones of the

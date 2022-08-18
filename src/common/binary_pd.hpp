@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,16 +115,23 @@ protected:
     }
 
     status_t set_default_params() {
-        if (dst_md_.format_kind != format_kind::any) return status::success;
-
-        status_t status = status::unimplemented;
-        const memory_desc_wrapper src_d(src_md(0));
-        if (src_d.is_blocking_desc()) {
-            status = memory_desc_init_by_blocking_desc(
-                    dst_md_, src_d.blocking_desc());
+        if (src1_md_.format_kind == format_kind::any) {
+            const memory_desc_wrapper src_d(src_md(0));
+            if (src_d.is_blocking_desc()) {
+                CHECK(memory_desc_init_by_blocking_desc(
+                        src1_md_, src_d.blocking_desc()));
+            }
         }
 
-        return status;
+        if (dst_md_.format_kind == format_kind::any) {
+            const memory_desc_wrapper src_d(src_md(0));
+            if (src_d.is_blocking_desc()) {
+                CHECK(memory_desc_init_by_blocking_desc(
+                        dst_md_, src_d.blocking_desc()));
+            }
+        }
+
+        return status::success;
     }
 
     bool attr_post_ops_ok() const {

@@ -1450,8 +1450,9 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 /// Initializes a descriptor for a binary primitive.
 ///
 /// @note
-///     Memory descriptor @p dst_desc is allowed to be initialized with
-///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
+///     Memory descriptors @p src1_desc and @p dst_desc are alloweded to be
+///     initialized with #dnnl_format_tag_any or with format_kind set to
+///     #dnnl_format_kind_any.
 ///
 /// @note
 ///     Both memory descriptors must have the same number of dimensions.
