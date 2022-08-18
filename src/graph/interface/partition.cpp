@@ -379,7 +379,8 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
     }
 #ifndef NDEBUG
     if (utils::get_verbose() >= 3) {
-        allocator_t *alloc = compiled_partition->get_engine().get_allocator();
+        allocator_t *alloc = reinterpret_cast<allocator_t *>(
+                compiled_partition->get_engine()->get_allocator());
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
         stream->wait();
         double ms = dnnl::impl::get_msec();
