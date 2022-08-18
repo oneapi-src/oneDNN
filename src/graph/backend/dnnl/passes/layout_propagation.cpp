@@ -1171,7 +1171,7 @@ static status_t layout_propagation_for_squeeze(op_ptr &op,
     auto predecessor_kind = src->get_producer().get_kind();
     // Predecessor kind is expand in the case of prelu bwd
     if (predecessor_kind == op_kind::dnnl_reduction
-            || predecessor_kind == op_kind::expand) {
+            || predecessor_kind == op_kind::dnnl_expand) {
         auto in_md = make_dnnl_memory_desc(in_lt);
         if (ltw(out_lt).is_any()) {
             const auto in_ndim = static_cast<int64_t>(in_md.dims().size());
@@ -1715,29 +1715,29 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
                 status = layout_propagation_for_prelu_bwd(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == op_kind::permute) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_permute) {
                 status = layout_propagation_for_permute(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_mul_scales) {
                 status = layout_propagation_for_mul_scales(
                         cur_op, p_engine, mgr, pd_cache);
-            } else if (cur_op->get_kind() == op_kind::to_group) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_to_group) {
                 status = layout_propagation_for_to_group(cur_op);
-            } else if (cur_op->get_kind() == op_kind::from_group) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_from_group) {
                 status = layout_propagation_for_from_group(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == graph::op_kind::StaticReshape) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_reshape) {
                 status = layout_propagation_for_reshape(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == graph::op_kind::StaticTranspose) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_transpose) {
                 status = layout_propagation_for_transpose(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == op_kind::expand) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_expand) {
                 status = layout_propagation_for_expand(cur_op);
             } else if (cur_op->get_kind() == op_kind::dnnl_reorder) {
                 status = layout_propagation_for_reorder(
                         cur_op, p_engine, mgr, pd_cache);
-            } else if (cur_op->get_kind() == op_kind::squeeze) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_squeeze) {
                 status = layout_propagation_for_squeeze(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {

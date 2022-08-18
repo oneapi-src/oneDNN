@@ -32,6 +32,12 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
+#define SET_ATTR_IS_CONSTANT \
+    set_attr(op_attr::is_constant, \
+            "used in constant propagation to identify if the output of this " \
+            "op is constant", \
+            false, attribute_kind::b, false)
+
 template <typename T>
 op_schema_t get_op_schema();
 
@@ -82,10 +88,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_depthwise, 1,
                 .set_attr(op_attr::with_dw_bias,
                         "specifying if the fused dw conv has a bias input",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_conv_depthwise_output_shape))
@@ -111,10 +114,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_mul_scales, 1,
                 .set_attr(op_attr::with_runtime_scales,
                         "indicate whether the op has runtime scales input",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_constant_scales, 1,
@@ -127,10 +127,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant_scales, 1,
                         attribute_kind::fs)
                 .set_attr(op_attr::shape, "describing output shape", true,
                         attribute_kind::is)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_dnnl_constant_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_add_zps, 1,
@@ -181,13 +178,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant_zps, 1,
                         attribute_kind::is)
                 .set_attr(op_attr::shape, "describing output shape", true,
                         attribute_kind::is)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_dnnl_constant_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(permute, 1,
+DNNL_GRAPH_OP_SCHEMA(dnnl_permute, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
@@ -203,9 +197,10 @@ DNNL_GRAPH_OP_SCHEMA(permute, 1,
                         "if set to transpose then [from/to]_format will be "
                         "ignored",
                         false, attribute_kind::s, "none")
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_permute_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(to_group, 1,
+DNNL_GRAPH_OP_SCHEMA(dnnl_to_group, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
@@ -216,9 +211,14 @@ DNNL_GRAPH_OP_SCHEMA(to_group, 1,
                 .set_attr(op_attr::is_convtranspose,
                         "indicate whether this is for convtranspose", false,
                         attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_to_group_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(from_group, 1,
+// This op is used for grouped conv/deconv backward weight to convert a [g,
+// oc/g, ic, kh, kw] shaped weight tensor to a [oc, ic, kh, kw] weight tensor.
+// The former shaped weight tensor is required by oneDNN primitive, but the
+// later one is required by oneDNN Graph users
+DNNL_GRAPH_OP_SCHEMA(dnnl_from_group, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
@@ -229,9 +229,10 @@ DNNL_GRAPH_OP_SCHEMA(from_group, 1,
                 .set_attr(op_attr::is_convtranspose,
                         "indicate whether this is for convtranspose", false,
                         attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_from_group_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(expand, 1,
+DNNL_GRAPH_OP_SCHEMA(dnnl_expand, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
@@ -246,9 +247,10 @@ DNNL_GRAPH_OP_SCHEMA(expand, 1,
                         attribute_kind::s, "none")
                 .set_attr(op_attr::expand_to, "target ndims to expand", false,
                         attribute_kind::i, (int64_t)(-1))
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_expand_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
+DNNL_GRAPH_OP_SCHEMA(dnnl_squeeze, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
@@ -258,7 +260,41 @@ DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
                         "which dims to be squeezed, negative "
                         "value means counting dimensions from the back",
                         false, attribute_kind::is)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_squeeze_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_reshape, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "data", "multidimensional input tensor")
+                .set_output(0, "output",
+                        "Output tensor with the same content as a tensor at "
+                        "input data but with shape defined by input shape")
+                .set_attr(op_attr::shape, "describing output shape", true,
+                        attribute_kind::is)
+                .set_attr(op_attr::special_zero,
+                        "controls how zero values in shape are interpreted "
+                        "shape",
+                        true, attribute_kind::b)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
+                .set_shape_inference_function(
+                        infer_static_reshape_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_transpose, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "data", "the tensor to be transposed")
+                .set_output(0, "output",
+                        "A tensor with shape and type matching 1st tensor.")
+                .set_attr(op_attr::order,
+                        "the permutation to apply to the axes of the input "
+                        "shape",
+                        true, attribute_kind::is)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
+                .set_shape_inference_function(
+                        infer_static_transpose_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
         op_schema_t()
@@ -285,10 +321,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_conv_output_shape))
 
@@ -323,10 +356,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_convtranspose_output_shape))
@@ -350,10 +380,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_data, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_convtranspose_bwd_data_output_shape))
@@ -385,10 +412,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_weights, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_convtranspose_bwd_weight_output_shape))
@@ -441,10 +465,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_attr(op_attr::is_training, "whether this is for training",
                         false, attribute_kind::b)
                 // Analysis rules
@@ -492,10 +513,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
                 // New added attributes
                 .set_attr(op_attr::kind, "pooling kind, maxpool or avgpool",
                         true, attribute_kind::s)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_dnnl_pool_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
@@ -522,10 +540,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -556,10 +571,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu_bwd, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_prelu_bwd_output_shape))
 
@@ -596,10 +608,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
                 .set_attr(op_attr::filter_format,
                         "the format of weight, the options are OIX, XIO", false,
                         attribute_kind::s, "XIO")
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_bn_folding_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
@@ -627,10 +636,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_conv_bwd_data_output_shape))
@@ -658,10 +664,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_weights, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_conv_bwd_weight_output_shape))
@@ -716,10 +719,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_batchnorm_output_shape))
@@ -764,10 +764,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_bn_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_resampling_bwd, 1,
@@ -808,10 +805,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling_bwd, 1,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_sum, 1,
@@ -824,10 +818,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_sum, 1,
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -871,10 +862,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_binary_output_shape))
 
@@ -906,10 +894,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise, 1,
                         "specifies algorithm kind, can be one of "
                         "relu/tanh/sigmoid/elu/gelu/...",
                         true, attribute_kind::i)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -952,10 +937,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise_bwd, 1,
                         "alg_kind if use_dst flag equals true), can be one of "
                         "relu/tanh/sigmoid/elu/gelu/...",
                         true, attribute_kind::i)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -978,10 +960,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_shuffle, 1,
                         "specifies the number of groups to split shuffle "
                         "dimension into",
                         true, attribute_kind::i)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -1011,10 +990,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reduction, 1,
                         true, attribute_kind::i)
                 .set_attr(op_attr::p, "the p arg for Lp reduction", false,
                         attribute_kind::f, 0.0f)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_reduce_output_shape))
 
@@ -1035,10 +1011,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_softmax_bwd, 1,
                         "the axis of which the SoftMaxBackprop is calculated",
                         false, attribute_kind::i, (int64_t)1)
                 // New added attributes
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -1060,10 +1033,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax_bwd, 1,
                         "calculated",
                         false, attribute_kind::i, (int64_t)-1)
                 // New added attributes
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -1108,10 +1078,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_interpolate_output_shape))
 
@@ -1130,10 +1097,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_concat, 1,
                         "specifies which dimension to concatenate along", true,
                         attribute_kind::i)
                 // New added attributes
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_concat_output_shape))
 
@@ -1178,10 +1142,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm_bwd, 1,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_norm_bprop_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_matmul, 1,
@@ -1210,10 +1171,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_matmul, 1,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_matmul_output_shape))
 
@@ -1231,10 +1189,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_softmax, 1,
                         "the axis of which the SoftMax is calculated", false,
                         attribute_kind::i, (int64_t)1)
                 // New added attributes
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
@@ -1256,10 +1211,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax, 1,
                         "the axis of which the SoftMax is calculated", false,
                         attribute_kind::i, (int64_t)1)
                 // New added attributes
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -1298,10 +1250,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm, 1,
                         "constant to improve numerical stability", false,
                         attribute_kind::f, 1e-5f)
                 // New added attributes
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_norm_output_shape))
 
@@ -1349,10 +1298,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reorder, 1,
                         "specifies dimension on which apply per-channel "
                         "scaling",
                         false, attribute_kind::i, int64_t(-1))
-                .set_attr(op_attr::is_constant,
-                        "used in constant propagation to identify if the "
-                        "output of this op is constant",
-                        false, attribute_kind::b, false)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 

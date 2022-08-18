@@ -1064,9 +1064,9 @@ TEST(SubgraphPass, MemoryPlanning) {
 
     impl::op_t op1(1, dnnl_impl::op_kind::dnnl_mul_scales, "op1");
     impl::op_t op2(2, dnnl_impl::op_kind::dnnl_mul_scales, "op2");
-    impl::op_t op3(3, dnnl_impl::op_kind::permute, "op3");
+    impl::op_t op3(3, dnnl_impl::op_kind::dnnl_permute, "op3");
     impl::op_t op4(4, dnnl_impl::op_kind::dnnl_mul_scales, "op4");
-    impl::op_t op5(5, dnnl_impl::op_kind::permute, "op5");
+    impl::op_t op5(5, dnnl_impl::op_kind::dnnl_permute, "op5");
     impl::op_t op6(6, dnnl_impl::op_kind::dnnl_mul_scales, "op6");
     impl::op_t op7(7, dnnl_impl::op_kind::dnnl_mul_scales, "op7");
     impl::op_t op8(8, dnnl_impl::op_kind::dnnl_reorder, "op8");
@@ -1552,6 +1552,7 @@ TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
             g.get_ops(), p_eng, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
 
     // A reorder should be inserted before reshape op
@@ -1592,6 +1593,7 @@ TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
             g.get_ops(), p_eng, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
 
     // A reorder should be inserted before reshape op
@@ -1629,6 +1631,7 @@ TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
             g.get_ops(), p_eng, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
 
     // No reorder
@@ -1661,6 +1664,7 @@ TEST(LayoutPropagation, Transpose) {
             g.get_ops(), p_eng, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
 
     // the output value's layout type should be opaque, and the corresponding md

@@ -41,11 +41,13 @@ namespace op_kind {
     X(dnnl_add_zps, Dnnl_add_zps) \
     X(dnnl_sub_zps, Dnnl_sub_zps) \
     X(dnnl_constant_zps, Dnnl_constant_zps) \
-    X(permute, Permute) \
-    X(to_group, To_group) \
-    X(from_group, From_group) \
-    X(expand, Expand) \
-    X(squeeze, Squeeze) \
+    X(dnnl_permute, Dnnl_permute) \
+    X(dnnl_to_group, Dnnl_to_group) \
+    X(dnnl_from_group, Dnnl_from_group) \
+    X(dnnl_expand, Dnnl_expand) \
+    X(dnnl_squeeze, Dnnl_squeeze) \
+    X(dnnl_reshape, Dnnl_reshape) \
+    X(dnnl_transpose, Dnnl_transpose) \
     X(dnnl_convolution, Dnnl_convolution) \
     X(dnnl_convtranspose, Dnnl_convtranspose) \
     X(dnnl_pool, Dnnl_pool) \

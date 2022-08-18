@@ -505,54 +505,33 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 = op_schema_registry_t::get_op_schema(op->get_kind());
         if (!opm) { return status::invalid_graph_op; }
 
-        // ops in this list need to be refined further, we should lower them to
-        // internal ops or improve the definition
-        const static std::set<op_kind_t> ops_need_refine = {
-                // dnnl internal ops
-                op_kind::squeeze,
-                op_kind::expand,
-                op_kind::to_group,
-                op_kind::from_group,
-                op_kind::permute,
-                // frontend ops that need to be lower to dnnl internal ops.
-                // but now, we reuse these frontend ops and set some new attrs
-                // for them, which makes them unwell defined
-                graph::op_kind::StaticReshape,
-                graph::op_kind::StaticTranspose,
-        };
-
         // Validate
-        // TODO(xxx) Skip unwell defined ops for now. we need to validate
-        // all ops after refactor done
-        if (ops_need_refine.count(op->get_kind()) == 0) {
-            if (!opm->verify(op, false)) {
-                assertm(false, "schema verify failed");
-                return status::invalid_graph_op;
-            }
+        if (!opm->verify(op, false)) {
+            assertm(false, "schema verify failed");
+            return status::invalid_graph_op;
+        }
 
-            // Not allow undefined attributes
-            const auto &expected_attrs = opm->get_attrs();
-            const auto &actual_attrs = op->get_attributes();
-            for (const auto &elem : actual_attrs) {
-                // The matched_pattern attr is added by pattern matcher, we skip
-                // it. The with_sum attr will be removed later, we skip it.
-                bool skip = elem.first == op_attr::matched
-                        || elem.first == op_attr::with_sum;
-                if (!skip && expected_attrs.count(elem.first) == 0) {
+        // Not allow undefined attributes
+        const auto &expected_attrs = opm->get_attrs();
+        const auto &actual_attrs = op->get_attributes();
+        for (const auto &elem : actual_attrs) {
+            // The matched_pattern attr is added by pattern matcher, we skip
+            // it. The with_sum attr will be removed later, we skip it.
+            bool skip = elem.first == op_attr::matched
+                    || elem.first == op_attr::with_sum;
+            if (!skip && expected_attrs.count(elem.first) == 0) {
 #ifndef NDEBUG
-                    if (op_t::attr2str(elem.first).compare("undefined_attr")) {
-                        DEBUG_PRINT_ERROR("common attribute "
-                                + op_t::attr2str(elem.first) + " in op "
-                                + op->get_name() + " is not defined");
-                    } else {
-                        DEBUG_PRINT_ERROR("internal attribute "
-                                + op_attr::internal_attr2str(elem.first)
-                                + " in op " + op->get_name()
-                                + " is not defined");
-                    }
-#endif
-                    return status::invalid_graph_op;
+                if (op_t::attr2str(elem.first).compare("undefined_attr")) {
+                    DEBUG_PRINT_ERROR("common attribute "
+                            + op_t::attr2str(elem.first) + " in op "
+                            + op->get_name() + " is not defined");
+                } else {
+                    DEBUG_PRINT_ERROR("internal attribute "
+                            + op_attr::internal_attr2str(elem.first) + " in op "
+                            + op->get_name() + " is not defined");
                 }
+#endif
+                return status::invalid_graph_op;
             }
         }
 

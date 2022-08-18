@@ -99,13 +99,13 @@ status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_constant_zps) {
             exec = std::make_shared<i64vec_to_i32vec_filler>(
                     cur_op, op_attr::zps);
-        } else if (cur_op->get_kind() == op_kind::permute
-                || cur_op->get_kind() == op_kind::to_group
-                || cur_op->get_kind() == op_kind::from_group
-                || cur_op->get_kind() == op_kind::expand
-                || cur_op->get_kind() == op_kind::squeeze
-                || cur_op->get_kind() == graph::op_kind::StaticReshape
-                || cur_op->get_kind() == graph::op_kind::StaticTranspose) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_permute
+                || cur_op->get_kind() == op_kind::dnnl_to_group
+                || cur_op->get_kind() == op_kind::dnnl_from_group
+                || cur_op->get_kind() == op_kind::dnnl_expand
+                || cur_op->get_kind() == op_kind::dnnl_squeeze
+                || cur_op->get_kind() == op_kind::dnnl_reshape
+                || cur_op->get_kind() == op_kind::dnnl_transpose) {
             // For preprocess ops. The memory_reparser will not do
             // computation, it only re-parses the existing buffer.
             exec = std::make_shared<memory_reparser_t>();

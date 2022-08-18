@@ -1014,15 +1014,15 @@ status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != graph::op_kind::StaticReshape) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_reshape) continue;
 
         if (cur_op->get_output_value(0)->get_consumers().size() != 1) continue;
         auto &next0 = cur_op->get_output_value(0)->get_consumers()[0].get_op();
-        if (next0.get_kind() != graph::op_kind::StaticTranspose) continue;
+        if (next0.get_kind() != op_kind::dnnl_transpose) continue;
 
         if (next0.get_output_value(0)->get_consumers().size() != 1) continue;
         auto &next1 = next0.get_output_value(0)->get_consumers()[0].get_op();
-        if (next1.get_kind() != graph::op_kind::StaticReshape) continue;
+        if (next1.get_kind() != op_kind::dnnl_reshape) continue;
 
         fusion_groups.emplace_back(
                 std::vector<op_t *> {cur_op.get(), &next0, &next1});
@@ -1653,7 +1653,7 @@ status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute_0) {
             // input permute
-            op_ptr in_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr in_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in_perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
             in_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
             in_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
@@ -1661,7 +1661,7 @@ status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             to_be_inserted_ops.emplace_back(in_perm_op);
 
             // output permute
-            op_ptr out_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr out_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
@@ -1679,7 +1679,7 @@ status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         }
 
         if (need_permute_1) {
-            op_ptr perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
             perm_op->set_attr<std::string>(op_attr::from_format, "XIO");
             perm_op->set_attr<std::string>(op_attr::to_format, "OIX");
@@ -1691,7 +1691,7 @@ status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         // insert to_group
         auto groups = cur_op->get_attr<int64_t>(op_attr::groups);
         if (groups > 1) {
-            op_ptr to_group_op = std::make_shared<op_t>(op_kind::to_group);
+            op_ptr to_group_op = std::make_shared<op_t>(op_kind::dnnl_to_group);
             to_group_op->set_attr<int64_t>(op_attr::groups, groups);
             insert_op_before(to_group_op, cur_op, 1);
             to_be_inserted_ops.emplace_back(to_group_op);
@@ -1745,7 +1745,7 @@ status_t conv_bwd_weights_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute_0) {
             // input permute
-            op_ptr in0_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr in0_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in0_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             in0_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -1753,7 +1753,7 @@ status_t conv_bwd_weights_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             insert_op_before(in0_perm_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(in0_perm_op);
 
-            op_ptr in1_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr in1_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in1_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             in1_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -1765,7 +1765,7 @@ status_t conv_bwd_weights_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         }
         // output permute
         if (need_permute_1) {
-            op_ptr out_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr out_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             out_perm_op->set_attr<std::string>(op_attr::from_format, "OIX");
@@ -1785,7 +1785,8 @@ status_t conv_bwd_weights_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         // insert from_group
         auto groups = cur_op->get_attr<int64_t>(op_attr::groups);
         if (groups > 1) {
-            op_ptr from_group_op = std::make_shared<op_t>(op_kind::from_group);
+            op_ptr from_group_op
+                    = std::make_shared<op_t>(op_kind::dnnl_from_group);
             from_group_op->set_attr<int64_t>(op_attr::groups, groups);
             insert_op_after(from_group_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(from_group_op);
@@ -1824,7 +1825,7 @@ status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute) {
             // src permute
-            op_ptr in0_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr in0_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in0_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             in0_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -1833,7 +1834,7 @@ status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             to_be_inserted_ops.emplace_back(in0_perm_op);
 
             // dst permute
-            op_ptr out0_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr out0_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out0_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             out0_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
@@ -1872,7 +1873,7 @@ status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute) {
             // diff_dst permute
-            op_ptr in1_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr in1_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in1_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             in1_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -1882,7 +1883,8 @@ status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
             // src permute
             if (cur_op->get_attr<std::string>(op_attr::kind) == "maxpool") {
-                op_ptr src_perm_op = std::make_shared<op_t>(op_kind::permute);
+                op_ptr src_perm_op
+                        = std::make_shared<op_t>(op_kind::dnnl_permute);
                 src_perm_op->set_attr<std::string>(
                         op_attr::permute_kind, "permute");
                 src_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -1892,7 +1894,7 @@ status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             }
 
             // diff_src permute
-            op_ptr out_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr out_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
@@ -2357,7 +2359,7 @@ status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute) {
             // input0 permute
-            op_ptr in_perm_op_0 = std::make_shared<op_t>(op_kind::permute);
+            op_ptr in_perm_op_0 = std::make_shared<op_t>(op_kind::dnnl_permute);
             in_perm_op_0->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             in_perm_op_0->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -2366,7 +2368,7 @@ status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             to_be_inserted_ops.emplace_back(in_perm_op_0);
 
             // input1 permute
-            op_ptr in_perm_op_1 = std::make_shared<op_t>(op_kind::permute);
+            op_ptr in_perm_op_1 = std::make_shared<op_t>(op_kind::dnnl_permute);
             in_perm_op_1->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             in_perm_op_1->set_attr<std::string>(op_attr::from_format, "NXC");
@@ -2375,7 +2377,7 @@ status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             to_be_inserted_ops.emplace_back(in_perm_op_1);
 
             // output permute
-            op_ptr out_perm_op = std::make_shared<op_t>(op_kind::permute);
+            op_ptr out_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out_perm_op->set_attr<std::string>(
                     op_attr::permute_kind, "permute");
             out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
@@ -2543,7 +2545,7 @@ status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
             if (in_ndims[i] == target_ndims) { continue; }
 
-            auto expand_op = std::make_shared<op_t>(op_kind::expand);
+            auto expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
             // for BiasAdd, use axes to specify where to insert dimension 1
             if (is_bias_add
                     && (!cur_op->has_attr(op_attr::data_format)
@@ -3439,6 +3441,12 @@ status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
                     static_cast<int64_t>(dnnl::algorithm::eltwise_pow));
             new_op->set_attr<float>(op_attr::alpha, 1.f);
             new_op->set_attr<float>(op_attr::beta, -1.f);
+        } else if (cur_op->get_kind() == graph::op_kind::StaticReshape) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_reshape);
+            insert_scratchpad = false;
+        } else if (cur_op->get_kind() == graph::op_kind::StaticTranspose) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_transpose);
+            insert_scratchpad = false;
         } else {
             // TODO(xxx) Lower other ops to internal ops
             continue;
