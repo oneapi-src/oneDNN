@@ -224,8 +224,6 @@ private:
         auto a_layout = a_view_.create_vlayout();
         auto b_layout = b_view_.create_vlayout();
 
-        check_k_blocks_order(a_layout, b_layout);
-
         bmnk_block_mapper_t from_bmnk_mapper(bmnk_mapper_);
         from_bmnk_mapper.push_blocks(abc_kind_t::a, a_layout.blocks());
         from_bmnk_mapper.push_blocks(abc_kind_t::b, b_layout.blocks());
@@ -263,27 +261,6 @@ private:
             return true;
         }
         return false;
-    }
-
-    void check_k_blocks_order(const layout_t &a, const layout_t &b) const {
-        object_map_t<expr_t, int> k_vars;
-        auto k_sub_layout = [&](abc_kind_t abc_kind, const layout_t &l) {
-            layout_t k_layout = layout_t(type_t::u8(), 0,
-                    std::vector<dim_t>(layout_t::max_ndims, 1));
-            for (auto &b : l.blocks()) {
-                auto bmnk_kind = bmnk_mapper_.bmnk_kind(abc_kind, b.dim_idx);
-                if (bmnk_kind != bmnk_kind_t::k) continue;
-                auto &var = bmnk_mapper_.var(abc_kind, b.dim_idx);
-                auto ret = k_vars.emplace(var, (int)k_vars.size());
-                k_layout = k_layout.add_outer_block(ret.first->second, b.block);
-            }
-            return k_layout;
-        };
-        auto a_k = k_sub_layout(abc_kind_t::a, a);
-        auto b_k = k_sub_layout(abc_kind_t::b, b);
-        ir_assert(a_k == b_k)
-                << "Order of K dimensions doesn't match in A and B. A layout: "
-                << a << ", B layout: " << b;
     }
 
     void build_dpas(const bmnk_block_mapper_t &from_bmnk_mapper,
@@ -553,7 +530,7 @@ public:
 
     layout_t convert_to_fma_friendly_layout(const layout_t &layout,
             abc_kind_t abc_kind, bool is_slm, const bmnk_mapper_t &bmnk_mapper,
-            bool *changed = nullptr) const {
+            bool *changed = nullptr, layout_t other_layout = layout_t()) const {
         bool allow_grf_reorder
                 = (abc_kind == abc_kind_t::a ? allow_a_grf_reorder_
                                              : allow_b_grf_reorder_);
@@ -580,9 +557,9 @@ public:
                 = bmnk_mapper.map_to_bmnk(abc_kind, bmnk_kinds, layout);
 
         auto dpas_layout = get_dpas_friendly_layout(bmnk_layout, abc_kind);
-        if (dpas_layout == bmnk_layout) return layout;
 
-        if (changed) *changed = true;
+        if (other_layout.is_empty() && dpas_layout == bmnk_layout)
+            return layout;
 
         bmnk_block_mapper_t from_bmnk_mapper(bmnk_mapper);
         from_bmnk_mapper.push_blocks(abc_kind, layout.blocks());
@@ -590,6 +567,40 @@ public:
         auto fma_layout = from_bmnk_mapper.map_from_bmnk(
                 abc_kind, bmnk_kinds, dpas_layout);
         fma_layout = fma_layout.make_dense();
+        if (!other_layout.is_empty()) {
+            auto other_kind
+                    = abc_kind == abc_kind_t::a ? abc_kind_t::b : abc_kind_t::a;
+            from_bmnk_mapper.push_blocks(other_kind, other_layout.blocks());
+            bool k_order;
+            if (abc_kind == abc_kind_t::a)
+                k_order = check_k_blocks_order(
+                        fma_layout, other_layout, bmnk_mapper);
+            else
+                k_order = check_k_blocks_order(
+                        other_layout, fma_layout, bmnk_mapper);
+            if (k_order && dpas_layout == bmnk_layout) return layout;
+            bmnk_block_mapper_t to_bmnk_mapper(bmnk_mapper);
+
+            for (auto &b : layout.blocks()) {
+                if (bmnk_mapper.bmnk_kind(abc_kind, b.dim_idx)
+                        == bmnk_kind_t::k)
+                    continue;
+                to_bmnk_mapper.push_block(abc_kind, b);
+            }
+            for (auto a : other_layout.blocks()) {
+                if (bmnk_mapper.bmnk_kind(other_kind, a.dim_idx)
+                        == bmnk_kind_t::k) {
+                    //map a to b dim
+                    a.dim_idx = bmnk_mapper.dim_idx(
+                            abc_kind, bmnk_mapper.var(other_kind, a.dim_idx));
+                    to_bmnk_mapper.push_block(abc_kind, a);
+                }
+            }
+            fma_layout = to_bmnk_mapper.map_from_bmnk(
+                    abc_kind, bmnk_kinds, dpas_layout);
+            fma_layout = fma_layout.make_dense();
+        }
+        if (changed) *changed = true;
         return fma_layout;
     }
 
@@ -666,6 +677,25 @@ private:
         dpas_layout = dpas_layout.add_outer_block(k_idx, k_outer);
         dpas_layout = dpas_layout.add_outer_block(mn_idx, mn_outer);
         return dpas_layout;
+    }
+    bool check_k_blocks_order(const layout_t &a, const layout_t &b,
+            bmnk_mapper_t bmnk_mapper) const {
+        object_map_t<expr_t, int> k_vars;
+        auto k_sub_layout = [&](abc_kind_t abc_kind, const layout_t &l) {
+            layout_t k_layout = layout_t(type_t::u8(), 0,
+                    std::vector<dim_t>(layout_t::max_ndims, 1));
+            for (auto &b : l.blocks()) {
+                auto bmnk_kind = bmnk_mapper.bmnk_kind(abc_kind, b.dim_idx);
+                if (bmnk_kind != bmnk_kind_t::k) continue;
+                auto &var = bmnk_mapper.var(abc_kind, b.dim_idx);
+                auto ret = k_vars.emplace(var, (int)k_vars.size());
+                k_layout = k_layout.add_outer_block(ret.first->second, b.block);
+            }
+            return k_layout;
+        };
+        auto a_k = k_sub_layout(abc_kind_t::a, a);
+        auto b_k = k_sub_layout(abc_kind_t::b, b);
+        return a_k == b_k;
     }
 
     int simd_size_;
@@ -816,7 +846,8 @@ public:
 
     const send_hint_t &send_hint() const { return send_hint_; }
 
-    void load(const post_load_func_t &post_load = post_load_func_t()) {
+    void load(const post_load_func_t &post_load = post_load_func_t(),
+            layout_t a_layout = layout_t()) {
         auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
 
         layout_t load_layout;
@@ -832,7 +863,7 @@ public:
         bool changed;
         auto fma_layout = fma_helper_.convert_to_fma_friendly_layout(
                 reg_layout_, abc_kind_,
-                /*is_slm=*/false, bmnk_mapper, &changed);
+                /*is_slm=*/false, bmnk_mapper, &changed, a_layout);
 
         if (changed) {
             bool is_reorder_nop
@@ -1089,23 +1120,29 @@ private:
         bool use_b_slm = cfg_.slm().b();
         a_subtiles_.clear();
         b_subtiles_.clear();
-        for (int i = 0; i < a_subtiles; i++) {
-            auto view = a_i_view_.substitute(a_idx_, i);
-            auto tile = a_i_tile_.substitute(a_idx_, i);
-            // Using buffered view is enabled only when:
-            // - Loading directly from global memory
-            // - FMA kind is mad (dpas implementation is more strict and requires
-            //   layouts, not views)
-            // - Loading A tensor (A - activations for FWD/BWD_D where we may have
-            //   overlapping when applying KW blocking )
-            bool load_buffered = cfg_.ow_kw_grf_cache() && !use_a_slm
-                    && cfg_.fma_kind() == fma_kind_t::mad;
-            a_subtiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
-                    abc_kind_t::a, use_a_slm, load_buffered,
-                    allow_2d_load && can_use_2d_load(abc_kind_t::a, a_i_view_),
-                    i, view, tile, ap_buf_, a_slm_buf_, a_buf_, ab_tmp_buf_);
-            a_subtiles_.back().load();
-        }
+        auto load_a_subtiles = [&](bool align_b = false) {
+            for (int i = 0; i < a_subtiles; i++) {
+                auto view = a_i_view_.substitute(a_idx_, i);
+                auto tile = a_i_tile_.substitute(a_idx_, i);
+                // Using buffered view is enabled only when:
+                // - Loading directly from global memory
+                // - FMA kind is mad (dpas implementation is more strict and requires
+                //   layouts, not views)
+                // - Loading A tensor (A - activations for FWD/BWD_D where we may have
+                //   overlapping when applying KW blocking )
+                bool load_buffered = cfg_.ow_kw_grf_cache() && !use_a_slm
+                        && cfg_.fma_kind() == fma_kind_t::mad;
+                a_subtiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
+                        abc_kind_t::a, use_a_slm, load_buffered,
+                        allow_2d_load
+                                && can_use_2d_load(abc_kind_t::a, a_i_view_),
+                        i, view, tile, ap_buf_, a_slm_buf_, a_buf_,
+                        ab_tmp_buf_);
+                a_subtiles_.back().load(subtile_info_t::post_load_func_t(),
+                        align_b ? b_subtiles_[0].reg_view().create_vlayout()
+                                : layout_t());
+            }
+        };
         subtile_info_t::post_load_func_t b_post_load;
         if (!use_b_slm && cfg_.reduce_b()) {
             b_post_load = [&](const layout_t &reg_layout, const expr_t &reg_buf,
@@ -1114,16 +1151,29 @@ private:
                         reg_layout, reg_buf, tile);
             };
         }
-        for (int j = 0; j < b_subtiles; j++) {
-            auto view = b_j_view_.substitute(b_idx_, j);
-            auto tile = b_j_tile_.substitute(b_idx_, j);
-            b_subtiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
-                    abc_kind_t::b, use_b_slm,
-                    /*load_buffered=*/false,
-                    allow_2d_load && can_use_2d_load(abc_kind_t::b, b_j_view_),
-                    j, view, tile, bp_buf_, b_slm_buf_, b_buf_, ab_tmp_buf_);
 
-            b_subtiles_.back().load(b_post_load);
+        auto load_b_subtiles = [&](bool align_a = false) {
+            for (int j = 0; j < b_subtiles; j++) {
+                auto view = b_j_view_.substitute(b_idx_, j);
+                auto tile = b_j_tile_.substitute(b_idx_, j);
+                b_subtiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
+                        abc_kind_t::b, use_b_slm,
+                        /*load_buffered=*/false,
+                        allow_2d_load
+                                && can_use_2d_load(abc_kind_t::b, b_j_view_),
+                        j, view, tile, bp_buf_, b_slm_buf_, b_buf_,
+                        ab_tmp_buf_);
+                b_subtiles_.back().load(b_post_load,
+                        align_a ? a_subtiles_[0].reg_view().create_vlayout()
+                                : layout_t());
+            }
+        };
+        if (a_subtiles == 1) {
+            load_b_subtiles();
+            load_a_subtiles(true);
+        } else {
+            load_a_subtiles();
+            load_b_subtiles(true);
         }
 
         // Validate subtile loads, when VNNI permutation is applied, both A/B
