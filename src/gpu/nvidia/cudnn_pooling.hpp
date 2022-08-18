@@ -98,6 +98,7 @@ struct cudnn_pooling_fwd_t : public primitive_t {
             ok = ok
                     && IMPLICATION(
                             src_dt == s8, desc()->accum_data_type == s32);
+            ok = ok && !is_dilated();
             ok = ok && attr()->has_default_values();
             ok = ok && set_default_params() == status::success;
             ok = ok && blocking_ok();
@@ -162,7 +163,8 @@ struct cudnn_pooling_bwd_t : public primitive_t {
                             || utils::everyone_is(data_type::f16,
                                     diff_dst_md()->data_type,
                                     diff_src_md()->data_type))
-                    && attr()->has_default_values() && no_blocking();
+                    && !is_dilated() && attr()->has_default_values()
+                    && no_blocking();
             if (!ok) return status::unimplemented;
 
             init_mem_by_tag(get_tag(diff_dst_md_), diff_src_md_);
