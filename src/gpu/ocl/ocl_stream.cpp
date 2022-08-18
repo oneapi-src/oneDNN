@@ -32,6 +32,9 @@ namespace gpu {
 namespace ocl {
 
 status_t ocl_stream_t::init() {
+    if (is_profiling_enabled()) {
+        mdapi_helper_ = utils::make_unique<mdapi_helper_t>();
+    }
     // Restore queue on successful exit, otherwise queue may be released
     // without retain
     cl_command_queue queue = queue_;
@@ -49,17 +52,7 @@ status_t ocl_stream_t::init() {
     // Create queue if it is not set
     if (!queue) {
         cl_int err;
-#ifdef CL_VERSION_2_0
-        cl_queue_properties profiling_props[]
-                = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
-        queue = clCreateCommandQueueWithProperties(ocl_engine->context(),
-                ocl_engine->device(),
-                is_profiling_enabled() ? profiling_props : nullptr, &err);
-#else
-        queue = clCreateCommandQueue(ocl_engine->context(),
-                ocl_engine->device(),
-                is_profiling_enabled() ? CL_QUEUE_PROFILING_ENABLE : 0, &err);
-#endif
+        queue = create_queue(ocl_engine->context(), ocl_engine->device(), &err);
         OCL_CHECK(err);
     } else {
         // Check that queue is compatible with the engine
@@ -96,6 +89,24 @@ status_t ocl_stream_t::init() {
     }
 
     return status::success;
+}
+
+cl_command_queue ocl_stream_t::create_queue(
+        cl_context ctx, cl_device_id dev, cl_int *err) const {
+    if (is_profiling_enabled() && mdapi_helper_) {
+        auto ret = mdapi_helper_->create_queue(ctx, dev, err);
+        if (ret) return ret;
+    }
+
+#ifdef CL_VERSION_2_0
+    cl_queue_properties profiling_props[]
+            = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
+    return clCreateCommandQueueWithProperties(
+            ctx, dev, is_profiling_enabled() ? profiling_props : nullptr, err);
+#else
+    return clCreateCommandQueue(ctx, dev,
+            is_profiling_enabled() ? CL_QUEUE_PROFILING_ENABLE : 0, err);
+#endif
 }
 
 status_t ocl_stream_t::copy(

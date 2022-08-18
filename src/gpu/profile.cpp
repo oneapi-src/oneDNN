@@ -60,12 +60,13 @@ extern "C" status_t DNNL_API dnnl_impl_gpu_reset_profiling() {
     return status::unimplemented;
 }
 
-extern "C" status_t DNNL_API dnnl_impl_gpu_get_profiling_time(uint64_t *nsec) {
+extern "C" status_t DNNL_API dnnl_impl_gpu_get_profiling_info(
+        uint64_t &nsec, double &freq) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    return dnnl::impl::gpu::ocl::get_profiling_time(nsec);
+    return dnnl::impl::gpu::ocl::get_profiling_info(nsec, freq);
 #endif
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    return dnnl::impl::sycl::get_profiling_time(nsec);
+    return dnnl::impl::sycl::get_profiling_info(nsec, freq);
 #endif
     return status::unimplemented;
 }

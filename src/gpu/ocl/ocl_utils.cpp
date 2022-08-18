@@ -20,6 +20,7 @@
 #include <mutex>
 #include <CL/cl_ext.h>
 
+#include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -192,6 +193,18 @@ status_t get_ocl_device_index(size_t *index, cl_device_id device) {
         *index = SIZE_MAX;
         return status::invalid_arguments;
     }
+}
+
+cl_platform_id get_ocl_platform(cl_device_id device) {
+    cl_platform_id platform;
+    cl_int err = clGetDeviceInfo(
+            device, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr);
+    if (err != CL_SUCCESS) return nullptr;
+    return platform;
+}
+
+cl_platform_id get_ocl_platform(engine_t *engine) {
+    return utils::downcast<ocl_gpu_engine_t *>(engine)->platform();
 }
 
 status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,

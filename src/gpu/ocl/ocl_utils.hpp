@@ -31,6 +31,7 @@
 #include <unordered_set>
 
 #include "common/c_types_map.hpp"
+#include "common/cpp_compat.hpp"
 #include "common/internal_defs.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
@@ -135,6 +136,9 @@ status_t get_ocl_devices(
         std::vector<cl_device_id> *devices, cl_device_type device_type);
 
 status_t get_ocl_device_index(size_t *index, cl_device_id device);
+
+cl_platform_id get_ocl_platform(cl_device_id device);
+cl_platform_id get_ocl_platform(engine_t *engine);
 
 namespace details {
 
@@ -241,6 +245,73 @@ template <typename T>
 ocl_wrapper_t<T> make_ocl_wrapper(T t) {
     return ocl_wrapper_t<T>(t);
 }
+
+template <typename F>
+struct ext_func_t {
+    ext_func_t(const char *name) : ext_func_ptrs_(intel_platforms().size()) {
+        for (size_t i = 0; i < intel_platforms().size(); ++i) {
+            auto p = intel_platforms()[i];
+            auto it = ext_func_ptrs_.insert({p, load_ext_func(p, name)});
+            assert(it.second);
+            MAYBE_UNUSED(it);
+        }
+    }
+
+    template <typename... Args>
+    typename cpp_compat::invoke_result<F, Args...>::type operator()(
+            engine_t *engine, Args... args) const {
+        auto f = get_func(engine);
+        return f(args...);
+    }
+
+    F get_func(engine_t *engine) const {
+        return get_func(get_ocl_platform(engine));
+    }
+
+    F get_func(cl_platform_id platform) const {
+        return ext_func_ptrs_.at(platform);
+    }
+
+private:
+    std::unordered_map<cl_platform_id, F> ext_func_ptrs_;
+
+    static F load_ext_func(cl_platform_id platform, const char *name) {
+        return reinterpret_cast<F>(
+                clGetExtensionFunctionAddressForPlatform(platform, name));
+    }
+
+    static const std::vector<cl_platform_id> &intel_platforms() {
+        static auto intel_platforms = get_intel_platforms();
+        return intel_platforms;
+    }
+
+    static std::vector<cl_platform_id> get_intel_platforms() {
+        cl_uint num_platforms = 0;
+        cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
+        if (err != CL_SUCCESS) return {};
+
+        std::vector<cl_platform_id> platforms(num_platforms);
+        err = clGetPlatformIDs(num_platforms, platforms.data(), nullptr);
+        if (err != CL_SUCCESS) return {};
+
+        std::vector<cl_platform_id> intel_platforms;
+        char vendor_name[128] = {};
+        for (cl_platform_id p : platforms) {
+            err = clGetPlatformInfo(p, CL_PLATFORM_VENDOR, sizeof(vendor_name),
+                    vendor_name, nullptr);
+            if (err != CL_SUCCESS) continue;
+            if (std::string(vendor_name).find("Intel") != std::string::npos)
+                intel_platforms.push_back(p);
+        }
+
+        // OpenCL can return a list of platforms that contains duplicates.
+        std::sort(intel_platforms.begin(), intel_platforms.end());
+        intel_platforms.erase(
+                std::unique(intel_platforms.begin(), intel_platforms.end()),
+                intel_platforms.end());
+        return intel_platforms;
+    }
+};
 
 status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
         cl_kernel ocl_kernel, int idx, bool allow_undef = false);

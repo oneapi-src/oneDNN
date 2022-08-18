@@ -22,7 +22,7 @@ namespace impl {
 namespace sycl {
 
 void register_profiling_event(const ::sycl::event &event);
-status_t get_profiling_time(uint64_t *nsec);
+status_t get_profiling_info(uint64_t &nsec, double &freq);
 status_t reset_profiling();
 
 } // namespace sycl

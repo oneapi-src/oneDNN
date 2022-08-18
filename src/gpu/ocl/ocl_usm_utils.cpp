@@ -25,6 +25,7 @@
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_usm_utils.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -42,76 +43,9 @@ cl_context get_ocl_context(engine_t *engine) {
     return utils::downcast<ocl_gpu_engine_t *>(engine)->context();
 }
 
-cl_platform_id get_ocl_platform(engine_t *engine) {
-    return utils::downcast<ocl_gpu_engine_t *>(engine)->platform();
-}
-
 cl_command_queue get_ocl_queue(stream_t *stream) {
     return utils::downcast<ocl_stream_t *>(stream)->queue();
 }
-
-template <typename F>
-struct ext_func_t {
-    ext_func_t(const char *name) : ext_func_ptrs_(intel_platforms().size()) {
-        for (size_t i = 0; i < intel_platforms().size(); ++i) {
-            auto p = intel_platforms()[i];
-            auto it = ext_func_ptrs_.insert({p, load_ext_func(p, name)});
-            assert(it.second);
-            MAYBE_UNUSED(it);
-        }
-    }
-
-    template <typename... Args>
-    typename cpp_compat::invoke_result<F, Args...>::type operator()(
-            engine_t *engine, Args... args) const {
-        auto f = get_func(engine);
-        return f(args...);
-    }
-
-    F get_func(engine_t *engine) const {
-        return ext_func_ptrs_.at(get_ocl_platform(engine));
-    }
-
-private:
-    std::unordered_map<cl_platform_id, F> ext_func_ptrs_;
-
-    static F load_ext_func(cl_platform_id platform, const char *name) {
-        return reinterpret_cast<F>(
-                clGetExtensionFunctionAddressForPlatform(platform, name));
-    }
-
-    static const std::vector<cl_platform_id> &intel_platforms() {
-        static auto intel_platforms = get_intel_platforms();
-        return intel_platforms;
-    }
-
-    static std::vector<cl_platform_id> get_intel_platforms() {
-        cl_uint num_platforms = 0;
-        cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
-        if (err != CL_SUCCESS) return {};
-
-        std::vector<cl_platform_id> platforms(num_platforms);
-        err = clGetPlatformIDs(num_platforms, platforms.data(), nullptr);
-        if (err != CL_SUCCESS) return {};
-
-        std::vector<cl_platform_id> intel_platforms;
-        char vendor_name[128] = {};
-        for (cl_platform_id p : platforms) {
-            err = clGetPlatformInfo(p, CL_PLATFORM_VENDOR, sizeof(vendor_name),
-                    vendor_name, nullptr);
-            if (err != CL_SUCCESS) continue;
-            if (std::string(vendor_name).find("Intel") != std::string::npos)
-                intel_platforms.push_back(p);
-        }
-
-        // OpenCL can return a list of platforms that contains duplicates.
-        std::sort(intel_platforms.begin(), intel_platforms.end());
-        intel_platforms.erase(
-                std::unique(intel_platforms.begin(), intel_platforms.end()),
-                intel_platforms.end());
-        return intel_platforms;
-    }
-};
 
 } // namespace
 

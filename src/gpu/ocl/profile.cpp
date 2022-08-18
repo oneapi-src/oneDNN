@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <mutex>
+#include <utility>
 #include <vector>
 #include <CL/cl.h>
 
@@ -22,6 +23,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
+#include "gpu/ocl/mdapi_utils.hpp"
+#include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 using namespace dnnl::impl;
@@ -32,30 +35,35 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static std::vector<cl_event> events;
+static std::vector<std::pair<cl_event, const ocl_stream_t *>> events;
 
-void register_profiling_event(cl_event event) {
+void register_profiling_event(cl_event event, const ocl_stream_t *ocl_stream) {
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
-    events.push_back(event);
+    events.emplace_back(event, ocl_stream);
 }
 
-status_t get_profiling_time(uint64_t *nsec) {
-    *nsec = 0;
-    for (auto ev : events) {
+status_t get_profiling_info(uint64_t &nsec, double &freq) {
+    nsec = 0;
+    freq = 0;
+    for (auto &p : events) {
+        auto &ev = p.first;
+        auto *stream = p.second;
         cl_ulong beg, end;
         OCL_CHECK(clGetEventProfilingInfo(
                 ev, CL_PROFILING_COMMAND_START, sizeof(beg), &beg, nullptr));
         OCL_CHECK(clGetEventProfilingInfo(
                 ev, CL_PROFILING_COMMAND_END, sizeof(end), &end, nullptr));
-        *nsec += (end - beg);
+        nsec += (end - beg);
+        freq += stream->mdapi_helper().get_freq(ev);
     }
+    freq /= events.size();
     return status::success;
 }
 
 status_t reset_profiling() {
-    for (auto ev : events) {
-        clReleaseEvent(ev);
+    for (auto &p : events) {
+        clReleaseEvent(p.first);
     }
     events.clear();
     return status::success;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/ocl/mdapi_utils.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -69,6 +70,8 @@ struct ocl_stream_t : public compute::compute_stream_t {
 
     cl_command_queue queue() const { return queue_; }
 
+    const mdapi_helper_t &mdapi_helper() const { return *mdapi_helper_; }
+
     status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
             size_t size) override;
 
@@ -101,8 +104,11 @@ private:
         return status::success;
     }
 
-private:
+    cl_command_queue create_queue(
+            cl_context ctx, cl_device_id dev, cl_int *err) const;
+
     cl_command_queue queue_;
+    std::unique_ptr<mdapi_helper_t> mdapi_helper_;
 };
 
 } // namespace ocl

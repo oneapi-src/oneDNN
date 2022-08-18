@@ -37,13 +37,14 @@ void register_profiling_event(const ::sycl::event &event) {
     events.push_back(event);
 }
 
-status_t get_profiling_time(uint64_t *nsec) {
+status_t get_profiling_info(uint64_t &nsec, double &freq) {
     using namespace ::sycl::info;
-    *nsec = 0;
+    nsec = 0;
+    freq = 0;
     for (auto ev : events) {
         auto beg = ev.get_profiling_info<event_profiling::command_start>();
         auto end = ev.get_profiling_info<event_profiling::command_end>();
-        *nsec += (end - beg);
+        nsec += (end - beg);
     }
     return status::success;
 }

@@ -14,22 +14,33 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/cl.h>
+#ifndef GPU_OCL_MDAPI_UTILS_HPP
+#define GPU_OCL_MDAPI_UTILS_HPP
 
-#include "common/c_types_map.hpp"
+#include <memory>
+#include <CL/cl.h>
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ocl_stream_t;
+class mdapi_helper_impl_t;
 
-void register_profiling_event(cl_event event, const ocl_stream_t *stream);
-status_t get_profiling_info(uint64_t &nsec, double &freq);
-status_t reset_profiling();
+class mdapi_helper_t {
+public:
+    mdapi_helper_t();
+    cl_command_queue create_queue(
+            cl_context cl_ctx, cl_device_id dev, cl_int *err) const;
+    double get_freq(cl_event event) const;
+
+private:
+    std::shared_ptr<mdapi_helper_impl_t> impl_;
+};
 
 } // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif
