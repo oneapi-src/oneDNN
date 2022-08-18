@@ -1043,19 +1043,21 @@ status_t memory_planner_t::assign_external_inputs_buffer(
 
     // Get the live range of external inputs
     size_t time_point = 0;
-    topo_order_visit(graph_t(subgraph).get_output_ops(), [&](op_t *op) {
-        auto in_vals = op->get_input_values();
-        for (auto &in_val : in_vals) {
-            if (!buffer_assignments_.count(in_val.get())) continue;
-            const auto &info = buffer_assignments_.at(in_val.get());
-            if (info.kind_ != external_input) continue;
-            external_inputs_live_range_[&info] = time_bound_t {0, time_point};
-        }
-        time_point++;
-        return status::success;
-    });
+    status_t ret = topo_order_visit(
+            graph_t(subgraph).get_output_ops(), [&](op_t *op) {
+                auto in_vals = op->get_input_values();
+                for (auto &in_val : in_vals) {
+                    if (!buffer_assignments_.count(in_val.get())) continue;
+                    const auto &info = buffer_assignments_.at(in_val.get());
+                    if (info.kind_ != external_input) continue;
+                    external_inputs_live_range_[&info]
+                            = time_bound_t {0, time_point};
+                }
+                time_point++;
+                return status::success;
+            });
 
-    return status::success;
+    return ret;
 }
 
 // Assign partition's output edges to user given external outputs buffer. Those
@@ -1398,7 +1400,8 @@ status_t memory_planner_t::prepare_execution_args_set(
 status_t memory_planner_t::prepare_subgraph_inplace_pairs(
         std::shared_ptr<subgraph_t> &sg, bool enable_standard_sharing) {
     size_t time_point = 0;
-    topo_order_visit(sg->get_output_ops(), [&](op_t *cur_op) {
+    status_t ret;
+    ret = topo_order_visit(sg->get_output_ops(), [&](op_t *cur_op) {
         auto out_vals = cur_op->get_output_values();
         for (auto &out_val : out_vals) {
             auto out_buf = buffer_assignments_.at(out_val.get());
@@ -1488,7 +1491,7 @@ status_t memory_planner_t::prepare_subgraph_inplace_pairs(
         return status::success;
     });
 
-    return status::success;
+    return ret;
 }
 
 // In this function, we will do the following things:

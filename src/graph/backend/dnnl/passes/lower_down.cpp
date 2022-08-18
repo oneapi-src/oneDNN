@@ -1082,40 +1082,45 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<op_t *> visited;
-        topo_order_visit(graph_t(subgraph).get_output_ops(), [&](op_t *op) {
-            const auto &pops_fusible_map = get_post_ops_fusible_map();
+        impl::status_t ret = topo_order_visit(
+                graph_t(subgraph).get_output_ops(), [&](op_t *op) {
+                    const auto &pops_fusible_map = get_post_ops_fusible_map();
 
-            auto base_op_kind = op->get_kind();
-            // only fuse two ops each time
-            if (!pops_fusible_map.count(base_op_kind) || visited.count(op) != 0
-                    || !fuse_groups.empty())
-                return status::success;
+                    auto base_op_kind = op->get_kind();
+                    // only fuse two ops each time
+                    if (!pops_fusible_map.count(base_op_kind)
+                            || visited.count(op) != 0 || !fuse_groups.empty())
+                        return status::success;
 
-            auto out_val = op->get_output_values()[0];
-            auto consumers = out_val->get_consumers();
+                    auto out_val = op->get_output_values()[0];
+                    auto consumers = out_val->get_consumers();
 
-            // The base op should have and only have one consumer, it's
-            // the post op to be fused
-            if (consumers.size() != 1) return status::success;
-            auto &post_op = consumers[0].get_op();
+                    // The base op should have and only have one consumer, it's
+                    // the post op to be fused
+                    if (consumers.size() != 1) return status::success;
+                    auto &post_op = consumers[0].get_op();
 
-            // check if fusible
-            // TODO(qun) make sure bn only fuse relu
-            auto post_op_kind = post_op.get_kind();
-            bool not_fusible
-                    = (!pops_fusible_map.at(base_op_kind).count(post_op_kind))
-                    || (post_op_kind == op_kind::dnnl_binary
-                            && !post_binary_fusible(op, &post_op))
-                    || (post_op_kind == op_kind::dnnl_convolution
-                            && !post_depthwise_conv_fusible(op, &post_op));
-            if (not_fusible) { return status::success; }
+                    // check if fusible
+                    // TODO(qun) make sure bn only fuse relu
+                    auto post_op_kind = post_op.get_kind();
+                    bool not_fusible = (!pops_fusible_map.at(base_op_kind)
+                                                       .count(post_op_kind))
+                            || (post_op_kind == op_kind::dnnl_binary
+                                    && !post_binary_fusible(op, &post_op))
+                            || (post_op_kind == op_kind::dnnl_convolution
+                                    && !post_depthwise_conv_fusible(
+                                            op, &post_op));
+                    if (not_fusible) { return status::success; }
 
-            // push fusible pair to fuse group for later fusion
-            fuse_groups.emplace_back(std::pair<op_t *, op_t *> {op, &post_op});
-            visited.insert(op);
-            visited.insert(&post_op);
-            return status::success;
-        });
+                    // push fusible pair to fuse group for later fusion
+                    fuse_groups.emplace_back(
+                            std::pair<op_t *, op_t *> {op, &post_op});
+                    visited.insert(op);
+                    visited.insert(&post_op);
+                    return status::success;
+                });
+
+        if (ret != impl::status::success) return ret;
 
         if (fuse_groups.empty()) {
             changed = false;
@@ -2647,56 +2652,63 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<const op_t *> visited;
-        topo_order_visit(graph_t(subgraph).get_output_ops(), [&](op_t *op) {
-            if (!reorder_op_set.count(op->get_kind()) || visited.count(op) != 0)
-                return status::success;
+        impl::status_t ret = topo_order_visit(
+                graph_t(subgraph).get_output_ops(), [&](op_t *op) {
+                    if (!reorder_op_set.count(op->get_kind())
+                            || visited.count(op) != 0)
+                        return status::success;
 
-            auto out_val = op->get_output_values()[0];
-            auto consumers = out_val->get_consumers();
-            if (consumers.size() != 1) return status::success;
-            auto &next_op = consumers[0].get_op();
+                    auto out_val = op->get_output_values()[0];
+                    auto consumers = out_val->get_consumers();
+                    if (consumers.size() != 1) return status::success;
+                    auto &next_op = consumers[0].get_op();
 
-            // check if fusible
-            if (reorder_op_set.count(next_op.get_kind()) == 0) {
-                return status::success;
-            }
+                    // check if fusible
+                    if (reorder_op_set.count(next_op.get_kind()) == 0) {
+                        return status::success;
+                    }
 
-            // two reorders should have same shape
-            auto next_op_out = next_op.get_output_value(0);
-            auto lhs = out_val->get_logical_tensor();
-            auto rhs = next_op_out->get_logical_tensor();
-            if (ltw(lhs).vdims() != ltw(rhs).vdims()) {
-                return status::success;
-            }
+                    // two reorders should have same shape
+                    auto next_op_out = next_op.get_output_value(0);
+                    auto lhs = out_val->get_logical_tensor();
+                    auto rhs = next_op_out->get_logical_tensor();
+                    if (ltw(lhs).vdims() != ltw(rhs).vdims()) {
+                        return status::success;
+                    }
 
-            // if reorder do per channel scaling, their axis should be
-            // same
-            int64_t cur_axis = op->has_attr(op_attr::axis)
-                    ? op->get_attr<int64_t>(op_attr::axis)
-                    : -1;
-            int64_t next_axis = next_op.has_attr(op_attr::axis)
-                    ? next_op.get_attr<int64_t>(op_attr::axis)
-                    : -1;
-            if (cur_axis != -1 && next_axis != -1 && cur_axis != next_axis) {
-                return status::success;
-            }
+                    // if reorder do per channel scaling, their axis should be
+                    // same
+                    int64_t cur_axis = op->has_attr(op_attr::axis)
+                            ? op->get_attr<int64_t>(op_attr::axis)
+                            : -1;
+                    int64_t next_axis = next_op.has_attr(op_attr::axis)
+                            ? next_op.get_attr<int64_t>(op_attr::axis)
+                            : -1;
+                    if (cur_axis != -1 && next_axis != -1
+                            && cur_axis != next_axis) {
+                        return status::success;
+                    }
 
-            // Skip fusion if reorder's output has extra info, because
-            // oneDNN doesn't have good supports for such fused cases.
-            // TODO(qun) improve the skip rule
-            auto fused_out_lt
-                    = next_op.get_output_value(0)->get_logical_tensor();
-            auto fused_out_md = make_dnnl_memory_desc(fused_out_lt);
-            if (fused_out_md.data.extra.flags != dnnl_memory_extra_flag_none) {
-                return status::success;
-            }
+                    // Skip fusion if reorder's output has extra info, because
+                    // oneDNN doesn't have good supports for such fused cases.
+                    // TODO(qun) improve the skip rule
+                    auto fused_out_lt
+                            = next_op.get_output_value(0)->get_logical_tensor();
+                    auto fused_out_md = make_dnnl_memory_desc(fused_out_lt);
+                    if (fused_out_md.data.extra.flags
+                            != dnnl_memory_extra_flag_none) {
+                        return status::success;
+                    }
 
-            // push fusible pair to fuse group for later fusion
-            fuse_groups.emplace_back(std::pair<op_t *, op_t *> {op, &next_op});
-            visited.insert(op);
-            visited.insert(&next_op);
-            return status::success;
-        });
+                    // push fusible pair to fuse group for later fusion
+                    fuse_groups.emplace_back(
+                            std::pair<op_t *, op_t *> {op, &next_op});
+                    visited.insert(op);
+                    visited.insert(&next_op);
+                    return status::success;
+                });
+
+        if (ret != impl::status::success) return ret;
 
         if (fuse_groups.empty()) {
             changed = false;

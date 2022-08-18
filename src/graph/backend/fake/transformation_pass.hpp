@@ -46,7 +46,7 @@ public:
     }
 
     // the criteria of pass execution
-    void run(graph_t &agraph) override {
+    impl::status_t run(graph_t &agraph) override {
         graph::pass::FCreatePattern pfunc
                 = get_attr<graph::pass::FCreatePattern>("FCreatePattern")[0];
         pattern_utils_t pu;
@@ -71,6 +71,7 @@ public:
             // backend support subgraph mode
             pu.fuse(agraph, matched_op_list);
         }
+        return impl::status::success;
     }
 };
 
