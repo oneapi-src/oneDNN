@@ -1219,7 +1219,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
             const Vmm r_vmm = vmm_mask(vmm, is_tail, true, k_mask);
             const Vmm_lower_t r_ymm
                     = vmm_lower_mask(vmm_lower, is_tail, true, k_mask);
-            if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
+            if (is_superset(brg.isa_impl, avx512_core)) {
                 switch (brg.dt_d) {
                     case data_type::f32:
                     case data_type::s32: vmovups(addr, r_vmm); break;
@@ -1241,8 +1241,9 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
                     default: assert(!"unknown dst_dt");
                 }
             } else {
+                const int ld_block = is_tail ? brg.ldb_tail : brg.ld_block;
                 store_data_skip_zmm(this, brg.dt_d, vmm, reg_aux_D,
-                        D_offset(bd, ld), brg.ldb_tail);
+                        D_offset(bd, ld), ld_block);
             }
         }
     }
