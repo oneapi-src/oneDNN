@@ -59,7 +59,7 @@ struct content_equals_t {};
 
 template <>
 struct content_equals_t<expr_c> {
-#if !SC_GNUC_VERSION_LT(7)
+#if !SC_GNUC_VERSION_LT(7) && !defined(_MSC_VER)
     // Old version of gcc will produce error upon content_hash_map construction
     ir_comparer cmper_;
 #endif

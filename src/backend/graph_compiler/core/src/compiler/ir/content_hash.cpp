@@ -60,7 +60,7 @@ std::size_t content_hash_t<expr_c>::operator()(const expr_c &k) const {
 
 bool content_equals_t<expr_c>::operator()(
         const expr_c &a, const expr_c &b) const {
-#if !SC_GNUC_VERSION_LT(7)
+#if !SC_GNUC_VERSION_LT(7) && !defined(_MSC_VER)
     // use cached ir_comparer because it is a complex class
     // we will auto-reset after compare, so the cmper_ is unchanged after this
     // function call, as if it is "const"

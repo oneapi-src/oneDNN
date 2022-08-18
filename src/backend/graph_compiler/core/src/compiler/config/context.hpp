@@ -28,6 +28,7 @@ struct engine_t;
 enum class jit_kind {
     cfake = 0,
     llvm,
+    xbyak,
 };
 
 struct scflags_t {
@@ -52,6 +53,10 @@ struct scflags_t {
     bool value_check_ = false;
     bool mixed_fusion_ = true;
     bool use_cost_model_ = true;
+    bool xbyak_jit_save_obj_ = false;
+    bool xbyak_jit_asm_listing_ = false;
+    bool xbyak_jit_log_stack_frame_model_ = false;
+    bool xbyak_jit_pause_after_codegen_ = false;
 };
 
 struct context_t {

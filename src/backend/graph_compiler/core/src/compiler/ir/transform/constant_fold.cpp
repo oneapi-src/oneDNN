@@ -825,6 +825,20 @@ public:
             return v;
         }
     }
+    expr_c visit(select_c v) override {
+        auto ret = ir_consistent_visitor_t::visit(std::move(v));
+        if (ret.isa<select>()) {
+            auto node = ret.static_as<select_c>();
+            auto &cond = node->cond_;
+            // Currently only eliminate scalar constant select
+            if (cond->dtype_ == datatypes::boolean && cond.isa<constant>()) {
+                auto c = cond.static_as<constant_c>();
+                bool is_false = is_const_equal_to(c, 0);
+                return is_false ? node->r_ : node->l_;
+            }
+        }
+        return ret;
+    }
 
     stmt_c visit(if_else_c v) override {
         auto cond = dispatch(v->condition_);

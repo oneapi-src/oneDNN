@@ -68,7 +68,9 @@ context_ptr get_default_context() {
                     // make compiler happy
                 }
 #endif
-                else if (buf == "llvm") {
+                else if (buf == "builtin") {
+                    jit = jit_kind::xbyak;
+                } else if (buf == "llvm") {
                     jit = jit_kind::llvm;
                 } else {
                     SC_MODULE_WARN << "Bad value for SC_CPU_JIT=" << buf
@@ -141,6 +143,13 @@ context_ptr get_default_context() {
         parse_bool(env_names[SC_MIXED_FUSION], flags.mixed_fusion_);
         parse_bool(env_names[SC_COST_MODEL], flags.use_cost_model_);
         parse_bool(env_names[SC_SSA_PASSES], flags.ssa_passes_);
+        parse_bool(env_names[SC_XBYAK_JIT_SAVE_OBJ], flags.xbyak_jit_save_obj_);
+        parse_bool(env_names[SC_XBYAK_JIT_ASM_LISTING],
+                flags.xbyak_jit_asm_listing_);
+        parse_bool(env_names[SC_XBYAK_JIT_LOG_STACK_FRAME_MODEL],
+                flags.xbyak_jit_log_stack_frame_model_);
+        parse_bool(env_names[SC_XBYAK_JIT_PAUSE_AFTER_CODEGEN],
+                flags.xbyak_jit_pause_after_codegen_);
 
         if (sc::utils::getenv_int(env_names[SC_BOUNDARY_CHECK])) {
             flags.boundary_check_ = true;

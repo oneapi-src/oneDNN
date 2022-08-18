@@ -22,6 +22,7 @@
 #include <chrono>
 #include <stdio.h>
 #include "llvm/llvm_jit.hpp"
+#include "xbyak/xbyak_jit_engine.hpp"
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <runtime/config.hpp>
 #include <util/math_utils.hpp>
@@ -43,6 +44,8 @@ std::unique_ptr<jit_engine_t> jit_engine_t::make(const context_ptr &ctx) {
         case jit_kind::cfake: return utils::make_unique<cfake_jit>(ctx);
 #endif
         case jit_kind::llvm: return utils::make_unique<llvm_jit>(ctx);
+        case jit_kind::xbyak:
+            return utils::make_unique<sc_xbyak::xbyak_jit_engine>(ctx);
         default:
             assert(0 && "Bad JIT type");
             return nullptr;
@@ -65,6 +68,8 @@ void jit_engine_t::set_target_machine(
             tm.cpu_flags_.fAVX512BF16 = false;
 #endif
             return;
+        case jit_kind::xbyak:
+            return sc_xbyak::xbyak_jit_engine::set_target_machine(tm);
         default: assert(0 && "Bad JIT type"); break;
     }
 }
