@@ -750,7 +750,7 @@ const std::vector<int> &reduce_impl_op_t::get_rd_axis() const {
 }
 
 bool reduce_compute_op_t::can_split_op() const {
-    if (runtime_config_t::get().get_num_threads() == 1) { return true; }
+    if (runtime_config_t::get().get_num_threads() == 1) { return false; }
     auto last_axis = get_inputs()[0]->details_.get_blocking_dims().size() - 1;
     bool last_axis_reduce
             = static_cast<unsigned>(real_rd_axis_.back()) == last_axis;
