@@ -175,6 +175,9 @@ public:
                                       << " is marked must_tensor2var but "
                                          "cannot be replaced.");
             }
+            // fix-me(yijie): met performance regression when replacing scalar
+            // values. Need to figure out why, and remove the following check
+            if (result->tensor_len_ == 1) { result->can_replace_ = false; }
             if (result->can_replace_) {
                 auto num_vars = result->simd_len_ == 0
                         ? 0
@@ -183,8 +186,10 @@ public:
                 auto tsr = v->var_.checked_as<tensor>();
                 auto dtype = tsr->elem_dtype_;
                 dtype.lanes_ = result->simd_len_;
+                bool refered = false;
                 for (size_t i = 0; i < num_vars; i++) {
                     if (result->referenced_[i]) {
+                        refered = true;
                         result->to_replace_.emplace_back(builder::make_var(
                                 dtype, tsr->name_ + std::to_string(i)));
                         seq_->emplace_back(
@@ -194,7 +199,8 @@ public:
                         result->to_replace_.emplace_back(expr());
                     }
                 }
-                return stmt();
+                // fix-me(yijie): should remove the replaced tensor definition
+                if (refered) { return stmt(); }
             }
         }
         return ir_visitor_t::visit(v);
