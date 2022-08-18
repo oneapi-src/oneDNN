@@ -415,7 +415,7 @@ struct nc_block_t {
             int min_block_size = 0, bool nc_order = true,
             bool force_default_c_blk = false) {
         bool is_small_c_input
-                = (type.size() <= 2 && is_input && !is_dw && is_small_c);
+                = (type.size() <= 2 && is_input && g == 1 && is_small_c);
         auto default_c_blk = type.size() == 1 ? 32 : 16;
         auto c_block = [&]() {
             if (force_default_c_blk) return default_c_blk;
@@ -424,14 +424,15 @@ struct nc_block_t {
                 int packed_dword_elems = 4 / type.size();
                 return std::max(packed_dword_elems, utils::rnd_up_pow2(c));
             }
-            auto blk_dim = is_dw ? g : c;
+            auto blk_dim = is_dw ? g : g * c;
             return pick_block_rnd_up(blk_dim, default_c_blk);
         }();
 
         // Non-depthwise convolutions currently require channel is a multiple of
         // c_block. If that implementation restriction is removed, this logic
         // could be removed.
-        if (g > 1 && !is_dw && c % c_block != 0) c_block = 1;
+        if (g > 1 && !is_dw && c % c_block != 0 && c_block % c != 0)
+            c_block = 1;
 
         auto default_n_blk = type.size() < 4 ? 32 : 16;
         auto n_block = [&]() {
@@ -738,8 +739,8 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
 
     // If src/dst is nhwc then set the other one with any to nhwc too (except
     // 1st convolution).
-    bool is_small_ic_non_dw = is_small_ic(prb) && !prb.is_dw;
-    bool is_small_oc_non_dw = is_small_oc(prb) && !prb.is_dw;
+    bool is_small_ic_non_dw = is_small_ic(prb) && prb.g == 1;
+    bool is_small_oc_non_dw = is_small_oc(prb) && prb.g == 1;
     bool propagate_nhwc = (matches_tag(src_md, "axb") && !is_small_ic_non_dw)
             || matches_tag(dst_md, "axb");
     if (propagate_nhwc) {
@@ -1251,8 +1252,8 @@ void init_common_blocking(conv_config_t &cfg, block_helper_t &bh) {
     // Set base blocks to align kernel blocking with layout blocking.
     if (prb.is_fwd) {
         bh.set_base_iter_block("mb", src_layout.inner_block(0));
-        int src_g_blk = src_layout.inner_block(1);
-        int wei_g_blk = wei_layout.inner_block(0);
+        int src_g_blk = prb.is_dw ? src_layout.inner_block(1) : 1;
+        int wei_g_blk = prb.is_dw ? wei_layout.inner_block(0) : 1;
         bh.set_base_iter_block("g", src_g_blk, wei_g_blk);
         int src_ic_blk = src_layout.inner_block(2);
         int wei_ic_blk = wei_layout.inner_block(2);
