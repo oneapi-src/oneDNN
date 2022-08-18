@@ -82,26 +82,19 @@ struct cudnn_pooling_fwd_t : public primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto src_dt = src_md()->data_type;
 
-            bool ok = true && is_fwd();
-            ok = ok
+            bool ok = true && is_fwd()
                     && utils::one_of(desc()->prop_kind, forward_training,
-                            forward_inference);
-            ok = ok
+                            forward_inference)
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
-                            pooling_avg_exclude_padding);
-            ok = ok && utils::one_of(src_dt, s8, f16, f32);
-            ok = ok && src_dt == dst_md()->data_type;
-            ok = ok
+                            pooling_avg_exclude_padding)
+                    && utils::one_of(src_dt, s8, f16, f32)
+                    && src_dt == dst_md()->data_type
                     && IMPLICATION(utils::one_of(src_dt, f16),
-                            desc()->prop_kind == forward_inference);
-            ok = ok
-                    && IMPLICATION(
-                            src_dt == s8, desc()->accum_data_type == s32);
-            ok = ok && !is_dilated();
-            ok = ok && attr()->has_default_values();
-            ok = ok && set_default_params() == status::success;
-            ok = ok && blocking_ok();
+                            desc()->prop_kind == forward_inference)
+                    && IMPLICATION(src_dt == s8, desc()->accum_data_type == s32)
+                    && !is_dilated() && attr()->has_default_values()
+                    && set_default_params() == status::success && blocking_ok();
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
