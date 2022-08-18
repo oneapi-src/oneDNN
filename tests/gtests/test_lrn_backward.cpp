@@ -176,6 +176,8 @@ void check_lrn_bwd(const lrn_test_params_t &p, const memory &src,
                 memory::data_type data_type = data_traits<data_t>::data_type;
                 if (data_type == dnnl::memory::data_type::bf16)
                     eps = static_cast<acc_data_t>(1e-2 * size * size);
+                else if (data_type == dnnl::memory::data_type::f16)
+                    eps = static_cast<acc_data_t>(1.e-4f * 2 * size * size);
                 float diff = std::fabs(exp - got);
                 if (got > 1e-2) // rel_diff
                     diff /= std::fabs(got);
