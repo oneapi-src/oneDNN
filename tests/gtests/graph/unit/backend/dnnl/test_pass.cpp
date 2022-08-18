@@ -14173,7 +14173,7 @@ TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
 TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
     std::vector<std::pair<op_kind_t, std::string>> op_infos {
             {SoftPlus, "softplus"}, {SoftPlusBackprop, "softplus_bw"}};
-    std::vector<int64_t> beta_values {-1, 1};
+    std::vector<int64_t> beta_values {-3, -1, 0, 1, 3};
     for_(const auto &op_info : op_infos)
     for (auto beta : beta_values) {
         const auto &op_name = op_info.second;
@@ -14195,34 +14195,6 @@ TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
         pass::pass_base_ptr apass = get_pass(op_name + "_pass");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
-    }
-}
-
-TEST(Pass, FailToFuseSoftPlusForwardAndBackwardWithUnsupportedBetaAttrValue) {
-    std::vector<std::pair<op_kind_t, std::string>> op_infos {
-            {SoftPlus, "softplus"}, {SoftPlusBackprop, "softplus_bw"}};
-    std::vector<int64_t> unsupported_beta_values {-3, 0, 3};
-    for_(const auto &op_info : op_infos)
-    for (auto unsupported_beta : unsupported_beta_values) {
-        const auto &op_name = op_info.second;
-        auto kind = op_info.first;
-
-        logical_tensor_t lt_in = logical_tensor_init(0, data_type::f32);
-        logical_tensor_t lt_out = logical_tensor_init(1, data_type::f32);
-        logical_tensor_t lt_other = logical_tensor_init(2, data_type::f32);
-
-        op_t softplus {0, kind, op_name};
-        if (kind == SoftPlusBackprop) softplus.add_input(lt_other);
-        softplus.add_input(lt_in);
-        softplus.add_output(lt_out);
-        softplus.set_attr(op_attr::beta, unsupported_beta);
-
-        graph_t agraph;
-        ASSERT_EQ(agraph.add_op(&softplus), status::success);
-        ASSERT_EQ(agraph.finalize(), status::success);
-        pass::pass_base_ptr apass = get_pass(op_name + "_pass");
-        apass->run(agraph);
-        ASSERT_EQ(agraph.get_num_partitions(), 0U);
     }
 }
 

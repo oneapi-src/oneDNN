@@ -3337,11 +3337,8 @@ status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             new_op->set_attr<bool>(op_attr::is_bias_add, true);
         } else if (cur_op->get_kind() == graph::op_kind::SoftPlus
                 || cur_op->get_kind() == graph::op_kind::SoftPlusBackprop) {
-            // special treatment for SoftPlus and SoftPlusBackprop, as their
-            // algorithm depends on beta value. We accept only -1 and 1.
             const auto beta = cur_op->get_attr<int64_t>(op_attr::beta);
-            const auto algo = (beta == 1) ? dnnl::algorithm::eltwise_soft_relu
-                                          : dnnl::algorithm::eltwise_logsigmoid;
+            const auto algo = dnnl::algorithm::eltwise_soft_relu_v2;
             if (cur_op->get_kind() == graph::op_kind::SoftPlus) {
                 new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
             } else { // SoftPlusBackprop
@@ -3350,10 +3347,9 @@ status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
                         op_attr::fwd_alg_kind, static_cast<int64_t>(algo));
                 new_op->set_attr(op_attr::use_dst, false);
             }
-            // supported algorithms formulas already contain information about
-            // 'beta', no need to merge this attribute.
             new_op->set_attr<int64_t>(
                     op_attr::alg_kind, static_cast<int64_t>(algo));
+            new_op->set_attr<float>(op_attr::alpha, static_cast<float>(beta));
             merge_attr = false;
         } else if (is_eltwise_kind(cur_op->get_kind())) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
