@@ -355,8 +355,25 @@ private:
 };
 
 template <typename Vmm>
+void load_bytes_skip_zmm(jit_generator *jit, data_type_t dt, Vmm vmm,
+        Xbyak::Address addr, int nelems) {
+    jit->load_bytes(vmm, addr, nelems * types::data_type_size(dt));
+}
+
+template <>
+void load_bytes_skip_zmm(jit_generator *jit, data_type_t dt, Xbyak::Zmm vmm,
+        Xbyak::Address addr, int nelems) {
+    // silently return. This is only needed to let build succeed as load_bytes
+    // doesn't support zmm.
+    assert(!"invalid code");
+}
+
+template <typename Vmm>
 void load_data_skip_zmm(jit_generator *jit, data_type_t dt, Vmm vmm,
-        Xbyak::Address addr, int nelems);
+        Xbyak::Address addr, int nelems) {
+    // Note: load_data expands elements to 32-bits (s8->s32 and u8->s32)
+    jit->load_data(dt, vmm, addr, nelems);
+}
 
 template <>
 void load_data_skip_zmm<Xbyak::Zmm>(jit_generator *jit, data_type_t dt,
@@ -367,14 +384,11 @@ void load_data_skip_zmm<Xbyak::Zmm>(jit_generator *jit, data_type_t dt,
 }
 
 template <typename Vmm>
-void load_data_skip_zmm(jit_generator *jit, data_type_t dt, Vmm vmm,
-        Xbyak::Address addr, int nelems) {
-    jit->load_data(dt, vmm, addr, nelems);
-}
-
-template <typename Vmm>
 void store_data_skip_zmm(jit_generator *jit, data_type_t type_out,
-        const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset, int nelems);
+        const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset, int nelems) {
+    // Note: store_data compresses elements from 32-bits (s32->s8 and s32->u8)
+    jit->store_data(type_out, vmm, reg, offset, nelems);
+}
 
 template <>
 void store_data_skip_zmm<Xbyak::Zmm>(jit_generator *jit, data_type_t type_out,
@@ -382,12 +396,6 @@ void store_data_skip_zmm<Xbyak::Zmm>(jit_generator *jit, data_type_t type_out,
     // silently return. This is only needed to let build succeed as store_data
     // doesn't support zmm.
     assert(!"invalid code");
-}
-
-template <typename Vmm>
-void store_data_skip_zmm(jit_generator *jit, data_type_t type_out,
-        const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset, int nelems) {
-    jit->store_data(type_out, vmm, reg, offset, nelems);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1744,7 +1752,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     vmovups(vmm_store, addr);
                 }
             } else {
-                load_data_skip_zmm(this, brg.dt_b, load(), addr, brg.ldb_tail);
+                load_bytes_skip_zmm(this, brg.dt_b, load(), addr,
+                        brg.ldb_tail * brg.ld_step);
             }
 
             if (brg.req_cal_comp_pads) {
@@ -1782,8 +1791,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     if (is_superset(brg.isa_impl, avx512_core)) {
                         vmovups(vmm_load, addr);
                     } else {
-                        load_data_skip_zmm(
-                                this, brg.dt_b, vmm_load, addr, brg.ldb_tail);
+                        load_bytes_skip_zmm(this, brg.dt_b, vmm_load, addr,
+                                brg.ldb_tail * brg.ld_step);
                     }
                 } else {
                     vmovups(vmm_load, addr);
@@ -1811,8 +1820,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     if (is_superset(brg.isa_impl, avx512_core)) {
                         vmovups(vmm_load, addr);
                     } else {
-                        load_data_skip_zmm(
-                                this, brg.dt_b, vmm_load, addr, brg.ldb_tail);
+                        load_bytes_skip_zmm(this, brg.dt_b, vmm_load, addr,
+                                brg.ldb_tail * brg.ld_step);
                     }
                 } else {
                     vmovups(vmm_load, addr);
