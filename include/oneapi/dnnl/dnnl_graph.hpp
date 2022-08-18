@@ -195,7 +195,7 @@ inline dnnl::engine make_engine_with_allocator(
 
 /// @} dnnl_graph_api_engine
 
-/// @addtogroup dnnl_graph_api_logical_tensor Logical tensor
+/// @addtogroup dnnl_graph_api_logical_tensor Logical Tensor
 ///
 /// Logical tensor describes the meta-data of the input or output tensor, like
 /// elements data type, number of dimensions, size for each dimension (shape),
@@ -583,7 +583,7 @@ public:
 
 /// @} dnnl_graph_api_tensor
 
-/// @addtogroup dnnl_graph_api_compiled_partition Compiled_partition
+/// @addtogroup dnnl_graph_api_compiled_partition Compiled Partition
 ///
 /// A compiled partition represents the generated kernels specialized for a
 /// partition on a target hardware (engine) with input and output information
@@ -1565,6 +1565,8 @@ inline int get_constant_tensor_cache() {
 } // namespace graph
 } // namespace dnnl
 
+/// @cond DO_NOT_DOCUMENT_THIS
+
 /// oneAPI namespace
 // Contains the oneapi::dnnl namespace as an alias to the ::dnnl namespace.
 namespace oneapi {
@@ -1574,6 +1576,8 @@ namespace oneapi {
 namespace dnnl = ::dnnl;
 #endif
 } // namespace oneapi
+
+/// @endcond
 
 /// @} dnnl_graph_api
 
