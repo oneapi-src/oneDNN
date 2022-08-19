@@ -25,7 +25,7 @@
         auto &t = res->timer_map.get_timer(name); \
         t.start(); \
         func; \
-        t.stop(); \
+        t.stamp(); \
     } while (0)
 
 // Designated timer to calculate time spent on reference computations
@@ -38,15 +38,17 @@ struct timer_t {
 
     timer_t() { reset(); }
 
-    void reset(); /** fully reset the measurements */
+    // Fully reset the measurements
+    void reset();
+    // Restart timer
+    void start();
+    // Stop timer & update statistics
+    void stop(int add_times, int64_t add_ticks, double add_ms);
 
-    void start(); /** restart timer */
-    void stop(int add_times = 1,
-            unsigned long long add_ticks
-            = 0); /** stop timer & update statistics */
+    void stamp(int add_times = 1);
 
-    void stamp(int add_times = 1, unsigned long long add_ticks = 0) {
-        stop(add_times, add_ticks);
+    void stamp(int add_times, int64_t add_ticks, double add_ms) {
+        stop(add_times, add_ticks, add_ms);
     }
 
     int times() const { return times_; }
@@ -60,7 +62,7 @@ struct timer_t {
 
     double sec(mode_t mode = min) const { return ms(mode) / 1e3; }
 
-    unsigned long long ticks(mode_t mode = min) const {
+    uint64_t ticks(mode_t mode = min) const {
         if (!times()) return 0; // nothing to report
         return ticks_[mode] / (mode == avg ? times() : 1);
     }
@@ -68,7 +70,7 @@ struct timer_t {
     timer_t &operator=(const timer_t &rhs);
 
     int times_;
-    unsigned long long ticks_[n_modes], ticks_start_;
+    uint64_t ticks_[n_modes], ticks_start_;
     double ms_[n_modes], ms_start_;
 
     // Section with timer fixed timer names for ease of use
