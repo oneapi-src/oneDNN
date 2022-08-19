@@ -46,6 +46,37 @@ bool check_reduce_attrs(op_t *op) {
     return false;
 }
 
+bool check_conv_attrs(op_t *op) {
+    auto attrs = op->get_attributes();
+    // dilations must be {1, 1, ...}
+    if (attrs.find(impl::op_attr::dilations) != attrs.end()) {
+        auto dilations
+                = attrs[impl::op_attr::dilations].get<std::vector<int64_t>>();
+        if (!std::all_of(dilations.begin(), dilations.end(),
+                    [&](const int64_t &d) { return d == 1; })) {
+            return false;
+        }
+    }
+    // groups must be 1
+    if (attrs.find(impl::op_attr::groups) != attrs.end()
+            && attrs[impl::op_attr::groups].get<int64_t>() != 1) {
+        return false;
+    }
+    // preferred to be a 2D conv
+    auto strides = attrs[impl::op_attr::strides].get<std::vector<int64_t>>();
+    if (strides.size() != 2) { return false; }
+    // preferred to be symmetric padding
+    // if no auto_pad set, needs to check pads_begin == pads_end
+    if (attrs.find(op_attr::auto_pad) == attrs.end()) {
+        auto pads_begin
+                = attrs[impl::op_attr::pads_begin].get<std::vector<int64_t>>();
+        auto pads_end
+                = attrs[impl::op_attr::pads_end].get<std::vector<int64_t>>();
+        if (pads_begin != pads_end) { return false; }
+    }
+    return true;
+}
+
 } // namespace pass
 } // namespace compiler_impl
 } // namespace impl

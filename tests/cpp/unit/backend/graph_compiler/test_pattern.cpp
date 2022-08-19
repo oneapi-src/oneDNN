@@ -29,6 +29,8 @@
 namespace impl = dnnl::graph::impl;
 namespace compiler_impl = dnnl::graph::impl::compiler_impl;
 namespace pass = dnnl::graph::impl::pass;
+namespace utils = dnnl::graph::tests::unit::utils;
+namespace compiler_utils = dnnl::graph::tests::unit::compiler::utils;
 
 pass::pass_base_ptr get_pass(compiler_impl::compiler_backend_t &backend_ptr,
         const std::string &pass_name) {
@@ -46,7 +48,7 @@ pass::pass_base_ptr get_pass(compiler_impl::compiler_backend_t &backend_ptr,
 TEST(GCPatternTests, INT8MHAPattern) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    add_MHA_subgraph(&agraph, false, true);
+    compiler_utils::add_MHA_subgraph(&agraph, false, true);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -70,7 +72,7 @@ TEST(GCPatternTests, INT8MHAPattern) {
 TEST(GCPatternTests, INT8MHAPattern2) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    add_MHA_subgraph(&agraph, false, true, true);
+    compiler_utils::add_MHA_subgraph(&agraph, false, true, true);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -95,7 +97,7 @@ TEST(GCPatternTests, INT8MHAPattern2) {
 TEST(GCPatternTests, FP32MHAPattern) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_MHA_subgraph(&agraph, false);
+    compiler_utils::add_MHA_subgraph(&agraph, false);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -120,7 +122,7 @@ TEST(GCPatternTests, FP32MHAPattern) {
 TEST(GCPatternTests, FP32MHAPattern2) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_MHA_subgraph(&agraph, false, false, true);
+    compiler_utils::add_MHA_subgraph(&agraph, false, false, true);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -145,7 +147,7 @@ TEST(GCPatternTests, FP32MHAPattern2) {
 TEST(GCPatternTests, FP32MHAPatternAlternative) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_MHA_subgraph_alternative(&agraph, false, false);
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, false, false);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -195,7 +197,7 @@ TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
 TEST(GCPatternTests, INT8BF16MHAPattern) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    add_MHA_subgraph(&agraph, true, true, true);
+    compiler_utils::add_MHA_subgraph(&agraph, true, true, true);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -220,7 +222,7 @@ TEST(GCPatternTests, INT8BF16MHAPattern) {
 TEST(GCPatternTests, BF16MHAPattern) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_MHA_subgraph(&agraph, true, false);
+    compiler_utils::add_MHA_subgraph(&agraph, true, false);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -253,7 +255,7 @@ TEST(GCPatternTests, BF16MHAPattern) {
 TEST(GCPatternTests, BF16MHAPatternAlternative) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_MHA_subgraph_alternative(&agraph, true, false);
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, true, false);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -286,7 +288,7 @@ TEST(GCPatternTests, BF16MHAPatternAlternative) {
 TEST(GCPatternTests, INT8MHAPatternVariation1) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    get_int8_MHA_subgraph_varients(&agraph);
+    compiler_utils::get_int8_MHA_subgraph_varients(&agraph);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -303,7 +305,7 @@ TEST(GCPatternTests, INT8MHAPatternVariation2) {
     // replace divide with multiply
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    get_int8_MHA_subgraph_varients(&agraph, false);
+    compiler_utils::get_int8_MHA_subgraph_varients(&agraph, false);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -320,8 +322,10 @@ TEST(GCPatternTests, INT8MHAPatternVariation3) {
     // set rescale output as Add's second input
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    get_int8_MHA_subgraph_varients(&agraph, true,
-            std::vector<quantize_position_t>(4, RESHAPE_INCLUDED), 1);
+    compiler_utils::get_int8_MHA_subgraph_varients(&agraph, true,
+            std::vector<compiler_utils::quantize_position_t>(
+                    4, compiler_utils::RESHAPE_INCLUDED),
+            1);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -337,7 +341,7 @@ TEST(GCPatternTests, INT8MHAPatternVariation3) {
 TEST(GCPatternTests, FP32DLRMBottom) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_mlp_subgraph(&agraph, false, 1, 3, {13, 512, 256, 128},
+    compiler_utils::add_mlp_subgraph(&agraph, false, 1, 3, {13, 512, 256, 128},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU});
     agraph.build_graph();
 
@@ -365,7 +369,8 @@ TEST(GCPatternTests, FP32DLRMBottom) {
 TEST(GCPatternTests, FP32DLRMTop) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_mlp_subgraph(&agraph, false, 1, 5, {479, 1024, 1024, 512, 256, 1},
+    compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
+            {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
                     impl::op_kind::ReLU, impl::op_kind::Sigmoid});
     agraph.build_graph();
@@ -394,7 +399,7 @@ TEST(GCPatternTests, FP32DLRMTop) {
 TEST(GCPatternTests, INT8DLRMBottom) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    add_int8_mlp_subgraph(&agraph, 1, 3, {13, 512, 256, 128},
+    compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 3, {13, 512, 256, 128},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU});
     agraph.build_graph();
 
@@ -422,7 +427,8 @@ TEST(GCPatternTests, INT8DLRMBottom) {
 TEST(GCPatternTests, INT8DLRMTop) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    add_int8_mlp_subgraph(&agraph, 1, 5, {479, 1024, 1024, 512, 256, 1},
+    compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 5,
+            {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
                     impl::op_kind::ReLU, impl::op_kind::Sigmoid});
     agraph.build_graph();
@@ -451,7 +457,8 @@ TEST(GCPatternTests, INT8DLRMTop) {
 TEST(GCPatternTests, FP32MLPSeparateAdd) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_mlp_subgraph(&agraph, false, 1, 5, {479, 1024, 1024, 512, 256, 1},
+    compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
+            {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
                     impl::op_kind::ReLU, impl::op_kind::Sigmoid},
             true);
@@ -481,7 +488,8 @@ TEST(GCPatternTests, FP32MLPSeparateAdd) {
 TEST(GCPatternTests, FP32MLPNoActivation) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_mlp_subgraph(&agraph, false, 1, 5, {479, 1024, 1024, 512, 256, 1},
+    compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
+            {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::Wildcard, impl::op_kind::Wildcard,
                     impl::op_kind::Wildcard, impl::op_kind::Wildcard,
                     impl::op_kind::Wildcard});
@@ -511,7 +519,8 @@ TEST(GCPatternTests, FP32MLPNoActivation) {
 TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_mlp_subgraph(&agraph, false, 1, 5, {479, 1024, 1024, 512, 256, 1},
+    compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
+            {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::Wildcard, impl::op_kind::Wildcard,
                     impl::op_kind::Wildcard, impl::op_kind::Wildcard,
                     impl::op_kind::Wildcard},
@@ -542,7 +551,8 @@ TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
 TEST(GCPatternTests, INT8MLPNoActivation) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    add_int8_mlp_subgraph(&agraph, 1, 5, {479, 1024, 1024, 512, 256, 1},
+    compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 5,
+            {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::Wildcard, impl::op_kind::Wildcard,
                     impl::op_kind::Wildcard, impl::op_kind::Wildcard,
                     impl::op_kind::Wildcard});
@@ -572,7 +582,7 @@ TEST(GCPatternTests, INT8MLPNoActivation) {
 TEST(GCPatternTests, FP32MLPTraining) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_mlp_training_graph(&agraph, 1, 3, {13, 512, 256, 128},
+    compiler_utils::add_mlp_training_graph(&agraph, 1, 3, {13, 512, 256, 128},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU},
             {impl::op_kind::ReLUBackprop, impl::op_kind::ReLUBackprop,
                     impl::op_kind::ReLUBackprop});
@@ -597,7 +607,7 @@ TEST(GCPatternTests, FP32MLPTraining) {
 TEST(GCPatternTests, FP32MHATrainingPattern) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_MHA_training_subgraph(&agraph, false);
+    compiler_utils::add_MHA_training_subgraph(&agraph, false);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -623,7 +633,7 @@ TEST(GCPatternTests, FP32MHATrainingPattern) {
 TEST(GCPatternTests, BF16MHATrainingPattern) {
     REQUIRE_BF16_AMXBF16();
     impl::graph_t agraph;
-    add_MHA_training_subgraph(&agraph, true);
+    compiler_utils::add_MHA_training_subgraph(&agraph, true);
     agraph.build_graph();
 
     auto &compiler_backend_ptr

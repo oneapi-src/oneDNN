@@ -18,6 +18,7 @@
 
 #include "compiler_graph.hpp"
 #include "compiler_partition_impl.hpp"
+#include "patterns/conv_pattern.hpp"
 #include "patterns/mha_pattern.hpp"
 #include "patterns/mlp_pattern.hpp"
 #include "target_machine.hpp"
@@ -41,9 +42,11 @@ bool compiler_backend_t::register_passes() {
     REQUIRE_AVX512_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mha_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mlp_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_conv_pattern, pass_registry_);
     REQUIRE_BF16_AMXBF16_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mha_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mlp_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_conv_pattern, pass_registry_);
     REQUIRE_BF16_AMXBF16_END
     REQUIRE_VNNI_AMXINT8_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mha_pattern, pass_registry_);

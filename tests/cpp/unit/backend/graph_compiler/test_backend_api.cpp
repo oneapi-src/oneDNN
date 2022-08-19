@@ -24,6 +24,7 @@
 
 namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
+namespace compiler_utils = dnnl::graph::tests::unit::compiler::utils;
 
 TEST(GCBackendApi, GetMemSize) {
     impl::logical_tensor_t a, b, c, d;
@@ -69,7 +70,7 @@ TEST(GCBackendApi, CompilerBackendRegistration) {
 TEST(GCBackendApi, TestRewriteOutputLayout) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_MHA_infer_shape(&agraph);
+    compiler_utils::add_MHA_infer_shape(&agraph);
     agraph.build_graph();
 
     auto &compiler_backend_ptr

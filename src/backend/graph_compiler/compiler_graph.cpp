@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "compiler_graph.hpp"
 
@@ -40,7 +41,14 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::ReLUBackprop, "relu_backprop"},
                 {op_kind::SigmoidBackprop, "sigmoid_backprop"},
                 {op_kind::GELUBackprop, "gelu_backprop"},
-                {op_kind::ReduceSum, "reduce"}, {op_kind::BiasAdd, "add"}};
+                {op_kind::ReduceSum, "reduce"}, {op_kind::BiasAdd, "add"},
+                {op_kind::Convolution, "conv_fwd"},
+                {op_kind::ConvolutionBackpropData, "conv_bwd_data"},
+                {op_kind::ConvolutionBackpropFilters, "conv_bwd_weight"},
+                {op_kind::BatchNormForwardTraining,
+                        "batchnorm_forward_training"},
+                {op_kind::BatchNormTrainingBackprop,
+                        "batchnorm_training_backprop"}};
 
 sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<impl::op_attr_t,
@@ -56,8 +64,19 @@ sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
             } break;
             case attribute_kind::is: {
                 auto val = attr.second.get<std::vector<int64_t>>();
-                std::vector<int> val_int32(val.begin(), val.end());
-                backend_attrs.set(name, val_int32);
+                // we convert all int64[] to int32[] except for whitelist
+                std::unordered_set<impl::op_attr_t> type_conversion_whitelist {
+                        impl::op_attr::strides, impl::op_attr::pads_begin,
+                        impl::op_attr::pads_end, impl::op_attr::filter_shape,
+                        impl::op_attr::output_shape};
+                // TODO(yifei): generalize the logic here
+                if (type_conversion_whitelist.find(attr.first)
+                        != type_conversion_whitelist.end()) {
+                    backend_attrs.set(name, val);
+                } else {
+                    std::vector<int> val_int32(val.begin(), val.end());
+                    backend_attrs.set(name, val_int32);
+                }
             } break;
             case attribute_kind::f: {
                 auto val = attr.second.get<float>();
@@ -168,7 +187,6 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         } else {
             backend_attrs.set("bc_axis", std::vector<int> {1});
         }
-
     } else {
         backend_attrs = convert_op_attrs(aop->get_attributes());
     }

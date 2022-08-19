@@ -27,6 +27,13 @@
 #include "interface/graph.hpp"
 #include "interface/partition.hpp"
 
+namespace dnnl {
+namespace graph {
+namespace tests {
+namespace unit {
+namespace compiler {
+namespace utils {
+
 #define REQUIRE_AVX512() \
     if (!::sc::get_default_context()->machine_.cpu_flags_.fAVX512F) { \
         GTEST_SKIP(); \
@@ -2181,4 +2188,333 @@ static inline void add_MHA_subgraph_alternative2(impl::graph_t *agraph,
     agraph->add_op(&transpose_output);
     agraph->add_op(&reshape_output);
 }
+
+inline impl::logical_tensor_t create_relu_bwd(utils::id_generator &id_gen,
+        impl::graph_t &agraph, const impl::logical_tensor_t &dst,
+        const impl::logical_tensor_t &delta_in, const impl::dims &dims) {
+    impl::op_t relu_bwd(
+            id_gen.get_id(), impl::op_kind::ReLUBackprop, "relu_bwd");
+    auto delta
+            = utils::logical_tensor_init(id_gen.get_id(), dims, dst.data_type);
+    relu_bwd.add_input(dst);
+    relu_bwd.add_input(delta);
+    relu_bwd.add_output(delta_in);
+    agraph.add_op(&relu_bwd);
+    return delta;
+}
+
+// create conv training fwd and bwd together since the connection is complex
+// src is the src of the first conv_fwd
+// delta_in is the destination of the last conv_bwd
+// (which is then connected to the previous subgraph)
+/*
+        (src)           (delta_in)
+          |                 |
+         conv          conv_data_bwd
+          |                 |
+          bn              bn_bwd
+          |                 |
+         relu            relu_bwd
+          |                 |
+        (dst)         (delta_in_next)
+*/
+inline std::vector<impl::logical_tensor_t> create_convolution_training(
+        utils::id_generator &id_gen, impl::graph_t &agraph,
+        const impl::logical_tensor_t &src, impl::logical_tensor_t &delta_in,
+        const impl::dims &filter_shape, const impl::dims &strides,
+        const impl::dims &pads_begin, const impl::dims &pads_end,
+        const std::string &data_format, const std::string &filter_format,
+        bool with_bn = false, float epsilon = 1e-6f, bool with_momentum = false,
+        float momentum = 1e-6f, bool with_relu = false,
+        impl::logical_tensor_t *known_delta_in_next = nullptr,
+        bool is_bn_bf16 = false) {
+    auto bn_dtype = is_bn_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+    impl::op_t conv_fwd(
+            id_gen.get_id(), impl::op_kind::Convolution, "conv_fwd");
+    conv_fwd.set_attr<impl::dims>(impl::op_attr::strides, strides);
+    conv_fwd.set_attr<impl::dims>(impl::op_attr::dilations, impl::dims {1, 1});
+    conv_fwd.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
+    conv_fwd.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    conv_fwd.set_attr<std::string>(impl::op_attr::data_format, data_format);
+    conv_fwd.set_attr<std::string>(impl::op_attr::filter_format, filter_format);
+
+    impl::dim_t ih = (data_format == "NCX") ? src.dims[2] : src.dims[1];
+    impl::dim_t iw = (data_format == "NCX") ? src.dims[3] : src.dims[2];
+    impl::dim_t ks
+            = (filter_format == "OIX") ? filter_shape[2] : filter_shape[0];
+    impl::dim_t ic
+            = (filter_format == "OIX") ? filter_shape[1] : filter_shape[2];
+    impl::dim_t oc
+            = (filter_format == "OIX") ? filter_shape[0] : filter_shape[3];
+    impl::dim_t oh = (ih + pads_begin[0] + pads_end[0] - ks) / strides[0] + 1;
+    impl::dim_t ow = (iw + pads_begin[1] + pads_end[1] - ks) / strides[1] + 1;
+
+    impl::dims src_shape = (data_format == "NCX")
+            ? impl::dims {src.dims[0], ic, ih, iw}
+            : impl::dims {src.dims[0], ih, iw, ic};
+    impl::dims dst_shape = (data_format == "NCX")
+            ? impl::dims {src.dims[0], oc, oh, ow}
+            : impl::dims {src.dims[0], oh, ow, oc};
+
+    auto wei = utils::logical_tensor_init(
+            id_gen.get_id(), filter_shape, src.data_type);
+    auto dst = utils::logical_tensor_init(
+            id_gen.get_id(), dst_shape, src.data_type);
+
+    conv_fwd.add_input(src);
+    conv_fwd.add_input(wei);
+    conv_fwd.add_output(dst);
+    agraph.add_op(&conv_fwd);
+
+    // gamma, mean, var will be reused in bwd part
+    impl::logical_tensor_t bn_src, gamma, mean, var;
+    if (with_bn) {
+        impl::op_t bn_fwd(id_gen.get_id(),
+                impl::op_kind::BatchNormForwardTraining, "bn_fwd");
+        bn_fwd.set_attr<std::string>(impl::op_attr::data_format, data_format);
+        bn_fwd.set_attr<float>(impl::op_attr::epsilon, epsilon);
+        if (with_momentum) {
+            bn_fwd.set_attr<float>(impl::op_attr::momentum, momentum);
+        }
+
+        int64_t bn_ic = oc;
+
+        bn_src = dst;
+        gamma = utils::logical_tensor_init(id_gen.get_id(), {bn_ic}, bn_dtype);
+        auto beta = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, bn_dtype);
+        mean = utils::logical_tensor_init(id_gen.get_id(), {bn_ic}, bn_dtype);
+        var = utils::logical_tensor_init(id_gen.get_id(), {bn_ic}, bn_dtype);
+
+        dst = utils::logical_tensor_init(
+                id_gen.get_id(), dst_shape, src.data_type);
+        auto running_mean = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, bn_dtype);
+        auto running_variance = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, bn_dtype);
+        auto batch_mean = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, bn_dtype);
+        auto batch_variance = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, bn_dtype);
+
+        bn_fwd.add_input(bn_src);
+        bn_fwd.add_input(gamma);
+        bn_fwd.add_input(beta);
+        bn_fwd.add_input(mean);
+        bn_fwd.add_input(var);
+        bn_fwd.add_output(dst);
+        bn_fwd.add_output(running_mean);
+        bn_fwd.add_output(running_variance);
+        bn_fwd.add_output(batch_mean);
+        bn_fwd.add_output(batch_variance);
+
+        agraph.add_op(&bn_fwd);
+    }
+    if (with_relu) {
+        // fwd relu
+        impl::op_t relu_fwd(id_gen.get_id(), impl::op_kind::ReLU, "relu_fwd");
+        auto relu_src = dst;
+        dst = utils::logical_tensor_init(
+                id_gen.get_id(), dst_shape, src.data_type);
+        relu_fwd.add_input(relu_src);
+        relu_fwd.add_output(dst);
+        agraph.add_op(&relu_fwd);
+    }
+
+    // start constructing bwd part
+    impl::logical_tensor_t output_delta = utils::logical_tensor_init(
+            id_gen.get_id(), dst_shape, src.data_type);
+    impl::logical_tensor_t delta_in_next;
+    if (known_delta_in_next) {
+        output_delta = *known_delta_in_next;
+        delta_in_next = *known_delta_in_next;
+    } else {
+        delta_in_next = output_delta;
+    }
+    if (with_relu) {
+        // bwd relu
+        impl::op_t relu_bwd(
+                id_gen.get_id(), impl::op_kind::ReLUBackprop, "relu_bwd");
+        relu_bwd.set_attr<bool>(impl::op_attr::use_dst, true);
+        relu_bwd.add_input(dst); // dst is dst of fwd
+        relu_bwd.add_input(output_delta);
+        output_delta = utils::logical_tensor_init(
+                id_gen.get_id(), dst_shape, src.data_type);
+        relu_bwd.add_output(output_delta);
+        agraph.add_op(&relu_bwd);
+    }
+    if (with_bn) {
+        impl::op_t bn_bwd(id_gen.get_id(),
+                impl::op_kind::BatchNormTrainingBackprop, "bn_bwd");
+        bn_bwd.set_attr<std::string>(impl::op_attr::data_format, data_format);
+        bn_bwd.set_attr<float>(impl::op_attr::epsilon, epsilon);
+
+        int64_t bn_ic = oc;
+        auto gamma_delta = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, bn_dtype);
+        auto beta_delta = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, bn_dtype);
+
+        bn_bwd.add_input(bn_src);
+        bn_bwd.add_input(output_delta);
+        bn_bwd.add_input(gamma);
+        bn_bwd.add_input(mean);
+        bn_bwd.add_input(var);
+        output_delta = utils::logical_tensor_init(
+                id_gen.get_id(), dst_shape, src.data_type);
+        bn_bwd.add_output(output_delta);
+        bn_bwd.add_output(gamma_delta);
+        bn_bwd.add_output(beta_delta);
+
+        agraph.add_op(&bn_bwd);
+    }
+
+    impl::op_t conv_bwd_data(id_gen.get_id(),
+            impl::op_kind::ConvolutionBackpropData, "conv_bwd_data");
+    conv_bwd_data.set_attr<impl::dims>(impl::op_attr::strides, strides);
+    conv_bwd_data.set_attr<impl::dims>(
+            impl::op_attr::dilations, impl::dims {1, 1});
+    conv_bwd_data.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
+    conv_bwd_data.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    conv_bwd_data.set_attr<std::string>(
+            impl::op_attr::data_format, data_format);
+    conv_bwd_data.set_attr<std::string>(
+            impl::op_attr::filter_format, filter_format);
+    conv_bwd_data.set_attr<impl::dims>(impl::op_attr::output_shape, src_shape);
+    conv_bwd_data.add_input(output_delta);
+    conv_bwd_data.add_input(wei);
+    conv_bwd_data.add_output(delta_in);
+    agraph.add_op(&conv_bwd_data);
+
+    impl::op_t conv_bwd_weight(id_gen.get_id(),
+            impl::op_kind::ConvolutionBackpropFilters, "conv_bwd_weight");
+    conv_bwd_weight.set_attr<impl::dims>(impl::op_attr::strides, strides);
+    conv_bwd_weight.set_attr<impl::dims>(
+            impl::op_attr::dilations, impl::dims {1, 1});
+    conv_bwd_weight.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
+    conv_bwd_weight.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    conv_bwd_weight.set_attr<std::string>(
+            impl::op_attr::data_format, data_format);
+    conv_bwd_weight.set_attr<std::string>(
+            impl::op_attr::filter_format, filter_format);
+    conv_bwd_weight.set_attr<impl::dims>(
+            impl::op_attr::filter_shape, filter_shape);
+    conv_bwd_weight.add_input(src);
+    conv_bwd_weight.add_input(output_delta);
+    auto delta_weight = utils::logical_tensor_init(
+            id_gen.get_id(), filter_shape, src.data_type);
+    conv_bwd_weight.add_output(delta_weight);
+    agraph.add_op(&conv_bwd_weight);
+
+    return {dst, delta_in_next};
+}
+
+inline void construct_identical_bottleneck_training_subgraph(
+        impl::graph_t *agraph, utils::id_generator &id_gen,
+        const impl::dims &input_shape,
+        const std::vector<impl::dims> &filter_shapes, bool is_bf16 = false,
+        bool is_bn_bf16 = false,
+        const std::vector<std::vector<int64_t>> &strides
+        = {{1, 1}, {1, 1}, {1, 1}},
+        const std::vector<std::vector<int64_t>> &paddings
+        = {{0, 0}, {1, 1}, {0, 0}},
+        const std::string &data_format = "NXC",
+        const std::string &filter_format = "XIO") {
+    auto dtype = is_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+    auto src = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto delta_data
+            = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto ret0 = create_convolution_training(id_gen, *agraph, src, delta_data,
+            filter_shapes[0], strides[0], paddings[0], paddings[0], data_format,
+            filter_format, true, 1e-5f, true, 0.1f, true, nullptr, is_bn_bf16);
+    auto conv0 = ret0[0];
+    auto delta_in0 = ret0[1];
+    auto ret1 = create_convolution_training(id_gen, *agraph, conv0, delta_in0,
+            filter_shapes[1], strides[1], paddings[1], paddings[1], data_format,
+            filter_format, true, 1e-5f, true, 0.1f, true, nullptr, is_bn_bf16);
+    auto conv1 = ret1[0];
+    auto delta_in1 = ret1[1];
+    auto ret2 = create_convolution_training(id_gen, *agraph, conv1, delta_in1,
+            filter_shapes[2], strides[2], paddings[2], paddings[2], data_format,
+            filter_format, true, 1e-5f, true, 0.1f, false, nullptr, is_bn_bf16);
+    auto conv2 = ret2[0];
+    auto delta_in2 = ret2[1];
+    auto add = utils::create_add(id_gen, *agraph, src, conv2);
+    auto relu = utils::create_relu(id_gen, *agraph, add);
+    // relu_bwd is delta of forward_output
+    auto relu_bwd
+            = create_relu_bwd(id_gen, *agraph, relu, delta_in2, input_shape);
+    auto add_bwd = utils::create_add(id_gen, *agraph, delta_in2, delta_data);
+    (void)(add_bwd);
+    (void)(relu_bwd);
+}
+
+// filter is in order {rhs, lhs0, lhs1, lhs2}
+inline void construct_convolutional_bottleneck_training_subgraph(
+        impl::graph_t *agraph, utils::id_generator &id_gen,
+        const impl::dims &input_shape,
+        const std::vector<impl::dims> &filter_shapes, bool is_bf16 = false,
+        bool is_bn_bf16 = false,
+        const std::vector<std::vector<int64_t>> &strides
+        = {{2, 2}, {1, 1}, {2, 2}, {1, 1}},
+        const std::vector<std::vector<int64_t>> &paddings
+        = {{0, 0}, {0, 0}, {1, 1}, {0, 0}},
+        const std::string &data_format = "NXC",
+        const std::string &filter_format = "XIO") {
+    auto infer_output_shape = [&](impl::dims shape) {
+        if (data_format == "NCX")
+            return impl::dims {
+                    shape[0], filter_shapes[0][0], shape[2] / 2, shape[3] / 2};
+        else
+            return impl::dims {
+                    shape[0], shape[1] / 2, shape[2] / 2, filter_shapes[0][3]};
+    };
+
+    auto dtype = is_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+    auto src = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto delta_data_lhs
+            = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto delta_data_rhs
+            = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto rhs = create_convolution_training(id_gen, *agraph, src, delta_data_rhs,
+            filter_shapes[0], strides[0], paddings[0], paddings[0], data_format,
+            filter_format, true, 1e-5f, true, 0.1f, false, nullptr, is_bn_bf16);
+    auto conv_rhs0 = rhs[0];
+    auto delta_in_rhs0 = rhs[1];
+    auto lhs0 = create_convolution_training(id_gen, *agraph, src,
+            delta_data_lhs, filter_shapes[1], strides[1], paddings[1],
+            paddings[1], data_format, filter_format, true, 1e-5f, true, 0.1f,
+            true, nullptr, is_bn_bf16);
+    auto conv_lhs0 = lhs0[0];
+    auto delta_in_lhs0 = lhs0[1];
+    auto lhs1 = create_convolution_training(id_gen, *agraph, conv_lhs0,
+            delta_in_lhs0, filter_shapes[2], strides[2], paddings[2],
+            paddings[2], data_format, filter_format, true, 1e-5f, true, 0.1f,
+            true, nullptr, is_bn_bf16);
+    auto conv_lhs1 = lhs1[0];
+    auto delta_in_lhs1 = lhs1[1];
+    auto lhs2 = create_convolution_training(id_gen, *agraph, conv_lhs1,
+            delta_in_lhs1, filter_shapes[3], strides[3], paddings[3],
+            paddings[3], data_format, filter_format, true, 1e-5f, true, 0.1f,
+            false, &delta_in_rhs0, is_bn_bf16);
+    auto conv_lhs2 = lhs2[0];
+    auto delta_in_lhs2 = lhs2[1];
+    auto add = utils::create_add(id_gen, *agraph, conv_rhs0, conv_lhs2);
+    auto relu = utils::create_relu(id_gen, *agraph, add);
+    auto relu_bwd = create_relu_bwd(id_gen, *agraph, relu, delta_in_rhs0,
+            infer_output_shape(input_shape));
+    auto add_bwd = utils::create_add(
+            id_gen, *agraph, delta_data_lhs, delta_data_rhs);
+    (void)(delta_in_lhs2);
+    (void)(add_bwd);
+    (void)(relu_bwd);
+}
+
+} // namespace utils
+} // namespace compiler
+} // namespace unit
+} // namespace tests
+} // namespace graph
+} // namespace dnnl
+
 #endif
