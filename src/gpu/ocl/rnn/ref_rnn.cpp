@@ -195,7 +195,8 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
 }
 
 static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-        const rnn_conf_t &conf, const rnn_offsets_t &off, int subgroup_size) {
+        const rnn_conf_t &conf, const rnn_offsets_t &off, int subgroup_size,
+        bool use_subgroup_reduction) {
 
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
     kernel_ctx.define_int("IS_TRAINING", conf.is_training);
@@ -247,6 +248,7 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("N_PARTS_WEI_I", conf.n_parts_weights_layer);
 
     kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
+    kernel_ctx.define_int("USE_SUBGROUP_REDUCTION", use_subgroup_reduction);
 
     def_offsets(off.src_layer_off, kernel_ctx, "SRC_L", conf.src_layer_ndims);
     def_offsets(off.src_iter_off, kernel_ctx, "SRC_I", conf.src_iter_ndims);
@@ -597,6 +599,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
     if (status != status::success) { return status; }
 
+    use_subgroup_reduction = conf.batch >= subgroup_size;
+
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe
     // the GEMM as a row major problem.
@@ -807,8 +811,8 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
             = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
 
     compute::kernel_ctx_t kernel_ctx;
-    status_t status = init_kernel_ctx(
-            kernel_ctx, pd()->conf, pd()->off, pd()->subgroup_size);
+    status_t status = init_kernel_ctx(kernel_ctx, pd()->conf, pd()->off,
+            pd()->subgroup_size, pd()->use_subgroup_reduction);
     CHECK(status);
 
     std::vector<const char *> kernel_names

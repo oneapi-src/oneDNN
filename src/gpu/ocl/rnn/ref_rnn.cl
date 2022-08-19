@@ -931,8 +931,13 @@ ref_rnn_gates_reduction(int dir, int lay, int iter,
         __global DIFF_DATA_T *diff_bias_base, __global char *scratch_gates,
         __global char *scratch_cell) {
 #if !IS_FWD
+#if USE_SUBGROUP_REDUCTION
+    const int k = get_global_id(1); // dhc
+    const int i = get_global_id(2); // n_bias
+#else
     const int k = get_global_id(0); // dhc
     const int i = get_global_id(1); // n_bias
+#endif // USE_SUBGROUP_REDUCTION
 
     const int n_bias_max = (CELL_KIND == LBR_GRU) ? 4 : 3;
     if (k >= DHC || i >= n_bias_max) return;
@@ -948,9 +953,18 @@ ref_rnn_gates_reduction(int dir, int lay, int iter,
         gates = (__global SRC_DATA_T *)(scratch_gates)
                 + OFF_SCRATCH_MEM(iter, 0, 0, 0);
 
+#if USE_SUBGROUP_REDUCTION
+    DIFF_DATA_T result = 0;
+    for (int j = get_local_id(0); j < BATCH; j += SUBGROUP_SIZE) {
+        result += SRC_TO_REF(gates[CELL_SCRATCH_MEM(j, i_, k)]);
+    }
+
+    diff_bias[i * DHC + k] += sub_group_reduce_add(result);
+#else
     for (int j = 0; j < BATCH; j++) {
         diff_bias[i * DHC + k] += SRC_TO_REF(gates[CELL_SCRATCH_MEM(j, i_, k)]);
     }
+#endif // USE_SUBGROUP_REDUCTION
 
-#endif
+#endif // !IS_FWD
 }

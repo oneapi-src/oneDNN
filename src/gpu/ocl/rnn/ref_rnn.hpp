@@ -108,6 +108,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         bool is_xe_hpc;
         int subgroup_size;
         int max_eus_per_wg;
+        bool use_subgroup_reduction;
 
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
