@@ -396,9 +396,13 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         }
         DNN_SAFE(dnnl_stream_wait(stream), WARN);
 
-        uint64_t ticks = 0;
-        maybe_reset_profiling(&ticks);
-        t.stamp(cur_batch_times, (unsigned long long)ticks);
+        if (is_bench_mode(PROF)) {
+            uint64_t nsec = 0;
+            maybe_reset_profiling(&nsec);
+            t.stamp(cur_batch_times, 0, nsec / 1e6);
+        } else {
+            t.stamp(cur_batch_times);
+        }
 
         if (should_stop(t)) break;
 
