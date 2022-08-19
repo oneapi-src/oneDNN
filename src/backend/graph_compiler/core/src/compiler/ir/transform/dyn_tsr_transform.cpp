@@ -49,8 +49,9 @@ static expr create_dyn_tsr_from_tensor(
             {sizeof(runtime::dynamic_tensor_t)}, datatypes::u8);
     def_stmts.push_back(builder::make_var_tensor_def_unattached(dyn_tsr));
 
-    expr shape_tsr, dyn_mask, ndims, dtype;
-    if (placeholder.defined()) {
+    expr shape_tsr, dtype, dyn_mask, ndims;
+    if (placeholder.defined()
+            && placeholder->attr().has_key("temp.dyn_shape_of_placeholder")) {
         shape_tsr = placeholder->attr().get<expr>(
                 "temp.dyn_shape_of_placeholder");
         ndims = builder::make_read_struct(placeholder, dyn_tsr_struct_t::name,
@@ -60,8 +61,9 @@ static expr create_dyn_tsr_from_tensor(
         dyn_mask = builder::make_read_struct(placeholder,
                 dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dyn_mask);
     } else {
-        auto plain_dims = tsr->attr_->get<std::vector<expr>>(
-                attr_keys::plain_dims); // or in
+        // should be in (tptr/tsr)
+        auto plain_dims
+                = in->attr_->get<std::vector<expr>>(attr_keys::plain_dims);
         ndims = builder::make_constant({plain_dims.size()}, datatypes::s32);
         shape_tsr = builder::make_tensor(std::string("dyn_shape_") + name,
                 {plain_dims.size()}, datatypes::index);
@@ -73,21 +75,17 @@ static expr create_dyn_tsr_from_tensor(
         dtype = builder::make_constant({etype}, datatypes::u32);
         dyn_mask = builder::make_var(
                 datatypes::u8, std::string("dyn_mask_") + name);
+        uint64_t dyn_mask_int = 0;
         def_stmts.push_back(builder::make_var_tensor_def_unattached(shape_tsr));
-        def_stmts.push_back(builder::make_var_tensor_def_unattached(dyn_mask,
-                linkage::local,
-                builder::make_constant({UINT64_C(0)}, datatypes::u8)));
-
         for (size_t i = 0; i < plain_dims.size(); i++) {
             def_stmts.push_back(builder::make_assign_unattached(
                     builder::make_indexing(shape_tsr, i), plain_dims[i]));
-            def_stmts.push_back(builder::make_assign_unattached(dyn_mask,
-                    dyn_mask
-                            | builder::make_constant(
-                                    {static_cast<int64_t>(
-                                            plain_dims[i].isa<var>() << i)},
-                                    datatypes::u8)));
+            dyn_mask_int
+                    |= static_cast<uint64_t>(plain_dims[i].isa<var>() << i);
         }
+        def_stmts.push_back(builder::make_var_tensor_def_unattached(dyn_mask,
+                linkage::local,
+                builder::make_constant({dyn_mask_int}, datatypes::u8)));
     }
     def_stmts.push_back(
             builder::make_evaluate_unattached(builder::make_write_struct(

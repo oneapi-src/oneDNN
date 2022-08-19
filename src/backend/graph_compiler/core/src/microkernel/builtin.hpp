@@ -342,18 +342,30 @@ expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,
 expr call_value_check(expr tsr, expr name, expr size);
 
 // dynamic query format function evaluation at runtime.
-expr call_matmul_core_query_format(expr tb, expr out0, expr in0, expr in1,
-        expr ori_in0, expr ori_in1, expr out_format0, expr in_format0,
-        expr in_format1, expr ori_in_format0, expr ori_in_format1,
-        expr out_size, expr kernel);
-expr call_unary_fusible_op_query_format(expr tb, expr out0, expr in0,
-        expr out_foramt0, expr in_format0, expr out_size, expr kernel);
-expr call_binary_fusible_op_query_format(expr tb, expr out0, expr in0, expr in1,
-        expr out_format0, expr in_format0, expr in_format1, expr out_size,
-        expr kernel);
-expr call_reorder_op_query_format(expr tb, expr out0, expr in0,
-        expr out_foramt0, expr in_format0, expr out_size, expr kernel);
-expr call_cal_blocking_dims(expr placeholder, expr format);
+expr call_matmul_core_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &in1, const expr &ori_in0,
+        const expr &ori_in1, const expr &out_format0, const expr &in_format0,
+        const expr &in_format1, const expr &ori_in_format0,
+        const expr &ori_in_format1, const expr &out_size, const expr &kernel);
+expr call_unary_fusible_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &out_foramt0, const expr &in_format0,
+        const expr &out_size, const expr &kernel);
+expr call_binary_fusible_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &in1, const expr &out_format0,
+        const expr &in_format0, const expr &in_format1, const expr &out_size,
+        const expr &kernel);
+expr call_reorder_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &out_foramt0, const expr &in_format0,
+        const expr &out_size, const expr &kernel);
+expr call_reduce_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &out_foramt0, const expr &in_format0,
+        const expr &out_size, const expr &kernel);
+expr call_tensor_view_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &out_format0, const expr &in_format0,
+        const expr &out_size, const expr &kernel);
+expr call_cal_blocking_dims(const expr &placeholder, const expr &format);
+// runtime op shape of tensor
+func_t get_cal_shape_of_tensor_op_func();
 
 // gets the IR func for get_thread_id. @see thread_pool_table::get_thread_id
 func_t get_thread_id_func();

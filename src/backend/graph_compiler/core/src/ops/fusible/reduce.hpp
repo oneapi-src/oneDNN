@@ -70,6 +70,8 @@ public:
     // get real reduce axis, generaly, you should set rd_axis on plain format
     // semantics.
     std::vector<int> get_rd_axis() const;
+    // get a compressed int rd_axis.
+    int get_compressed_rd_axis_int() const;
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
 

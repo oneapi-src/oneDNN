@@ -23,11 +23,12 @@ namespace sc {
 namespace runtime {
 
 int get_dyn_cfg_single(int in, bool has_48) {
-    int blk = 16;
+    assert(in > 0);
+    int blk = 32;
     bool has_no_tail = false;
     int padded_in = std::numeric_limits<int>::max();
-    for (int i = 1; i <= 4; i++) {
-        int cur_blk = 16 * i;
+    for (int i = 1; i <= 2; i++) {
+        int cur_blk = 32 * i;
         if (!has_48 && cur_blk == 48) { continue; }
         int cur_num_blk = ::sc::utils::divide_and_ceil(in, cur_blk);
         int cur_padded_in = cur_num_blk * cur_blk;

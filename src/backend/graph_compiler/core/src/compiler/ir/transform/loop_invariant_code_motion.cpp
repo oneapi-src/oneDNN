@@ -113,7 +113,8 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
         return ret;
     }
     expr_c dispatch(expr_c s) override {
-        if (!expr_can_hoist(s) && current_ != nullptr) {
+        if (!expr_can_hoist(s) && current_ != nullptr
+                && !cur_loop_vars_.empty()) {
             current_->temp_data().get<licm_analysis_data_t>().volatile_ = true;
             return s;
         }
@@ -227,17 +228,6 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
         }
     }
 };
-
-static var_node *get_var_if_is_define(const stmt_c &s) {
-    if (s.isa<define>()) {
-        auto def = s.static_as<define>();
-        if (def->var_.isa<var>() && def->var_->ssa_data_) {
-            // assert(def->var_->ssa_data_);
-            return def->var_.static_as<var>().get();
-        }
-    }
-    return nullptr;
-}
 
 // Second filter map and set to remove stmt by volatile == true
 static void filter_stmt_by_volatile(

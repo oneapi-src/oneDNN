@@ -403,6 +403,8 @@ void global_reschedule(sc_graph_t &graph, const context_ptr &ctx) {
     if (!graph.attrs_.get_or_else("temp.fuse", 1)) { return; }
     std::vector<gr_rule> gr_rule_list
             = std::vector<gr_rule> {bypass_preop_fusion_rule};
+    // std::vector<gr_rule> gr_rule_list
+    // = std::vector<gr_rule> {bypass_preop_fusion_rule};
     if (ctx->flags_.mixed_fusion_) {
         gr_rule_list.emplace_back(nearby_input_reorder_rule);
     }

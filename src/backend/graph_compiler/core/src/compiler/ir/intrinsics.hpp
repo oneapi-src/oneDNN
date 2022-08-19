@@ -21,7 +21,6 @@
 #include <string>
 #include <vector>
 #include "sc_expr.hpp"
-#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <util/any_map.hpp>
 namespace sc {

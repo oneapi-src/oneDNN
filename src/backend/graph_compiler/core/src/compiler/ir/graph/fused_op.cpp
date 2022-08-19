@@ -33,13 +33,16 @@
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/matmul_core.hpp>
 #include <runtime/config.hpp>
@@ -309,7 +312,6 @@ sc_op_ptr find_first_dispatch_op(const std::vector<sc_op_ptr> &ops) {
     for (auto &op : ops) {
         if (can_op_be_dispatched(op)) { return op; }
     }
-    COMPILE_ASSERT(false, "Invalid input ops");
     return nullptr;
 }
 
@@ -751,14 +753,48 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
         auto shape_tsr = builder::make_tensor(
                 "dyn_shape_tsr_" + std::to_string(inner_tsr_count),
                 {in->details_.get_plain_dims().size()}, datatypes::index);
+        shape_tsr->attr().set(attr_keys::no_dead_write, true);
+        shape_tsr->attr().set(attr_keys::no_tensor2var, true);
+        std::vector<uint64_t> init_format
+                = {uint64_t(in->details_.get_format().to_runtime())};
+        bool fmt_init = in->details_.get_format_candidates().size() <= 1;
         auto out_fmt = builder::make_tensor(
                 "format_" + std::to_string(inner_tsr_count), {1UL},
-                datatypes::index);
+                datatypes::index, address_space::automatic,
+                fmt_init ? std::make_shared<static_data_t>(init_format)
+                         : nullptr);
         bld.push_var_tensor_def(rtsr);
         bld.push_var_tensor_def(shape_tsr);
         bld.push_evaluate(builder::make_write_struct(rtsr, shape_tsr,
                 dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dim_ptr));
-        bld.push_var_tensor_def(out_fmt);
+        bld.push_evaluate(builder::make_write_struct(rtsr,
+                builder::make_constant(
+                        {in->details_.get_plain_dims().size()}, datatypes::s32),
+                dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::ndims));
+        uint64_t etype = in->details_.dtype_.is_etype_pointer()
+                ? in->details_.dtype_.get_pointer_element().as_etype_int()
+                : in->details_.dtype_.as_etype_int();
+        bld.push_evaluate(builder::make_write_struct(rtsr,
+                builder::make_constant({etype}, datatypes::u32),
+                dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dtype));
+        auto plain_shapes
+                = get_owner_graph().dims_to_expr(in->details_.get_plain_dims());
+        uint64_t dyn_mask_int = 0;
+        for (size_t i = 0; i < plain_shapes.size(); i++) {
+            bld.push_assign(
+                    builder::make_indexing(shape_tsr, {i}), plain_shapes[i]);
+            dyn_mask_int |= ((!plain_shapes[i].isa<constant>()) << i);
+        }
+        bld.push_evaluate(builder::make_write_struct(rtsr,
+                builder::make_constant({dyn_mask_int}, datatypes::u8),
+                dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dyn_mask));
+        if (fmt_init) {
+            modu->add_global_var(builder::make_var_tensor_def_unattached(
+                    out_fmt, linkage::private_global)
+                                         .checked_as<define>());
+        } else {
+            bld.push_var_tensor_def(out_fmt);
+        }
         inner_tsr_count++;
         auto ret = tsr_info_t(rtsr, expr(), out_fmt, dummy_size);
         ltsr2rtsr[in] = ret;
@@ -767,6 +803,7 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
     auto need_inner_query = [&](const sc_op_ptr &node, int &main_idx) {
         auto &inputs = node->get_inputs();
         auto &outputs = node->get_outputs();
+        if (node->get_dispatch_key_set()->set_.size() <= 1) { return false; }
         for (size_t i = 0; i < inputs.size(); i++) {
             auto &in = inputs[i];
             if (!(visited[in]
@@ -847,7 +884,7 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             op_ins[i] = get_or_create_tsr_and_fmt(op->get_inputs()[i]);
         }
         if (op->isa<input_op>() || op->isa<output_op>()
-                || op->isa<tensor_view_op_t>() || op->isa<constant_op_t>()) {
+                || op->isa<constant_op_t>()) {
             continue;
         }
         expr cur_kernel = dummy_kernel;
@@ -902,6 +939,21 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             bld.push_evaluate(builtin::call_reorder_op_query_format(table_var,
                     op_outs[0].tensor_, op_ins[0].tensor_, op_outs[0].format_,
                     op_ins[0].format_, op_outs[0].size_, cur_kernel));
+        } else if (op->isa<reduce_op_t>()) {
+            // always query
+            add_global_table_var(table_name, table_ptr, table_var);
+            initialize_format_table_with_op(op, table_ptr);
+            bld.push_evaluate(builtin::call_reduce_op_query_format(table_var,
+                    op_outs[0].tensor_, op_ins[0].tensor_, op_outs[0].format_,
+                    op_ins[0].format_, op_outs[0].size_, cur_kernel));
+        } else if (op->isa<tensor_view_op_t>()) {
+            // always query
+            add_global_table_var(table_name, table_ptr, table_var);
+            initialize_format_table_with_op(op, table_ptr);
+            bld.push_evaluate(builtin::call_tensor_view_op_query_format(
+                    table_var, op_outs[0].tensor_, op_ins[0].tensor_,
+                    op_outs[0].format_, op_ins[0].format_, op_outs[0].size_,
+                    cur_kernel));
         } else {
             COMPILE_ASSERT(false,
                     "Currently dynamic fusbile op only support unary/binary.");
@@ -946,19 +998,23 @@ void fused_op_t::update_internal_graph_format(const op_dispatch_key_t &key) {
         top->set_config_by_key(key);
         top->info_.cur_impl_ = key.impl_;
         // tunable op output
+        auto &out_format = key.in_out_formats_[inputs.size()];
+        main_op_.ops_[1]->get_outputs()[0]->details_.set_format(out_format);
         mgr_->get_graph().ops_[0]->get_outputs()[0]->details_.set_format(
-                key.in_out_formats_[inputs.size()]);
+                out_format);
     } else {
         auto num_set = key.in_out_formats_.size() - 1;
         auto inputs = mgr_->get_graph().get_input_ops();
+        auto &node_inputs = get_inputs();
         assert(inputs.size() >= num_set);
         for (size_t i = 0; i < num_set; i++) {
             inputs[i]->get_outputs()[0]->details_.set_format(
                     key.in_out_formats_[i]);
+            node_inputs[i]->details_.set_format(key.in_out_formats_[i]);
         }
     }
     auto &inner_graph = mgr_->get_graph();
-    inner_graph.attrs_.set("allow_dynamic", false);
+    inner_graph.attrs_.set("insert_reorder", false);
     inner_graph.attrs_.set("is_output_plain", false);
     layout_propagation(inner_graph);
     // update impl_type

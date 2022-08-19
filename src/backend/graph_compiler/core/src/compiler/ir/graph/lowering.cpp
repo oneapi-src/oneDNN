@@ -24,6 +24,7 @@
 #include "fusible_op.hpp"
 #include "graph.hpp"
 #include "pass/pass.hpp"
+#include "runtime_op.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
@@ -39,6 +40,7 @@
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <microkernel/builtin.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <ops/matmul_core.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <unordered_map>
@@ -432,6 +434,14 @@ expr call_op_dynamic_query_function(
         assert(args.size() == 7);
         return builtin::call_reorder_op_query_format(
                 args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else if (op->isa<reduce_op_t>()) {
+        assert(args.size() == 7);
+        return builtin::call_reduce_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else if (op->isa<tensor_view_op_t>()) {
+        assert(args.size() == 7);
+        return builtin::call_tensor_view_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
     } else {
         COMPILE_ASSERT(
                 false, "unsupported op query function: " << op->op_name_);
@@ -485,27 +495,6 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         bool is_arg, int const_type,
         info_etype_t type = info_etype_t::real_tensor) {
     bool tsr_is_dynamic = t->details_.is_dynamic();
-    auto itr = gp.ltsr_rtsr.find(t);
-    if (itr == gp.ltsr_rtsr.end()) {
-        gp.ltsr_rtsr[t] = tsr_info_t();
-        itr = gp.ltsr_rtsr.find(t);
-        itr->second.count_ = gp.tensor_counter++;
-    } else {
-        if (type == info_etype_t::real_tensor
-                && itr->second.tensor_.defined()) {
-            return itr->second.tensor_;
-        }
-        if (type == info_etype_t::placeholder
-                && itr->second.placeholder_.defined()) {
-            return itr->second.placeholder_;
-        }
-        if (type == info_etype_t::format && itr->second.format_.defined()) {
-            return itr->second.format_;
-        }
-        if (type == info_etype_t::out_size && itr->second.size_.defined()) {
-            return itr->second.size_;
-        }
-    }
     sc_op *linked_output = nullptr;
     if (!is_arg) {
         for (auto &use : t->uses_) {
@@ -522,13 +511,37 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         if (gp.is_graph_dynamic) {
             COMPILE_ASSERT(t->details_.get_format_candidates().size() <= 1,
                     "Input/output/constant tsr should have only empty or "
-                    "one "
-                    "format candidate");
+                    "one format candidate");
         }
         if (type == info_etype_t::placeholder) {
             type = info_etype_t::real_tensor;
         }
     }
+    auto itr = gp.ltsr_rtsr.find(t);
+    if (itr == gp.ltsr_rtsr.end()) {
+        gp.ltsr_rtsr[t] = tsr_info_t();
+        itr = gp.ltsr_rtsr.find(t);
+        itr->second.count_ = gp.tensor_counter++;
+    } else {
+        if (type == info_etype_t::real_tensor
+                && itr->second.tensor_.defined()) {
+            if (gp.is_graph_dynamic) {
+                itr->second.tensor_->attr().set(attr_keys::always_trans, true);
+            }
+            return itr->second.tensor_;
+        }
+        if (type == info_etype_t::placeholder
+                && itr->second.placeholder_.defined()) {
+            return itr->second.placeholder_;
+        }
+        if (type == info_etype_t::format && itr->second.format_.defined()) {
+            return itr->second.format_;
+        }
+        if (type == info_etype_t::out_size && itr->second.size_.defined()) {
+            return itr->second.size_;
+        }
+    }
+
     std::vector<expr> dims, strides;
     sc_data_type_t tsr_dtype;
     expr tsr;
@@ -563,9 +576,9 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         itr->second.tensor_ = tsr;
         if (is_arg || const_type != const_kind::not_const) {
             itr->second.placeholder_ = tsr;
-            if (gp.is_graph_dynamic) {
-                tsr->attr().set(attr_keys::always_trans, true);
-            }
+        }
+        if (gp.is_graph_dynamic) {
+            tsr->attr().set(attr_keys::always_trans, true);
         }
     } else if (type == info_etype_t::placeholder) {
         if (itr->second.tensor_.defined()) {
@@ -582,7 +595,7 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         }
     } else if (type == info_etype_t::format) {
         tensor_name += "_format";
-        if (is_arg || const_type != const_kind::not_const) {
+        if (t->details_.get_format_candidates().size() <= 1) {
             std::vector<uint64_t> init_format
                     = {uint64_t(t->details_.get_format().to_runtime())};
             tsr = builder::make_tensor(tensor_name, {UINT64_C(1)},
@@ -631,10 +644,6 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                     gp.init_body->seq_.emplace_back(def_node);
                 }
             } else {
-                if (tsr_is_dynamic) {
-                    assert(itr->second.placeholder_.defined()
-                            && itr->second.format_.defined());
-                }
                 def_node = builder::make_var_tensor_def_unattached(tsr);
                 gp.func_body->seq_.emplace_back(def_node);
             }
@@ -701,18 +710,22 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         }
     } else if (type == info_etype_t::format) {
         // placeholder can be replaced by tensor while format can't
-        if (is_arg || const_type != const_kind::not_const) {
+        if (tsr.checked_as<tensor>()->init_value_) {
             gp.ret_mod->add_global_var(builder::make_var_tensor_def_unattached(
                     tsr, linkage::private_global)
                                                .checked_as<define>());
         } else {
             gp.func_body->seq_.emplace_back(
                     builder::make_var_tensor_def_unattached(tsr));
+            gp.func_body->seq_.emplace_back(builder::make_assign_unattached(
+                    builder::make_indexing(tsr, {0}), UINT64_C(0)));
         }
     } else if (type == info_etype_t::out_size) {
         if (const_type == const_kind::not_const) {
             gp.func_body->seq_.emplace_back(
                     builder::make_var_tensor_def_unattached(tsr));
+            gp.func_body->seq_.back()->attr().set(
+                    attr_keys::tsr_dont_buf_sched, true);
         }
     }
     return tsr;
@@ -736,7 +749,7 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
     // input before reorder
     if (node->isa<tunable_op_t>()
             || (node->isa<fused_op_t>()
-                    && !node->stc_cast<fused_op_t>()->main_op_.ops_.empty())) {
+                    && !node->stc_cast<fused_op_t>()->main_op_.empty())) {
         auto &inputs = node->get_inputs();
         auto query_sz = inputs.size();
         if (node->isa<fused_op_t>()) {
@@ -807,7 +820,7 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
     expr dyn_ker_ptr;
     // update dynamic query format
     if (!op_dispatch_kernel[node->logical_op_id_].defined()) {
-        if (!utils::is_one_of(kind, kinput, koutput, kreshape, kconstant)) {
+        if (!utils::is_one_of(kind, kinput, koutput, kconstant)) {
             auto &table_map = gp.ret_mod->get_op_table_map();
             auto func_name = node->op_name_ + "__"
                     + std::to_string(node->logical_op_id_) + "_ptr";
@@ -1038,8 +1051,40 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         } else if (node->isa<tensor_view_op_t>()) {
             kind = kreshape;
         }
+        // fixme(jingze): Use jit instead of runtime op.
+        auto update_runtime_op_args = [&](const sc_op_ptr &node,
+                                              std::vector<expr> &exprargs) {
+            std::vector<graph_tensor_ptr> ins, outs;
+            auto extra_infos
+                    = node->stc_cast<runtime_op_t>()->get_extra_lower_infos(
+                            graph, ret_mod);
+            ins = extra_infos.in_ltsrs_;
+            outs = extra_infos.out_ltsrs_;
+            exprargs.clear();
+            int const_type = node->attrs_.get_or_else(
+                    "constant", const_kind::not_const);
+            for (auto &out : outs) {
+                exprargs.emplace_back(get_or_create_tensor(
+                        gp, out, false, const_type, info_etype_t::real_tensor));
+            }
+            for (auto &in : ins) {
+                exprargs.emplace_back(get_or_create_tensor(
+                        gp, in, false, const_type, info_etype_t::real_tensor));
+            }
+            for (auto &out : outs) {
+                exprargs.emplace_back(get_or_create_tensor(
+                        gp, out, false, const_type, info_etype_t::format));
+            }
+            for (auto &in : ins) {
+                exprargs.emplace_back(get_or_create_tensor(
+                        gp, in, false, const_type, info_etype_t::format));
+            }
+            exprargs.insert(exprargs.end(), extra_infos.attrs_.begin(),
+                    extra_infos.attrs_.end());
+        };
+
         // if the node is reorder, query its uses op first.
-        if (is_graph_dynamic) {
+        if (is_graph_dynamic && node->get_dispatch_key_set()->set_.size() > 1) {
             if (kind == kreorder
                     && node->attrs_.get_or_else(
                                "constant", const_kind::not_const)
@@ -1083,6 +1128,10 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 std::vector<expr> exprargs;
                 exprargs.insert(exprargs.end(), outs.begin(), outs.end());
                 exprargs.insert(exprargs.end(), ins.begin(), ins.end());
+                if (node->isa<runtime_op_t>()) {
+                    exprargs.clear();
+                    update_runtime_op_args(node, exprargs);
+                }
                 expr kernel_call;
                 std::string callee_name;
                 bool need_dispatch
@@ -1124,7 +1173,11 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     auto mod = node->get_func(ctx);
                     ret_mod->merge(*mod);
                     auto callee = mod->get_entry_func();
-                    if (is_graph_dynamic) {
+                    if (!callee) {
+                        // runtime op
+                        assert(mod->attr_.has_key("temp.runtime_func"));
+                        callee = mod->attr_.get<func_t>("temp.runtime_func");
+                    } else if (is_graph_dynamic) {
                         callee->attr().set(attr_keys::always_trans, true);
                         callee->decl_->attr().set(
                                 attr_keys::always_trans, true);

@@ -55,6 +55,8 @@ create_default_graph_flow(const context_ptr &ctx) {
             "graph_inline", graph_inline, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass("constant_optimization",
             constant_optimization, {}, pass_type::pre_tune, true));
+    pre_tune_passes.push_back(create_graph_pass("dynamic_graph_transform",
+            dynamic_graph_transform, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass("quantized_info_propagation",
             quantize::quantize_info_propagation, {}, pass_type::pre_tune,
             true));

@@ -463,6 +463,8 @@ static void do_batchwise_merge(
 }
 
 void batchwise_merge(sc_graph_t &graph, const context_ptr &ctx) {
+    // todo: find out how to support this pass in dynamic
+    if (graph.is_dynamic()) { return; }
     if (!graph.attrs_.get_or_else("temp.fuse", 1)) { return; }
     bw_merge_map bw_map;
     init_batchwise_merge(ctx, graph, bw_map);

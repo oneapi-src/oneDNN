@@ -23,21 +23,22 @@ namespace sc {
 static void check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
         runtime::dynamic_tensor_t *in1, runtime::dispatch_key *in0_fmt_st,
         runtime::dispatch_key *in1_fmt_st, runtime::dispatch_key *out_fmt_st) {
-    int impl_alg = impl_etype_t::no_padding;
+    int impl_alg = impl_kind_t::no_padding;
     int simd_length = std::min(UINT64_C(16),
             static_cast<uint64_t>(runtime::get_runtime_target_machine()
                                           .cpu_flags_.get_max_vector_lanes(
                                                   sc_data_etype(in0->dtype_))));
     for (int i = 0; i < in0->ndims_; i++) {
-        if (in0->dims_[i] % simd_length && !(i == 0 && in0->dims_[i] == 1)) {
-            impl_alg = impl_etype_t::normal;
+        if (!(in0->dims_[i] == 1 || in0->dims_[i] % simd_length == 0)) {
+            impl_alg = impl_kind_t::normal;
+            break;
         }
     }
-    if (impl_alg == impl_etype_t::no_padding && in1) {
+    if (impl_alg == impl_kind_t::no_padding && in1) {
         for (int i = 0; i < in1->ndims_; i++) {
-            if (in1->dims_[i] % simd_length
-                    && !(i == 0 && in1->dims_[i] == 1)) {
-                impl_alg = impl_etype_t::normal;
+            if (!(in1->dims_[i] == 1 || in1->dims_[i] % simd_length == 0)) {
+                impl_alg = impl_kind_t::normal;
+                break;
             }
         }
     }
@@ -45,6 +46,7 @@ static void check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
     out_fmt_st->set_impl_alg(impl_alg);
     if (in1_fmt_st) { in1_fmt_st->set_impl_alg(impl_alg); }
 }
+
 extern "C" void query_format_unary_fusible_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel) {
     // update output shape and mask.
@@ -74,6 +76,9 @@ extern "C" void query_format_unary_fusible_op(void *table, void *out, void *in,
     *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
 }
 
+// we have partern like a fused op connected before two reorders, when we query
+// the first reorder, we query the fused op first, the shape of dyn tsr of
+// second reorder's output is unknown.
 extern "C" void query_format_binary_fusible_op(void *table, void *out,
         void *in0, void *in1, uint64_t *out_fmt, uint64_t *in0_fmt,
         uint64_t *in1_fmt, uint64_t *out_size, void *kernel) {
@@ -140,14 +145,12 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     // query kernel
     auto &kernel_table = op_table->kernel_table_;
     // reset blocks for plain format
-    runtime::dispatch_key tmp_fmt = *out_fmt;
-    //     if (tmp_fmt.is_plain()) { tmp_fmt.reset_blocks(); }
     if (kernel_table) {
-        uint64_t keys[2] = {*in_fmt, tmp_fmt};
         auto *in_fmt_st = reinterpret_cast<runtime::dispatch_key *>(in_fmt);
         auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(out_fmt);
         check_and_set_fusible_impl(
-                in_dyn_tsr, nullptr, in_fmt_st, nullptr, out_fmt_st);
+                in_dyn_tsr, out_dyn_tsr, in_fmt_st, out_fmt_st, out_fmt_st);
+        uint64_t keys[2] = {*in_fmt_st, *out_fmt_st};
         void *func
                 = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 2);
         assert(func);
@@ -163,4 +166,49 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     }
 }
 
+extern "C" void query_format_reduce_op(void *table, void *out, void *in,
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel) {
+    // update output shape and mask.
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+
+    runtime::op_dispatch_tables_t *op_table
+            = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
+    // query format
+    auto &format_table = op_table->format_table_;
+    assert(format_table);
+    void *value = format_table->get(in_fmt, 1);
+    assert(value);
+    *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    // query kernel
+    auto &kernel_table = op_table->kernel_table_;
+    // reset blocks for plain format
+    runtime::dispatch_key tmp_fmt = *out_fmt;
+    //     if (tmp_fmt.is_plain()) { tmp_fmt.reset_blocks(); }
+    if (kernel_table) {
+        uint64_t keys[2] = {*in_fmt, tmp_fmt};
+        void *func
+                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 2);
+        assert(func);
+        *reinterpret_cast<void **>(kernel) = func;
+    }
+    // query inplace
+    *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
+}
+
+extern "C" void query_format_tensor_view_op(
+        void *table, void *out, void *in, uint64_t *out_fmt, uint64_t *in_fmt) {
+    // only query format for tensor view
+    runtime::op_dispatch_tables_t *op_table
+            = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
+    // query format
+    auto &format_table = op_table->format_table_;
+    assert(format_table);
+    void *value = format_table->get(in_fmt, 1);
+    assert(value);
+    *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    // query kernel
+    auto &kernel_table = op_table->kernel_table_;
+    assert(!kernel_table);
+}
 } // namespace sc

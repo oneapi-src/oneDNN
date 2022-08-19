@@ -151,12 +151,12 @@ void ssa_visitor_t::mark_garbage() {
     }
 }
 
-static var_node *get_var_if_is_define(const stmt_c &s) {
+static expr_base *get_var_if_is_define(const stmt_c &s) {
     if (s.isa<define>()) {
         auto def = s.static_as<define>();
-        if (def->var_.isa<var>() && def->var_->ssa_data_) {
+        if (def->var_->ssa_data_) {
             // assert(def->var_->ssa_data_);
-            return def->var_.static_as<var>().get();
+            return def->var_.get();
         }
     }
     return nullptr;

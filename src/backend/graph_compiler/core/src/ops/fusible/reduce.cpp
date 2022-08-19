@@ -64,9 +64,11 @@ bool slice_full_on_axes(
     for (auto &ax : axes) {
         auto first = do_cast_and_fold(ranges[ax].first);
         auto second = do_cast_and_fold(ranges[ax].second);
-        if (!first.isa<constant>() || !second.isa<constant>()) { return false; }
+        if (!first.isa<constant>()) { return false; }
         if (get_const_as_int(first.checked_as<constant>()) != 0
-                || get_const_as_int(second.checked_as<constant>()) != dim[ax]) {
+                || (second.isa<constant>()
+                        && get_const_as_int(second.checked_as<constant>())
+                                != dim[ax])) {
             return false;
         }
     }
@@ -383,7 +385,7 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
         const tensor_slice &dst, reduce_operator rd_op,
         std::vector<int> rd_axis, bool keep_dims,
         const vectorized_info_t &vx_info, sc_data_type_t dtype,
-        any_map_t &attrs, size_t wkld = 0UL) {
+        any_map_t &attrs, size_t wkld = 0UL, bool is_dynamic = false) {
     // nested loop vars
     std::vector<expr> iter_vars;
     // the indices for multiple inputs. First dim: the input, Second
@@ -545,6 +547,15 @@ std::vector<int> reduce_op_t::get_rd_axis() const {
     return transform_axis_plain2blocking(info_.inputs_[0], plain_rd_axis_);
 }
 
+int reduce_op_t::get_compressed_rd_axis_int() const {
+    auto rd_axis = get_rd_axis();
+    int ret = 0;
+    for (auto &rd : rd_axis) {
+        ret |= (1 << rd);
+    }
+    return ret;
+}
+
 sc_dims reduce_op_t::get_bwise_fuse_shrink_dims() {
     if (!keep_dims_) return {};
     auto real_rd_axis = get_rd_axis();
@@ -607,8 +618,11 @@ void reduce_op_t::compute_block(context_ptr ctx,
     vx_info_.axis = dst[0]->get_shape().size() - 1;
     vx_info_.lanes = 1;
     // TODO(xxx): need more detailed judgement for `last_dim = 1` case
-    int last_dim = get_const_as_int(
-            inputs[0]->get_shape().back().checked_as<constant_c>());
+    int last_dim = 1;
+    auto &dim_tmp = inputs[0]->get_shape().back();
+    if (dim_tmp.isa<constant>()) {
+        last_dim = get_const_as_int(dim_tmp.checked_as<constant_c>());
+    }
     auto vector_lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
     if (last_dim / vector_lanes && last_dim % vector_lanes == 0) {
@@ -616,7 +630,8 @@ void reduce_op_t::compute_block(context_ptr ctx,
     }
 
     compute_block_reduce(inputs, *dst[0], rd_op_, real_rd_axis, keep_dims_,
-            vx_info_, info_.inputs_[0]->details_.dtype_, attrs_, wkld);
+            vx_info_, info_.inputs_[0]->details_.dtype_, attrs_, wkld,
+            is_dynamic());
 }
 
 size_t reduce_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
@@ -915,7 +930,7 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
         return builder::make_assign_unattached(indexing_nd, result);
     };
 
-    compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
+    compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_, vx_info_,
             mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
             false, inputs[0], /*unroll*/ local_mode_);
 }
@@ -984,9 +999,9 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
                     out_nd->idx_.begin(), builtin::get_thread_id_func()());
             return builder::make_assign_unattached(out[0], in[0]);
         };
-        compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
-                mask_compute_func_t(func), mask_compute_func_t(func), attrs_, 0,
-                false, dst[0], /*unroll*/ true);
+        compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
+                vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
+                attrs_, 0, false, dst[0], /*unroll*/ true);
     } else if (op_ == LAST_AXIS_COLLECT) {
         // set default vectorized information
         auto &real_rd_axis = get_rd_axis();
@@ -1022,9 +1037,9 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             return builder::make_assign_unattached(out[0], result);
         };
 
-        compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
-                mask_compute_func_t(func), mask_compute_func_t(func), attrs_, 0,
-                false, dst[0]);
+        compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
+                vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
+                attrs_, 0, false, dst[0]);
     } else {
         builder::get_current_builder()->emit(
                 builder::make_stmts_unattached({}));

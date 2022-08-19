@@ -224,6 +224,7 @@ public:
     const std::vector<graph_tensor_ptr> &get_outputs() const {
         return info_.outputs_;
     }
+
     virtual const dispatch_set_ptr &get_dispatch_key_set() const;
     virtual dispatch_set_ptr &get_dispatch_key_set();
 

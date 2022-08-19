@@ -17,6 +17,7 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_DYNAMIC_TENSOR_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_DYNAMIC_TENSOR_HPP
 #include <stdint.h>
+#include "../data_type.hpp"
 #include <compiler/dimensions.hpp>
 namespace sc {
 namespace runtime {

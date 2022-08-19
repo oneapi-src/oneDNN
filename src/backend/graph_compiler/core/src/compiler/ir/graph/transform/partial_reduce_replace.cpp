@@ -23,7 +23,7 @@ namespace sc {
 
 void partial_reduce_replace(sc_graph_t &graph, const context_ptr &ctx) {
     auto num_threads = runtime_config_t::get().get_num_threads();
-    if (num_threads <= 1) { return; }
+    if (num_threads <= 1 || graph.is_dynamic()) { return; }
     auto ops = graph.ops_;
     for (auto &op : ops) {
         if (auto rdop = op->dyn_cast<reduce_op_t>()) {

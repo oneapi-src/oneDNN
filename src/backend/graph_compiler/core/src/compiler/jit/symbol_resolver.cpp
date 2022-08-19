@@ -22,7 +22,7 @@
 #endif
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
-#include <runtime/dynamic_dispatch/op_query.hpp>
+#include <runtime/dynamic_dispatch/op_func_decl.hpp>
 #include <runtime/memorypool.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
@@ -83,6 +83,11 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"query_format_binary_fusible_op",
                     (void *)query_format_binary_fusible_op},
             {"query_format_reorder_op", (void *)query_format_reorder_op},
+            {"query_format_reduce_op", (void *)query_format_reduce_op},
+            {"query_format_tensor_view_op",
+                    (void *)query_format_tensor_view_op},
+            {"calculate_shape_of_tensor_op",
+                    (void *)calculate_shape_of_tensor_op},
     };
     return table;
 }

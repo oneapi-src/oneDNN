@@ -184,6 +184,7 @@ expr make_select_by_mask(const expr &lhs_vec, const expr &cur_index,
 
 /** Determine whether masks are needed during elementwise computation and
  * generate conditional expressions for the mask
+ * @param graph the graph
  * @param src input slice
  * @param plain_dims plain shapes
  * @param format input format
@@ -194,7 +195,7 @@ expr make_select_by_mask(const expr &lhs_vec, const expr &cur_index,
  * @param last_axis_mask mask count, how many elements should be computed in
  * this time. -1 means all.
  * */
-void compute_mask_and_generate_condition(
+void compute_mask_and_generate_condition(sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,
         sc_data_format_t format, const std::vector<expr> &iter_vars, int lanes,
         std::unordered_map<expr, std::pair<expr, expr>> &conditions,
@@ -230,7 +231,7 @@ void compute_mask_and_generate_condition(
                             * format.blocks_[blocks[b]];
         }
         conditions[iter_vars[block_dim]].second
-                = dim2unsigned(plain_dims[orig_dim]);
+                = graph.dim_to_expr(plain_dims[orig_dim]);
         COMPILE_ASSERT(padding_count < 2,
                 "Currently we don't support multi-level padding mask.");
         if (block_dim == format_code.ndims() - 1) {
@@ -296,9 +297,9 @@ void create_fusible_output_anchor(stmt &parent, const tensor_slice &dst,
     parent = make_stmt<stmts_node_t>(std::move(ss));
 }
 
-void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, sc_op_info_t &info,
-        const vectorized_info_t &vx_info,
+void compute_vectorized_op(sc_graph_t &graph,
+        const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
+        sc_op_info_t &info, const vectorized_info_t &vx_info,
         const mask_compute_func_t &compute_lanes,
         const mask_compute_func_t &compute_scalar, any_map_t &attrs,
         size_t wkld, bool use_mask, const tensor_slice *expand_loop_by,
@@ -353,21 +354,24 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
             = {expr::lvalue_proxy_t(indexed_target_floor, false)};
     std::vector<expr::lvalue_proxy_t> target_tail
             = {expr::lvalue_proxy_t(indexed_target_tail, false)};
-    auto len_tmp
-            = do_cast_and_fold(expand_loop_by->get_shape().at(vx_info.axis));
-    auto slice_len = get_const_as_int(len_tmp.static_as<constant>());
-    int floor = slice_len / vx_info.lanes * vx_info.lanes;
-    int tail = slice_len % vx_info.lanes;
+    int lanes = static_cast<int>(vx_info.lanes);
+    auto slice_len = expand_loop_by->get_shape().at(vx_info.axis);
+    auto floor = do_cast_and_fold(slice_len / lanes * lanes);
+    auto tail = do_cast_and_fold(slice_len % lanes);
+    int floor_int = 0;
+    int tail_int = 0;
+    if (floor.isa<constant>()) { floor_int = get_expr_as_int(floor); }
+    if (tail.isa<constant>()) { tail_int = get_expr_as_int(tail); }
     int last_axis_mask = -1;
     std::unordered_map<expr, std::pair<expr, expr>> conditions;
     if (use_mask) {
-        compute_mask_and_generate_condition(src,
+        compute_mask_and_generate_condition(graph, src,
                 info.inputs_[0]->details_.get_plain_dims(),
                 info.inputs_[0]->details_.get_format(), iter_vars,
                 vx_info.lanes, conditions, last_axis_mask);
     }
-    if (last_axis_mask != -1 && floor > 0) {
-        COMPILE_ASSERT(tail == 0,
+    if (last_axis_mask != -1 && floor_int > 0) {
+        COMPILE_ASSERT(tail_int == 0,
                 "Currently we only support mask in vectorize compute not "
                 "tail.");
     }
@@ -379,7 +383,7 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
         stmt body;
         // currently vx_axis should be last axis
         if (loop_size == vx_info.axis + 1 && i == vx_info.axis) {
-            if (floor) {
+            if (!floor.isa<constant>() || floor_int) {
                 bld->push_scope();
                 auto cond_it = conditions.find(iter_vars[i]);
                 if (cond_it != conditions.end()) {
@@ -395,11 +399,11 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                 bld->emit(cur);
                 stmt s = bld->pop_scope();
                 auto ss = std::vector<stmt> {s};
-                if (!tail) // create fusible output anchor as demand
+                if (!tail_int) // create fusible output anchor as demand
                     create_fusible_output_anchor(
                             ss, dst, iter_vars, {i + 1}, vx_info, attrs);
                 cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
-                        expr(floor), expr(int(vx_info.lanes)),
+                        floor, expr(int(vx_info.lanes)),
                         ss.size() > 1 ? make_stmt<stmts_node_t>(std::move(ss))
                                       : s,
                         true, for_type::NORMAL);
@@ -408,15 +412,15 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                 }
                 tcur.emplace_back(cur);
             }
-            if (tail) {
+            if (!tail.isa<constant>() || tail_int) {
                 bld->push_scope();
                 cur = compute_scalar(indexed_input_tail, target_tail);
                 cur->attr()[op_traits::workload_computable_t::workload_number]
                         = wkld;
                 bld->emit(cur);
-                cur = make_stmt<for_loop_node_t>(tail_var, expr(floor),
-                        expr(floor + tail), expr(1), bld->pop_scope(), true,
-                        for_type::NORMAL);
+                cur = make_stmt<for_loop_node_t>(tail_var, floor,
+                        do_cast_and_fold(floor + tail), expr(1),
+                        bld->pop_scope(), true, for_type::NORMAL);
                 if (unroll_inner_loop) {
                     cur->attr()[stmt_attr_key::unroll_loop] = 0;
                 }
@@ -484,8 +488,9 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
 
 size_t get_dims_product(const sc_dims &dims) {
     sc_dim ret = 1;
+    // todo: find out how to use this function in dynamic cases.
     for (unsigned i = 0; i < dims.size(); ++i) {
-        ret *= dims[i];
+        if (!is_dynamic_dim(dims[i])) { ret *= dims[i]; }
     }
     assert(ret > 0 && "Overflow or non-constant shape detected");
     return ret;

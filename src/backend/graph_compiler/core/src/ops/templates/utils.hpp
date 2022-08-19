@@ -108,8 +108,7 @@ std::vector<T> merge_vec(const std::vector<T> &a, const std::vector<T> &b) {
 }
 
 inline std::vector<int> get_dynamic_block_candidates(bool has_48 = true) {
-  return has_48 ? std::vector<int> {16, 32, 48, 64}
-                : std::vector<int> {16, 32, 64};
+  return has_48 ? std::vector<int> {32, 64} : std::vector<int> {32, 64};
 }
 } // namespace ops
 } // namespace sc

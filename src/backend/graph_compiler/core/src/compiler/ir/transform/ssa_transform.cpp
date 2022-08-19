@@ -71,7 +71,17 @@ public:
     std::vector<ssa_scope_t> scopes_;
     // if the current expr needs to be flatten in dispatch()
     bool need_flatten_ = true;
-
+    expr add_ssa_def(const expr_c &ret) {
+        // if is global variable, add a "load instance"
+        auto newret = add_def(ret);
+        // copy the function pointer prototype
+        if (newret->dtype_ == datatypes::pointer && ret->attr_) {
+            if (auto proto = ret->attr_->get_or_else("prototype", func_t())) {
+                newret->attr()["prototype"] = proto;
+            }
+        }
+        return newret;
+    }
     ssa_scope_t &push_scope(ssa_scope_t::kind k) {
         int for_depth;
         if (scopes_.empty()) {
@@ -145,7 +155,7 @@ public:
         need_flatten_ = true;
         auto ret = ssa_visitor_t::dispatch(std::move(f));
         if (old_need_flatten && !ret.isa<var>() && !ret.isa<tensor>()) {
-            return add_def(ret);
+            return add_ssa_def(ret);
         }
         return ret;
     }
@@ -178,7 +188,7 @@ public:
                     > scopes_[ret->defined_scope_idx].for_depth_) {
                 // if the variable depends on a value created outside the
                 // current for loop
-                auto phi = add_def(make_expr<ssa_phi_node>(
+                auto phi = add_ssa_def(make_expr<ssa_phi_node>(
                         std::vector<expr> {ret->current_value}, false));
                 rename_temp_var_with_version(phi.checked_as<var>(), v);
                 // update the local var mapping to the phi node
@@ -188,17 +198,7 @@ public:
                 return phi;
             }
         } else {
-            // if is global variable, add a "load instance"
-            auto newret = add_def(ret->current_value);
-            // copy the function pointer prototype
-            if (newret->dtype_ == datatypes::pointer
-                    && ret->current_value->attr_) {
-                if (auto proto = ret->current_value->attr_->get_or_else(
-                            "prototype", func_t())) {
-                    newret->attr()["prototype"] = proto;
-                }
-            }
-            return newret;
+            return add_ssa_def(ret->current_value);
         }
         return ret->current_value;
     }

@@ -58,7 +58,7 @@ static int64_t get_loop_range(const for_loop &loop) {
             / get_const_as_int(loop->step_.checked_as<constant>());
 }
 
-static void fuse_outer_loops(for_loop outer_loop) {
+static void fuse_outer_loops(for_loop outer_loop, bool is_dynamic = false) {
     assert(outer_loop.defined());
     const int max_fused_number = runtime_config_t::get().get_num_threads() * 10;
     for_loop cur_loop = std::move(outer_loop);
@@ -69,7 +69,18 @@ static void fuse_outer_loops(for_loop outer_loop) {
     }
     if (!loop_can_be_fused(loops[0])) { return; }
     int64_t fused_number = get_loop_range(loops[0]);
-    for (size_t i = 1; i < loops.size() - 1; i++) {
+    size_t end = loops.size() - 1;
+    if (is_dynamic) {
+        // todo: for vnni reorder
+        if (loops.back()->iter_end_.isa<constant>()
+                && loops.back()->iter_begin_.isa<constant>()
+                && (get_expr_as_int(loops.back()->iter_end_)
+                           - get_expr_as_int(loops.back()->iter_begin_))
+                        < 16) {
+            end = loops.size() - 2;
+        }
+    }
+    for (size_t i = 1; i < end; i++) {
         if (fused_number != dimensions::dynamic_any
                 && fused_number >= max_fused_number) {
             break;
@@ -177,10 +188,11 @@ static std::vector<int> move_reduce_axis_to_inner(
          * applied to achieve best performance*/
 
         // need check parallel_num
-        if (!axis_can_be_sort(graph,
-                    (parallel_num < run_threads)
-                            && !node->attrs_.get_or_else(
-                                    op_attr_key::bwise_fuse, false))) {
+        if (!graph.is_dynamic()
+                && !axis_can_be_sort(graph,
+                        (parallel_num < run_threads)
+                                && !node->attrs_.get_or_else(
+                                        op_attr_key::bwise_fuse, false))) {
             can_move = false;
             return;
         }
@@ -212,11 +224,15 @@ static std::vector<int> continuous_access_satisfaction(
     constexpr int cache_line_size = 64;
     int fill_up_dim = static_cast<int>(tsr->dims_.size()) - 1;
     int dtype_size = utils::get_sizeof_type(tsr->elem_dtype_);
-    int cur_load_size = get_expr_as_int(tsr->dims_[fill_up_dim]);
+    int cur_load_size = tsr->dims_[fill_up_dim].isa<constant>()
+            ? get_expr_as_int(tsr->dims_[fill_up_dim])
+            : 1;
     while (fill_up_dim > 0 && cur_load_size * dtype_size < cache_line_size) {
         fill_up_dim--;
-        cur_load_size
-                = cur_load_size * get_expr_as_int(tsr->dims_[fill_up_dim]);
+        cur_load_size = cur_load_size
+                * (tsr->dims_[fill_up_dim].isa<constant>()
+                                ? get_expr_as_int(tsr->dims_[fill_up_dim])
+                                : 1);
     }
     // input tensor is too small that can not fill up a cache line.
     // No need to change loop axis.
@@ -437,8 +453,31 @@ void outer_loop_generator_t::schedule_loops(context_ptr ctx, const void *config,
     if (!fors.empty()) {
         l0 = fors.back();
         l0->kind_ = for_type::PARALLEL;
-        for (auto itr = fors.rbegin() + 1; itr != fors.rend(); ++itr) {
-            l0->fuse(*itr);
+        // satisfies the vectorization when there is a reduce op inside when
+        // dynamic.
+        size_t offset = 0;
+        auto is_dynamic = body->attr().get<bool>("temp.is_dynamic");
+        if (is_dynamic) {
+            auto *fusion = body->attr().get<fusion_manager *>(
+                    "temp.fusion_manager_pointer");
+            for (auto &op : fusion->get_graph().ops_) {
+                if (op->isa<reduce_op_t>()) {
+                    auto rd_axis = op->stc_cast<reduce_op_t>()->get_rd_axis();
+                    if (!std::all_of(rd_axis.begin(), rd_axis.end(),
+                                [&fors](const int &x) {
+                                    return x != static_cast<int>(fors.size());
+                                })) {
+                        offset = std::max(offset, rd_axis.size());
+                    }
+                }
+            }
+        }
+        int num_threads = runtime_config_t::get().get_num_threads();
+        if (num_threads > 1 && (fors.size() - offset > 0)) {
+            for (auto itr = fors.rbegin() + 1; itr != fors.rend() - offset;
+                    ++itr) {
+                l0->fuse(*itr);
+            }
         }
     }
     // For anchor outside fors
@@ -463,17 +502,19 @@ bool top_level_anchor_generator_t::generate(context_ptr ctx, const void *config,
 
 void top_level_anchor_generator_t::schedule_loops(context_ptr ctx,
         const void *config, stmt body, std::vector<for_loop> &fors) const {
+    bool is_dynamic = body->attr().get<bool>("temp.is_dynamic");
     if (body.isa<stmts>()) {
         auto body_seqs = body.checked_as<stmts>()->seq_;
         for (size_t i = 0; i < body_seqs.size(); i++) {
             if (body_seqs[i].isa<for_loop>()) {
                 body_seqs[i].static_as<for_loop>()->kind_ = for_type::PARALLEL;
-                fuse_outer_loops(body_seqs[i].checked_as<for_loop>());
+                fuse_outer_loops(
+                        body_seqs[i].checked_as<for_loop>(), is_dynamic);
             }
         }
     } else if (body.isa<for_loop>()) {
         body.checked_as<for_loop>()->kind_ = for_type::PARALLEL;
-        fuse_outer_loops(body.checked_as<for_loop>());
+        fuse_outer_loops(body.checked_as<for_loop>(), is_dynamic);
     }
 }
 
@@ -540,6 +581,9 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
     fmgr->commit(modu, fstate, real_outs, additional_args);
 
     func->body_ = std::move(body);
+    // To get inside ops during schedule loops
+    func->body_->attr().set("temp.is_dynamic", fmgr->get_graph().is_dynamic());
+    func->body_->attr().set("temp.fusion_manager_pointer", fmgr);
     gen->schedule_loops(ctx, nullptr, func->body_, loops);
     // check that if we are using the outer most anchor. If so, print a warning.
 

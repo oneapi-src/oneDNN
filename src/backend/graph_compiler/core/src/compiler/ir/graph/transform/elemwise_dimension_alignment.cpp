@@ -125,8 +125,6 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                         infer_aligned_shape(lhs, rhs,
                                 binary_node->get_plain_bc_axis(), shape,
                                 format);
-                        shape = sc_data_format_t::get_blocking_shapes(
-                                shape, format);
                         if (!shape.empty()) {
                             // insert tensor view
                             auto ret = graph.make("tensor_view",

@@ -155,6 +155,8 @@ public:
             total_wkld = total_wkld
                     + (get_expr_as_int(end) - get_expr_as_int(begin))
                             * body_wkld;
+        } else {
+            total_wkld = memory_access_threshold_per_thread;
         }
         cur_workload = total_wkld;
         changed |= (body_wkld > 0UL);

@@ -186,8 +186,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         info_.outputs_[0]->details_.dtype_ = ins[0]->details_.dtype_;
-        info_.outputs_[0]->details_.set_plain_dims(
-                sc_data_format_t::get_padded_plain_shapes(shapes, format));
+        info_.outputs_[0]->details_.set_plain_dims(shapes);
         info_.outputs_[0]->details_.set_format(format);
         shapes_ = shapes;
     } else {
@@ -208,6 +207,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
                 info_.outputs_[0]->details_.get_plain_dims().size()));
     }
     attrs_["format"] = format;
+    if (is_dynamic()) { attrs_.set(op_attr_key::no_fuse, true); }
 }
 
 tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
@@ -394,9 +394,12 @@ slice_range_list infer_tensor_view_slice(
             }
             total_len *= get_const_as_int(
                     known_ranges[i].second.checked_as<constant_c>());
-            flatten_idx = flatten_idx
-                    + known_ranges[i].first * expr(dim2unsigned(acc_src_dim));
-            acc_src_dim *= src_dims[i];
+            if (!is_dynamic_dim(src_dims[i])) {
+                flatten_idx = flatten_idx
+                        + known_ranges[i].first
+                                * expr(dim2unsigned(acc_src_dim));
+                acc_src_dim *= src_dims[i];
+            }
         }
         // deflatten to new shape
         slice_range reshape_ranges;

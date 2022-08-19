@@ -97,6 +97,7 @@ static void do_inline_graph(
             if (op->isa<op_traits::configurable_t>() && need_tuning) {
                 (*tunable_op_map)[corresponding_node].push_back(op);
             }
+            op->set_owner_graph(&full_graph);
             full_graph.ops_.emplace_back(op);
             op->set_owner_graph(&full_graph);
         }

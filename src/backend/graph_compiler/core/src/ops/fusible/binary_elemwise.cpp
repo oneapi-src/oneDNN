@@ -147,7 +147,7 @@ static slice_range_list infer_broadcast_arg_slice(
 }
 
 static slice_range_list infer_broadcast_slice(slice_range_list known_range_list,
-        std::vector<int> bc_axis, sc_dims bc_dim) {
+        const std::vector<int> &bc_axis, const std::vector<expr> &bc_dim) {
     slice_range_list bc_range_list(known_range_list.size());
     for (size_t i = 0; i < bc_range_list.size(); i++) {
         auto &known_range = known_range_list[i];
@@ -159,7 +159,7 @@ static slice_range_list infer_broadcast_slice(slice_range_list known_range_list,
                 bc_range_list[i].emplace_back(known_range.at(j));
             } else {
                 bc_range_list[i].emplace_back(
-                        std::make_pair(expr(0), dim2unsigned(bc_dim[j])));
+                        std::make_pair(expr(0), bc_dim[j]));
             }
         }
     }
@@ -368,7 +368,8 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
                 slice_range_list bc_range_list = infer_broadcast_slice(
                         known_ranges_map[1 - unknown_idx], bc_axis,
                         get_inputs()[1 - bc_input_idx]
-                                ->details_.get_blocking_dims());
+                                ->details_.get_blocking_dims_expr(
+                                        get_owner_graph()));
                 known_ranges_map[unknown_idx] = bc_range_list;
             } else {
                 slice_range_list bc_arg_range_list = infer_broadcast_arg_slice(
@@ -511,10 +512,10 @@ void binary_elementwise_op_impl_t::collect_shrinked_axes_map(
     }
 }
 
-void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, sc_op_info_t &info, int bc_input_idx,
-        const std::vector<int> &bc_axis, const vectorized_info_t &vx_info,
-        const mask_compute_func_t &compute,
+void compute_block_broadcast(sc_graph_t &graph,
+        const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
+        sc_op_info_t &info, int bc_input_idx, const std::vector<int> &bc_axis,
+        const vectorized_info_t &vx_info, const mask_compute_func_t &compute,
         sc_data_type_t dtype = datatypes::f32, size_t wkld = 0UL,
         bool use_mask = false) {
     // nested loop vars
@@ -575,21 +576,24 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
     }
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
-    auto cur_dim = do_cast_and_fold(dst.get_shape().at(vx_info.axis));
-    assert(cur_dim.isa<constant>());
-    auto slice_len = get_const_as_int(cur_dim.static_as<constant>());
-    int floor = slice_len / vx_info.lanes * vx_info.lanes;
-    int tail = slice_len % vx_info.lanes;
+    auto slice_len = dst.get_shape().at(vx_info.axis);
+    int lanes = static_cast<int>(vx_info.lanes);
+    auto floor = do_cast_and_fold(slice_len / lanes * lanes);
+    auto tail = do_cast_and_fold(slice_len % lanes);
+    int floor_int = 0;
+    int tail_int = 0;
+    if (floor.isa<constant>()) { floor_int = get_expr_as_int(floor); }
+    if (tail.isa<constant>()) { tail_int = get_expr_as_int(tail); }
     int last_axis_mask = -1;
     std::unordered_map<expr, std::pair<expr, expr>> conditions;
     if (use_mask) {
-        compute_mask_and_generate_condition(src,
+        compute_mask_and_generate_condition(graph, src,
                 info.inputs_[0]->details_.get_plain_dims(),
                 info.inputs_[0]->details_.get_format(), iter_vars,
                 vx_info.lanes, conditions, last_axis_mask);
     }
-    if (last_axis_mask != -1 && floor > 0) {
-        COMPILE_ASSERT(tail == 0,
+    if (last_axis_mask != -1 && floor_int > 0) {
+        COMPILE_ASSERT(tail_int == 0,
                 "Currently we only support mask in vectorize compute not "
                 "tail.");
     }
@@ -606,7 +610,7 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
         if (static_cast<int>(dst.get_shape().size()) == vx_info.axis + 1
                 && i == vx_info.axis) {
             // IF last dim is included in bc_axis.
-            if (floor) {
+            if (!floor.isa<constant>() || floor_int) {
                 expr indexed_bc_input;
                 if (bc_axis.back() == static_cast<int64_t>(vx_info.axis)) {
                     indexed_bc_input = builder::make_indexing(
@@ -647,7 +651,7 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                         true, for_type::NORMAL);
                 tcur.emplace_back(cur);
             }
-            if (tail) {
+            if (!tail.isa<constant>() || tail_int) {
                 auto res_it = std::find(
                         bc_axis.begin(), bc_axis.end(), vx_info.axis);
                 if (res_it != bc_axis.end()) {
@@ -673,8 +677,8 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                         = wkld;
                 bld->emit(cur);
                 cur = make_stmt<for_loop_node_t>(tail_var, expr(floor),
-                        expr(floor + tail), expr(1), bld->pop_scope(), true,
-                        for_type::NORMAL);
+                        do_cast_and_fold(floor + tail), expr(1),
+                        bld->pop_scope(), true, for_type::NORMAL);
                 tcur.emplace_back(cur);
             }
         } else {
@@ -790,9 +794,10 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
             }
         };
         // reuse broadcast op
-        compute_block_broadcast(inputs, *dst[0], info_, bc_input_idx,
-                get_bc_axis(), vx_info_, mask_compute_func_t(func),
-                info_.outputs_[0]->details_.dtype_, wkld, use_mask);
+        compute_block_broadcast(get_owner_graph(), inputs, *dst[0], info_,
+                bc_input_idx, get_bc_axis(), vx_info_,
+                mask_compute_func_t(func), info_.outputs_[0]->details_.dtype_,
+                wkld, use_mask);
     } else {
         auto func = [&](const std::vector<expr> &in,
                             std::vector<expr::lvalue_proxy_t> &out) -> stmt {
@@ -830,9 +835,9 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
             }
         };
 
-        compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
-                mask_compute_func_t(func), mask_compute_func_t(func), attrs_,
-                wkld, use_mask);
+        compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
+                vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
+                attrs_, wkld, use_mask);
     }
 }
 

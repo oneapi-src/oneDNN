@@ -167,7 +167,7 @@ struct fusion_data_t {
         , need_alloc_(moved.need_alloc_)
         , buffer_(moved.buffer_) {}
     bool buffer_allocated() const { return buffer_.defined(); }
-    void set_buffer(const expr &buf);
+    void set_buffer(bool is_dynamic, const expr &buf);
     const expr &get_buffer() const { return buffer_; };
     tensor get_real_tensor() const;
 

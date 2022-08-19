@@ -182,7 +182,7 @@ const sc_op *fusion_manager::get_first_input() const {
     return nullptr;
 }
 
-void fusion_data_t::set_buffer(const expr &buf) {
+void fusion_data_t::set_buffer(bool is_dynamic, const expr &buf) {
     if (buf.isa<tensorptr>()) {
         COMPILE_ASSERT(!buf.static_as<tensorptr>()->is_slice_,
                 "tensorptr is only used for tensorview op inside fmgr")
@@ -199,11 +199,14 @@ void fusion_data_t::set_buffer(const expr &buf) {
         }
         COMPILE_ASSERT(base.static_as<indexing>()->ptr_.isa<tensor>(),
                 "Nested tensorptr is not expected inside fmgr")
-        auto dims = get_expr_to_dims(
-                base.static_as<indexing>()->ptr_.static_as<tensor>()->dims_);
-        auto shape = get_expr_to_dims(buf.static_as<tensorptr>()->shape_);
-        COMPILE_ASSERT(get_dims_product(dims) == get_dims_product(shape),
-                "Unexpected reshaped tensor found")
+        if (!is_dynamic) {
+            auto dims = get_expr_to_dims(base.static_as<indexing>()
+                                                 ->ptr_.static_as<tensor>()
+                                                 ->dims_);
+            auto shape = get_expr_to_dims(buf.static_as<tensorptr>()->shape_);
+            COMPILE_ASSERT(get_dims_product(dims) == get_dims_product(shape),
+                    "Unexpected reshaped tensor found");
+        }
     }
     buffer_ = buf;
 }
@@ -253,6 +256,7 @@ expr fusion_manager::allocate_tensor(
     auto &fdetail = fdmap.get(output);
     fusible_op_t *fop = output->producer_owner_->dyn_cast<fusible_op_t>();
     tensor tsr;
+    bool is_dynamic = graph_.is_dynamic();
     auto allocate_ =
             [&](const std::string &name, const logical_tensor_t &lt,
                     sc::address_space addrspace = sc::address_space::automatic,
@@ -273,7 +277,7 @@ expr fusion_manager::allocate_tensor(
                     allocated_tensors_.emplace_back(tsr);
                 }
 
-                fdetail.set_buffer(tsr);
+                fdetail.set_buffer(is_dynamic, tsr);
                 return tsr;
             };
     // TODO(xxx): remove this reorder judgement
@@ -554,7 +558,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
     if (graph_.empty()) { return; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
-
+    bool is_dynamic = graph_.is_dynamic();
     std::function<void(const sc_op_ptr &cur_node,
             const std::vector<sc::tensor_slice> &src,
             const std::vector<sc::tensor_slice> &dst, int64_t &hint_tick)>
@@ -588,13 +592,13 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                             input_cur->get_outputs()[0]->details_.dtype_);
                     tsr = arg_tsr;
                 }
-                fdmap.get(cur->get_outputs()[0]).set_buffer(tsr);
+                fdmap.get(cur->get_outputs()[0]).set_buffer(is_dynamic, tsr);
             } else {
                 auto buf = src[input_idx].get_real_tensor();
                 // may reuse input buffer, e.g. originalout
                 set_buffer_reuse_hint(hint_tick, fdmap, cur_node, buf);
                 reset_buffer_reuse_first_access_hint(buf, 0);
-                fdmap.get(cur->get_outputs()[0]).set_buffer(buf);
+                fdmap.get(cur->get_outputs()[0]).set_buffer(is_dynamic, buf);
             }
             return;
         } else if (dynamic_cast<output_op *>(cur)) {
@@ -613,7 +617,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 // TODO(xxx): need to consider multi-slice from create_anchor
                 // stage
                 output_cur_in_detail.set_buffer(
-                        dst[output_idx].get_real_tensor());
+                        is_dynamic, dst[output_idx].get_real_tensor());
             } else {
                 expr tsr;
                 // query if outs is given by outside
@@ -636,13 +640,14 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
 
                 // output will inplace the last buffer, so we need to clear it
                 // firstly.
-                output_cur_in_detail.set_buffer(tsr);
+                output_cur_in_detail.set_buffer(is_dynamic, tsr);
 
                 auto owner_op = cur->get_inputs()[0]->producer_owner_;
                 if (auto coll_op = owner_op->dyn_cast<reduce_collect_op_t>()) {
                     if (coll_op->is_place_holder_op()) {
                         do_rd_op_init(tsr, coll_op->get_rd_op());
-                        fdmap.get(owner_op->get_inputs()[0]).set_buffer(tsr);
+                        fdmap.get(owner_op->get_inputs()[0])
+                                .set_buffer(is_dynamic, tsr);
                     }
                 } else if (auto comp_op
                         = owner_op->dyn_cast<reduce_compute_op_t>()) {
@@ -664,9 +669,11 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             auto base_tsr = cur_in_detail.get_real_tensor();
 
             // use tensorptr to represent reshaped tensor
-            cur_out_detail.set_buffer(builder::tensor_ptr(base_tsr,
-                    std::vector<expr>(base_tsr->dims_.size(), 0),
-                    graph_.dims_to_expr(reshape_cur->get_shapes())));
+            cur_out_detail.set_buffer(is_dynamic,
+                    builder::tensor_ptr(base_tsr,
+                            std::vector<expr>(base_tsr->dims_.size(), 0),
+                            reshape_cur->get_outputs()[0]
+                                    ->details_.get_blocking_dims_expr(graph_)));
 
             bool access_has_updated = false;
             set_buffer_reuse_hint(hint_tick, fdmap, cur_node,
@@ -722,7 +729,8 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                         // its buffer
                         out_i_detail.need_alloc_ = false;
                         // inplace tsr_slice_list_
-                        out_i_detail.set_buffer(in_j_detail.get_buffer());
+                        out_i_detail.set_buffer(
+                                is_dynamic, in_j_detail.get_buffer());
                         break;
                     }
                 }
@@ -1124,6 +1132,7 @@ void fusion_manager::do_compute_block(
      * */
     auto check_inner_anchor
             = [&](fslice_map &fsmap, const sc_op_ptr &begin_op) -> bool {
+        if (graph_.is_dynamic()) { return false; }
         op_dep_matrix_t dep(graph_);
         infer_status_map_t stat_map;
         for (auto &in : graph_.get_input_ops()) {
@@ -1622,7 +1631,9 @@ fusion_manager::get_output_tsr_slices_list(
 void fusion_manager::transform_graph(const context_ptr &ctx, bool has_main_op) {
     // we allow the transform of reduce -> (reduce_compute+collect) if the outer
     // loop will not be default
-    if (!has_main_op && runtime_config_t::get().get_num_threads() != 1) {
+    if (graph_.is_dynamic()
+            || (!has_main_op
+                    && runtime_config_t::get().get_num_threads() != 1)) {
         return;
     }
     auto old_ops = graph_.ops_;

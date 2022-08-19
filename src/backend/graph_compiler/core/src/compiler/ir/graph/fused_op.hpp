@@ -111,6 +111,8 @@ public:
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
     void collect_shrinked_axes_map(
             int bw_size, gt2axes_map &bw_axes_map) override;
+
+    // dynamic related
     virtual const dispatch_set_ptr &get_dispatch_key_set() const override;
     virtual dispatch_set_ptr &get_dispatch_key_set() override;
     void update_internal_graph_format(const op_dispatch_key_t &key);

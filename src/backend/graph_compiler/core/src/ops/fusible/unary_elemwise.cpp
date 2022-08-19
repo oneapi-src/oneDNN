@@ -61,9 +61,8 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     // set default vectorized information
     vx_info_.axis = dst[0]->get_shape().size() - 1;
     for (int64_t i = dst[0]->nslice_dims() - 1; i >= 0; --i) {
-        int cur_dim = get_const_as_int(
-                dst.at(0)->get_shape().at(i).checked_as<constant_c>());
-        if (1 != cur_dim) {
+        auto &dim = dst.at(0)->get_shape().at(i);
+        if (!dim.isa<constant>() || 1 != get_expr_as_int(dim)) {
             vx_info_.axis = i;
             break;
         }
@@ -76,7 +75,7 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     };
     // Currenly only support for exp
     bool use_mask = op_name_ == "exp";
-    compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
+    compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_, vx_info_,
             mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
             use_mask);
 }

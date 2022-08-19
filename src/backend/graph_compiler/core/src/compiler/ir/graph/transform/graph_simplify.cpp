@@ -21,6 +21,7 @@
 #include "../pass/pass.hpp"
 #include "../visitor.hpp"
 #include "transform.hpp"
+#include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
@@ -135,6 +136,26 @@ static bool is_single_use(const sc_op_ptr &node) {
     return node->get_outputs()[0]->uses_.size() == 1;
 }
 
+static void merge_dispatch_key_sets(const sc_op_ptr &op0, sc_op_ptr &op1) {
+    auto &dispatch_key_set0 = op0->get_dispatch_key_set()->set_;
+    auto &dispatch_key_set1 = op1->get_dispatch_key_set()->set_;
+    std::unordered_map<sc_data_format_t, sc_data_format_t> cached_map;
+    for (auto &key1 : dispatch_key_set1) {
+        auto &in_fmt1 = key1.in_out_formats_[0];
+        auto &out_fmt1 = key1.in_out_formats_[1];
+        cached_map[in_fmt1] = out_fmt1;
+    }
+    dispatch_key_set_t::inner_set_t dispatch_key_set_new0;
+    for (auto key0 : dispatch_key_set0) {
+        auto &out_fmt0 = key0.in_out_formats_[1];
+        auto it = cached_map.find(out_fmt0);
+        assert(it != cached_map.end());
+        key0.in_out_formats_[1] = it->second;
+        dispatch_key_set_new0.insert(key0);
+    }
+    op0->get_dispatch_key_set()->set_ = std::move(dispatch_key_set_new0);
+}
+
 // eliminate excess tensor view, e.g. tensor_view->tensor_view->tensor_view
 void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
@@ -146,6 +167,7 @@ void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
             std::vector<sc_op_ptr> node_to_remove;
             while (next_node->isa<tensor_view_op_t>()
                     && is_single_use(next_node)) {
+                merge_dispatch_key_sets(node, next_node);
                 node_to_remove.push_back(next_node);
                 pre_node = next_node;
                 next_node = next_node->get_outputs()[0]
@@ -154,6 +176,9 @@ void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
             }
             if (next_node->isa<tensor_view_op_t>()) { pre_node = next_node; }
             if (pre_node != next_node || pre_node->isa<tensor_view_op_t>()) {
+                if (pre_node == next_node) {
+                    merge_dispatch_key_sets(node, pre_node);
+                }
                 node->get_outputs()[0]->details_
                         = pre_node->get_outputs()[0]->details_;
                 std::vector<std::pair<int, sc_op_weak_ptr_t>> uses

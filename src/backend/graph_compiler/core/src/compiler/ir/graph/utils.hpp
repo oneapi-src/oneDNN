@@ -72,15 +72,20 @@ func_t create_func_decl_for_op(
  * the Op's outputs and then the Op's inputs and their formats.
  * @param op the op
  * @param ins the vector of input args
- * function
+ * @param ori_ins the vector of origin input args
  * @param outs the vector of output args
  * @param in_fmts the vector of input format args
- * @param out_fmts the vector of output format args
+ * @param ori_in_fmts the vector of origin input format args
+ * @param out_fmts the vector of output format
+ * @param out_sizes the size tensor of output
+ * @param kernel the kernel tensor
  * @return the generated IR function for the Op. Its body is an empty stmts node
  * */
 func_t create_query_func_decl_for_op(sc_op *op, std::vector<expr> &ins,
-        std::vector<expr> &outs, std::vector<expr> &in_fmts,
-        std::vector<expr> &out_fmts);
+        std::vector<expr> &ori_ins, std::vector<expr> &outs,
+        std::vector<expr> &in_fmts, std::vector<expr> &ori_in_fmts,
+        std::vector<expr> &out_fmts, std::vector<expr> &out_sizes,
+        expr &kernel);
 
 ltensors extract_detail_from_tensors(
         const std::vector<std::shared_ptr<graph_tensor>> &);

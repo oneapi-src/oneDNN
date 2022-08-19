@@ -22,6 +22,7 @@
 #include "../fusible_op.hpp"
 #include "../graph_op.hpp"
 #include "../pass/pass.hpp"
+#include "../runtime_op.hpp"
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
 #include <ops/fusible/memory_movement.hpp>
@@ -88,8 +89,9 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
                                 graph.attrs_.get_or_else(
                                         "reorder_not_to_fuse", false)}});
         // map reorder's in/out
-        if (is_graph_dynamic)
+        if (is_graph_dynamic) {
             ret->get_dispatch_key_set()->set_.insert(dispatch_key);
+        }
         ret->get_outputs()[0]->details_.add_format_candidate(
                 out_format_stride.first);
         reorder_map[in][cur_op] = ret;
@@ -250,7 +252,7 @@ SC_INTERNAL_API void layout_propagation(
     bool is_input_plain = graph.attrs_.get_or_else(
             sc_graph_t::attr_key_t::is_input_plain, true);
     bool is_graph_dynamic = graph.is_dynamic()
-            && graph.attrs_.get_or_else("allow_dynamic", true);
+            && graph.attrs_.get_or_else("insert_reorder", true);
     std::vector<sc_op_ptr> sorted_ops;
     sorted_ops.reserve(graph.ops_.size());
     std::vector<size_t> num_choices;
@@ -373,13 +375,16 @@ SC_INTERNAL_API void layout_propagation(
                 input_format_candidates.reserve(inputs.size());
                 for (size_t i = 0; i < inputs.size(); ++i) {
                     old_formats.push_back(inputs[i]->details_.get_format());
-
-                    auto format_candidates
-                            = std::unordered_set<sc_data_format_t> {
-                                    inputs[i]->details_.get_format()};
+                    std::set<sc_data_format_t, sc_data_format_cmper_t>
+                            format_candidates;
                     if (is_graph_dynamic) {
-                        format_candidates
+                        auto &inp_candidates
                                 = inputs[i]->details_.get_format_candidates();
+                        format_candidates.insert(
+                                inp_candidates.begin(), inp_candidates.end());
+                    } else {
+                        format_candidates.insert(
+                                inputs[i]->details_.get_format());
                     }
                     input_format_candidates.emplace_back(
                             format_candidates.begin(), format_candidates.end());
@@ -424,24 +429,47 @@ SC_INTERNAL_API void layout_propagation(
                             format_stride_pair in_fs_pair(
                                     inputs[i]->details_.get_format(),
                                     inputs[i]->details_.get_strides());
+                            auto &format_candidates
+                                    = inputs[i]
+                                              ->details_
+                                              .get_format_candidates();
+                            auto &target_format = target_fs_pair.first;
                             // tunable op always need reorder before op in
                             // dynamic.
-                            if (is_graph_dynamic && node->isa<tunable_op_t>()) {
-                                // Reverse order here to match tunable op's
-                                // config.
-                                for (size_t k = in_supported_pairs[i].size();
-                                        k > 0; k--) {
-                                    insert_reorder_op(graph, reorder_map,
-                                            inputs[i], i,
-                                            in_supported_pairs[i][k - 1], node,
-                                            is_input_plain,
-                                            insert_reorder_callback);
+                            if (is_graph_dynamic) {
+                                if (node->isa<tunable_op_t>()) {
+                                    // Reverse order here to match tunable op's
+                                    // config.
+                                    for (size_t k
+                                            = in_supported_pairs[i].size();
+                                            k > 0; k--) {
+                                        insert_reorder_op(graph, reorder_map,
+                                                inputs[i], i,
+                                                in_supported_pairs[i][k - 1],
+                                                node, is_input_plain,
+                                                insert_reorder_callback);
+                                    }
+                                } else {
+                                    // binary fusible, if input format
+                                    // candidates contains the target format, do
+                                    // not need reorder
+                                    if (format_candidates.find(target_format)
+                                            == format_candidates.end()) {
+                                        insert_reorder_op(graph, reorder_map,
+                                                inputs[i], i, target_fs_pair,
+                                                node, is_input_plain,
+                                                insert_reorder_callback);
+                                    }
                                 }
                             } else if (in_fs_pair != target_fs_pair) {
-                                insert_reorder_op(graph, reorder_map, inputs[i],
-                                        i, target_fs_pair, node, is_input_plain,
-                                        insert_reorder_callback);
-                                dispatch_format[i] = target_fs_pair.first;
+                                if (graph.attrs_.get_or_else(
+                                            "insert_reorder", true)) {
+                                    insert_reorder_op(graph, reorder_map,
+                                            inputs[i], i, target_fs_pair, node,
+                                            is_input_plain,
+                                            insert_reorder_callback);
+                                    dispatch_format[i] = target_fs_pair.first;
+                                }
                             } else if (!insert_reorder_callback) {
                                 // if static and no need of reorder
                                 remove_inserted_reorder_op(
@@ -500,8 +528,7 @@ SC_INTERNAL_API void layout_propagation(
                         dispatch_format.reserve(inputs.size() + outputs.size());
                         inputs[0]->details_.set_format(candidate);
                         dispatch_format.push_back(candidate);
-                        in_supported_pairs.clear();
-                        out_supported_pairs.clear();
+                        reset_in_out_supported_pairs();
                         node->query_format(
                                 ctx, in_supported_pairs, out_supported_pairs);
                         assert(out_supported_pairs[0].size() == 1);
@@ -515,6 +542,11 @@ SC_INTERNAL_API void layout_propagation(
                     inputs[0]->details_.set_format(old_format);
                 }
                 reset_in_out_supported_pairs();
+                node->query_format(
+                        ctx, in_supported_pairs, out_supported_pairs);
+                update_output_formats(node->info_.outputs_, out_supported_pairs,
+                        cur_layout_choice);
+            } else if (node->isa<runtime_op_t>()) {
                 node->query_format(
                         ctx, in_supported_pairs, out_supported_pairs);
                 update_output_formats(node->info_.outputs_, out_supported_pairs,

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,10 +54,14 @@ expr_c closurize_impl_t::create_or_get_tensor_or_var(expr_c v) {
 
 stmt_c closurize_impl_t::visit(define_c v) {
     if (in_parallel_for && (v->var_.isa<var>() || v->var_.isa<tensor>())) {
+        expr_c r = v->var_;
         if (v->var_.isa<tensor>()) {
             v->var_->attr()["is_thread_buffer"] = true;
+            // for dynamic, dispatch tensors' dims.
+            r = ir_visitor_t::visit(v->var_.static_as<tensor>());
+            if (!r.ptr_same(v->var_)) { captures_set_.insert({v->var_, r}); }
         }
-        defined_set_.insert(v->var_);
+        defined_set_.insert(r);
     }
     return ir_visitor_t::visit(std::move(v));
 }

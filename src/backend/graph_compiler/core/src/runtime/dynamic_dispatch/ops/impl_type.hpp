@@ -20,9 +20,8 @@
 
 namespace sc {
 // Predefine all ops' impl algorithm type here.
-
-//  impl algorithm type, include normal(padding)/no padding select.
-enum impl_etype_t : int {
+// impl algorithm type, include normal(padding)/no padding select.
+enum impl_kind_t : int {
     normal = 0, // default generate rule
     no_padding = 1, // generate without padding
 };

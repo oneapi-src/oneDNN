@@ -26,6 +26,9 @@ SC_INTERNAL_API void elemwise_bcast_swap(
 SC_INTERNAL_API void elemwise_dimension_alignment(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void dynamic_graph_transform(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API void layout_propagation(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 

@@ -21,7 +21,9 @@
 #include <utility>
 #include "templates/matmul_core.hpp"
 #include "templates/utils.hpp"
+#include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/graph.hpp>
@@ -30,6 +32,8 @@
 #include <compiler/ir/graph/quantization/quantize_info.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <ops/fusible/memory_movement.hpp>
+#include <ops/shape_of_tensor.hpp>
 #include <runtime/config.hpp>
 #include <unordered_set>
 #include <util/reflection.hpp>
@@ -155,7 +159,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     const sc_dim M = A_dims[A_dims.size() - 2];
     const sc_dim K = A_dims.back();
     const sc_dim N = B_dims.back();
-
+    auto &graph = get_owner_graph();
     matmul_core_config_t &tcfg = *config_data_.get_as<matmul_core_config_t>();
     int M_block = tcfg.M_block, N_block = tcfg.N_block, K_block = tcfg.K_block;
 
@@ -223,21 +227,26 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                 || is_dynamic_dim(N_block)) {
                             if (is_dynamic_dim(M_block)) {
                                 A_m_blk = C_m_blk = m_b;
-                                if (constant_A) { A_m_blk = max_const_blk; }
+                                COMPILE_ASSERT(!constant_A,
+                                        "if M is dynamic, input A should not "
+                                        "be constant!");
                             } else {
                                 A_m_blk = C_m_blk = M_block;
                             }
                             if (is_dynamic_dim(N_block)) {
                                 B_n_blk = C_n_blk = n_b;
-                                if (constant_B) { B_n_blk = max_const_blk; }
+                                COMPILE_ASSERT(!constant_B,
+                                        "if N is dynamic, input B should not "
+                                        "be constant!");
                             } else {
                                 B_n_blk = C_n_blk = N_block;
                             }
                         }
                         if (is_dynamic_dim(K_block)) {
                             A_k_blk = B_k_blk = k_b;
-                            if (constant_A) { A_k_blk = max_const_blk; }
-                            if (constant_B) { B_k_blk = max_const_blk; }
+                            COMPILE_ASSERT(!constant_A && !constant_B,
+                                    "if K is dynamic, input A and B should not "
+                                    "be constant!");
                         }
                         // process A
                         if (constant_A || isp
@@ -287,7 +296,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                 ret_B_format = sc_data_format_t(
                                         sc_data_format_kind_t::
                                                 get_2dblocking_by_dims(
-                                                        B_dims.size(), true),
+                                                        B_dims.size(), true,
+                                                        true),
                                         {B_k_blk, B_n_blk, 4});
                             }
                         } else if (B_dtype == datatypes::bf16) {
@@ -298,7 +308,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                 ret_B_format = sc_data_format_t(
                                         sc_data_format_kind_t::
                                                 get_2dblocking_by_dims(
-                                                        B_dims.size(), true),
+                                                        B_dims.size(), true,
+                                                        true),
                                         {B_k_blk, B_n_blk, 2});
                             }
                         } else {
@@ -321,7 +332,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                         ret_B_format = sc_data_format_t(
                                                 sc_data_format_kind_t::
                                                         get_2dblocking_by_dims(
-                                                                B_dims.size()),
+                                                                B_dims.size(),
+                                                                true),
                                                 {B_k_blk, B_n_blk});
                                     } else {
                                         ret_B_format = B_format;
@@ -410,8 +422,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     dispatch_key_set->set_.insert(
             cur_dispatch_key_set.set_.begin(), cur_dispatch_key_set.set_.end());
     // To calculate padded K of input A
-    auto pad_K_num = utils::divide_and_ceil(
-            info_.inputs_[0]->details_.get_plain_dims().back(), K_block);
+    auto pad_K_num = utils::divide_and_ceil(K, K_block);
     attrs_["temp.padded_A_K"].get<std::shared_ptr<VConst>>()->var_
             = pad_K_num * K_block;
     format_to_dense_format_stride_pair(
@@ -676,49 +687,91 @@ sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
     COMPILE_ASSERT(attrs_.has_key("temp.padded_A_K"),
             "No related VConst set, which maybe cause correctness error")
     sc_op_ptr ret_node;
-    if (is_dyn_quan) {
-        if (!dyn_data_zero_points || !dyn_weight_zero_points) {
-            return nullptr;
-        }
-        ret_node = mgr.make(
-                "mul", {dyn_data_zero_points, dyn_weight_zero_points}, {}, {});
-        auto const_reduce = mgr.make("constant", {}, {},
-                {{"dtype", datatypes::s32},
-                        {"values",
-                                std::make_shared<static_data_t>(
-                                        &K, sizeof(int))},
-                        {"plain_dims", sc_dims {1}},
-                        {"format", sc_data_format_t()}, {"temp.val/var", 1},
-                        {"temp.var", attrs_["temp.padded_A_K"]}});
-        ret_node = mgr.make("mul",
-                {ret_node->get_outputs()[0], const_reduce->get_outputs()[0]},
-                {}, {});
-    } else {
-        if (data_zero_points.empty() || weight_zero_points.empty()) {
-            return nullptr;
-        }
-        if ((std::all_of(data_zero_points.begin(), data_zero_points.end(),
-                    [](int i) { return i == 0; }))
-                || (std::all_of(weight_zero_points.begin(),
-                        weight_zero_points.end(),
-                        [](int i) { return i == 0; }))) {
-            return nullptr;
-        }
-        COMPILE_ASSERT(
-                data_zero_points.size() == 1 && weight_zero_points.size() == 1,
-                "matmul_core does not support per channel data/weight zero "
-                "points "
-                "compensation yet");
+    if (is_dynamic_dim(K_orig)) {
         ret_node = mgr.make("constant", {}, {},
                 {{"values",
-                         std::make_shared<static_data_t>(
-                                 std::vector<int> {data_zero_points[0]
-                                         * weight_zero_points[0] * K})},
+                         std::make_shared<static_data_t>(std::vector<int> {
+                                 data_zero_points[0] * weight_zero_points[0]})},
                         {"dtype", datatypes::s32}, {"plain_dims", sc_dims {1}},
-                        {"format", sc_data_format_t()},
-                        {"temp.val/var",
-                                data_zero_points[0] * weight_zero_points[0]},
-                        {"temp.var", attrs_["temp.padded_A_K"]}});
+                        {"format", sc_data_format_t()}});
+        auto weight = info_.inputs_[1];
+        std::vector<int> shape_idxs = {
+                static_cast<int>(weight->details_.get_plain_dims().size() - 2)};
+        auto find_ltsr = [](const sc_op *node) {
+            auto inp = node->get_inputs()[0];
+            assert(inp->uses_.size() > 1);
+            for (auto &use : inp->uses_) {
+                if (use.second->isa<reorder_op_t>()) {
+                    auto next_op
+                            = use.second->get_outputs()[0]->uses_[0].second;
+                    if ((next_op->isa<fused_op_t>()
+                                && !next_op->stc_cast<fused_op_t>()
+                                            ->main_op_.ops_.empty()
+                                && next_op->stc_cast<fused_op_t>()
+                                           ->main_op_.ops_[1]
+                                           ->isa<matmul_core_op_t>())
+                            || next_op->isa<matmul_core_op_t>()) {
+                        return use.second->get_outputs();
+                    }
+                }
+            }
+            return std::vector<graph_tensor_ptr>();
+        };
+        auto reduce_shape = mgr.make(
+                "shape_of_tensor", {weight}, {}, {{"shape_idxs", shape_idxs}});
+        reduce_shape->stc_cast<ops::shape_of_tensor_op_t>()->set_find_ltsr_func(
+                find_ltsr);
+        ret_node = mgr.make("mul",
+                {ret_node->get_outputs()[0], reduce_shape->get_outputs()[0]},
+                {}, {});
+    } else {
+        if (is_dyn_quan) {
+            if (!dyn_data_zero_points || !dyn_weight_zero_points) {
+                return nullptr;
+            }
+            ret_node = mgr.make("mul",
+                    {dyn_data_zero_points, dyn_weight_zero_points}, {}, {});
+            auto const_reduce = mgr.make("constant", {}, {},
+                    {{"dtype", datatypes::s32},
+                            {"values",
+                                    std::make_shared<static_data_t>(
+                                            &K, sizeof(int))},
+                            {"plain_dims", sc_dims {1}},
+                            {"format", sc_data_format_t()}, {"temp.val/var", 1},
+                            {"temp.var", attrs_["temp.padded_A_K"]}});
+            ret_node = mgr.make("mul",
+                    {ret_node->get_outputs()[0],
+                            const_reduce->get_outputs()[0]},
+                    {}, {});
+        } else {
+            if (data_zero_points.empty() || weight_zero_points.empty()) {
+                return nullptr;
+            }
+            if ((std::all_of(data_zero_points.begin(), data_zero_points.end(),
+                        [](int i) { return i == 0; }))
+                    || (std::all_of(weight_zero_points.begin(),
+                            weight_zero_points.end(),
+                            [](int i) { return i == 0; }))) {
+                return nullptr;
+            }
+            COMPILE_ASSERT(data_zero_points.size() == 1
+                            && weight_zero_points.size() == 1,
+                    "matmul_core does not support per channel data/weight zero "
+                    "points "
+                    "compensation yet");
+            ret_node = mgr.make("constant", {}, {},
+                    {{"values",
+                             std::make_shared<static_data_t>(
+                                     std::vector<int> {data_zero_points[0]
+                                             * weight_zero_points[0] * K})},
+                            {"dtype", datatypes::s32},
+                            {"plain_dims", sc_dims {1}},
+                            {"format", sc_data_format_t()},
+                            {"temp.val/var",
+                                    data_zero_points[0]
+                                            * weight_zero_points[0]},
+                            {"temp.var", attrs_["temp.padded_A_K"]}});
+        }
     }
     return ret_node;
 }

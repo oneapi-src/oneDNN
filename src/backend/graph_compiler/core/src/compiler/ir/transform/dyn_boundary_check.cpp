@@ -93,6 +93,12 @@ public:
         return ret;
     }
 
+    expr_c visit(tensor_c v) override {
+        // fix-me(jingze): do not check the indexing in shapes and strides of
+        // tensor.
+        return v;
+    }
+
     expr_c visit(indexing_c v) override {
         assert(v->idx_.size() == 1);
         auto tsr = v->ptr_.checked_as<tensor>();

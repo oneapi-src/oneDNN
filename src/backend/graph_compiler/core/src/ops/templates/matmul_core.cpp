@@ -278,6 +278,7 @@ gen_matmul_core_t::gen_matmul_core_t(sc_op *owner,
 }
 
 float gen_matmul_core_t::get_gflop() const {
+  if (is_dynamic()) { return 0.f; }
   const int64_t plain_M = get_mma_plain_dims()[0];
   const int64_t plain_K = get_mma_plain_dims()[1];
   const int64_t plain_N = get_mmb_plain_dims()[1];
@@ -359,24 +360,27 @@ void gen_matmul_core_t::get_and_check_blocks(sc_graph_t &graph,
   M_num_blocks = blocking_axes_.A_m.size() == 1
     ? divide_and_ceil(
       A_dims[blocking_axes_.A_m.at(0)], graph.dim_to_expr(M_block))
-    : divide_and_ceil(A_dims[blocking_axes_.A_m.at(0)], UINT64_C(1));
+    : A_dims[blocking_axes_.A_m.at(0)];
 
   K_num_blocks = blocking_axes_.A_k.size() == 1
     ? divide_and_ceil(
       A_dims[blocking_axes_.A_k.at(0)], graph.dim_to_expr(K_block))
-    : divide_and_ceil(A_dims[blocking_axes_.A_k.at(0)], UINT64_C(1));
+    : A_dims[blocking_axes_.A_k.at(0)];
 
   B_K_num_blocks = blocking_axes_.B_k.size() == 1
     ? divide_and_ceil(
       B_dims[blocking_axes_.B_k.at(0)], graph.dim_to_expr(K_block))
-    : divide_and_ceil(B_dims[blocking_axes_.B_k.at(0)], UINT64_C(1));
+    : B_dims[blocking_axes_.B_k.at(0)];
 
   N_num_blocks = blocking_axes_.B_n.size() == 1
     ? divide_and_ceil(
       B_dims[blocking_axes_.B_n.at(0)], graph.dim_to_expr(N_block))
-    : divide_and_ceil(B_dims[blocking_axes_.B_n.at(0)], UINT64_C(1));
+    : B_dims[blocking_axes_.B_n.at(0)];
 
-  COMPILE_ASSERT(K_num_blocks->equals(B_K_num_blocks),
+  COMPILE_ASSERT(
+    (K_num_blocks.isa<constant>() && B_K_num_blocks.isa<constant>()
+      && get_expr_as_int(K_num_blocks) == get_expr_as_int(B_K_num_blocks))
+      || K_num_blocks->equals(B_K_num_blocks),
     "A and B num blocks of K are not equal.");
 }
 

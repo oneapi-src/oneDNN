@@ -18,11 +18,8 @@
 #include <set>
 #include <vector>
 #include <compiler/ir/sc_data_format.hpp>
+#include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 namespace sc {
-enum impl_kind_t : int {
-    normal = 0, // no special impl
-    no_padding, // process as no padding.
-};
 // the dispatch key type for lowering. Will be used in a map in lowering. The
 // key is this struct and the value is kernel.
 struct op_dispatch_key_t {

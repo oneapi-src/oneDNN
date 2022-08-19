@@ -75,9 +75,9 @@ struct mask_compute_func_t {
 using fusion_compute_func_t = std::function<stmt(
         const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>;
 
-void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, sc_op_info_t &info,
-        const vectorized_info_t &vx_info,
+void compute_vectorized_op(sc_graph_t &graph,
+        const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
+        sc_op_info_t &info, const vectorized_info_t &vx_info,
         const mask_compute_func_t &compute_lanes,
         const mask_compute_func_t &compute_scalar, any_map_t &attrs,
         size_t wkld = 0UL, bool use_mask = false,
@@ -85,7 +85,7 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
         = nullptr /*by default expand loop by dst*/,
         bool unroll_inner_loop = false);
 expr make_select_by_mask(const expr &, const expr &, const expr &, uint32_t);
-void compute_mask_and_generate_condition(
+void compute_mask_and_generate_condition(sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,
         sc_data_format_t format, const std::vector<expr> &iter_vars, int lanes,
         std::unordered_map<expr, std::pair<expr, expr>> &conditions,

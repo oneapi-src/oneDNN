@@ -22,6 +22,7 @@
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/hash_dispatch_table.hpp>
 #include <util/utils.hpp>
 namespace sc {
@@ -68,6 +69,7 @@ void initialize_format_table_with_op(
                     = convert_to_runtime_format_vec(dispatch_key);
             // only one input format known.
             for (uint32_t i = 0; i < inp_size; i++) {
+                keys.clear();
                 keys.resize(inp_size, unknown_fmt);
                 keys[i] = values[i];
                 tb->format_table_[keys] = values;

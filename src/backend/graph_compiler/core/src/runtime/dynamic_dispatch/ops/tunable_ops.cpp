@@ -15,6 +15,7 @@
  *******************************************************************************/
 #include <stdint.h>
 #include "impl_type.hpp"
+#include <runtime/data_type.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
@@ -26,7 +27,7 @@ static void check_and_set_matmul_impl(runtime::dynamic_tensor_t *data_dyn_tsr,
         runtime::dispatch_key *weight_fmt_st,
         runtime::dispatch_key *out_fmt_st) {
     // Currently we only check padding or not
-    int impl_alg = impl_etype_t::no_padding;
+    int impl_alg = impl_kind_t::no_padding;
     auto simd_length = std::min(UINT64_C(16),
             static_cast<uint64_t>(
                     runtime::get_runtime_target_machine()
@@ -34,14 +35,14 @@ static void check_and_set_matmul_impl(runtime::dynamic_tensor_t *data_dyn_tsr,
                                     sc_data_etype(data_dyn_tsr->dtype_))));
     for (int i = 0; i < data_dyn_tsr->ndims_; i++) {
         if (data_dyn_tsr->dims_[i] % simd_length) {
-            impl_alg = impl_etype_t::normal;
+            impl_alg = impl_kind_t::normal;
             break;
         }
     }
-    if (impl_alg == impl_etype_t::no_padding) {
+    if (impl_alg == impl_kind_t::no_padding) {
         for (int i = 0; i < weight_dyn_tsr->ndims_; i++) {
             if (weight_dyn_tsr->dims_[i] % simd_length) {
-                impl_alg = impl_etype_t::normal;
+                impl_alg = impl_kind_t::normal;
                 break;
             }
         }
@@ -113,42 +114,59 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     auto data_fmt_st = reinterpret_cast<runtime::dispatch_key *>(data_fmt);
     auto weight_fmt_st = reinterpret_cast<runtime::dispatch_key *>(weight_fmt);
     int a = weight_fmt_st->get(0);
-    int M_blk, N_blk;
-    if (data_fmt_st->is_plain()) {
-        int K_blk;
-        M_blk = runtime::get_dyn_cfg_single(M, true);
+
+    int M_blk, N_blk, K_blk;
+    M_blk = runtime::get_dyn_cfg_single(M, true);
+    K_blk = runtime::get_dyn_cfg_single(K, true);
+    N_blk = runtime::get_dyn_cfg_single(N, true);
+
+    auto &format_table = op_table->format_table_;
+    if (data_fmt_st->is_plain() || data_fmt_st->ndims() == data_ndims) {
         data_fmt_st->set_block1(M_blk);
-        K_blk = runtime::get_dyn_cfg_single(K, true);
         data_fmt_st->set_block2(K_blk);
-        if (M % M_blk || K % K_blk) {
-            int ndims = data_fmt_st->ndims();
-            data_fmt_st->set(ndims, data_fmt_st->get(ndims - 2));
-            data_fmt_st->set(ndims + 1, data_fmt_st->get(ndims - 1));
+        if (M % M_blk || K % K_blk || !data_fmt_st->is_plain()) {
+            if (!data_fmt_st->is_plain()) {
+                for (int i = 0; i < data_ndims; i++) {
+                    data_fmt_st->set(i, i);
+                }
+            }
+            data_fmt_st->set(
+                    data_ndims, data_fmt_st->get(data_ndims - 2)); // M block
+            data_fmt_st->set(data_ndims + 1,
+                    data_fmt_st->get(data_ndims - 1)); // K block
             data_fmt_st->is_plain_ = 0;
         }
     } else {
-        // reuse last blocking
+        assert(data_fmt_st->ndims() == data_ndims + 2);
+        // reuse last blocking.
     }
-    if (weight_fmt_st->is_plain()) {
-        int K_blk;
-        K_blk = runtime::get_dyn_cfg_single(K, true);
+    bool is_vnni = weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::U8)
+            || weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::S8)
+            || weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::BF16);
+    if (weight_fmt_st->is_plain() || weight_fmt_st->ndims() == weight_ndims) {
         weight_fmt_st->set_block1(K_blk);
-        N_blk = runtime::get_dyn_cfg_single(N, true);
         weight_fmt_st->set_block2(N_blk);
-        if (N % N_blk || K % K_blk) {
-            int ndims = data_fmt_st->ndims();
-            int K_axis = weight_fmt_st->get(ndims - 2);
-            int N_axis = weight_fmt_st->get(ndims - 1);
-            weight_fmt_st->set(ndims - 2, N_axis);
-            weight_fmt_st->set(ndims - 1, K_axis);
-            weight_fmt_st->set(ndims, K_axis);
-            weight_fmt_st->set(ndims + 1, N_axis);
+        if (N % N_blk || K % K_blk || is_vnni || !weight_fmt_st->is_plain()) {
+            if (!weight_fmt_st->is_plain()) {
+                for (int i = 0; i < weight_ndims; i++) {
+                    weight_fmt_st->set(i, i);
+                }
+            }
+            int K_axis = weight_fmt_st->get(weight_ndims - 2);
+            int N_axis = weight_fmt_st->get(weight_ndims - 1);
+            weight_fmt_st->set(weight_ndims - 2, N_axis);
+            weight_fmt_st->set(weight_ndims - 1, K_axis);
+            weight_fmt_st->set(weight_ndims, K_axis);
+            weight_fmt_st->set(weight_ndims + 1, N_axis);
+            if (is_vnni) { weight_fmt_st->set(weight_ndims + 2, K_axis); }
             weight_fmt_st->is_plain_ = 0;
         }
     } else {
-        // reuse last blocking
+        assert((!is_vnni && weight_fmt_st->ndims() == weight_ndims + 2)
+                || (is_vnni && weight_fmt_st->ndims() == weight_ndims + 3));
+        // reuse last blocking.
     }
-    auto &format_table = op_table->format_table_;
+
     uint64_t fmt_keys[2] = {*data_fmt, *weight_fmt};
     void *value = format_table->get(fmt_keys, 2);
     assert(value);

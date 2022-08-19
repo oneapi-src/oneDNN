@@ -21,6 +21,7 @@
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/visitor.hpp>
+#include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <util/math_utils.hpp>
 namespace sc {
@@ -125,6 +126,10 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                     auto cur_parent = node;
                     while (cur_child.second
                                     ->dyn_cast<op_traits::may_quantize_t>()
+                            // reserve dynamic version here for debug.
+                            //     &&
+                            //     !cur_child.second->isa<::sc::movement_op_t>())
+                            //     {
                             && cur_child.second->get_outputs().size() == 1) {
                         cur_child.second->replace_input(
                                 cur_child.first, cur_parent->get_outputs()[0]);

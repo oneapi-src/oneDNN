@@ -138,7 +138,7 @@ public:
     // ndims=4, is_vnni_format=false, format is ABCDcd. if ndims=5,
     // is_vnni_format=false, then the format is ABCDEde.
     static sc_data_format_kind_t get_2dblocking_by_dims(
-            size_t ndims, bool is_vnni_format = false);
+            size_t ndims, bool is_weight = false, bool is_vnni_format = false);
 };
 
 namespace format_kinds {
@@ -313,6 +313,10 @@ struct SC_API sc_data_format_t {
     runtime::dispatch_key to_runtime() const;
 
     void to_string(std::ostream &os) const;
+};
+struct sc_data_format_cmper_t {
+    bool operator()(
+            const sc_data_format_t &key0, const sc_data_format_t &key1) const;
 };
 
 SC_INTERNAL_API std::ostream &operator<<(

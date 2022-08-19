@@ -19,6 +19,7 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -48,7 +49,7 @@ sc_data_format_kind_t sc_data_format_kind_t::get_plain_by_dims(size_t ndims) {
 }
 
 sc_data_format_kind_t sc_data_format_kind_t::get_2dblocking_by_dims(
-        size_t ndims, bool is_vnni_format) {
+        size_t ndims, bool is_weight, bool is_vnni_format) {
     COMPILE_ASSERT(ndims <= sc_data_format_kind_t::MAX_DIMS,
             "storage size should be less than MAX_DIMS");
     uint64_t res = set_ith_int(
@@ -63,6 +64,10 @@ sc_data_format_kind_t sc_data_format_kind_t::get_2dblocking_by_dims(
         res = set_ith_int(res, ndims, ndims - 2);
         // the second blocking
         res = set_ith_int(res, ndims + 1, ndims - 1);
+        if (is_weight) {
+            res = set_ith_int(res, ndims - 2, ndims - 1);
+            res = set_ith_int(res, ndims - 1, ndims - 2);
+        }
     }
     if (is_vnni_format) {
         assert(ndims >= 2);
@@ -222,7 +227,8 @@ runtime::dispatch_key sc_data_format_t::to_runtime() const {
     COMPILE_ASSERT(blocks_[0] < 256 && blocks_[1] < 256,
             "The blocks are too large for runtime dispatch_key");
     return runtime::dispatch_key(static_cast<uint64_t>(format_code_),
-            blocks_[0], blocks_[1], 0, format_code_.is_plain());
+            blocks_[0], blocks_[1], impl_kind_t::normal,
+            format_code_.is_plain());
 }
 
 std::ostream &operator<<(std::ostream &os, const sc_data_format_t &in) {
@@ -467,6 +473,22 @@ int sc_data_format_t::get_blocks_size() const {
 bool sc_data_format_t::is_same_format_kind(
         const sc_data_format_t &input_format) const {
     return this->format_code_ == input_format.format_code_;
+}
+
+bool sc_data_format_cmper_t::operator()(
+        const sc_data_format_t &fmt0, const sc_data_format_t &fmt1) const {
+    if (fmt0.format_code_ != fmt1.format_code_) {
+        return fmt0.format_code_ < fmt1.format_code_;
+    }
+    if (fmt0.blocks_ != fmt1.blocks_) {
+        for (int i = 0; i < 4; i++) {
+            if (fmt0.blocks_[i] != fmt1.blocks_[i]) {
+                return fmt0.blocks_[i] < fmt1.blocks_[i];
+            }
+        }
+    }
+    // equal
+    return false;
 }
 
 // clang-format off
