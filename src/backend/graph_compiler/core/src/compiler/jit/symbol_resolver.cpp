@@ -70,6 +70,9 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_get_thread_id",
                     (void *)runtime_config_t::get()
                             .thread_pool_table_->get_thread_id},
+            {"sc_parallel_call_managed",
+                    (void *)runtime_config_t::get()
+                            .thread_pool_table_->parallel_call_managed},
             {"sc_arrive_at_barrier", (void *)sc_arrive_at_barrier},
             {"sc_init_barrier", (void *)sc_init_barrier},
             // dynamic query function

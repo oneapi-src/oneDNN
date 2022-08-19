@@ -38,7 +38,7 @@ const char *env_names[] = {"SC_CPU_JIT", "SC_TRACE", "SC_DUMP_GRAPH",
         "SC_PRINT_PASS_TIME", "SC_PRINT_PASS_RESULT", "SC_JIT_PROFILE",
         "SC_MIXED_FUSION", "SC_COST_MODEL", "SC_XBYAK_JIT_SAVE_OBJ",
         "SC_XBYAK_JIT_ASM_LISTING", "SC_XBYAK_JIT_LOG_STACK_FRAME_MODEL",
-        "SC_XBYAK_JIT_PAUSE_AFTER_CODEGEN"};
+        "SC_XBYAK_JIT_PAUSE_AFTER_CODEGEN", "SC_MANAGED_THREAD_POOL"};
 
 namespace utils {
 // TODO(xxx): Copied from onednn, should be removed when merge

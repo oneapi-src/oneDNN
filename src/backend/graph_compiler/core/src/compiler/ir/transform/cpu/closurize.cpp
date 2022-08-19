@@ -50,7 +50,16 @@ func_t get_parallel_call_with_env_func(bool managed) {
                     _arg_("end", datatypes::index),
                     _arg_("step", datatypes::index),
                     _arg_("args", datatypes::generic.get_pointerof())});
-    return f;
+    static func_t f_managed
+            = builder::_decl_func("sc_parallel_call_managed", datatypes::void_t,
+                    {_arg_("func", datatypes::pointer),
+                            _arg_("stream", datatypes::pointer),
+                            _arg_("env", datatypes::s8.get_pointerof()),
+                            _arg_("begin", datatypes::index),
+                            _arg_("end", datatypes::index),
+                            _arg_("step", datatypes::index),
+                            _arg_("args", datatypes::generic.get_pointerof())});
+    return managed ? f_managed : f;
 }
 
 class closurize_cpu_impl_t : public closurize_impl_t {

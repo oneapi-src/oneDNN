@@ -33,6 +33,8 @@ struct amx_buffer_t {
     void *ptr_ = nullptr;
     // the pointer to the current configured palette
     const char *cur_palette = nullptr;
+    // if there is an alive tile palette
+    bool need_release_tile_ = false;
     // alloc memory for AMX scratch pad at ptr_ using the allocator in the
     // stream(engine)
     void reset(stream_t *stream);
@@ -54,6 +56,7 @@ struct thread_local_buffer_t {
         bool is_main_thread_ = false;
         trace_manager_t trace_;
     };
+    bool in_managed_thread_pool_;
     engine_t *engine_ = nullptr;
     amx_buffer_t amx_buffer_;
 

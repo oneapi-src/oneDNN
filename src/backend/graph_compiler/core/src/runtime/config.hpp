@@ -53,6 +53,7 @@ struct SC_INTERNAL_API runtime_config_t {
     int trace_initial_cap_;
     trace_mode_t trace_mode_;
     bool execution_verbose_;
+    bool managed_thread_pool_;
     int verbose_level_;
     static runtime_config_t &get();
 

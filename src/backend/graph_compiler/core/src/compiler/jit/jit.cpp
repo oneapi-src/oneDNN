@@ -25,6 +25,7 @@
 #include "xbyak/xbyak_jit_engine.hpp"
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <runtime/config.hpp>
+#include <runtime/managed_thread_pool.hpp>
 #include <util/math_utils.hpp>
 #include <util/scoped_timer.hpp>
 
@@ -173,13 +174,22 @@ struct jit_timer_t<true> {
         : timer_ {true, callback_t {ths}} {}
 };
 
-using functype = void (*)(runtime::stream_t *, void *, generic_val *);
+using functype = runtime::thread_manager::main_func_t;
 
 template <bool thread_pool_init>
 struct thread_pool_caller_t {
     static void call(functype f, runtime::stream_t *stream, void *module_data,
             generic_val *args) {
         f(stream, module_data, args);
+    }
+};
+
+template <>
+struct thread_pool_caller_t<true> {
+    static void call(functype f, runtime::stream_t *stream, void *module_data,
+            generic_val *args) {
+        runtime::thread_manager::cur_mgr.run_main_function(
+                f, stream, module_data, args);
     }
 };
 

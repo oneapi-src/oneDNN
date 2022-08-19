@@ -22,6 +22,7 @@
 #include <runtime/env_var.hpp>
 #include <runtime/env_vars.hpp>
 #include <runtime/logging.hpp>
+#include <runtime/managed_thread_pool.hpp>
 #include <runtime/os.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
@@ -96,6 +97,11 @@ runtime_config_t &runtime_config_t::get() {
 using namespace env_key;
 runtime_config_t::runtime_config_t() {
     thread_pool_table_ = &sc_pool_table;
+    managed_thread_pool_
+            = (utils::getenv_int(env_names[SC_MANAGED_THREAD_POOL], 1) != 0);
+    if (managed_thread_pool_) {
+        thread_pool_table_->parallel_call_managed = &sc_parallel_call_managed;
+    }
     trace_initial_cap_ = 2048 * 1024;
     trace_out_path_ = utils::getenv_string(env_names[SC_TRACE]);
     char mode = 0;

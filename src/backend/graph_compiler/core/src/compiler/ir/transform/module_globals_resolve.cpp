@@ -275,7 +275,18 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
         funcp->decl_ = copy_attr(*f, std::move(funcp->decl_));
     }
     float gflop = m->attr_.get_or_else(ir_module_t::attr_key_t::GFLOP, 0.0f);
-    bool use_managed_thread_pool = false;
+    // if the workload is too small, directly use thread pool backend instead of
+    // managed thread pool. if gflop per thread is large enough, or there is
+    // only one single thread, enable managed thread pool. For MLP workload on
+    // 24-core cascade lake, 1.6Gflop is turning point of choosing
+    // managed/native thread pool
+    auto &rtl_cfg = runtime_config_t::get();
+    bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
+            && (rtl_cfg.get_num_threads() == 1
+                    || gflop / rtl_cfg.get_num_threads() > 0.0666f);
+
+    SC_MODULE_INFO << "Use managed thread pool? " << use_managed_thread_pool
+                   << ". Module gflops = " << gflop;
     ret->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
             = use_managed_thread_pool;
     for (unsigned i = 0; i < funcs.size(); i++) {
