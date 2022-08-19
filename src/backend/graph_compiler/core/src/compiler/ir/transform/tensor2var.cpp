@@ -200,7 +200,11 @@ public:
                     }
                 }
                 // fix-me(yijie): should remove the replaced tensor definition
-                if (refered) { return stmt(); }
+                if (refered) {
+                    return stmt();
+                } else {
+                    result->can_replace_ = false;
+                }
             }
         }
         return ir_visitor_t::visit(v);
