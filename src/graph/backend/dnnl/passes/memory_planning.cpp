@@ -313,8 +313,11 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(
         } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
-            args.insert(
-                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
+            // workaround a compile issue for using
+            // DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) directly.
+            const int idx = static_cast<int>(i);
+            args.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1,
+                    mem});
         } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_convolution) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
@@ -363,8 +366,11 @@ void memory_planner_t::prepare_args_for_binary(
         } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
-            args.insert(
-                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
+            // workaround a compile issue for using
+            // DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) directly.
+            const int idx = static_cast<int>(i);
+            args.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1,
+                    mem});
         } else {
         }
     }
@@ -464,8 +470,11 @@ void memory_planner_t::prepare_args_for_siso_op(op_t *op,
         } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
-            args.insert(
-                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
+            // workaround a compile issue for using
+            // DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) directly.
+            const int idx = static_cast<int>(i);
+            args.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1,
+                    mem});
         } else {
         }
     }
@@ -511,8 +520,11 @@ void memory_planner_t::prepare_args_for_dnnl_pool(op_t *op,
         } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
-            args.insert(
-                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
+            // workaround a compile issue for using
+            // DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) directly.
+            const int idx = static_cast<int>(i);
+            args.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1,
+                    mem});
         } else {
         }
     }
@@ -571,9 +583,11 @@ void memory_planner_t::prepare_args_for_miso_op(
     memory mem;
 
     for (size_t i = 0; i < op->num_inputs(); ++i) {
-        exec_args_set_.find_value_mem_map(
-                op->get_input_value(static_cast<size_t>(i)).get(), mem);
-        args.insert({DNNL_ARG_MULTIPLE_SRC + i, mem});
+        exec_args_set_.find_value_mem_map(op->get_input_value(i).get(), mem);
+        // workaround a compile issue for using DNNL_ARG_MULTIPLE_SRC + i
+        // directly.
+        const int idx = static_cast<int>(i);
+        args.insert({DNNL_ARG_MULTIPLE_SRC + idx, mem});
     }
 
     exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
