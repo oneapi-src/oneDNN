@@ -645,7 +645,7 @@ private:
             bmnk_d.set_size(bmnk_d.size() * d.size());
             bmnk_d.set_base_iter_block(
                     bmnk_d.base_iter_block() * d.base_iter_block());
-            if (d.is_blocked() and d.size() != 1) bmnk_d.incr_inner_dims();
+            if (d.is_blocked() && d.size() != 1) bmnk_d.incr_inner_dims();
         }
     }
 
