@@ -10,6 +10,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_GPU_RUNTIME              | **NONE**, OCL, DPCPP                       | Defines the offload runtime for GPU engines
 | ONEDNN_BUILD_EXAMPLES           | **ON**, OFF                                | Controls building the examples
 | ONEDNN_BUILD_TESTS              | **ON**, OFF                                | Controls building the tests
+| ONEDNN_BUILD_GRAPH              | **ON**, OFF                                | Controls building graph component
 | ONEDNN_ARCH_OPT_FLAGS           | *compiler flags*                           | Specifies compiler optimization flags (see warning note below)
 | ONEDNN_ENABLE_CONCURRENT_EXEC   | ON, **OFF**                                | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
 | ONEDNN_ENABLE_JIT_PROFILING     | **ON**, OFF                                | Enables [integration with performance profilers](@ref dev_guide_profilers)
