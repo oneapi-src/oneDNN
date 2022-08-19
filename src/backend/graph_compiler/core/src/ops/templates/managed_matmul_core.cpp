@@ -16,6 +16,7 @@
 
 #include "managed_matmul_core.hpp"
 #include <algorithm>
+#include <limits>
 #include <string>
 #include "utils.hpp"
 #include <compiler/ir/builder.hpp>
@@ -116,8 +117,8 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   int sizeofdtypeA = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
   int sizeofdtypeC = utils::get_sizeof_etype(out_tensors_[0].dtype_.as_etype());
   int im_block = im_block_;
-  float cost = M * N;
-  int split_n = 0;
+  float cost = std::numeric_limits<float>::max();
+  int split_n = 1;
   cfg.im_loop_order = 0;
   if (M * N / im_block_ / im_block_ >= num_threads) {
     for (auto i : splits) {
