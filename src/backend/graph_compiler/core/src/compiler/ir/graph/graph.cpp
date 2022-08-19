@@ -183,11 +183,12 @@ tensor_slice::tensor_slice(const expr &tsr, slice_range &&range) {
         COMPILE_ASSERT(dims->size() == 1
                         && get_const_as_int((*dims)[0].checked_as<constant>())
                                 == 1,
-                "Unexpected range found. Tensor:"
+                "Unmatched range found. Tensor: "
                         << (tsr.isa<tensor>() ? tsr.static_as<tensor>()->name_
                                               : "")
                         << " have dims: " << utils::print_vector(*dims)
-                        << " but got range size: " << range.size());
+                        << " but got slice range: "
+                        << utils::print_pair_vector(range));
     tptr_ = builder::tensor_ptr(tsr,
             dims->size() != range.size() ? std::vector<expr> {0}
                                          : get_slice_idx(range),

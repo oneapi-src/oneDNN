@@ -503,7 +503,7 @@ static sc_op_ptr check_and_repartition(sc_graph_t &g,
 }
 
 SC_INTERNAL_API void fuse_ops(sc_graph_t &g, const context_ptr &ctx) {
-    if (!g.attrs_.get_or_else("temp.fuse", 1)) { return; }
+    if (g.attrs_.get_or_else("temp.disable_graph_fusion", 0)) { return; }
 
     // mapping from op id => partition
     std::vector<fusion_partition_t::ptr> op_2_partition;

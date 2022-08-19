@@ -184,6 +184,7 @@ class value_numbering_mutator_t : public ssa_visitor_t {
         scopes_.emplace_back(scope_t {v.get(), nullptr});
         should_update_scopes_ = true;
         auto ret = ssa_visitor_t::visit(v);
+        should_update_scopes_ = false;
         // make sure we make a new stmts node, so that remove_const is safe
         if (ret.ptr_same(v)) { ret = ret->remake(); }
         // update all var's finalized_parent_

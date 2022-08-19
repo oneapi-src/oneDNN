@@ -51,13 +51,13 @@ namespace stmt_attr_key {
 // Boolean. If true, for_loop_node_t will be merged as possible
 constexpr const char *merge_loop = "merge_loop";
 
+// for_loop_node_t. It represents the root loop invloving reduce computation
+constexpr const char *reduce_root_loop = "reduce_root_loop";
+
 // int. If is set, for_loop_node_t will be unrolled in loop_unroller pass.
 // The value is the unroll factor, see unroll() of for_loop_node_t. The value 0
 // is a special unroll factor, and it unrolls all iterations of the loop
 constexpr const char *unroll_loop = "unroll_loop";
-
-// for_loop. It represents the root loop invloving reduce computation
-constexpr const char *reduce_root_loop = "reduce_root_loop";
 
 // Boolean. If true, for_loop_node_t will be merged by parallel, currently only
 // available for parallel loop with `thread_num > 1`

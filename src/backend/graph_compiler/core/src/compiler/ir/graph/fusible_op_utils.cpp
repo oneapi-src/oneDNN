@@ -587,12 +587,16 @@ cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
     for (auto &left_slice_range : left_slice_range_list) {
         auto left_slice_shape
                 = get_expr_to_dims(get_slice_shape(left_slice_range));
-        left_slice_size += get_dims_product(left_slice_shape);
+        if (get_dims_product(left_slice_shape) > left_slice_size) {
+            left_slice_size = get_dims_product(left_slice_shape);
+        }
     }
     for (auto &right_slice_range : right_slice_range_list) {
         auto right_slice_shape
                 = get_expr_to_dims(get_slice_shape(right_slice_range));
-        right_slice_size += get_dims_product(right_slice_shape);
+        if (get_dims_product(right_slice_shape) > right_slice_size) {
+            right_slice_size = get_dims_product(right_slice_shape);
+        }
     }
     // if right anchor is more smaller than the leftrent one
     if (left_slice_size == right_slice_size) {

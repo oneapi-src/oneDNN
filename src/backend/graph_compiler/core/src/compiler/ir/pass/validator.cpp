@@ -647,7 +647,6 @@ void validate_impl_t::view(for_loop_c v) {
         COMPILE_ASSERT(v->num_threads_ == 0,
                 "Expecting non-parallel for-loop's num threads = 0");
     }
-    COMPILE_ASSERT(v->num_threads_ == 0, "Nested parallel-for is not enabled");
     for_loop_levels_--;
 }
 

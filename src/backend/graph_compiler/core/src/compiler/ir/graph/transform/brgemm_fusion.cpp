@@ -495,7 +495,9 @@ std::vector<std::shared_ptr<fusion_state_t>> create_all_possible_states(
 // As this transform pass is only used in `fuse_ops` pass, so we introduce two
 // auxiliary ops
 void brgemm_fusion_transform(sc_graph_t &graph, const context_ptr &ctx) {
-    if (graph.attrs_.get_or_else("temp.fuse", 1) == 0) { return; }
+    if (graph.attrs_.get_or_else("temp.disable_graph_fusion", 0) == 1) {
+        return;
+    }
     // todo: need interleave optimization on amx
     if (ctx->machine_.cpu_flags_.fAVX512AMXTILE) { return; }
     auto ops = graph.ops_;

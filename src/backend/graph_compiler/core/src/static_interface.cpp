@@ -44,7 +44,8 @@
     F(conv_bwd_weight); \
     F(batchnorm_inference); \
     F(batchnorm_forward_training); \
-    F(batchnorm_training_backprop);
+    F(batchnorm_training_backprop); \
+    F(managed_matmul_core);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;
 

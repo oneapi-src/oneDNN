@@ -52,7 +52,7 @@ static inline size_t extract_workload_from_stmt(const stmt &v) {
 
 static void split_parallel_loop(const for_loop &v, size_t wkld) {
     bool need_split_parallel = v->kind_ == for_type::PARALLEL
-            && wkld < memory_access_threshold_per_thread;
+            && wkld < memory_access_threshold_per_thread && wkld;
     if (need_split_parallel) {
         size_t block = 1UL;
         size_t best_block = 1UL;

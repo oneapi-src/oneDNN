@@ -172,11 +172,12 @@ static void do_dispatch(thread_manager *s, int tid) {
     size_t my_begin = (size_t)tid <= the_tid
             ? tid * my_jobs
             : the_tid * my_jobs + (tid - the_tid) * my_jobs_2;
-    my_begin *= step;
-    size_t my_end = my_begin + cur_jobs * step;
-    for (size_t i = my_begin; i < my_end; i += step) {
-        s->state.task.pfunc(s->state.task.stream, s->state.task.module_env, i,
-                s->state.task.args);
+    my_begin = my_begin * step + begin;
+    for (size_t jid = 0; jid < cur_jobs; jid++) {
+        // Rolling i with tid
+        size_t rolling_i = (jid + tid) % cur_jobs * step + my_begin;
+        s->state.task.pfunc(s->state.task.stream, s->state.task.module_env,
+                rolling_i, s->state.task.args);
     }
 }
 

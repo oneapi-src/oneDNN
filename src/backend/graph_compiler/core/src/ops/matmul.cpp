@@ -119,6 +119,8 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             trans0, trans1);
 
     bool is_bf16 = false;
+    bool is_int8 = utils::is_one_of(
+            inputs[0]->details_.dtype_, datatypes::u8, datatypes::s8);
     if (inputs[0]->details_.dtype_ == datatypes::bf16
             || inputs[1]->details_.dtype_ == datatypes::bf16
             || outputs[0]->details_.dtype_ == datatypes::bf16) {
@@ -161,8 +163,20 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                 {{"shape", reshape_dest}, {"format", reshape_fmt}});
         trans1 = reshape_node->get_outputs()[0];
     }
+    int M = trans0->details_
+                    .get_plain_dims()[trans0->details_.get_plain_dims().size()
+                            - 2];
+    int K = trans0->details_.get_plain_dims().back();
+    int N = trans1->details_.get_plain_dims().back();
+    if (trans0->details_.get_plain_dims().size() > 2
+            || trans1->details_.get_plain_dims().size() > 2
+            || (is_int8 && (M < 64 || N < 64 || K < 64))
+            || (!is_int8 && (M < 32 || N < 32 || K < 32))) {
+        matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
+    } else {
+        matmul = graph->make("managed_matmul_core", {trans0, trans1}, {}, {});
+    }
 
-    matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
     if (is_bf16) {
         matmul = graph->make("cast", matmul->get_outputs(), {},
                 {{"dtype", datatypes::bf16}});

@@ -41,6 +41,7 @@
 #include <compiler/ir/transform/loop_merge.hpp>
 #include <compiler/ir/transform/loop_unroll.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
+#include <compiler/ir/transform/nested_parallel_flatten.hpp>
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <compiler/ir/transform/simplify.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
@@ -70,6 +71,8 @@ sequential_module_pass_t get_default_precodegen_passes(
         ret.emplace_back(utils::make_unique<trace_inserter_t>());
     }
     ret.emplace_back(utils::make_unique<constant_folder_t>());
+    ret.emplace_back(
+            module_function_pass_t::make<nested_parallel_flattener_t>());
     ret.emplace_back(module_function_pass_t::make<func_inliner_t>());
     ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>());

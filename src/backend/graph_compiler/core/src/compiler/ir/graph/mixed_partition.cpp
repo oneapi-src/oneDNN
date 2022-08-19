@@ -321,6 +321,18 @@ stmts get_anchor_inside_loop(mixed_parti_t *parti, const for_loop &loop) {
     if (body.isa<stmts>()) {
         auto ss = body.static_as<stmts>();
         for (auto &s : ss->seq_) {
+            // find iterared anchor
+            if (s.isa<if_else>()) {
+                auto if_node = s.static_as<if_else>();
+                if (!if_node->then_case_.defined()
+                        || if_node->else_case_.defined())
+                    continue;
+                auto then_stmts = if_node->then_case_.static_as<stmts>();
+                if (then_stmts->seq_.size() == 1)
+                    s = then_stmts->seq_[0];
+                else
+                    continue;
+            }
             if (!s.isa<stmts>()) continue;
             auto inner_ss = s.static_as<stmts>();
             auto anchor_map = parti->lookup_anchor_map(inner_ss);
@@ -880,7 +892,6 @@ bool try_merge_mixed_parti_horizontally(
     auto outer_loops_A = A->get_outer_loops(),
          outer_loops_B = B->get_outer_loops();
     if (outer_loops_A.empty() || outer_loops_B.empty()) return false;
-
     if (outer_loops_A[0]->num_threads_ > 0
             || outer_loops_B[0]->num_threads_ > 0)
         return false;
