@@ -18,8 +18,21 @@
 #include <atomic>
 #include <immintrin.h>
 #include "barrier.hpp"
+#include "trace.hpp"
+#include <runtime/microkernel/cpu/kernel_timer.hpp>
+#include <runtime/runtime.hpp>
+
+#ifdef SC_KERNEL_PROFILE
+static void make_trace(int in_or_out) {
+    if (sc_is_trace_enabled()) { sc_make_trace_kernel(2, in_or_out, 0); }
+}
+
+#else
+#define make_trace(v)
+#endif
 
 extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b) {
+    make_trace(0);
     auto cur_round = b->rounds_.load();
     auto cnt = --b->pending_;
     assert(cnt >= 0);
@@ -31,6 +44,7 @@ extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b) {
             _mm_pause();
         }
     }
+    make_trace(1);
 }
 
 extern "C" SC_API void sc_init_barrier(
