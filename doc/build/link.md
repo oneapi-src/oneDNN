@@ -7,13 +7,16 @@ on how oneDNN was built.
 
 ## Header Files
 
-| File                                   | Description
-| :---                                   | :---
-| ``include/oneapi/dnnl/dnnl.h``         | C header
-| ``include/oneapi/dnnl/dnnl.hpp``       | C++ header
-| ``include/oneapi/dnnl/dnnl_types.h``   | Auxiliary C header
-| ``include/oneapi/dnnl/dnnl_config.h``  | Auxiliary C header
-| ``include/oneapi/dnnl/dnnl_version.h`` | C header with version information
+| File                                      | Description
+| :---                                      | :---
+| ``include/oneapi/dnnl/dnnl.h``            | C header
+| ``include/oneapi/dnnl/dnnl.hpp``          | C++ header
+| ``include/oneapi/dnnl/dnnl_types.h``      | Auxiliary C header
+| ``include/oneapi/dnnl/dnnl_config.h``     | Auxiliary C header
+| ``include/oneapi/dnnl/dnnl_version.h``    | C header with version information
+| ``include/oneapi/dnnl/dnnl_graph.h``      | C header
+| ``include/oneapi/dnnl/dnnl_graph.hpp``    | C++ header
+| ``include/oneapi/dnnl/dnnl_graph_types.h``| Auxiliary C header
 
 ## Libraries
 
