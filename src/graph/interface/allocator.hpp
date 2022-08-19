@@ -155,7 +155,7 @@ public:
                         std::unordered_map<const void *, mem_info_t>>>
                 temp_mem_infos_;
 
-        // Since the memory operation will be performaed from multiple threads,
+        // Since the memory operation will be performed from multiple threads,
         // so we use the rw lock to guarantee the thread safety of the global
         // persistent memory monitoring.
         static dnnl::impl::utils::rw_mutex_t rw_mutex_;

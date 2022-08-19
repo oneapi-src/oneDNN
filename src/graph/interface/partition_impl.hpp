@@ -105,8 +105,8 @@ public:
     /// Return the assigned backend of this partition
     virtual const backend *get_assigned_backend() const = 0;
 
-    /// Infer the outputs shape according to the inputs shape and the ops
-    /// in this partition.
+    /// Infer the outputs shape according to the inputs shape and the ops in
+    /// this partition.
     /// @param inputs The inputs logical tensors whose shapes are valid
     /// @param outputs The outputs logical tensors whose shapes are
     ///     invalid but will be filled by this function
@@ -118,9 +118,9 @@ public:
     virtual status_t infer_shape(std::vector<const logical_tensor_t *> &inputs,
             std::vector<logical_tensor_t *> &outputs) const = 0;
 
-    /// Compile the partition with specific inputs and outputs logical
-    /// tensors and engine. A partitioncan be compiled multiple times
-    /// with different inputs and outputs
+    /// Compile the partition with specific inputs and outputs logical tensors
+    /// and engine. A partition can be compiled multiple times with different
+    /// inputs and outputs
     /// @param compiled_partition The pointer of an empty instance, whose
     ///     pimpl_ field should be filled with a smart pointer of internally
     ///     created compiled_partition_impl_t instance during the compile
@@ -244,10 +244,10 @@ public:
     ///     given when calling partition_impl_t::compile
     /// @param inputs The inputs logical tensors which this
     ///     compiled_partition_impl_t is specialized for. Should have
-    ///     exact shape/dtype/layout infomations
+    ///     exact shape/dtype/layout information
     /// @param outputs The outputs logical tensors which this
     ///     compiled_partition_impl_t is specialized for. Should have
-    ///     exact shape/dtype/layout infomations
+    ///     exact shape/dtype/layout information
     /// @param inplace_pairs The inplace pairs that used to indicate
     ///     which input and output tensor given on execute can share
     ///     same memory buffer
@@ -306,10 +306,10 @@ public:
     ///     compiled partition.
     /// @param inputs The inputs tensors, which contain metadata and buffer
     ///     For each logical tensor in the inputs_, there must be one tensor
-    ///     in inputs arguments whose metada is exactly same with it
+    ///     in inputs arguments whose metadata is exactly same with it
     /// @param outputs The outputs tensors, which contain metadata and buffer
     ///     For each logical tensor in the outputs_, there must be one tensor
-    ///     in output arguments whose metada is exactly same with it.
+    ///     in output arguments whose metadata is exactly same with it.
     /// @return The status code
     /// @note
     ///     1. The given in/outputs tensors should have the same order with

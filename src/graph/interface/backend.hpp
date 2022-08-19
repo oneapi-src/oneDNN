@@ -37,14 +37,9 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 
-// register dnnl backend
+// forward declaration
 void register_dnnl_backend();
-// register fake backend
 void register_fake_backend();
-// #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
-// register graph compiler backend
-// void register_compiler_backend();
-// #endif
 
 class backend {
 public:
@@ -65,7 +60,7 @@ public:
     /// @return The memory size
     virtual size_t get_mem_size(const logical_tensor_t &lt) const = 0;
 
-    /// Check wheather two logical tensor is similar (similar means two
+    /// Check whether two logical tensor is similar (similar means two
     /// logical tensors can be converted to same backend md)
     /// @param lhs
     /// @param rhs
@@ -202,9 +197,6 @@ private:
         std::call_once(register_flag_, []() {
             register_dnnl_backend();
             register_fake_backend();
-            // #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
-            //             register_compiler_backend();
-            // #endif
         });
     }
 

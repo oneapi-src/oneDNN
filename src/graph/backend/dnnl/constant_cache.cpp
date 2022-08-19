@@ -116,9 +116,9 @@ size_t constant_cache_t::get_size() const {
 void constant_cache_t::add(const key_t &key, const value_t &constant) {
     size_t current_size = get_size();
     if (current_size >= capacity_) {
-        // FIXME(qun) because we can't know the concret size of the constant, so
-        // we could only guarantee that the total size before adding  not beyond
-        // capacity here.
+        // FIXME(qun) because we can't know the concrete size of the constant,
+        // so we could only guarantee that the total size before adding  not
+        // beyond capacity here.
         evict(current_size - capacity_);
     }
 

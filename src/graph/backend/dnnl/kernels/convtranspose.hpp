@@ -274,7 +274,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
 
         // Because we use binary post-ops for broadcast add and sum post-ops for
-        // non-broadcast add. So we have to know concret shape before fuse
+        // non-broadcast add. So we have to know concrete shape before fuse
         // post-ops
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);

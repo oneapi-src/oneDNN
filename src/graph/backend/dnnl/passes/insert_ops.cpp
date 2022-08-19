@@ -616,7 +616,7 @@ status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
             zps_op->set_attr<std::string>(op_attr::qtype, "per_tensor");
             zps_op->set_attr<int64_t>(op_attr::axis, 0);
             zps_op->set_attr<std::vector<int64_t>>(op_attr::zps, zp);
-            fusion_info.set_zero_points(zps_op, true, /*the wei indice*/ 1);
+            fusion_info.set_zero_points(zps_op, true, /*the wei indices*/ 1);
         }
 
         op_ptr u8_to_s8_op = std::make_shared<op_t>(op_kind::dnnl_reorder);

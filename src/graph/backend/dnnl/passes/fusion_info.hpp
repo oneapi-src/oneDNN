@@ -40,7 +40,7 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
-// This class is used to represent an op's fusion infomation, such as the post
+// This class is used to represent an op's fusion information, such as the post
 // ops, the zero points or scales.
 class fusion_info_t {
     using op_ptr = std::shared_ptr<op_t>;
@@ -137,7 +137,7 @@ public:
     // the extra input means the unfused input that has been added to the fused
     // op, like the following case, we fuse a binary mul into the conv, the src1
     // of mul op is unfused, and it becomes the 3rd input of conv. So the extra
-    // input indece should be this input's index 2.
+    // input indices should be this input's index 2.
     //
     //   src   wei            src  wei  src1
     //     \   /                 \  |   /

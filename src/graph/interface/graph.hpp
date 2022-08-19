@@ -154,7 +154,7 @@ public:
     }
 
     /*!
-     * \brief Get all the ops of this graph, inlcuding original ops and fused.
+     * \brief Get all the ops of this graph, including original ops and fused.
      * \return vector of ops pointers
      */
     const std::vector<op_ptr> &get_ops() const { return ops_; }
@@ -207,7 +207,7 @@ public:
     }
 
     /*!
-     * \brief Get the output values (values whose comsumers are not all in the
+     * \brief Get the output values (values whose consumers are not all in the
      * graph) of this graph.
      * \return vector of output values pointers
      */

@@ -731,8 +731,8 @@ status_t infer_pool_bwd_output_shape(op_t *n,
 
     const bool is_maxpool = n->get_kind() == op_kind::MaxPoolBackprop;
     if (is_maxpool) {
-        // We should compute output dense strides instead of
-        // directly copying input strides to it
+        // We should compute output dense strides instead of directly copying
+        // input strides to it
         set_shape_and_strides(*outputs[0], in0.vdims());
     } else {
         // AvgPoolBackprop
@@ -837,8 +837,7 @@ status_t infer_matmul_output_shape(op_t *n,
             // matmul: incompatible arg shapes
             return status::invalid_shape;
         }
-        // example: input0 shape {3}, input1 shape {2,3,4},
-        // output shape {2,4}
+        // example: input0 shape {3}, input1 shape {2,3,4}, output shape {2,4}
         updated_input1.erase(
                 updated_input1.begin() + static_cast<dim_t>(input1_rank) - 2);
         inferred_out_shape = updated_input1;
@@ -847,8 +846,7 @@ status_t infer_matmul_output_shape(op_t *n,
             // matmul: incompatible arg shapes
             return status::invalid_shape;
         }
-        // example: input0 shape {2,3,4}, input1 shape {4},
-        // output shape {2,3}
+        // example: input0 shape {2,3,4}, input1 shape {4}, output shape {2,3}
         updated_input0.erase(
                 updated_input0.begin() + static_cast<dim_t>(input0_rank) - 1);
         inferred_out_shape = updated_input0;
@@ -857,8 +855,7 @@ status_t infer_matmul_output_shape(op_t *n,
             // matmul: incompatible arg shapes
             return status::invalid_shape;
         }
-        // example: input0 shape {1, 3}, input1 shape {3, 2},
-        // output shape {1,2}
+        // example: input0 shape {1, 3}, input1 shape {3, 2}, output shape {1,2}
         inferred_out_shape = {updated_input0[0], updated_input1[1]};
     } else {
         if (updated_input0[input0_rank - 1]
@@ -900,8 +897,8 @@ status_t infer_identity_output_shape(op_t *n,
         }
     }
 
-    // We should compute output dense strides instead of
-    // directly copying input strides to it
+    // We should compute output dense strides instead of directly copying input
+    // strides to it
     set_shape_and_strides(*outputs[0], in0.vdims());
     UNUSED(n);
     return status::success;
@@ -1289,13 +1286,12 @@ status_t infer_reduce_output_shape(op_t *n,
         return status::success;
     }
 
-    // When the second input is an empty list,
-    // then this operation does nothing, it is an identity.
-    // For dims.size() == 0, we set ndims to -1 and can't get
+    // When the second input is an empty list, then this operation does nothing,
+    // it is an identity. For dims.size() == 0, we set ndims to -1 and can't get
     // vdims. Therefore, this path is not supported.
 
-    // since we don't have an access to the second input data,
-    // which contain axis indices, we cannot calculate output shape
+    // since we don't have an access to the second input data, which contain
+    // axis indices, we cannot calculate output shape
     return status::unimplemented;
 }
 
@@ -1386,8 +1382,8 @@ status_t infer_static_transpose_output_shape(op_t *n,
     const int32_t in_ndims = in0.ndims();
     std::vector<int64_t> order = n->get_attr<dims>(op_attr::order);
     std::vector<bool> order_covered_flg(in_ndims, false);
-    // check order should be in [-n, n-1] and cover all input axis
-    // if order < 0, convert it to postive order
+    // check order should be in [-n, n-1] and cover all input axis if order < 0,
+    // convert it to postive order
     if (!order.empty()) {
         if (order.size() != static_cast<size_t>(in_ndims)) {
             return status::invalid_shape;

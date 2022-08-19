@@ -2337,7 +2337,7 @@ struct bn_folding_t : public op_executable_t {
         sub_prim_ = dnnl::binary(sub_pd);
 
         memory::dims scratchpad_dims = variance.dims();
-        // sqrt_variance, zero_bias and others (like epslion),
+        // sqrt_variance, zero_bias and others (like epsilon),
         // or no need to alloc bias
         size_t factor = bias.is_zero() ? 3 : 2;
         scratchpad_dims[0] *= factor;
@@ -2375,7 +2375,7 @@ struct bn_folding_t : public op_executable_t {
                     scratchpad.get_engine(), (void *)buf_start);
             buf_start += valid_bias.get_desc().get_size();
         }
-        // epslion
+        // epsilon
         memory epsilon_mem = make_dnnl_memory(
                 epsilon_desc_, scratchpad.get_engine(), (void *)buf_start);
 
@@ -2464,7 +2464,7 @@ struct bn_folding_t : public op_executable_t {
                     scratchpad.get_engine(), (void *)buf_start);
             buf_start += valid_bias.get_desc().get_size();
         }
-        // epslion
+        // epsilon
         memory epsilon_mem = make_dnnl_memory(
                 epsilon_desc_, scratchpad.get_engine(), (void *)buf_start);
 

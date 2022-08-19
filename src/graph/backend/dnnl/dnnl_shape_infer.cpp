@@ -414,7 +414,7 @@ status_t infer_bn_folding_output_shape(op_t *n,
     if (!out0.is_shape_unknown() && !out1.is_shape_unknown())
         return status::success;
 
-    // check if partial set shape aligns with infered shape
+    // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
         if (!validate(in0.vdims(), out0.vdims())) {
             return status::invalid_shape;

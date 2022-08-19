@@ -35,9 +35,9 @@ bool check_scales_zps_all_equal(op_t *op) {
     if (out_port->get_consumers().empty()) return false;
 
     auto &out_op = out_port->get_consumers()[0].get_op();
-    // We only want to accept int8 concat with inputs using
-    // the same scales and zps. Concat does not change range
-    // of values so output scales and zps should be same as well.
+    // We only want to accept int8 concat with inputs using the same scales and
+    // zps. Concat does not change range of values so output scales and zps
+    // should be same as well.
     if (!out_op.has_attr(op_attr::scales) || !out_op.has_attr(op_attr::zps))
         return false;
     const auto expected_scales

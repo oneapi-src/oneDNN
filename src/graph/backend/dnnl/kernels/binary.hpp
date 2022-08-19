@@ -109,7 +109,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
 
         // Because we use binary post-ops for broadcast add and sum post-ops for
-        // non-broadcast add. So we have to know concret shape before fuse
+        // non-broadcast add. So we have to know concrete shape before fuse
         // post-ops
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, split_squared_difference);

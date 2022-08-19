@@ -40,10 +40,10 @@ status_t compiled_partition_impl_t::query_logical_tensor(
         return status::success;
     }
 
-    // if we don't find the logical tensor in compiled partition's inputs_
-    // and outputs_, this means the logical tensor is not required by this
-    // compiled partition. this will be a common situation if FWK gives
-    // arbitrary connection, and shouldn't be regarded as an error
+    // if we don't find the logical tensor in compiled partition's inputs_ and
+    // outputs_, this means the logical tensor is not required by this compiled
+    // partition. this will be a common situation if FWK gives arbitrary
+    // connection, and shouldn't be regarded as an error
     std::memset(lt, 0, sizeof(logical_tensor_t));
     return status::success;
 }

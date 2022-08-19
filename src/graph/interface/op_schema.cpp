@@ -32,7 +32,7 @@ op_schema_t::op_schema_t(op_kind_t kind, opset_version version)
     : op_kind_(kind), version_(version) {}
 
 // the rvalue reference design is based on the fact that these
-// functions are only called internally with rvalue intputs.
+// functions are only called internally with rvalue inputs.
 op_schema_t &op_schema_t::set_op_kind(op_kind_t kind) {
     op_kind_ = kind;
     return *this;

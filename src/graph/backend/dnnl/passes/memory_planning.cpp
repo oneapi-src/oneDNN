@@ -818,7 +818,7 @@ void memory_planner_t::bind_memory_for_layernorm(
     INSERT_ARGS(DNNL_ARG_DST, out_index++, output);
     if (!op->has_attr(op_attr::keep_stats)
             || op->get_attr<bool>(op_attr::keep_stats)) {
-        // meam
+        // mean
         INSERT_ARGS(DNNL_ARG_MEAN, out_index++, output);
         // variance
         INSERT_ARGS(DNNL_ARG_VARIANCE, out_index++, output);
@@ -1298,7 +1298,7 @@ status_t memory_planner_t::prepare_execution_args_set(
     registrar_t temporary_registrar = temporary_registry_.registrar();
     registrar_t persistent_registrar = persistent_registry_.registrar();
 
-    // classify binded memory objects and their index to buffer
+    // classify bound memory objects and their index to buffer
     for (const auto &it : exec_args_set_.get_value_mem_map()) {
         value_t *val = it.first;
         const dnnl::memory &mem = it.second;
@@ -1326,7 +1326,7 @@ status_t memory_planner_t::prepare_execution_args_set(
         }
     }
 
-    // Prepare exec args for each op by using binded memories
+    // Prepare exec args for each op by using bound memories
     // TODO(qun) define each in/output's semantics in op def. Because the
     // semantics should be fixed and a part of IR
     ret = topo_order_visit(graph_t(subgraph).get_output_ops(), [&](op_t *op) {
@@ -1485,7 +1485,7 @@ status_t memory_planner_t::prepare_subgraph_inplace_pairs(
             }
             if (have_shared) continue;
 
-            // TODO(qun) we didn't report iplace pair if two lts have different
+            // TODO(qun) we didn't report inplace pair if two lts have different
             // layout type because of frontend users didn't process this
             // situation at this moment. In the future, we need to fix this for
             // more inplace opportunities. Here the condition of alias_ins == 1
@@ -1516,7 +1516,7 @@ status_t memory_planner_t::prepare_subgraph_inplace_pairs(
 //   reused since it ref count reduce to zero.
 // - Assign external user given inputs/outputs buffer to corresponding edges
 // - Assign internal allocated temporary buffer to corresponding edges.
-// - Assign internal allocated persistent buffer to conresponding edges.
+// - Assign internal allocated persistent buffer to corresponding edges.
 // - Prepare the memory objects which will be used in execution.
 status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     status_t ret;

@@ -44,7 +44,7 @@ size_t logical_tensor_wrapper_t::size() const {
 
         // Before pass a logical tensor to specific backend, we should remove
         // the encoded backend id from the layout id. Because each backend is
-        // invisble about backend id for simplifing the backend integration
+        // invisible about backend id for simplifying the backend integration
         logical_tensor_t new_lt = *lt;
         new_lt.layout.layout_id
                 = backend_registry_t::extract_layout_id(layout_id);
@@ -133,7 +133,7 @@ bool logical_tensor_wrapper_t::is_similar(const logical_tensor_t &lhs,
 
         // Before pass a logical tensor to specific backend, we should remove
         // the encoded backend id from the layout id. Because each backend is
-        // invisble about backend id for simplifying the backend integration
+        // invisible about backend id for simplifying the backend integration
         logical_tensor_t new_lt
                 = lhs.layout_type == layout_type::opaque ? lhs : rhs;
         new_lt.layout.layout_id

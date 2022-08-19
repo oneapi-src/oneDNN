@@ -42,11 +42,11 @@
 
 using namespace dnnl::impl::graph;
 
-/// This allows to create a partition directly with an op and an engine kind.
-/// In order to not break backend API and change the existing graph and
-/// partition implementation, we internally construct a temporal graph object,
-/// add the operator to it, and then do partitioning on the graph. The workflow
-/// should be the same as partitioning a normal user graph.
+/// This allows to create a partition directly with an op and an engine kind. In
+/// order to not break backend API and change the existing graph and partition
+/// implementation, we internally construct a temporal graph object, add the
+/// operator to it, and then do partitioning on the graph. The workflow should
+/// be the same as partitioning a normal user graph.
 status_t DNNL_API dnnl_graph_partition_create_with_op(
         partition_t **partition, const op_t *op, engine_kind_t ekind) {
     using ltw = logical_tensor_wrapper_t;
@@ -77,8 +77,8 @@ status_t DNNL_API dnnl_graph_partition_create_with_op(
                 return ltw(it->get_logical_tensor()).is_opaque();
             });
 
-    // Case 1: all input/outputs are not opaque logical tensors
-    // we need go through all registered backends to get partitions
+    // Case 1: all input/outputs are not opaque logical tensors. We need go
+    // through all registered backends to get partitions
     if (opaque_in_iter == input_vals.end()
             && opaque_out_iter == output_vals.end()) {
         // get partition impl. by calling each backend
@@ -664,14 +664,14 @@ impl::status_t dnnl_graph_partition::compile(
             //   the pd and hence contains a copy. Since the created
             //   primitive_t is stored in the cache with the corresponding
             //   key, the key must contain pointers to op_desc and attr that
-            //   reside in the coppied pd in the primitive_t. Therefore the
+            //   reside in the copied pd in the primitive_t. Therefore the
             //   pointers in the key, which has already been put into the
             //   cache, must be updated.
             //
             // In the scenario of compiled partition cache, pointers the
-            // key_t contains only engage the op_t, which are drived from
+            // key_t contains only engage the op_t, which are derived from
             // the shared_ptr<op_t> of a partition. As the shared_ptr<op_t>
-            // also resides in a parition impl in cached compiled partition,
+            // also resides in a partition impl in cached compiled partition,
             // it's not necessary to update the key_t.
             //// global_compiled_partition_cache.update_entry(
             ////         key, &(new_cp->src_partition()), inputs, outputs);

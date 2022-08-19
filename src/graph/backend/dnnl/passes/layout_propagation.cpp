@@ -326,10 +326,10 @@ static status_t layout_propagation_for_eltwise_bwd(op_ptr &op,
 
     if (!is_first_time) return status;
 
-    // to hit an optimized kernel, input/output of forward and both diff_dst
-    // and diff_src should use the same memory format. Primitive is created
-    // based on a backward data and here we are contidionally aligning forward
-    // data format.
+    // to hit an optimized kernel, input/output of forward and both diff_dst and
+    // diff_src should use the same memory format. Primitive is created based on
+    // a backward data and here we are conditionally aligning forward data
+    // format.
     auto opt_desc = (op->has_attr(op_attr::use_dst)
                             && op->get_attr<bool>(op_attr::use_dst))
             ? pd.dst_desc()
@@ -1025,9 +1025,9 @@ static status_t layout_propagation_for_from_group(op_ptr &op,
             : false;
     const auto src_md = make_dnnl_memory_desc(src_lt);
     dnnl::memory::desc infered_dst_md = get_dst_md(src_md, is_convtranspose);
-    // from_grouped uses the 'allow_empty' option when reshaping, so if
-    // reshape will not succeed (e.g. padding exists inside dims we want
-    // to join), infered_dst_md will be an empty memory descriptor.
+    // from_grouped uses the 'allow_empty' option when reshaping, so if reshape
+    // will not succeed (e.g. padding exists inside dims we want to join),
+    // inferred_dst_md will be an empty memory descriptor.
     if (infered_dst_md.is_zero()) {
         dnnl::memory::desc strided_dst_md(src_md.dims(), src_md.data_type(),
                 get_strides(src_md, is_convtranspose));
@@ -1063,8 +1063,9 @@ static status_t layout_propagation_for_reshape(op_ptr &op,
         dnnl::memory::desc out_md
                 = in_md.reshape(target_dims, /* allow empty */ true);
 
-        // out_md will be empty if the in_md is not reshapable. We need to
-        // reorder the in_md first and then reshape the reordered reshapable md.
+        // out_md will be empty if the in_md is not reshape-able. We need to
+        // reorder the in_md first and then reshape the reordered reshape-able
+        // md.
         if (out_md.is_zero()) {
             dnnl::memory::desc reshapable_md(in_md.dims(), in_md.data_type(),
                     get_ncx_format(in_md.data.ndims));
@@ -1077,14 +1078,14 @@ static status_t layout_propagation_for_reshape(op_ptr &op,
     } else if (ltw(out_lt).is_strided()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
-        // check if the out_md is reshapable
+        // check if the out_md is reshape-able
         dnnl::memory::desc expected_in_md
                 = out_md.reshape(in_md.dims(), /* allow empty */ true);
         if (!expected_in_md.is_zero()) {
-            // If the out_md is reshapable, the expected_in_md must be
-            // reshapable too. Then we just need to check if the real in_md has
-            // same layout as the expected_in_md, and insert only one possible
-            // reorder if needed.
+            // If the out_md is reshape-able, the expected_in_md must be
+            // reshape-able too. Then we just need to check if the real in_md
+            // has same layout as the expected_in_md, and insert only one
+            // possible reorder if needed.
             if (expected_in_md != in_md) {
                 insert_reorder_before(op, 0, expected_in_md, p_engine, mgr,
                         pd_cache, reorder_ops);
@@ -1092,7 +1093,7 @@ static status_t layout_propagation_for_reshape(op_ptr &op,
             // finally, we have a chain of: in_md -> (optional reorder) ->
             // expected_in_md -> reshape -> out_md
         } else {
-            // Check if the in_md is reshapable.
+            // Check if the in_md is reshape-able.
             dnnl::memory::desc reshaped_in_md
                     = in_md.reshape(target_dims, /* allow empty */ true);
             if (reshaped_in_md.is_zero()) {
@@ -1131,7 +1132,7 @@ static status_t layout_propagation_for_transpose(op_ptr &op,
 
     std::vector<int64_t> order
             = op->get_attr<std::vector<int64_t>>(op_attr::order);
-    // if order < 0, convert it to postive order
+    // if order < 0, convert it to positive order
     if (!order.empty()) {
         for (int64_t &axis : order) {
             if (axis < 0) axis += ltw(in_lt).ndims();
@@ -1667,7 +1668,7 @@ static void remove_optional_conv_dw_output(
 /// Step1: propagate layout info according to the topological order
 /// Step2: when comes to compute bound ops like Convolution/MatMul, it will
 ///     always use *any* format to create pd. And corresponding layout
-///     propagation function will decide if insert a reorder based on comparsion
+///     propagation function will decide if insert a reorder based on comparison
 ///     result between input/output layout and queried optimal layout
 /// Step3: the following internal ops (permute/squeeze) will also be responsible
 ///     for deciding if insert a reorder before the op.
@@ -1838,7 +1839,7 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
     // store those reorders inserted during propagation
     std::vector<op_ptr> reorder_ops;
     do {
-        // main layout propgation function
+        // main layout propagation function
         auto status = layout_propagation_func(sg, reorder_ops);
         if (status != status::success) return status;
     } while (need_prop_once_more(sg));

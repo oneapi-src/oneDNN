@@ -71,7 +71,7 @@ struct key_t {
 private:
     // Thread ID is not used as part of the key, it's only used to get
     // information about what thread inserted the key and the corresponding
-    // primitive to handle some multithread scenatios.
+    // primitive to handle some multithread scenarios.
     std::thread::id thread_id_;
 };
 
