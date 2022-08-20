@@ -229,8 +229,6 @@ public:
                                 *intrin->intrin_attrs_));
             }
         }
-        // TODO(xxx): add implement for list brgemm, if necessary
-        // else if (v->type_ == intrin_type::list_brgemm) {}
         return intrin;
     }
 

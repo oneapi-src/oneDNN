@@ -1026,36 +1026,30 @@ void matmul_core_op_t::infer_slice_ranges(
     }
 
     // set output slice
-    for (size_t i = batch_dims_size; i < out_dims.size(); i++) {
-        auto ref_slice
-                = (inp_plain_size > wei_plain_size) ? inp_slice : wei_slice;
-        auto ref_bs_axes = (inp_plain_size > wei_plain_size)
-                ? blocking_axes.A_bs
-                : blocking_axes.B_bs;
-        auto out_size = out_dims.size();
-        out_slice.resize(out_size);
-        int bs_cnt = 0;
-        int m_cnt = 0;
-        for (size_t i = 0; i < out_size; i++) {
-            if (std::find(
-                        blocking_axes.C_bs.begin(), blocking_axes.C_bs.end(), i)
-                    != blocking_axes.C_bs.end()) {
-                out_slice[i] = ref_slice[ref_bs_axes[bs_cnt]];
-                bs_cnt++;
-            } else if (std::find(blocking_axes.C_m.begin(),
-                               blocking_axes.C_m.end(), i)
-                    != blocking_axes.C_m.end()) {
-                if (blocking_axes.A_m.size() == blocking_axes.C_m.size()) {
-                    out_slice[i] = inp_slice[blocking_axes.A_m[m_cnt]];
-                    m_cnt++;
-                } else {
-                    out_slice[i] = std::make_pair(
-                            expr(0), dim2unsigned(out_dims[i]));
-                }
+    auto ref_slice = (inp_plain_size >= wei_plain_size) ? inp_slice : wei_slice;
+    auto ref_bs_axes = (inp_plain_size >= wei_plain_size) ? blocking_axes.A_bs
+                                                          : blocking_axes.B_bs;
+    auto out_size = out_dims.size();
+    out_slice.resize(out_size);
+    int bs_cnt = 0;
+    int m_cnt = 0;
+    for (size_t i = 0; i < out_size; i++) {
+        if (std::find(blocking_axes.C_bs.begin(), blocking_axes.C_bs.end(), i)
+                != blocking_axes.C_bs.end()) {
+            out_slice[i] = ref_slice[ref_bs_axes[bs_cnt]];
+            bs_cnt++;
+        } else if (std::find(blocking_axes.C_m.begin(), blocking_axes.C_m.end(),
+                           i)
+                != blocking_axes.C_m.end()) {
+            if (blocking_axes.A_m.size() == blocking_axes.C_m.size()) {
+                out_slice[i] = inp_slice[blocking_axes.A_m[m_cnt]];
+                m_cnt++;
             } else {
                 out_slice[i]
                         = std::make_pair(expr(0), dim2unsigned(out_dims[i]));
             }
+        } else {
+            out_slice[i] = std::make_pair(expr(0), dim2unsigned(out_dims[i]));
         }
     }
 

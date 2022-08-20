@@ -120,11 +120,15 @@ bool for_loop_node_t::isvalid() const {
 }
 
 for_loop make_const_for(var v, int64_t min, int64_t max, stmt &&body_) {
-    return make_stmt<for_loop_node_t>(std::move(v),
+    auto ret = make_stmt<for_loop_node_t>(std::move(v),
             make_expr<constant_node>(min, v->dtype_),
             make_expr<constant_node>(max, v->dtype_),
             make_expr<constant_node>(int64_t(1), v->dtype_), std::move(body_),
             true, for_type::NORMAL);
+    // set parent node
+    std::weak_ptr<stmt_base_t> owner = ret.impl;
+    ret->body_->attr()["builder.parent_node"] = owner;
+    return ret;
 }
 
 // copies the IR and check if there is any static var

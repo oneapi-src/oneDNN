@@ -320,7 +320,7 @@ stmts get_anchor_inside_loop(mixed_parti_t *parti, const for_loop &loop) {
     auto &body = loop->body_;
     if (body.isa<stmts>()) {
         auto ss = body.static_as<stmts>();
-        for (auto &s : ss->seq_) {
+        for (auto s : ss->seq_) {
             // find iterared anchor
             if (s.isa<if_else>()) {
                 auto if_node = s.static_as<if_else>();
@@ -546,15 +546,14 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
                         cur = cur->parent_;
                         if (cur->content_number_map_.find(gt->producer_owner_)
                                 != cur->content_number_map_.end()) {
-                            COMPILE_ASSERT(cur->fsmap_.haskey(gt)
-                                            && !cur->fsmap_.get(gt).empty(),
-                                    "Could not find slice range for output of "
-                                            << gt->producer_owner_)
-                            COMPILE_ASSERT(cur->content_number_map_.find(
-                                                   cached_cur.get())
-                                            != cur->content_number_map_.end(),
-                                    "Could not find sub fanchor in parent "
-                                    "fanchor content")
+                            // usually occurs when patition merge and
+                            // be_merged_max_anchor is null
+                            if (!cur->fsmap_.haskey(gt)
+                                    || cur->fsmap_.get(gt).empty())
+                                return false;
+                            if (cur->content_number_map_.find(cached_cur.get())
+                                    == cur->content_number_map_.end())
+                                return false;
                             if (cur->content_number_map_[gt->producer_owner_]
                                     > cur->content_number_map_[cached_cur
                                                                        .get()])
@@ -823,12 +822,14 @@ bool try_merge_mixed_parti_parallel(
         // dummy fsmap, the tensor belongs to this scope will not be shrinked
         fslice_map fsmap;
         common_fanchor = std::make_shared<fuse_anchor_map_t>(s, fsmap);
+        A->fanchors_.emplace_back(common_fanchor);
     } else if (common_other_fanchor) {
         common_fanchor->merge(common_other_fanchor);
     }
-    A->fanchors_.emplace_back(common_fanchor);
 
     common_fanchor->commit_stmt(outermost_loop_B->body_);
+    // redirect parent node
+    set_parent_node(outermost_loop_B->body_, common_fanchor->anchor_position_);
 
     /* * * * * * * * * * * * * * * * *
      * Step 2: Merge fanchor_
@@ -844,7 +845,7 @@ bool try_merge_mixed_parti_parallel(
             std::make_pair(common_fanchor, common_other_fanchor));
 
     /* * * * * * * * * * * * * * * * *
-     * Step 4: Merge buffer_
+     * Step 4: Replace expr
      * * * * * * * * * * * * * * * * */
     expr_map.insert(buffer_map.begin(), buffer_map.end());
     mxp_replacer_t expr_reper(expr_map);
@@ -938,7 +939,7 @@ bool try_merge_mixed_parti_horizontally(
             B->buf_alloc_, buffer_map, std::make_pair(nullptr, nullptr));
 
     /* * * * * * * * * * * * * * * * *
-     * Step 4: Merge buffer_
+     * Step 4: Replace expr
      * * * * * * * * * * * * * * * * */
     expr_map.insert(buffer_map.begin(), buffer_map.end());
     mxp_replacer_t expr_reper(expr_map);
@@ -1188,10 +1189,8 @@ bool try_merge_mixed_parti_vertically(
     for (size_t i = 0; i < merged_loop_size; i++) {
         // support broadcast loop
         expr_map[outer_loops_be_merged[i]->var_]
-                = ((get_expr_as_int(outer_loops_be_merged[i]->iter_begin_) == 0)
-                          && (get_expr_as_int(
-                                      outer_loops_be_merged[i]->iter_end_)
-                                  == 1))
+                = (get_loops_range(outer_loops_to_merge[i]) > 1
+                          && get_loops_range(outer_loops_be_merged[i]) == 1)
                 ? expr(0)
                 : outer_loops_to_merge[i]->var_;
         auto be_merged_anchor = get_anchor_inside_loop(
@@ -1232,7 +1231,7 @@ bool try_merge_mixed_parti_vertically(
             std::make_pair(max_to_merge_anchor_map, max_be_merged_anchor_map));
 
     /* * * * * * * * * * * * * * * * * *
-     * Step 4: Replace IR node involving:
+     * Step 4: Replace expr involving:
      *  1. func->body
      *  2. fanchor->fsmap->slice_range
      * * * * * * * * * * * * * * * * * */
@@ -1427,7 +1426,7 @@ void mixed_parti_t::clear_fanchors() {
 
 std::vector<for_loop> mixed_parti_t::get_outer_loops(
         fuse_anchor_map_ptr fanchor) {
-    if (merged_to) { return get_root()->get_outer_loops(); }
+    if (merged_to) { return get_root()->get_outer_loops(fanchor); }
     auto body = func_->body_;
     std::vector<for_loop> outer_loops;
     auto ths = this;

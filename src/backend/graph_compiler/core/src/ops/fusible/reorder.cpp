@@ -789,7 +789,7 @@ void reorder_op_t::pre_slice_ranges(
 
         infer_reorder_slice(known_ranges_list, get_output_format(),
                 get_input_format(), input_slice_list);
-        if (input_slice_list.size() != 1) {
+        if (input_slice_list.size() != 1 || !support_output_loop()) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
