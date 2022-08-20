@@ -171,6 +171,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
 
     // constant check
     bool constant_A = false, constant_B = false;
+    bool block_A = attrs_.get_or_else("block_A", false);
+    bool block_B = attrs_.get_or_else("block_B", false);
     if (info_.inputs_[0]->producer_owner_->isa<constant_op_t>()
             || info_.inputs_[0]->producer_owner_->attrs_.get_or_else(
                     "constant", const_kind::not_const)) {
@@ -249,7 +251,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                     "be constant!");
                         }
                         // process A
-                        if (constant_A || isp
+                        if (constant_A || block_A || isp
                                 || (A_dims.size() > 2
                                         && !A_format.is_plain()) // follow
                                 // original
@@ -313,7 +315,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                         {B_k_blk, B_n_blk, 2});
                             }
                         } else {
-                            if (constant_B || isp
+                            if (constant_B || block_B || isp
                                     || (B_dims.size() > 2
                                             && !B_format.is_plain())
                                     || (!dynamic && B_format.is_blocking())

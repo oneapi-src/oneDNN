@@ -834,10 +834,10 @@ bool try_merge_mixed_parti_parallel(
         return false;
     } else {
         COMPILE_ASSERT(outermost_loop_A->kind_ == for_type::PARALLEL
-                        && (outermost_loop_A->num_threads_ > 1),
+                        && (outermost_loop_A->num_threads_ > 0),
                 "parallel loop with num threads larger than 1 are expected")
         COMPILE_ASSERT(outermost_loop_B->kind_ == for_type::PARALLEL
-                        && (outermost_loop_B->num_threads_ > 1),
+                        && (outermost_loop_B->num_threads_ > 0),
                 "parallel loop with num threads larger than 1 are expected")
     }
     if (outermost_loop_A->iter_begin_.isa<constant_c>()
