@@ -4634,7 +4634,8 @@ public:
         int stride_bytes
                 = (obj.has_default_stride() ? elem_type.size() : obj.stride);
         int off = to_cpp<int>(obj.off);
-        check_access(obj.buf + off, obj.type.elems() * stride_bytes, obj);
+        auto stride = (obj.type.elems() - 1) * stride_bytes;
+        check_access(obj.buf + off, stride + elem_type.size(), obj);
         ir_visitor_t::_visit(obj);
     }
 
@@ -4643,8 +4644,8 @@ public:
         int stride_bytes
                 = (obj.has_default_stride() ? elem_type.size() : obj.stride);
         int off = to_cpp<int>(obj.off);
-        check_access(
-                obj.buf + off, obj.value.type().elems() * stride_bytes, obj);
+        auto stride = (obj.value.type().elems() - 1) * stride_bytes;
+        check_access(obj.buf + off, stride + elem_type.size(), obj);
         ir_visitor_t::_visit(obj);
     }
 
@@ -5647,10 +5648,14 @@ private:
     class src_zp_mask_info_t {
     public:
         src_zp_mask_info_t() = delete;
-        src_zp_mask_info_t(load_multiply_builder_t &lmb, int m_blk, int desc_m,
-                int desc_n, int channels, int a_stride, bool is_mad,
+        src_zp_mask_info_t(load_multiply_builder_t &lmb, int m_blk, int k_blk,
+                int desc_m, int desc_n, int channels, int a_stride, bool is_mad,
                 const view_t &a_view)
-            : lmb_(lmb), is_const_(true), is_simd_(true), is_scalar_(false) {
+            : lmb_(lmb)
+            , is_const_(true)
+            , is_simd_(true)
+            , is_scalar_(false)
+            , is_wide_(m_blk < 16) {
             const auto tile
                     = lmb_.gemm_schedule_.a_thr_tile(/*is_relative=*/false);
             const auto a_thr_view
@@ -5763,17 +5768,34 @@ private:
                 // - C has exactly one N block like 4c16f8c (where f is ow)
                 // - The innermost block is by M and it matches the SIMD size
 
+                std::vector<expr_t> proto(size_);
+                if (is_wide_) {
+                    for (int n = 0; n < int(proto.size()); n++) {
+                        const auto r = (n / 2 / k_blk) * 2 * k_blk
+                                + (n / 2) % k_blk + (n & 1) * k_blk;
+                        proto[n] = masks.mask(r % size_);
+                    }
+                } else {
+                    for (int n = 0; n < int(proto.size()); n++)
+                        proto[n] = masks.mask(n % size_);
+                }
+                for (; size_ >= m_blk * 2; size_ /= 2) {
+                    auto c = [](expr_t &a, expr_t &b) { return a.is_equal(b); };
+                    auto half = proto.begin() + size_ / 2;
+                    if (!std::equal(proto.begin(), half, half, c)) break;
+                }
+
                 const auto blk
                         = (size_ > m_blk) ? std::min(m_blk * 2, 16) : m_blk;
-                blk_ = blk;
                 for (int n = 0; n < size_; n += blk) {
                     std::vector<expr_t> e(blk);
+                    for (int m = 0; m < blk; m++) {
+                        e[m] = proto[n + m % (size_ - n)];
+                    }
                     int ntrue = 0, nfalse = 0;
                     for (int m = 0; m < blk; m++) {
-                        const auto r = ((m & 1) ? m + blk : m) / 2;
-                        e[r] = masks.mask((n + m) % size_);
-                        if (e[r].is<bool_imm_t>())
-                            ((e[r].as<bool_imm_t>().value) ? ntrue : nfalse)++;
+                        if (e[m].is<bool_imm_t>())
+                            ((e[m].as<bool_imm_t>().value) ? ntrue : nfalse)++;
                     }
                     ir_assert((ntrue == 0) || (ntrue + nfalse == blk));
                     if ((ntrue == 0) && (nfalse > 0) && (nfalse < blk)) {
@@ -5787,21 +5809,46 @@ private:
                     }
                     exprs.emplace_back(vector2expr(e, vars));
                 }
-                for (size_ = utils::div_up(size_, blk) * blk;
-                        (size_ % blk == 0) && (size_ >= blk * 2); size_ /= 2) {
-                    auto e = [](expr_t &a, expr_t &b) { return a.is_equal(b); };
-                    auto half = exprs.begin() + size_ / blk / 2;
-                    if (!std::equal(exprs.begin(), half, half, e)) break;
+
+                const auto real_size = std::max(
+                        size_ * ((is_wide_) ? 8 : 1), int(exprs.size()) * blk);
+                lmb_.register_buffer(
+                        zp_mask_, real_size * w_stride(), alloc_kind_t::grf);
+                for (int i = 0; i < int(exprs.size()); i++) {
+                    auto expr = cast_t::make(w_type(blk), exprs[i]);
+                    stmt_ = stmt_.append(
+                            store_t::make(zp_mask_, i * blk * w_stride(),
+                                    (is_simd_) ? -expr : expr, w_stride()));
+                }
+                if (is_wide_) {
+                    auto wide_scalar = [&](const expr_t &a, const expr_t &b) {
+                        std::vector<int> idx(16, 1);
+                        for (int i = 0; i < 8; i++)
+                            idx[i] = 0;
+                        return shuffle_t::make(std::vector<expr_t> {a, b}, idx);
+                    };
+                    for (int i = size_ - 2; i > 0; i -= 2) {
+                        auto load_l = load_t::make(
+                                type_t::s16(), zp_mask_, i * w_stride());
+                        auto load_h = load_t::make(
+                                type_t::s16(), zp_mask_, (i + 1) * w_stride());
+                        auto load = wide_scalar(load_l, load_h);
+                        load = cast_t::make(type_t::s16(16), load);
+                        stmt_ = stmt_.append(store_t::make(zp_mask_,
+                                i * 8 * w_stride(), load, w_stride()));
+                    }
+                    if (size_ % 2 == 0) {
+                        auto l0h = load_t::make(
+                                type_t::s16(), zp_mask_, w_stride());
+                        stmt_ = stmt_.append(store_t::make(zp_mask_,
+                                8 * w_stride(),
+                                shuffle_t::make_broadcast(l0h, 8), w_stride()));
+                    }
+                    auto l0l = load_t::make(type_t::s16(), zp_mask_, 0);
+                    stmt_ = stmt_.append(store_t::make(zp_mask_, 0,
+                            shuffle_t::make_broadcast(l0l, 8), w_stride()));
                 }
 
-                lmb_.register_buffer(
-                        zp_mask_, size_ * w_stride(), alloc_kind_t::grf);
-                for (int i = 0; i < size_ / blk; i++) {
-                    auto expr = cast_t::make(type_t::s16(blk), exprs[i]);
-                    if (is_simd_) expr = cast(-expr, type_t::s16(blk));
-                    stmt_ = stmt_.append(store_t::make(zp_mask_,
-                            i * blk * type_t::s16().size(), expr, w_stride()));
-                }
                 for (auto &v : vars)
                     stmt_ = let_t::make(v.second, v.first, stmt_);
             } else { // is_scalar == true
@@ -5833,16 +5880,22 @@ private:
         }
 
     private:
-        int w_stride() const {
-            return type_t::s16().size() * ((size_ > 8) ? 1 : 2);
+        type_t w_type(int width = 1) const {
+            return (is_bool()) ? type_t::u16(width) : type_t::s32(width);
         }
+        int w_stride() const { return w_type().size(); }
 
         expr_t word2bool(int off) const {
-            auto type = (is_bool()) ? type_t::u16() : type_t::s16();
-            auto m_off = (off / blk_) * blk_ * type.size()
-                    + ((off % blk_) / 2) * w_stride()
-                    + (off & 1) * 8 * type.size();
-            auto load = load_t::make(type, zp_mask_, m_off);
+            auto type = (is_bool()) ? type_t::u16() : type_t::s16(16);
+            expr_t load;
+            if (is_wide_ && !is_bool()) {
+                load = load_t::make(
+                        type, zp_mask_, off * 8 * w_stride(), w_stride());
+            } else {
+                load = load_t::make(
+                        type.scalar(), zp_mask_, off * w_stride(), w_stride());
+                if (!is_bool()) load = shuffle_t::make_broadcast(load, 16);
+            }
             return (is_bool()) ? cast_t::make(type_t::_bool(16), load) : load;
         }
 
@@ -5929,8 +5982,8 @@ private:
         bool is_const_;
         bool is_simd_;
         bool is_scalar_;
+        bool is_wide_;
         int size_;
-        int blk_;
         expr_t ic_start_;
         expr_t var_mask_;
         expr_t zp_mask_;
@@ -5945,6 +5998,8 @@ private:
         const bool is_mad = (cfg_.fma_kind == fma_kind_t::mad);
         const int channels = utils::rnd_up_pow2(
                 (!is_mad) ? (cfg_.is_fwd) ? cfg_.ic : cfg_.oc : cfg_.g);
+        const int c_blk = (channels < 32) ? channels : 32;
+        const int k_blk = (!is_mad && (channels > 4)) ? 32 / c_blk : 1;
         const int m_blk = cfg_.simd_size();
 
         const type_t s_type = a_view.type();
@@ -5979,7 +6034,7 @@ private:
             desc_n = a_view.tlayout().size() / m_blk / a_stride;
             desc_m = m_blk;
         }
-        src_zp_mask_info_t masks(*this, m_blk, desc_m, desc_n, channels,
+        src_zp_mask_info_t masks(*this, m_blk, k_blk, desc_m, desc_n, channels,
                 a_stride, is_mad, a_view);
         stmt_t data = masks.stmt();
 
@@ -6003,8 +6058,6 @@ private:
             return (!mad) ? std::max(b * 2, 32) : 32;
         };
         const int m_blk_x2 = std::min(m_blk * 2, 16);
-        auto c_blk = channels < 32 ? channels : 32;
-        auto k_blk = channels > 4 ? 32 / c_blk : 1;
         const int src_zp_size = get_src_zp_size(
                 is_scalar, is_runtime, is_mad, m_blk_x2 * k_blk);
         auto src_zp = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "zp_buf");
@@ -6138,15 +6191,12 @@ private:
                         + ij_buf * mul_builder.c_layout().size();
                 type_t vi(i_type.kind(), blk);
                 auto a = load_t::make(vi, dst, 0);
-                off_n = off_n * k_blk;
                 for (int i = 0; i < k_blk; i++) {
-                    auto mask = masks.gen_mask(off_n + i);
+                    auto mask = masks.gen_mask(off_n * k_blk + i * blk / m_blk);
                     if (!masks.is_bool()) {
                         auto b = load_t::make(vi, acc[i * 2 + 1], 0);
-                        mask = wide_scalar(
-                                mask, masks.gen_mask(off_n + k_blk + i), blk);
                         auto mad = ternary_op_t::make(
-                                op_kind_t::_mad, a, mask, b);
+                                op_kind_t::_mad, a, b, mask);
                         parts.emplace_back(store_t::make(dst, 0, mad));
                     } else {
                         auto b = wide_vector(acc[i * 2 + 1], blk);
