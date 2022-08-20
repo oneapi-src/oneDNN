@@ -82,13 +82,6 @@ struct instance_counter {
     }
 };
 
-template <typename T>
-struct SC_INTERNAL_API leak_detect_base {
-    leak_detect_base() { cnter.on_new(static_cast<T *>(this)); }
-    ~leak_detect_base() { cnter.on_delete(static_cast<T *>(this)); }
-    static instance_counter cnter;
-};
-
 namespace impl {
 
 template <typename C>
@@ -128,8 +121,15 @@ struct obj_dumper_impl<T, true> {
 } // namespace impl
 
 template <typename T>
-instance_counter leak_detect_base<T>::cnter {typeid(T).name(),
-        impl::obj_dumper_impl<T, impl::has_to_string<T>::value>::funct};
+struct SC_INTERNAL_API leak_detect_base {
+    leak_detect_base() { cnter().on_new(static_cast<T *>(this)); }
+    ~leak_detect_base() { cnter().on_delete(static_cast<T *>(this)); }
+    static instance_counter &cnter() {
+        static instance_counter v {typeid(T).name(),
+                impl::obj_dumper_impl<T, impl::has_to_string<T>::value>::funct};
+        return v;
+    }
+};
 
 } // namespace utils
 } // namespace sc

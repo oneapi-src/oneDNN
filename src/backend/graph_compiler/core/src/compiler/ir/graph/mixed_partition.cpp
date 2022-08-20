@@ -349,8 +349,12 @@ void mxp_buffer_allocator::declare_and_shrink_tensor() {
         // recurrsively find parent fanchor
         auto parent_loop = get_parent_loop(fanchor->anchor_position_);
         if (parent_loop->attr().has_key(stmt_attr_key::reduce_root_loop)) {
-            parent_loop = parent_loop->attr().get<for_loop>(
-                    stmt_attr_key::reduce_root_loop);
+            auto raw = parent_loop->attr()
+                               .get<std::weak_ptr<stmt_base_t>>(
+                                       stmt_attr_key::reduce_root_loop)
+                               .lock();
+            COMPILE_ASSERT(raw, "reduce_root_loop weak ptr invalidated");
+            parent_loop = stmt(raw).checked_as<for_loop>();
         }
         auto &ss = parent_loop->body_.checked_as<stmts>()->seq_;
         ss.emplace(ss.begin(), builder::make_var_tensor_def_unattached(tsr));
@@ -385,8 +389,12 @@ void mxp_buffer_allocator::declare_and_shrink_tensor() {
         auto anch = tsr_anch_map_[get_real_tensor(buf)];
         auto parent_loop = get_parent_loop(anch->anchor_position_);
         if (parent_loop->attr().has_key(stmt_attr_key::reduce_root_loop)) {
-            parent_loop = parent_loop->attr().get<for_loop>(
-                    stmt_attr_key::reduce_root_loop);
+            auto raw = parent_loop->attr()
+                               .get<std::weak_ptr<stmt_base_t>>(
+                                       stmt_attr_key::reduce_root_loop)
+                               .lock();
+            COMPILE_ASSERT(raw, "reduce_root_loop weak ptr invalidated");
+            parent_loop = stmt(raw).checked_as<for_loop>();
             anch = binded_mxp_->lookup_anchor_map(
                     get_anchor_inside_loop(binded_mxp_, parent_loop));
             COMPILE_ASSERT(anch,

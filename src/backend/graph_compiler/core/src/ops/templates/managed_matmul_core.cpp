@@ -442,11 +442,13 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
     }
   }
   if (config.K_sub_block > 1 && im_loop_order != 1) {
-    im_n->attr()[stmt_attr_key::reduce_root_loop] = o_im_n;
+    im_n->attr()[stmt_attr_key::reduce_root_loop]
+      = std::weak_ptr<stmt_base_t>(o_im_n.impl);
   }
   if (im_loop_order == 1) {
     im_m->reorder(im_k->body_, {im_n, im_m});
-    im_m->attr()[stmt_attr_key::reduce_root_loop] = o_im_n;
+    im_m->attr()[stmt_attr_key::reduce_root_loop]
+      = std::weak_ptr<stmt_base_t>(o_im_n.impl);
   }
 }
 
