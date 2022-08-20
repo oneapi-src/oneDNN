@@ -529,12 +529,15 @@ class dead_tsr_write_remover_t : public tick_visitor_t {
 public:
     using tick_visitor_t::dispatch;
     using tick_visitor_t::visit;
+    // update stmts pointer in this pass.
+    std::unordered_map<stmt_c, uint64_t> &stmts_to_scope_id_;
     // tensor -> tensor_tick_info
     std::unordered_map<expr_c, tensor_tick_info_t> &out_;
     std::unordered_set<expr_c> removed_in_for;
     dead_tsr_write_remover_t(
+            std::unordered_map<stmt_c, uint64_t> &stmts_to_scope_id,
             std::unordered_map<expr_c, tensor_tick_info_t> &out)
-        : out_(out) {}
+        : stmts_to_scope_id_(stmts_to_scope_id), out_(out) {}
 
     int for_depth_ = 0;
     void enter_complex_scope(const stmt_c &v) override { for_depth_++; }
@@ -583,6 +586,18 @@ public:
             }
         }
         return v;
+    }
+
+    stmt_c visit(stmts_c v) override {
+        auto newv = ir_visitor_t::visit(v);
+        if (!newv.ptr_same(v)) {
+            auto itr = stmts_to_scope_id_.find(v);
+            if (itr != stmts_to_scope_id_.end()) {
+                stmts_to_scope_id_[newv] = itr->second;
+                stmts_to_scope_id_.erase(itr);
+            }
+        }
+        return newv;
     }
 
     func_c dispatch(func_c v) override {
@@ -1027,7 +1042,7 @@ static T1 run(const context_ptr &ctx, T1 f, bool remove_dead) {
     // if no local tensor defined, shortcut
     if (defined.empty()) { return f; }
     if (remove_dead) {
-        dead_tsr_write_remover_t dtwr(tick_out);
+        dead_tsr_write_remover_t dtwr(finder.stmts_to_scope_id_, tick_out);
         f = dtwr.dispatch(f);
         assert(dtwr.tick_ == finder.tick_);
     }
