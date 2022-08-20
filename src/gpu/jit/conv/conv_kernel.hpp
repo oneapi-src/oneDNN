@@ -997,6 +997,15 @@ public:
         }
     }
 
+    void ecmp(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
+            const ngen_operand_t &src0, const ngen_operand_t &src1) {
+        if (src1.is_reg_data()) {
+            cmp(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
+        } else {
+            cmp(mod, dst.reg_data(), src0.reg_data(), src1.immediate());
+        }
+    }
+
     void eand(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
             const ngen_operand_t &src0, const ngen_operand_t &src1) {
         if (src1.is_reg_data()) {
@@ -1563,7 +1572,9 @@ public:
 
     void _visit(const unary_op_t &obj) override {
         ir_assert(obj.op_kind == op_kind_t::_minus);
-        auto a_op = eval(obj.a);
+        ngen_operand_t a_op;
+        a_op = try_process_negated_flags(obj);
+        if (a_op.is_invalid()) a_op = eval(obj.a);
         bind(obj, -a_op);
     }
 
@@ -1678,6 +1689,50 @@ private:
         }
     }
 
+    struct conjunct_t {
+        conjunct_t(op_kind_t op, ngen_operand_t a, ngen_operand_t b)
+            : op_(op), a_(std::move(a)), b_(std::move(b)) {}
+        op_kind_t op_;
+        ngen_operand_t a_, b_;
+    };
+
+    void split_by_and(const expr_t &e, std::vector<conjunct_t> &cv, type_t ty) {
+        if (auto bin = e.as_ptr<binary_op_t>()) {
+            if (bin->op_kind == op_kind_t::_and) {
+                split_by_and(bin->a, cv, ty);
+                split_by_and(bin->b, cv, ty);
+            } else
+                cv.emplace_back(bin->op_kind, eval(bin->a), eval(bin->b));
+        } else {
+            auto cast = cast_t::make(ty, e);
+            cv.emplace_back(op_kind_t::undef, eval(cast), ngen_operand_t());
+        }
+    }
+
+    ngen_operand_t try_process_negated_flags(const expr_t &e) {
+        ngen_operand_t retn;
+        auto cast = e.as<unary_op_t>().a.as_ptr<cast_t>();
+        if (cast && cast->expr.type().is_bool()) {
+            ngen_operand_t flags(scope_.alloc_flag(), e.type().elems());
+            retn = alloc_dst_op(e);
+            auto mod = retn.mod();
+            auto ar_op = [&](ngen::InstructionModifier m, const conjunct_t &c) {
+                if (c.op_ != op_kind_t::undef)
+                    host_->ecmp(m | cmp_op_to_ngen(c.op_), retn, c.a_, c.b_);
+                else
+                    host_->emov(m, retn, -c.a_);
+            };
+            std::vector<conjunct_t> cv;
+            split_by_and(cast->expr, cv, cast->type);
+            ar_op(mod, cv[0]);
+            mod |= flags.flag_register();
+            for (int i = 1; i < int(cv.size()); i++)
+                ar_op(mod, cv[i]);
+            retn = -retn;
+        }
+        return retn;
+    }
+
     bool try_region_peephole(const shuffle_t &obj) {
         int elems = obj.elems();
         if (elems % 2 != 0) return false;
@@ -1722,8 +1777,7 @@ private:
             auto &rbd = vec[0].reg_buf_data();
             auto rd = rbd.reg_data();
             int regs = utils::div_up(stride_bytes * 2, grf_size);
-            if (regs > 2 || (stride_bytes / type_size) * 2 != elems)
-                return false;
+            if (regs > 2) return false;
             rd.setRegion(stride_bytes / type_size, elems / 2, 0);
             reg_buf_t rb(hw, ngen::GRFRange(rd.getBase(), regs));
             bind(obj, reg_buf_data_t(rb, rd));
@@ -1769,6 +1823,15 @@ private:
             vec[i] = (int)value;
         }
 
+        const int esize = 8;
+
+        auto half_same = [&](int off) {
+            return std::equal(obj.idx.begin() + off + 1,
+                    obj.idx.begin() + off + esize, obj.idx.begin() + off);
+        };
+        // If true, the case is too trivial for :v/:uv to justify the overhead
+        if (half_same(0) && half_same(esize % obj.elems())) return false;
+
         int vec_min = *std::min_element(vec.begin(), vec.end());
         int vec_max = *std::max_element(vec.begin(), vec.end());
 
@@ -1782,57 +1845,64 @@ private:
         int64_t s16_max = std::numeric_limits<int16_t>::max();
         if (factor < s16_min || factor > s16_max) return false;
 
-        auto check_range = [&](int f, int a, int b) {
+        auto check_range = [&](int f, int m, int a, int b) {
             for (int i = 0; i < vec_size; i++) {
-                int d = (vec[i] - vec_min) / f;
+                int d = (vec[i] - m) / f;
                 if (d < a || d > b) return false;
             }
             return true;
         };
 
-        bool use_uv = check_range(factor, 0, 15);
-        bool use_v = check_range(factor, -8, 7);
-        if (!use_uv && !use_v) {
-            factor *= -1;
-            use_uv = check_range(factor, 0, 15);
-            use_v = check_range(factor, -8, 7);
+        bool use_uv = false, use_v = false;
+        for (int f: {1, factor, -factor}) {
+            use_uv = check_range(f, vec_min, 0, 15);
+            use_v = check_range(f, vec_min, -8, 7);
+            if (use_uv || use_v) {
+                factor = f;
+                break;
+            }
         }
-
         if (!use_uv && !use_v) return false;
+        if (vec_min % factor == 0) {
+            bool new_use_uv = check_range(factor, 0, 0, 15);
+            bool new_use_v = check_range(factor, 0, -8, 7);
+            if (new_use_uv || new_use_v) {
+                vec_min = 0;
+                use_uv = new_use_uv;
+                use_v = new_use_v;
+            }
+        }
 
         auto set_packed = [](uint32_t &packed, int8_t value, int idx) {
             uint32_t v = (value >= 0 ? value : ((value & 0x7) | 0x8));
             packed = packed | (v << idx * 4);
         };
 
-        int esize = 8;
-        int uw_size = sizeof(int16_t);
-        int grf_size = ngen::GRF::bytes(hw);
-        int regs = utils::div_up(esize * uw_size, grf_size);
-        auto tmp = scope_.alloc_reg_buf_data(regs).format(
-                0, ngen::DataType::uw, esize);
-
         auto dst = alloc_dst_op(obj);
         auto &dst_rbd = dst.reg_buf_data();
         int dst_stride = dst_rbd.hs();
-        int dst_stride_bytes = dst_stride * ngen::getBytes(dst_rbd.type());
+        // no more than 1 temporary register is going to be required
+        auto storage = scope_.alloc_reg_buf_data(1);
+
+        auto w_type = (use_uv) ? ngen::DataType::uw : ngen::DataType::w;
         for (int i = 0; i < obj.elems(); i += esize) {
             uint32_t packed = 0;
             for (int j = 0; j < esize; j++)
                 set_packed(packed, (vec[obj.idx[i + j]] - vec_min) / factor, j);
+            auto tmp = storage.format(i * sizeof(uint16_t), w_type, esize);
             host_->emov(esize, tmp,
-                    use_uv ? ngen::Immediate::uv(packed)
-                           : ngen::Immediate::v(packed));
-            auto d = dst.reg_buf_data().format(i * dst_stride_bytes,
-                    ngen::DataType::invalid, esize, dst_stride);
-            if (factor != 1) {
-                host_->emul(
-                        esize, d, ngen_operand_t(tmp), ngen::Immediate(factor));
-            }
-            if (factor == 1 || vec_min != 0) {
-                host_->eadd(esize, d, factor == 1 ? tmp : d,
-                        ngen::Immediate(vec_min));
-            }
+                    (use_uv) ? ngen::Immediate::uv(packed)
+                             : ngen::Immediate::v(packed));
+        }
+        auto d = dst_rbd.format(
+                0, ngen::DataType::invalid, obj.elems(), dst_stride);
+        auto tmp = storage.format(0, w_type, obj.elems());
+        if (factor != 1) {
+            host_->emul(obj.elems(), d, tmp, ngen::Immediate(factor));
+        }
+        if (factor == 1 || vec_min != 0) {
+            host_->eadd(obj.elems(), d, (factor == 1) ? tmp : d,
+                    ngen::Immediate(vec_min));
         }
         bind(obj, dst);
         return true;
