@@ -114,6 +114,8 @@ public:
     bool is_plain() const;
     bool is_blocking() const;
 
+    bool is_channel_last() const;
+
     // collects the number of axies in the format. For original axis `i`,
     // `out[i]` will be the number of occurence of the axis in this format.
     // e.g. NCHWc => out=[1,2,1,1], the axis C occurs twice
@@ -210,6 +212,8 @@ struct SC_API sc_data_format_t {
     bool is_blocking() const;
 
     bool is_plain() const;
+
+    bool is_channel_last() const;
 
     bool is_vnni_format() const;
 

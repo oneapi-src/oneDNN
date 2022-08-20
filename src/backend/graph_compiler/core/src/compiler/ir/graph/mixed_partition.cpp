@@ -14,7 +14,6 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "mixed_partition.hpp"
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -22,10 +21,13 @@
 #include <utility>
 #include "fusible_op.hpp"
 #include "graph_op.hpp"
+#include "mixed_partition.hpp"
 #include "pass/pass.hpp"
 #include "transform/transform.hpp"
 #include "utils.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/builder.hpp>
+#include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
@@ -35,6 +37,7 @@
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/padding.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>
@@ -193,6 +196,39 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
         buf.checked_as<tensor>()->init_value_
                 = tensor_node::get_zero_tensor_initializer();
     }
+
+    if (op->isa<padding_op_t>() && op->get_inputs()[0]->uses_.size() == 1) {
+        auto out = op->get_outputs()[0];
+        auto ins = op->get_inputs()[0];
+
+        auto new_input = builder::tensor_ptr(g2b_map_.get(out),
+                op->dyn_cast<padding_op_t>()->get_padding_offsets_exprs(), {},
+                true);
+        auto old_input = g2b_map_.get(ins);
+        std::unordered_map<expr, expr> buffer_map = {{old_input, new_input}};
+        mxp_replacer_t rep(buffer_map);
+        // IR replace
+        rep.replace_func(binded_mxp_->func_);
+        // Buffer replace
+        replace_buffer(ins.get(), old_input, new_input);
+    }
+}
+
+void mxp_buffer_allocator::replace_buffer(
+        graph_tensor *gt, expr &old_input, expr &new_input) {
+    g2b_map_.datamap_[gt] = new_input;
+
+    if (tsr_anch_map_.find(old_input) != tsr_anch_map_.end()) {
+        auto anch = tsr_anch_map_[old_input];
+        tsr_anch_map_.erase(old_input);
+        tsr_anch_map_[new_input] = anch;
+    }
+
+    if (b2g_map_.find(old_input) != b2g_map_.end()) {
+        auto gt = b2g_map_[old_input];
+        b2g_map_.erase(old_input);
+        b2g_map_[new_input] = gt;
+    }
 }
 
 std::tuple<std::vector<expr>, std::vector<expr>>
@@ -306,6 +342,26 @@ void mxp_buffer_allocator::update_output_buffer_info(
             [&](const graph_tensor_ptr &gt) {
                 update_outs_tensor_info_by_gt(gt);
             });
+}
+
+void mxp_buffer_allocator::tensor_initialize() {
+    for (auto &pair : b2g_map_) {
+        auto op = pair.second->producer_owner_;
+        // zero out padding area
+        if (auto padding = op->dyn_cast<padding_op_t>()) {
+            stmts decl_body;
+            if (pair.first->attr().has_key(mixed_attr_key_cut_buffer)) {
+                decl_body = binded_mxp_->func_->body_.checked_as<stmts>();
+            } else {
+                auto anchor = tsr_anch_map_[get_real_tensor(pair.first)];
+                decl_body = get_parent_loop(anchor->anchor_position_)
+                                    ->body_.checked_as<stmts>();
+            }
+
+            auto ret = padding->get_zero_out_stmt(get_real_tensor(pair.first));
+            decl_body->seq_.insert(decl_body->seq_.begin(), ret);
+        }
+    }
 }
 
 /**
@@ -1505,6 +1561,7 @@ void mixed_parti_t::buffer_schedule() {
         get_root()->buffer_schedule();
         return;
     }
+    buf_alloc_.tensor_initialize();
     buf_alloc_.declare_and_shrink_tensor();
 }
 

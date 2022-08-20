@@ -14,12 +14,12 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "driver.hpp"
 #include <algorithm>
 #include <atomic>
 #include <fstream>
 #include <tuple>
 #include <utility>
+#include "driver.hpp"
 #include "pass/pass.hpp"
 #include <runtime/env_vars.hpp>
 #include <unordered_map>
@@ -75,8 +75,16 @@ create_default_graph_flow(const context_ptr &ctx) {
             true));
     post_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
             elemwise_dimension_alignment, {}, pass_type::post_tune, true));
+
     post_tune_passes.push_back(create_graph_pass("layout_propagation",
             layout_propagation, {}, pass_type::post_tune, true));
+    // The zero out step only exists in mixed_partition for now.
+    // TODO(xurui) If put the pass in front of layout_propagation, there is an
+    // issue related to padding+reorder pattern need to be fixed.
+    if (ctx->flags_.mixed_fusion_) {
+        post_tune_passes.push_back(create_graph_pass(
+                "pre_padding", pre_padding, {}, pass_type::post_tune, true));
+    }
     post_tune_passes.push_back(create_graph_pass("tensor_view_transform",
             tensor_view_transform, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("const_folding",

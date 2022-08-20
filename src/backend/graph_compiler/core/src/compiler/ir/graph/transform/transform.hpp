@@ -32,6 +32,9 @@ SC_INTERNAL_API void dynamic_graph_transform(
 SC_INTERNAL_API void layout_propagation(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void pre_padding(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API void batchwise_merge(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 

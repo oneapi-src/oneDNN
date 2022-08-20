@@ -29,6 +29,7 @@
     F(exp); \
     F(dynamic_transpose); \
     F(add); \
+    F(padding); \
     F(reorder); \
     F(reduce); \
     F(reduce_sum); \

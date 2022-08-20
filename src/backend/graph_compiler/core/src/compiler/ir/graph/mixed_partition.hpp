@@ -85,7 +85,6 @@ struct mxp_buffer_allocator {
     void update_input_buffer_info(sc_op *op, mixed_parti_t *parti);
     // update output buffer info
     void update_output_buffer_info(sc_op *op, mixed_parti_t *parti);
-
     // set shrink info
     void declare_and_shrink_tensor();
     /** merge two buffer allocator
@@ -101,6 +100,10 @@ struct mxp_buffer_allocator {
     void clear();
     // check buffer_allocator whether empty
     const bool empty() const { return g2b_map_.empty(); };
+
+    void tensor_initialize();
+
+    void replace_buffer(graph_tensor *gt, expr &old_input, expr &new_input);
 };
 
 struct mixed_parti_t : fusion_partition_t {

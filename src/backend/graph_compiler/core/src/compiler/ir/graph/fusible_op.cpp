@@ -31,6 +31,7 @@
 #include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/padding.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -140,6 +141,8 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
     }
     // update output buffer info after inner anchor created
     parti->buf_alloc_.update_output_buffer_info(this, parti);
+
+    if (!parti->empty() && this->isa<padding_op_t>()) { return; }
     commit_into_anchor(parti);
 }
 

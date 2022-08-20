@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "sc_data_format.hpp"
 #include <algorithm>
+#include "sc_data_format.hpp"
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
@@ -154,6 +154,19 @@ bool sc_data_format_t::is_convertible(const sc_data_format_t &other) const {
     return format_code_.norig_dims() == other.format_code_.norig_dims();
 }
 
+bool sc_data_format_kind_t::is_channel_last() const {
+    int i = 0;
+    for (; i < MAX_DIMS - 1; i++) {
+        if (get(i + 1) == UNDEF_DIM) {
+            break;
+        } else if ((i == 0 && get(i) != 0) || (i != 0 && get(i) != i + 1)) {
+            return false;
+        }
+    }
+    if (!i) return false;
+    return get(i) == 1;
+}
+
 bool sc_data_format_kind_t::is_plain() const {
     int i = 0;
     for (; i < MAX_DIMS; i++) {
@@ -194,6 +207,10 @@ bool sc_data_format_t::is_blocking() const {
 
 bool sc_data_format_t::is_vnni_format() const {
     return format_code_.is_vnni_format();
+}
+
+bool sc_data_format_t::is_channel_last() const {
+    return format_code_.is_channel_last();
 }
 
 bool sc_data_format_t::is_plain() const {
