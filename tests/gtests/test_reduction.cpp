@@ -81,8 +81,7 @@ protected:
         // regular pd ctor
         ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
         // test all pd ctors
-        test_fwd_pd_constructors<op_desc_t, pd_t>(
-                op_desc, pd, allowed_attributes);
+        test_fwd_pd_constructors<pd_t>(pd, allowed_attributes, op_desc);
 
         EXPECT_ANY_THROW(reduction(pd, {}));
         // default primitive ctor

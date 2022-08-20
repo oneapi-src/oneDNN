@@ -156,8 +156,7 @@ protected:
             // regular pd ctor
             ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
             // test all pd ctors
-            if (!has_zero_dim)
-                test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
+            if (!has_zero_dim) test_fwd_pd_constructors<pd_t>(pd, aa, op_desc);
 
             EXPECT_ANY_THROW(binary(pd, {}));
             // default primitive ctor

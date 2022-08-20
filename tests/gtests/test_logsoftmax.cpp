@@ -129,7 +129,7 @@ protected:
         ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
         ASSERT_EQ(dnnl::impl::is_pd_in_cache(pd.get()), false);
         // test all pd ctors
-        test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
+        test_fwd_pd_constructors<pd_t>(pd, aa, op_desc);
         pd_fwd_hint = std::make_shared<pd_t>(pd);
 
         EXPECT_ANY_THROW(logsoftmax_forward(pd, {}));
@@ -213,8 +213,8 @@ protected:
         // regular pd ctor
         ASSERT_NO_THROW(pd = pd_t(op_desc, eng, *pd_fwd_hint));
         // test all pd ctors
-        test_bwd_pd_constructors<op_desc_t, pd_t, hint_pd_t>(
-                op_desc, pd, *pd_fwd_hint, aa);
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(
+                pd, *pd_fwd_hint, aa, op_desc);
 
         EXPECT_ANY_THROW(logsoftmax_backward(pd, {}));
         // default primitive ctor
