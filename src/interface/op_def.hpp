@@ -1708,7 +1708,8 @@ DNNL_GRAPH_OP_SCHEMA(DynamicReshape, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints(
                         "T2", {data_type::s8, data_type::u8, data_type::s32})
-                .set_shape_inference_function(infer_unsupported_output_shape))
+                .set_shape_inference_function(
+                        infer_dynamic_reshape_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(StaticTranspose, 1,
         op_schema_t()
@@ -1743,7 +1744,8 @@ DNNL_GRAPH_OP_SCHEMA(DynamicTranspose, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints(
                         "T2", {data_type::s8, data_type::u8, data_type::s32})
-                .set_shape_inference_function(infer_unsupported_output_shape))
+                .set_shape_inference_function(
+                        infer_dynamic_transpose_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(DynamicQuantize, 1,
         op_schema_t()

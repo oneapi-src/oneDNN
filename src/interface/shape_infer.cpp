@@ -1299,24 +1299,8 @@ status_t infer_reduce_output_shape(op_t *n,
     return status::unimplemented;
 }
 
-status_t infer_static_reshape_output_shape(op_t *n,
-        std::vector<logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs) {
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    auto in0 = logical_tensor_wrapper_t(inputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
-
-    // check if partial set shape aligns with inferred shape
-    if (out0.ndims() != -1) {
-        if (!validate(in0.vdims(), out0.vdims())) {
-            return status::invalid_shape;
-        }
-    }
-
-    const dims &in_dims = in0.vdims();
-    dims out_dims = n->get_attr<dims>(op_attr::shape);
-    const bool special_zero = n->get_attr<bool>(op_attr::special_zero);
-
+status_t infer_common_reshape_output_shape(
+        const dims &in_dims, dims &out_dims, bool special_zero) {
     bool find_uncertain_dim = false; // shape contains -1
     size_t uncertain_axis = 0;
     for (size_t i = 0; i < out_dims.size(); i++) {
@@ -1326,7 +1310,7 @@ status_t infer_static_reshape_output_shape(op_t *n,
             // dimension if special_zero is true; or 0 as-is if special_zero is
             // false
             if (special_zero) {
-                if (i >= in0.ndims()) return status::invalid_shape;
+                if (i >= in_dims.size()) return status::invalid_shape;
                 out_dims[i] = in_dims[i];
             }
         } else if (out_dims[i] == -1) {
@@ -1339,7 +1323,7 @@ status_t infer_static_reshape_output_shape(op_t *n,
 
     int in_size = 1;
     int out_size = 1;
-    for (size_t i = 0; i < in0.ndims(); i++) {
+    for (size_t i = 0; i < in_dims.size(); i++) {
         if (in_dims[i] >= 0) in_size *= in_dims[i];
     }
     for (size_t i = 0; i < out_dims.size(); i++) {
@@ -1360,35 +1344,68 @@ status_t infer_static_reshape_output_shape(op_t *n,
             return status::invalid_shape;
     }
 
-    // We should compute output dense strides instead of
-    // directly copying input strides to it
-    set_shape_and_strides(*outputs[0], out_dims);
     return status::success;
 }
 
-status_t infer_static_transpose_output_shape(op_t *n,
+status_t infer_static_reshape_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
 
+    const dims &in_dims = in0.vdims();
+    dims out_dims = n->get_attr<dims>(op_attr::shape);
+    const bool special_zero = n->get_attr<bool>(op_attr::special_zero);
+
+    status_t ret = status::success;
+    ret = infer_common_reshape_output_shape(in_dims, out_dims, special_zero);
+    if (status::success != ret) return ret;
+
+    // We should compute output dense strides instead of
+    // directly copying input strides to it
+    set_shape_and_strides(*outputs[0], out_dims);
+    return status::success;
+}
+
+status_t infer_dynamic_reshape_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto in1 = logical_tensor_wrapper_t(inputs[1]);
+    if (!out0.is_shape_unknown()) return status::success;
+
     // check if partial set shape aligns with inferred shape
     if (out0.ndims() != -1) {
-        if (!validate(in0.vdims(), out0.vdims())) {
+        if (!validate(in1.vdims(), out0.vdims())) {
             return status::invalid_shape;
         }
     }
 
     const dims &in_dims = in0.vdims();
-    const int32_t in_ndims = in0.ndims();
-    std::vector<int64_t> order = n->get_attr<dims>(op_attr::order);
+    dims out_dims = in1.vdims();
+    const bool special_zero = n->get_attr<bool>(op_attr::special_zero);
+
+    status_t ret = status::success;
+    ret = infer_common_reshape_output_shape(in_dims, out_dims, special_zero);
+    if (status::success != ret) return ret;
+
+    // We should compute output dense strides instead of
+    // directly copying input strides to it
+    set_shape_and_strides(*outputs[0], out_dims);
+    return status::success;
+}
+
+status_t infer_common_transpose_output_shape(
+        const dims &in_dims, dims &out_dims, const dims &order) {
+    const int32_t in_ndims = static_cast<int32_t>(in_dims.size());
     std::vector<bool> order_covered_flg(in_ndims, false);
     // check order should be in [-n, n-1] and cover all input axis
-    // if order < 0, convert it to postive order
+    // if order < 0, convert it to positive order
     if (!order.empty()) {
         if (order.size() != in_ndims) return status::invalid_shape;
-        for (int64_t &axis : order) {
+        for (auto axis : order) {
             if (axis < -in_ndims || axis > in_ndims - 1)
                 return status::invalid_shape;
             if (axis < 0) axis += in_ndims;
@@ -1400,7 +1417,6 @@ status_t infer_static_transpose_output_shape(op_t *n,
         }
     }
 
-    dims out_dims;
     out_dims.reserve(in_ndims);
     if (order.empty()) {
         // If order is not given, will transpose to (n-1...0),
@@ -1412,6 +1428,47 @@ status_t infer_static_transpose_output_shape(op_t *n,
                     axis >= 0 ? in_dims[axis] : in_dims[axis + in_ndims]);
         }
     }
+
+    return status::success;
+}
+
+status_t infer_static_transpose_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    if (!out0.is_shape_unknown()) return status::success;
+
+    const dims &in_dims = in0.vdims();
+    std::vector<int64_t> order = n->get_attr<dims>(op_attr::order);
+
+    dims out_dims {};
+    status_t ret = status::success;
+    ret = infer_common_transpose_output_shape(in_dims, out_dims, order);
+    if (status::success != ret) return ret;
+
+    // We should compute output dense strides instead of
+    // directly copying input strides to it
+    set_shape_and_strides(*outputs[0], out_dims);
+    return status::success;
+}
+
+status_t infer_dynamic_transpose_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto in1 = logical_tensor_wrapper_t(inputs[1]);
+    if (!out0.is_shape_unknown()) return status::success;
+
+    const dims &in_dims = in0.vdims();
+    const dims &order = in1.vdims();
+
+    dims out_dims {};
+    status_t ret = status::success;
+    ret = infer_common_transpose_output_shape(in_dims, out_dims, order);
+    if (status::success != ret) return ret;
+
     // We should compute output dense strides instead of
     // directly copying input strides to it
     set_shape_and_strides(*outputs[0], out_dims);

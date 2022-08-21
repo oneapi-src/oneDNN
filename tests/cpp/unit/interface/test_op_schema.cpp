@@ -3421,6 +3421,87 @@ TEST(OpSchema, DynamicTranspose) {
             expected_attr_size, attrs_data);
 }
 
+TEST(OpSchema, InferDynamicTransposeShape) {
+    const op_schema_t *dynamic_transpose_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::DynamicTranspose);
+
+    op_t dynamic_transpose_op {op_kind::DynamicTranspose,
+            op_t::kind2str(op_kind::DynamicTranspose)};
+
+    size_t logical_id = 0;
+
+    logical_tensor_t lt_in1
+            = logical_tensor_init(logical_id++, {1024, 64, 32}, data_type::f32);
+    logical_tensor_t lt_in2
+            = logical_tensor_init(logical_id++, {2, 0, 1}, data_type::f32);
+    std::vector<logical_tensor_t *> lt_in {&lt_in1, &lt_in2};
+    logical_tensor_t lt_o1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out1 {&lt_o1};
+
+    dynamic_transpose_op_schema->shape_infer(
+            &dynamic_transpose_op, lt_in, lt_out1);
+
+    const std::vector<int64_t> infered_out_shape1
+            = logical_tensor_wrapper_t(lt_o1).vdims();
+    const std::vector<int64_t> expected_out_shape1 = {32, 1024, 64};
+    EXPECT_EQ(infered_out_shape1, expected_out_shape1);
+
+    // negative order
+    lt_in1 = logical_tensor_init(logical_id++, {2, 4, 1024}, data_type::f32);
+    lt_in2 = logical_tensor_init(logical_id++, {-2, 2, 0}, data_type::f32);
+    logical_tensor_t lt_o2
+            = logical_tensor_init(2, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out2 {&lt_o2};
+    dynamic_transpose_op_schema->shape_infer(
+            &dynamic_transpose_op, lt_in, lt_out2);
+
+    const std::vector<int64_t> infered_out_shape2
+            = logical_tensor_wrapper_t(lt_o2).vdims();
+    const std::vector<int64_t> expected_out_shape2 = {4, 1024, 2};
+    EXPECT_EQ(infered_out_shape2, expected_out_shape2);
+
+    // repeat order
+    lt_in2 = logical_tensor_init(logical_id++, {1, 1, 0}, data_type::f32);
+    logical_tensor_t lt_o3 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out3 {&lt_o3};
+    status_t infer_status = dynamic_transpose_op_schema->shape_infer(
+            &dynamic_transpose_op, lt_in, lt_out3);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // order not cover all input axis
+    lt_in2 = logical_tensor_init(logical_id++, {1, 0}, data_type::f32);
+    logical_tensor_t lt_o4 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out4 {&lt_o4};
+    infer_status = dynamic_transpose_op_schema->shape_infer(
+            &dynamic_transpose_op, lt_in, lt_out4);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // order out of range
+    lt_in2 = logical_tensor_init(logical_id++, {1, 3, 0}, data_type::f32);
+    logical_tensor_t lt_o5 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out5 {&lt_o5};
+    infer_status = dynamic_transpose_op_schema->shape_infer(
+            &dynamic_transpose_op, lt_in, lt_out5);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // order is empty
+    lt_in2 = logical_tensor_init(logical_id++, {}, data_type::f32);
+    logical_tensor_t lt_o6 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> lt_out6 {&lt_o6};
+    infer_status = dynamic_transpose_op_schema->shape_infer(
+            &dynamic_transpose_op, lt_in, lt_out6);
+
+    const std::vector<int64_t> infered_out_shape6
+            = logical_tensor_wrapper_t(lt_o6).vdims();
+    const std::vector<int64_t> expected_out_shape6 = {1024, 4, 2};
+    EXPECT_EQ(infered_out_shape6, expected_out_shape6);
+}
+
 TEST(OpSchema, DynamicReshape) {
     const op_kind_t op_kind_ = op_kind::DynamicReshape;
     const size_t expected_in_size = 2;
@@ -3430,6 +3511,128 @@ TEST(OpSchema, DynamicReshape) {
             = {{op_attr::special_zero, true}};
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferDynamicReshapeShape) {
+    const op_schema_t *dynamic_reshape_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::DynamicReshape);
+
+    op_t dynamic_reshape_op {
+            op_kind::StaticReshape, op_t::kind2str(op_kind::DynamicReshape)};
+    dynamic_reshape_op.set_attr(op_attr::special_zero, false);
+
+    size_t logical_id = 0;
+
+    std::vector<int64_t> out_shape {16, 4, 8};
+    logical_tensor_t lt_in1
+            = logical_tensor_init(logical_id++, {2, 8, 32}, data_type::f32);
+    logical_tensor_t lt_in2
+            = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    std::vector<logical_tensor_t *> inputs {&lt_in1, &lt_in2};
+    logical_tensor_t lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+    std::vector<logical_tensor_t *> outputs {&lt_out1};
+
+    dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+
+    std::vector<int64_t> infered_out_shape
+            = logical_tensor_wrapper_t(lt_out1).vdims();
+    EXPECT_EQ(infered_out_shape, out_shape);
+
+    // test special zero true
+    out_shape = {4, 0, 16};
+    lt_in2 = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    dynamic_reshape_op.set_attr(op_attr::special_zero, true);
+    lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+
+    dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+
+    infered_out_shape = logical_tensor_wrapper_t(lt_out1).vdims();
+    std::vector<int64_t> expected_out_shape = {4, 8, 16};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    // test special zero false
+    out_shape = {4, 0, 16};
+    lt_in2 = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    dynamic_reshape_op.set_attr(op_attr::special_zero, false);
+    lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+
+    status_t infer_status = dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test -1 in shape
+    out_shape = {8, 0, -1};
+    lt_in2 = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    dynamic_reshape_op.set_attr(op_attr::special_zero, true);
+    lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+
+    dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+
+    infered_out_shape = logical_tensor_wrapper_t(lt_out1).vdims();
+    expected_out_shape = {8, 8, 8};
+    EXPECT_EQ(infered_out_shape, expected_out_shape);
+
+    // test input/output with different shape size
+    out_shape = {4, 6, 16};
+    lt_in2 = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+
+    infer_status = dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test invalid shape: more than one -1
+    out_shape = {-1, -1, 16};
+    lt_in2 = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+
+    infer_status = dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test invalid shape: < -1
+    out_shape = {4, -6, 16};
+    lt_in2 = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+
+    infer_status = dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+    EXPECT_EQ(infer_status, status::invalid_shape);
+
+    // test shape contains 0-D
+    out_shape = {0, 4, 7};
+    lt_in2 = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    dynamic_reshape_op.set_attr(op_attr::special_zero, false);
+
+    lt_in1 = logical_tensor_init(logical_id++, {0, 2, 8, 6}, data_type::f32);
+    lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+
+    dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+
+    infered_out_shape = logical_tensor_wrapper_t(lt_out1).vdims();
+    EXPECT_EQ(infered_out_shape, out_shape);
+
+    // test invalid shape case
+    out_shape = {-1, 0};
+    lt_in2 = logical_tensor_init(logical_id++, out_shape, data_type::f32);
+    lt_out1 = logical_tensor_init(
+            logical_id++, data_type::f32, layout_type::strided);
+
+    infer_status = dynamic_reshape_op_schema->shape_infer(
+            &dynamic_reshape_op, inputs, outputs);
+    EXPECT_EQ(infer_status, status::invalid_shape);
 }
 
 TEST(OpSchema, StaticTranspose) {
