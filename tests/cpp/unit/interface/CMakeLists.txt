@@ -19,6 +19,7 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_compilation_context.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp

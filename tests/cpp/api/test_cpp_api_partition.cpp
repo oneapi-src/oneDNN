@@ -103,6 +103,20 @@ TEST(APIPartition, PartitionTest) {
     auto lt4_opaque = cp.query_logical_tensor(3);
     ASSERT_EQ(
             lt4_opaque.get_layout_type(), logical_tensor::layout_type::strided);
+
+    // FIXME(xxx): assert fail when compile with same inputs/output twice time
+    // on Windows platform
+    // compile with context
+    //     partition::compilation_context ctx;
+    //     std::vector<float> buffer {-1., 8., 6., 2.};
+    //     ctx.set_tensor_data_handle(0, buffer.data());
+
+    //     auto cp1 = partitions[0].compile(in0, out0, eng, ctx);
+
+    //     // query logical tensor from compiled partition
+    //     auto lt5_opaque = cp1.query_logical_tensor(3);
+    //     ASSERT_EQ(
+    //      lt5_opaque.get_layout_type(), logical_tensor::layout_type::strided);
 }
 
 TEST(APIPartition, GetInputOutputIDs) {

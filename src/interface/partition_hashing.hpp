@@ -23,6 +23,7 @@
 #include <typeindex>
 #include <vector>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "oneapi/dnnl/dnnl_graph.h"
@@ -47,6 +48,38 @@ inline std::vector<op_t *> get_raw_ptrs(
             [](const std::shared_ptr<op_t> &op_ptr) { return op_ptr.get(); });
     return ret;
 }
+
+#define PARTITION_HASHING_SWITCH_TYPE(type_enum, type_key, ...) \
+    switch (type_enum) { \
+        case data_type::f32: { \
+            using type_key = float; \
+            __VA_ARGS__ \
+        } break; \
+        case data_type::f16: { \
+            using type_key = int16_t; \
+            __VA_ARGS__ \
+        } break; \
+        case data_type::bf16: { \
+            using type_key = uint16_t; \
+            __VA_ARGS__ \
+        } break; \
+        case data_type::u8: { \
+            using type_key = uint8_t; \
+            __VA_ARGS__ \
+        } break; \
+        case data_type::s8: { \
+            using type_key = int8_t; \
+            __VA_ARGS__ \
+        } break; \
+        case data_type::s32: { \
+            using type_key = int32_t; \
+            __VA_ARGS__ \
+        } break; \
+        default: \
+            throw std::runtime_error( \
+                    "Not supported data type in compiled partition hashing."); \
+    }
+
 } // namespace
 
 struct key_t {
@@ -56,7 +89,8 @@ struct key_t {
             const std::vector<const logical_tensor_t *> &outs);
     key_t(const partition_t *partition,
             const std::vector<const logical_tensor_t *> &ins,
-            const std::vector<const logical_tensor_t *> &outs);
+            const std::vector<const logical_tensor_t *> &outs,
+            const compilation_context_t *ctx = nullptr);
 
     bool operator==(const key_t &other) const;
     const std::thread::id &thread_id() const { return thread_id_; }
@@ -65,6 +99,8 @@ struct key_t {
     mutable std::vector<op_t *> ops_;
     mutable std::unordered_set<logical_tensor_t> ins_;
     mutable std::unordered_set<logical_tensor_t> outs_;
+    /// map from id <-> context content
+    mutable std::unordered_map<size_t, impl::utils::any_t> context_content_map_;
     int nthread_;
     engine_kind_t engine_kind_;
 
@@ -155,6 +191,21 @@ struct hash<dnnl::graph::impl::partition_hashing::key_t> {
         // Combine hash for input and output ports with the computed hash
         seed = get_unordered_array_hash(seed, key.ins_);
         seed = get_unordered_array_hash(seed, key.outs_);
+
+        // Combine hash for context content
+        for (const auto &pair : key.context_content_map_) {
+            seed = hash_combine(seed, pair.first);
+            auto found = std::find_if(key.ins_.begin(), key.ins_.end(),
+                    [&pair](const logical_tensor_t &lt) {
+                        return lt.id == pair.first;
+                    });
+            PARTITION_HASHING_SWITCH_TYPE(
+                    logical_tensor_wrapper_t(*found).data_type(), dtype, {
+                        const auto &m = any_cast<const std::vector<dtype> &>(
+                                pair.second);
+                        seed = get_array_hash(seed, m.data(), m.size());
+                    });
+        }
 
         return seed;
     }
