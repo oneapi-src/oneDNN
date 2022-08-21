@@ -96,11 +96,12 @@ fill_status_t append_graph_with_block(const ::bnorm::prb_t *prb) {
     if (prb->dir & FLAG_FWD) {
         const auto sh_id = graph.generate_id_for(op_id, lt_kind::SH);
         graph.create_lt(sh_id, graph_dt::f32, stat_dims, graph_lt::strided);
-        src_ids = {src_id, sc_id, sh_id, mean_id, var_id};
         if (prb->dir & FLAG_INF) {
+            src_ids = {src_id, sc_id, sh_id, mean_id, var_id};
             dst_ids = {dst_id};
             bnorm_kind = dnnl::graph::op::kind::BatchNormInference;
         } else {
+            src_ids = {src_id, mean_id, var_id, sc_id, sh_id};
             const auto rmean_id
                     = graph.generate_id_for(op_id, lt_kind::RUN_MEAN);
             const auto bmean_id
@@ -126,7 +127,7 @@ fill_status_t append_graph_with_block(const ::bnorm::prb_t *prb) {
         graph.create_lt(fwd_src_id, common_dt, base_dims, graph_lt::strided);
         graph.create_lt(d_sc_id, graph_dt::f32, stat_dims, graph_lt::strided);
         graph.create_lt(d_sh_id, graph_dt::f32, stat_dims, graph_lt::strided);
-        src_ids = {fwd_src_id, dst_id, sc_id, mean_id, var_id};
+        src_ids = {fwd_src_id, dst_id, mean_id, var_id, sc_id};
         dst_ids = {src_id, d_sc_id, d_sh_id};
         bnorm_kind = dnnl::graph::op::kind::BatchNormTrainingBackprop;
     }
@@ -196,10 +197,10 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto src_add_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    auto mean_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
+    auto var_fp = make_dnn_mem(ins[2], dt::f32, tag::abx);
     auto shift_fp = make_dnn_mem(
-            is_fwd ? ins[2] : outs[2], dt::f32, use_sh ? tag::x : tag::axb);
-    auto mean_fp = make_dnn_mem(ins[3], dt::f32, tag::abx);
-    auto var_fp = make_dnn_mem(ins[4], dt::f32, tag::abx);
+            is_fwd ? ins[4] : outs[2], dt::f32, use_sh ? tag::x : tag::axb);
     dnn_mem_t &dst_fp = src_fp; // in-place reference
     auto src_hat_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto ws_fp = make_dnn_mem(ins[0], dt::u8, tag::abx);
@@ -207,16 +208,16 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     const auto placeholder_dst_dt = make_dnn_mem(outs[0], tag::abx);
     auto src_dt = make_dnn_mem(ins[0], tag::abx);
     auto src_add_dt = make_dnn_mem(ins[0], tag::abx);
+    auto mean_dt = make_dnn_mem(ins[1], dt::f32, tag::abx);
+    auto var_dt = make_dnn_mem(ins[2], dt::f32, tag::abx);
     auto shift_dt = make_dnn_mem(
-            is_fwd ? ins[2] : outs[2], use_sh ? tag::x : tag::axb);
-    auto mean_dt = make_dnn_mem(ins[3], tag::abx);
-    auto var_dt = make_dnn_mem(ins[4], tag::abx);
+            is_fwd ? ins[4] : outs[2], dt::f32, use_sh ? tag::x : tag::axb);
     const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     dnn_mem_t scale_fp, scale_dt, d_shift_dt, d_scale_dt;
     if (use_sc || use_sh) {
-        scale_fp = make_dnn_mem(is_fwd ? ins[1] : ins[2], dt::f32, tag::abx);
-        scale_dt = make_dnn_mem(is_fwd ? ins[1] : ins[2], dt::f32, tag::abx);
+        scale_fp = make_dnn_mem(is_fwd ? ins[3] : ins[4], dt::f32, tag::abx);
+        scale_dt = make_dnn_mem(is_fwd ? ins[3] : ins[4], dt::f32, tag::abx);
     } else {
         // scale and shift are combined in a single 2D tensor of shape 2xC
         // this logical_tensor is used to indicate the memory size for scale
@@ -256,10 +257,17 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
     if (prb->dir & FLAG_FWD) {
         tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
-        tensors_in.emplace_back(ins[1], eng, static_cast<void *>(scale_dt));
-        tensors_in.emplace_back(ins[2], eng, static_cast<void *>(shift_dt));
-        tensors_in.emplace_back(ins[3], eng, static_cast<void *>(mean_dt));
-        tensors_in.emplace_back(ins[4], eng, static_cast<void *>(var_dt));
+        if (prb->dir & FLAG_INF) {
+            tensors_in.emplace_back(ins[1], eng, static_cast<void *>(scale_dt));
+            tensors_in.emplace_back(ins[2], eng, static_cast<void *>(shift_dt));
+            tensors_in.emplace_back(ins[3], eng, static_cast<void *>(mean_dt));
+            tensors_in.emplace_back(ins[4], eng, static_cast<void *>(var_dt));
+        } else {
+            tensors_in.emplace_back(ins[1], eng, static_cast<void *>(mean_dt));
+            tensors_in.emplace_back(ins[2], eng, static_cast<void *>(var_dt));
+            tensors_in.emplace_back(ins[3], eng, static_cast<void *>(scale_dt));
+            tensors_in.emplace_back(ins[4], eng, static_cast<void *>(shift_dt));
+        }
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(dst_dt));
         if (!(prb->dir & FLAG_INF)) {
             r_mean_dt = make_dnn_mem(outs[1], tag::abx);
@@ -333,9 +341,9 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
         tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
         tensors_in.emplace_back(ins[1], eng, static_cast<void *>(d_dst_dt));
-        tensors_in.emplace_back(ins[2], eng, static_cast<void *>(scale_dt));
-        tensors_in.emplace_back(ins[3], eng, static_cast<void *>(mean_dt));
-        tensors_in.emplace_back(ins[4], eng, static_cast<void *>(var_dt));
+        tensors_in.emplace_back(ins[2], eng, static_cast<void *>(mean_dt));
+        tensors_in.emplace_back(ins[3], eng, static_cast<void *>(var_dt));
+        tensors_in.emplace_back(ins[4], eng, static_cast<void *>(scale_dt));
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(d_src_dt));
         tensors_out.emplace_back(outs[1], eng, static_cast<void *>(d_scale_dt));
         tensors_out.emplace_back(outs[2], eng, static_cast<void *>(d_shift_dt));
