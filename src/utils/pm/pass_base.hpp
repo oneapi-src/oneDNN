@@ -162,6 +162,19 @@ public:
 
     engine_kind_t get_engine_kind() const { return engine_kind_; }
 
+    const std::unordered_set<size_t> &get_input_index_having_context() const {
+        return input_index_has_context_;
+    }
+
+    /// By setting idx to {0, 1}, it means the first and second input of pattern
+    /// can have a context provided through compilation API. The context should
+    /// be taken as part of compiled partition cache key.
+    pass_base &set_input_index_having_context(
+            const std::unordered_set<size_t> &idx) {
+        input_index_has_context_ = idx;
+        return *this;
+    }
+
     /*!
     * \brief Register additional attributes.
     * \param attr_name The name of the attribute.
@@ -211,6 +224,7 @@ private:
     bool enable_ {true};
     partition_kind_t pkind_ {partition_kind::undef};
     engine_kind_t engine_kind_ {engine_kind::any_engine};
+    std::unordered_set<size_t> input_index_has_context_ {};
 };
 
 } // namespace pass

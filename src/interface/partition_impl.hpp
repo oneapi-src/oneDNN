@@ -80,6 +80,16 @@ public:
     /// The getter for partition kind
     partition_kind_t get_kind() const { return pkind_; }
 
+    /// The setter for input_index_having_context
+    void set_input_index_having_context(const std::unordered_set<size_t> &idx) {
+        input_index_having_context_ = idx;
+    }
+
+    /// The getter for input_index_having_context
+    std::unordered_set<size_t> get_input_index_having_context() const {
+        return input_index_having_context_;
+    }
+
     /// The getter for ops_, which is used in C API
     const std::vector<std::shared_ptr<op_t>> &get_ops() const { return ops_; }
 
@@ -115,7 +125,7 @@ public:
             std::vector<logical_tensor_t *> &outputs) const = 0;
 
     /// Compile the partition with specific inputs and outputs logical
-    /// tensors and engine. A partitioncan be compiled multiple times
+    /// tensors and engine. A partition can be compiled multiple times
     /// with different inputs and outputs
     /// @param compiled_partition The pointer of an empty instance, whose
     ///     pimpl_ field should be filled with a smart pointer of internally
@@ -133,6 +143,8 @@ public:
     ///     binary to generate. The device target doesn’t contain uArch
     ///     information. The backend should access the uArch information by
     ///     querying device runtime.
+    /// @param acompilation_context The context information, which will be used
+    ///     during compilation. The context can be nullptr.
     /// @return The status code
     /// @note
     ///     1. The order of the given in/outputs logical tensor may be not same
@@ -159,7 +171,8 @@ public:
     virtual status_t compile(compiled_partition_t *compiled_partition,
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs,
-            const engine_t *aengine) const = 0;
+            const engine_t *aengine,
+            const compilation_context_t *acompilation_context) const = 0;
 
     // dump a partition to string
     virtual std::string to_string() const = 0;
@@ -227,6 +240,11 @@ protected:
 
     /// Partition_impl id
     size_t id_ = std::numeric_limits<size_t>::max();
+
+    /// index of those input logical tensors which may have corresponding
+    /// context, this context is critical to compilation which needs to be
+    /// hashed into compiled partition cache key.
+    std::unordered_set<size_t> input_index_having_context_ {};
 
 private:
     DNNL_GRAPH_DISALLOW_COPY_AND_ASSIGN(partition_impl_t);

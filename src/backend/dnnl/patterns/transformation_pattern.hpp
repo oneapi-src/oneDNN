@@ -44,7 +44,8 @@ public:
     inline void init_partition(dnnl::graph::impl::graph_t &backend_graph,
             std::vector<std::vector<op_t *>> &fusion_ops,
             const FCreateKernel &kernel_creator,
-            dnnl::graph::impl::partition_kind_t pkind);
+            dnnl::graph::impl::partition_kind_t pkind,
+            const std::unordered_set<size_t> &input_index_having_context = {});
 
     pattern_utils_t() = default;
     pattern_utils_t(const pattern_utils_t &) = delete;
@@ -70,12 +71,14 @@ inline void pattern_utils_t::init_partition(
         dnnl::graph::impl::graph_t &backend_graph,
         std::vector<std::vector<op_t *>> &fusion_ops,
         const FCreateKernel &kernel_creator,
-        dnnl::graph::impl::partition_kind_t pkind) {
+        dnnl::graph::impl::partition_kind_t pkind,
+        const std::unordered_set<size_t> &input_index_having_context) {
     for (auto &pairs : fusion_ops) {
         std::shared_ptr<dnnl_partition_impl_t> pimpl
                 = std::make_shared<dnnl_partition_impl_t>(
                         backend_graph.get_engine_kind(),
                         backend_graph.get_fpmath_mode(), pkind);
+        pimpl->set_input_index_having_context(input_index_having_context);
 
         // transfer the matched op's ownership from graph to partition
         for (size_t i = 0; i < pairs.size(); ++i) {
@@ -119,6 +122,8 @@ public:
         FCreateKernel kernel_creator
                 = get_attr<FCreateKernel>("FCreateKernel")[0];
 
+        const auto &idx_set = get_input_index_having_context();
+
         pattern_utils_t pu;
         for (auto &pfunc : pfuncs) {
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph
@@ -138,8 +143,8 @@ public:
                     fflush(stdout);
                 }
 
-                pu.init_partition(
-                        agraph, fusion_ops, kernel_creator, get_kind());
+                pu.init_partition(agraph, fusion_ops, kernel_creator,
+                        get_kind(), idx_set);
             }
         }
         return impl::status::success;
