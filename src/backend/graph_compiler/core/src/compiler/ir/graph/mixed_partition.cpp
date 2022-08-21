@@ -197,20 +197,24 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                 = tensor_node::get_zero_tensor_initializer();
     }
 
-    if (op->isa<padding_op_t>() && op->get_inputs()[0]->uses_.size() == 1) {
+    if (op->isa<padding_op_t>() && op->get_inputs()[0]->uses_.size() == 1
+            && !binded_mxp_->empty()) {
         auto out = op->get_outputs()[0];
         auto ins = op->get_inputs()[0];
-
-        auto new_input = builder::tensor_ptr(g2b_map_.get(out),
-                op->dyn_cast<padding_op_t>()->get_padding_offsets_exprs(), {},
-                true);
         auto old_input = g2b_map_.get(ins);
-        std::unordered_map<expr, expr> buffer_map = {{old_input, new_input}};
-        mxp_replacer_t rep(buffer_map);
-        // IR replace
-        rep.replace_func(binded_mxp_->func_);
-        // Buffer replace
-        replace_buffer(ins.get(), old_input, new_input);
+        if (old_input.isa<tensor>()) {
+            op->attrs_.set<bool>("temp.inplace_padding", true);
+            auto new_input = builder::tensor_ptr(g2b_map_.get(out),
+                    op->dyn_cast<padding_op_t>()->get_padding_offsets_exprs(),
+                    {}, true);
+            std::unordered_map<expr, expr> buffer_map
+                    = {{old_input, new_input}};
+            mxp_replacer_t rep(buffer_map);
+            // IR replace
+            rep.replace_func(binded_mxp_->func_);
+            // Buffer replace
+            replace_buffer(ins.get(), old_input, new_input);
+        }
     }
 }
 
@@ -219,9 +223,9 @@ void mxp_buffer_allocator::replace_buffer(
     g2b_map_.datamap_[gt] = new_input;
 
     if (tsr_anch_map_.find(old_input) != tsr_anch_map_.end()) {
-        auto anch = tsr_anch_map_[old_input];
+        // auto anch = tsr_anch_map_[old_input];
         tsr_anch_map_.erase(old_input);
-        tsr_anch_map_[new_input] = anch;
+        // tsr_anch_map_[new_input] = anch;
     }
 
     if (b2g_map_.find(old_input) != b2g_map_.end()) {
@@ -2156,8 +2160,9 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
 
     std::vector<sc_op_ptr> fused_ops;
     for (auto &parti : op_2_partition) {
-        if (!parti || !parti->output_replace_map.empty()
-                || (parti->ops.size() <= 1)) {
+        if (!parti || !parti->output_replace_map.empty() || (parti->ops.empty())
+                || (parti->ops.size() == 1
+                        && !parti->ops.begin()->get()->isa<padding_op_t>())) {
             // if a partition has been processed or it is a single op, skip
             continue;
         }
@@ -2209,8 +2214,8 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
 void mixed_partition(sc_graph_t &graph, const context_ptr &ctx) {
     if (!graph.attrs_.get_or_else("temp.fuse", 1)) { return; }
     SC_MODULE_INFO << "Starting Mixed Partition...";
-    do_mixed_partition(ctx, graph);
     // print_graph(graph, std::cout, 1);
+    do_mixed_partition(ctx, graph);
 }
 
 } // namespace sc

@@ -347,7 +347,7 @@ static void reschedule_reorder_nearby_input(std::vector<sc_op_ptr> target_ops) {
     pre_op = target_ops[j].get();
 
     // switch pre_op and last_reo position
-    if (pre_op != last_reo) {
+    if (pre_op == begin_op.get()) {
         auto new_fmt = last_reo->get_outputs()[0]->details_.get_format();
         // disconnect reorder
         last_reo->get_outputs()[0]->replace_with(

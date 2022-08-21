@@ -62,7 +62,9 @@ public:
         return v;
     }
 
-    void replace_func(func_t &func) { dispatch_impl(func); }
+    void replace_func(func_t &func) {
+        if (func) { dispatch_impl(func); }
+    }
     void replace_anchor(const std::vector<fuse_anchor_map_ptr> &fanchors);
 };
 
