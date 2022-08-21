@@ -59,7 +59,9 @@ public:
     impl::status_t compile(impl::compiled_partition_t *compiled_partition,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *aengine) const override;
+            const impl::engine_t *aengine,
+            const impl::compilation_context_t *acompilation_context)
+            const override;
     std::string to_string() const override;
 
     const impl::backend *get_assigned_backend() const override {

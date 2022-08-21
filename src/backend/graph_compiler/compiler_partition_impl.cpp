@@ -27,6 +27,7 @@
 #include "utils.hpp"
 #include "utils/debug.hpp"
 #include "utils/rw_mutex.hpp"
+#include "utils/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -116,7 +117,9 @@ impl::status_t compiler_partition_impl_t::compile(
         impl::compiled_partition_t *compiled_partition,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs,
-        const impl::engine_t *aengine) const {
+        const impl::engine_t *aengine,
+        const impl::compilation_context_t *acompilation_context) const {
+    UNUSED(acompilation_context);
     try {
         impl::status_t res = status::success;
         // here we call infer_shape since logical tensor info

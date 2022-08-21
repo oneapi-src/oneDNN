@@ -125,11 +125,14 @@ public:
     impl::status_t compile(impl::compiled_partition_t *compiled_partition,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *g_engine) const override {
+            const impl::engine_t *g_engine,
+            const impl::compilation_context_t *acompilation_context)
+            const override {
         UNUSED(compiled_partition);
         UNUSED(inputs);
         UNUSED(outputs);
         UNUSED(g_engine);
+        UNUSED(acompilation_context);
         return status::unimplemented;
     }
 
