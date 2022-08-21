@@ -90,7 +90,9 @@ public:
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
+            const std::vector<impl::logical_tensor_t> &outputs,
+            const impl::compilation_context_t *context) override {
+        UNUSED(context);
         // TODO(wuxun): since oneDNN pooling primitive only support u8u8 or
         // s8s8 on CPU device for now, we need to check whether the data types
         // between input and output are compatible. If we enable this check in
@@ -374,7 +376,9 @@ public:
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
+            const std::vector<impl::logical_tensor_t> &outputs,
+            const impl::compilation_context_t *context) override {
+        UNUSED(context);
         p_engine_ = make_dnnl_engine(*g_engine);
         g_alloc_ = g_engine->get_allocator();
 

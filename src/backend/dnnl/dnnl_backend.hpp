@@ -227,8 +227,10 @@ struct kernel_base_t {
     impl::status_t compile(const dnnl_partition_impl_t *part,
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
-        auto ret = compile_impl(part, aengine, inputs, outputs);
+            const std::vector<impl::logical_tensor_t> &outputs,
+            const impl::compilation_context_t *acompilation_context = nullptr) {
+        auto ret = compile_impl(
+                part, aengine, inputs, outputs, acompilation_context);
         if (ret != impl::status::success) return ret;
         return prepare_inplace_pairs_impl();
     }
@@ -260,7 +262,8 @@ struct kernel_base_t {
     virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs)
+            const std::vector<impl::logical_tensor_t> &outputs,
+            const impl::compilation_context_t *acompilation_context)
             = 0;
 
     virtual impl::status_t execute_impl(const impl::stream_t *astream,

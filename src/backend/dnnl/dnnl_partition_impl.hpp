@@ -175,7 +175,9 @@ public:
     impl::status_t compile(impl::compiled_partition_t *compiled_partition,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *g_engine) const override {
+            const impl::engine_t *g_engine,
+            const impl::compilation_context_t *compilation_context)
+            const override {
         // compile will transform the subgraph in partition, so we make
         // a copy
         auto part = std::dynamic_pointer_cast<dnnl_partition_impl_t>(
@@ -199,7 +201,8 @@ public:
         // compile kernel.
         // FIXME(qun) will modify the outputs inside the compile, which
         // break the constant semantics
-        ret = kernel->compile(part.get(), g_engine, inputs, outputs);
+        ret = kernel->compile(
+                part.get(), g_engine, inputs, outputs, compilation_context);
         if (ret != status::success) return ret;
 
         std::vector<impl::logical_tensor_t> ordered_inputs;
