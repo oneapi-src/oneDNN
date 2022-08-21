@@ -615,8 +615,8 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
         sc::runtime::stream_t *stream) {
     const int batch_num = num * len;
 #ifdef _MSC_VER
-    brgemm_batch_element_t *batch
-            = (brgemm_batch_element_t *)_malloca(batch_num);
+    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+            batch_num * sizeof(brgemm_batch_element_t *));
 #else
 #if CLANGVERSION <= 3
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(
@@ -654,8 +654,8 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
         const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
     const int batch_num = num * len;
 #ifdef _MSC_VER
-    brgemm_batch_element_t *batch
-            = (brgemm_batch_element_t *)_malloca(batch_num);
+    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+            batch_num * sizeof(brgemm_batch_element_t *));
 #else
 #if CLANGVERSION <= 3
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(
@@ -770,8 +770,8 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
     float alpha = 1.0, beta = 1.0;
     const int batch_num = num * len;
 #ifdef _MSC_VER
-    brgemm_batch_element_t *batch
-            = (brgemm_batch_element_t *)_malloca(batch_num);
+    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+            batch_num * sizeof(brgemm_batch_element_t *));
 #else
 #if CLANGVERSION <= 3
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(

@@ -281,7 +281,9 @@ static func_t declare_brgemm_update_funcs(
                 _decl_func(ss.str(), datatypes::s32, std::move(update_args)));
         return update;
     } else {
-        ss << get_brgemm_name(backend) << "_brgemm_list_update";
+        ss << get_brgemm_name(backend) << "_brgemm_";
+        if (init) { ss << "init_"; }
+        ss << "list_update";
         auto update_args = std::vector<std::vector<expr>> {
                 _arg_("A", datatypes::pointer), _arg_("B", datatypes::pointer),
                 _arg_("C", datatypes::pointer), _arg_("num", datatypes::s32),
@@ -317,7 +319,8 @@ std::pair<func_t, func_t> get_brgemm_update_funcs(
     if (mode == brgemm_mode::addr_list \
             && backend == scflags_t::brgemm_t::back) { \
         static std::pair<func_t, func_t> f = std::pair<func_t, func_t>( \
-                declare_brgemm_update_funcs(backend, mode, false), nullptr); \
+                declare_brgemm_update_funcs(backend, mode, false), \
+                declare_brgemm_update_funcs(backend, mode, true)); \
         return f; \
     }
     // we need a static variable each branch to ensure there will be no
@@ -395,6 +398,22 @@ void brgemm_list_update(const expr &A, const expr &B, const expr &C,
             LDC, stride_a, stride_b, len, postops_data, c_buf, bd_mask_idx,
             brgemm_args::extra_args_t(brgemm_args::cpu_t {false}, dtypeA,
                     dtypeB, infer_output_dtype(dtypeA), brg_attrs, bd_mask,
+                    bd_mask_set_num, postops_set));
+}
+
+void brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
+        const expr &num, const expr &M, const expr &N, const expr &K,
+        const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
+        const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
+        const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
+        const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
+        const int &bd_mask_set_num,
+        const sc_brgemm_postops_setting_t &postops_set,
+        const std::vector<expr> &postops_data, const expr &c_buf) {
+    builder::get_current_builder()->list_brgemm(A, B, C, num, M, N, K, LDA, LDB,
+            LDC, stride_a, stride_b, len, postops_data, c_buf, bd_mask_idx,
+            brgemm_args::extra_args_t(brgemm_args::cpu_t {true}, dtypeA, dtypeB,
+                    infer_output_dtype(dtypeA), brg_attrs, bd_mask,
                     bd_mask_set_num, postops_set));
 }
 

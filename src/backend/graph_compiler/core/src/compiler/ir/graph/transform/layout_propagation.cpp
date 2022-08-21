@@ -468,7 +468,6 @@ SC_INTERNAL_API void layout_propagation(
                                             inputs[i], i, target_fs_pair, node,
                                             is_input_plain,
                                             insert_reorder_callback);
-                                    dispatch_format[i] = target_fs_pair.first;
                                 }
                             } else if (!insert_reorder_callback) {
                                 // if static and no need of reorder

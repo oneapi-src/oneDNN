@@ -108,8 +108,8 @@ expr make_trace_kernel(expr func_name, expr in_or_out, expr arg);
 SC_INTERNAL_API std::vector<expr> create_initialed_postops_data();
 
 /**
- * Generates a call node to dnnl_brgemm_init_f32, and wrap the call node
- * with evaluate node. Also declares the dnnl_brgemm_init_f32 function in
+ * Generates a call node to dnnl_brgemm_init, and wrap the call node
+ * with evaluate node. Also declares the dnnl_brgemm_init function in
  * the builder
  *
  * @param C pointer (float)
@@ -123,7 +123,7 @@ void dnnl_brgemm_init(
         expr C, expr M, expr N, expr LDC, sc_data_type_t dtypeC, expr value);
 
 /**
- * Generates a generate call node to brgemm_init_update_f32.
+ * Generates a generate call node to brgemm_init_update.
  *
  * @param A pointer (float)
  * @param B pointer (float)
@@ -218,7 +218,7 @@ void brgemm_init(
         expr C, expr M, expr N, expr LDC, sc_data_type_t dtypeC, expr value);
 
 /**
- * Generates a generate call node to brgemm_update_f32.
+ * Generates a generate call node to brgemm_update.
  *
  * @param A pointer (void)
  * @param B pointer (void)
@@ -258,7 +258,7 @@ void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
         const expr &brg_c_buf = get_ir_null());
 
 /**
- * Generates a generate call node to brgemm_list_update_f32.
+ * Generates a generate call node to brgemm_list_update.
  *
  * @param A pointer (void)
  * @param B pointer (void)
@@ -285,6 +285,48 @@ void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
  * @param brg_c_buf c_buf
  * */
 void brgemm_list_update(const expr &A, const expr &B, const expr &C,
+        const expr &num, const expr &M, const expr &N, const expr &K,
+        const expr &lda, const expr &ldb, const expr &ldc, const expr &stride_a,
+        const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
+        const sc_data_type_t &dtypeB,
+        const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
+        const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const expr &bd_mask_idx = get_ir_zero_index(),
+        const int &bd_mask_set_num = 1,
+        const sc_brgemm_postops_setting_t &brg_postops_setting
+        = sc_brgemm_postops_setting_t(),
+        const std::vector<expr> &brg_postops_data
+        = create_initialed_postops_data(),
+        const expr &brg_c_buf = get_ir_null());
+
+/**
+ * Generates a generate call node to brgemm_init_list_update.
+ *
+ * @param A pointer (void)
+ * @param B pointer (void)
+ * @param C pointer (void)
+ * @param num s32
+ * @param M s32
+ * @param N s32
+ * @param K s32
+ * @param lda s32
+ * @param ldb s32
+ * @param ldc s32
+ * @param stride_a s32
+ * @param stride_b s32
+ * @param len s32 (len of addr list, each addr list contains num addrs which
+ * inferred via stride_a and strid_b)
+ * @param dtypeA sc_data_type_t
+ * @param dtypeB sc_data_type_t
+ * @param brg_attrs any_map
+ * @param bd_mask bd_mask
+ * @param bd_mask_idx bd_mask idx for same brgemm with different bd_mask
+ * @param bd_mask_set_num num of different bd_mask for same brgemm
+ * @param brg_postops_setting postops_setting
+ * @param brg_postops_data postops_data
+ * @param brg_c_buf c_buf
+ * */
+void brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
         const expr &num, const expr &M, const expr &N, const expr &K,
         const expr &lda, const expr &ldb, const expr &ldc, const expr &stride_a,
         const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,

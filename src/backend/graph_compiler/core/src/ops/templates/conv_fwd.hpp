@@ -58,12 +58,22 @@ public:
   const sc_dims &get_input_plain_dims() const {
     return in_tensors_[0].get_plain_dims();
   }
+
+  const sc_dims &get_input_blocking_dims() const {
+    return in_tensors_[0].get_blocking_dims();
+  }
+
   const sc_dims &get_weight_plain_dims() const {
     return in_tensors_[1].get_plain_dims();
   }
   const sc_dims &get_output_plain_dims() const {
     return out_tensors_[0].get_plain_dims();
   }
+
+  const sc_dims &get_output_blocking_dims() const {
+    return out_tensors_[0].get_blocking_dims();
+  }
+
   sc_data_type_t get_input_dtype() const { return in_tensors_[0].dtype_; }
   sc_data_type_t get_weight_dtype() const { return in_tensors_[1].dtype_; }
   sc_data_type_t get_output_dtype() const { return out_tensors_[0].dtype_; }
@@ -98,7 +108,7 @@ protected:
 #undef CONV_ARG_LIST
 
 private:
-  int ndims_ = 0;
+  size_t ndims_ = 0;
   int mb_ = 0, ic_ = 0, id_ = 0, ih_ = 0, iw_ = 0;
   int oc_ = 0, kd_ = 0, kh_ = 0, kw_ = 0;
   int od_ = 0, oh_ = 0, ow_ = 0;
@@ -109,6 +119,8 @@ private:
   bool try_os_blocking_ = false;
   bool is_1x1_conv_ = false;
   bool is_3d_ = false;
+  bool blocking_input_ = false;
+  bool blocking_output_ = false;
 };
 
 } // namespace ops

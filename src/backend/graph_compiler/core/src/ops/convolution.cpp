@@ -24,8 +24,10 @@
 #include "templates/convNxN_backprop_weight.hpp"
 #include "templates/conv_bwd.hpp"
 #include "templates/conv_fwd.hpp"
+#include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <ops/templates/utils.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -264,6 +266,10 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
+    COMPILE_ASSERT(info_.inputs_.size() == 2,
+            "conv expects 2 inputs, but got " << info_.inputs_.size()
+                                              << " inputs.");
+
     if (!config_data_) {
         config_data_ = create_generator()->get_default_config(ctx);
     }
@@ -271,14 +277,44 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     in_formats.reserve(2);
     int C_block = tcfg.C_block;
     int K_block = tcfg.K_block;
+
     const bool is_3d = ndims_ == 5;
-    in_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(C_block)
-                                : sc_data_format_t::NCHWc(C_block)});
-    COMPILE_ASSERT(info_.inputs_.size() == 2,
-            "conv expects 2 inputs, but got " << info_.inputs_.size()
-                                              << " inputs.");
     const auto src_dtype = info_.inputs_[0]->details_.dtype_;
     const auto wei_dtype = info_.inputs_[1]->details_.dtype_;
+    auto &pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    bool is_weight_constant
+            = info_.inputs_[1]->producer_owner_->isa<constant_op_t>()
+            || info_.inputs_[1]->producer_owner_->attrs_.get_or_else(
+                    "constant", const_kind::not_const)
+            || info_.inputs_[1]->attrs_.get_or_else(
+                    "constant", const_kind::not_const);
+
+    auto weight_plain_dims = info_.inputs_[1]->details_.get_plain_dims();
+    auto ph = pads_begin[0];
+    auto kh = weight_plain_dims[ndims_ - 2];
+    auto pw = pads_begin[0];
+    auto kw = weight_plain_dims[ndims_ - 1];
+    bool channel_last_support
+            = (is_use_amx(ctx) && ph <= kh && pw <= kw) && (kh > 1 || kw > 1);
+    std::string test_format;
+    if (attrs_.has_key("temp.test_format")) {
+        test_format = attrs_.get<std::string>("temp.test_format");
+    }
+    bool force_channel_last = test_format == "NHWC" || test_format == "NDHWC";
+    bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc";
+    bool use_channel_last
+            = ((!is_weight_constant) && channel_last_support && !force_blocking)
+            || force_channel_last;
+    if (use_channel_last) {
+        in_formats.push_back(
+                {is_3d ? sc_data_format_t::NDHWC() : sc_data_format_t::NHWC()});
+    } else {
+        in_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(C_block)
+                                    : sc_data_format_t::NCHWc(C_block)});
+    }
+
     if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
             && wei_dtype == datatypes::s8) {
         in_formats.push_back(
@@ -293,9 +329,13 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
                 {is_3d ? sc_data_format_t::KCDRSck(C_block, K_block)
                        : sc_data_format_t::KCRSck(C_block, K_block)});
     }
-    // for output format
-    out_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(K_block)
-                                 : sc_data_format_t::NCHWc(K_block)});
+    if (use_channel_last) {
+        out_formats.push_back(
+                {is_3d ? sc_data_format_t::NDHWC() : sc_data_format_t::NHWC()});
+    } else {
+        out_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(K_block)
+                                     : sc_data_format_t::NCHWc(K_block)});
+    }
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);
 }
