@@ -401,6 +401,33 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_partition_compile(
         const dnnl_graph_logical_tensor_t **outputs,
         const_dnnl_graph_engine_t engine);
 
+/// Compiles a partition with given input logical tensors, output logical
+/// tensors and context. The output logical tensors can contain unknown
+/// dimensions. For this case, the compilation will deduce the output shapes
+/// according to input shapes. The output logical tensors can also have layout
+/// type `any`. The compilation will choose the optimal layout for output
+/// tensors. The optimal layout will be represented as an opaque layout ID saved
+/// in the output logical tensor. The context may contain useful information for
+/// compilation.
+///
+/// @param partition The target partition.
+/// @param compiled_partition Output compiled partition.
+/// @param in_num The number of input logical tensors.
+/// @param inputs A list of input logical tensors.
+/// @param out_num The number of output logical tensors.
+/// @param outputs A list of output logical tensors.
+/// @param engine The target engine of the compilation.
+/// @param compilation_context Compilation context
+/// @returns #dnnl_graph_success on success or a status describing the error
+///     otherwise.
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_partition_compile_v2(
+        dnnl_graph_partition_t partition,
+        dnnl_graph_compiled_partition_t compiled_partition, size_t in_num,
+        const dnnl_graph_logical_tensor_t **inputs, size_t out_num,
+        const dnnl_graph_logical_tensor_t **outputs,
+        const_dnnl_graph_engine_t engine,
+        const_dnnl_graph_compilation_context_t compilation_context);
+
 /// Returns the number of input logical tensors of a partition.
 ///
 /// @param partition The target partition.
@@ -475,6 +502,40 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_partition_get_kind(
         const_dnnl_graph_partition_t partition,
         dnnl_graph_partition_kind_t *kind);
+
+/// @addtogroup dnnl_graph_api_compilation_context
+/// @{
+
+/// Creates a new compilation context handle.
+///
+/// @param compilation_context The handle of compilation context.
+/// @returns #dnnl_graph_success on success or a status describing the error
+///     otherwise.
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_compilation_context_create(
+        dnnl_graph_compilation_context_t *compilation_context);
+
+/// Destroys a compilation context.
+///
+/// @param compilation_context The compilation context to be destroyed.
+/// @returns #dnnl_graph_success on success or a status describing the error
+///     otherwise.
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_compilation_context_destroy(
+        dnnl_graph_compilation_context_t compilation_context);
+
+/// Sets tensor data handle to a compilation context. This handle will be
+/// interpreted according to the logical tensor specified by the given id.
+///
+/// @param compilation_context The target compilation context.
+/// @param id Logical tensor id
+/// @param handle A raw pointer to tensor buffer
+/// @returns #dnnl_graph_success on success or a status describing the error
+///     otherwise.
+dnnl_graph_status_t DNNL_GRAPH_API
+dnnl_graph_compilation_context_set_tensor_data_handle(
+        dnnl_graph_compilation_context_t compilation_context, size_t id,
+        void *handle);
+
+/// @} dnnl_graph_api_compilation_context
 
 /// @} dnnl_graph_api_partition
 

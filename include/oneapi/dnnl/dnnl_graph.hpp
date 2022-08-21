@@ -101,6 +101,7 @@ DNNL_GRAPH_HANDLE_ALIAS(stream);
 DNNL_GRAPH_HANDLE_ALIAS(tensor);
 DNNL_GRAPH_HANDLE_ALIAS(compiled_partition);
 DNNL_GRAPH_HANDLE_ALIAS(partition);
+DNNL_GRAPH_HANDLE_ALIAS(compilation_context);
 
 #undef DNNL_GRAPH_HANDLE_ALIAS
 
@@ -1502,6 +1503,68 @@ public:
         = dnnl_graph_partition_kind_quantized_residual_conv_blocks,
     };
 
+    /// @addtogroup dnnl_graph_api_compilation_context Compilation Context
+    ///
+    /// @{
+
+    /// Compilation Context. It contains useful context information for
+    /// compilation. Currently, it supports passing tensor content. For example,
+    /// DynamicReshape has a required shape input, but this shape is stored in a
+    /// tensor and can be accessed until execution stage. Users can pass the
+    /// shape tensor content to through context.
+    ///
+    /// Considering the content in context is critical to compilation, it will
+    /// be part of compiled partition cache key. That means, if users compile
+    /// a partition with different context twice time, the compiled partition
+    /// cache will be missed and recompilation will happen. Users should
+    /// guarantee the content in context is kept unchanged during each
+    /// `compilation-execution` period.
+    ///
+    /// Users can specifying the content for any input tensors, but not all of
+    /// them are critical to compilation. For example, the content of input
+    /// shape is important for the library to generate kernels for
+    /// DynamicReshape operation while the content of input data is not useful.
+    /// Another example is the constant weight tensor for Convolution operation
+    /// in inference mode, typically it's not critical for kernel generation but
+    /// it still exposes an optimization opportunity to the library by
+    /// reordering or freezing the constant weight tensor at compilation stage.
+    ///
+    class compilation_context : public detail::compilation_context_handle {
+    public:
+        using dims_t = std::vector<dnnl_graph_dim_t>;
+
+        /// Constructs an empty compilation context.
+        compilation_context() {
+            dnnl_graph_compilation_context_t ctx = nullptr;
+            error::check_succeed(dnnl_graph_compilation_context_create(&ctx),
+                    "could not create a compilation context.");
+            reset(ctx);
+        }
+
+        /// Constructs a compilation context object for C data.
+        ///
+        /// @param p A raw pointer to the C API handle
+        compilation_context(dnnl_graph_compilation_context_t ctx) {
+            reset(ctx, false);
+        }
+
+        /// Sets tensor data handle to a compilation context. This handle
+        /// will be interpreted according to the logical tensor specified by the
+        /// given id.
+        ///
+        /// @param id Logical tensor id
+        /// @param handle A raw pointer to tensor buffer
+        void set_tensor_data_handle(size_t id, void *handle) {
+            error::check_succeed(
+                    dnnl_graph_compilation_context_set_tensor_data_handle(
+                            get(), id, handle),
+                    "could not set tensor data handle to a compilation "
+                    "context.");
+        }
+    };
+
+    /// @} dnnl_graph_api_compilation_context
+
     /// Default constructor. Constructs an empty partition object.
     partition() = default;
 
@@ -1566,20 +1629,24 @@ public:
     /// The output logical tensors can also have layout type `any`. The
     /// compilation will choose the optimal layout for output tensors. The
     /// optimal layout will be represented as an opaque layout ID saved in the
-    /// output logical tensor.
+    /// output logical tensor. Compilation context may contain more information
+    /// useful for compiling a partition. The library can still succeed to
+    /// compile if a context is empty.
     ///
     /// @param inputs A list of input logical tensors.
     /// @param outputs A list of output logical tensors.
     /// @param e The engine used to compile the partition.
+    /// @param ctx Context information used to compile the partition
     /// @returns A compiled partition.
     compiled_partition compile(const std::vector<logical_tensor> &inputs,
-            const std::vector<logical_tensor> &outputs, const engine &e) const {
+            const std::vector<logical_tensor> &outputs, const engine &e,
+            const compilation_context &ctx = {}) const {
         if (!is_supported()) {
             error::check_succeed(dnnl_graph_invalid_arguments,
                     "could not compile an unsupported partition");
         }
 
-        return compile_(inputs, outputs, &e);
+        return compile_(inputs, outputs, &e, &ctx);
     }
 
     /// Returns the supporting status of a partition. Some operations may not be
@@ -1667,7 +1734,8 @@ public:
 
 private:
     compiled_partition compile_(const std::vector<logical_tensor> &inputs,
-            const std::vector<logical_tensor> &outputs, const engine *e) const {
+            const std::vector<logical_tensor> &outputs, const engine *e,
+            const compilation_context *ctx) const {
         std::vector<const dnnl_graph_logical_tensor_t *> c_inputs;
         std::vector<const dnnl_graph_logical_tensor_t *> c_outputs;
 
@@ -1686,9 +1754,9 @@ private:
                 dnnl_graph_compiled_partition_create(&cpartitions, get()),
                 "could not create compiled_partition");
         error::check_succeed(
-                dnnl_graph_partition_compile(get(), cpartitions,
+                dnnl_graph_partition_compile_v2(get(), cpartitions,
                         c_inputs.size(), c_inputs.data(), c_outputs.size(),
-                        c_outputs.data(), e->get()),
+                        c_outputs.data(), e->get(), ctx->get()),
                 "could not compile the partition");
 
         return compiled_partition(cpartitions);

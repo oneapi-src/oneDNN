@@ -279,6 +279,13 @@ typedef struct dnnl_graph_partition *dnnl_graph_partition_t;
 /// A constant partition handle.
 typedef const struct dnnl_graph_partition *const_dnnl_graph_partition_t;
 
+/// A compilation context handle
+typedef struct dnnl_graph_compilation_context *dnnl_graph_compilation_context_t;
+
+/// A constant compilation context handle
+typedef const struct dnnl_graph_compilation_context
+        *const_dnnl_graph_compilation_context_t;
+
 /// @} dnnl_graph_api_partition
 
 /// @addtogroup dnnl_graph_api_utils

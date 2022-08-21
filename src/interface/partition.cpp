@@ -196,7 +196,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
 
     if (utils::get_verbose() >= 2) {
         double ms = utils::get_msec();
-        CHECK(partition->compile(cp, in, out, engine));
+        CHECK(partition->compile(cp, in, out, engine, nullptr));
         ms = utils::get_msec() - ms;
 
         const char *cache_status = cp.second ? "cache_hit" : "cache_miss";
@@ -204,7 +204,42 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
                 compiled_partition->info(), ms);
         fflush(stdout);
     } else {
-        CHECK(partition->compile(cp, in, out, engine));
+        CHECK(partition->compile(cp, in, out, engine, nullptr));
+    }
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_partition_compile_v2(partition_t *partition,
+        compiled_partition_t *compiled_partition, size_t in_num,
+        const logical_tensor_t **inputs, size_t out_num,
+        const logical_tensor_t **outputs, const engine_t *engine,
+        const compilation_context_t *compilation_context) {
+    if (utils::any_null(partition, compiled_partition, engine)) {
+        return status::invalid_arguments;
+    }
+
+    if (!partition->is_supported()) return status::invalid_arguments;
+
+    std::vector<const logical_tensor_t *> in {inputs, inputs + in_num};
+    std::vector<const logical_tensor_t *> out {outputs, outputs + out_num};
+
+    // The boolean in the pair indicates whether the compiled partition is from
+    // global cache.
+    //   true - cache_hit, the compiled partition is in the cache
+    //   false - cache_miss, the compiled partition is not in the cache
+    std::pair<compiled_partition_t *, bool> cp {compiled_partition, false};
+
+    if (utils::get_verbose() >= 2) {
+        double ms = utils::get_msec();
+        CHECK(partition->compile(cp, in, out, engine, compilation_context));
+        ms = utils::get_msec() - ms;
+
+        const char *cache_status = cp.second ? "cache_hit" : "cache_miss";
+        printf("onednn_graph_verbose,compile:%s,%s,%g\n", cache_status,
+                compiled_partition->info(), ms);
+        fflush(stdout);
+    } else {
+        CHECK(partition->compile(cp, in, out, engine, compilation_context));
     }
     return status::success;
 }
@@ -277,6 +312,28 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_kind(
     if (utils::any_null(partition, kind)) { return status::invalid_arguments; }
 
     *kind = partition->get_kind();
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_compilation_context_destroy(
+        compilation_context_t *compilation_context) {
+    delete compilation_context;
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_compilation_context_create(
+        compilation_context_t **compilation_context) {
+    if (compilation_context == nullptr) return status::invalid_arguments;
+
+    *compilation_context = new compilation_context_t();
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_compilation_context_set_tensor_data_handle(
+        compilation_context_t *compilation_context, size_t id, void *handle) {
+    if (utils::any_null(compilation_context)) return status::invalid_arguments;
+
+    compilation_context->set_tensor_data_handle(id, handle);
     return status::success;
 }
 
@@ -542,7 +599,8 @@ bool dnnl_graph_partition::is_supported() const {
 status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
         std::vector<const impl::logical_tensor_t *> &inputs,
         std::vector<const impl::logical_tensor_t *> &outputs,
-        const engine_t *aengine) const {
+        const engine_t *aengine,
+        const compilation_context_t *acompilation_context) const {
     status_t ret;
 
     if (!aengine || aengine->kind() != pimpl_->get_engine_kind())
@@ -587,7 +645,8 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
 
     // The impl's compile will generate the compiled_partition_impl and
     // modify the given inputs outputs logical tensor
-    ret = pimpl_->compile(cp, tmp_inputs, tmp_outputs, aengine);
+    ret = pimpl_->compile(
+            cp, tmp_inputs, tmp_outputs, aengine, acompilation_context);
     if (status::success != ret) return ret;
 
     // Post-process the modified logical tensor and store them
@@ -608,10 +667,11 @@ impl::status_t dnnl_graph_partition::compile(
         std::pair<impl::compiled_partition_t *, bool> &compiled_partition,
         std::vector<const impl::logical_tensor_t *> &inputs,
         std::vector<const impl::logical_tensor_t *> &outputs,
-        const impl::engine_t *aengine) const {
+        const impl::engine_t *aengine,
+        const impl::compilation_context_t *acompilation_context) const {
     namespace partition_hashing = impl::partition_hashing;
     auto &global_compiled_partition_cache = impl::compiled_partition_cache();
-    partition_hashing::key_t key(this, inputs, outputs);
+    partition_hashing::key_t key(this, inputs, outputs, acompilation_context);
 
     std::promise<impl::compiled_partition_cache_t::cache_value_t> cp_promise;
     // Try to get the shared future from the cache, if it's missing then
@@ -636,8 +696,8 @@ impl::status_t dnnl_graph_partition::compile(
         // The requested compiled partition is NOT present in the cache
         // therefore we have to create it and notify the waiting threads once
         // the creation is done.
-        status = this->compile(
-                compiled_partition.first, inputs, outputs, aengine);
+        status = this->compile(compiled_partition.first, inputs, outputs,
+                aengine, acompilation_context);
         if (status != impl::status::success) {
             // Communicate an error
             cp_promise.set_value({nullptr, status});

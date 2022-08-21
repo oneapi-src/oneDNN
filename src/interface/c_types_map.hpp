@@ -335,6 +335,7 @@ using stream_t = dnnl_graph_stream;
 using graph_t = dnnl_graph_graph;
 using op_t = dnnl_graph_op;
 using partition_t = dnnl_graph_partition;
+using compilation_context_t = dnnl_graph_compilation_context;
 using compiled_partition_t = dnnl_graph_compiled_partition;
 using stream_t = dnnl_graph_stream;
 using tensor_t = dnnl_graph_tensor;

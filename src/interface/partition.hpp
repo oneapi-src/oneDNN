@@ -49,6 +49,34 @@ class backend;
 } // namespace graph
 } // namespace dnnl
 
+struct dnnl_graph_compilation_context {
+public:
+    dnnl_graph_compilation_context() = default;
+
+    dnnl_graph_compilation_context(const dnnl_graph_compilation_context &other)
+            = default;
+
+    void set_tensor_data_handle(size_t id, void *handle) {
+        tensor_data_handle_map_[id] = handle;
+    }
+
+    void *get_tensor_data_handle(size_t id) const {
+        return tensor_data_handle_map_.at(id);
+    }
+
+    std::unordered_set<size_t> get_ids() const {
+        std::unordered_set<size_t> ids {};
+        ids.reserve(tensor_data_handle_map_.size());
+        for (const auto &e : tensor_data_handle_map_)
+            ids.insert(e.first);
+        return ids;
+    }
+
+private:
+    /// logical tensor id -> tensor data handle
+    std::unordered_map<size_t, void *> tensor_data_handle_map_;
+};
+
 struct dnnl_graph_partition : public impl::utils::id_t {
 public:
     friend struct dnnl_graph_compiled_partition;
@@ -89,6 +117,10 @@ public:
         return pimpl_->get_fpmath_mode();
     }
 
+    std::unordered_set<size_t> get_input_index_having_context() const {
+        return pimpl_->get_input_index_having_context();
+    }
+
     impl::partition_kind_t get_kind() const { return pimpl_->get_kind(); }
 
     const std::vector<std::shared_ptr<impl::op_t>> &get_ops() const {
@@ -122,13 +154,17 @@ public:
     impl::status_t compile(impl::compiled_partition_t *compiled_partition,
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<const impl::logical_tensor_t *> &outputs,
-            const impl::engine_t *e = nullptr) const;
+            const impl::engine_t *e = nullptr,
+            const impl::compilation_context_t *acompilation_context
+            = nullptr) const;
 
     impl::status_t compile(
             std::pair<impl::compiled_partition_t *, bool> &compiled_partition,
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<const impl::logical_tensor_t *> &outputs,
-            const impl::engine_t *aengine) const;
+            const impl::engine_t *aengine,
+            const impl::compilation_context_t *acompilation_context
+            = nullptr) const;
 
     impl::status_t infer_shape(
             std::vector<const impl::logical_tensor_t *> &inputs,
