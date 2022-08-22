@@ -3142,7 +3142,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         dst = dst.reinterpret(dst_type);
     }
 
-    int grf_size = ngen::GRF::bytes(hw);
+    const int grf_size = ngen::GRF::bytes(hw);
     int src_type_size = ngen::getBytes(src_type);
     int dst_type_size = ngen::getBytes(dst_type);
     int src_stride_bytes = src_stride * src_type_size;
@@ -3204,12 +3204,143 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // d -> bf/hf:
     // - Use d -> f -> bf/hf conversion with temporary
     if (src_d && (dst_bf || dst_hf)) {
-        auto tmp = scope.alloc_reg_buf_data(
-                                utils::div_up(
-                                        int(width * sizeof(float)), grf_size))
-                           .format(0, ngen::DataType::f);
+        const int nregs = utils::div_up(width * (int)sizeof(float), grf_size);
+        auto tmp = scope.alloc_reg_buf_data(nregs).format(0, ngen::DataType::f);
         emit_reorder_1d_tile(hw, host, scope, width, src, src_stride, tmp, 1);
         emit_reorder_1d_tile(hw, host, scope, width, tmp, 1, dst, dst_stride);
+        return;
+    }
+
+    // b -> hf
+    // - Direct b -> float conversion not supported: use s16 temporary
+    // - int -> hf must be DW-aligned & strided: use f temporary
+    // - Use b -> w -> f -> hf
+    if (src_b && dst_hf) {
+        ir_assert(utils::one_of(dst_stride_bytes, 2, 4));
+        ir_assert(utils::one_of(src_stride_bytes, 1, 4));
+        int step = get_step();
+        const int step_size = step * (int)sizeof(uint32_t);
+        const int nregs = utils::div_up(step_size, grf_size);
+        auto tmp1 = scope.alloc_reg_buf_data(nregs);
+        auto tmp2 = scope.alloc_reg_buf_data(nregs);
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, src_stride_bytes);
+            auto d = dst.subregister(i, esize, dst_stride_bytes);
+            auto byte_offset = 2 * (d.getByteOffset() % 32);
+            auto t1 = tmp1.subregister(byte_offset, ngen::DataType::w);
+            auto t2 = tmp2.subregister(byte_offset, ngen::DataType::f);
+            auto t1_as_hf = t1.reinterpret(0, ngen::DataType::hf);
+            auto d_as_w = d.reinterpret(0, ngen::DataType::w);
+
+            plan(mov, esize, t1(2), s(src_stride));
+            plan(mov, esize, t2(1), t1(2));
+            plan(mov, esize, t1_as_hf(2), t2(1));
+            plan(mov, esize, d_as_w(dst_stride), t1(2));
+        }
+        return;
+    }
+
+    // hf -> b
+    if (src_hf && dst_b) {
+        ir_assert(utils::one_of(src_stride_bytes, 2, 4));
+        ir_assert(utils::one_of(dst_stride_bytes, 1, 4));
+        int step = get_step();
+        const int tmp_stride = 4;
+        const int tmp_stride_bytes = tmp_stride * dst_type_size;
+        const int step_size = step * tmp_stride_bytes;
+        const int nregs = 1 + utils::div_up(step_size, grf_size);
+        auto tmp1 = scope.alloc_reg_buf_data(nregs);
+        auto tmp2 = scope.alloc_reg_buf_data(nregs);
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, src_stride_bytes);
+            auto d = dst.subregister(i, esize, dst_stride_bytes);
+            const int t1_offset = s.getByteOffset();
+            const int t2_offset = (d.getOffset() % 16) * 4 * dst_type_size;
+            auto t1 = tmp1.subregister(t1_offset, dst_type);
+            auto t2 = tmp2.subregister(t2_offset, dst_type);
+
+            if (dst_stride_bytes >= tmp_stride_bytes && esize > 1) {
+                plan(mov, esize | host->sat, d(dst_stride), s(src_stride));
+                continue;
+            }
+            auto wa_esize = std::max(2, esize);
+            plan(mov, wa_esize | host->sat, t1(tmp_stride), s(src_stride));
+            if (t1_offset != t2_offset)
+                plan(mov, esize, t2(tmp_stride), t1(tmp_stride));
+            else
+                std::swap(t1, t2);
+            plan(mov, esize, d(dst_stride), t2(tmp_stride));
+        }
+        return;
+    }
+
+    // f -> hf
+    if (src_f && dst_hf) {
+        int step = get_step();
+        const auto tmp_type = dst_type;
+        const int tmp_stride = 1;
+        const int reg_size = step * src_stride_bytes;
+        const int nregs = utils::div_up(reg_size, grf_size);
+        auto tmp = scope.alloc_reg_buf_data(nregs);
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, src_stride_bytes);
+            auto d = dst.subregister(i, esize, dst_stride_bytes);
+
+            const auto align_bdy = grf_size / 2;
+            auto src_offset = s.getByteOffset();
+            auto dst_offset = d.getByteOffset();
+            if (esize > 1 && dst_offset % align_bdy != src_offset / 2) {
+                auto tmp_offset = 2 * (dst_offset % align_bdy);
+                auto t = tmp.subregister(tmp_offset, tmp_type);
+                plan(mov, esize, t(tmp_stride), s(src_stride));
+                plan(mov, esize, d.w()(dst_stride), t.w()(tmp_stride));
+                continue;
+            }
+            plan(mov, esize, d(dst_stride), s(src_stride));
+        }
+        return;
+    }
+
+    // hf -> f
+    if (dst_f && src_hf) {
+        int step = get_step();
+        const auto tmp_type = src_type;
+        const int tmp_stride = 1;
+        const int reg_size = step * src_stride_bytes;
+        const int nregs = utils::div_up(reg_size, grf_size);
+        auto tmp = scope.alloc_reg_buf_data(nregs);
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, src_stride_bytes);
+            auto d = dst.subregister(i, esize, dst_stride_bytes);
+
+            const auto align_bdy = grf_size / 2;
+            auto src_offset = s.getByteOffset();
+            auto dst_offset = d.getByteOffset();
+            if (esize > 1 && src_offset % align_bdy != dst_offset / 2) {
+                auto tmp_offset = 2 * (src_offset % align_bdy);
+                auto t = tmp.subregister(tmp_offset, tmp_type);
+                plan(mov, esize, t.w()(tmp_stride), s.w()(src_stride));
+                plan(mov, esize, d(dst_stride), t(tmp_stride));
+                continue;
+            }
+            plan(mov, esize, d(dst_stride), s(src_stride));
+        }
         return;
     }
 
@@ -3222,13 +3353,13 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (d_or_f_to_b || b_to_d_or_f || hf_to_b) {
         if (dst_d || dst_f) ir_assert(dst_stride_bytes == 4);
         if (src_d || src_f) ir_assert(src_stride_bytes == 4);
-        if (src_hf) ir_assert(src_stride_bytes == 2);
+        if (src_hf) ir_assert(utils::one_of(src_stride_bytes, 2, 4));
         if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4));
         if (src_b) ir_assert(utils::one_of(src_stride_bytes, 1, 4));
         int step = get_step();
-        const int grf_size = ngen::GRF::bytes(hw);
-        auto tmp = scope.alloc_reg_buf_data(
-                utils::div_up(int(step * sizeof(uint32_t)), grf_size));
+        const int step_size = step * (int)sizeof(uint32_t);
+        const int nregs = 1 + utils::div_up(step_size, grf_size);
+        auto tmp = scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -3238,28 +3369,29 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto d = dst.subregister(i, esize, dst_stride_bytes);
             if (src_d || src_f || src_hf) {
                 // d -> b.
-                if (dst_stride_bytes == 1) {
-                    auto t = tmp.subregister(0, dst_type)(4);
-                    plan(mov, esize | host->sat, t, s(1));
-                    plan(mov, esize, d(1), t);
+                if (dst_stride_bytes == 1 || esize == 1) {
+                    auto offset_bytes = src_f ? s.getByteOffset()
+                                              : 4 * (d.getByteOffset() % 16);
+                    auto t = tmp.subregister(offset_bytes, dst_type)(4);
+                    plan(mov, std::max(2, esize) | host->sat, t, s(src_stride));
+                    plan(mov, esize, d(dst_stride), t);
                 } else {
-                    plan(mov, esize | host->sat, d(4), s(1));
+                    plan(mov, esize | host->sat, d(dst_stride), s(src_stride));
                 }
             } else {
-                // b -> d.
-                // hf -> d.
                 if (esize == 1) {
                     // Direct x8 -> x32 scalar cast is not always
                     // supported. Use intermediate cast to s16.
                     auto t = tmp.subregister(0, ngen::DataType::w)(1);
-                    plan(mov, esize, t, s);
-                    plan(mov, esize, d, t);
-                } else if (src_stride_bytes == 1) {
-                    auto t = tmp.subregister(0, src_type)(4);
-                    plan(mov, esize, t, s(1));
-                    plan(mov, esize, d(1), t);
+                    plan(mov, esize, t, s(src_stride));
+                    plan(mov, esize, d(dst_stride), t);
+                } else if (src_b) {
+                    auto offset_bytes = dst_f ? d.getByteOffset() : 0;
+                    auto t = tmp.subregister(offset_bytes, src_type)(4);
+                    plan(mov, esize, t, s(src_stride));
+                    plan(mov, esize, d(dst_stride), t);
                 } else {
-                    plan(mov, esize, d(1), s(4));
+                    plan(mov, esize, d(dst_stride), s(src_stride));
                 }
             }
         }
@@ -3327,8 +3459,12 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             }
 
             bool do_align = false;
-            if (esize > 1 && s.hs() != 0 && s.offset() != d.offset())
-                do_align = true;
+            if (esize > 1 && s.hs() != 0) {
+                if ((src_f && dst_hf) || (dst_f && src_hf)) {
+                    if (s.byte_offset() != d.byte_offset()) do_align = true;
+                } else if (s.offset() != d.offset())
+                    do_align = true;
+            }
             if (do_align) {
                 bool s_half_grf_aligned = (src_hf || src_bf)
                         && utils::one_of(s.byte_offset(), 0, grf_size / 2);
@@ -3358,12 +3494,13 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return;
     }
 
-    if (src_b && dst_b && src_stride == 4) {
+    if (src_b && dst_b) {
         int step = get_step();
-        auto tmp0 = scope.alloc_reg_buf_data(
-                utils::div_up(step * src_type_size * src_stride, grf_size));
-        auto tmp1 = scope.alloc_reg_buf_data(
-                utils::div_up(step * dst_type_size * dst_stride, grf_size));
+        const int tmp_stride = 4;
+        const int tmp_stride_bytes = tmp_stride * dst_type_size;
+        const int subreg_alignment_bdy = grf_size / tmp_stride_bytes;
+        const int nregs = 1 + utils::div_up(step * tmp_stride_bytes, grf_size);
+        auto tmp = scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -3372,13 +3509,28 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     esize, src_stride);
             auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
                     esize, dst_stride);
-            if (s.offset() != 0) {
-                auto t = tmp0.format(0, src_type, esize, src_stride);
-                plan(mov, esize, t, s);
-                s = t;
-            }
-            if (d.offset() != 0) {
-                auto t = tmp1.format(0, dst_type, esize, dst_stride);
+            const auto subreg_alignment = d.offset() % subreg_alignment_bdy;
+            const auto offset_bytes = subreg_alignment * tmp_stride_bytes;
+            const bool unaligned = subreg_alignment != s.offset() / src_stride;
+            if (src_type != dst_type) {
+                if (esize > 1) {
+                    auto t = tmp.format(
+                            offset_bytes, dst_type, esize, tmp_stride);
+                    plan(mov, esize | host->sat, t, s);
+                    s = t;
+                } else {
+                    // Packed bytes must use raw move even with esize = 1
+                    // Broadcast (with any needed saturation or conversion) to
+                    // two strided locations, move one to the destination
+                    auto wa_esize = 2 * esize;
+                    auto t = tmp.format(
+                            offset_bytes, dst_type, wa_esize, tmp_stride);
+                    plan(mov, wa_esize | host->sat, t, s);
+                    s = tmp.format(0, dst_type, esize, tmp_stride);
+                }
+            } else if (unaligned || esize == 1) {
+                // FIXME: Temporary not always necessary for esize = 1
+                auto t = tmp.format(offset_bytes, dst_type, esize, tmp_stride);
                 plan(mov, esize, t, s);
                 s = t;
             }
