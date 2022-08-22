@@ -178,7 +178,7 @@ status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_avx512(
     const format_tag_t blocked_8_tag = utils::pick(conf.ndims - 3,
             format_tag::nCw8c, format_tag::nChw8c, format_tag::nCdhw8c);
     if (is_superset(conf.isa, avx512_core_fp16))
-        safe_ptr_assign(kernel_,
+        return safe_ptr_assign(kernel_,
                 new jit_uni_resampling_kernel_t<avx512_core_fp16, Xbyak::Zmm>(
                         conf, dst_md));
 
