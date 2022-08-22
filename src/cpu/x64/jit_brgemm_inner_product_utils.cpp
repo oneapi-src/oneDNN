@@ -976,6 +976,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         return status::unimplemented;
     if (!IMPLICATION(is_f32, jbgp.is_bf32 || (isa == avx512_core)))
         return status::unimplemented;
+    if (!IMPLICATION(is_f16, isa == avx512_core_fp16))
+        return status::unimplemented;
 
     if (!one_of(true, is_int8, is_bf16, is_f16, is_f32))
         return status::unimplemented;
