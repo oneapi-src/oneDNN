@@ -996,8 +996,8 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
 
             impl::pass::pass_base_ptr apass
                     = get_pass(engine.kind() == impl::engine_kind::gpu
-                                    ? "int8_bf16_matmul_div_add_fusion_gpu"
-                                    : "int8_bf16_matmul_div_add_fusion_cpu");
+                                    ? "int8_bf16_matmul_scale_add_fusion_gpu"
+                                    : "int8_bf16_matmul_scale_add_fusion_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1);
             auto part = g.get_partitions()[0];
