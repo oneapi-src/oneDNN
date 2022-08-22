@@ -230,10 +230,16 @@ public:
                 10, src_dims, impl::data_type::f32);
 
         batchnorm_op.add_input(src);
-        batchnorm_op.add_input(scale);
-        batchnorm_op.add_input(shift);
+        if (!is_training) {
+            batchnorm_op.add_input(scale);
+            batchnorm_op.add_input(shift);
+        }
         batchnorm_op.add_input(mean);
         batchnorm_op.add_input(variance);
+        if (is_training) {
+            batchnorm_op.add_input(scale);
+            batchnorm_op.add_input(shift);
+        }
         batchnorm_op.add_output(dst);
         if (is_training) {
             batchnorm_op.add_output(running_mean);
@@ -263,8 +269,17 @@ public:
         p.init(part);
         impl::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {
-                &src, &scale, &shift, &mean, &variance};
+        std::vector<const impl::logical_tensor_t *> inputs {&src};
+        if (!is_training) {
+            inputs.emplace_back(&scale);
+            inputs.emplace_back(&shift);
+        }
+        inputs.emplace_back(&mean);
+        inputs.emplace_back(&variance);
+        if (is_training) {
+            inputs.emplace_back(&scale);
+            inputs.emplace_back(&shift);
+        }
         std::vector<const impl::logical_tensor_t *> outputs {&dst};
         if (params.with_relu) outputs[0] = &relu_dst;
         if (is_training) {
@@ -373,7 +388,7 @@ public:
                     {dst_ts});
         } else {
             cp.execute(&strm,
-                    {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+                    {src_ts, mean_ts, variance_ts, scale_ts, shift_ts},
                     {dst_ts, running_mean_ts, running_variance_ts,
                             batch_mean_ts, batch_variance_ts});
         }
@@ -460,7 +475,7 @@ TEST(Compile, BatchNormBackpropFp32) {
     dims scale_dims = {IC};
     dims shift_dims = {IC};
     dims mean_dims = {IC};
-    dims varience_dims = {IC};
+    dims variance_dims = {IC};
 
     // prepare logical tensor
     impl::logical_tensor_t src = utils::logical_tensor_init(
@@ -469,8 +484,8 @@ TEST(Compile, BatchNormBackpropFp32) {
             1, scale_dims, impl::data_type::f32, impl::layout_type::strided);
     impl::logical_tensor_t mean = utils::logical_tensor_init(
             2, mean_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t varience = utils::logical_tensor_init(
-            3, varience_dims, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t variance = utils::logical_tensor_init(
+            3, variance_dims, impl::data_type::f32, impl::layout_type::strided);
     impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
             4, src_dims, impl::data_type::f32, impl::layout_type::strided);
     impl::logical_tensor_t diff_src = utils::logical_tensor_init(
@@ -484,7 +499,7 @@ TEST(Compile, BatchNormBackpropFp32) {
     test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
     test::vector<float> scale_data {2.0f};
     test::vector<float> mean_data {2.5f};
-    test::vector<float> varience_data {1.25f};
+    test::vector<float> variance_data {1.25f};
     test::vector<float> diff_dst_data {0.1f, 0.1f, 0.2f, 0.2f};
     test::vector<float> diff_src_data(src_data.size(), 0.0);
     test::vector<float> diff_scale_data(scale_data.size(), 0.0);
@@ -498,9 +513,9 @@ TEST(Compile, BatchNormBackpropFp32) {
 
     bn_op.add_input(src);
     bn_op.add_input(diff_dst);
-    bn_op.add_input(scale);
     bn_op.add_input(mean);
-    bn_op.add_input(varience);
+    bn_op.add_input(variance);
+    bn_op.add_input(scale);
     bn_op.add_output(diff_src);
     bn_op.add_output(diff_scale);
     bn_op.add_output(diff_shift);
@@ -520,7 +535,7 @@ TEST(Compile, BatchNormBackpropFp32) {
     impl::compiled_partition_t cp(p);
 
     std::vector<const impl::logical_tensor_t *> inputs {
-            &src, &diff_dst, &scale, &mean, &varience};
+            &src, &diff_dst, &mean, &variance, &scale};
     std::vector<const impl::logical_tensor_t *> outputs {
             &diff_src, &diff_scale, &diff_shift};
 
@@ -529,14 +544,14 @@ TEST(Compile, BatchNormBackpropFp32) {
     impl::tensor_t src_ts(src, &engine, src_data.data());
     impl::tensor_t scale_ts(scale, &engine, scale_data.data());
     impl::tensor_t mean_ts(mean, &engine, mean_data.data());
-    impl::tensor_t variance_ts(varience, &engine, varience_data.data());
+    impl::tensor_t variance_ts(variance, &engine, variance_data.data());
     impl::tensor_t diff_dst_ts(diff_dst, &engine, diff_dst_data.data());
     impl::tensor_t diff_src_ts(diff_src, &engine, diff_src_data.data());
     impl::tensor_t diff_scale_ts(diff_scale, &engine, diff_scale_data.data());
     impl::tensor_t diff_shift_ts(diff_shift, &engine, diff_shift_data.data());
 
     impl::stream_t &strm = get_stream();
-    cp.execute(&strm, {src_ts, diff_dst_ts, scale_ts, mean_ts, variance_ts},
+    cp.execute(&strm, {src_ts, diff_dst_ts, mean_ts, variance_ts, scale_ts},
             {diff_src_ts, diff_scale_ts, diff_shift_ts});
     strm.wait();
     for (size_t i = 0; i < diff_src_data.size(); ++i) {

@@ -4885,14 +4885,13 @@ TEST(Pass, DnnlSingleOpReplacement) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_op_set_supported = {BatchNormInference, Add,
-            ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop,
-            BatchNormTrainingBackprop, Clamp, ConvolutionBackpropData,
-            ConvolutionBackpropFilters, MaxPoolBackprop, Elu, Exp, HardSwish,
-            Log, LogSoftmax, SoftMax, Multiply, Maximum, Minimum, Mish,
-            MishBackprop, Pow, Sqrt, Square, Tanh, ClampBackprop, EluBackprop,
-            GELUBackprop, LogSoftmaxBackprop, ReLUBackprop, SigmoidBackprop,
-            SqrtBackprop, TanhBackprop, LayerNorm, LayerNormBackprop,
-            BatchNormForwardTraining, SoftMaxBackprop, DynamicQuantize,
+            ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop, Clamp,
+            ConvolutionBackpropData, ConvolutionBackpropFilters,
+            MaxPoolBackprop, Elu, Exp, HardSwish, Log, LogSoftmax, SoftMax,
+            Multiply, Maximum, Minimum, Mish, MishBackprop, Pow, Sqrt, Square,
+            Tanh, ClampBackprop, EluBackprop, GELUBackprop, LogSoftmaxBackprop,
+            ReLUBackprop, SigmoidBackprop, SqrtBackprop, TanhBackprop,
+            LayerNorm, LayerNormBackprop, SoftMaxBackprop, DynamicQuantize,
             DynamicDequantize};
     for (auto akind : single_op_set_supported) {
         graph_t agraph;

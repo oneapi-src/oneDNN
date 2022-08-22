@@ -53,13 +53,49 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(bias_add_pass, BiasAdd, binary_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         bn_pass, BatchNormInference, batchnorm_fwd_t, 8.f)
+
+#define BATCHNORM_INPUT_NUM_CHECK(n1, n2) \
+    append_decision_function([](op_t *graph_op) -> bool { \
+        return check_input_num<n1>(graph_op) || check_input_num<n2>(graph_op); \
+    })
+
+#define BATCHNORM_OUTPUT_NUM_CHECK(n1, n2) \
+    append_decision_function([](op_t *graph_op) -> bool { \
+        return check_output_num<n1>(graph_op) \
+                || check_output_num<n2>(graph_op); \
+    })
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_fw_train_pass)
+        .set_priority(8.f)
+        .set_kind(impl::partition_kind::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op_t *p_batchnorm_fwd_training
+                            = pgraph->append_op(
+                                    impl::op_kind::BatchNormForwardTraining);
+                    p_batchnorm_fwd_training->BATCHNORM_INPUT_NUM_CHECK(3, 5);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batchnorm_fwd_t>();
+        });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bw_pass)
+        .set_priority(8.f)
+        .set_kind(impl::partition_kind::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op_t *p_batchnorm_backprop
+                            = pgraph->append_op(
+                                    impl::op_kind::BatchNormTrainingBackprop);
+                    p_batchnorm_backprop->BATCHNORM_OUTPUT_NUM_CHECK(1, 3);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batchnorm_bwd_t>();
+        });
+
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(ln_pass, LayerNorm, layernorm_fwd_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         ln_bw_pass, LayerNormBackprop, layernorm_bwd_t, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        bn_fw_train_pass, BatchNormForwardTraining, batchnorm_fwd_t, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        bn_bw_pass, BatchNormTrainingBackprop, batchnorm_bwd_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(clamp_pass, Clamp, float_eltwise_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         clamp_bw_pass, ClampBackprop, eltwise_bwd_t, 8.f)
