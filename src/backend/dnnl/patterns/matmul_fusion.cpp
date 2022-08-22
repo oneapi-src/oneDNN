@@ -506,7 +506,7 @@ MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_bf16_matmul_div_add_fusion_cpu)
+        dnnl, int8_bf16_matmul_scale_add_fusion_cpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
@@ -534,10 +534,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                             in_edge(1, typecast_weight, 0)});
                     matmul->append_decision_function(check_input_num<2>);
 
-                    pm::pb_op_t *div = pgraph->append_op(impl::op_kind::Divide,
+                    pm::pb_op_t *scale = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
                             in_edges_t {in_edge(0, matmul, 0)});
                     pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, div, 0)});
+                            in_edges_t {in_edge(0, scale, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
@@ -548,7 +549,7 @@ MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_bf16_matmul_div_add_fusion_gpu)
+        dnnl, int8_bf16_matmul_scale_add_fusion_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
@@ -578,10 +579,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                             in_edge(1, typecast_weight, 0)});
                     matmul->append_decision_function(check_input_num<2>);
 
-                    pm::pb_op_t *div = pgraph->append_op(impl::op_kind::Divide,
+                    pm::pb_op_t *scale = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
                             in_edges_t {in_edge(0, matmul, 0)});
                     pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, div, 0)});
+                            in_edges_t {in_edge(0, scale, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();

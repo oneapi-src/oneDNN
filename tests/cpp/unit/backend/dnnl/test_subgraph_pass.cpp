@@ -1271,7 +1271,7 @@ TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
             dnnl::algorithm::eltwise_swish);
 }
 
-TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
+TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulScaleAddPasses) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -1280,125 +1280,137 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     (bf16) \     / (bf16)
            matmul
              | (bf16)
-            div
+          div/mul
              | (bf16)
             add
              | (bf16)
     */
-    impl::engine_t &g_eng = get_engine();
-    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
-    graph_t agraph;
-    std::vector<int64_t> zps = {0};
-    std::vector<float> scales = {3.1f};
-    op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr(op_attr::scales, scales);
-    dequant1.set_attr(op_attr::zps, zps);
-    op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr(op_attr::scales, scales);
-    dequant2.set_attr(op_attr::zps, zps);
-    op_t typecast1 {2, TypeCast, "typecast"};
-    op_t typecast2 {3, TypeCast, "typecast"};
-    op_t matmul {4, MatMul, "matmul"};
-    op_t div {5, Divide, "divide"};
-    op_t add {6, Add, "add"};
+    std::vector<op_kind_t> scale_kinds {Multiply, Divide};
+    for (auto scale_kind : scale_kinds) {
+        impl::engine_t &g_eng = get_engine();
+        dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
+        graph_t agraph;
+        std::vector<int64_t> zps = {0};
+        std::vector<float> scales = {3.1f};
+        op_t dequant1 {0, Dequantize, "dequant"};
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
+        op_t dequant2 {1, Dequantize, "dequant"};
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
+        op_t typecast1 {2, TypeCast, "typecast"};
+        op_t typecast2 {3, TypeCast, "typecast"};
+        op_t matmul {4, MatMul, "matmul"};
+        op_t scale {5, scale_kind, "scale"};
+        op_t add {6, Add, "add"};
 
-    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
-    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
-    dequant1.add_input(int8_data);
-    dequant1.add_output(fp32_data);
+        logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+        logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+        dequant1.add_input(int8_data);
+        dequant1.add_output(fp32_data);
 
-    logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
-    typecast1.add_input(fp32_data);
-    typecast1.add_output(bf16_data);
+        logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
+        typecast1.add_input(fp32_data);
+        typecast1.add_output(bf16_data);
 
-    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::u8);
-    logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
-    dequant2.add_input(int8_weight);
-    dequant2.add_output(fp32_weight);
+        logical_tensor_t int8_weight = logical_tensor_init(3, data_type::u8);
+        logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
+        dequant2.add_input(int8_weight);
+        dequant2.add_output(fp32_weight);
 
-    logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
-    typecast2.add_input(fp32_weight);
-    typecast2.add_output(bf16_weight);
+        logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
+        typecast2.add_input(fp32_weight);
+        typecast2.add_output(bf16_weight);
 
-    logical_tensor_t bf16_matmul_out = logical_tensor_init(6, data_type::bf16);
-    matmul.add_input(bf16_data);
-    matmul.add_input(bf16_weight);
-    matmul.add_output(bf16_matmul_out);
+        logical_tensor_t bf16_matmul_out
+                = logical_tensor_init(6, data_type::bf16);
+        matmul.add_input(bf16_data);
+        matmul.add_input(bf16_weight);
+        matmul.add_output(bf16_matmul_out);
 
-    logical_tensor_t bf16_div_in = logical_tensor_init(7, data_type::bf16);
-    logical_tensor_t bf16_div_out = logical_tensor_init(8, data_type::bf16);
-    div.add_input(bf16_matmul_out);
-    div.add_input(bf16_div_in);
-    div.add_output(bf16_div_out);
+        logical_tensor_t bf16_scale_in
+                = logical_tensor_init(7, data_type::bf16);
+        logical_tensor_t bf16_scale_out
+                = logical_tensor_init(8, data_type::bf16);
+        scale.add_input(bf16_matmul_out);
+        scale.add_input(bf16_scale_in);
+        scale.add_output(bf16_scale_out);
 
-    logical_tensor_t bf16_add_in = logical_tensor_init(9, data_type::bf16);
-    logical_tensor_t bf16_add_out = logical_tensor_init(10, data_type::bf16);
-    add.add_input(bf16_div_out);
-    add.add_input(bf16_add_in);
-    add.add_output(bf16_add_out);
+        logical_tensor_t bf16_add_in = logical_tensor_init(9, data_type::bf16);
+        logical_tensor_t bf16_add_out
+                = logical_tensor_init(10, data_type::bf16);
+        add.add_input(bf16_scale_out);
+        add.add_input(bf16_add_in);
+        add.add_output(bf16_add_out);
 
-    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
-    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
-    ASSERT_EQ(agraph.add_op(&matmul), status::success);
-    ASSERT_EQ(agraph.add_op(&typecast1), status::success);
-    ASSERT_EQ(agraph.add_op(&typecast2), status::success);
-    ASSERT_EQ(agraph.add_op(&div), status::success);
-    ASSERT_EQ(agraph.add_op(&add), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+        ASSERT_EQ(agraph.add_op(&matmul), status::success);
+        ASSERT_EQ(agraph.add_op(&typecast1), status::success);
+        ASSERT_EQ(agraph.add_op(&typecast2), status::success);
+        ASSERT_EQ(agraph.add_op(&scale), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
 
-    agraph.build_graph();
+        agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_bf16_matmul_div_add_fusion_cpu");
-    apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
-    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+        pass::pass_base_ptr apass
+                = get_pass("int8_bf16_matmul_scale_add_fusion_cpu");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+                impl::partition_kind::quantized_matmul_post_ops);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
 
-    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            agraph.get_partitions()[0]->get_ops(), p_eng);
-    // dequant, dequant, tc, tc, matmul, div, add
-    ASSERT_EQ(subgraph->get_ops().size(), 7);
+        auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+                agraph.get_partitions()[0]->get_ops(), p_eng);
+        // dequant, dequant, tc, tc, matmul, scale, add
+        ASSERT_EQ(subgraph->get_ops().size(), 7);
 
-    dnnl_impl::check_with_bias(subgraph);
+        dnnl_impl::check_with_bias(subgraph);
 
-    int8_data = logical_tensor_init(0, {16, 8, 8, 8}, impl::data_type::u8);
-    int8_weight = logical_tensor_init(3, {16, 8, 8, 8}, impl::data_type::u8);
-    bf16_div_in = logical_tensor_init(7, {1, 1, 1, 1}, impl::data_type::bf16);
-    bf16_add_in = logical_tensor_init(9, {16, 1, 1, 8}, impl::data_type::bf16);
-    bf16_add_out
-            = logical_tensor_init(10, {16, 8, 8, 8}, impl::data_type::bf16);
+        int8_data = logical_tensor_init(0, {16, 8, 8, 8}, impl::data_type::u8);
+        int8_weight
+                = logical_tensor_init(3, {16, 8, 8, 8}, impl::data_type::u8);
+        bf16_scale_in
+                = logical_tensor_init(7, {1, 1, 1, 1}, impl::data_type::bf16);
+        bf16_add_in
+                = logical_tensor_init(9, {16, 1, 1, 8}, impl::data_type::bf16);
+        bf16_add_out
+                = logical_tensor_init(10, {16, 8, 8, 8}, impl::data_type::bf16);
 
-    std::vector<logical_tensor_t> inputs
-            = {int8_data, int8_weight, bf16_div_in, bf16_add_in};
-    std::vector<logical_tensor_t> outputs = {bf16_add_out};
+        std::vector<logical_tensor_t> inputs
+                = {int8_data, int8_weight, bf16_scale_in, bf16_add_in};
+        std::vector<logical_tensor_t> outputs = {bf16_add_out};
 
-    dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
+        dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
 
-    dnnl_impl::pass_pipeline_t pipeline(
-            dnnl_impl::subgraph_visualizer_t(), true, false);
-    dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
-    ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
+        dnnl_impl::pass_pipeline_t pipeline(
+                dnnl_impl::subgraph_visualizer_t(), true, false);
+        dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
+        ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
 
-    // reorder, matmul
-    ASSERT_EQ(subgraph->get_ops().size(), 2);
+        // reorder, matmul
+        ASSERT_EQ(subgraph->get_ops().size(), 2);
 
-    for (auto &val : subgraph->get_input_values()) {
-        auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        for (auto &val : subgraph->get_input_values()) {
+            auto lt = val->get_logical_tensor();
+            ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        }
+
+        for (auto &val : subgraph->get_output_values()) {
+            auto lt = val->get_logical_tensor();
+            if (lt.id == std::numeric_limits<size_t>::max()) continue;
+            ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        }
+
+        ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+
+        ASSERT_EQ(
+                dnnl_impl::layout_propagation(subgraph), impl::status::success);
+        // reorder, matmul
+        ASSERT_EQ(subgraph->get_ops().size(), 2);
     }
-
-    for (auto &val : subgraph->get_output_values()) {
-        auto lt = val->get_logical_tensor();
-        if (lt.id == std::numeric_limits<size_t>::max()) continue;
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
-    }
-
-    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
-
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
-    // reorder, matmul
-    ASSERT_EQ(subgraph->get_ops().size(), 2);
 }
 
 TEST(SubgraphPass, FuseTypecastToQuantize) {
