@@ -21,6 +21,7 @@
 
 #include <CL/cl.h>
 
+#include <atomic>
 #include <sstream>
 
 #include "ngen_elf.hpp"
@@ -105,11 +106,12 @@ static inline std::vector<uint8_t> getOpenCLCProgramBinary(cl_context context, c
     return binaries[deviceIdx];
 }
 
-inline bool tryZebinFirst(cl_device_id device)
+inline bool tryZebinFirst(cl_device_id device, bool setDefault = false, bool newDefault = false)
 {
-    // Future: return true for newer OpenCL runtimes
-    //         with known zebin support.
-    return false;
+    static std::atomic<bool> hint(false);
+    if (setDefault) hint = newDefault;
+
+    return hint;
 }
 
 }; /* namespace detail */
@@ -149,6 +151,7 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_d
             try {
                 return getPatchTokenBinary(context, device, &code, options);
             } catch (...) {
+                (void) detail::tryZebinFirst(device, true, true);
                 continue;
             }
         } else
@@ -193,9 +196,10 @@ cl_kernel OpenCLCodeGenerator<hw>::getKernel(cl_context context, cl_device_id de
         status = clBuildProgram(program, 1, &device, options.c_str(), nullptr, nullptr);
 
         good = (status == CL_SUCCESS);
-        if (good)
+        if (good) {
+            (void) detail::tryZebinFirst(device, true, !legacy);
             break;
-        else
+        } else
             detail::handleCL(clReleaseProgram(program));
     }
 
