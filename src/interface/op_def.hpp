@@ -168,13 +168,13 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
                 .set_num_inputs(std::set<size_t>({3, 4, 5}))
                 .set_num_outputs(5)
                 .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "mean", "value for mean normalization", "T2")
                 .set_input(
-                        1, "gamma", "gamma scaling for normalized value", "T2")
-                .set_input(2, "beta",
+                        2, "variance", "value for variance normalization", "T2")
+                .set_input(
+                        3, "gamma", "gamma scaling for normalized value", "T2")
+                .set_input(4, "beta",
                         "beta added to the scaled normalized value", "T2")
-                .set_input(3, "mean", "value for mean normalization", "T2")
-                .set_input(
-                        4, "variance", "value for variance normalization", "T2")
                 .set_output(0, "output", "output tensor", "T1")
                 .set_output(
                         1, "running mean", "the computed running mean", "T2")
@@ -210,16 +210,16 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
                 .set_input(0, "input", "input tensor", "T1")
                 .set_input(1, "output_delta", "the gradient w.r.t. the output",
                         "T1")
-                .set_input(
-                        2, "gamma", "gamma scaling for normalized value", "T2")
-                .set_input(3, "mean",
+                .set_input(2, "mean",
                         "if is_training is true, pass batch mean, otherwise "
                         "running mean",
                         "T2")
-                .set_input(4, "variance",
+                .set_input(3, "variance",
                         "if is_training is true, pass batch variance, "
                         "otherwise running variance",
                         "T2")
+                .set_input(
+                        4, "gamma", "gamma scaling for normalized value", "T2")
                 .set_output(0, "input_delta",
                         "the gradient w.r.t the output of the batch "
                         "normalization",
