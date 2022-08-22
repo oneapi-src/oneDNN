@@ -98,6 +98,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, move_scalar_div_behind_matmul);
 
         if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
             BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);

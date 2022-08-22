@@ -97,6 +97,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_concat);
 
         // Fusion and canonicalization passes begin
+        BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
         BACKEND_DNNL_ADD_PASS(pipeline, move_scalar_div_behind_matmul);
 
