@@ -34,6 +34,7 @@
 #include "conv/conv.hpp"
 #include "deconv/deconv.hpp"
 #include "eltwise/eltwise.hpp"
+#include "graph/graph.hpp"
 #include "ip/ip.hpp"
 #include "lnorm/lnorm.hpp"
 #include "lrn/lrn.hpp"
@@ -133,6 +134,8 @@ int main(int argc, char **argv) {
         zeropad::bench(--argc, ++argv);
     } else if (!strcmp("--brgemm", argv[0])) {
         brgemm::bench(--argc, ++argv);
+    } else if (!strcmp("--graph", argv[0])) {
+        graph::bench(--argc, ++argv);
     } else {
         fprintf(stderr, "err: unknown driver\n");
     }

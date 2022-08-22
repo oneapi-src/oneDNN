@@ -1,0 +1,8 @@
+--in-shapes=,0:1x512x28x28,0:2x512x28x28,0:3x512x28x28 --op-attrs=,0:strides:4x4,0:strides:4x4*pads_begin:1x1 
+--case=op/conv_2d.json
+
+--reset
+--mb=1,32 --in-shapes=,0:32x100+4:200x64,0:2x100 --case=pattern/mlp_1x100x200x100.json
+--reset
+--case=rn50_int8/rn50-int8_conv_post_ops_fusion.json
+--case=rn50_fp32/rn50-conv_bias_post_ops_fusion.json

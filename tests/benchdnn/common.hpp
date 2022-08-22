@@ -201,6 +201,8 @@ const char *bool2str(bool value);
 bool match_regex(const char *str, const char *pattern);
 bool maybe_skip(const std::string &impl_str);
 
+std::string locate_file(const std::string &fname);
+
 typedef int (*bench_f)(int argc, char **argv);
 int batch(const char *fname, bench_f bench);
 

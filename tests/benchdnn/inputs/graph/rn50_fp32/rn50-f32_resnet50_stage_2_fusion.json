@@ -1,0 +1,2404 @@
+{
+  "version": "0.5.0",
+  "engine_kind": "cpu",
+  "graph": [
+    {
+      "id": 94316795478000,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            256, 
+            56, 
+            56
+          ],
+          "stride": [
+            802816, 
+            1, 
+            14336, 
+            256
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            128, 
+            256, 
+            1, 
+            1
+          ],
+          "stride": [
+            256, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 8,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            56, 
+            56
+          ],
+          "stride": [
+            401408, 
+            3136, 
+            56, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795479056,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 8,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            56, 
+            56
+          ],
+          "stride": [
+            401408, 
+            3136, 
+            56, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 9,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            56, 
+            56
+          ],
+          "stride": [
+            401408, 
+            3136, 
+            56, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795484688,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            2, 
+            2
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 9,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            56, 
+            56
+          ],
+          "stride": [
+            401408, 
+            3136, 
+            56, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 10,
+          "dtype": "f32",
+          "shape": [
+            128, 
+            128, 
+            3, 
+            3
+          ],
+          "stride": [
+            1152, 
+            9, 
+            3, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 11,
+          "dtype": "f32",
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 18,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795485792,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 18,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 19,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795497024,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 19,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 29,
+          "dtype": "f32",
+          "shape": [
+            512, 
+            128, 
+            1, 
+            1
+          ],
+          "stride": [
+            128, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 30,
+          "dtype": "f32",
+          "shape": [
+            512
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 36,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795491808,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            2, 
+            2
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            256, 
+            56, 
+            56
+          ],
+          "stride": [
+            802816, 
+            1, 
+            14336, 
+            256
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 20,
+          "dtype": "f32",
+          "shape": [
+            512, 
+            256, 
+            1, 
+            1
+          ],
+          "stride": [
+            256, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 21,
+          "dtype": "f32",
+          "shape": [
+            512
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 28,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795498704,
+      "name": "aten::add",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 36,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 28,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 38,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795499312,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 38,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 39,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795487888,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 39,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 40,
+          "dtype": "f32",
+          "shape": [
+            128, 
+            512, 
+            1, 
+            1
+          ],
+          "stride": [
+            512, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 41,
+          "dtype": "f32",
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 47,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795489104,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 47,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 48,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795510448,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 48,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 49,
+          "dtype": "f32",
+          "shape": [
+            128, 
+            128, 
+            3, 
+            3
+          ],
+          "stride": [
+            1152, 
+            9, 
+            3, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 50,
+          "dtype": "f32",
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 56,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795511600,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 56,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 57,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795516256,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 57,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 58,
+          "dtype": "f32",
+          "shape": [
+            512, 
+            128, 
+            1, 
+            1
+          ],
+          "stride": [
+            128, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 59,
+          "dtype": "f32",
+          "shape": [
+            512
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 65,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795517936,
+      "name": "aten::add",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 65,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 39,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 67,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795518528,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 67,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 68,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795523264,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 68,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 69,
+          "dtype": "f32",
+          "shape": [
+            128, 
+            512, 
+            1, 
+            1
+          ],
+          "stride": [
+            512, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 70,
+          "dtype": "f32",
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 76,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795524656,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 76,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 77,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795529312,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 77,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 78,
+          "dtype": "f32",
+          "shape": [
+            128, 
+            128, 
+            3, 
+            3
+          ],
+          "stride": [
+            1152, 
+            9, 
+            3, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 79,
+          "dtype": "f32",
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 85,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795530464,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 85,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 86,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795535120,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 86,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 87,
+          "dtype": "f32",
+          "shape": [
+            512, 
+            128, 
+            1, 
+            1
+          ],
+          "stride": [
+            128, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 88,
+          "dtype": "f32",
+          "shape": [
+            512
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 94,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795536800,
+      "name": "aten::add",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 94,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 68,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 96,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795299136,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 96,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 97,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795543632,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 97,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 98,
+          "dtype": "f32",
+          "shape": [
+            128, 
+            512, 
+            1, 
+            1
+          ],
+          "stride": [
+            512, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 99,
+          "dtype": "f32",
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 105,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795544624,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 105,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 106,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795549280,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 106,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 107,
+          "dtype": "f32",
+          "shape": [
+            128, 
+            128, 
+            3, 
+            3
+          ],
+          "stride": [
+            1152, 
+            9, 
+            3, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 108,
+          "dtype": "f32",
+          "shape": [
+            128
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 114,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795550432,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 114,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 115,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795555088,
+      "name": "aten::_convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        }
+      },
+      "inputs": [
+        {
+          "id": 115,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            128, 
+            28, 
+            28
+          ],
+          "stride": [
+            100352, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 116,
+          "dtype": "f32",
+          "shape": [
+            512, 
+            128, 
+            1, 
+            1
+          ],
+          "stride": [
+            128, 
+            1, 
+            1, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }, 
+        {
+          "id": 117,
+          "dtype": "f32",
+          "shape": [
+            512
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 123,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795556768,
+      "name": "aten::add",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 123,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }, 
+        {
+          "id": 97,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 125,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }, 
+    {
+      "id": 94316795557360,
+      "name": "aten::relu",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 125,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            401408, 
+            784, 
+            28, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 126,
+          "dtype": "f32",
+          "shape": [
+            64, 
+            512, 
+            28, 
+            28
+          ],
+          "stride": [
+            -1
+          ],
+          "layout_type": "any",
+          "property_type": "variable"
+        }
+      ]
+    }
+  ]
+}

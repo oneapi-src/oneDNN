@@ -692,6 +692,112 @@ int measure_perf(timer::timer_t &t, dnnl::graph::compiled_partition &cp,
     return status;
 }
 
+inline int measure_perf_aggregate(timer::timer_t &t,
+        dnnl::graph::stream &stream, std::vector<perf_function_t> &perf_func_v,
+        const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
+        const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
+    const int max_batch_times = 10000;
+
+    // Warm-up run, this is not measured due to possibility the associated
+    // kernel has not been built and skews the results.
+    auto sz = perf_func_v.size();
+    for (int i = 0; i < sz; i++) {
+        BENCHDNNEXT_SAFE(
+                perf_func_v[i](stream, inputs_v[i], outputs_v[i]), WARN);
+        BENCHDNNEXT_SAFE(stream.wait(), WARN);
+    }
+
+    int cur_batch_times
+            = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
+
+    t.reset();
+    maybe_reset_profiling();
+
+    bool is_first_loop = true;
+    while (true) {
+        for (int i = 0; i < sz; i++) {
+            for (int j = 0; j < cur_batch_times; j++) {
+                BENCHDNNEXT_SAFE(
+                        perf_func_v[i](stream, inputs_v[i], outputs_v[i]),
+                        WARN);
+            }
+        }
+        BENCHDNNEXT_SAFE(stream.wait(), WARN);
+
+        uint64_t ticks = 0;
+        maybe_reset_profiling(&ticks);
+        t.stamp(cur_batch_times, (unsigned long long)ticks);
+
+        if (should_stop(t)) break;
+
+        // Adjust cur_batch_times after the first batch run
+        if (is_first_loop) {
+            double ms_min = t.ms(timer::timer_t::min);
+            // Heuristic: try to use ~5 batch runs for the whole benchmark
+            int batch_times_heuristic = (ms_min == 0.0)
+                    ? INT_MAX
+                    : MAX2(1,
+                            (int)((max_ms_per_prb - t.total_ms()) / ms_min
+                                    / 5));
+            cur_batch_times = MIN2(max_batch_times, batch_times_heuristic);
+            is_first_loop = false;
+        }
+    }
+    return OK;
+}
+
+inline int measure_perf_individual(timer::timer_t &t,
+        dnnl::graph::stream &stream, std::vector<perf_function_t> &perf_func_v,
+        const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
+        const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
+    t.reset();
+    while (true) {
+        auto sz = perf_func_v.size();
+        for (int i = 0; i < sz; i++) {
+            BENCHDNNEXT_SAFE(
+                    perf_func_v[i](stream, inputs_v[i], outputs_v[i]), WARN);
+        }
+        t.stamp();
+        if (should_stop(t)) break;
+    }
+    return OK;
+}
+
+int measure_perf(timer::timer_t &t, std::vector<perf_function_t> &perf_func_v,
+        const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
+        const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
+    if (is_bench_mode(PERF)) {
+        dnnl::graph::stream stream = get_test_stream();
+        if (is_cpu() && !is_sycl_engine()) {
+            return measure_perf_individual(
+                    t, stream, perf_func_v, inputs_v, outputs_v);
+        } else {
+            return measure_perf_aggregate(
+                    t, stream, perf_func_v, inputs_v, outputs_v);
+        }
+    } else {
+        return OK;
+    }
+}
+
+int measure_perf(timer::timer_t &t,
+        std::vector<dnnl::graph::compiled_partition> &cp_v,
+        const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
+        const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v,
+        res_t *res) {
+    std::vector<perf_function_t> perf_func_v;
+    for (int i = 0; i < cp_v.size(); i++) {
+        perf_func_v.push_back(std::bind(&compiled_partition_executor, cp_v[i],
+                std::placeholders::_1, std::placeholders::_2,
+                std::placeholders::_3));
+    }
+
+    int status = measure_perf(t, perf_func_v, inputs_v, outputs_v);
+    if (res) res->state = EXECUTED;
+
+    return status;
+}
+
 int measure_partition_compl(timer::timer_t &ct,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &inputs,

@@ -17,6 +17,7 @@
 file(GLOB_RECURSE HEADERS
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include/*.h
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include/*.hpp
+    ${PROJECT_SOURCE_DIR}/src/utils/*.hpp
     )
 
 file(GLOB_RECURSE SOURCES
@@ -31,6 +32,7 @@ include_directories_with_host_compiler(
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/src
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src/utils/
     ${PROJECT_SOURCE_DIR}/tests/
     )
 
@@ -198,6 +200,64 @@ foreach(driver ${all_drivers})
         endif()
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_cpu}")
+        endif()
+    endif()
+endforeach()
+
+function(register_benchdnn_graph_test engine bench_mode test_file)
+    if (ARGC GREATER 3)
+        message(FATAL_ERROR "Incorrect use of function")
+    endif()
+
+    if (bench_mode STREQUAL "P" OR bench_mode STREQUAL "p")
+        set(TEST_NAME_PREFIX "test_perf")
+    # Todo enable correctness check mode later
+    else()
+        message(FATAL_ERROR "Unkown bench mode - " ${bench_mode})
+    endif()
+    set(TEST_NAME_PREFIX "${TEST_NAME_PREFIX}_benchdnn_")
+    
+    set(cmd "-v1 --engine=${engine} --mode=${bench_mode} --graph"
+            "--batch=${test_file}")
+    string(REPLACE "test_" "${TEST_NAME_PREFIX}" target_name ${test_file})
+    set(benchdnn_target ${target_name}_${engine})
+
+    if(DNNL_GRAPH_BUILD_FOR_CI)
+        string(REPLACE " " ";" cmd "benchdnn ${cmd}")
+        add_dnnl_graph_test(${benchdnn_target} ${cmd})
+    else()
+        string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
+
+        if(WIN32)
+            set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
+            set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
+        endif()
+
+        add_custom_target(${benchdnn_target}
+            COMMAND ${cmd}
+            DEPENDS benchdnn
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+
+        set_target_properties(${benchdnn_target} PROPERTIES
+            EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+        maybe_configure_windows_test(${benchdnn_target} TARGET)
+
+        # Create non-suffixed target for compatibility
+        if(engine STREQUAL "cpu")
+            add_custom_target(${target_name} DEPENDS ${benchdnn_target})
+            maybe_configure_windows_test(${target_name} TARGET)
+        endif()
+    endif()
+endfunction()
+
+file(GLOB benchdnn_graph_ci RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs/graph inputs/graph/test*)
+
+foreach(test_file ${benchdnn_graph_ci})
+    if(DNNL_GRAPH_TEST_SET EQUAL DNNL_GRAPH_TEST_SET_CI)
+        register_benchdnn_graph_test("cpu" "P" "${test_file}")
+        if(has_gpu)
+            register_benchdnn_graph_test("gpu" "P" "${test_file}")
         endif()
     endif()
 endforeach()
