@@ -457,6 +457,54 @@ TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution) {
     compile_execution_pipeline(agraph, 2);
 }
 
+TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
+            {1, 256, 56, 56},
+            {{64, 256, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
+            {1, 64, 56, 56},
+            {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
+            id_gen, {1, 256, 56, 56},
+            {{64, 256, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
+            id_gen, {1, 64, 56, 56},
+            {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecution) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;

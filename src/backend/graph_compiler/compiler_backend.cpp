@@ -51,6 +51,7 @@ bool compiler_backend_t::register_passes() {
     REQUIRE_VNNI_AMXINT8_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mha_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mlp_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_conv_pattern, pass_registry_);
     REQUIRE_VNNI_AMXINT8_END
     REQUIRE_AVX512_END
     pass_registry_.sort_passes();

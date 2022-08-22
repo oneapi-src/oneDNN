@@ -2189,6 +2189,175 @@ static inline void add_MHA_subgraph_alternative2(impl::graph_t *agraph,
     agraph->add_op(&reshape_output);
 }
 
+// returned vector with shape {ic, ks, oc}
+static std::vector<impl::dim_t> extract_filter_info(
+        const impl::dims &shape, const std::string &filter_format) {
+    int ndims = shape.size();
+    return filter_format == "OIX"
+            ? std::vector<impl::dim_t> {shape[1], shape[2], shape[0]}
+            : std::vector<impl::dim_t> {
+                    shape[ndims - 2], shape[0], shape[ndims - 1]};
+}
+
+// filter_shape in the order of 1x1; 1x1 + 3x3 + 1x1
+// strides and paddings also start with the single conv branch
+inline void construct_convolutional_bottleneck_resblock(
+        dnnl::graph::impl::graph_t *agraph, utils::id_generator &id_gen,
+        const impl::dims &input_shape,
+        const std::vector<impl::dims> &filter_shapes, bool is_bf16 = false,
+        const std::vector<std::vector<int64_t>> &strides
+        = {{2, 2}, {1, 1}, {2, 2}, {1, 1}},
+        const std::vector<std::vector<int64_t>> &paddings
+        = {{0, 0}, {0, 0}, {1, 1}, {0, 0}},
+        const std::string &data_format = "NCX",
+        const std::string &filter_format = "OIX") {
+    auto dtype = is_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+    auto input
+            = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+
+    std::vector<std::vector<impl::dim_t>> filter_infos;
+    for (auto shape : filter_shapes) {
+        filter_infos.push_back(extract_filter_info(shape, filter_format));
+    }
+    auto left = create_convolution(id_gen, *agraph, input, filter_infos[0][0],
+            filter_infos[0][1], filter_infos[0][2], 1, strides[0], {1, 1},
+            paddings[0], paddings[0], data_format, filter_format, true, false,
+            1e-6f, false);
+
+    auto right = input;
+    for (int i = 1; i < filter_shapes.size(); ++i) {
+        right = utils::create_convolution(id_gen, *agraph, right,
+                filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
+                strides[i], {1, 1}, paddings[i], paddings[i], data_format,
+                filter_format, true, false, 1e-6f,
+                i < filter_shapes.size() - 1);
+    }
+    auto add = create_add(id_gen, *agraph, left, right);
+    auto relu3 = create_relu(id_gen, *agraph, add);
+    (void)(relu3);
+}
+
+inline void construct_identical_bottleneck_resblock(
+        dnnl::graph::impl::graph_t *agraph, utils::id_generator &id_gen,
+        const impl::dims &input_shape,
+        const std::vector<impl::dims> &filter_shapes, bool is_bf16 = false,
+        const std::vector<std::vector<int64_t>> &strides
+        = {{1, 1}, {1, 1}, {1, 1}},
+        const std::vector<std::vector<int64_t>> &paddings
+        = {{0, 0}, {1, 1}, {0, 0}},
+        const std::string &data_format = "NCX",
+        const std::string &filter_format = "OIX") {
+    auto dtype = is_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+    auto input
+            = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    std::vector<std::vector<impl::dim_t>> filter_infos;
+    for (auto shape : filter_shapes) {
+        filter_infos.push_back(extract_filter_info(shape, filter_format));
+    }
+    auto temp_input = input;
+    for (int i = 0; i < filter_shapes.size(); ++i) {
+        temp_input = utils::create_convolution(id_gen, *agraph, temp_input,
+                filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
+                strides[i], {1, 1}, paddings[i], paddings[i], data_format,
+                filter_format, true, false, 1e-6f,
+                i < filter_shapes.size() - 1);
+    }
+    auto add = utils::create_add(id_gen, *agraph, temp_input, input);
+    auto relu3 = utils::create_relu(id_gen, *agraph, add);
+    (void)(relu3);
+}
+
+inline void construct_int8_identical_bottleneck_resblock(
+        dnnl::graph::impl::graph_t *agraph, utils::id_generator &id_gen,
+        const impl::dims &input_shape,
+        const std::vector<impl::dims> &filter_shapes,
+        const std::vector<std::vector<int64_t>> &strides
+        = {{1, 1}, {1, 1}, {1, 1}},
+        const std::vector<std::vector<int64_t>> &paddings
+        = {{0, 0}, {1, 1}, {0, 0}},
+        const std::string &data_format = "NCX",
+        const std::string &filter_format = "OIX") {
+    float scale_src = 1 / 255.f, scale_out = 1;
+    int64_t zp_src = 0, zp_out = 78;
+
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), input_shape, impl::data_type::u8);
+
+    std::vector<std::vector<impl::dim_t>> filter_infos;
+    for (auto shape : filter_shapes) {
+        filter_infos.push_back(extract_filter_info(shape, filter_format));
+    }
+    auto temp_src = src;
+    for (int i = 0; i < filter_shapes.size(); ++i) {
+        std::vector<float> scale_wei(filter_infos[i][2], 1 / 127.f);
+        temp_src = utils::create_int8_convolution(id_gen, *agraph, temp_src,
+                filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
+                strides[i], {1, 1}, paddings[i], paddings[i], data_format,
+                filter_format, true, false, 1e-6f,
+                /*has_relu? */ i < filter_shapes.size() - 1, scale_src, zp_src,
+                scale_out, zp_out, scale_wei, impl::data_type::u8,
+                /*is_quantize_dst? */ i < filter_shapes.size() - 1);
+    }
+    auto dq3 = create_dequantize(
+            id_gen, *agraph, src, "per_tensor", {zp_src}, {scale_src}, 0);
+    auto add0 = create_add(id_gen, *agraph, temp_src, dq3);
+    auto relu0 = create_relu(id_gen, *agraph, add0);
+    auto q2 = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+            "per_tensor", std::vector<int64_t> {zp_out},
+            std::vector<float> {scale_out}, 0);
+    (void)(q2);
+}
+
+// filter_shape in the order of 1x1; 1x1+3x3+1x1
+// strides and paddings also first consider the single conv branch
+inline void construct_int8_convolutional_bottleneck_resblock(
+        dnnl::graph::impl::graph_t *agraph, utils::id_generator &id_gen,
+        const impl::dims &input_shape,
+        const std::vector<impl::dims> &filter_shapes,
+        const std::vector<std::vector<int64_t>> &strides
+        = {{2, 2}, {1, 1}, {2, 2}, {1, 1}},
+        const std::vector<std::vector<int64_t>> &paddings
+        = {{0, 0}, {0, 0}, {1, 1}, {0, 0}},
+        const std::string &data_format = "NCX",
+        const std::string &filter_format = "OIX") {
+    float scale_src = 1 / 255.f, scale_out = 1;
+    int64_t zp_src = 0, zp_out = 78;
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), input_shape, impl::data_type::u8);
+
+    std::vector<std::vector<impl::dim_t>> filter_infos;
+    for (auto shape : filter_shapes) {
+        filter_infos.push_back(extract_filter_info(shape, filter_format));
+    }
+    std::vector<float> scale_wei(filter_infos[0][2], 1 / 127.f);
+    auto left = utils::create_int8_convolution(id_gen, *agraph, src,
+            filter_infos[0][0], filter_infos[0][1], filter_infos[0][2], 1,
+            strides[0], {1, 1}, paddings[0], paddings[0], data_format,
+            filter_format, true, false, 1e-6f,
+            /*no relu*/ false, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    auto right = src;
+    for (int i = 1; i < filter_shapes.size(); ++i) {
+        scale_wei = std::vector<float>(filter_infos[i][2], 1 / 127.f);
+        right = utils::create_int8_convolution(id_gen, *agraph, right,
+                filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
+                strides[i], {1, 1}, paddings[i], paddings[i], data_format,
+                filter_format, true, false, 1e-6f,
+                /*has relu*/ i < filter_shapes.size() - 1, scale_src, zp_src,
+                scale_out, zp_out, scale_wei, impl::data_type::u8,
+                /*is_quantize_dst? */ i < filter_shapes.size() - 1);
+    }
+    auto dq3 = create_dequantize(
+            id_gen, *agraph, left, "per_tensor", {zp_src}, {scale_src}, 0);
+    auto add0 = create_add(id_gen, *agraph, right, dq3);
+    auto relu0 = create_relu(id_gen, *agraph, add0);
+    auto q2 = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+            "per_tensor", std::vector<int64_t> {zp_out},
+            std::vector<float> {scale_out}, 0);
+    (void)(q2);
+}
+
 inline impl::logical_tensor_t create_relu_bwd(utils::id_generator &id_gen,
         impl::graph_t &agraph, const impl::logical_tensor_t &dst,
         const impl::logical_tensor_t &delta_in, const impl::dims &dims) {

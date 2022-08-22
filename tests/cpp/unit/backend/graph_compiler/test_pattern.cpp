@@ -654,3 +654,166 @@ TEST(GCPatternTests, BF16MHATrainingPattern) {
     ASSERT_EQ(partitions[1]->get_inputs().size(), 8);
     ASSERT_EQ(partitions[1]->get_outputs().size(), 3);
 }
+
+TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
+            {1, 64, 56, 56}, {{64, 64, 1, 1}, {64, 64, 1, 1}}, false,
+            {{1, 1}, {1, 1}}, {{0, 0}, {0, 0}});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "f32_identical_bottleneck");
+    apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 5);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 5);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+}
+
+TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
+            {1, 64, 56, 56},
+            {{64, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 1, 1}},
+            false, {{1, 1}, {1, 1}, {1, 1}, {1, 1}},
+            {{0, 0}, {0, 0}, {0, 0}, {0, 0}});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "f32_identical_bottleneck");
+    apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 9);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 9);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+}
+
+TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
+            {1, 64, 56, 56}, {{64, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 1, 1}},
+            false, {{2, 2}, {1, 1}, {2, 2}}, {{0, 0}, {0, 0}, {0, 0}});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "f32_convolutional_bottleneck");
+    apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 6);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 7);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+}
+
+TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
+            {1, 64, 56, 56},
+            {{64, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 1, 1},
+                    {64, 64, 1, 1}},
+            false, {{2, 2}, {1, 1}, {2, 2}, {1, 1}, {1, 1}},
+            {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "f32_convolutional_bottleneck");
+    apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 10);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 11);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+}
+
+TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
+            {1, 256, 56, 56},
+            {{256, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}}, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "bf16_identical_bottleneck");
+    apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 7);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 7);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+}
+
+TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
+            id_gen, {1, 64, 56, 56},
+            {{64, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 1, 1},
+                    {64, 64, 1, 1}},
+            {{2, 2}, {1, 1}, {2, 2}, {1, 1}, {1, 1}},
+            {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "int8_convolutional_bottleneck");
+    apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 26);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 11);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+}
+
+TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
+            {1, 64, 56, 56},
+            {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}},
+            true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "bf16_convolutional_bottleneck");
+    apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 8);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 9);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+}
