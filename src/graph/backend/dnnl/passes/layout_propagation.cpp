@@ -622,7 +622,7 @@ static status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     status_t status = status::success;
-    if (op->num_inputs() != 5 || op->num_outputs() != 3) {
+    if (op->num_inputs() != 5 || op->num_outputs() != 4) {
         assert(!"Currently, only support use_scale and use_shift mode!");
     }
     const auto &pd_flag_pair
@@ -670,9 +670,7 @@ static status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
     status = fill_layout_info(diff_beta, pd.diff_weights_desc());
     if (status != status::success) return status;
 
-    // make scratchpad as batchnorm's last output
-    value_ptr scratchpad_val = insert_empty_scratchpad(op);
-    if (status != status::success) return status;
+    value_ptr scratchpad_val = op->get_output_values().back();
     status = fill_layout_info(scratchpad_val, pd.scratchpad_desc());
     return status;
 }

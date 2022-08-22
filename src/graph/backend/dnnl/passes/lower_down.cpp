@@ -2347,10 +2347,9 @@ status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg) {
 
 status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_removed_ops, to_be_inserted_ops;
+    std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != graph::op_kind::BatchNormTrainingBackprop)
-            continue;
+        if (cur_op->get_kind() != op_kind::dnnl_batchnorm_bwd) continue;
 
         // insert permute
         bool need_permute = cur_op->has_attr(op_attr::data_format)
@@ -2387,25 +2386,10 @@ status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
         }
-
-        // create new dnnl_batchnorm_bwd
-        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_batchnorm_bwd);
-
-        // replace original oneDNN Graph ops with dnnl_batchnorm_bwd
-        replace_op(cur_op, new_op);
-        new_op->merge_attributes(cur_op->get_attributes());
-        to_be_inserted_ops.emplace_back(new_op);
-        to_be_removed_ops.emplace_back(cur_op);
     }
 
     for (const auto &op : to_be_inserted_ops) {
         subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
     }
 
     return infer_shape(sg);
@@ -3387,6 +3371,9 @@ status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
                 new_op->set_attr<bool>(op_attr::is_training, false);
             else
                 new_op->set_attr<bool>(op_attr::is_training, true);
+        } else if (cur_op->get_kind()
+                == graph::op_kind::BatchNormTrainingBackprop) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_batchnorm_bwd);
         } else if (cur_op->get_kind() == graph::op_kind::PReLU) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_prelu);
         } else if (cur_op->get_kind() == graph::op_kind::PReLUBackprop) {
