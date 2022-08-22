@@ -85,15 +85,15 @@ static expr get_balance211_length(
 }
 
 static void get_blocks_and_ib_blocks(const int X, const int X_split_num,
-  const int im_block_, int &X_block_size, int &X_ib_block_size) {
+  const int ix_block, int &X_block_size, int &X_ib_block_size) {
   if (utils::divide_and_ceil(X, X_block_size) < (size_t)X_split_num
-    && X_block_size > im_block_) {
-    X_block_size -= im_block_;
+    && X_block_size > ix_block) {
+    X_block_size -= ix_block;
   }
   // M, N, K imbalance block size
   X_ib_block_size = X - X_block_size * X_split_num <= 0
     ? X - X_block_size * (X_split_num - 1)
-    : X_block_size + im_block_;
+    : X_block_size + ix_block;
   if (X_ib_block_size < 0) {
     // cannot use all the threads
     X_ib_block_size = X - X / X_block_size * X_block_size;
@@ -106,27 +106,37 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   auto ret = reflection::general_object_t::make<managed_matmul_core_config_t>();
   managed_matmul_core_config_t &cfg
     = *ret.unchecked_get_as<managed_matmul_core_config_t>();
-  int num_threads = runtime_config_t::get().get_num_threads();
-  auto splits = get_splits(runtime_config_t::get().get_num_threads());
-  int M = static_cast<int>(in_tensors_[0].get_plain_dims()[0]);
-  M = utils::divide_and_ceil(M, im_block_) * im_block_;
-  int N = static_cast<int>(in_tensors_[1].get_plain_dims()[1]);
-  N = utils::divide_and_ceil(N, im_block_) * im_block_;
-  int K = static_cast<int>(in_tensors_[1].get_plain_dims()[0]);
-  K = utils::divide_and_ceil(K, im_block_) * im_block_;
-  int sizeofdtypeA = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
-  int sizeofdtypeC = utils::get_sizeof_etype(out_tensors_[0].dtype_.as_etype());
-  int im_block = im_block_;
+  const int num_threads = runtime_config_t::get().get_num_threads();
+  const auto splits = get_splits(runtime_config_t::get().get_num_threads());
+  const int iim_block = iim_block_;
+  const int iin_block = iin_block_;
+  const int iik_block = iik_block_;
+  const int M
+    = utils::divide_and_ceil(
+        static_cast<int>(in_tensors_[0].get_plain_dims()[0]), iim_block)
+    * iim_block;
+  const int N
+    = utils::divide_and_ceil(
+        static_cast<int>(in_tensors_[1].get_plain_dims()[1]), iin_block)
+    * iin_block;
+  const int K
+    = utils::divide_and_ceil(
+        static_cast<int>(in_tensors_[0].get_plain_dims()[0]), iik_block)
+    * iik_block;
+  const int sizeofdtypeA
+    = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
+  const int sizeofdtypeC
+    = utils::get_sizeof_etype(out_tensors_[0].dtype_.as_etype());
   float cost = std::numeric_limits<float>::max();
   int split_n = 1;
   cfg.im_loop_order = 0;
-  if (M * N / im_block_ / im_block_ >= num_threads) {
+  if (M * N / iim_block / iin_block >= num_threads) {
     for (auto i : splits) {
-      int num_M_block = utils::divide_and_ceil(M / im_block_, num_threads / i);
-      int num_N_block = utils::divide_and_ceil(N / im_block_, i);
+      int num_M_block = utils::divide_and_ceil(M / iim_block, num_threads / i);
+      int num_N_block = utils::divide_and_ceil(N / iin_block, i);
       int num_brgemm = num_M_block * num_N_block;
       int num_core
-        = std::min(i, N / im_block_) * std::min(num_threads / i, M / im_block_);
+        = std::min(i, N / iin_block) * std::min(num_threads / i, M / iim_block);
       // Cost = Shape_efficient_weight *
       // (workload_balance + divide_N_plenty) / core_utilitizaiton
       // single core gemm prefers square shape for A and B.
@@ -143,11 +153,11 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     cfg.M_split_num = num_threads / split_n;
     cfg.N_split_num = split_n;
     int single_M = utils::divide_and_ceil(
-                     utils::divide_and_ceil(M, im_block_), cfg.M_split_num)
-      * im_block_;
+                     utils::divide_and_ceil(M, iim_block), cfg.M_split_num)
+      * iim_block;
     int single_N = utils::divide_and_ceil(
-                     utils::divide_and_ceil(N, im_block_), cfg.N_split_num)
-      * im_block_;
+                     utils::divide_and_ceil(N, iin_block), cfg.N_split_num)
+      * iin_block;
     int single_K = K;
     // TODO(zhennan): Query L2 cache size from hardware
     int L2_size = 1024 * 1024 * 2;
@@ -157,8 +167,8 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     if (single_K >= single_K_threshold) {
       cfg.K_sub_block = utils::divide_and_ceil(single_K, single_K_threshold);
       int L2_K = utils::divide_and_ceil(
-                   utils::divide_and_ceil(single_K, im_block_), cfg.K_sub_block)
-        * im_block_;
+                   utils::divide_and_ceil(single_K, iik_block), cfg.K_sub_block)
+        * iik_block;
       // sizeofdtypeA* (M * K) + sizeofdtypeB * (N * K) + sizeofdtypeC(M * N) <=
       // L2_size, let M == N, then
       // 2 * sizeofdtypeA * M * K + sizeofdtypeC * M * M <= L2_size
@@ -202,8 +212,10 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   COMPILE_ASSERT(
     out_tensors_.size() == 1, "output logical tensor size should be one.");
 
-  im_block_
+  iim_block_ = 32;
+  iin_block_
     = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8) ? 64 : 32;
+  iik_block_ = iin_block_;
 }
 
 float gen_managed_matmul_core_t::get_gflop() const {
@@ -246,61 +258,61 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
         k_b_bigger_num;
       _var_init_(m_o_end, datatypes::s32,
         get_balance211_length(
-          M / im_block_, M_sub_block, m_b, m_b_idx, m_b_bigger_num));
+          M / iim_block_, M_sub_block, m_b, m_b_idx, m_b_bigger_num));
       _var_init_(n_o_end, datatypes::s32,
         get_balance211_length(
-          N / im_block_, N_sub_block, n_b, n_b_idx, n_b_bigger_num));
+          N / iin_block_, N_sub_block, n_b, n_b_idx, n_b_bigger_num));
       _named_for_(im_k, k_b, 0, K_sub_block) {
         // general matmul_core loops
         _named_for_(im_m, m_o, 0, m_o_end) {
           _named_for_(im_n, n_o, 0, n_o_end) {
             // rolling M and N
             _var_init_(m_start_idx, datatypes::index,
-              m_idx + m_b_idx * im_block_
-                + ((m_o + tid) % m_o_end) * im_block_);
+              m_idx + m_b_idx * iim_block_
+                + ((m_o + tid) % m_o_end) * iim_block_);
             _var_init_(n_start_idx, datatypes::index,
-              n_idx + n_b_idx * im_block_
-                + ((n_o + tid) % n_o_end) * im_block_);
+              n_idx + n_b_idx * iin_block_
+                + ((n_o + tid) % n_o_end) * iin_block_);
             _var_init_(bs, datatypes::s32,
               get_balance211_length(
-                K / im_block_, K_sub_block, k_b, k_b_idx, k_b_bigger_num));
+                K / iik_block_, K_sub_block, k_b, k_b_idx, k_b_bigger_num));
             _var_init_(
-              k_start_idx, datatypes::index, k_idx + k_b_idx * im_block_);
+              k_start_idx, datatypes::index, k_idx + k_b_idx * iik_block_);
             std::vector<expr> aidx = !ta.get_format().is_blocking()
               ? std::vector<expr> {m_start_idx, k_start_idx}
               : std::vector<expr> {
-                m_start_idx / im_block_, k_start_idx / im_block_, 0, 0};
+                m_start_idx / iim_block_, k_start_idx / iik_block_, 0, 0};
             std::vector<expr> bidx = dtype_block > 1
-              ? std::vector<expr> {n_start_idx / im_block_,
-                k_start_idx / im_block_, 0, 0, 0}
+              ? std::vector<expr> {n_start_idx / iin_block_,
+                k_start_idx / iik_block_, 0, 0, 0}
               : (!tb.get_format().is_blocking()
                   ? std::vector<expr> {k_start_idx, n_start_idx}
                   : std::vector<expr> {
-                    n_start_idx / im_block_, k_start_idx / im_block_, 0, 0});
+                    n_start_idx / iin_block_, k_start_idx / iik_block_, 0, 0});
             std::vector<expr> cidx = !tc.get_format().is_blocking()
               ? std::vector<expr> {m_start_idx, n_start_idx}
               : std::vector<expr> {
-                m_start_idx / im_block_, n_start_idx / im_block_, 0, 0};
+                m_start_idx / iim_block_, n_start_idx / iin_block_, 0, 0};
             if (is_partial) { cidx.insert(cidx.begin(), k_s); }
-            auto LDA = !ta.get_format().is_blocking() ? ori_K : im_block_;
-            auto LDB = !tb.get_format().is_blocking() ? ori_N : im_block_;
-            auto LDC = !tc.get_format().is_blocking() ? ori_N : im_block_;
+            auto LDA = !ta.get_format().is_blocking() ? ori_K : iik_block_;
+            auto LDB = !tb.get_format().is_blocking() ? ori_N : iin_block_;
+            auto LDC = !tc.get_format().is_blocking() ? ori_N : iin_block_;
             auto stride_a = !ta.get_format().is_blocking()
-              ? im_block_
-              : im_block_ * im_block_;
+              ? iim_block_
+              : iim_block_ * iik_block_;
             auto stride_b = !tb.get_format().is_blocking()
-              ? im_block_ * ori_N
-              : im_block_ * im_block_;
+              ? iik_block_ * ori_N
+              : iik_block_ * iin_block_;
             _if_(k_b == 0) {
               sc::builtin::brgemm_init_update(tensor_ptr(A, aidx),
-                tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, im_block_,
-                im_block_, im_block_, LDA, LDB, LDC, stride_a, stride_b,
+                tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
+                iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
                 ta.dtype_, tb.dtype_);
             }
             _else_ {
               sc::builtin::brgemm_update(tensor_ptr(A, aidx),
-                tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, im_block_,
-                im_block_, im_block_, LDA, LDB, LDC, stride_a, stride_b,
+                tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
+                iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
                 ta.dtype_, tb.dtype_);
             }
             if (fusion && !is_partial) {
@@ -308,12 +320,12 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
                 fusion->create_output_fusion_anchor({tensor_slice(C,
                   !tc.get_format().is_blocking()
                     ? std::vector<std::pair<expr, expr>> {{m_start_idx,
-                                                            expr(im_block_)},
-                      {n_start_idx, expr(im_block_)}}
+                                                            expr(iim_block_)},
+                      {n_start_idx, expr(iin_block_)}}
                     : std::vector<std::pair<expr, expr>> {
-                      {m_start_idx / im_block_, 1},
-                      {n_start_idx / im_block_, 1}, {0, expr(im_block_)},
-                      {0, expr(im_block_)}})});
+                      {m_start_idx / iim_block_, 1},
+                      {n_start_idx / iin_block_, 1}, {0, expr(iim_block_)},
+                      {0, expr(iin_block_)}})});
               }
             }
           }
@@ -330,17 +342,17 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
           fusion->create_output_fusion_anchor({tensor_slice(C,
             !tc.get_format().is_blocking()
               ? std::vector<std::pair<expr, expr>> {{m_idx
-                                                        + m_b_idx * im_block_,
+                                                        + m_b_idx * iim_block_,
                                                       M_anchor_info[1]
                                                         / config.M_sub_block},
-                {n_idx + n_b_idx * im_block_,
+                {n_idx + n_b_idx * iin_block_,
                   N_anchor_info[1] / config.N_sub_block}}
               : std::vector<std::pair<expr, expr>> {
-                {(m_idx + m_b_idx * im_block_) / expr(im_block_),
-                  M_anchor_info[1] / im_block_ / config.M_sub_block},
-                {(n_idx + n_b_idx * im_block_) / expr(im_block_),
-                  N_anchor_info[1] / im_block_ / config.N_sub_block},
-                {0, expr(im_block_)}, {0, expr(im_block_)}})});
+                {(m_idx + m_b_idx * iim_block_) / expr(iim_block_),
+                  M_anchor_info[1] / iim_block_ / config.M_sub_block},
+                {(n_idx + n_b_idx * iin_block_) / expr(iin_block_),
+                  N_anchor_info[1] / iin_block_ / config.N_sub_block},
+                {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
         } else {
           slice_range_list mm_multi_slice;
           // order:X_anchor_info[1] -> X_anchor_info[2]
@@ -350,39 +362,39 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
                 for (int j = 0; j < 2; j++) {
                   if (!tc.get_format().is_blocking()) {
                     auto length_M = M_anchor_info[p + 1] / config.M_sub_block;
-                    if (M_anchor_info[p + 1] / im_block_ % config.M_sub_block
+                    if (M_anchor_info[p + 1] / iim_block_ % config.M_sub_block
                       != 0) {
-                      length_M += (1 - i) * im_block_;
+                      length_M += (1 - i) * iim_block_;
                     }
                     auto length_N = N_anchor_info[q + 1] / config.N_sub_block;
-                    if (N_anchor_info[q + 1] / im_block_ % config.N_sub_block
+                    if (N_anchor_info[q + 1] / iin_block_ % config.N_sub_block
                       != 0) {
-                      length_N += (1 - j) * im_block_;
+                      length_N += (1 - j) * iin_block_;
                     }
                     assert(length_M > 0 && length_N > 0);
                     mm_multi_slice.emplace_back(
-                      slice_range {{m_idx + m_b_idx * im_block_, length_M},
-                        {n_idx + n_b_idx * im_block_, length_N}});
+                      slice_range {{m_idx + m_b_idx * iim_block_, length_M},
+                        {n_idx + n_b_idx * iin_block_, length_N}});
                   } else {
                     auto length_M
-                      = M_anchor_info[p + 1] / im_block_ / config.M_sub_block;
-                    if (M_anchor_info[p + 1] / im_block_ % config.M_sub_block
+                      = M_anchor_info[p + 1] / iim_block_ / config.M_sub_block;
+                    if (M_anchor_info[p + 1] / iim_block_ % config.M_sub_block
                       != 0) {
                       length_M += 1 - i;
                     }
                     auto length_N
-                      = N_anchor_info[q + 1] / im_block_ / config.N_sub_block;
-                    if (N_anchor_info[q + 1] / im_block_ % config.N_sub_block
+                      = N_anchor_info[q + 1] / iin_block_ / config.N_sub_block;
+                    if (N_anchor_info[q + 1] / iin_block_ % config.N_sub_block
                       != 0) {
                       length_N += 1 - j;
                     }
                     assert(length_M > 0 && length_N > 0);
                     mm_multi_slice.emplace_back(slice_range {
-                      {(m_idx + m_b_idx * im_block_) / expr(im_block_),
+                      {(m_idx + m_b_idx * iim_block_) / expr(iim_block_),
                         length_M},
-                      {(n_idx + n_b_idx * im_block_) / expr(im_block_),
+                      {(n_idx + n_b_idx * iin_block_) / expr(iin_block_),
                         length_N},
-                      {0, expr(im_block_)}, {0, expr(im_block_)}});
+                      {0, expr(iim_block_)}, {0, expr(iin_block_)}});
                   }
                 }
               }
@@ -486,47 +498,47 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
       K = static_cast<int>(in_tensors_[0].get_plain_dims()[1]),
       N = static_cast<int>(in_tensors_[1].get_plain_dims()[1]);
   int M_block_size
-    = utils::divide_and_ceil(utils::divide_and_ceil(M, M_split_num), im_block_)
-    * im_block_;
+    = utils::divide_and_ceil(utils::divide_and_ceil(M, M_split_num), iim_block_)
+    * iim_block_;
   int N_block_size
-    = utils::divide_and_ceil(utils::divide_and_ceil(N, N_split_num), im_block_)
-    * im_block_;
+    = utils::divide_and_ceil(utils::divide_and_ceil(N, N_split_num), iin_block_)
+    * iin_block_;
   int K_block_size
-    = utils::divide_and_ceil(utils::divide_and_ceil(K, K_split_num), im_block_)
-    * im_block_;
+    = utils::divide_and_ceil(utils::divide_and_ceil(K, K_split_num), iik_block_)
+    * iik_block_;
   // make sure that each thread has workload
   int M_ib_block_size, N_ib_block_size, K_ib_block_size;
   get_blocks_and_ib_blocks(
-    M, M_split_num, im_block_, M_block_size, M_ib_block_size);
+    M, M_split_num, iim_block_, M_block_size, M_ib_block_size);
   get_blocks_and_ib_blocks(
-    N, N_split_num, im_block_, N_block_size, N_ib_block_size);
+    N, N_split_num, iin_block_, N_block_size, N_ib_block_size);
   get_blocks_and_ib_blocks(
-    K, K_split_num, im_block_, K_block_size, K_ib_block_size);
+    K, K_split_num, iik_block_, K_block_size, K_ib_block_size);
   // update X_block_size and X_ib_block_size to minimize their gaps
-  if (M_block_size >= im_block_ * 2) {
-    int M_new_ib_block_size, M_new_block_size = M_block_size - im_block_;
+  if (M_block_size >= iim_block_ * 2) {
+    int M_new_ib_block_size, M_new_block_size = M_block_size - iim_block_;
     get_blocks_and_ib_blocks(
-      M, M_split_num, im_block_, M_new_block_size, M_new_ib_block_size);
+      M, M_split_num, iim_block_, M_new_block_size, M_new_ib_block_size);
     if (std::abs(M_block_size - M_ib_block_size)
       > std::abs(M_new_block_size - M_new_ib_block_size)) {
       M_block_size = M_new_block_size;
       M_ib_block_size = M_new_ib_block_size;
     }
   }
-  if (N_block_size >= im_block_ * 2) {
-    int N_new_ib_block_size, N_new_block_size = N_block_size - im_block_;
+  if (N_block_size >= iin_block_ * 2) {
+    int N_new_ib_block_size, N_new_block_size = N_block_size - iin_block_;
     get_blocks_and_ib_blocks(
-      N, N_split_num, im_block_, N_new_block_size, N_new_ib_block_size);
+      N, N_split_num, iin_block_, N_new_block_size, N_new_ib_block_size);
     if (std::abs(N_block_size - N_ib_block_size)
       > std::abs(N_new_block_size - N_new_ib_block_size)) {
       N_block_size = N_new_block_size;
       N_ib_block_size = N_new_ib_block_size;
     }
   }
-  if (K_block_size >= im_block_ * 2) {
-    int K_new_ib_block_size, K_new_block_size = K_block_size - im_block_;
+  if (K_block_size >= iik_block_ * 2) {
+    int K_new_ib_block_size, K_new_block_size = K_block_size - iik_block_;
     get_blocks_and_ib_blocks(
-      K, K_split_num, im_block_, K_new_block_size, K_new_ib_block_size);
+      K, K_split_num, iik_block_, K_new_block_size, K_new_ib_block_size);
     if (std::abs(K_block_size - K_ib_block_size)
       > std::abs(K_new_block_size - K_new_ib_block_size)) {
       K_block_size = K_new_block_size;
@@ -536,13 +548,13 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   // M, N, K imbalance block num
   int M_ib_num = M - M_block_size * M_split_num < 0
     ? 1
-    : utils::divide_and_ceil(M - M_block_size * M_split_num, im_block_);
+    : utils::divide_and_ceil(M - M_block_size * M_split_num, iim_block_);
   int N_ib_num = N - N_block_size * N_split_num < 0
     ? 1
-    : utils::divide_and_ceil(N - N_block_size * N_split_num, im_block_);
+    : utils::divide_and_ceil(N - N_block_size * N_split_num, iin_block_);
   int K_ib_num = K - K_block_size * K_split_num < 0
     ? 1
-    : utils::divide_and_ceil(K - K_block_size * K_split_num, im_block_);
+    : utils::divide_and_ceil(K - K_block_size * K_split_num, iik_block_);
   int tail_M = M_ib_num <= 1 ? M_ib_block_size
                              : M_ib_block_size
       - (M_ib_num * M_ib_block_size + (M_split_num - M_ib_num) * M_block_size
@@ -558,21 +570,21 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   assert(M_ib_num >= 0 && M_ib_num <= M_split_num && N_ib_num >= 0
     && N_ib_num <= N_split_num && K_ib_num >= 0 && K_ib_num <= K_split_num);
 
-  M_ib_block_size = utils::rnd_up(M_ib_block_size, im_block_);
-  N_ib_block_size = utils::rnd_up(N_ib_block_size, im_block_);
-  K_ib_block_size = utils::rnd_up(K_ib_block_size, im_block_);
-  tail_M = utils::rnd_up(tail_M, im_block_);
-  tail_N = utils::rnd_up(tail_N, im_block_);
-  tail_K = utils::rnd_up(tail_K, im_block_);
+  M_ib_block_size = utils::rnd_up(M_ib_block_size, iim_block_);
+  N_ib_block_size = utils::rnd_up(N_ib_block_size, iin_block_);
+  K_ib_block_size = utils::rnd_up(K_ib_block_size, iik_block_);
+  tail_M = utils::rnd_up(tail_M, iim_block_);
+  tail_N = utils::rnd_up(tail_N, iin_block_);
+  tail_K = utils::rnd_up(tail_K, iik_block_);
 
-  COMPILE_ASSERT(M_block_size / im_block_ >= M_sub_block
-      && M_ib_block_size / im_block_ >= M_sub_block,
+  COMPILE_ASSERT(M_block_size / iim_block_ >= M_sub_block
+      && M_ib_block_size / iim_block_ >= M_sub_block,
     "bad M_sub_block given");
-  COMPILE_ASSERT(N_block_size / im_block_ >= N_sub_block
-      && N_ib_block_size / im_block_ >= N_sub_block,
+  COMPILE_ASSERT(N_block_size / iin_block_ >= N_sub_block
+      && N_ib_block_size / iin_block_ >= N_sub_block,
     "bad N_sub_block given");
-  COMPILE_ASSERT(K_block_size / im_block_ >= K_sub_block
-      && K_ib_block_size / im_block_ >= K_sub_block,
+  COMPILE_ASSERT(K_block_size / iik_block_ >= K_sub_block
+      && K_ib_block_size / iik_block_ >= K_sub_block,
     "bad K_sub_block given");
 
   int dtype_block = 1;
@@ -671,7 +683,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
             single_thread_matmul_call(in_tensors_[0], in_tensors_[1],
               out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
-              (int)utils::rnd_up(K, im_block_), m_idx, n_idx, k_s, A, B, C,
+              (int)utils::rnd_up(K, iik_block_), m_idx, n_idx, k_s, A, B, C,
               dtype_block, fusion, im_loop_order, m_s, n_s, M_anchor_info,
               N_anchor_info);
           }
@@ -684,10 +696,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               auto M_length = i == 0 ? M_block_size : M_ib_block_size;
               auto N_length = j == 0 ? N_block_size : N_ib_block_size;
               if (out_tensors_[0].get_format().is_blocking()) {
-                mm_multi_slice.emplace_back(
-                  slice_range {{m_idx / expr(im_block_), M_length / im_block_},
-                    {n_idx / expr(im_block_), N_length / im_block_},
-                    {0, im_block_}, {0, im_block_}});
+                mm_multi_slice.emplace_back(slice_range {
+                  {m_idx / expr(iim_block_), M_length / iim_block_},
+                  {n_idx / expr(iin_block_), N_length / iin_block_},
+                  {0, iim_block_}, {0, iin_block_}});
               } else {
                 mm_multi_slice.emplace_back(
                   slice_range {{m_idx, M_length}, {n_idx, N_length}});
@@ -700,9 +712,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
               if (out_tensors_[0].get_format().is_blocking()) {
                 fusion->create_output_fusion_anchor({tensor_slice(C,
-                  {{m_idx / expr(im_block_), M_block_size / im_block_},
-                    {n_idx / expr(im_block_), N_block_size / im_block_},
-                    {0, im_block_}, {0, im_block_}})});
+                  {{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                    {n_idx / expr(iin_block_), N_block_size / iin_block_},
+                    {0, iim_block_}, {0, iin_block_}})});
               } else {
                 fusion->create_output_fusion_anchor({tensor_slice(
                   C, {{m_idx, M_block_size}, {n_idx, N_block_size}})});
@@ -760,9 +772,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           if (M_block_size == M_ib_block_size) {
             if (out_tensors_[0].get_format().is_blocking()) {
               fusion->create_output_fusion_anchor({tensor_slice(C,
-                {{m_idx / expr(im_block_), M_block_size / im_block_},
-                  {0, utils::divide_and_ceil(N, im_block_)},
-                  {0, expr(im_block_)}, {0, expr(im_block_)}})});
+                {{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                  {0, utils::divide_and_ceil(N, iin_block_)},
+                  {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
             } else {
               fusion->create_output_fusion_anchor(
                 {tensor_slice(C, {{m_idx, M_block_size}, {0, N}})});
@@ -771,12 +783,12 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             slice_range_list mm_multi_slice;
             if (out_tensors_[0].get_format().is_blocking()) {
               mm_multi_slice
-                = {{{m_idx / expr(im_block_), M_block_size / im_block_},
-                     {0, utils::divide_and_ceil(N, im_block_)},
-                     {0, expr(im_block_)}, {0, expr(im_block_)}},
-                  {{m_idx / expr(im_block_), M_ib_block_size / im_block_},
-                    {0, utils::divide_and_ceil(N, im_block_)},
-                    {0, expr(im_block_)}, {0, expr(im_block_)}}};
+                = {{{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                     {0, utils::divide_and_ceil(N, iin_block_)},
+                     {0, expr(iim_block_)}, {0, expr(iin_block_)}},
+                  {{m_idx / expr(iim_block_), M_ib_block_size / iim_block_},
+                    {0, utils::divide_and_ceil(N, iin_block_)},
+                    {0, expr(iim_block_)}, {0, expr(iin_block_)}}};
             } else {
               mm_multi_slice = {{{m_idx, M_block_size}, {0, N}},
                 {{m_idx, M_ib_block_size}, {0, N}}};
@@ -914,14 +926,15 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
         }
         // do reduce here
         for_loop rm, rn;
-        // since the blockings are im_block_ and plain shapes must be divided by
-        // im_block_, we can use lanes=16 directly
+        // since the blockings are ix_block_ and plain shapes must be divided by
+        // ix_block_, we can use lanes=16 directly
         int lanes = 16;
-        assert(im_block_ % 16 == 0);
+        assert(iim_block_ % 16 == 0);
+        assert(iin_block_ % 16 == 0);
         expr M_single_thr_num_block
-          = divide_and_ceil(M_single_thr_size, im_block_);
+          = divide_and_ceil(M_single_thr_size, iim_block_);
         expr N_single_thr_num_block
-          = divide_and_ceil(N_single_thr_size, im_block_);
+          = divide_and_ceil(N_single_thr_size, iin_block_);
         if (out_tensors_[0].get_format().is_blocking()) {
           _for_(lm_ln, 0, M_single_thr_num_block * N_single_thr_num_block, 1,
             for_type::PARALLEL, K_split_num) { //
@@ -930,29 +943,29 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
               builtin::mem_zero(
                 tensor_ptr(
-                  C, {m_idx / im_block_ + lm, n_idx / im_block_ + ln, 0, 0}),
-                im_block_ * im_block_, out_dtype);
+                  C, {m_idx / iim_block_ + lm, n_idx / iin_block_ + ln, 0, 0}),
+                iim_block_ * iin_block_, out_dtype);
               _for_(lks, 0, K_split_num, 1) {
-                _for_(lmo, 0, im_block_) {
-                  _for_(lno, 0, im_block_, lanes) {
-                    C[span_t({m_idx / im_block_ + lm, n_idx / im_block_ + ln,
+                _for_(lmo, 0, iim_block_) {
+                  _for_(lno, 0, iin_block_, lanes) {
+                    C[span_t({m_idx / iim_block_ + lm, n_idx / iin_block_ + ln,
                                lmo, lno},
                       lanes)]
                       = builder::make_add(
-                        C[span_t({m_idx / im_block_ + lm,
-                                   n_idx / im_block_ + ln, lmo, lno},
+                        C[span_t({m_idx / iim_block_ + lm,
+                                   n_idx / iin_block_ + ln, lmo, lno},
                           lanes)],
-                        out_tmp_buf[span_t({lks, m_idx / im_block_ + lm,
-                                             n_idx / im_block_ + ln, lmo, lno},
+                        out_tmp_buf[span_t({lks, m_idx / iim_block_ + lm,
+                                             n_idx / iin_block_ + ln, lmo, lno},
                           lanes)]);
                   }
                 }
               }
               if (fusion) {
                 fusion->create_output_fusion_anchor({tensor_slice(C,
-                  {{m_idx / expr(im_block_) + lm, 1},
-                    {n_idx / expr(im_block_) + ln, 1}, {0, expr(im_block_)},
-                    {0, expr(im_block_)}})});
+                  {{m_idx / expr(iim_block_) + lm, 1},
+                    {n_idx / expr(iin_block_) + ln, 1}, {0, expr(iim_block_)},
+                    {0, expr(iin_block_)}})});
               }
             }
           }
@@ -982,9 +995,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                 auto N_length = j == 0 ? N_block_size : N_ib_block_size;
                 if (out_tensors_[0].get_format().is_blocking()) {
                   mm_multi_slice.emplace_back(slice_range {
-                    {m_idx / expr(im_block_), M_length / im_block_},
-                    {n_idx / expr(im_block_), N_length / im_block_},
-                    {0, im_block_}, {0, im_block_}});
+                    {m_idx / expr(iim_block_), M_length / iim_block_},
+                    {n_idx / expr(iin_block_), N_length / iin_block_},
+                    {0, iim_block_}, {0, iin_block_}});
                 } else {
                   mm_multi_slice.emplace_back(
                     slice_range {{m_idx, M_length}, {n_idx, N_length}});
@@ -997,9 +1010,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
                 if (out_tensors_[0].get_format().is_blocking()) {
                   fusion->create_output_fusion_anchor({tensor_slice(C,
-                    {{m_idx / expr(im_block_), M_block_size / im_block_},
-                      {n_idx / expr(im_block_), N_block_size / im_block_},
-                      {0, im_block_}, {0, im_block_}})});
+                    {{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                      {n_idx / expr(iin_block_), N_block_size / iin_block_},
+                      {0, iim_block_}, {0, iin_block_}})});
                 } else {
                   fusion->create_output_fusion_anchor({tensor_slice(
                     C, {{m_idx, M_block_size}, {n_idx, N_block_size}})});
@@ -1058,9 +1071,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           if (M_block_size == M_ib_block_size) {
             if (out_tensors_[0].get_format().is_blocking()) {
               fusion->create_output_fusion_anchor({tensor_slice(C,
-                {{m_idx / expr(im_block_), M_block_size / im_block_},
-                  {0, utils::divide_and_ceil(N, im_block_)},
-                  {0, expr(im_block_)}, {0, expr(im_block_)}})});
+                {{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                  {0, utils::divide_and_ceil(N, iin_block_)},
+                  {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
             } else {
               fusion->create_output_fusion_anchor(
                 {tensor_slice(C, {{m_idx, M_block_size}, {0, N}})});
@@ -1069,12 +1082,12 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             slice_range_list mm_multi_slice;
             if (out_tensors_[0].get_format().is_blocking()) {
               mm_multi_slice
-                = {{{m_idx / expr(im_block_), M_block_size / im_block_},
-                     {0, utils::divide_and_ceil(N, im_block_)},
-                     {0, expr(im_block_)}, {0, expr(im_block_)}},
-                  {{m_idx / expr(im_block_), M_ib_block_size / im_block_},
-                    {0, utils::divide_and_ceil(N, im_block_)},
-                    {0, expr(im_block_)}, {0, expr(im_block_)}}};
+                = {{{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                     {0, utils::divide_and_ceil(N, iin_block_)},
+                     {0, expr(iim_block_)}, {0, expr(iin_block_)}},
+                  {{m_idx / expr(iim_block_), M_ib_block_size / iim_block_},
+                    {0, utils::divide_and_ceil(N, iin_block_)},
+                    {0, expr(iim_block_)}, {0, expr(iin_block_)}}};
             } else {
               mm_multi_slice = {{{m_idx, M_block_size}, {0, N}},
                 {{m_idx, M_ib_block_size}, {0, N}}};
