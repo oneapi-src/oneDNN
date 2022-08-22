@@ -702,13 +702,14 @@ void memory_planner_t::bind_memory_for_batchnorm(
         INSERT_ARGS(DNNL_ARG_MEAN, in_index++, input);
         INSERT_ARGS(DNNL_ARG_VARIANCE, in_index++, input);
     } else { // training
+        // running_mean/running_variance of last iteration
+        INSERT_ARGS(DNNL_ARG_SRC_1, in_index++, input);
+        INSERT_ARGS(DNNL_ARG_SRC_2, in_index++, input);
+
         if (op->num_inputs() > 3) {
             INSERT_ARGS(DNNL_ARG_SCALE, in_index++, input);
             INSERT_ARGS(DNNL_ARG_SHIFT, in_index++, input);
         }
-        // running_mean/running_variance of last iteration
-        INSERT_ARGS(DNNL_ARG_SRC_1, in_index++, input);
-        INSERT_ARGS(DNNL_ARG_SRC_2, in_index++, input);
     }
 
     size_t out_index = 0;
@@ -753,27 +754,36 @@ void memory_planner_t::bind_memory_for_batchnorm_bwd(
     args.insert({DNNL_ARG_DIFF_DST, mem});
 
     exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_SCALE, mem});
-    args.insert({DNNL_ARG_SHIFT, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_MEAN, mem});
 
     exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_VARIANCE, mem});
 
+    if (op->num_outputs() > 2) {
+        exec_args_set_.find_value_mem_map(
+                op->get_input_value(index++).get(), mem);
+        args.insert({DNNL_ARG_SCALE, mem});
+        args.insert({DNNL_ARG_SHIFT, mem});
+    }
+
     // bind mem for outputs
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
+    index = 0;
+    exec_args_set_.find_value_mem_map(op->get_output_value(index++).get(), mem);
     args.insert({DNNL_ARG_DIFF_SRC, mem});
 
-    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SCALE, mem});
+    if (op->num_outputs() > index) {
+        exec_args_set_.find_value_mem_map(
+                op->get_output_value(index++).get(), mem);
+        args.insert({DNNL_ARG_DIFF_SCALE, mem});
 
-    exec_args_set_.find_value_mem_map(op->get_output_value(2).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SHIFT, mem});
+        exec_args_set_.find_value_mem_map(
+                op->get_output_value(index++).get(), mem);
+        args.insert({DNNL_ARG_DIFF_SHIFT, mem});
+    }
 
-    if (op->num_outputs() > 3) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(3).get(), mem);
+    if (op->num_outputs() > index) {
+        exec_args_set_.find_value_mem_map(
+                op->get_output_value(index++).get(), mem);
         args.insert({DNNL_ARG_SCRATCHPAD, mem});
     }
 
