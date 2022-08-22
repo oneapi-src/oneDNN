@@ -147,13 +147,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
                         |
                     Transpose
                         |
-                     Reorder
+                Reorder|StaticReshape
                         |
                      [output](f32)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative)
-        .set_priority(5.0f)
+        .set_priority(4.5f) // lower priority than non-alternative
         .set_kind(impl::partition_kind::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -175,9 +175,11 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto transpose_output = pgraph->append_op(
                             impl::op_kind::StaticTranspose,
                             {in_edge(0, matmul_v, 0)}, "transpose_output");
-                    pgraph->append_op(impl::op_kind::Reorder,
+                    pgraph->append_alternation(
+                            {impl::op_kind::Reorder,
+                                    impl::op_kind::StaticReshape},
                             {in_edge(0, transpose_output, 0)},
-                            "reorder_output");
+                            "reshape_reorder_output");
                 });
 
 // fp32 MHA training forward pattern
@@ -613,13 +615,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
                         |
                     Transpose
                         |
-                     Reorder
+                Reorder|StaticReshape
                         |
                      [output](bf16)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_pattern_alternative)
-        .set_priority(5.0f)
+        .set_priority(4.5f) // lower priority than non-alternative
         .set_kind(impl::partition_kind::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -641,9 +643,11 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto transpose_output = pgraph->append_op(
                             impl::op_kind::StaticTranspose,
                             {in_edge(0, matmul_v, 0)}, "transpose_output");
-                    pgraph->append_op(impl::op_kind::Reorder,
+                    pgraph->append_alternation(
+                            {impl::op_kind::Reorder,
+                                    impl::op_kind::StaticReshape},
                             {in_edge(0, transpose_output, 0)},
-                            "reorder_output");
+                            "reshape_reorder_output");
                 });
 
 // bf16 MHA training forward pattern
@@ -1078,7 +1082,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
                              |
                          Transpose
                              |
-                          Reorder
+                Reorder|StaticReshape
                              |
                           Quantize
                              |
@@ -1125,12 +1129,14 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto transpose_output = pgraph->append_op(
                             impl::op_kind::StaticTranspose,
                             {in_edge(0, matmul_v, 0)}, "transpose_output");
-                    auto reorder_output
-                            = pgraph->append_op(impl::op_kind::Reorder,
-                                    {in_edge(0, transpose_output, 0)},
-                                    "reorder_output");
+                    auto reshape_reorder_output = pgraph->append_alternation(
+                            {impl::op_kind::Reorder,
+                                    impl::op_kind::StaticReshape},
+                            {in_edge(0, transpose_output, 0)},
+                            "reshape_reorder_output");
                     pgraph->append_op(impl::op_kind::Quantize,
-                            {in_edge(0, reorder_output, 0)}, "quantize_output");
+                            {in_edge(0, reshape_reorder_output, 0)},
+                            "quantize_output");
                 });
 
 /*
@@ -1160,7 +1166,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                              |
                          Transpose
                              |
-                          Reorder
+                Reorder|StaticReshape
                              |
                           TypeCast
                              |
@@ -1223,13 +1229,14 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto transpose_output = pgraph->append_op(
                             impl::op_kind::StaticTranspose,
                             {in_edge(0, matmul_v, 0)}, "transpose_output");
-                    auto reorder_output
-                            = pgraph->append_op(impl::op_kind::Reorder,
-                                    {in_edge(0, transpose_output, 0)},
-                                    "reorder_output");
+                    auto reshape_reorder_output = pgraph->append_alternation(
+                            {impl::op_kind::Reorder,
+                                    impl::op_kind::StaticReshape},
+                            {in_edge(0, transpose_output, 0)},
+                            "reshape_reorder_output");
                     auto cast_output_fp32
                             = pgraph->append_op(impl::op_kind::TypeCast,
-                                    {in_edge(0, reorder_output, 0)},
+                                    {in_edge(0, reshape_reorder_output, 0)},
                                     "cast_output_fp32");
                     pgraph->append_op(impl::op_kind::Quantize,
                             {in_edge(0, cast_output_fp32, 0)},

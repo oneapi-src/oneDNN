@@ -135,6 +135,17 @@ TEST(GCGraphTest, FP32MHACompileExecution3) {
     compile_execution_pipeline(agraph, 1);
 }
 
+// test ITEX pattern ends with StaticReshape
+TEST(GCGraphTest, INT8BF16MHACompileExecution4) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative(
+            &agraph, false, false, impl::op_kind::StaticReshape);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, INT8MHACompileExecutionFake) {
     REQUIRE_AVX512(); // fake int8, so it only requires avx512
     impl::graph_t agraph;
@@ -167,6 +178,17 @@ TEST(GCGraphTest, INT8BF16MHACompileExecution2) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, true, true, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+// test ITEX pattern ends with StaticReshape
+TEST(GCGraphTest, INT8BF16MHACompileExecution3) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative(
+            &agraph, true, true, impl::op_kind::StaticReshape);
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1);

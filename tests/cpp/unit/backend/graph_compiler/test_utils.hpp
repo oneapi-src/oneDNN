@@ -446,10 +446,13 @@ inline void add_MHA_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
     }
 }
 
-// add MHA fp32/bf16/int8 graph with an extra reorder
+// add MHA fp32/bf16/int8 graph that has starting dequantize
+// after reshape/transpose && ends with reorder
 inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
-        bool use_bf16 = false, bool use_int8 = false, int batch_size = 128,
-        int seq_len = 384, int num_head = 16, int head_dim = 1024) {
+        bool use_bf16 = false, bool use_int8 = false,
+        impl::op_kind_t output_op_kind = impl::op_kind::Reorder,
+        int batch_size = 128, int seq_len = 384, int num_head = 16,
+        int head_dim = 1024) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
     int size_per_head = head_dim / num_head;
@@ -465,6 +468,8 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
             batch_size, num_head, seq_len, seq_len};
     std::vector<impl::dim_t> MATMUL_V_OUTPUT_SHAPE {
             batch_size, num_head, seq_len, size_per_head};
+    std::vector<impl::dim_t> RESHAPE_OUTPUT_SHAPE {
+            batch_size * seq_len, num_head * size_per_head};
     std::vector<impl::dim_t> CONST_SHAPE {1};
     auto dtype = use_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
 
@@ -535,19 +540,18 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
     matmul_v_out = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_V_OUTPUT_SHAPE, dtype);
 
-    impl::logical_tensor_t context_transpose_out, context_reorder_out;
+    impl::logical_tensor_t context_transpose_out, context_final_out;
     context_transpose_out = utils::logical_tensor_init(
             logical_tensor_idx++, QKV_RESHAPED_SHAPE, dtype);
-    context_reorder_out = utils::logical_tensor_init(
-            logical_tensor_idx++, QKV_RESHAPED_SHAPE, dtype);
+    context_final_out = utils::logical_tensor_init(logical_tensor_idx++, dtype);
 
     impl::logical_tensor_t context_cast_out;
     context_cast_out = utils::logical_tensor_init(
-            logical_tensor_idx++, QKV_RESHAPED_SHAPE, impl::data_type::f32);
+            logical_tensor_idx++, impl::data_type::f32);
 
     impl::logical_tensor_t context_quantize_out;
     context_quantize_out = utils::logical_tensor_init(
-            logical_tensor_idx++, QKV_RESHAPED_SHAPE, impl::data_type::u8);
+            logical_tensor_idx++, impl::data_type::u8);
 
     impl::op_t dequantize_query {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
@@ -611,8 +615,14 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
             op_idx++, impl::op_kind::StaticTranspose, "transpose_output"};
     transpose_output.set_attr(
             impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
-    impl::op_t reorder_output {
-            op_idx++, impl::op_kind::Reorder, "reorder_output"};
+    impl::op_t reshape_reorder_output {
+            op_idx++, output_op_kind, "reshape_reorder_output"};
+    if (output_op_kind == impl::op_kind::StaticReshape) {
+        // if static reshape
+        reshape_reorder_output.set_attr(
+                impl::op_attr::shape, RESHAPE_OUTPUT_SHAPE);
+        reshape_reorder_output.set_attr(impl::op_attr::special_zero, false);
+    }
 
     impl::op_t typecast_output {
             op_idx++, impl::op_kind::TypeCast, "typecast_output"};
@@ -682,15 +692,15 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
 
     transpose_output.add_input(matmul_v_out);
     transpose_output.add_output(context_transpose_out);
-    reorder_output.add_input(context_transpose_out);
-    reorder_output.add_output(context_reorder_out);
+    reshape_reorder_output.add_input(context_transpose_out);
+    reshape_reorder_output.add_output(context_final_out);
 
     if (use_int8) {
         quantize_output.add_output(context_quantize_out);
         if (!use_bf16) {
-            quantize_output.add_input(context_reorder_out);
+            quantize_output.add_input(context_final_out);
         } else {
-            typecast_output.add_input(context_reorder_out);
+            typecast_output.add_input(context_final_out);
             typecast_output.add_output(context_cast_out);
             quantize_output.add_input(context_cast_out);
         }
@@ -723,7 +733,7 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
 
     agraph->add_op(&matmul_v);
     agraph->add_op(&transpose_output);
-    agraph->add_op(&reorder_output);
+    agraph->add_op(&reshape_reorder_output);
 
     if (use_int8) {
         agraph->add_op(&quantize_output);
