@@ -130,9 +130,11 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     sc_data_type_t B_dtype = info_.inputs_[1]->details_.dtype_;
     sc_data_format_t A_format = info_.inputs_[0]->details_.get_format();
     sc_data_format_t B_format = info_.inputs_[1]->details_.get_format();
-    int im_block = (*reinterpret_cast<gen_managed_matmul_core_t *>(
-                            create_generator().get()))
-                           .im_block_;
+    auto gen_ptr = create_generator();
+    auto gen = static_cast<gen_managed_matmul_core_t *>(gen_ptr.get());
+    int iim_block = gen->iim_block_;
+    int iin_block = gen->iin_block_;
+    int iik_block = gen->iik_block_;
 
     // constant check
     bool constant_A = false, constant_B = false;
@@ -171,9 +173,10 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     }
 
     if (A_dims.size() == 2) {
-        if (constant_A || A_format.is_blocking() || M % im_block
-                || K % im_block) {
-            in_formats.push_back({sc_data_format_t::MKmk(im_block, im_block)});
+        if (constant_A || A_format.is_blocking() || M % iim_block
+                || K % iik_block) {
+            in_formats.push_back(
+                    {sc_data_format_t::MKmk(iim_block, iik_block)});
         } else {
             in_formats.push_back({sc_data_format_t::MK()});
         }
@@ -183,15 +186,15 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     if (B_dims.size() == 2) {
         if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
             in_formats.push_back(
-                    {sc_data_format_t::NKkn4k(im_block, im_block)});
+                    {sc_data_format_t::NKkn4k(iik_block, iin_block)});
         } else if (B_dtype == datatypes::bf16) {
             in_formats.push_back(
-                    {sc_data_format_t::NKkn2k(im_block, im_block)});
+                    {sc_data_format_t::NKkn2k(iik_block, iin_block)});
         } else {
-            if (constant_B || B_format.is_blocking() || K % im_block
-                    || N % im_block) {
+            if (constant_B || B_format.is_blocking() || K % iik_block
+                    || N % iin_block) {
                 in_formats.push_back(
-                        {sc_data_format_t::NKkn(im_block, im_block)});
+                        {sc_data_format_t::NKkn(iik_block, iin_block)});
             } else {
                 in_formats.push_back({sc_data_format_t::KN()});
             }
@@ -199,16 +202,16 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     } else {
         COMPILE_ASSERT(0, "managed_matmul_core only supports 2d yet");
     }
-    if (constant_B || M % im_block || N % im_block) {
+    if (constant_B || M % iim_block || N % iin_block) {
         out_formats.push_back(
                 {sc_data_format_t(sc_data_format_kind_t::get_2dblocking_by_dims(
                                           C_dims.size(), false),
-                        {im_block, im_block})});
+                        {iim_block, iin_block})});
     } else {
         out_formats.push_back(
                 {sc_data_format_t(sc_data_format_kind_t::get_2dblocking_by_dims(
                                           C_dims.size(), false),
-                         {im_block, im_block}),
+                         {iim_block, iin_block}),
                         sc_data_format_t::get_plain_by_dims(C_dims.size())});
         in_formats[0].push_back(in_formats[0][0]);
         in_formats[1].push_back(in_formats[1][0]);
@@ -216,9 +219,9 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
 
     // To calculate padded K of input A
     auto pad_K_num = utils::divide_and_ceil(
-            info_.inputs_[0]->details_.get_plain_dims().back(), im_block);
+            info_.inputs_[0]->details_.get_plain_dims().back(), iik_block);
     attrs_["temp.padded_A_K"].get<std::shared_ptr<VConst>>()->var_
-            = pad_K_num * im_block;
+            = pad_K_num * iik_block;
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);
 }

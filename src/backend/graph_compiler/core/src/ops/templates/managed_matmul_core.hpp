@@ -37,7 +37,9 @@ class gen_managed_matmul_core_t
   : public body_generator_t<managed_matmul_core_config_t> {
 public:
   // inner most block
-  int im_block_;
+  int iim_block_;
+  int iin_block_;
+  int iik_block_;
   struct op_params_t {
     static constexpr int in_A = 0;
     static constexpr int in_B = 1;
