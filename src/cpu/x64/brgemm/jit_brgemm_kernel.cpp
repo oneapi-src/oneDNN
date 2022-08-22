@@ -111,8 +111,8 @@ private:
             typename utils::conditional<std::is_same<Wmm, Xbyak::Tmm>::value,
                     Xbyak::Zmm, Wmm>::type;
     using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
-    static constexpr cpu_isa_t po_isa_t
-            = utils::map(isa, avx512_core, avx2_vnni, avx2, avx2, avx2);
+    static constexpr cpu_isa_t po_isa_t = utils::map(isa, avx512_core,
+            avx512_core_fp16, avx512_core_fp16, avx2_vnni, avx2, avx2, avx2);
     using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_t, Vmm>;
     std::unique_ptr<po_injector_t> postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
