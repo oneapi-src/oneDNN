@@ -201,6 +201,69 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_matmul>();
         });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, matmul_transpose_optional_reshape_fusion)
+        .set_priority(9.f)
+        .set_kind(impl::partition_kind::matmul_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *pmatmul
+                            = pgraph->append_op(impl::op_kind::MatMul);
+
+                    // Optional bias_add
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
+                            impl::op_kind::BiasAdd, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, pmatmul, 0)}, "popt_bias");
+
+                    // Optional pre reshape
+                    auto popt_reshape_pre_graph = std::make_shared<pb_graph_t>(
+                            "poptional_reshape_pre");
+                    pm::pb_op_t *preshape_pre
+                            = popt_reshape_pre_graph->append_op(
+                                    impl::op_kind::StaticReshape,
+                                    "preshape_pre");
+                    popt_reshape_pre_graph->create_input_port(
+                            0, preshape_pre, 0);
+                    popt_reshape_pre_graph->create_output_port(
+                            0, preshape_pre, 0);
+                    auto popt_reshape_pre
+                            = pgraph->append_optional(popt_reshape_pre_graph,
+                                    in_edges_t {in_edge(0, popt_bias, 0)},
+                                    "popt_reshape_pre");
+
+                    // transpose
+                    auto ptranspose = pgraph->append_op(
+                            impl::op_kind::StaticTranspose,
+                            in_edges_t {in_edge(0, popt_reshape_pre, 0)},
+                            "ptranspose");
+
+                    // Optional post reshape
+                    auto popt_reshape_post_graph = std::make_shared<pb_graph_t>(
+                            "poptional_reshape_post");
+                    pm::pb_op_t *preshape_post
+                            = popt_reshape_post_graph->append_op(
+                                    impl::op_kind::StaticReshape,
+                                    "preshape_post");
+                    popt_reshape_post_graph->create_input_port(
+                            0, preshape_post, 0);
+                    popt_reshape_post_graph->create_output_port(
+                            0, preshape_post, 0);
+                    pgraph->append_optional(popt_reshape_post_graph,
+                            in_edges_t {in_edge(0, ptranspose, 0)},
+                            "popt_reshape_post");
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_matmul>();
+        });
+
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
