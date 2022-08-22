@@ -3285,9 +3285,8 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> transpose_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == op_kind::dnnl_transpose
                 && cur_op->get_input_value(0)->has_producer()
                 && cur_op->get_input_value(0)->get_producer().get_kind()
