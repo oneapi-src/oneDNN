@@ -1356,6 +1356,7 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(const Tmm &t1,
     if (buf_offt) add(reg_buf, buf_offt);
     mov(reg_bf32_stride, zmm_width_in_bytes);
 
+    assert(t1.getIdx() >= 0 && t1.getIdx() < 16);
     const int num_rows = palette_.rows[t1.getIdx()];
     const int num_col_bytes = palette_.cols[t1.getIdx()];
     if (is_A) {
