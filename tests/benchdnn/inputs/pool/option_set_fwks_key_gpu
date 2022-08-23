@@ -5,6 +5,8 @@
 --reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb1024ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50.inf.int8.tf.mb1024*1"
 #resnet-50.inf.int8.ov.mb64
 --reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb64ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50.inf.int8.ov.mb64*1"
+#resnet-50.inf.int8.ov.mb1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50.inf.int8.ov.mb1*1"
 #resnet-50.tr.bf16.pt.mb256
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb256ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50.tr.bf16.pt.mb256*1"
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=avg_p --tag=acdb mb256ic2048_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"resnet-50.tr.bf16.pt.mb256*1"
