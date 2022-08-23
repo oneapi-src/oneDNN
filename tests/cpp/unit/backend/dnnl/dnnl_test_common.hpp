@@ -211,7 +211,7 @@ static inline dnnl::graph::impl::status_t run_graph(
 }
 
 template <typename T>
-static inline bool allclose(const test::vector<T> &a, const test::vector<T> &b,
+inline bool allclose(const test::vector<T> &a, const test::vector<T> &b,
         float rtol, float atol) {
     if (a.size() != b.size()) return false;
     bool flag = true;
@@ -223,6 +223,14 @@ static inline bool allclose(const test::vector<T> &a, const test::vector<T> &b,
         }
     }
     return flag;
+}
+
+template <typename T>
+void copy_data(const std::vector<T> &from, test::vector<T> &to) {
+    to.resize(from.size());
+    for (size_t i = 0; i < from.size(); i++) {
+        to[i] = from[i];
+    }
 }
 
 static inline size_t product(std::vector<int64_t> &in) {

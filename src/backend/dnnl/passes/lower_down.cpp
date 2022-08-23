@@ -2544,7 +2544,7 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (!shape_check_ok) return impl::status::invalid_shape;
 
-        // insert expand op
+        // insert unsqueeze op
         int32_t src0_ndims = src0_lt.ndims;
         int32_t src1_ndims = src1_lt.ndims;
         int32_t target_ndims = std::max(src0_ndims, src1_ndims);
@@ -2552,22 +2552,25 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
             if (in_ndims[i] == target_ndims) { continue; }
 
-            auto expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
-            // for BiasAdd, use axes to specify where to insert dimension 1
-            if (is_bias_add
+            std::vector<int64_t> axes(target_ndims - in_ndims[i]);
+            std::iota(axes.begin(), axes.end(), 0);
+
+            // Only for NCX format BiasAdd, we need to unsqueeze the 1D bias to
+            // [1, C, 1, 1]
+            const bool channel_first = is_bias_add
                     && (!cur_op->has_attr(op_attr::data_format)
                             || cur_op->get_attr<std::string>(
                                        op_attr::data_format)
-                                    == "NCX")) {
-                std::vector<int64_t> axes(target_ndims);
-                std::iota(axes.begin(), axes.end(), 0);
+                                    == "NCX");
+            if (channel_first && axes.size() >= 2) {
                 axes.erase(axes.begin() + 1);
-                expand_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
-            } else {
-                expand_op->set_attr<int64_t>(op_attr::expand_to, target_ndims);
+                axes.emplace_back(-1);
             }
-            insert_op_before(expand_op, cur_op, i);
-            to_be_inserted_ops.emplace_back(expand_op);
+
+            auto unsqueeze_op = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
+            unsqueeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
+            insert_op_before(unsqueeze_op, cur_op, i);
+            to_be_inserted_ops.emplace_back(unsqueeze_op);
         }
 
         // set attr

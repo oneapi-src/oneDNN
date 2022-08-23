@@ -232,7 +232,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_from_group, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_from_group_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(dnnl_expand, 1,
+DNNL_GRAPH_OP_SCHEMA(dnnl_unsqueeze, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
@@ -243,12 +243,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_expand, 1,
                         "negative value means counting dimensions from the "
                         "back",
                         false, attribute_kind::is)
-                .set_attr(op_attr::insert_1dim, "where to insert 1 dim", false,
-                        attribute_kind::s, "none")
-                .set_attr(op_attr::expand_to, "target ndims to expand", false,
-                        attribute_kind::i, (int64_t)(-1))
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
-                .set_shape_inference_function(infer_expand_output_shape))
+                .set_shape_inference_function(infer_unsqueeze_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_squeeze, 1,
         op_schema_t()

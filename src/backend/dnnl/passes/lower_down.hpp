@@ -144,8 +144,8 @@ impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 ///            ...
 impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg);
 
-// This pass is used to insert expand op before dnnl_binary op's inputs to make
-// the input shape meet the requirement of oneDNN binary primitive
+// This pass is used to insert unsqueeze op before dnnl_binary op's inputs to
+// make the input shape meet the requirement of oneDNN binary primitive
 impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 // This pass is used to swap two inputs to broadcast src1 which is optimized in

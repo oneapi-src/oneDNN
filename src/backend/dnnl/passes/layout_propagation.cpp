@@ -1048,18 +1048,24 @@ static impl::status_t layout_propagation_for_from_group(op_ptr &op,
     return status;
 }
 
-static impl::status_t layout_propagation_for_reshape(op_ptr &op,
+static impl::status_t layout_propagation_for_reshape_like_ops(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops,
+        const dnnl::memory::dims &target_dims) {
     impl::status_t status = impl::status::success;
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
-    auto target_dims = make_dnnl_memory_desc(out_lt).dims();
 
     assertm(!ltw(in_lt).is_any(), "input layout must be specified");
+
+    if (target_dims.empty()) {
+        // scalar, just set empty strides to make the dst strided
+        dst->set_strides({});
+        return impl::status::success;
+    }
 
     if (ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
@@ -1117,6 +1123,16 @@ static impl::status_t layout_propagation_for_reshape(op_ptr &op,
             // and out_md are not reshapable.
         }
     }
+    return status;
+}
+
+static impl::status_t layout_propagation_for_reshape(op_ptr &op,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    auto out_lt = op->get_output_value(0)->get_logical_tensor();
+    auto target_dims = ltw(out_lt).vdims();
+    impl::status_t status = layout_propagation_for_reshape_like_ops(
+            op, p_engine, mgr, pd_cache, reorder_ops, target_dims);
     return status;
 }
 
@@ -1178,7 +1194,7 @@ static impl::status_t layout_propagation_for_transpose(op_ptr &op,
     return status;
 }
 
-static impl::status_t layout_propagation_for_expand(op_ptr &op) {
+static impl::status_t layout_propagation_for_unsqueeze(op_ptr &op) {
     impl::status_t status = impl::status::success;
     value_ptr src = op->get_input_value(0);
     value_ptr dst = op->get_output_value(0);
@@ -1196,114 +1212,10 @@ static impl::status_t layout_propagation_for_expand(op_ptr &op) {
 static impl::status_t layout_propagation_for_squeeze(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
-    impl::status_t status = impl::status::success;
-    std::shared_ptr<impl::value_t> src, dst;
-    src = op->get_input_value(0);
-    dst = op->get_output_value(0);
-    auto in_lt = src->get_logical_tensor();
-    auto out_lt = dst->get_logical_tensor();
-
-    auto predecessor_kind = src->get_producer().get_kind();
-    // Predecessor kind is expand in the case of prelu bwd
-    if (predecessor_kind == op_kind::dnnl_reduction
-            || predecessor_kind == op_kind::dnnl_expand) {
-        auto in_md = make_dnnl_memory_desc(in_lt);
-        if (ltw(out_lt).is_any()) {
-            const auto in_ndim = static_cast<int64_t>(in_md.dims().size());
-            auto axes = op->get_attr<std::vector<int64_t>>(op_attr::axes);
-            std::transform(axes.begin(), axes.end(), axes.begin(),
-                    [&in_ndim](int64_t axis) -> int64_t {
-                        return axis < 0 ? in_ndim + axis : axis;
-                    });
-            for (const auto axis : axes) {
-                const bool valid
-                        = in_md.data.padded_dims[axis] == in_md.data.dims[axis]
-                        && in_md.data.dims[axis] == 1;
-                UNUSED(valid);
-                assertm(valid,
-                        "squeeze failed since there is padding in the squeezed "
-                        "dimension");
-            }
-            status = fill_layout_info(dst, in_md.reshape(ltw(out_lt).vdims()));
-        } else {
-            auto out_md = make_dnnl_memory_desc(out_lt);
-            auto tmp_in_md = out_md.reshape(in_md.dims());
-            if (in_md != tmp_in_md)
-                insert_reorder_before(
-                        op, 0, tmp_in_md, p_engine, mgr, pd_cache, reorder_ops);
-        }
-        return status;
-    }
-
-    if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
-        // `matmul (opaque) -> squeeze -> output (any)`
-        dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
-        dnnl::memory::desc out_md = in_md;
-
-        auto axes = op->get_attr<std::vector<int64_t>>(op_attr::axes);
-        auto in_ndim = in_md.dims().size();
-
-        // If there is padding in the dimension to be squeezed, reshape
-        // cannot handle this case and we need insert a reorder for this
-        // case
-        const auto &blocking_desc = in_md.data.format_desc.blocking;
-        for (size_t i = 0; i < blocking_desc.inner_nblks; ++i) {
-            if (blocking_desc.inner_idxs[i] == in_ndim + axes.back()) {
-                assertm(false,
-                        "squeeze failed since there is padding in the squeezed "
-                        "dimension");
-            }
-        }
-
-        if (axes.size() == 2) {
-            // the output is a scalar or no need to squeeze,
-            // just skip for layout propagation
-        } else {
-            assertm(axes.size() == 1,
-                    "the size of axes in squeeze op "
-                    "should be 1.");
-            auto reshaped_dims = in_md.dims();
-            if (axes.back() == -1) {
-                reshaped_dims.erase(reshaped_dims.begin() + in_ndim - 1);
-            } else if (axes.back() == -2) {
-                reshaped_dims.erase(reshaped_dims.begin() + in_ndim - 2);
-            }
-            out_md = in_md.reshape(reshaped_dims);
-        }
-
-        status = fill_layout_info(dst, out_md);
-    } else if (!ltw(in_lt).is_any() && !ltw(out_lt).is_any()) {
-        // `matmul (opaque) -> squeeze -> output (strided)`
-        dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
-        dnnl::memory::desc tmp_in_md = out_md;
-
-        auto axes = op->get_attr<std::vector<int64_t>>(op_attr::axes);
-
-        if (axes.empty()) {
-            // the output doesn't need to squeeze, just skip layout propagation
-        } else if (ltw(in_lt).vdims().size() == 2 && axes.size() == 2) {
-            // squeeze from {1,1} shaped tensor to a scalar.
-            tmp_in_md = dnnl::memory::desc(
-                    {1, 1}, out_md.data_type(), dnnl::memory::format_tag::ab);
-        } else {
-            assertm(axes.size() == 1,
-                    "the size of axes in squeeze op "
-                    "should be 1.");
-            auto reshaped_dims = out_md.dims();
-            if (axes.back() == -1) {
-                reshaped_dims.insert(reshaped_dims.end(), 1);
-            } else if (axes.back() == -2) {
-                reshaped_dims.insert(reshaped_dims.end() - 1, 1);
-            }
-            tmp_in_md = out_md.reshape(reshaped_dims);
-        }
-
-        // if the input md derived from output md is different from the real
-        // input mem desc, just insert a reorder before the op
-        if (make_dnnl_memory_desc(in_lt) != tmp_in_md)
-            insert_reorder_before(
-                    op, 0, tmp_in_md, p_engine, mgr, pd_cache, reorder_ops);
-    }
+    auto out_lt = op->get_output_value(0)->get_logical_tensor();
+    auto target_dims = ltw(out_lt).vdims();
+    impl::status_t status = layout_propagation_for_reshape_like_ops(
+            op, p_engine, mgr, pd_cache, reorder_ops, target_dims);
     return status;
 }
 
@@ -1771,8 +1683,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_transpose) {
                 status = layout_propagation_for_transpose(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == op_kind::dnnl_expand) {
-                status = layout_propagation_for_expand(cur_op);
+            } else if (cur_op->get_kind() == op_kind::dnnl_unsqueeze) {
+                status = layout_propagation_for_unsqueeze(cur_op);
             } else if (cur_op->get_kind() == op_kind::dnnl_reorder) {
                 status = layout_propagation_for_reorder(
                         cur_op, p_engine, mgr, pd_cache);

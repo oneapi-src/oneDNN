@@ -102,7 +102,7 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_permute
                 || cur_op->get_kind() == op_kind::dnnl_to_group
                 || cur_op->get_kind() == op_kind::dnnl_from_group
-                || cur_op->get_kind() == op_kind::dnnl_expand
+                || cur_op->get_kind() == op_kind::dnnl_unsqueeze
                 || cur_op->get_kind() == op_kind::dnnl_squeeze
                 || cur_op->get_kind() == op_kind::dnnl_reshape
                 || cur_op->get_kind() == op_kind::dnnl_transpose) {

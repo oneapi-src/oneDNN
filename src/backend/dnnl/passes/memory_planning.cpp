@@ -1359,7 +1359,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::dnnl_permute
                         || op->get_kind() == op_kind::dnnl_to_group
                         || op->get_kind() == op_kind::dnnl_from_group
-                        || op->get_kind() == op_kind::dnnl_expand
+                        || op->get_kind() == op_kind::dnnl_unsqueeze
                         || op->get_kind() == op_kind::dnnl_squeeze
                         || op->get_kind() == op_kind::dnnl_resampling
                         || op->get_kind() == op_kind::dnnl_reshape

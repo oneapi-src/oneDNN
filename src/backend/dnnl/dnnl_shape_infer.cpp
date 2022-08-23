@@ -303,7 +303,7 @@ status_t infer_from_group_output_shape(op_t *n,
     return status::success;
 }
 
-status_t infer_expand_output_shape(op_t *n,
+status_t infer_unsqueeze_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     using ltw = logical_tensor_wrapper_t;
@@ -313,31 +313,6 @@ status_t infer_expand_output_shape(op_t *n,
             ? n->get_attr<std::vector<int64_t>>(op_attr::axes)
             : std::vector<int64_t>();
     const auto in_dims = ltw(inputs[0]).vdims();
-    // if axes are present, we ignore other attributes,
-    // otherwise, we calculate axes based on them
-    if (axes.empty()) {
-        const int64_t first = 0;
-        const int64_t last = -1;
-        if (n->has_attr(op_attr::insert_1dim)) {
-            const auto insert_1dim
-                    = n->get_attr<std::string>(op_attr::insert_1dim);
-            if (insert_1dim == "before") {
-                axes.push_back(first);
-            } else if (insert_1dim == "after") {
-                axes.push_back(last);
-            }
-        }
-        if (n->has_attr(op_attr::expand_to)) {
-            const auto target_ndims = n->get_attr<int64_t>(op_attr::expand_to);
-            const size_t to_insert = static_cast<size_t>(target_ndims)
-                    - in_dims.size() - axes.size();
-            const size_t offset
-                    = (!axes.empty() && axes.front() == first) ? 1 : 0;
-            for (size_t i = 0; i < to_insert; ++i) {
-                axes.push_back(i + offset);
-            }
-        }
-    }
 
     const auto out_ndim = static_cast<int64_t>(in_dims.size() + axes.size());
     if (std::any_of(axes.begin(), axes.end(), [&out_ndim](int64_t axis) {

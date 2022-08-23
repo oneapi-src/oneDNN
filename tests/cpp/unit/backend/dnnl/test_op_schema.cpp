@@ -58,22 +58,18 @@ TEST(OpSchema, InferSqueezeOutputShape) {
     }
 }
 
-TEST(OpSchema, InferExpandOutputShape) {
-    const op_kind_t kind = impl::dnnl_impl::op_kind::dnnl_expand;
+TEST(OpSchema, InferUnsqueezeOutputShape) {
+    const op_kind_t kind = impl::dnnl_impl::op_kind::dnnl_unsqueeze;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
 
     const std::vector<int64_t> src_shape {4};
-    const int64_t expand_to {4};
-
     const std::vector<std::vector<int64_t>> dst_shapes {
             {1, 1, 1, 4}, {1, 1, 4, 1}};
-    const std::vector<std::string> insert_1dim {"before", "after"};
+    const std::vector<std::vector<int64_t>> axes {{0, 1, 2}, {0, 1, -1}};
 
     for (size_t i = 0; i < dst_shapes.size(); ++i) {
-        op_t op {kind, "expand"};
-        op.set_attr<int64_t>(dnnl_impl::op_attr::expand_to, expand_to);
-        op.set_attr<std::string>(
-                dnnl_impl::op_attr::insert_1dim, insert_1dim[i]);
+        op_t op {kind, "unsqueeze"};
+        op.set_attr<std::vector<int64_t>>(dnnl_impl::op_attr::axes, axes[i]);
 
         logical_tensor_t lt_in = logical_tensor_init(
                 0, src_shape, data_type::f32, layout_type::strided);
@@ -93,8 +89,8 @@ TEST(OpSchema, InferExpandOutputShape) {
     }
 }
 
-TEST(OpSchema, InferExpandOutputShapeBasedOnAxes) {
-    const op_kind_t kind = impl::dnnl_impl::op_kind::dnnl_expand;
+TEST(OpSchema, InferUnsqueezeOutputShapeBasedOnAxes) {
+    const op_kind_t kind = impl::dnnl_impl::op_kind::dnnl_unsqueeze;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
 
     const std::vector<std::vector<int64_t>> axes_list {
@@ -105,7 +101,7 @@ TEST(OpSchema, InferExpandOutputShapeBasedOnAxes) {
             {3, 1, 4, 5}, {3, 1, 1, 4, 5}, {3, 4, 5, 1}, {3, 4, 5, 1, 1}};
 
     for (size_t i = 0; i < axes_list.size(); ++i) {
-        op_t op {kind, "expand"};
+        op_t op {kind, "unsqueeze"};
         op.set_attr<std::vector<int64_t>>(op_attr::axes, axes_list[i]);
 
         logical_tensor_t lt_in = logical_tensor_init(

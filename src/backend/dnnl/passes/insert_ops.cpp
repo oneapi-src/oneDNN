@@ -374,7 +374,7 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
 
         for (size_t i = 0; i < trans_flag.size(); ++i) {
             // skip if transpose flag is false or the input's ndim is 1
-            // otherwise, we need do do expand
+            // otherwise, we need do do unsqueeze
             if (!trans_flag[i]
                     || cur_op->get_input_value(i)->get_logical_tensor().ndims
                             <= 1)
@@ -484,100 +484,59 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
     return infer_shape(sg);
 }
 
-impl::status_t insert_expand_and_squeeze_for_matmul(
+impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
         std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
+    for (auto &op : subgraph) {
+        if (op->get_kind() != op_kind::dnnl_matmul) continue;
 
-        std::vector<op_ptr> expand_ops;
-        expand_ops.reserve(cur_op->num_inputs());
+        int32_t src_ndims = op->get_input_value(0)->get_logical_tensor().ndims;
+        int32_t wei_ndims = op->get_input_value(1)->get_logical_tensor().ndims;
+        assertm(src_ndims >= 1 && wei_ndims >= 1, "invalid dims");
 
-        int32_t new_src_ndims
-                = cur_op->get_input_value(0)->get_logical_tensor().ndims;
-        int32_t new_wei_ndims
-                = cur_op->get_input_value(1)->get_logical_tensor().ndims;
-        assertm(new_src_ndims >= 1 && new_wei_ndims >= 1, "invalid dims");
+        int32_t unsqueezed_dst_ndims
+                = std::max(std::max(src_ndims, wei_ndims), 2);
 
-        std::vector<int32_t> ori_ndims {new_src_ndims, new_wei_ndims};
-        for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
-            auto expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
-            if (i < 2) { // src and weight
-                auto ndims = ori_ndims[i];
-                if (ndims != 1) {
-                    expand_ops.emplace_back(expand_op);
-                    continue;
-                }
-                // 1D -> 2D
-                if (i == 0) {
-                    expand_op->set_attr<std::string>(
-                            op_attr::insert_1dim, "before");
-                    new_src_ndims = ndims + 1;
-                } else if (i == 1) {
-                    expand_op->set_attr<std::string>(
-                            op_attr::insert_1dim, "after");
-                    new_wei_ndims = ndims + 1;
-                }
-            } else { // bias
-                // expand bias to dst ndims if they are mis-matched
-                int64_t tgt_ndims = std::max(new_src_ndims, new_wei_ndims);
-                if (cur_op->get_input_value(i)->get_logical_tensor().ndims
-                        != tgt_ndims)
-                    expand_op->set_attr<int64_t>(op_attr::expand_to, tgt_ndims);
-            }
-            expand_ops.emplace_back(expand_op);
-        }
-
-        std::vector<int64_t> squeeze_dims = {};
-        for (size_t i = 0; i < expand_ops.size(); ++i) {
-            if (i == 0 && new_src_ndims < new_wei_ndims) {
-                expand_ops[i]->set_attr<int64_t>(
-                        op_attr::expand_to, new_wei_ndims);
-            } else if (i == 1 && new_wei_ndims < new_src_ndims) {
-                expand_ops[i]->set_attr<int64_t>(
-                        op_attr::expand_to, new_src_ndims);
+        std::vector<int64_t> squeeze_axes;
+        for (size_t i = 0; i < op->num_inputs(); i++) {
+            int32_t ndims = op->get_input_value(i)->get_logical_tensor().ndims;
+            std::vector<int64_t> axes;
+            if (i == 0 && ndims == 1) {
+                // 1D src: [K] -> [1, K]
+                axes.emplace_back(-2);
+                squeeze_axes.emplace_back(-2);
+            } else if (i == 1 && ndims == 1) {
+                // 1D weight: [K] -> [K, 1]
+                axes.emplace_back(-1);
+                squeeze_axes.emplace_back(-1);
             }
 
-            // insert expand ops
-            if ((expand_ops[i]->has_attr(op_attr::insert_1dim)
-                        && expand_ops[i]->get_attr<std::string>(
-                                   op_attr::insert_1dim)
-                                != "none")
-                    || (expand_ops[i]->has_attr(op_attr::expand_to)
-                            && expand_ops[i]->get_attr<int64_t>(
-                                       op_attr::expand_to)
-                                    != -1)) {
-                insert_op_before(expand_ops[i], cur_op, i);
-                to_be_inserted_ops.emplace_back(expand_ops[i]);
+            size_t batch_dim_num = unsqueezed_dst_ndims - axes.size() - ndims;
+            for (size_t b = 0; b < batch_dim_num; b++) {
+                axes.emplace_back(b);
             }
 
-            // decide squeeze dims
-            if (expand_ops[i]->has_attr(op_attr::insert_1dim)
-                    && expand_ops[i]->get_attr<std::string>(
-                               op_attr::insert_1dim)
-                            != "none") {
-                // -2 means the second rightmost dimension, -1 means the
-                // rightmost dimension
-                int64_t dim_to_be_squeezed
-                        = expand_ops[i]->get_attr<std::string>(
-                                  op_attr::insert_1dim)
-                                == "before"
-                        ? static_cast<int64_t>(-2)
-                        : static_cast<int64_t>(-1);
-                squeeze_dims.push_back(dim_to_be_squeezed);
+            if (!axes.empty()) {
+                auto unsqueeze_op
+                        = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
+                unsqueeze_op->set_attr<std::vector<int64_t>>(
+                        op_attr::axes, axes);
+                insert_op_before(unsqueeze_op, op, i);
+                to_be_inserted_ops.emplace_back(unsqueeze_op);
             }
         }
 
-        // insert squeeze ops
-        if (!squeeze_dims.empty()) {
-            op_ptr squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
+        // squeeze dst
+        if (!squeeze_axes.empty()) {
+            auto squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
             squeeze_op->set_attr<std::vector<int64_t>>(
-                    op_attr::axes, squeeze_dims);
-            insert_op_after(squeeze_op, cur_op, 0);
+                    op_attr::axes, squeeze_axes);
+            insert_op_after(squeeze_op, op, 0);
             to_be_inserted_ops.emplace_back(squeeze_op);
         }
     }
+
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
     return infer_shape(sg);
@@ -643,11 +602,10 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
-impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t insert_unsqueeze_for_prelu(std::shared_ptr<subgraph_t> &sg) {
     using ltw = impl::logical_tensor_wrapper_t;
 
     std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
 
     auto &subgraph = sg->get_mutable_ops();
 
@@ -666,31 +624,28 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
                     per_channel_broadcast)) {
             return status::invalid_shape;
         }
-        // insert expand op
+        // insert unsqueeze op
         int32_t src_ndims = src_lt.ndims;
         int32_t wei_ndims = wei_lt.ndims;
         // we only broadcast wei dims
         if (wei_ndims != src_ndims) {
-            auto expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
-            expand_op->set_attr<int64_t>(op_attr::expand_to, src_ndims);
-            // insert op before weights, which are the second input
-            int wei_id = 1;
-            insert_op_before(expand_op, cur_op, wei_id);
-            to_be_inserted_ops.emplace_back(expand_op);
+            std::vector<int64_t> axes(src_ndims - wei_ndims);
+            std::iota(axes.begin(), axes.end(), 0);
 
-            if (data_format == "NCX" && src_ndims > 2
-                    && per_channel_broadcast) {
-                // If data format is NCX we need to permute expanded weights,
-                // which are in format NXC.
-                op_ptr perm_op
-                        = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-                perm_op->set_attr<std::string>(
-                        op_attr::permute_kind, "permute");
-                perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-                perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-                insert_op_after(perm_op, expand_op, 0);
-                to_be_inserted_ops.emplace_back(perm_op);
+            // Only for NCX format per_channel broadcast PReLU, we need to
+            // unsqueeze the 1D weight to [1, C, 1, 1]
+            const bool channel_first
+                    = data_format == "NCX" && per_channel_broadcast;
+            if (channel_first && axes.size() >= 2) {
+                axes.erase(axes.begin() + 1);
+                axes.emplace_back(-1);
             }
+
+            auto unsqueeze_op = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
+            unsqueeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
+            int wei_id = 1; // weight is the second input
+            insert_op_before(unsqueeze_op, cur_op, wei_id);
+            to_be_inserted_ops.emplace_back(unsqueeze_op);
         }
     }
 
@@ -698,16 +653,10 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
         subgraph.emplace_back(op);
     }
 
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
     return infer_shape(sg);
 }
 
-impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
+impl::status_t insert_unsqueeze_and_squeeze_for_prelu_bwd(
         std::shared_ptr<subgraph_t> &sg) {
     using ltw = impl::logical_tensor_wrapper_t;
 
@@ -735,61 +684,38 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
                     per_channel_broadcast)) {
             return status::invalid_shape;
         }
-        // insert expand op
+        // insert unsqueeze op
         int32_t src_ndims = src_lt.ndims;
         int32_t wei_ndims = wei_lt.ndims;
         // we only broadcast wei dims
         if (wei_ndims != src_ndims) {
-            auto expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
-            expand_op->set_attr<int64_t>(op_attr::expand_to, src_ndims);
-            // insert expand before weights, which are the second input
-            int wei_id = 1;
-            insert_op_before(expand_op, cur_op, wei_id);
-            to_be_inserted_ops.emplace_back(expand_op);
+            std::vector<int64_t> axes(src_ndims - wei_ndims);
+            std::iota(axes.begin(), axes.end(), 0);
 
-            auto expand_op_diff_wei
-                    = std::make_shared<op_t>(op_kind::dnnl_expand);
-            expand_op_diff_wei->set_attr<int64_t>(
-                    op_attr::expand_to, src_ndims);
-            // insert expand before diff_weights, which are the second output
-            insert_op_after(expand_op_diff_wei, cur_op, wei_id);
-            to_be_inserted_ops.emplace_back(expand_op_diff_wei);
-
-            if (data_format == "NCX" && src_ndims > 2
-                    && per_channel_broadcast) {
-                // If data format is NCX we need to permute expanded weights,
-                // which are in format NXC.
-                op_ptr perm_op
-                        = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-                perm_op->set_attr<std::string>(
-                        op_attr::permute_kind, "permute");
-                perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-                perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-                insert_op_after(perm_op, expand_op, 0);
-                to_be_inserted_ops.emplace_back(perm_op);
+            // Only for NCX format per_channel broadcast PReLU, we need to
+            // unsqueeze the 1D weight to [1, C, 1, 1]
+            const bool channel_first
+                    = data_format == "NCX" && per_channel_broadcast;
+            if (channel_first && axes.size() >= 2) {
+                axes.erase(axes.begin() + 1);
+                axes.emplace_back(-1);
             }
 
-            std::vector<int64_t> squeeze_dims = {};
-            if (wei_vdims.size() == 1) {
-                squeeze_dims.resize(src_ndims - 1);
-                squeeze_dims[0] = 0;
-                if (data_format == "NCX") {
-                    std::iota(squeeze_dims.begin() + 1, squeeze_dims.end(), 2);
-                } else {
-                    // data_format == "NXC"
-                    std::iota(squeeze_dims.begin() + 1, squeeze_dims.end(), 1);
-                }
-            } else {
-                squeeze_dims.resize(1);
-                squeeze_dims[0] = 0;
-            }
+            auto unsqueeze_op = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
+            unsqueeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
+            int wei_id = 1; // weight is the second input
+            insert_op_before(unsqueeze_op, cur_op, wei_id);
+            to_be_inserted_ops.emplace_back(unsqueeze_op);
 
+            // the squeeze is exactly the inverse of unsqueeze, so they use same
+            // axes
+            std::vector<int64_t> squeeze_axes = axes;
             op_ptr squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
             squeeze_op->set_attr<std::vector<int64_t>>(
-                    op_attr::axes, squeeze_dims);
+                    op_attr::axes, squeeze_axes);
             // Insert squeeze after diff weights, so that its dimensions
             // have their original shape.
-            insert_op_after(squeeze_op, expand_op_diff_wei, 0);
+            insert_op_after(squeeze_op, cur_op, 1);
             to_be_inserted_ops.emplace_back(squeeze_op);
         }
     }
@@ -807,7 +733,7 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
     return infer_shape(sg);
 }
 
-impl::status_t insert_expand_and_squeeze_for_reduction(
+impl::status_t insert_unsqueeze_and_squeeze_for_reduction(
         std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
@@ -833,13 +759,15 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
             size_t src1_offset
                     = (post_op.get_input_value(0).get() == connector.get()) ? 1
                                                                             : 0;
-            // insert expand OP before binary's src1 input
+            // insert unsqueeze op before binary's src1 input
             if (post_op.get_kind() == op_kind::dnnl_binary) {
                 if (!post_binary_fusible(cur_op.get(), &post_op)) break;
-                op_ptr expand_op = std::make_shared<op_t>(op_kind::dnnl_expand);
-                expand_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
-                insert_op_before(expand_op.get(), &post_op, src1_offset);
-                to_be_inserted_ops.emplace_back(expand_op);
+                op_ptr unsqueeze_op
+                        = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
+                unsqueeze_op->set_attr<std::vector<int64_t>>(
+                        op_attr::axes, axes);
+                insert_op_before(unsqueeze_op.get(), &post_op, src1_offset);
+                to_be_inserted_ops.emplace_back(unsqueeze_op);
             }
 
             // set fresh value for cur_op_ptr output (which is post-op input

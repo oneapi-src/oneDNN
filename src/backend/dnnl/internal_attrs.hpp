@@ -49,14 +49,12 @@ const op_attr_t with_sum = 0x1000e;
 // int64_t
 const op_attr_t alg_kind = 0x10100;
 const op_attr_t dw_groups = 0x10101;
-const op_attr_t expand_to = 0x10102;
 const op_attr_t fusion_info_key = 0x10103;
 
 // string
 const op_attr_t dw_filter_format = 0x10200;
 const op_attr_t dw_type = 0x10201;
 const op_attr_t from_format = 0x10202;
-const op_attr_t insert_1dim = 0x10203;
 const op_attr_t kind = 0x10204;
 const op_attr_t permute_kind = 0x10205;
 const op_attr_t to_format = 0x10206;
@@ -90,12 +88,10 @@ static inline std::string internal_attr2str(impl::op_attr_t attr) {
         CASE(with_sum);
         CASE(alg_kind);
         CASE(dw_groups);
-        CASE(expand_to);
         CASE(fusion_info_key);
         CASE(dw_filter_format);
         CASE(dw_type);
         CASE(from_format);
-        CASE(insert_1dim);
         CASE(kind);
         CASE(permute_kind);
         CASE(to_format);

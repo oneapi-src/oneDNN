@@ -65,7 +65,7 @@ status_t infer_from_group_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
-status_t infer_expand_output_shape(op_t *n,
+status_t infer_unsqueeze_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 

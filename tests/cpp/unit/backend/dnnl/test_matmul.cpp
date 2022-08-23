@@ -280,13 +280,15 @@ TEST(Execute, MatmulNdx1d) {
             std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
             std::vector<const impl::logical_tensor_t *> outputs {&dst};
 
-            p.compile(&cp, inputs, outputs, &engine);
+            ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine),
+                    impl::status::success);
 
             impl::tensor_t src_ts(src, &engine, src_data.data());
             impl::tensor_t weight_ts(weight, &engine, weight_data.data());
             impl::tensor_t dst_ts(dst, &engine, dst_data.data());
 
-            cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
+            ASSERT_EQ(cp.execute(&strm, {src_ts, weight_ts}, {dst_ts}),
+                    impl::status::success);
             strm.wait();
 
             // compute the ref results

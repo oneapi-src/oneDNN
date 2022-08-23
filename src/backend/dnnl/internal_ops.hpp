@@ -44,7 +44,7 @@ namespace op_kind {
     X(dnnl_permute, Dnnl_permute) \
     X(dnnl_to_group, Dnnl_to_group) \
     X(dnnl_from_group, Dnnl_from_group) \
-    X(dnnl_expand, Dnnl_expand) \
+    X(dnnl_unsqueeze, Dnnl_unsqueeze) \
     X(dnnl_squeeze, Dnnl_squeeze) \
     X(dnnl_reshape, Dnnl_reshape) \
     X(dnnl_transpose, Dnnl_transpose) \

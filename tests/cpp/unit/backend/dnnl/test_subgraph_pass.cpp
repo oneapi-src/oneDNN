@@ -762,7 +762,7 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     subgraph->infer_shape();
     dnnl_impl::insert_transpose_for_matmul(subgraph);
     subgraph->infer_shape();
-    dnnl_impl::insert_expand_and_squeeze_for_matmul(subgraph);
+    dnnl_impl::insert_unsqueeze_and_squeeze_for_matmul(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), params.subgraph_size_after_insertion);
 
     for (auto &val : subgraph->get_input_values()) {
@@ -869,7 +869,7 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
     subgraph->infer_shape();
     dnnl_impl::insert_reshape_for_ndx2d_matmul(subgraph);
     subgraph->infer_shape();
-    dnnl_impl::insert_expand_and_squeeze_for_matmul(subgraph);
+    dnnl_impl::insert_unsqueeze_and_squeeze_for_matmul(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), params.subgraph_size_after_insertion);
 
     for (auto &val : subgraph->get_input_values()) {
@@ -1786,7 +1786,7 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     dnnl_impl::pass_pipeline_t pipeline(vis, true, true);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
     ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
-    // 1 bias scaling, 1 bias expanding, 1 fused matmul, 2 reshape
+    // 1 bias scaling, 1 bias unsqueezing, 1 fused matmul, 2 reshape
     ASSERT_EQ(subgraph->get_mutable_ops().size(), 5);
 }
 
