@@ -14,7 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gtest/gtest.h"
+
 #include "cpp/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "cpp/unit/unit_test_common.hpp"
+#include "cpp/unit/utils.hpp"
+
+namespace impl = dnnl::graph::impl;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(Execute, LayernormTraining) {
     impl::engine_t &eng = get_engine();

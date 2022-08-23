@@ -17,13 +17,11 @@
 #ifndef BACKEND_DNNL_REF_FUNC_HPP
 #define BACKEND_DNNL_REF_FUNC_HPP
 
-#include <map>
-#include <set>
-#include <string>
-#include <utility>
+#include <cmath>
 #include <vector>
 
 #include "cpp/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "cpp/unit/unit_test_common.hpp"
 
 static inline test::vector<float> mish_func(
         const test::vector<float> &ref_dst) {

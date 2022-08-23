@@ -16,7 +16,7 @@
 
 #include <memory>
 
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
 
 #include "interface/op.hpp"
 #include "interface/partition.hpp"
