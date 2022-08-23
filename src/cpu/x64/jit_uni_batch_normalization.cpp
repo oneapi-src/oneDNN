@@ -62,23 +62,23 @@ struct jit_bnorm_conf_t {
     // diverging definitions of derived parameters
     const batch_normalization_pd_t *bdesc_;
 
-    int simd_w_;
-    size_t dt_size_;
-    bool is_nspc_;
+    int simd_w_ {0};
+    size_t dt_size_ {0};
+    bool is_nspc_ {false};
 
     // thread partition info
-    bool do_blocking_;
-    bool is_spatial_thr_;
-    dim_t C_blks_per_iter_;
-    int C_nthr_;
-    int N_nthr_;
-    int S_nthr_;
-    int64_t iters_;
+    bool do_blocking_ {false};
+    bool is_spatial_thr_ {false};
+    dim_t C_blks_per_iter_ {0};
+    int C_nthr_ {0};
+    int N_nthr_ {0};
+    int S_nthr_ {0};
+    int64_t iters_ {0};
     // C_blks and thread partition can change for last iteration
-    dim_t C_blks_last_iter_;
-    int C_nthr_last_iter_;
-    int N_nthr_last_iter_;
-    int S_nthr_last_iter_;
+    dim_t C_blks_last_iter_ {0};
+    int C_nthr_last_iter_ {0};
+    int N_nthr_last_iter_ {0};
+    int S_nthr_last_iter_ {0};
 
     jit_bnorm_conf_t(
             const batch_normalization_pd_t *bdesc, int nthr, int simd_w)
@@ -244,11 +244,12 @@ struct jit_bnorm_t : public jit_generator {
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
-    int vlen_spat_data_; // set by ctor depending on data type (BF16 or FP32);
+    int vlen_spat_data_
+            = 0; // set by ctor depending on data type (BF16 or FP32);
 
-    const batch_normalization_pd_t *bdesc_;
-    const jit_bnorm_conf_t *jbp_;
-    bool is_bf16_;
+    const batch_normalization_pd_t *bdesc_ = nullptr;
+    const jit_bnorm_conf_t *jbp_ = nullptr;
+    bool is_bf16_ = false;
 
     Reg64 reg_param = abi_param1;
 
@@ -287,7 +288,7 @@ struct jit_bnorm_t : public jit_generator {
     Reg64 reg_tmp = reg_ctr;
 
     // Relu section
-    bool with_relu, with_relu_inf_only;
+    bool with_relu = false, with_relu_inf_only = false;
     Reg64 reg_ws = reg_roff;
     Reg64 reg_tmp_alpha = reg_diff_scale; // required in sse41
     Label l_relu_mask_avx2;
