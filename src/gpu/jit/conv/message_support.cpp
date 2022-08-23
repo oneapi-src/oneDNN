@@ -493,6 +493,7 @@ bool access_builder_t::try_build_2d() {
     // The data may be loaded in a wider data type to get a proper GRF layout.
     if (!hint.type.is_undef()) vlayout = vlayout.reinterpret(hint.type);
 
+    bool is_store = (send_op_ == send_op_t::store);
     auto send_type = type_t::u(vlayout.type().size() * 8);
     auto blocks = vlayout.blocks();
     if (blocks.size() < 2) return false;
@@ -559,10 +560,10 @@ bool access_builder_t::try_build_2d() {
 
     // Try to reduce the number of messages by increasing count per message.
     int try_count = count * 2;
-    int max_count = transpose ? 1 : 4;
+    int max_count
+            = block_2d_max_count(is_store, transpose, width, mem_type_.size());
     while (try_count <= max_count) {
         if (b0.block % (try_count * width) != 0) break;
-        if (width * try_count * mem_type_.size() > 64) break;
         count = try_count;
         try_count *= 2;
     }
@@ -758,6 +759,10 @@ bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
 
     int factor = 64 / surface_width_size;
     if (h % factor != 0) return false;
+
+    int max_count = block_2d_max_count(
+            send_op_ == send_op_t::store, transpose, w, send_type.size());
+    if (factor > max_count) return false;
 
     vnni_permute_factor = factor;
     W *= factor;
