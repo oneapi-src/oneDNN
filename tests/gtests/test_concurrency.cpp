@@ -163,6 +163,7 @@ protected:
         size_t sz = mem.get_desc().get_size();
         int elems = (int)(sz / sizeof(float));
         auto *ptr = mem.map_data<float>();
+        GTEST_EXPECT_NE(ptr, nullptr);
         for (int i = 0; i < elems; i++) {
             ptr[i] = value;
         }
@@ -234,6 +235,7 @@ public:
     void validate() override {
         auto &dst = args_.at(DNNL_ARG_DST);
         auto *ptr = dst.map_data<float>();
+        GTEST_EXPECT_NE(ptr, nullptr);
         int elems = N * OC * OH * OW;
         bool ok = true;
         for (int i = 0; i < elems; i++) {
