@@ -448,7 +448,7 @@ struct mem_usage_guard_t {
     mem_usage_guard_t(int *usage, int *peak_usage, int size)
         : usage(usage), peak_usage(peak_usage), size(size) {
         if (usage) *usage += size;
-        if (peak_usage) *peak_usage = std::max(*peak_usage, *usage);
+        if (usage && peak_usage) *peak_usage = std::max(*peak_usage, *usage);
     }
 
     mem_usage_guard_t(int *usage, int size)
@@ -480,9 +480,9 @@ struct mem_usage_guard_t {
         if (usage) *usage -= size;
     }
 
-    int *usage;
-    int *peak_usage;
-    int size;
+    int *usage {nullptr};
+    int *peak_usage {nullptr};
+    int size {0};
 };
 
 // Describes the linear transformation F(x) for variable x: F(x) = (a * x + b),
