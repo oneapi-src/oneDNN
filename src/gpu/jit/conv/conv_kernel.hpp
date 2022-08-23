@@ -1854,7 +1854,7 @@ private:
         };
 
         bool use_uv = false, use_v = false;
-        for (int f: {1, factor, -factor}) {
+        for (int f : {1, factor, -factor}) {
             use_uv = check_range(f, vec_min, 0, 15);
             use_v = check_range(f, vec_min, -8, 7);
             if (use_uv || use_v) {
