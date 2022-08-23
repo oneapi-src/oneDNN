@@ -47,8 +47,8 @@ struct flex_rewrite {
         infer_output_shape(dgraph);
     }
 
-    void split_ncx(std::string data_format, std::vector<int64_t> &in,
-            int64_t &n, int64_t &c, std::vector<int64_t> &x) {
+    void split_ncx(std::string data_format, dims_t &in, int64_t &n, int64_t &c,
+            dims_t &x) {
         x.clear();
         n = in[0];
         if (data_format == "NCX") {
@@ -63,8 +63,8 @@ struct flex_rewrite {
             c = in[in.size() - 1];
         }
     }
-    void merge_ncx(std::string data_format, std::vector<int64_t> &out,
-            int64_t n, int64_t c, std::vector<int64_t> &x) {
+    void merge_ncx(std::string data_format, dims_t &out, int64_t n, int64_t c,
+            dims_t &x) {
         out.clear();
         out.push_back(n);
         if (data_format == "NCX") {
@@ -79,8 +79,7 @@ struct flex_rewrite {
             out.push_back(c);
         }
     }
-    void split_oix(std::string data_format, std::vector<int64_t> &in,
-            std::vector<int64_t> &oi, std::vector<int64_t> &x) {
+    void split_oix(std::string data_format, dims_t &in, dims_t &oi, dims_t &x) {
         x.clear();
         if (data_format == "OIX") {
             oi = {in[0], in[1]};
@@ -95,28 +94,33 @@ struct flex_rewrite {
         }
     }
 
-    void broadcast(std::vector<int64_t> &x, std::vector<int64_t> &y,
-            std::vector<int64_t> &z) {
-        z.resize(std::max(x.size(), y.size()));
-        for (size_t i = 1; i <= z.size(); i++) {
-            if (x.size() < i || x[x.size() - i] == 1) {
-                z[z.size() - i] = y[y.size() - i];
-            } else if (y.size() < i || y[y.size() - i] == 1) {
-                z[z.size() - i] = x[x.size() - i];
-            } else if (x[x.size() - i] == y[y.size() - i]) {
-                z[z.size() - i] = x[x.size() - i];
+    void broadcast(const dims_t &x, const dims_t &y, dims_t &z) {
+        const size_t x_rank = x.size();
+        const size_t y_rank = y.size();
+        const size_t max_rank = std::max(x_rank, y_rank);
+        z.resize(max_rank);
+        const size_t bx = max_rank - x_rank;
+        const size_t by = max_rank - y_rank;
+        for (size_t i = 0; i < max_rank; ++i) {
+            int64_t l = 1, r = 1;
+            if (i >= bx) l = x[i - bx];
+            if (i >= by) r = y[i - by];
+            if (l != r) {
+                if (l != 1 && r != 1) {
+                    fprintf(stderr, "graph: invalid shape!\n");
+                    exit(2);
+                }
+                z[i] = (l == 1 ? r : l);
             } else {
-                // cannot broadcast
-                z[z.size() - i] = 0;
+                z[i] = l;
             }
         }
     }
 
     // return the pad_begin + pad_end for each dimension
-    void cal_pads(std::vector<int64_t> &pads, deserialized_op &aop,
-            std::vector<int64_t> &spatial_dims, std::vector<int64_t> &strides,
-            std::vector<int64_t> &kernel, bool deconv) {
-        std::vector<int64_t> v;
+    void cal_pads(dims_t &pads, deserialized_op &aop, dims_t &spatial_dims,
+            dims_t &strides, dims_t &kernel, bool deconv) {
+        dims_t v;
         pads.clear();
         if (aop.attrs_.find("auto_pad") == aop.attrs_.end()
                 || aop.attrs_["auto_pad"].get_string() == "None") {
@@ -154,9 +158,9 @@ struct flex_rewrite {
             auto kind = opstr2kind(aop.kind_);
             size_t in0, in1, out0;
             int64_t n, c, axis, sum, group, in_size, out_size, use_oi = 0;
-            std::vector<int64_t> strides, kernel, pads, dilations, spatial_dims,
+            dims_t strides, kernel, pads, dilations, spatial_dims,
                     output_padding;
-            std::vector<int64_t> dims, x, y, oi;
+            dims_t dims, x, y, oi;
             std::string data_format, filter_format, auto_broadcast;
             bool floor, special_zero;
             // set default value for some attributes
@@ -496,7 +500,7 @@ struct flex_rewrite {
                                     != aop.attrs_.end()
                             && aop.attrs_["transpose_b"].get_bool()) {
                         auto tmp = y[y.size() - 1];
-                        y[y.size() - 1] = y[x.size() - 2];
+                        y[y.size() - 1] = y[y.size() - 2];
                         y[y.size() - 2] = tmp;
                     }
                     if (x.size() == 1 && y.size() == 1) {
