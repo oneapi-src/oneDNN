@@ -48,9 +48,20 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
         if (node->isa<ops::conv_fwd_core_op_t>()) {
             // TODO(xurui)
             // Only support extract padding op from 2d conv for now.
-            if (node->get_inputs()[0]->details_.get_plain_dims().size() == 5) {
+            if (node->get_inputs()[0]->details_.get_plain_dims().size() != 4) {
                 return;
             }
+            // Only apply to inference
+            bool is_weight_constant
+                    = node->get_inputs()[1]
+                              ->producer_owner_->isa<constant_op_t>()
+                    || node->get_inputs()[1]
+                               ->producer_owner_->attrs_.get_or_else(
+                                       "constant", const_kind::not_const)
+                    || node->get_inputs()[1]->attrs_.get_or_else(
+                            "constant", const_kind::not_const);
+            if (!is_weight_constant) { return; }
+
             auto pads_begin = node->attrs_.has_key("pads_begin")
                     ? node->attrs_.get<sc_dims>("pads_begin")
                     : node->attrs_.get<sc_dims>("paddings");
