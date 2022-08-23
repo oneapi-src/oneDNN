@@ -174,24 +174,24 @@ private:
     std::unordered_map<std::string, size_t> transform_buf_map_A_;
     std::unordered_map<std::string, size_t> transform_buf_map_B_;
 
-    size_t LDA_size_, LDA2_size_;
-    size_t LDB_size_, LDB2_size_;
-    size_t LDC_size_, LDC2_size_M_, LDC2_size_N_;
-    size_t LDD_size_;
-    size_t ld_block_B_size_;
-    size_t ld_block_C_size_;
-    size_t ld_block_D_size_;
-    size_t ld_block_bias_size_;
-    size_t ld_block_scales_size_;
-    size_t ld_block_zp_size_;
+    size_t LDA_size_ = 0, LDA2_size_ = 0;
+    size_t LDB_size_ = 0, LDB2_size_ = 0;
+    size_t LDC_size_ = 0, LDC2_size_M_ = 0, LDC2_size_N_ = 0;
+    size_t LDD_size_ = 0;
+    size_t ld_block_B_size_ = 0;
+    size_t ld_block_C_size_ = 0;
+    size_t ld_block_D_size_ = 0;
+    size_t ld_block_bias_size_ = 0;
+    size_t ld_block_scales_size_ = 0;
+    size_t ld_block_zp_size_ = 0;
 
-    size_t ldb_tail_B_size_;
-    size_t ldb_tail_C_size_;
-    size_t ldb_tail_D_size_;
-    size_t ldb_tail_zp_size_;
+    size_t ldb_tail_B_size_ = 0;
+    size_t ldb_tail_C_size_ = 0;
+    size_t ldb_tail_D_size_ = 0;
+    size_t ldb_tail_zp_size_ = 0;
 
     // variables of bd loop
-    size_t inp_bd_;
+    size_t inp_bd_ = 0;
 
     // interleave stores
     bool use_ils_ = false;
@@ -205,7 +205,7 @@ private:
         ils_bd_step_ = 0;
     int pfo_vec_ = 0, pfo_vecs_per_store_ = 0;
 
-    bool dt_requires_saturation_;
+    bool dt_requires_saturation_ = false;
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
