@@ -62,6 +62,12 @@ inline bool block_2d_pitch_ok(const hw_config_t &hw_cfg, int pitch,
     return true;
 }
 
+inline int block_2d_max_count(
+        bool is_store, bool is_transpose, int block_width, int type_size) {
+    if (is_store || is_transpose) return 1;
+    return 64 / (block_width * type_size);
+}
+
 } // namespace jit
 } // namespace gpu
 } // namespace impl
