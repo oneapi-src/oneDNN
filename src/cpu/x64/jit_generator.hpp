@@ -2511,7 +2511,7 @@ public:
         mov(reg_tmp, label_tbl);
         const Xbyak::Address label_address
                 = ptr[reg_tmp + reg_tail * sizeof(void *)];
-        jmp(label_address);
+        jmp(label_address, T_NEAR);
 
         // create jump table
         L(label_tbl);
