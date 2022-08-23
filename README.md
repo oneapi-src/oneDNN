@@ -339,6 +339,7 @@ MIT License:
 * [Intel Graphics Compiler](https://github.com/intel/intel-graphics-compiler)
 * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
 * [Doxyrest](https://github.com/vovkos/doxyrest)
+* [Intel Metrics Discovery Application Programming Interface](https://github.com/intel/metrics-discovery)
 
 This third party software, even if included with the distribution of
 the Intel software, may be governed by separate license terms, including
