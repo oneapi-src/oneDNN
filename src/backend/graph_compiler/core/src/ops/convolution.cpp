@@ -212,6 +212,7 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
             infer_auto_pad(get_owner_graph(), indims, weightdims, strides,
                     attrs_, pad_type == "SAME_UPPER");
         }
+        attrs_.set<std::string>("auto_pad", "none");
     }
     sc_dims pads_begin, pads_end;
     if (attrs_.has_key("pads_begin")) {
@@ -297,7 +298,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     auto pw = pads_begin[0];
     auto kw = weight_plain_dims[ndims_ - 1];
     bool channel_last_support
-            = (is_use_amx(ctx) && ph <= kh && pw <= kw) && (kh > 1 || kw > 1);
+            = (kh == 1 || kw == 1) || (is_use_amx(ctx) && ph <= kh && pw <= kw);
     std::string test_format;
     if (attrs_.has_key("temp.test_format")) {
         test_format = attrs_.get<std::string>("temp.test_format");
@@ -367,6 +368,7 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
             infer_auto_pad(get_owner_graph(), output_shape, weightdims, strides,
                     attrs_, pad_type == "SAME_UPPER");
         }
+        attrs_.set<std::string>("auto_pad", "none");
     }
     if (info_.outputs_.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
@@ -493,6 +495,7 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
             infer_auto_pad(get_owner_graph(), in_data_dims, weight_shape,
                     strides, attrs_, pad_type == "SAME_UPPER");
         }
+        attrs_.set<std::string>("auto_pad", "none");
     }
 
     if (info_.outputs_.empty()) {

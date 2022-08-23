@@ -507,9 +507,11 @@ SC_INTERNAL_API void layout_propagation(
                                 out_supported_pairs, j - 1);
                     }
                 } else {
-                    reset_in_out_supported_pairs();
-                    node->query_format(
-                            ctx, in_supported_pairs, out_supported_pairs);
+                    if (is_graph_dynamic) {
+                        reset_in_out_supported_pairs();
+                        node->query_format(
+                                ctx, in_supported_pairs, out_supported_pairs);
+                    }
                     update_output_formats(node->info_.outputs_,
                             out_supported_pairs, cur_layout_choice);
                 }
