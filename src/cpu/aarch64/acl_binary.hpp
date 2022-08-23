@@ -170,6 +170,17 @@ struct acl_binary_t : public primitive_t {
             CHECK(tensor_info(asp_.src1_info, src_d1_permed));
             CHECK(tensor_info(asp_.dst_info, dst_d_permed));
 
+            // In this case ACL tries to treat src0 and src1 as a 1D array, but
+            // fails because the strides aren't equal. TODO: remove when fixed
+            // in ACL
+            if (asp_.alg == alg_kind::binary_add
+                    && asp_.src0_info.tensor_shape()
+                            == asp_.src1_info.tensor_shape()
+                    && asp_.src0_info.strides_in_bytes()
+                            != asp_.src1_info.strides_in_bytes()) {
+                return status::unimplemented;
+            }
+
             // This forces ACL not to parallelise with small workloads, this is
             // a temporary fix and should be removed in future versions (TODO)
             memory_desc_wrapper dst_d(dst_md());
