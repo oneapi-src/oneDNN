@@ -669,6 +669,9 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_weights, 1,
                 .set_shape_inference_function(
                         infer_dnnl_conv_bwd_weight_output_shape))
 
+// Note: if `is_training` is False, the `gamma` and `beta` are the second and
+// third input (required), while `is_training` is True, the `gamma` and `beta`
+// are the last two inputs (optional).
 DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
@@ -732,13 +735,13 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
                 .set_num_outputs(std::set<size_t>({2, 3, 4}))
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "output_delta", "the gradient w.r.t. the output")
-                .set_input(2, "gamma", "gamma scaling for normalized value")
-                .set_input(3, "mean",
+                .set_input(2, "mean",
                         "if is_training is true, pass batch mean, otherwise "
                         "running mean")
-                .set_input(4, "variance",
+                .set_input(3, "variance",
                         "if is_training is true, pass batch variance, "
                         "otherwise running variance")
+                .set_input(4, "gamma", "gamma scaling for normalized value")
                 .set_output(0, "input_delta",
                         "the gradient w.r.t the output of the batch "
                         "normalization")

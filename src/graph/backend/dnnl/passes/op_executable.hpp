@@ -619,7 +619,15 @@ create_batchnorm_bwd_pd(std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
 
     float epsilon = op->get_attr<float>(op_attr::epsilon);
 
-    auto flags = normalization_flag::use_scale | normalization_flag::use_shift;
+    auto flags = normalization_flag::none;
+    // [diff_src, diff_scale, diff_shift, scratchpad]
+    if (op->num_outputs() > 2) {
+        flags |= normalization_flag::use_scale;
+        flags |= normalization_flag::use_shift;
+    } else {
+        // [diff_src, scratchpad]
+        flags |= normalization_flag::use_global_stats;
+    }
 
     dnnl::primitive_attr prm_attr;
     if (op->has_attr(op_attr::fusion_info_key)

@@ -622,9 +622,6 @@ static status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     status_t status = status::success;
-    if (op->num_inputs() != 5 || op->num_outputs() != 4) {
-        assert(!"Currently, only support use_scale and use_shift mode!");
-    }
     const auto &pd_flag_pair
             = create_batchnorm_bwd_pd(op, p_engine, mgr, pd_cache);
     const auto &pd = pd_flag_pair.first;
@@ -645,14 +642,14 @@ static status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
     if (status != status::success) return status;
 
     insert_reorder_before(
-            op, 3, pd.mean_desc(), p_engine, mgr, pd_cache, reorder_ops);
-    value_ptr mean = op->get_input_value(3);
+            op, 2, pd.mean_desc(), p_engine, mgr, pd_cache, reorder_ops);
+    value_ptr mean = op->get_input_value(2);
     status = fill_layout_info(mean, pd.mean_desc());
     if (status != status::success) return status;
 
     insert_reorder_before(
-            op, 4, pd.variance_desc(), p_engine, mgr, pd_cache, reorder_ops);
-    value_ptr var = op->get_input_value(4);
+            op, 3, pd.variance_desc(), p_engine, mgr, pd_cache, reorder_ops);
+    value_ptr var = op->get_input_value(3);
     status = fill_layout_info(var, pd.variance_desc());
     if (status != status::success) return status;
 
@@ -662,13 +659,15 @@ static status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
     status = fill_layout_info(dst, pd.diff_src_desc());
     if (status != status::success) return status;
 
-    value_ptr diff_gamma = op->get_output_value(1);
-    value_ptr diff_beta = op->get_output_value(2);
+    if (op->num_outputs() > 2) {
+        value_ptr diff_gamma = op->get_output_value(1);
+        value_ptr diff_beta = op->get_output_value(2);
 
-    status = fill_layout_info(diff_gamma, pd.diff_weights_desc());
-    if (status != status::success) return status;
-    status = fill_layout_info(diff_beta, pd.diff_weights_desc());
-    if (status != status::success) return status;
+        status = fill_layout_info(diff_gamma, pd.diff_weights_desc());
+        if (status != status::success) return status;
+        status = fill_layout_info(diff_beta, pd.diff_weights_desc());
+        if (status != status::success) return status;
+    }
 
     value_ptr scratchpad_val = op->get_output_values().back();
     status = fill_layout_info(scratchpad_val, pd.scratchpad_desc());

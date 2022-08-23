@@ -635,13 +635,13 @@ public:
 
         logical_tensor lt0 {0, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
-        logical_tensor lt1 {1, logical_tensor::data_type::f32, gamma_dims,
+        logical_tensor lt1 {1, logical_tensor::data_type::f32, mean_dims,
                 logical_tensor::layout_type::strided};
-        logical_tensor lt2 {2, logical_tensor::data_type::f32, beta_dims,
+        logical_tensor lt2 {2, logical_tensor::data_type::f32, variance_dims,
                 logical_tensor::layout_type::strided};
-        logical_tensor lt3 {3, logical_tensor::data_type::f32, mean_dims,
+        logical_tensor lt3 {3, logical_tensor::data_type::f32, gamma_dims,
                 logical_tensor::layout_type::strided};
-        logical_tensor lt4 {4, logical_tensor::data_type::f32, variance_dims,
+        logical_tensor lt4 {4, logical_tensor::data_type::f32, beta_dims,
                 logical_tensor::layout_type::strided};
 
         logical_tensor lt5 {5, logical_tensor::data_type::f32, infer_dst_dims,
@@ -722,9 +722,9 @@ public:
 
         bn_bwd_op.add_input(lt0);
         bn_bwd_op.add_input(lt10);
-        bn_bwd_op.add_input(lt1);
         bn_bwd_op.add_input(dst3_lt_infered);
         bn_bwd_op.add_input(dst4_lt_infered);
+        bn_bwd_op.add_input(lt3);
         bn_bwd_op.add_output(lt11);
         bn_bwd_op.add_output(lt12);
         bn_bwd_op.add_output(lt13);
@@ -742,7 +742,7 @@ public:
 
         //compile partition
         std::vector<logical_tensor> in1(
-                {lt0, lt10, lt1, dst3_lt_infered, dst4_lt_infered});
+                {lt0, lt10, dst3_lt_infered, dst4_lt_infered, lt3});
         std::vector<logical_tensor> out1({lt11, lt12, lt13});
 
         auto cp2 = partitions2[0].compile(in1, out1, eng);
@@ -780,13 +780,13 @@ public:
 
         logical_tensor lt0 {0, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::undef};
-        logical_tensor lt1 {1, logical_tensor::data_type::f32, gamma_dims,
+        logical_tensor lt1 {1, logical_tensor::data_type::f32, mean_dims,
                 logical_tensor::layout_type::undef};
-        logical_tensor lt2 {2, logical_tensor::data_type::f32, beta_dims,
+        logical_tensor lt2 {2, logical_tensor::data_type::f32, variance_dims,
                 logical_tensor::layout_type::undef};
-        logical_tensor lt3 {3, logical_tensor::data_type::f32, mean_dims,
+        logical_tensor lt3 {3, logical_tensor::data_type::f32, gamma_dims,
                 logical_tensor::layout_type::undef};
-        logical_tensor lt4 {4, logical_tensor::data_type::f32, variance_dims,
+        logical_tensor lt4 {4, logical_tensor::data_type::f32, beta_dims,
                 logical_tensor::layout_type::undef};
 
         logical_tensor lt5 {5, logical_tensor::data_type::f32, infer_dst_dims,
@@ -835,14 +835,14 @@ public:
 
         logical_tensor lt0_plain {0, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
-        logical_tensor lt1_plain {1, logical_tensor::data_type::f32, gamma_dims,
+        logical_tensor lt1_plain {1, logical_tensor::data_type::f32, mean_dims,
                 logical_tensor::layout_type::strided};
-        logical_tensor lt2_plain {2, logical_tensor::data_type::f32, beta_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt3_plain {3, logical_tensor::data_type::f32, mean_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt4_plain {4, logical_tensor::data_type::f32,
+        logical_tensor lt2_plain {2, logical_tensor::data_type::f32,
                 variance_dims, logical_tensor::layout_type::strided};
+        logical_tensor lt3_plain {3, logical_tensor::data_type::f32, gamma_dims,
+                logical_tensor::layout_type::strided};
+        logical_tensor lt4_plain {4, logical_tensor::data_type::f32, beta_dims,
+                logical_tensor::layout_type::strided};
 
         logical_tensor lt5_any {5, logical_tensor::data_type::f32,
                 infer_dst_dims, logical_tensor::layout_type::any};
@@ -891,9 +891,9 @@ public:
 
         bn_bwd_op.add_input(lt0);
         bn_bwd_op.add_input(lt10);
-        bn_bwd_op.add_input(lt1);
         bn_bwd_op.add_input(cp.query_logical_tensor(8));
         bn_bwd_op.add_input(cp.query_logical_tensor(9));
+        bn_bwd_op.add_input(lt3);
         bn_bwd_op.add_output(lt11);
         bn_bwd_op.add_output(lt12);
         bn_bwd_op.add_output(lt13);
@@ -919,8 +919,9 @@ public:
                 infer_weight_dims, logical_tensor::layout_type::strided};
 
         //compile partition
-        std::vector<logical_tensor> in1({lt0_plain, lt10_plain, lt1_plain,
-                cp.query_logical_tensor(8), cp.query_logical_tensor(9)});
+        std::vector<logical_tensor> in1(
+                {lt0_plain, lt10_plain, cp.query_logical_tensor(8),
+                        cp.query_logical_tensor(9), lt3_plain});
         std::vector<logical_tensor> out1({lt11_any, lt12_plain, lt13_plain});
 
         auto cp2 = partitions2[0].compile(in1, out1, eng);

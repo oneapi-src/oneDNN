@@ -41,6 +41,11 @@ bool check_input_num(op_t *op) {
     return op->num_inputs() == N;
 }
 
+template <size_t N>
+bool check_output_num(op_t *op) {
+    return op->num_outputs() == N;
+}
+
 template <data_type_t DTYPE>
 bool check_input_dtype(op_t *op) {
     for (size_t i = 0; i < op->num_inputs(); ++i) {

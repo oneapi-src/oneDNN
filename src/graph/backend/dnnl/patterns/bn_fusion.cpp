@@ -18,6 +18,7 @@
 #include "graph/backend/dnnl/kernels/batchnorm.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/transformation_pattern.hpp"
+#include "graph/backend/dnnl/patterns/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -46,6 +47,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
             return std::make_shared<batchnorm_fwd_t>();
         });
 
+#define BATCHNORM_OUTPUT_NUM_CHECK(n1, n2) \
+    append_decision_function([](op_t *graph_op) -> bool { \
+        return check_output_num<n1>(graph_op) \
+                || check_output_num<n2>(graph_op); \
+    })
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bwd_relu_bwd_fusion)
         .set_priority(8.8f)
         .set_kind(partition_kind::misc_post_ops)
@@ -53,8 +60,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bwd_relu_bwd_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto relu_bwd
                             = pgraph->append_op(graph::op_kind::ReLUBackprop);
-                    pgraph->append_op(graph::op_kind::BatchNormTrainingBackprop,
+                    auto bn_bwd = pgraph->append_op(
+                            graph::op_kind::BatchNormTrainingBackprop,
                             {in_edge(0, relu_bwd, 0)});
+                    bn_bwd->BATCHNORM_OUTPUT_NUM_CHECK(1, 3);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<batchnorm_bwd_t>();
