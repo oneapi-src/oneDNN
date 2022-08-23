@@ -1161,9 +1161,9 @@ private:
             const auto c_blk = std::min(channels_blk, m_blk);
             std::vector<dim_t> a_dims(a_thr_view.vvars().size(), 1);
             size_ = ((cfg.kd * cfg.kh * cfg.kw > 1) || has_pad || has_stride_bd)
-                    * ((!is_scalar) ? std::max(
-                               (int)mask_tensor.elems() / channels_blk,
-                               desc_n * desc_m / m_blk)
+                    * ((!is_scalar) ? !is_mad ? (int)mask_tensor.elems()
+                                                    / channels_blk
+                                              : desc_n * desc_m / m_blk
                                     : 1);
             if (size_ == 0) return;
 
