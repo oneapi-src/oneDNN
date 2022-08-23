@@ -121,7 +121,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     * iin_block;
   const int K
     = utils::divide_and_ceil(
-        static_cast<int>(in_tensors_[0].get_plain_dims()[0]), iik_block)
+        static_cast<int>(in_tensors_[0].get_plain_dims()[1]), iik_block)
     * iik_block;
   const int sizeofdtypeA
     = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
