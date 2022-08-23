@@ -1,0 +1,84 @@
+{
+    "version": "0.6.0",
+    "engine_kind": "cpu",
+    "fpmath_mode": "strict",
+    "graph": [
+      {
+        "id": 0,
+        "name": "aten::linear",
+        "kind": "MatMul",
+        "attrs": {
+          "transpose_b": {
+            "type": "bool",
+            "value": 0
+          },
+          "transpose_a": {
+            "type": "bool",
+            "value": 0
+          }
+        },
+        "inputs": [
+          {
+            "id": 0,
+            "dtype": "f32",
+            "shape": [
+              56, 
+              384, 
+              1024
+            ],
+            "stride": [
+              393216, 
+              1024, 
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "variable"
+          }, 
+          {
+            "id": 1,
+            "dtype": "f32",
+            "shape": [
+              1024, 
+              2
+            ],
+            "stride": [
+              2, 
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "variable"
+          }, 
+          {
+            "id": 2,
+            "dtype": "f32",
+            "shape": [
+              2
+            ],
+            "stride": [
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "constant"
+          }
+        ],
+        "outputs": [
+          {
+            "id": 3,
+            "dtype": "f32",
+            "shape": [
+              56, 
+              384, 
+              2
+            ],
+            "stride": [
+              768, 
+              2, 
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "variable"
+          }
+        ]
+      }
+    ]
+  }

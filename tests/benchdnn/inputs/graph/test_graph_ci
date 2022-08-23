@@ -6,3 +6,7 @@
 --reset
 --case=rn50_int8/rn50-int8_conv_post_ops_fusion.json
 --case=rn50_fp32/rn50-conv_bias_post_ops_fusion.json
+--reset
+--case=op/matmul_bias.json
+--in-shapes=1:2x1024 --op-attrs=0:transpose_b:1 --case=op/matmul_bias.json
+--in-shapes=0:1x1024x384 --op-attrs=0:transpose_a:1 --case=op/matmul_bias.json
