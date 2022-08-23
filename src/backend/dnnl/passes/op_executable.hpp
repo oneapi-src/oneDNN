@@ -32,6 +32,8 @@
 
 #include <utils/utils.hpp>
 
+#include "interface/backend.hpp"
+
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/passes/fusion_info.hpp"
@@ -314,7 +316,8 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    // create primitive desc with strided activation when:
+    // For non-constant activation, create primitive desc with strided layout
+    // when:
     // 1) activation has 4 dimensions and layout is acbd since oneDNN has
     //    optimized kernel
     // 2) activation has 2/3 dimensions and device kind is gpu for avoiding
@@ -322,18 +325,32 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     //    plain and block layout, especially for users who compile partition
     //    with plain layout. The performance of strided primitive on GPU will be
     //    optimized by oneDNN.
-    const bool use_strided_src
-            = (src.dims().size() == 4
-                      && is_format(src, dnnl::memory::format_tag::acbd))
-            || ((src.dims().size() == 2 || src.dims().size() == 3)
-                    && p_engine.get_kind() == dnnl::engine::kind::gpu);
+    bool const_activation
+            = logical_tensor_wrapper_t(
+                      op->get_input_value(0)->get_logical_tensor())
+                      .is_constant()
+            && is_constant_cache_enabled();
+    const bool use_strided_src = !const_activation
+            && ((src.dims().size() == 4
+                        && is_format(src, dnnl::memory::format_tag::acbd))
+                    || ((src.dims().size() == 2 || src.dims().size() == 3)
+                            && p_engine.get_kind() == dnnl::engine::kind::gpu));
     if (!use_strided_src) { src = to_format_any(src); }
     auto wei = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
-    if (!(wei.dims().size() == 4
-                && is_format(wei, dnnl::memory::format_tag::adbc))) {
-        wei = to_format_any(wei);
-    }
+    // For non-constant weight, create primitive desc with strided layout when:
+    // 1) weight has 4 dimensions and layout is adbc/abdc/acbd since oneDNN has
+    //    optimized kernel
+    bool const_weight = logical_tensor_wrapper_t(
+                                op->get_input_value(1)->get_logical_tensor())
+                                .is_constant()
+            && is_constant_cache_enabled();
+    const bool use_strided_wei = !const_weight
+            && (wei.dims().size() == 4
+                    && (is_format(wei, dnnl::memory::format_tag::adbc)
+                            || is_format(wei, dnnl::memory::format_tag::abdc)
+                            || is_format(wei, dnnl::memory::format_tag::acbd)));
+    if (!use_strided_wei) { wei = to_format_any(wei); }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
     if (!((src.dims().size() == 2 || src.dims().size() == 3)
