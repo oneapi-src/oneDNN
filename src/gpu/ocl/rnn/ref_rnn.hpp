@@ -193,7 +193,7 @@ private:
         int lws_max = pd()->max_eus_per_wg * subgroup_size;
         std::vector<int> lws;
         lws.reserve(gws.size());
-        for (int i = 0; i < gws.size(); i++) {
+        for (int i = 0; i < (int)gws.size(); i++) {
             int l_dim = 2 * gws[i] < lws_max ? utils::rnd_up_pow2(gws[i])
                                              : lws_max;
             if (i == 0 && l_dim < subgroup_size) l_dim = subgroup_size;
