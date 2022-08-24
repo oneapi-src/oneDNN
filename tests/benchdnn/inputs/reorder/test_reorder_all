@@ -48,6 +48,8 @@
 --sdt=f32 --ddt=f32
 --stag=ab,ba --dtag=BA16a16b,BA16a32b,BA16a48b,BA16a64b 89x73
 --dtag=ab,ba --stag=BA16a16b,BA16a32b,BA16a48b,BA16a64b 89x73
+--stag=abc,acb --dtag=aCB16b16c,aCB16b32c,aCB16b48c,aCB16b64c 57x89x73
+--dtag=abc,acb --stag=aCB16b16c,aCB16b32c,aCB16b48c,aCB16b64c 57x89x73
 
 # simple nChw{8,16}c impl
 --sdt=f32 --ddt=f32
