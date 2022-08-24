@@ -806,14 +806,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
-/* Asymmetric Blocking */
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<
-                (utils::one_of(tag_i, format_tag::ab, format_tag::ba)
+                (utils::one_of(tag_i, format_tag::ab, format_tag::ba,
+                         format_tag::abc, format_tag::acb)
                         && utils::one_of(tag_o, format_tag::BA16a16b4a,
                                 format_tag::BA16a32b4a, format_tag::BA16a48b4a,
-                                format_tag::BA16a64b4a)),
+                                format_tag::BA16a64b4a, format_tag::aCB16b16c4b,
+                                format_tag::aCB16b32c4b,
+                                format_tag::aCB16b48c4b,
+                                format_tag::aCB16b64c4b)),
                 spec::conv_req_comp>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -828,8 +831,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
+        const auto ndims = input_d.ndims();
         auto mask_ok = [&](bool check, int mask) {
-            return IMPLICATION(check, mask == 1 << 1);
+            return IMPLICATION(
+                    check, mask == (1 << ndims) - 1 - (1 << (ndims - 2)));
         };
 
         const size_t D_mask = utils::array_product(
@@ -850,30 +855,38 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
         using namespace format_tag;
 
-        constexpr dim_t A_blksize = 64;
-        constexpr dim_t B_blksize
-                = (tag_traits<tag_o>::inner_blks == ib::_16a64b4a)
+        // {[batch_dim][d0][d1], [batch_dim][d1][d0]} -> [batch_dim][D1][D0][16][D1_blksize][4]
+        // 2D: batch_dim - none, d0 <-> a, d1 <-> b
+        // 3D: batch_dim <-> a, d0 <-> b, d1 <-> c
+        constexpr dim_t D0_blksize = 64;
+        constexpr dim_t D1_blksize
+                = (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a64b4a,
+                          ib::_16b64c4b))
                 ? 64
-                : (tag_traits<tag_o>::inner_blks == ib::_16a48b4a)
+                : (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a48b4a,
+                          ib::_16b48c4b))
                         ? 48
-                        : (tag_traits<tag_o>::inner_blks == ib::_16a32b4a)
+                        : (utils::one_of(tag_traits<tag_o>::inner_blks,
+                                  ib::_16a32b4a, ib::_16b32c4b))
                                 ? 32
-                                : (tag_traits<tag_o>::inner_blks
-                                          == ib::_16a16b4a)
+                                : (utils::one_of(tag_traits<tag_o>::inner_blks,
+                                          ib::_16a16b4a, ib::_16b16c4b))
                                         ? 16
                                         : 1;
-        assert(B_blksize != 1);
+        assert(D1_blksize != 1);
 
         const auto &plain_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
+        const auto ndims = input_d.ndims();
         const auto &pdims
                 = order_keep ? output_d.padded_dims() : input_d.padded_dims();
 
-        const dim_t Adim = dims[0];
-        const dim_t NB_Adim = pdims[0] / A_blksize;
-        const dim_t Bdim = dims[1];
-        const dim_t NB_Bdim = pdims[1] / B_blksize;
-        assert(pdims[1] == NB_Bdim * B_blksize);
+        const dim_t batch_dim = ndims > 2 ? dims[ndims - 3] : 1;
+        const dim_t D0dim = dims[ndims - 2];
+        const dim_t NB_D0dim = pdims[ndims - 2] / D0_blksize;
+        const dim_t D1dim = dims[ndims - 1];
+        const dim_t NB_D1dim = pdims[ndims - 1] / D1_blksize;
+        assert(pdims[ndims - 1] == NB_D1dim * D1_blksize);
 
         const float *scales = pd->attr()->output_scales_.scales_;
         const bool req_comp = output_d.extra().flags
@@ -887,36 +900,36 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : 1.f;
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                           int32_t *c, int32_t *zp, const float *s,
-                           const int a_block, const int b_block) {
-            for (int a = 0; a < a_block; ++a) {
-                for (int b = 0; b < b_block; ++b) {
+                           int32_t *cp, int32_t *zp, const float *s,
+                           const int d0_block, const int d1_block) {
+            for (int d0 = 0; d0 < d0_block; ++d0) {
+                for (int d1 = 0; d1 < d1_block; ++d1) {
                     const auto plain_off
-                            = a * plain_d.blocking_desc().strides[0]
-                            + b * plain_d.blocking_desc().strides[1];
+                            = d0 * plain_d.blocking_desc().strides[ndims - 2]
+                            + d1 * plain_d.blocking_desc().strides[ndims - 1];
                     auto index
                             = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
-                                    a, b);
+                                    d0, d1);
                     out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                             inp[plain_off], s[0] * adj_scale);
 
                     auto o = static_cast<int32_t>(out[index]);
-                    if (req_comp) c[b] -= (128 * o);
-                    if (has_asymmetric_comp) zp[b] -= o;
+                    if (req_comp) cp[d1] -= (128 * o);
+                    if (has_asymmetric_comp) zp[d1] -= o;
                 }
-                for (int b = b_block; b < B_blksize; ++b) {
+                for (int d1 = d1_block; d1 < D1_blksize; ++d1) {
                     auto index
                             = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
-                                    a, b);
+                                    d0, d1);
                     out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                             0, s[0] * adj_scale);
                 }
             }
 
-            for_(int a = a_block; a < A_blksize; ++a)
-            for (int b = 0; b < B_blksize; ++b) {
-                auto index
-                        = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(a, b);
+            for_(int d0 = d0_block; d0 < D0_blksize; ++d0)
+            for (int d1 = 0; d1 < D1_blksize; ++d1) {
+                auto index = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
+                        d0, d1);
                 out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                         0, s[0] * adj_scale);
             }
@@ -934,28 +947,29 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : nullptr;
 
         if (has_asymmetric_comp || req_comp) {
-            parallel_nd(NB_Bdim * B_blksize, [&](dim_t i) {
+            parallel_nd(batch_dim * NB_D1dim * D1_blksize, [&](dim_t i) {
                 if (req_comp) cp[i] = 0;
                 if (has_asymmetric_comp) zp[i] = 0;
             });
         }
 
-#define get_blk_off(md, a, b) (md).blk_off(a, b)
+#define get_blk_off(md, batch, d0, d1) \
+    (ndims == 3 ? (md).blk_off((batch), (d0), (d1)) : (md).blk_off((d0), (d1)))
 
-        parallel_nd(NB_Bdim, [&](dim_t B) {
-            for (int A = 0; A < NB_Adim; A++) {
+        parallel_nd(batch_dim, NB_D1dim, [&](dim_t batch, dim_t D1) {
+            for (int D0 = 0; D0 < NB_D0dim; D0++) {
                 auto i = &input[get_blk_off(
-                        input_d, A_blksize * A, B_blksize * B)];
-                auto o = &output[get_blk_off(output_d, A, B)];
-                const dim_t a_block
-                        = nstl::min(A_blksize, Adim - A * A_blksize);
-                const dim_t b_block
-                        = nstl::min(B_blksize, Bdim - B * B_blksize);
-                dim_t _offset = B * B_blksize;
+                        input_d, batch, D0_blksize * D0, D1_blksize * D1)];
+                auto o = &output[get_blk_off(output_d, batch, D0, D1)];
+                const dim_t d0_block
+                        = nstl::min(D0_blksize, D0dim - D0 * D0_blksize);
+                const dim_t d1_block
+                        = nstl::min(D1_blksize, D1dim - D1 * D1_blksize);
+                dim_t _offset = batch * NB_D1dim * D1_blksize + D1 * D1_blksize;
                 ker(i, o, (order_keep && req_comp) ? &cp[_offset] : nullptr,
                         (order_keep && has_asymmetric_comp) ? &zp[_offset]
                                                             : nullptr,
-                        &scales[0], a_block, b_block);
+                        &scales[0], d0_block, d1_block);
             }
         });
 

@@ -1900,6 +1900,18 @@ struct memory : public handle<dnnl_memory_t> {
         BA16a48b4a = dnnl_BA16a48b4a,
         BA16a64b4a = dnnl_BA16a64b4a,
         decbA16a = dnnl_decbA16a,
+        aCB16b16c = dnnl_aCB16b16c,
+        aCB16b32c = dnnl_aCB16b32c,
+        aCB16b48c = dnnl_aCB16b48c,
+        aCB16b64c = dnnl_aCB16b64c,
+        aCB16b16c2b = dnnl_aCB16b16c2b,
+        aCB16b32c2b = dnnl_aCB16b32c2b,
+        aCB16b48c2b = dnnl_aCB16b48c2b,
+        aCB16b64c2b = dnnl_aCB16b64c2b,
+        aCB16b16c4b = dnnl_aCB16b16c4b,
+        aCB16b32c4b = dnnl_aCB16b32c4b,
+        aCB16b48c4b = dnnl_aCB16b48c4b,
+        aCB16b64c4b = dnnl_aCB16b64c4b,
 
         format_tag_last = dnnl_format_tag_last,
 

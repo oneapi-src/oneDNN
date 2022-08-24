@@ -79,6 +79,14 @@ const impl_list_map_t &comp_bf16_s8_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR(bf16, iwo, s8, OIw16i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, oiw, s8, OIw16i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, wio, s8, OIw16i16o4i, fmt_order::keep, spec::conv_req_comp))
+            REG_SR(bf16, abc, s8, aCB16b16c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, abc, s8, aCB16b32c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, abc, s8, aCB16b48c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, abc, s8, aCB16b64c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, acb, s8, aCB16b16c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, acb, s8, aCB16b32c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, acb, s8, aCB16b48c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, acb, s8, aCB16b64c4b, fmt_order::keep, spec::conv_req_comp)
             nullptr,
         }},
         {{bf16, s8, 4}, {

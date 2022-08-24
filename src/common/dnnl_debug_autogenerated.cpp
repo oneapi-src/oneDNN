@@ -579,6 +579,18 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aBdfec16b) return "aBdfec16b";
     if (v == dnnl_abdEC64e2c) return "abdEC64e2c";
     if (v == dnnl_abdEC64e4c) return "abdEC64e4c";
+    if (v == dnnl_aCB16b16c) return "aCB16b16c";
+    if (v == dnnl_aCB16b32c) return "aCB16b32c";
+    if (v == dnnl_aCB16b48c) return "aCB16b48c";
+    if (v == dnnl_aCB16b64c) return "aCB16b64c";
+    if (v == dnnl_aCB16b16c2b) return "aCB16b16c2b";
+    if (v == dnnl_aCB16b32c2b) return "aCB16b32c2b";
+    if (v == dnnl_aCB16b48c2b) return "aCB16b48c2b";
+    if (v == dnnl_aCB16b64c2b) return "aCB16b64c2b";
+    if (v == dnnl_aCB16b16c4b) return "aCB16b16c4b";
+    if (v == dnnl_aCB16b32c4b) return "aCB16b32c4b";
+    if (v == dnnl_aCB16b48c4b) return "aCB16b48c4b";
+    if (v == dnnl_aCB16b64c4b) return "aCB16b64c4b";
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
