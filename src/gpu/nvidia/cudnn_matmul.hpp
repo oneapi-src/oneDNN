@@ -87,7 +87,7 @@ struct cudnn_matmul_t : public primitive_t {
     private:
         bool attr_oscale_ok() const {
             const auto &oscale = attr()->output_scales_;
-            return oscale.mask_ == 0 || oscale.mask_ == (1 << (batched() + 1));
+            return oscale.mask_ == 0;
         }
 
         bool attr_post_ops_ok() const {
