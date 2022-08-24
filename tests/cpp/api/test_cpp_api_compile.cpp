@@ -17,9 +17,9 @@
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #include "test_api_common.hpp"
+
 #include "gtest/gtest.h"
 
-#ifndef DNNL_GRAPH_CPU_SYCL
 struct dnnl_graph_test_conv_params_t {
     std::vector<int64_t> input_dims;
     std::vector<int64_t> ref_dst_dims;
@@ -42,10 +42,9 @@ public:
                 dnnl_graph_test_conv_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        engine::kind engine_kind = engine::kind::cpu;
+        engine::kind engine_kind
+                = static_cast<engine::kind>(api_test_engine_kind);
         engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
-        stream strm {eng};
-
         graph g(engine_kind);
 
         const auto &input_dims = params.input_dims;
@@ -87,13 +86,16 @@ public:
 
         op convfwd_op(0, op::kind::Convolution, "conv_fwd");
 
-        convfwd_op.set_attr<std::vector<int64_t>>("strides", strides);
-        convfwd_op.set_attr<std::vector<int64_t>>("dilations", dilations);
-        convfwd_op.set_attr<std::vector<int64_t>>("pads_begin", pads_begin);
-        convfwd_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
-        convfwd_op.set_attr<std::string>("auto_pad", auto_pad);
-        convfwd_op.set_attr<std::string>("data_format", data_format);
-        convfwd_op.set_attr<std::string>("filter_format", filter_format);
+        convfwd_op.set_attr<std::vector<int64_t>>(op::attr::strides, strides);
+        convfwd_op.set_attr<std::vector<int64_t>>(
+                op::attr::dilations, dilations);
+        convfwd_op.set_attr<std::vector<int64_t>>(
+                op::attr::pads_begin, pads_begin);
+        convfwd_op.set_attr<std::vector<int64_t>>(op::attr::pads_end, pads_end);
+        convfwd_op.set_attr<std::string>(op::attr::auto_pad, auto_pad);
+        convfwd_op.set_attr<std::string>(op::attr::data_format, data_format);
+        convfwd_op.set_attr<std::string>(
+                op::attr::filter_format, filter_format);
 
         convfwd_op.add_input(lt1);
         convfwd_op.add_input(lt2);
@@ -103,15 +105,15 @@ public:
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions.size(), 1);
+        ASSERT_EQ(partitions.size(), 1U);
 
         // check partition engine kind
         ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
 
         //get_ops
         std::vector<size_t> ops = partitions[0].get_ops();
-        ASSERT_EQ(ops.size(), 1);
-        ASSERT_EQ(partitions[0].get_ops_num(), 1);
+        ASSERT_EQ(ops.size(), 1U);
+        ASSERT_EQ(partitions[0].get_ops_num(), 1U);
 
         logical_tensor lt1_plain {0, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
@@ -131,25 +133,6 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(2).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(2).get_dims()[3], ref_dst_dims[3]);
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::vector<float> filter(product(filter_dims), 0.0);
-        std::vector<float> dst(product(input_dims), 0.0);
-
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-        std::generate(filter.begin(), filter.end(),
-                [&]() { return distribution(generator); });
-
-        tensor src_ts(lt1_plain, eng, src.data());
-        tensor filter_ts(lt2_plain, eng, filter.data());
-        tensor dst_ts(out0[0], eng, dst.data());
-
-        cp.execute(strm, {src_ts, filter_ts}, {dst_ts});
-
-        strm.wait();
-
         // backward filter
         graph g1(engine_kind);
         std::vector<int64_t> infer_filter_dims {-1, -1, -1, -1};
@@ -163,18 +146,21 @@ public:
         op convbwd_filters_op(
                 1, op::kind::ConvolutionBackpropFilters, "conv_bwd_filters");
 
-        convbwd_filters_op.set_attr<std::vector<int64_t>>("strides", strides);
         convbwd_filters_op.set_attr<std::vector<int64_t>>(
-                "dilations", dilations);
+                op::attr::strides, strides);
         convbwd_filters_op.set_attr<std::vector<int64_t>>(
-                "pads_begin", pads_begin);
-        convbwd_filters_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
-        convbwd_filters_op.set_attr<std::string>("auto_pad", auto_pad);
-        convbwd_filters_op.set_attr<std::string>("data_format", data_format);
+                op::attr::dilations, dilations);
+        convbwd_filters_op.set_attr<std::vector<int64_t>>(
+                op::attr::pads_begin, pads_begin);
+        convbwd_filters_op.set_attr<std::vector<int64_t>>(
+                op::attr::pads_end, pads_end);
+        convbwd_filters_op.set_attr<std::string>(op::attr::auto_pad, auto_pad);
         convbwd_filters_op.set_attr<std::string>(
-                "filter_format", filter_format);
+                op::attr::data_format, data_format);
+        convbwd_filters_op.set_attr<std::string>(
+                op::attr::filter_format, filter_format);
         convbwd_filters_op.set_attr<std::vector<int64_t>>(
-                "filter_shape", filter_dims);
+                op::attr::filter_shape, filter_dims);
 
         convbwd_filters_op.add_input(lt4);
         convbwd_filters_op.add_input(lt5);
@@ -183,10 +169,10 @@ public:
         g1.add_op(convbwd_filters_op);
 
         auto partitions1 = g1.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions1.size(), 1);
+        ASSERT_EQ(partitions1.size(), 1U);
         std::vector<size_t> ops1 = partitions1[0].get_ops();
-        ASSERT_EQ(ops1.size(), 1);
-        ASSERT_EQ(partitions1[0].get_ops_num(), 1);
+        ASSERT_EQ(ops1.size(), 1U);
+        ASSERT_EQ(partitions1[0].get_ops_num(), 1U);
 
         logical_tensor lt4_plain {3, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
@@ -206,17 +192,6 @@ public:
         ASSERT_EQ(cp1.query_logical_tensor(5).get_dims()[2], filter_dims[2]);
         ASSERT_EQ(cp1.query_logical_tensor(5).get_dims()[3], filter_dims[3]);
 
-        logical_tensor lt6_plain_infered {5, logical_tensor::data_type::f32,
-                filter_dims, logical_tensor::layout_type::strided};
-
-        tensor input_ts(lt4_plain, eng, src.data());
-        tensor outgrad_ts(lt5_plain, eng, dst.data());
-        tensor filtergrad_ts(lt6_plain_infered, eng, filter.data());
-
-        cp1.execute(strm, {input_ts, outgrad_ts}, {filtergrad_ts});
-
-        strm.wait();
-
         // backward data
         graph g2(engine_kind);
         std::vector<int64_t> infer_data_dims {-1, -1, -1, -1};
@@ -230,16 +205,21 @@ public:
         op convbwd_data_op(
                 2, op::kind::ConvolutionBackpropData, "conv_bwd_data");
 
-        convbwd_data_op.set_attr<std::vector<int64_t>>("strides", strides);
-        convbwd_data_op.set_attr<std::vector<int64_t>>("dilations", dilations);
         convbwd_data_op.set_attr<std::vector<int64_t>>(
-                "pads_begin", pads_begin);
-        convbwd_data_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
-        convbwd_data_op.set_attr<std::string>("auto_pad", auto_pad);
-        convbwd_data_op.set_attr<std::string>("data_format", data_format);
-        convbwd_data_op.set_attr<std::string>("filter_format", filter_format);
+                op::attr::strides, strides);
         convbwd_data_op.set_attr<std::vector<int64_t>>(
-                "output_shape", input_dims);
+                op::attr::dilations, dilations);
+        convbwd_data_op.set_attr<std::vector<int64_t>>(
+                op::attr::pads_begin, pads_begin);
+        convbwd_data_op.set_attr<std::vector<int64_t>>(
+                op::attr::pads_end, pads_end);
+        convbwd_data_op.set_attr<std::string>(op::attr::auto_pad, auto_pad);
+        convbwd_data_op.set_attr<std::string>(
+                op::attr::data_format, data_format);
+        convbwd_data_op.set_attr<std::string>(
+                op::attr::filter_format, filter_format);
+        convbwd_data_op.set_attr<std::vector<int64_t>>(
+                op::attr::output_shape, input_dims);
 
         convbwd_data_op.add_input(lt7);
         convbwd_data_op.add_input(lt8);
@@ -248,10 +228,10 @@ public:
         g2.add_op(convbwd_data_op);
 
         auto partitions2 = g2.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions2.size(), 1);
+        ASSERT_EQ(partitions2.size(), 1U);
         std::vector<size_t> ops2 = partitions2[0].get_ops();
-        ASSERT_EQ(ops2.size(), 1);
-        ASSERT_EQ(partitions2[0].get_ops_num(), 1);
+        ASSERT_EQ(ops2.size(), 1U);
+        ASSERT_EQ(partitions2[0].get_ops_num(), 1U);
 
         logical_tensor lt7_plain {6, logical_tensor::data_type::f32,
                 ref_dst_dims, logical_tensor::layout_type::strided};
@@ -270,14 +250,6 @@ public:
         ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[1], input_dims[1]);
         ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[3], input_dims[3]);
-
-        tensor outputgrad_ts(lt7_plain, eng, dst.data());
-        tensor filter_ts2(lt8_plain, eng, filter.data());
-        tensor inputgrad_ts(out2[0], eng, src.data());
-
-        cp2.execute(strm, {outputgrad_ts, filter_ts2}, {inputgrad_ts});
-
-        strm.wait();
     }
 };
 
@@ -316,10 +288,9 @@ public:
                 dnnl_graph_test_pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        engine::kind engine_kind = engine::kind::cpu;
+        engine::kind engine_kind
+                = static_cast<engine::kind>(api_test_engine_kind);
         engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
-        stream strm {eng};
-
         graph g(engine_kind);
 
         const auto &input_dims = params.input_dims;
@@ -333,12 +304,6 @@ public:
         const auto &rounding_type = params.rounding_type;
         const auto &auto_pad = params.auto_pad;
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-
         std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
         logical_tensor lt1 {0, logical_tensor::data_type::f32, input_dims,
@@ -348,14 +313,15 @@ public:
 
         op pool_op(0, op::kind::AvgPool, "pool");
 
-        pool_op.set_attr<std::vector<int64_t>>("kernel", kernel);
-        pool_op.set_attr<std::vector<int64_t>>("strides", strides);
-        pool_op.set_attr<std::vector<int64_t>>("pads_begin", pads_begin);
-        pool_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
-        pool_op.set_attr<std::string>("data_format", data_format);
-        pool_op.set_attr<std::string>("rounding_type", rounding_type);
-        pool_op.set_attr<bool>("exclude_pad", exclude_pad);
-        pool_op.set_attr<std::string>("auto_pad", auto_pad);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::kernel, kernel);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::strides, strides);
+        pool_op.set_attr<std::vector<int64_t>>(
+                op::attr::pads_begin, pads_begin);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::pads_end, pads_end);
+        pool_op.set_attr<std::string>(op::attr::data_format, data_format);
+        pool_op.set_attr<std::string>(op::attr::rounding_type, rounding_type);
+        pool_op.set_attr<bool>(op::attr::exclude_pad, exclude_pad);
+        pool_op.set_attr<std::string>(op::attr::auto_pad, auto_pad);
 
         pool_op.add_input(lt1);
         pool_op.add_output(lt2);
@@ -364,15 +330,15 @@ public:
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions.size(), 1);
+        ASSERT_EQ(partitions.size(), 1U);
 
         // check partition engine kind
         ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
 
         //get_ops
         std::vector<size_t> ops = partitions[0].get_ops();
-        ASSERT_EQ(ops.size(), 1);
-        ASSERT_EQ(partitions[0].get_ops_num(), 1);
+        ASSERT_EQ(ops.size(), 1U);
+        ASSERT_EQ(partitions[0].get_ops_num(), 1U);
 
         logical_tensor lt1_plain {0, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
@@ -389,15 +355,6 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[1], ref_dst_dims[1]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
-
-        std::vector<float> dst(product(ref_dst_dims), 0.0);
-
-        tensor src_ts(lt1_plain, eng, src.data());
-        tensor dst_ts(out0[0], eng, dst.data());
-
-        cp.execute(strm, {src_ts}, {dst_ts});
-
-        strm.wait();
     }
 };
 
@@ -411,9 +368,6 @@ INSTANTIATE_TEST_SUITE_P(Test_Average_Pool_Compile, test_average_pool_compile_t,
                                   {0, 0}, false, "NCX", "ceil", "None"},
                 dnnl_graph_test_pool_params_t {{1, 1, 4, 4}, {1, 1, 2, 3},
                         {2, 2}, {3, 1}, {0, 0}, {0, 0}, {0, 0}, true, "NCX",
-                        "ceil", "None"},
-                dnnl_graph_test_pool_params_t {{1, 1, 60, 60}, {1, 1, 30, 30},
-                        {3, 3}, {2, 2}, {0, 0}, {1, 1}, {0, 0}, false, "NCX",
                         "ceil", "None"}));
 
 class test_max_pool_compile_t
@@ -424,10 +378,9 @@ public:
                 dnnl_graph_test_pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        engine::kind engine_kind = engine::kind::cpu;
+        engine::kind engine_kind
+                = static_cast<engine::kind>(api_test_engine_kind);
         engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
-        stream strm {eng};
-
         graph g(engine_kind);
 
         const auto &input_dims = params.input_dims;
@@ -441,12 +394,6 @@ public:
         const auto &rounding_type = params.rounding_type;
         const auto &auto_pad = params.auto_pad;
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-
         std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
         logical_tensor lt1 {0, logical_tensor::data_type::f32, input_dims,
@@ -456,14 +403,15 @@ public:
 
         op pool_op(0, op::kind::MaxPool, "pool");
 
-        pool_op.set_attr<std::vector<int64_t>>("kernel", kernel);
-        pool_op.set_attr<std::vector<int64_t>>("strides", strides);
-        pool_op.set_attr<std::vector<int64_t>>("dilations", dilations);
-        pool_op.set_attr<std::vector<int64_t>>("pads_begin", pads_begin);
-        pool_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
-        pool_op.set_attr<std::string>("data_format", data_format);
-        pool_op.set_attr<std::string>("rounding_type", rounding_type);
-        pool_op.set_attr<std::string>("auto_pad", auto_pad);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::kernel, kernel);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::strides, strides);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::dilations, dilations);
+        pool_op.set_attr<std::vector<int64_t>>(
+                op::attr::pads_begin, pads_begin);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::pads_end, pads_end);
+        pool_op.set_attr<std::string>(op::attr::data_format, data_format);
+        pool_op.set_attr<std::string>(op::attr::rounding_type, rounding_type);
+        pool_op.set_attr<std::string>(op::attr::auto_pad, auto_pad);
 
         pool_op.add_input(lt1);
         pool_op.add_output(lt2);
@@ -472,15 +420,15 @@ public:
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions.size(), 1);
+        ASSERT_EQ(partitions.size(), 1U);
 
         // check partition engine kind
         ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
 
         //get_ops
         std::vector<size_t> ops = partitions[0].get_ops();
-        ASSERT_EQ(ops.size(), 1);
-        ASSERT_EQ(partitions[0].get_ops_num(), 1);
+        ASSERT_EQ(ops.size(), 1U);
+        ASSERT_EQ(partitions[0].get_ops_num(), 1U);
 
         logical_tensor lt1_plain {0, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
@@ -497,15 +445,6 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[1], ref_dst_dims[1]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
-
-        std::vector<float> dst(product(ref_dst_dims), 0.0);
-
-        tensor src_ts(lt1_plain, eng, src.data());
-        tensor dst_ts(out0[0], eng, dst.data());
-
-        cp.execute(strm, {src_ts}, {dst_ts});
-
-        strm.wait();
     }
 
     void Test_Max_Pool_FWD_BWD() {
@@ -513,10 +452,9 @@ public:
                 dnnl_graph_test_pool_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        engine::kind engine_kind = engine::kind::cpu;
+        engine::kind engine_kind
+                = static_cast<engine::kind>(api_test_engine_kind);
         engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
-        stream strm {eng};
-
         graph g(engine_kind);
 
         const auto &input_dims = params.input_dims;
@@ -530,12 +468,6 @@ public:
         const auto &rounding_type = params.rounding_type;
         const auto &auto_pad = params.auto_pad;
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-
         std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
         logical_tensor lt0 {0, logical_tensor::data_type::f32, input_dims,
@@ -545,14 +477,15 @@ public:
 
         op pool_op(0, op::kind::MaxPool, "pool");
 
-        pool_op.set_attr<std::vector<int64_t>>("kernel", kernel);
-        pool_op.set_attr<std::vector<int64_t>>("strides", strides);
-        pool_op.set_attr<std::vector<int64_t>>("dilations", dilations);
-        pool_op.set_attr<std::vector<int64_t>>("pads_begin", pads_begin);
-        pool_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
-        pool_op.set_attr<std::string>("data_format", data_format);
-        pool_op.set_attr<std::string>("rounding_type", rounding_type);
-        pool_op.set_attr<std::string>("auto_pad", auto_pad);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::kernel, kernel);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::strides, strides);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::dilations, dilations);
+        pool_op.set_attr<std::vector<int64_t>>(
+                op::attr::pads_begin, pads_begin);
+        pool_op.set_attr<std::vector<int64_t>>(op::attr::pads_end, pads_end);
+        pool_op.set_attr<std::string>(op::attr::data_format, data_format);
+        pool_op.set_attr<std::string>(op::attr::rounding_type, rounding_type);
+        pool_op.set_attr<std::string>(op::attr::auto_pad, auto_pad);
 
         pool_op.add_input(lt0);
         pool_op.add_output(lt1);
@@ -561,15 +494,15 @@ public:
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions.size(), 1);
+        ASSERT_EQ(partitions.size(), 1U);
 
         // check partition engine kind
         ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
 
         //get_ops
         std::vector<size_t> ops = partitions[0].get_ops();
-        ASSERT_EQ(ops.size(), 1);
-        ASSERT_EQ(partitions[0].get_ops_num(), 1);
+        ASSERT_EQ(ops.size(), 1U);
+        ASSERT_EQ(partitions[0].get_ops_num(), 1U);
 
         logical_tensor lt0_plain {0, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
@@ -587,15 +520,6 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[2], ref_dst_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(1).get_dims()[3], ref_dst_dims[3]);
 
-        std::vector<float> dst(product(ref_dst_dims), 0.0);
-
-        tensor src_ts(lt1_plain, eng, src.data());
-        tensor dst_ts(out0[0], eng, dst.data());
-
-        cp.execute(strm, {src_ts}, {dst_ts});
-
-        strm.wait();
-
         graph g1(engine_kind);
 
         logical_tensor lt2 {2, logical_tensor::data_type::f32, input_dims,
@@ -607,13 +531,14 @@ public:
 
         op pool_op1(1, op::kind::MaxPoolBackprop, "poolbackprop");
 
-        pool_op1.set_attr<std::vector<int64_t>>("kernel", kernel);
-        pool_op1.set_attr<std::vector<int64_t>>("strides", strides);
-        pool_op1.set_attr<std::vector<int64_t>>("dilations", dilations);
-        pool_op1.set_attr<std::vector<int64_t>>("pads_begin", pads_begin);
-        pool_op1.set_attr<std::vector<int64_t>>("pads_end", pads_end);
-        pool_op1.set_attr<std::string>("data_format", data_format);
-        pool_op1.set_attr<std::string>("auto_pad", auto_pad);
+        pool_op1.set_attr<std::vector<int64_t>>(op::attr::kernel, kernel);
+        pool_op1.set_attr<std::vector<int64_t>>(op::attr::strides, strides);
+        pool_op1.set_attr<std::vector<int64_t>>(op::attr::dilations, dilations);
+        pool_op1.set_attr<std::vector<int64_t>>(
+                op::attr::pads_begin, pads_begin);
+        pool_op1.set_attr<std::vector<int64_t>>(op::attr::pads_end, pads_end);
+        pool_op1.set_attr<std::string>(op::attr::data_format, data_format);
+        pool_op1.set_attr<std::string>(op::attr::auto_pad, auto_pad);
 
         pool_op1.add_input(lt2);
         pool_op1.add_input(lt3);
@@ -623,15 +548,15 @@ public:
 
         //create_partition
         auto partitions1 = g1.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions1.size(), 1);
+        ASSERT_EQ(partitions1.size(), 1U);
 
         // check partition engine kind
         ASSERT_EQ(partitions1[0].get_engine_kind(), engine_kind);
 
         //get_ops
         std::vector<size_t> ops1 = partitions1[0].get_ops();
-        ASSERT_EQ(ops1.size(), 1);
-        ASSERT_EQ(partitions1[0].get_ops_num(), 1);
+        ASSERT_EQ(ops1.size(), 1U);
+        ASSERT_EQ(partitions1[0].get_ops_num(), 1U);
 
         logical_tensor lt2_plain {2, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
@@ -650,15 +575,6 @@ public:
         ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[1], input_dims[1]);
         ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp1.query_logical_tensor(4).get_dims()[3], input_dims[3]);
-
-        std::vector<float> outgrad(src.size(), 0.0);
-        tensor src_ts2(lt2_plain, eng, src.data());
-        tensor dst_ts2(lt3_plain, eng, dst.data());
-        tensor outgrad_ts(cp1.query_logical_tensor(4), eng, outgrad.data());
-
-        cp1.execute(strm, {src_ts2, dst_ts2}, {outgrad_ts});
-
-        strm.wait();
     }
 };
 
@@ -695,10 +611,9 @@ public:
                 dnnl_graph_test_bn_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        engine::kind engine_kind = engine::kind::cpu;
+        engine::kind engine_kind
+                = static_cast<engine::kind>(api_test_engine_kind);
         engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
-        stream strm {eng};
-
         graph g(engine_kind);
 
         const auto &input_dims = params.input_dims;
@@ -741,9 +656,9 @@ public:
         // BatchNormForwardTraining
         op bn_fwd_op(0, op::kind::BatchNormForwardTraining, "bn_fwd");
 
-        bn_fwd_op.set_attr<std::string>("data_format", data_format);
-        bn_fwd_op.set_attr<float>("epsilon", epsilon);
-        bn_fwd_op.set_attr<float>("momentum", 0.1f);
+        bn_fwd_op.set_attr<std::string>(op::attr::data_format, data_format);
+        bn_fwd_op.set_attr<float>(op::attr::epsilon, epsilon);
+        bn_fwd_op.set_attr<float>(op::attr::momentum, 0.1f);
 
         bn_fwd_op.add_input(lt0);
         bn_fwd_op.add_input(lt1);
@@ -760,15 +675,15 @@ public:
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions.size(), 1);
+        ASSERT_EQ(partitions.size(), 1U);
 
         // check partition engine kind
         ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
 
         //get_ops
         std::vector<size_t> ops = partitions[0].get_ops();
-        ASSERT_EQ(ops.size(), 1);
-        ASSERT_EQ(partitions[0].get_ops_num(), 1);
+        ASSERT_EQ(ops.size(), 1U);
+        ASSERT_EQ(partitions[0].get_ops_num(), 1U);
 
         //compile partition
         std::vector<logical_tensor> in0({lt0, lt1, lt2, lt3, lt4});
@@ -781,84 +696,17 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(5).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp.query_logical_tensor(5).get_dims()[3], input_dims[3]);
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::vector<float> gamma(channels, 0.0);
-        std::vector<float> beta(channels, 0.0);
-        std::vector<float> mean(channels, 0.0);
-        std::vector<float> variance(channels, 0.0);
-        std::vector<float> dst(product(input_dims), 0.0);
-        std::vector<float> running_mean(channels, 0.0);
-        std::vector<float> running_variance(channels, 0.0);
-        std::vector<float> batch_mean(channels, 0.0);
-        std::vector<float> batch_variance(channels, 0.0);
-
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-        std::generate(gamma.begin(), gamma.end(), []() {
-            static int i = 0;
-            return std::sin(static_cast<float>(i++) * 2.f);
-        });
-        std::generate(beta.begin(), beta.end(), []() {
-            static int i = 0;
-            return std::tan(i++);
-        });
-        std::generate(mean.begin(), mean.end(), []() {
-            static int i = 0;
-            return std::sin(static_cast<float>(i++) * 2.f);
-        });
-        std::generate(variance.begin(), variance.end(), []() {
-            static int i = 0;
-            return std::tan(i++);
-        });
-
-        logical_tensor lt0_plain {0, logical_tensor::data_type::f32, input_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt1_plain {1, logical_tensor::data_type::f32, mean_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt2_plain {2, logical_tensor::data_type::f32,
-                variance_dims, logical_tensor::layout_type::strided};
-        logical_tensor lt3_plain {3, logical_tensor::data_type::f32, gamma_dims,
-                logical_tensor::layout_type::strided};
-        logical_tensor lt4_plain {4, logical_tensor::data_type::f32, beta_dims,
-                logical_tensor::layout_type::strided};
-
-        tensor src_ts(lt0_plain, eng, src.data());
-        tensor mean_ts(lt1_plain, eng, gamma.data());
-        tensor variance_ts(lt2_plain, eng, beta.data());
-        tensor gamma_ts(lt3_plain, eng, mean.data());
-        tensor beta_ts(lt4_plain, eng, variance.data());
-
-        logical_tensor dst0_lt_infered {5, logical_tensor::data_type::f32,
-                input_dims, logical_tensor::layout_type::strided};
-        logical_tensor dst1_lt_infered {6, logical_tensor::data_type::f32,
-                mean_dims, logical_tensor::layout_type::strided};
-        logical_tensor dst2_lt_infered {7, logical_tensor::data_type::f32,
-                variance_dims, logical_tensor::layout_type::strided};
         logical_tensor dst3_lt_infered {8, logical_tensor::data_type::f32,
                 mean_dims, logical_tensor::layout_type::strided};
         logical_tensor dst4_lt_infered {9, logical_tensor::data_type::f32,
                 variance_dims, logical_tensor::layout_type::strided};
-        tensor dst_ts(dst0_lt_infered, eng, dst.data());
-        tensor running_mean_ts(dst1_lt_infered, eng, running_mean.data());
-        tensor running_variance_ts(
-                dst2_lt_infered, eng, running_variance.data());
-        tensor batch_mean_ts(dst3_lt_infered, eng, batch_mean.data());
-        tensor batch_variance_ts(dst4_lt_infered, eng, batch_variance.data());
-
-        cp.execute(strm, {src_ts, mean_ts, variance_ts, gamma_ts, beta_ts},
-                {dst_ts, running_mean_ts, running_variance_ts, batch_mean_ts,
-                        batch_variance_ts});
-
-        strm.wait();
 
         // BatchNormTrainingBackprop
         graph g2(engine_kind);
         op bn_bwd_op(0, op::kind::BatchNormTrainingBackprop, "bn_bwd");
 
-        bn_bwd_op.set_attr<std::string>("data_format", data_format);
-        bn_bwd_op.set_attr<float>("epsilon", epsilon);
+        bn_bwd_op.set_attr<std::string>(op::attr::data_format, data_format);
+        bn_bwd_op.set_attr<float>(op::attr::epsilon, epsilon);
 
         logical_tensor lt10 {10, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
@@ -881,12 +729,12 @@ public:
         g2.add_op(bn_bwd_op);
 
         auto partitions2 = g2.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions2.size(), 1);
+        ASSERT_EQ(partitions2.size(), 1U);
 
         //get_ops
         std::vector<size_t> ops2 = partitions2[0].get_ops();
-        ASSERT_EQ(ops2.size(), 1);
-        ASSERT_EQ(partitions2[0].get_ops_num(), 1);
+        ASSERT_EQ(ops2.size(), 1U);
+        ASSERT_EQ(partitions2[0].get_ops_num(), 1U);
 
         //compile partition
         std::vector<logical_tensor> in1(
@@ -899,28 +747,6 @@ public:
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[1], input_dims[1]);
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[3], input_dims[3]);
-
-        logical_tensor lt10_plain {10, logical_tensor::data_type::f32,
-                input_dims, logical_tensor::layout_type::strided};
-        tensor outgrad_ts(lt10_plain, eng, dst.data());
-
-        logical_tensor dst0_lt_infered2 {11, logical_tensor::data_type::f32,
-                input_dims, logical_tensor::layout_type::strided};
-        logical_tensor dst1_lt_infered2 {12, logical_tensor::data_type::f32,
-                gamma_dims, logical_tensor::layout_type::strided};
-        logical_tensor dst2_lt_infered2 {13, logical_tensor::data_type::f32,
-                beta_dims, logical_tensor::layout_type::strided};
-
-        tensor ingrad_ts(dst0_lt_infered2, eng, src.data());
-        tensor gammagrad_ts(dst1_lt_infered2, eng, gamma.data());
-        tensor betagrad_ts(dst2_lt_infered2, eng, beta.data());
-
-        cp2.execute(strm,
-                {src_ts, outgrad_ts, batch_mean_ts, batch_variance_ts,
-                        gamma_ts},
-                {ingrad_ts, gammagrad_ts, betagrad_ts});
-
-        strm.wait();
     }
 
     void Test_BatchNormTraining_Opaque() {
@@ -928,10 +754,9 @@ public:
                 dnnl_graph_test_bn_params_t>::GetParam();
 
         using namespace dnnl::graph;
-        engine::kind engine_kind = engine::kind::cpu;
+        engine::kind engine_kind
+                = static_cast<engine::kind>(api_test_engine_kind);
         engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
-        stream strm {eng};
-
         graph g(engine_kind);
 
         const auto &input_dims = params.input_dims;
@@ -974,9 +799,9 @@ public:
         // BatchNormForwardTraining
         op bn_fwd_op(0, op::kind::BatchNormForwardTraining, "bn_fwd");
 
-        bn_fwd_op.set_attr<std::string>("data_format", data_format);
-        bn_fwd_op.set_attr<float>("epsilon", epsilon);
-        bn_fwd_op.set_attr<float>("momentum", 0.1f);
+        bn_fwd_op.set_attr<std::string>(op::attr::data_format, data_format);
+        bn_fwd_op.set_attr<float>(op::attr::epsilon, epsilon);
+        bn_fwd_op.set_attr<float>(op::attr::momentum, 0.1f);
 
         bn_fwd_op.add_input(lt0);
         bn_fwd_op.add_input(lt1);
@@ -993,15 +818,15 @@ public:
 
         //create_partition
         auto partitions = g.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions.size(), 1);
+        ASSERT_EQ(partitions.size(), 1U);
 
         // check partition engine kind
         ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
 
         //get_ops
         std::vector<size_t> ops = partitions[0].get_ops();
-        ASSERT_EQ(ops.size(), 1);
-        ASSERT_EQ(partitions[0].get_ops_num(), 1);
+        ASSERT_EQ(ops.size(), 1U);
+        ASSERT_EQ(partitions[0].get_ops_num(), 1U);
 
         logical_tensor lt0_plain {0, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::strided};
@@ -1043,66 +868,12 @@ public:
         ASSERT_EQ(cp.query_logical_tensor(8).get_dims()[0], channels);
         ASSERT_EQ(cp.query_logical_tensor(9).get_dims()[0], channels);
 
-        std::vector<float> src(product(input_dims), 0.0);
-        std::vector<float> gamma(channels, 0.0);
-        std::vector<float> beta(channels, 0.0);
-        std::vector<float> mean(channels, 0.0);
-        std::vector<float> variance(channels, 0.0);
-        std::vector<float> dst(product(input_dims), 0.0);
-        std::vector<float> running_mean(channels, 0.0);
-        std::vector<float> running_variance(channels, 0.0);
-        std::vector<float> batch_mean(channels, 0.0);
-        std::vector<float> batch_variance(channels, 0.0);
-
-        std::default_random_engine generator;
-        std::normal_distribution<float> distribution(-1.0f, 1.0f);
-        std::generate(src.begin(), src.end(),
-                [&]() { return distribution(generator); });
-        std::generate(gamma.begin(), gamma.end(), []() {
-            static int i = 0;
-            return std::sin(static_cast<float>(i++) * 2.f);
-        });
-        std::generate(beta.begin(), beta.end(), []() {
-            static int i = 0;
-            return std::tan(i++);
-        });
-        std::generate(mean.begin(), mean.end(), []() {
-            static int i = 0;
-            return std::sin(static_cast<float>(i++) * 2.f);
-        });
-        std::generate(variance.begin(), variance.end(), []() {
-            static int i = 0;
-            return std::tan(i++);
-        });
-
-        tensor src_ts(lt0_plain, eng, src.data());
-        tensor mean_ts(lt1_plain, eng, gamma.data());
-        tensor variance_ts(lt2_plain, eng, beta.data());
-        tensor gamma_ts(lt3_plain, eng, mean.data());
-        tensor beta_ts(lt4_plain, eng, variance.data());
-
-        tensor dst_ts(cp.query_logical_tensor(5), eng, dst.data());
-        tensor running_mean_ts(
-                cp.query_logical_tensor(6), eng, running_mean.data());
-        tensor running_variance_ts(
-                cp.query_logical_tensor(7), eng, running_variance.data());
-        tensor batch_mean_ts(
-                cp.query_logical_tensor(8), eng, batch_mean.data());
-        tensor batch_variance_ts(
-                cp.query_logical_tensor(9), eng, batch_variance.data());
-
-        cp.execute(strm, {src_ts, mean_ts, variance_ts, gamma_ts, beta_ts},
-                {dst_ts, running_mean_ts, running_variance_ts, batch_mean_ts,
-                        batch_variance_ts});
-
-        strm.wait();
-
         // BatchNormTrainingBackprop
         graph g2(engine_kind);
         op bn_bwd_op(0, op::kind::BatchNormTrainingBackprop, "bn_bwd");
 
-        bn_bwd_op.set_attr<std::string>("data_format", data_format);
-        bn_bwd_op.set_attr<float>("epsilon", epsilon);
+        bn_bwd_op.set_attr<std::string>(op::attr::data_format, data_format);
+        bn_bwd_op.set_attr<float>(op::attr::epsilon, epsilon);
 
         logical_tensor lt10 {10, logical_tensor::data_type::f32, input_dims,
                 logical_tensor::layout_type::undef};
@@ -1125,12 +896,12 @@ public:
         g2.add_op(bn_bwd_op);
 
         auto partitions2 = g2.get_partitions(partition::policy::fusion);
-        ASSERT_EQ(partitions2.size(), 1);
+        ASSERT_EQ(partitions2.size(), 1U);
 
         //get_ops
         std::vector<size_t> ops2 = partitions2[0].get_ops();
-        ASSERT_EQ(ops2.size(), 1);
-        ASSERT_EQ(partitions2[0].get_ops_num(), 1);
+        ASSERT_EQ(ops2.size(), 1U);
+        ASSERT_EQ(partitions2[0].get_ops_num(), 1U);
 
         logical_tensor lt10_plain {10, logical_tensor::data_type::f32,
                 input_dims, logical_tensor::layout_type::strided};
@@ -1153,19 +924,6 @@ public:
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[1], input_dims[1]);
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[2], input_dims[2]);
         ASSERT_EQ(cp2.query_logical_tensor(11).get_dims()[3], input_dims[3]);
-
-        tensor outgrad_ts(lt10_plain, eng, dst.data());
-
-        tensor ingrad_ts(cp2.query_logical_tensor(11), eng, src.data());
-        tensor gammagrad_ts(cp2.query_logical_tensor(12), eng, gamma.data());
-        tensor betagrad_ts(cp2.query_logical_tensor(13), eng, beta.data());
-
-        cp2.execute(strm,
-                {src_ts, outgrad_ts, batch_mean_ts, batch_variance_ts,
-                        gamma_ts},
-                {ingrad_ts, gammagrad_ts, betagrad_ts});
-
-        strm.wait();
     }
 };
 
@@ -1177,4 +935,3 @@ TEST_P(test_bn_compile_t, Test_BatchNorm_Compile) {
 INSTANTIATE_TEST_SUITE_P(Test_BatchNorm_Compile, test_bn_compile_t,
         ::testing::Values(
                 dnnl_graph_test_bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));
-#endif

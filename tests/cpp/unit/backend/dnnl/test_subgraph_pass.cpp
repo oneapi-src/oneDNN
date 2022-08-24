@@ -355,7 +355,8 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     */
     using dims = impl::dnnl_impl::dims;
 
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(eng);
 
     int64_t groups = 4;
 
@@ -672,7 +673,8 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     const auto &params = GetParam();
 
     graph_t agraph;
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
     std::vector<int64_t> zps {0};
     std::vector<float> scales {0.5f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -811,7 +813,8 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
     const auto &params = GetParam();
 
     graph_t agraph;
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
     op_t matmul {0, MatMul, "matmul"};
     matmul.set_attr<bool>(op_attr::transpose_a, params.transpose_a);
     matmul.set_attr<bool>(op_attr::transpose_b, params.transpose_b);
@@ -891,7 +894,11 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
     }
 
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
-    ASSERT_EQ(subgraph->get_ops().size(), params.final_subgraph_size);
+    auto final_subgraph_size = params.final_subgraph_size;
+    if (params.transpose_a && p_eng.get_kind() == dnnl::engine::kind::gpu) {
+        final_subgraph_size -= 1;
+    }
+    ASSERT_EQ(subgraph->get_ops().size(), final_subgraph_size);
 }
 
 INSTANTIATE_TEST_SUITE_P(SubgraphPass, TestMatmulPassesWithDiffInputs,
@@ -929,7 +936,8 @@ TEST(SubgraphPass, ExecutionArgsSet) {
     value_t *val4 = (value_t *)4;
     value_t *val5 = (value_t *)5;
 
-    engine eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    engine eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
     dnnl::memory mem1({{1, 2, 3, 4}, dtype::f32, ftag::abcd}, eng, nullptr);
     dnnl::memory mem2({{2, 3, 4, 5}, dtype::f32, ftag::abcd}, eng, nullptr);
     dnnl::memory mem3({{3, 4, 5, 6}, dtype::f32, ftag::abcd}, eng, nullptr);
@@ -1048,7 +1056,8 @@ TEST(SubgraphPass, MemoryPlanning) {
     mul_scales -> mul_scales -> permute -> mul_scales -> permute -> mul_scales
     -> mul_scales
     */
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
 
     std::vector<int64_t> shape_NCX {64, 32, 256, 256};
     std::vector<int64_t> shape_NXC {64, 256, 256, 32};
@@ -1144,7 +1153,8 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
           |
          conv (depthwise)
     */
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
 
     // N, IC, IH, IW
     std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
@@ -1214,7 +1224,8 @@ TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
              multiply
                 |
     */
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = dnnl_impl::make_dnnl_engine(g_eng);
 
     std::vector<int64_t> src_shape {1, 16, 4, 4};
 
@@ -1274,7 +1285,8 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
             add
              | (bf16)
     */
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -1390,7 +1402,8 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
 }
 
 TEST(SubgraphPass, FuseTypecastToQuantize) {
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
     graph_t agraph;
 
     std::vector<int64_t> src_shape = {1, 8, 16};
@@ -1514,7 +1527,8 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
 }
 
 TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
 
     std::vector<int64_t> in_shape {1, 384, 16, 64};
     std::vector<int64_t> out_shape {1, 384, 1024};
@@ -1552,7 +1566,8 @@ TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
 }
 
 TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
 
     std::vector<int64_t> in_shape {1, 384, 16, 64};
     std::vector<int64_t> out_shape {384 * 16, 64};
@@ -1592,7 +1607,8 @@ TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
 }
 
 TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
 
     std::vector<int64_t> in_shape {1, 384, 16, 64};
     std::vector<int64_t> out_shape {384 * 16, 64};
@@ -1623,7 +1639,8 @@ TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
 }
 
 TEST(LayoutPropagation, Transpose) {
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
 
     std::vector<int64_t> in_shape {1, 384, 16, 64};
     std::vector<int64_t> out_shape {1, 16, 64, 384};
@@ -1774,7 +1791,8 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
 
-    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             g.get_partitions()[0]->get_ops(), p_eng);
     ASSERT_EQ(subgraph->get_ops().size(), 8);

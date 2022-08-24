@@ -67,8 +67,11 @@ set(TEST_FILES_NEED_VERSION ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_version.cpp)
 APPLY_VERSION_DEFINITIONS("${TEST_FILES_NEED_VERSION}")
 
-add_test("${LIB_NAME}_api_test" "${LIB_NAME}_api_test" "--engine=cpu")
-maybe_configure_windows_test("${LIB_NAME}_api_test" TEST)
+# Add CPU test if CPU runtime is enabled
+if(NOT DNNL_GRAPH_CPU_RUNTIME STREQUAL "NONE")
+    add_test("${LIB_NAME}_api_test" "${LIB_NAME}_api_test" "--engine=cpu")
+    maybe_configure_windows_test("${LIB_NAME}_api_test" TEST)
+endif()
 
 # Add GPU test if GPU runtime is enabled
 if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})

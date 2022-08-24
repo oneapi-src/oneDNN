@@ -1588,20 +1588,9 @@ struct const_memory_filler_t : public op_executable_t {
         void *data_handle = static_cast<void *>(
                 const_cast<target_dt *>(attr_data_.data()));
         const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
-
-        auto is_cpu = dst_mem.get_engine().get_kind() == engine::kind::cpu;
-        // handle cross-engine case
-        auto src_eng = (is_cpu) ? dst_mem.get_engine()
-                                : engine(dflt_eng_kind, dflt_eng_idx);
-
-        const memory src_mem
-                = make_dnnl_memory(dst_mem.get_desc(), src_eng, data_handle);
-        auto prim = dnnl::reorder(src_mem, dst_mem);
-        auto e = dnnl::sycl_interop::execute(prim, stream,
-                {{DNNL_ARG_FROM, const_cast<memory &>(src_mem)},
-                        {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
-                deps);
-        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        auto sycl_queue = dnnl::sycl_interop::get_queue(stream);
+        auto e = sycl_queue.memcpy(dst_mem.get_data_handle(), data_handle,
+                dst_mem.get_desc().get_size());
         return e;
     }
 #endif
