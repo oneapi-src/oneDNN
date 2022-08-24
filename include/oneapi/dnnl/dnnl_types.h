@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -723,6 +723,18 @@ typedef enum {
     dnnl_aBdfec16b,
     dnnl_abdEC64e2c,
     dnnl_abdEC64e4c,
+    dnnl_aCB16b16c,
+    dnnl_aCB16b32c,
+    dnnl_aCB16b48c,
+    dnnl_aCB16b64c,
+    dnnl_aCB16b16c2b,
+    dnnl_aCB16b32c2b,
+    dnnl_aCB16b48c2b,
+    dnnl_aCB16b64c2b,
+    dnnl_aCB16b16c4b,
+    dnnl_aCB16b32c4b,
+    dnnl_aCB16b48c4b,
+    dnnl_aCB16b64c4b,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.

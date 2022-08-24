@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,6 +72,14 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR(s8, iwo, s8, OIw16i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(s8, oiw, s8, OIw16i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(s8, wio, s8, OIw16i16o4i, fmt_order::keep, spec::conv_req_comp))
+            REG_SR(s8, abc, s8, aCB16b16c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(s8, abc, s8, aCB16b32c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(s8, abc, s8, aCB16b48c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(s8, abc, s8, aCB16b64c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(s8, acb, s8, aCB16b16c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(s8, acb, s8, aCB16b32c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(s8, acb, s8, aCB16b48c4b, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(s8, acb, s8, aCB16b64c4b, fmt_order::keep, spec::conv_req_comp)
             nullptr,
         }},
         {{s8, s8, 4}, {
