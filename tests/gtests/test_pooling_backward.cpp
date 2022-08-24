@@ -473,6 +473,11 @@ TEST_P(pooling_bwd_test_float, TestsPoolingBackward) {}
 
 INSTANTIATE_TEST_SUITE_P(TestPoolingBackwardZeroDim, pooling_bwd_test_float,
         ::testing::Values(
+                pool_bwd_test_params_float {
+                        algorithm::pooling_avg_include_padding,
+                        memory::format_tag::nchw, memory::format_tag::nchw,
+                        EXPAND_SIZES_2D(
+                                2, 0, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1, 1, 1)},
                 pool_bwd_test_params_float {algorithm::pooling_max,
                         memory::format_tag::nchw, memory::format_tag::nchw,
                         EXPAND_SIZES_2D(
