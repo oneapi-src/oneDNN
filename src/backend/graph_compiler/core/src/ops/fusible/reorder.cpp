@@ -38,11 +38,11 @@ static bool is_dynamic_reorder_inplace(sc_op *op, const context_ptr &ctx) {
     COMPILE_ASSERT(
             ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu,
             "Currently support cpu only.");
-    return (op->isa<reorder_op_t>()
+    return op->get_owner_graph().is_dynamic() && op->isa<reorder_op_t>()
             && op->get_inputs()[0]->details_.get_format()
-                    == op->get_outputs()[0]->details_.get_format()
+            == op->get_outputs()[0]->details_.get_format()
             && op->get_inputs()[0]->details_.get_strides()
-                    == op->get_outputs()[0]->details_.get_strides());
+            == op->get_outputs()[0]->details_.get_strides();
 }
 
 ir_module_ptr reorder_op_t::get_func(context_ptr ctx) {

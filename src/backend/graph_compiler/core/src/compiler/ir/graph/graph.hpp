@@ -445,6 +445,7 @@ public:
     // Get the total gflop from all tunable ops contained in the graph.
     float get_gflop() const;
     bool is_dynamic() const;
+    bool is_non_dense() const;
     std::vector<sc_op_ptr> get_output_ops();
     std::vector<sc_op_ptr> get_input_ops();
     std::vector<sc_op_ptr> get_input_or_const_ops() const;
