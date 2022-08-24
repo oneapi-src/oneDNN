@@ -1174,8 +1174,8 @@ public:
             outer_blocks[0].block = block_;
             outer_blocks[0].stride = b.stride * (b.block / block_);
         }
-        outer_blocks.insert(outer_blocks.end(), blocks.begin() + block_idx_ + 1,
-                blocks.end());
+        outer_blocks.insert(outer_blocks.end(),
+                blocks.begin() + (block_idx_ + 1), blocks.end());
         return layout_t(l_.type(), l_.ndims(), l_.offset(), outer_blocks);
     }
 
