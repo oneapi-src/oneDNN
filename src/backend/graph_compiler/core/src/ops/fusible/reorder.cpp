@@ -1809,6 +1809,15 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     // eg. 384N 64K -> 12N 4K 8k 32n 2k
     //     384N 64K -> 12N 2K 8k 32n 4k
     //     128A 16B 32C -> 128A 2B 2C 4c 8b 4c
+    auto input_blocking_dims
+            = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
+    auto output_blocking_dims
+            = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
+    bool is_padding = false;
+    if (math_utils::get_dims_product(input_blocking_dims)
+            != math_utils::get_dims_product(output_blocking_dims)) {
+        is_padding = true;
+    }
     if (!(ctx->machine_.cpu_flags_.fAVX512F
                 || ctx->machine_.cpu_flags_.fAVX512VBMI)) {
         return false;
@@ -1881,14 +1890,38 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     inp_k_axis.emplace_back(in_K_pos);
 
     // VNNI reorder kernel shape is 4x16 for u8/s8 and 4x8 for bf16.
-    if (get_expr_as_int(dst.shape_[out_k2_pos]) % (is_bf16 ? 2 : 4) != 0)
-        return false;
-    if (!is_vnni_reorder) {
-        if (get_expr_as_int(dst.shape_[out_n_pos]) % 4 == 0) return false;
-        if (get_expr_as_int(dst.shape_[out_k_pos]) % 4 == 0) return false;
-    } else {
-        if (get_expr_as_int(dst.shape_[out_n_pos]) % (is_bf16 ? 8 : 16) != 0)
+    if (!is_padding) {
+        if (get_expr_as_int(dst.shape_[out_k2_pos]) % (is_bf16 ? 2 : 4) != 0)
             return false;
+        if (!is_vnni_reorder) {
+            if (get_expr_as_int(dst.shape_[out_n_pos]) % 4 != 0) return false;
+            if (get_expr_as_int(dst.shape_[out_k_pos]) % 4 != 0) return false;
+        } else {
+            if (get_expr_as_int(dst.shape_[out_n_pos]) % (is_bf16 ? 8 : 16)
+                    != 0)
+                return false;
+
+            if ((get_expr_as_int(dst.shape_[out_k_pos])
+                        * get_expr_as_int(dst.shape_[out_k2_pos]))
+                            % 4
+                    != 0)
+                return false;
+        }
+    } else {
+        if (output_blocking_dims[out_k2_pos] % (is_bf16 ? 2 : 4) != 0)
+            return false;
+        if (!is_vnni_reorder) {
+            if (output_blocking_dims[out_n_pos] % 4 != 0) return false;
+            if (output_blocking_dims[out_k_pos] % 4 != 0) return false;
+        } else {
+            if (output_blocking_dims[out_n_pos] % (is_bf16 ? 8 : 16) != 0)
+                return false;
+
+            if (output_blocking_dims[out_k_pos]
+                            * output_blocking_dims[out_k2_pos] % 4
+                    != 0)
+                return false;
+        }
     }
 
     // new VNNI transpose currently only avaiable on spr
