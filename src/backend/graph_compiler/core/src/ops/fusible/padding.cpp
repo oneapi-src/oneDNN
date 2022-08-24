@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -269,11 +269,10 @@ stmt padding_op_t::get_zero_out_stmt(const tensor &out) {
             }
 
             sc::builtin::mem_zero(is_4d_out
-                            ? (is_channel_last
-                                            ? builder::tensor_ptr(
-                                                    out, {n, ph1_ + oh_, 0, 0})
-                                            : builder::tensor_ptr(out,
-                                                    {n, k, ph1_ + oh_, 0, 0}))
+                            ? (is_channel_last ? builder::tensor_ptr(
+                                       out, {n, ph1_ + oh_, 0, 0})
+                                               : builder::tensor_ptr(out,
+                                                       {n, k, ph1_ + oh_, 0}))
                             : builder::tensor_ptr(
                                     out, {n, k, ph1_ + oh_, 0, 0}),
                     ph2_ * w * c, out_dtype);
