@@ -56,8 +56,11 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
     auto check_bias = [&]() -> bool {
         const auto bia_dt = weights_md(1)->data_type;
+        // The cause in IMPLICATION should be an expression to work around
+        // ICE in GCC 7.4.
         const bool is_bia_dt_correct
-                = IMPLICATION(is_int8, one_of(bia_dt, f32, s32, s8, u8, bf16))
+                = IMPLICATION(is_int8 == true,
+                          one_of(bia_dt, f32, s32, s8, u8, bf16))
                 && IMPLICATION(!is_int8, one_of(bia_dt, f32, src_dt));
         return IMPLICATION(with_bias(), is_bia_dt_correct && is_bias_1xN());
     };
