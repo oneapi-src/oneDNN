@@ -285,8 +285,12 @@ protected:
                 "Unsupported format tag");
         SKIP_IF_CUDA(!cuda_check_format_tags(p.diff_dst_format),
                 "Unsupported format tag");
+        // This test makes assumptions on workspace content for the max
+        // algorithm therefore it cannot be used for non-intel implementations.
         SKIP_IF_CUDA(p.aalgorithm == algorithm::pooling_max,
-                "Unsupported algorithm MAX");
+                "Test is not designed to test non-intel implementations of max "
+                "algorithm");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
