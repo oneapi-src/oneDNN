@@ -523,6 +523,7 @@ public:
     }
 
     void _visit(const alloc_t &obj) override {
+        if (is_invalid_) return;
         int size = (obj.kind == alloc_kind_t::grf ? obj.size : 0);
         size = utils::rnd_up(size, grf_size_);
         mem_usage_guard_t alloc_guard(&alloc_usage_, &peak_alloc_usage_, size);
@@ -538,6 +539,7 @@ public:
     }
 
     void _visit(const func_call_t &obj) override {
+        if (is_invalid_) return;
         auto &func = obj.func;
         if (auto *reorder = func.as_ptr<reorder_t>()) {
             auto &src = get_base(reorder_t::arg_src_buf(obj));
@@ -565,6 +567,7 @@ public:
     }
 
     void _visit(const let_t &obj) override {
+        if (is_invalid_) return;
         int size = (obj.value.is_empty() ? 0 : obj.var.type().size());
         size = utils::rnd_up(size, reg_allocator_t::granularity);
         mem_usage_guard_t guard(&grf_usage_, &peak_grf_usage_, size);
@@ -572,6 +575,7 @@ public:
     }
 
     void _visit(const stmt_group_t &obj) override {
+        if (is_invalid_) return;
         if (obj.label == stmt_label_t::c_store()) {
             // Do not analyze C store consumption for simplicity. Assume there
             // is enough space after releasing A/B and other buffers after the
@@ -582,6 +586,7 @@ public:
     }
 
     void _visit(const store_t &obj) override {
+        if (is_invalid_) return;
         auto loads = find_objects<load_t>(obj);
         for (auto &l : loads) {
             if (obj.buf.is_same(l.as<load_t>().buf)) {
@@ -637,6 +642,7 @@ private:
     }
 
     void set_label(const expr_t &buf, grf_usage_label_t label) {
+        if (is_invalid_) return;
         bool skip_if_set = should_skip_if_set(buf, label);
         auto buf_label = buf_usage_.get_label(buf);
         if (utils::one_of(buf_label, grf_usage_label_t::unknown, label)) {
@@ -650,6 +656,7 @@ private:
     }
 
     void mark_known_bufs(const expr_t &buf) {
+        if (is_invalid_) return;
         ir_assert(is_buffer(buf));
         auto &name = buf.as<var_t>().name;
         if (name == "b_reduced") {
@@ -669,6 +676,7 @@ private:
 
     void mark_bufs(
             const reorder_t &reorder, const expr_t &src, const expr_t &dst) {
+        if (is_invalid_) return;
         ir_assert(is_buffer(src));
         ir_assert(is_buffer(dst));
         set_label(dst, grf_usage_label_t::reorder);
@@ -676,6 +684,7 @@ private:
 
     void mark_bufs(
             const send_t &send, const expr_t &buf, const expr_t &header) {
+        if (is_invalid_) return;
         if (!buf.is_empty()) ir_assert(is_buffer(buf));
         ir_assert(is_buffer(header));
         ir_assert(is_header(header));
@@ -689,7 +698,10 @@ private:
             label = (send.is_load() ? grf_usage_label_t::slm_load
                                     : grf_usage_label_t::slm_store);
         } else {
-            ir_assert(send.is_load() || send.is_load_2d()) << send;
+            if (!send.is_load() && !send.is_load_2d()) {
+                is_invalid_ = true;
+                return;
+            }
             label = grf_usage_label_t::gmem_load;
         }
         if (!buf.is_empty()) set_label(buf, label);
@@ -698,6 +710,7 @@ private:
 
     void mark_fma_bufs(
             const expr_t &dst, const expr_t &src1, const expr_t &src2) {
+        if (is_invalid_) return;
         ir_assert(is_buffer(dst));
         ir_assert(is_buffer(src1));
         ir_assert(is_buffer(src2));
