@@ -95,7 +95,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
         conf.chunks_per_mb_block = 1;
     }
-    if (conf.vect_dt_n < 8) {
+    if (conf.vect_dt_n < 4) {
         // fallback to ref_pooling kernel for better perf.
         return status::unimplemented;
     }
