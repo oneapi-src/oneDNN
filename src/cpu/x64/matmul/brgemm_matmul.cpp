@@ -294,7 +294,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
             ? brgmm_ctx.get_buf_C_ptr(ithr, m_blk_idx, n_blk_idx)
             : ptr_D;
 
-    const auto zp_comp_a = brgmm_ctx.get_zp_a_compensation_ptr(ithr, n_blk_idx);
+    const auto zp_comp_a
+            = brgmm_ctx.get_zp_a_compensation_ptr(ithr, b_idx, n_blk_idx);
     const auto zp_comp_b
             = brgmm_ctx.get_zp_b_compensation_result_ptr(ithr, m_blk_idx);
     const auto zp_c_val_ptr = brgmm_ctx.get_zp_c_val_ptr();
@@ -465,7 +466,8 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                         // TODO: support reduction for zp/s8s8 compensations
                         // computed in copy routines
                         const auto zp_comp_a
-                                = brgmm_ctx.get_zp_a_compensation_ptr(ithr, nb);
+                                = brgmm_ctx.get_zp_a_compensation_ptr(
+                                        ithr, b, nb);
                         const auto zp_comp_b
                                 = brgmm_ctx.get_zp_b_compensation_result_ptr(
                                         ithr, mb);
@@ -569,8 +571,8 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
     const int n = n_blk_idx * bgmmc.N_blk;
     const bool is_N_tail = (bgmmc.N - n < bgmmc.N_blk);
     ctx.current_N_blk = is_N_tail ? bgmmc.N_tail : bgmmc.N_blk;
-    ctx.zp_a_compensation_ptr
-            = (void *)brgmm_ctx.get_zp_a_compensation_ptr(ithr, n_blk_idx);
+    ctx.zp_a_compensation_ptr = (void *)brgmm_ctx.get_zp_a_compensation_ptr(
+            ithr, b_idx, n_blk_idx);
     ctx.zp_a_neg_value_ptr = (void *)brgmm_ctx.get_zp_a_neg_val_ptr();
 
     int gb = 0;
@@ -707,8 +709,10 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             // multitreaded execution mode
             const size_t reorder_zp_a_comp_offset
                     = weights_d.size() - weights_d.additional_buffer_size();
+            const size_t b_batch
+                    = get_bb_idx(bgmmc.batch - 1, bgmmc_.bcast_B_desc) + 1;
             const size_t s8s8_buffer_sz = bgmmc.s8s8_compensation_required
-                    ? bgmmc.s8s8_comp_b_str * sizeof(int32_t)
+                    ? sizeof(int32_t) * b_batch * bgmmc.s8s8_comp_b_str
                     : 0;
             reorder_zp_a_comp_ptr_
                     = const_cast<int32_t *>(reinterpret_cast<const int32_t *>(
@@ -963,7 +967,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 ? n_blk_idx % bgmmc_.N_chunk_size
                 : n_blk_idx;
         return s8s8_compensation_ptr_ + ithr * bgmmc_.s8s8_comp_ithr_str
-                + b * bgmmc_.s8s8_comp_b_str
+                + get_bb_idx(b, bgmmc_.bcast_B_desc) * bgmmc_.s8s8_comp_b_str
                 + n_blk_local * bgmmc_.s8s8_comp_n_str;
     }
 
@@ -985,7 +989,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
     const int32_t *get_zp_c_val_ptr() const { return &zero_point_c_val_; }
 
-    int32_t *get_zp_a_compensation_ptr(int ithr, int n_blk_idx) const {
+    int32_t *get_zp_a_compensation_ptr(
+            int ithr, int b_idx, int n_blk_idx) const {
         if (!bgmmc_.has_zero_point_a) return nullptr;
 
         const int n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
@@ -998,7 +1003,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             // locally just before usage. Using the single global scaling before
             // parallel section might produce significant overhead for small
             // problems running in multitreaded execution mode
-            const int base_offset = n_blk_idx * bgmmc_.wei_n_blk;
+            const int base_offset = get_bb_idx(b_idx, bgmmc_.bcast_B_desc)
+                            * rnd_up(bgmmc_.N, bgmmc_.wei_n_blk)
+                    + n_blk_idx * bgmmc_.wei_n_blk;
             PRAGMA_OMP_SIMD()
             for (int b = 0; b < bgmmc_.wei_n_blk; b++)
                 zp_comp[b] = -zero_point_a_negative_val_

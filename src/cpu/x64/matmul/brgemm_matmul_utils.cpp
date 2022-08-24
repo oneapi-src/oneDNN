@@ -42,15 +42,27 @@ int get_default_n_block(format_tag_t matrix_b_tag) {
     // Note: consider using weights mem_descriptor 'inner_blks' to
     // return B's inner block for non-default cases.
     switch (matrix_b_tag) {
+        case aCB16b64c:
+        case aCB16b64c2b:
+        case aCB16b64c4b:
         case BA16a64b4a:
         case BA16a64b2a:
         case BA16a64b: return 64;
+        case aCB16b48c:
+        case aCB16b48c2b:
+        case aCB16b48c4b:
         case BA16a48b:
         case BA16a48b2a:
         case BA16a48b4a: return 48;
+        case aCB16b32c:
+        case aCB16b32c2b:
+        case aCB16b32c4b:
         case BA16a32b:
         case BA16a32b2a:
         case BA16a32b4a: return 32;
+        case aCB16b16c:
+        case aCB16b16c2b:
+        case aCB16b16c4b:
         case BA16a16b:
         case BA16a16b2a:
         case BA16a16b4a: return 16;
@@ -231,14 +243,17 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
 status_t brgemm_matmul_conf_utils_t::set_B_flags(memory_desc_t &B_md) const {
 
     memory_desc_t want_B_md = B_md;
+    // Set bits for all dimensions except k dimension
+    const int compensation_mask
+            = ((1 << bgmmc.ndims) - 1 - (1 << (bgmmc.ndims - 2)));
     if (bgmmc.s8s8_compensation_required && bgmmc.blocked_B) {
         want_B_md.extra.flags |= memory_extra_flags::compensation_conv_s8s8;
-        want_B_md.extra.compensation_mask = (1 << 1);
+        want_B_md.extra.compensation_mask = compensation_mask;
     }
     if (bgmmc.src_zp_type != brgemm_broadcast_t::none && bgmmc.blocked_B) {
         want_B_md.extra.flags
                 |= memory_extra_flags::compensation_conv_asymmetric_src;
-        want_B_md.extra.asymm_compensation_mask = (1 << 1);
+        want_B_md.extra.asymm_compensation_mask = compensation_mask;
     }
 
     if (B_any_layout) {
@@ -251,27 +266,29 @@ status_t brgemm_matmul_conf_utils_t::set_B_flags(memory_desc_t &B_md) const {
 
 format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
         int n_blk) const {
-    if (bgmmc.ndims > 2) return format_tag::undef;
+
+    if (bgmmc.ndims > 3) return format_tag::undef;
     if (this->is_int8()) switch (n_blk) {
-            case 64: return BA16a64b4a;
-            case 48: return BA16a48b4a;
-            case 32: return BA16a32b4a;
-            case 16: return BA16a16b4a;
+            case 64: return bgmmc.ndims == 3 ? aCB16b64c4b : BA16a64b4a;
+            case 48: return bgmmc.ndims == 3 ? aCB16b48c4b : BA16a48b4a;
+            case 32: return bgmmc.ndims == 3 ? aCB16b32c4b : BA16a32b4a;
+            case 16: return bgmmc.ndims == 3 ? aCB16b16c4b : BA16a16b4a;
             default: return format_tag::undef;
         }
+
     if (this->is_bf16()) switch (n_blk) {
-            case 64: return BA16a64b2a;
-            case 48: return BA16a48b2a;
-            case 32: return BA16a32b2a;
-            case 16: return BA16a16b2a;
+            case 64: return bgmmc.ndims == 3 ? aCB16b64c2b : BA16a64b2a;
+            case 48: return bgmmc.ndims == 3 ? aCB16b48c2b : BA16a48b2a;
+            case 32: return bgmmc.ndims == 3 ? aCB16b32c2b : BA16a32b2a;
+            case 16: return bgmmc.ndims == 3 ? aCB16b16c2b : BA16a16b2a;
             default: return format_tag::undef;
         }
     // Note: bf32 assumes f32 blocking
     if (this->is_f32() || this->is_bf32() || this->is_f16()) switch (n_blk) {
-            case 64: return BA16a64b;
-            case 48: return BA16a48b;
-            case 32: return BA16a32b;
-            case 16: return BA16a16b;
+            case 64: return bgmmc.ndims == 3 ? aCB16b64c : BA16a64b;
+            case 48: return bgmmc.ndims == 3 ? aCB16b48c : BA16a48b;
+            case 32: return bgmmc.ndims == 3 ? aCB16b32c : BA16a32b;
+            case 16: return bgmmc.ndims == 3 ? aCB16b16c : BA16a16b;
             default: return format_tag::undef;
         }
     return format_tag::undef;
