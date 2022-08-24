@@ -617,6 +617,19 @@ bool sc_graph_t::is_dynamic() const {
             [](const sc_op_ptr &op) { return !op->is_dynamic(); });
 }
 
+bool sc_graph_t::is_non_dense() const {
+    if (is_dynamic()) {
+        // currently dynamic graph is always dense
+        return false;
+    }
+    for (const sc_op_ptr &op : ops_) {
+        for (const graph_tensor_ptr &gt : op->get_inputs()) {
+            if (!gt->details_.is_dense()) { return true; }
+        }
+    }
+    return false;
+}
+
 void sc_graph_t::add(const sc_op_ptr &ret) {
     assert(ret->logical_op_id_ == 0);
     ret->logical_op_id_ = ops_.size();
