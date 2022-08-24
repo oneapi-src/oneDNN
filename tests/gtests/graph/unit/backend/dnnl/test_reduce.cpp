@@ -560,7 +560,7 @@ TEST(Execute, ReduceMeanOutputDims) {
         g.finalize();
         impl::pass::pass_base_ptr apass = get_pass("reduce_pass");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
         // compile
         impl::partition_t p;
@@ -577,7 +577,7 @@ TEST(Execute, ReduceMeanOutputDims) {
         impl::logical_tensor_t dst_lt;
         cp.query_logical_tensor(dst.id, &dst_lt);
         ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
-        ASSERT_EQ(dst_lt.ndims, new_dst_shape.size());
+        ASSERT_EQ(dst_lt.ndims, static_cast<int>(new_dst_shape.size()));
         impl::tensor_t src0_ts(src0, engine, src0_data.data());
         impl::tensor_t dst_ts(dst_lt, engine, dst_data.data());
 
