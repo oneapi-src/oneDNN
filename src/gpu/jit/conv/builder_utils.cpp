@@ -28,14 +28,18 @@ ir_utils::debug_profiler_t &get_trace_profiler() {
     static thread_local ir_utils::debug_profiler_t profiler("Trace Profile");
     return profiler;
 }
+#endif
 
+#if defined(GEN_CONV_PROFILE) || defined(GEN_CONV_DEBUG)
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx) {
     trace_stop(pass_name);
     ir_trace() << "=== After " << pass_name << std::endl;
     ir_trace() << stmt << std::endl;
+#ifdef GEN_CONV_DEBUG
     auto grf_usage = get_grf_usage(stmt, ir_ctx.hw_cfg().grf_size());
     if (!grf_usage.is_empty()) ir_trace() << grf_usage << std::endl;
+#endif
 }
 #endif
 

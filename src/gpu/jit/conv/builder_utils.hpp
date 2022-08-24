@@ -44,14 +44,18 @@ inline void trace_stop(const char *pass_name) {
 inline void trace_perf() {
     ir_perf() << get_trace_profiler() << std::endl;
 }
-void trace_pass(
-        const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx);
 #else
 inline void trace_start() {};
 inline void trace_reset() {};
 inline void trace_stamp(const char *) {};
 inline void trace_stop(const char *) {};
 inline void trace_perf() {};
+#endif
+
+#if defined(GEN_CONV_PROFILE) || defined(GEN_CONV_DEBUG)
+void trace_pass(
+        const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx);
+#else
 inline void trace_pass(
         const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx) {};
 #endif
