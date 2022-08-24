@@ -346,12 +346,14 @@ public:
 
         switch (kind) {
             CASE(Abs);
+            CASE(AbsBackprop);
             CASE(Add);
             CASE(AvgPool);
             CASE(AvgPoolBackprop);
             CASE(BatchNormInference);
             CASE(BatchNormForwardTraining);
             CASE(BatchNormTrainingBackprop);
+            CASE(BiasAdd);
             CASE(BiasAddBackprop);
             CASE(Clamp);
             CASE(ClampBackprop);
@@ -362,15 +364,21 @@ public:
             CASE(ConvTranspose);
             CASE(ConvTransposeBackpropData);
             CASE(ConvTransposeBackpropFilters);
+            CASE(Dequantize);
             CASE(Divide);
+            CASE(DynamicDequantize);
+            CASE(DynamicQuantize);
             CASE(Elu);
             CASE(EluBackprop);
+            CASE(End);
             CASE(Erf);
             CASE(Exp);
             CASE(GELU);
             CASE(GELUBackprop);
             CASE(HardSwish);
             CASE(HardSwishBackprop);
+            CASE(Interpolate);
+            CASE(InterpolateBackprop);
             CASE(LayerNorm);
             CASE(LayerNormBackprop);
             CASE(LeakyReLU);
@@ -382,9 +390,13 @@ public:
             CASE(MaxPool);
             CASE(MaxPoolBackprop);
             CASE(Minimum);
+            CASE(Mish);
+            CASE(MishBackprop);
             CASE(Multiply);
             CASE(PReLU);
             CASE(PReLUBackprop);
+            CASE(Quantize);
+            CASE(Reciprocal);
             CASE(ReduceL1);
             CASE(ReduceL2);
             CASE(ReduceMax);
@@ -394,6 +406,7 @@ public:
             CASE(ReduceSum);
             CASE(ReLU);
             CASE(ReLUBackprop);
+            CASE(Reorder);
             CASE(Round);
             CASE(Sigmoid);
             CASE(SigmoidBackprop);
@@ -405,23 +418,13 @@ public:
             CASE(SqrtBackprop);
             CASE(Square);
             CASE(SquaredDifference);
+            CASE(StaticReshape);
+            CASE(StaticTranspose);
             CASE(Subtract);
             CASE(Tanh);
             CASE(TanhBackprop);
-            CASE(Wildcard);
-            CASE(BiasAdd);
-            CASE(Interpolate);
-            CASE(InterpolateBackprop);
-            CASE(End);
-            CASE(Quantize);
-            CASE(Dequantize);
-            CASE(Reorder);
             CASE(TypeCast);
-            CASE(StaticReshape);
-            CASE(StaticTranspose);
-            CASE(DynamicQuantize);
-            CASE(DynamicDequantize);
-            CASE(Reciprocal);
+            CASE(Wildcard);
             CASE(LastSymbol);
             default: return "internal_op";
         }
