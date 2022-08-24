@@ -2337,15 +2337,20 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
     impl::engine_t *engine = get_engine();
     impl::stream_t *strm = get_stream();
 
-    const std::vector<impl::op_kind_t> supported_binary_ops {impl::op_kind::Add,
-            impl::op_kind::Divide, impl::op_kind::Maximum,
-            impl::op_kind::Minimum, impl::op_kind::Multiply, impl::op_kind::Pow,
-            impl::op_kind::Subtract};
+    const std::vector<impl::op_kind_t> supported_binary_ops {
+            impl::op_kind::Add,
+            impl::op_kind::Divide,
+            impl::op_kind::Maximum,
+            impl::op_kind::Minimum,
+            impl::op_kind::Multiply,
+            impl::op_kind::Subtract,
+    };
     std::vector<std::vector<impl::op_kind_t>> post_op_t_seqs {
             {impl::op_kind::Abs, impl::op_kind::Sqrt},
             {impl::op_kind::Elu, impl::op_kind::SoftPlus, impl::op_kind::Tanh},
             {impl::op_kind::ReLU, impl::op_kind::Log, impl::op_kind::Subtract},
-            {impl::op_kind::Multiply, impl::op_kind::HardSwish}};
+            {impl::op_kind::Multiply, impl::op_kind::HardSwish},
+    };
 
     std::vector<size_t> nds = {2};
     std::vector<int64_t> groups = {1};

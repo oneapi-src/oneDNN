@@ -72,8 +72,6 @@ status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
 /// TODO(xxx): 0-D broadcasting?
 status_t broadcast(const dims &lhs, const dims &rhs, dims &broadcasted);
 
-status_t one_way_broadcast(const dims &lhs, const dims &rhs);
-
 /// This function assumes the size of all vectors are correct. Eg. size of
 /// strides/dilations/pads should be the same as spatial size of src_dims and
 /// fil_dims. Size of output_dims should be the same as size of src_dims.
@@ -181,16 +179,7 @@ status_t infer_unsupported_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
-/// Shape inference function for PowBackpropExponent
-status_t infer_exponent_output_shape(op_t *n,
-        std::vector<logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs);
-
 status_t infer_reduce_output_shape(op_t *n,
-        std::vector<logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs);
-
-status_t infer_select_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 

@@ -55,7 +55,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(convtranspose_fusion)
                 |                        Minimum/Divide/Subtract
                 |                             /
         [ Abs/Clamp/Elu/GELU/Log/Sigmoid/SoftPlus/
-          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
+          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3]
                 |
             [quant_out]*  

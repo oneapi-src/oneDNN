@@ -3075,17 +3075,36 @@ TEST(Pass, FuseConvBiasBnSumRelu) {
 
 TEST(Pass, FuseConvBiasPostOpsChain) {
     size_t max_num_post_ops = 3;
-    const std::vector<impl::op_kind_t> two_inputs_ops {impl::op_kind::Multiply,
-            impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
-            impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
-    const std::vector<impl::op_kind_t> supported_ops {impl::op_kind::Abs,
-            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardSwish, impl::op_kind::Log,
-            impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
-            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Multiply,
-            impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
-            impl::op_kind::Divide, impl::op_kind::Subtract};
+    const std::vector<impl::op_kind_t> two_inputs_ops {
+            impl::op_kind::Multiply,
+            impl::op_kind::Add,
+            impl::op_kind::Maximum,
+            impl::op_kind::Minimum,
+            impl::op_kind::Divide,
+            impl::op_kind::Subtract,
+    };
+    const std::vector<impl::op_kind_t> supported_ops {
+            impl::op_kind::Abs,
+            impl::op_kind::Clamp,
+            impl::op_kind::Elu,
+            impl::op_kind::Exp,
+            impl::op_kind::GELU,
+            impl::op_kind::HardSwish,
+            impl::op_kind::Log,
+            impl::op_kind::Sigmoid,
+            impl::op_kind::SoftPlus,
+            impl::op_kind::ReLU,
+            impl::op_kind::Round,
+            impl::op_kind::Sqrt,
+            impl::op_kind::Square,
+            impl::op_kind::Tanh,
+            impl::op_kind::Multiply,
+            impl::op_kind::Add,
+            impl::op_kind::Maximum,
+            impl::op_kind::Minimum,
+            impl::op_kind::Divide,
+            impl::op_kind::Subtract,
+    };
 
     for (size_t k = 0; k < supported_ops.size(); ++k) {
         for (size_t num_chain_ops = 0; num_chain_ops <= max_num_post_ops;
@@ -3180,17 +3199,36 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
 
 TEST(Pass, FuseConvPostOpsChain) {
     size_t max_num_post_ops = 3;
-    const std::vector<impl::op_kind_t> two_inputs_ops {impl::op_kind::Multiply,
-            impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
-            impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
-    const std::vector<impl::op_kind_t> supported_ops {impl::op_kind::Abs,
-            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardSwish, impl::op_kind::Log,
-            impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
-            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
-            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Multiply,
-            impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
-            impl::op_kind::Divide, impl::op_kind::Subtract};
+    const std::vector<impl::op_kind_t> two_inputs_ops {
+            impl::op_kind::Multiply,
+            impl::op_kind::Add,
+            impl::op_kind::Maximum,
+            impl::op_kind::Minimum,
+            impl::op_kind::Divide,
+            impl::op_kind::Subtract,
+    };
+    const std::vector<impl::op_kind_t> supported_ops {
+            impl::op_kind::Abs,
+            impl::op_kind::Clamp,
+            impl::op_kind::Elu,
+            impl::op_kind::Exp,
+            impl::op_kind::GELU,
+            impl::op_kind::HardSwish,
+            impl::op_kind::Log,
+            impl::op_kind::Sigmoid,
+            impl::op_kind::SoftPlus,
+            impl::op_kind::ReLU,
+            impl::op_kind::Round,
+            impl::op_kind::Sqrt,
+            impl::op_kind::Square,
+            impl::op_kind::Tanh,
+            impl::op_kind::Multiply,
+            impl::op_kind::Add,
+            impl::op_kind::Maximum,
+            impl::op_kind::Minimum,
+            impl::op_kind::Divide,
+            impl::op_kind::Subtract,
+    };
 
     for (size_t k = 0; k < supported_ops.size(); ++k) {
         for (size_t num_chain_ops = 0; num_chain_ops <= max_num_post_ops;
@@ -4793,107 +4831,54 @@ TEST(Pass, FuseGeluErf) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
-TEST(Pass, FuseGelutanh) {
-    /*   \  /
-          Pow
-            \    /
-           Multiply
-             \      /
-                Add
-                  \     /
-                  Multiply
-                     |
-                    Tanh
-                      \    /
-                        Add
-                         \      /
-                          Multiply
-                              \     /
-                              Multiply
-                                 |
-
-    */
-    graph_t agraph;
-    op_t op0 {0, Pow, "op0"};
-    op_t op1 {1, Multiply, "op1"};
-    op_t op2 {2, Add, "op2"};
-    op_t op3 {3, Multiply, "op3"};
-    op_t op4 {4, Tanh, "op4"};
-    op_t op5 {5, Add, "op5"};
-    op_t op6 {6, Multiply, "op6"};
-    op_t op7 {7, Multiply, "op7"};
-
-    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(16);
-    op0.add_input(lt_vec[0]);
-    op0.add_input(lt_vec[1]);
-    op0.add_output(lt_vec[2]);
-    op1.add_input(lt_vec[2]);
-    op1.add_input(lt_vec[3]);
-    op1.add_output(lt_vec[4]);
-    op2.add_input(lt_vec[4]);
-    op2.add_input(lt_vec[5]);
-    op2.add_output(lt_vec[6]);
-    op3.add_input(lt_vec[6]);
-    op3.add_input(lt_vec[7]);
-    op3.add_output(lt_vec[8]);
-    op4.add_input(lt_vec[8]);
-    op4.add_output(lt_vec[9]);
-    op5.add_input(lt_vec[9]);
-    op5.add_input(lt_vec[10]);
-    op5.add_output(lt_vec[11]);
-    op6.add_input(lt_vec[11]);
-    op6.add_input(lt_vec[12]);
-    op6.add_output(lt_vec[13]);
-    op7.add_input(lt_vec[13]);
-    op7.add_input(lt_vec[14]);
-    op7.add_output(lt_vec[15]);
-
-    ASSERT_EQ(agraph.add_op(&op0), status::success);
-    ASSERT_EQ(agraph.add_op(&op1), status::success);
-    ASSERT_EQ(agraph.add_op(&op2), status::success);
-    ASSERT_EQ(agraph.add_op(&op3), status::success);
-    ASSERT_EQ(agraph.add_op(&op4), status::success);
-    ASSERT_EQ(agraph.add_op(&op5), status::success);
-    ASSERT_EQ(agraph.add_op(&op6), status::success);
-    ASSERT_EQ(agraph.add_op(&op7), status::success);
-    agraph.finalize();
-    ASSERT_EQ(agraph.num_ops(), 8U);
-
-    pass::pass_base_ptr gelu_pass = get_pass("gelu_fusion");
-    gelu_pass->run(agraph);
-
-    ASSERT_EQ(agraph.get_num_partitions(), 1U);
-
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 8U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 5U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[4].id, 7U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[5].id, 10U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[6].id, 12U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[7].id, 14U);
-
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 15U);
-}
-
 TEST(Pass, DnnlSingleOpReplacement) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::op_kind;
 
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    std::vector<op_kind_t> single_op_set_supported = {BatchNormInference, Add,
-            ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop,
-            BatchNormTrainingBackprop, Clamp, ConvolutionBackpropData,
-            ConvolutionBackpropFilters, MaxPoolBackprop, Elu, Exp, HardSwish,
-            Log, LogSoftmax, SoftMax, Multiply, Maximum, Minimum, Mish,
-            MishBackprop, Pow, Sqrt, Square, Tanh, ClampBackprop, EluBackprop,
-            GELUBackprop, LogSoftmaxBackprop, ReLUBackprop, SigmoidBackprop,
-            SqrtBackprop, TanhBackprop, LayerNorm, LayerNormBackprop,
-            BatchNormForwardTraining, SoftMaxBackprop, DynamicQuantize,
-            DynamicDequantize};
+    std::vector<op_kind_t> single_op_set_supported = {
+            BatchNormInference,
+            Add,
+            ReLU,
+            MatMul,
+            AvgPool,
+            MaxPool,
+            AvgPoolBackprop,
+            BatchNormTrainingBackprop,
+            Clamp,
+            ConvolutionBackpropData,
+            ConvolutionBackpropFilters,
+            MaxPoolBackprop,
+            Elu,
+            Exp,
+            HardSwish,
+            Log,
+            LogSoftmax,
+            SoftMax,
+            Multiply,
+            Maximum,
+            Minimum,
+            Mish,
+            MishBackprop,
+            Sqrt,
+            Square,
+            Tanh,
+            ClampBackprop,
+            EluBackprop,
+            GELUBackprop,
+            LogSoftmaxBackprop,
+            ReLUBackprop,
+            SigmoidBackprop,
+            SqrtBackprop,
+            TanhBackprop,
+            LayerNorm,
+            LayerNormBackprop,
+            BatchNormForwardTraining,
+            SoftMaxBackprop,
+            DynamicQuantize,
+            DynamicDequantize,
+    };
     for (auto akind : single_op_set_supported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);
@@ -14257,16 +14242,41 @@ TEST(Pass, BinaryPostops) {
         \       /
         [Add, Multiply, Maximum, Minimum, Divide, Subtract]
             |
-        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 1]
+        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 1]
     */
 
     std::vector<op_kind_t> supported_binary_ops {
             Add, Divide, Maximum, Minimum, Multiply, Subtract};
-    std::vector<op_kind_t> supported_post_ops {Abs, Add, Clamp, Divide, Elu,
-            Exp, GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU,
-            Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+    std::vector<op_kind_t> supported_post_ops {
+            Abs,
+            Add,
+            Clamp,
+            Divide,
+            Elu,
+            Exp,
+            GELU,
+            HardSwish,
+            Log,
+            Maximum,
+            Minimum,
+            Multiply,
+            ReLU,
+            Round,
+            Sigmoid,
+            SoftPlus,
+            Sqrt,
+            Square,
+            Subtract,
+            Tanh,
+    };
     std::vector<op_kind_t> supported_binary_post_ops {
-            Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
+            Add,
+            Divide,
+            Maximum,
+            Minimum,
+            Multiply,
+            Subtract,
+    };
     for_(auto bop : supported_binary_ops)
     for (auto pop : supported_post_ops) {
         auto is_post_op_binary = (std::find(supported_binary_post_ops.begin(),
@@ -14333,20 +14343,49 @@ TEST(Pass, Binary3Postops) {
         \       /
         [Add, Multiply, Maximum, Minimum, Divide, Subtract]
             |
-        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 3]
+        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 3]
     */
 
     std::vector<op_kind_t> supported_binary_ops {
             Add, Divide, Maximum, Minimum, Multiply, Subtract};
-    std::vector<op_kind_t> supported_post_ops {Abs, Add, Clamp, Divide, Elu,
-            Exp, GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU,
-            Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+    std::vector<op_kind_t> supported_post_ops {
+            Abs,
+            Add,
+            Clamp,
+            Divide,
+            Elu,
+            Exp,
+            GELU,
+            HardSwish,
+            Log,
+            Maximum,
+            Minimum,
+            Multiply,
+            ReLU,
+            Round,
+            Sigmoid,
+            SoftPlus,
+            Sqrt,
+            Square,
+            Subtract,
+            Tanh,
+    };
     std::vector<op_kind_t> supported_binary_post_ops {
-            Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
+            Add,
+            Divide,
+            Maximum,
+            Minimum,
+            Multiply,
+            Subtract,
+    };
 
     // select several combinations of post ops
-    std::vector<std::vector<op_kind_t>> post_op_seqs {{Abs, Subtract, Divide},
-            {Round, Multiply}, {Add, Elu}, {Clamp, Minimum, Pow}};
+    std::vector<std::vector<op_kind_t>> post_op_seqs {
+            {Abs, Subtract, Divide},
+            {Round, Multiply},
+            {Add, Elu},
+            {Clamp, Minimum},
+    };
     for_(const auto &pop_seq : post_op_seqs)
     for (const auto &pop : pop_seq)
         ASSERT_NE(std::find(supported_post_ops.begin(),
@@ -14479,17 +14518,42 @@ TEST(Pass, ConvtransposePostops) {
             |
         addbias * [0, 1]
             |
-        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 1]
+        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 1]
     */
 
     std::vector<bool> with_conv_bias = {true, false};
     std::vector<bool> with_post_bias = {true, false};
     std::vector<bool> with_post_activation = {true, false};
-    std::vector<op_kind_t> supported_ops {Abs, Add, Clamp, Divide, Elu, Exp,
-            GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round,
-            Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+    std::vector<op_kind_t> supported_ops {
+            Abs,
+            Add,
+            Clamp,
+            Divide,
+            Elu,
+            Exp,
+            GELU,
+            HardSwish,
+            Log,
+            Maximum,
+            Minimum,
+            Multiply,
+            ReLU,
+            Round,
+            Sigmoid,
+            SoftPlus,
+            Sqrt,
+            Square,
+            Subtract,
+            Tanh,
+    };
     std::vector<op_kind_t> supported_binary_ops {
-            Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
+            Add,
+            Divide,
+            Maximum,
+            Minimum,
+            Multiply,
+            Subtract,
+    };
 
     for (auto conv_bias_on : with_conv_bias)
         for (auto post_bias_on : with_post_bias)
@@ -14588,19 +14652,48 @@ TEST(Pass, Convtranspose3Postops) {
             |
         addbias * [0, 1]
             |
-        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 3]
+        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 3]
     */
 
     std::vector<bool> with_conv_bias = {true, false};
     std::vector<bool> with_post_bias = {true, false};
     std::vector<bool> with_post_activation = {true, false};
-    std::vector<op_kind_t> supported_ops {Abs, Add, Clamp, Divide, Elu, Exp,
-            GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round,
-            Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+    std::vector<op_kind_t> supported_ops {
+            Abs,
+            Add,
+            Clamp,
+            Divide,
+            Elu,
+            Exp,
+            GELU,
+            HardSwish,
+            Log,
+            Maximum,
+            Minimum,
+            Multiply,
+            ReLU,
+            Round,
+            Sigmoid,
+            SoftPlus,
+            Sqrt,
+            Square,
+            Subtract,
+            Tanh,
+    };
     std::vector<op_kind_t> supported_binary_ops {
-            Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
-    std::vector<std::vector<op_kind_t>> post_op_seqs {{Abs, Subtract, Divide},
-            {Round, Multiply}, {Add, Elu}, {Clamp, Minimum, Pow}};
+            Add,
+            Divide,
+            Maximum,
+            Minimum,
+            Multiply,
+            Subtract,
+    };
+    std::vector<std::vector<op_kind_t>> post_op_seqs {
+            {Abs, Subtract, Divide},
+            {Round, Multiply},
+            {Add, Elu},
+            {Clamp, Minimum},
+    };
 
     for_(auto conv_bias_on : with_conv_bias)
     for_(auto post_bias_on : with_post_bias)

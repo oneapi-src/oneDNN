@@ -279,7 +279,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                 |                        Minimum/Divide/Subtract
                 |                             /
         [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
-          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
+          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
           Divide/Subtract]*[0,3]
                 |
             [quant_out]*  

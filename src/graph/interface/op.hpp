@@ -383,8 +383,6 @@ public:
             CASE(MaxPoolBackprop);
             CASE(Minimum);
             CASE(Multiply);
-            CASE(Pow);
-            CASE(PowBackprop);
             CASE(PReLU);
             CASE(PReLUBackprop);
             CASE(ReduceL1);
@@ -413,9 +411,7 @@ public:
             CASE(Wildcard);
             CASE(BiasAdd);
             CASE(Interpolate);
-            CASE(Index);
             CASE(InterpolateBackprop);
-            CASE(PowBackpropExponent);
             CASE(End);
             CASE(Quantize);
             CASE(Dequantize);
@@ -423,12 +419,8 @@ public:
             CASE(TypeCast);
             CASE(StaticReshape);
             CASE(StaticTranspose);
-            CASE(DynamicReshape);
-            CASE(DynamicTranspose);
             CASE(DynamicQuantize);
             CASE(DynamicDequantize);
-            CASE(Sign);
-            CASE(Negative);
             CASE(Reciprocal);
             CASE(LastSymbol);
             default: return "internal_op";

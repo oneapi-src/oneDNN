@@ -368,7 +368,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
                 |                         dequant_add
                 |                             /
         [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
-          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
+          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
           Divide/Subtract]*[0,3]
                 |
             [quant_out]*  
@@ -438,23 +438,29 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto postop_graph
                             = std::make_shared<pb_graph_t>("postops_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
-                            {graph::op_kind::Abs, graph::op_kind::Clamp,
-                                    graph::op_kind::Elu, graph::op_kind::Exp,
+                            {
+                                    graph::op_kind::Abs,
+                                    graph::op_kind::Clamp,
+                                    graph::op_kind::Elu,
+                                    graph::op_kind::Exp,
                                     graph::op_kind::GELU,
                                     graph::op_kind::HardSwish,
                                     graph::op_kind::LeakyReLU,
-                                    graph::op_kind::Log, graph::op_kind::Mish,
+                                    graph::op_kind::Log,
+                                    graph::op_kind::Mish,
                                     graph::op_kind::Sigmoid,
                                     graph::op_kind::SoftPlus,
-                                    graph::op_kind::Pow, graph::op_kind::ReLU,
-                                    graph::op_kind::Round, graph::op_kind::Sqrt,
+                                    graph::op_kind::ReLU,
+                                    graph::op_kind::Round,
+                                    graph::op_kind::Sqrt,
                                     graph::op_kind::Square,
                                     graph::op_kind::Tanh,
                                     graph::op_kind::Multiply,
                                     graph::op_kind::Maximum,
                                     graph::op_kind::Minimum,
                                     graph::op_kind::Divide,
-                                    graph::op_kind::Subtract},
+                                    graph::op_kind::Subtract,
+                            },
                             "postop");
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
@@ -554,23 +560,29 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto postop_graph
                             = std::make_shared<pb_graph_t>("postops_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
-                            {graph::op_kind::Abs, graph::op_kind::Clamp,
-                                    graph::op_kind::Elu, graph::op_kind::Exp,
+                            {
+                                    graph::op_kind::Abs,
+                                    graph::op_kind::Clamp,
+                                    graph::op_kind::Elu,
+                                    graph::op_kind::Exp,
                                     graph::op_kind::GELU,
                                     graph::op_kind::HardSwish,
                                     graph::op_kind::LeakyReLU,
-                                    graph::op_kind::Log, graph::op_kind::Mish,
+                                    graph::op_kind::Log,
+                                    graph::op_kind::Mish,
                                     graph::op_kind::Sigmoid,
                                     graph::op_kind::SoftPlus,
-                                    graph::op_kind::Pow, graph::op_kind::ReLU,
-                                    graph::op_kind::Round, graph::op_kind::Sqrt,
+                                    graph::op_kind::ReLU,
+                                    graph::op_kind::Round,
+                                    graph::op_kind::Sqrt,
                                     graph::op_kind::Square,
                                     graph::op_kind::Tanh,
                                     graph::op_kind::Multiply,
                                     graph::op_kind::Maximum,
                                     graph::op_kind::Minimum,
                                     graph::op_kind::Divide,
-                                    graph::op_kind::Subtract},
+                                    graph::op_kind::Subtract,
+                            },
                             "postop");
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
@@ -616,7 +628,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                 |        Maximum/Minimum/Divide/Subtract
                 |                   /
         [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
-          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
+          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
           Divide/Subtract]*[0,3]
                 |
             [quant_out]*
@@ -1447,7 +1459,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
               conv
                 |
         [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
-          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
+          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3] 
                 |
             [TypeCast]*
@@ -1528,7 +1540,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
               bias
                 |
         [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
-          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
+          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3] 
                 |
            [TypeCast]*

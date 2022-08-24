@@ -219,31 +219,6 @@ status_t broadcast(const dims &lhs, const dims &rhs, dims &broadcasted) {
     return status::success;
 }
 
-//one-way broadcasting
-status_t one_way_broadcast(const dims &dst_shape, const dims &src_shape) {
-    const size_t dst_rank = dst_shape.size();
-    const size_t src_rank = src_shape.size();
-
-    if (dst_rank < src_rank)
-        return status::invalid_shape;
-    else {
-        // case 1: two tensors have exactly the same shape
-        // case 2: after rightmost alignment, the length of each
-        // dimensions is either a common length or rhs's length is 1.
-        const size_t br = dst_rank - src_rank;
-        dim_t dst_dim = 1, src_dim = 1;
-        for (size_t index = src_rank - 1; index < src_rank; --index) {
-            src_dim = src_shape[index];
-            dst_dim = dst_shape[index + br];
-            if (dst_dim != src_dim && src_dim != 1)
-                return status::invalid_shape;
-            if (0 == index) break;
-        }
-    }
-
-    return status::success;
-}
-
 /// This function assumes the size of all vectors are correct. Eg. size of
 /// strides/dilations/pads should be the same as spatial size of src_dims and
 /// fil_dims. Size of output_dims should be the same as size of src_dims.
@@ -1028,47 +1003,6 @@ status_t infer_norm_bprop_output_shape(op_t *n,
             n, inputs, outputs, identity_shapes_pos);
 }
 
-status_t infer_select_output_shape(op_t *n,
-        std::vector<logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper_t(inputs[0]);
-    auto in1 = logical_tensor_wrapper_t(inputs[1]);
-    auto in2 = logical_tensor_wrapper_t(inputs[2]);
-    // check if output shape is already known
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    if (!out0.is_shape_unknown()) return status::success;
-
-    const bool shapes_should_match = n->has_attr(op_attr::auto_broadcast)
-            ? "none" == n->get_attr<std::string>(op_attr::auto_broadcast)
-            : false;
-
-    dims input0_dims = in0.vdims();
-    dims input1_dims = in1.vdims();
-    dims input2_dims = in2.vdims();
-    dims inferred_out_shape;
-
-    if (shapes_should_match) { // no broadcast
-        if (!(input0_dims == input1_dims && input1_dims == input2_dims)) {
-            return status::invalid_shape;
-        }
-        inferred_out_shape = input0_dims;
-    } else { // can broadcast
-        status_t ret1 = broadcast(input1_dims, input2_dims, inferred_out_shape);
-        if (ret1 != status::success) { return ret1; }
-        status_t ret2 = one_way_broadcast(inferred_out_shape, input0_dims);
-        if (ret2 != status::success) { return ret2; }
-    }
-    // check if partial set shape aligns with inferred shape
-    if (out0.ndims() != -1) {
-        if (!validate(inferred_out_shape, out0.vdims())) {
-            return status::invalid_shape;
-        }
-    }
-
-    set_shape_and_strides(*outputs[0], inferred_out_shape);
-    return status::success;
-}
-
 status_t infer_elemwise_arithmetic_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
@@ -1223,20 +1157,6 @@ status_t infer_unsupported_output_shape(op_t *n,
     UNUSED(inputs);
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
     if (out0.is_shape_unknown()) return status::unimplemented;
-    return status::success;
-}
-
-/// Shape inference function for PowBackpropExponent
-status_t infer_exponent_output_shape(op_t *n,
-        std::vector<logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs) {
-    UNUSED(n);
-    auto out0 = logical_tensor_wrapper_t(outputs[0]); // exponent_delta
-    if (!out0.is_shape_unknown()) return status::success;
-
-    auto in = logical_tensor_wrapper_t(inputs[3]); // exponent
-    auto dims = in.vdims();
-    set_shape_and_strides(*outputs[0], dims);
     return status::success;
 }
 

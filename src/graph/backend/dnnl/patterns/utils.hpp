@@ -70,38 +70,66 @@ bool check_producer_input_num(op_t *op) {
 }
 
 inline const std::vector<op_kind_t> &get_unary_ops() {
-    const static std::vector<op_kind_t> unary = {graph::op_kind::Abs,
-            graph::op_kind::Clamp, graph::op_kind::Elu, graph::op_kind::Exp,
-            graph::op_kind::GELU, graph::op_kind::HardSwish,
-            graph::op_kind::LeakyReLU, graph::op_kind::Log,
-            graph::op_kind::Mish, graph::op_kind::Sigmoid,
-            graph::op_kind::SoftPlus, graph::op_kind::Pow, graph::op_kind::ReLU,
-            graph::op_kind::Round, graph::op_kind::Sqrt, graph::op_kind::Square,
-            graph::op_kind::Tanh};
+    const static std::vector<op_kind_t> unary = {
+            graph::op_kind::Abs,
+            graph::op_kind::Clamp,
+            graph::op_kind::Elu,
+            graph::op_kind::Exp,
+            graph::op_kind::GELU,
+            graph::op_kind::HardSwish,
+            graph::op_kind::LeakyReLU,
+            graph::op_kind::Log,
+            graph::op_kind::Mish,
+            graph::op_kind::Sigmoid,
+            graph::op_kind::SoftPlus,
+            graph::op_kind::ReLU,
+            graph::op_kind::Round,
+            graph::op_kind::Sqrt,
+            graph::op_kind::Square,
+            graph::op_kind::Tanh,
+    };
 
     return unary;
 }
 
 inline const std::vector<op_kind_t> &get_binary_ops() {
-    const static std::vector<op_kind_t> binary
-            = {graph::op_kind::Add, graph::op_kind::Multiply,
-                    graph::op_kind::Maximum, graph::op_kind::Minimum,
-                    graph::op_kind::Divide, graph::op_kind::Subtract};
+    const static std::vector<op_kind_t> binary = {
+            graph::op_kind::Add,
+            graph::op_kind::Multiply,
+            graph::op_kind::Maximum,
+            graph::op_kind::Minimum,
+            graph::op_kind::Divide,
+            graph::op_kind::Subtract,
+    };
 
     return binary;
 }
 
 inline const std::vector<op_kind_t> &get_unary_binary_ops() {
-    const static std::vector<op_kind_t> unary_binary = {graph::op_kind::Abs,
-            graph::op_kind::Clamp, graph::op_kind::Elu, graph::op_kind::Exp,
-            graph::op_kind::GELU, graph::op_kind::HardSwish,
-            graph::op_kind::LeakyReLU, graph::op_kind::Log,
-            graph::op_kind::Mish, graph::op_kind::Sigmoid,
-            graph::op_kind::SoftPlus, graph::op_kind::Pow, graph::op_kind::ReLU,
-            graph::op_kind::Round, graph::op_kind::Sqrt, graph::op_kind::Square,
-            graph::op_kind::Tanh, graph::op_kind::Add, graph::op_kind::Multiply,
-            graph::op_kind::Maximum, graph::op_kind::Minimum,
-            graph::op_kind::Divide, graph::op_kind::Subtract};
+    const static std::vector<op_kind_t> unary_binary = {
+            graph::op_kind::Abs,
+            graph::op_kind::Clamp,
+            graph::op_kind::Elu,
+            graph::op_kind::Exp,
+            graph::op_kind::GELU,
+            graph::op_kind::HardSwish,
+            graph::op_kind::LeakyReLU,
+            graph::op_kind::Log,
+            graph::op_kind::Mish,
+            graph::op_kind::Sigmoid,
+            graph::op_kind::SoftPlus,
+            graph::op_kind::ReLU,
+            graph::op_kind::Round,
+            graph::op_kind::Sqrt,
+            graph::op_kind::Square,
+            graph::op_kind::Tanh,
+            graph::op_kind::Add,
+            graph::op_kind::Multiply,
+            graph::op_kind::Maximum,
+            graph::op_kind::Minimum,
+            graph::op_kind::Divide,
+            graph::op_kind::Subtract,
+    };
 
     return unary_binary;
 }

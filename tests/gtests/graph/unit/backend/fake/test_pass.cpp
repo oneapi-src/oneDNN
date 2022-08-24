@@ -36,15 +36,30 @@ TEST(Pass, FakeSingleOpReplacement) {
 
     auto &fake_backend_ptr = fake_impl::fake_backend_t::get_singleton();
     auto fake_pm = pass::pass_manager_t(fake_backend_ptr.get_pass_registry());
-    std::vector<op_kind_t> single_op_set_unsupported
-            = {/* not enabling ops = */ Concat, Divide, DynamicReshape,
-                    DynamicTranspose, EluBackprop, LayerNormBackprop, Round,
-                    Sigmoid, SigmoidBackprop, SqrtBackprop, TanhBackprop,
-                    StaticReshape, StaticTranspose,
-                    /* no dnnl primitive support = */ BiasAdd, BiasAddBackprop,
-                    Clamp, ClampBackprop, Erf, PowBackprop, ReduceSum, Select,
-                    SoftPlus, SoftPlusBackprop, Wildcard, End, Index,
-                    PowBackpropExponent, Sign, Negative, Reciprocal};
+    std::vector<op_kind_t> single_op_set_unsupported = {
+            /* not enabling ops = */ Concat,
+            Divide,
+            EluBackprop,
+            LayerNormBackprop,
+            Round,
+            Sigmoid,
+            SigmoidBackprop,
+            SqrtBackprop,
+            TanhBackprop,
+            StaticReshape,
+            StaticTranspose,
+            /* no dnnl primitive support = */ BiasAdd,
+            BiasAddBackprop,
+            Clamp,
+            ClampBackprop,
+            Erf,
+            ReduceSum,
+            SoftPlus,
+            SoftPlusBackprop,
+            Wildcard,
+            End,
+            Reciprocal,
+    };
     for (auto akind : single_op_set_unsupported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);

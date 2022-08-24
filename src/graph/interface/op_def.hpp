@@ -517,23 +517,6 @@ DNNL_GRAPH_OP_SCHEMA(End, 1,
                                 data_type::s8, data_type::u8, data_type::s32,
                                 data_type::undef}))
 
-DNNL_GRAPH_OP_SCHEMA(Equal, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T1")
-                .set_output(0, "output", "output tensor", "T2")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints("T2", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
 DNNL_GRAPH_OP_SCHEMA(Erf, 1,
         op_schema_t()
                 .set_num_inputs(1)
@@ -577,40 +560,6 @@ DNNL_GRAPH_OP_SCHEMA(GELUBackprop, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(Greater, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T1")
-                .set_output(0, "output", "output tensor", "T2")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints("T2", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(GreaterEqual, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T1")
-                .set_output(0, "output", "output tensor", "T2")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints("T2", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
 DNNL_GRAPH_OP_SCHEMA(HardSwish, 1,
         op_schema_t()
                 .set_num_inputs(1)
@@ -633,20 +582,6 @@ DNNL_GRAPH_OP_SCHEMA(HardSwishBackprop, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(Index, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "indices", "indices tensor", "T2")
-                .set_output(0, "output",
-                        "a tensor with selected data from input tensor", "T1")
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints(
-                        "T2", {data_type::s8, data_type::u8, data_type::s32})
-                .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
         op_schema_t()
@@ -816,40 +751,6 @@ DNNL_GRAPH_OP_SCHEMA(LeakyReLU, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(Less, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T1")
-                .set_output(0, "output", "output tensor", "T2")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints("T2", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(LessEqual, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T1")
-                .set_output(0, "output", "output tensor", "T2")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints("T2", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
 DNNL_GRAPH_OP_SCHEMA(Log, 1,
         op_schema_t()
                 .set_num_inputs(1)
@@ -889,64 +790,6 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmaxBackprop, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(LogicalAnd, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_commutative_inputs()
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints("T", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(LogicalNot, 1,
-        op_schema_t()
-                .set_num_inputs(1)
-                .set_num_outputs(1)
-                .set_input(0, "a", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_type_constraints("T", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(LogicalOr, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_commutative_inputs()
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints("T", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(LogicalXor, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_commutative_inputs()
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints("T", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
         op_schema_t()
@@ -1114,68 +957,6 @@ DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
                         "T3", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(NotEqual, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T1")
-                .set_output(0, "output", "output tensor", "T2")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints("T2", {data_type::boolean})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(Pow, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(PowBackprop, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "input_forward", "input of forward", "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_input(2, "exponent", "exponent of input", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of pow", "T")
-                .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(PowBackpropExponent, 1,
-        op_schema_t()
-                .set_num_inputs(4)
-                .set_num_outputs(1)
-                .set_input(0, "input_forward", "input of forward", "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_input(2, "result_forward", "original output of pow", "T")
-                .set_input(3, "exponent", "exponent of input", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of pow", "T")
-                .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_exponent_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(PReLU, 1,
         op_schema_t()
@@ -1387,23 +1168,6 @@ DNNL_GRAPH_OP_SCHEMA(Sigmoid, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(Select, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "cond", "cond tensor with selection mask", "T1")
-                .set_input(1, "then", "then tensor", "T2")
-                .set_input(2, "else", "else input tensor", "T2")
-                .set_output(0, "output", "output tensor", "T2")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_type_constraints("T1", {data_type::boolean})
-                .set_type_constraints(
-                        "T2", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_select_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(SigmoidBackprop, 1,
         op_schema_t()
@@ -1679,27 +1443,6 @@ DNNL_GRAPH_OP_SCHEMA(StaticReshape, 1,
                 .set_shape_inference_function(
                         infer_static_reshape_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(DynamicReshape, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "data", "multidimensional input tensor", "T1")
-                .set_input(
-                        1, "shape", "1D tensor describing output shape", "T2")
-                .set_output(0, "output",
-                        "Output tensor with the same content as a tensor at "
-                        "input data but with shape defined by input shape",
-                        "T1")
-                .set_attr(op_attr::special_zero,
-                        " controls how zero values in shape are interpreted "
-                        "shape",
-                        true, attribute_kind::b)
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints(
-                        "T2", {data_type::s8, data_type::u8, data_type::s32})
-                .set_shape_inference_function(infer_unsupported_output_shape))
-
 DNNL_GRAPH_OP_SCHEMA(StaticTranspose, 1,
         op_schema_t()
                 .set_num_inputs(1)
@@ -1716,24 +1459,6 @@ DNNL_GRAPH_OP_SCHEMA(StaticTranspose, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
                         infer_static_transpose_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(DynamicTranspose, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "data", "the tensor to be transposed", "T1")
-                .set_input(1, "order",
-                        "the permutation to apply to the axes of the input "
-                        "shape",
-                        "T2")
-                .set_output(0, "output",
-                        "A tensor with shape and type matching 1st tensor.",
-                        "T1")
-                .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints(
-                        "T2", {data_type::s8, data_type::u8, data_type::s32})
-                .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(DynamicQuantize, 1,
         op_schema_t()
@@ -1771,26 +1496,6 @@ DNNL_GRAPH_OP_SCHEMA(DynamicDequantize, 1,
                 .set_type_constraints("T2", {data_type::f32})
                 .set_type_constraints(
                         "T3", {data_type::u8, data_type::s8, data_type::s32})
-                .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(Sign, 1,
-        op_schema_t()
-                .set_num_inputs(1)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(Negative, 1,
-        op_schema_t()
-                .set_num_inputs(1)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Reciprocal, 1,
