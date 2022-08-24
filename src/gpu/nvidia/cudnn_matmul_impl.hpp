@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -304,7 +304,7 @@ struct cudnn_matmul_impl_t {
 
     void execute(cublasHandle_t cublas_handle, cudnnHandle_t cudnn_handle,
             void *a, void *b, void *c, void *bias, void *scratch,
-            const float scales) {
+            const void *scales) {
         float gemm_beta = 0;
         if (!bias_dt_mismatch_ && !reorder_required_) {
             // Case where no reorder is required, scratchpad points to dst (c)
@@ -321,14 +321,14 @@ struct cudnn_matmul_impl_t {
             // Calls cublasGemmStridedBatchedEx()
             if (transC_ == cublasOperation_t::CUBLAS_OP_T) {
                 CUBLAS_EXECUTE_FUNC(cublasGemmStridedBatchedEx, cublas_handle,
-                        flip_op(transB_), flip_op(transA_), N_, M_, K_, &scales,
+                        flip_op(transB_), flip_op(transA_), N_, M_, K_, scales,
                         b, src_type_, ldb_, stride_b_, a, weights_type_, lda_,
                         stride_a_, &gemm_beta, scratch, dst_type_, ldc_,
                         stride_c_, batch_count_, acc_type_, gemm_algo_);
 
             } else {
                 CUBLAS_EXECUTE_FUNC(cublasGemmStridedBatchedEx, cublas_handle,
-                        transA_, transB_, M_, N_, K_, &scales, a, weights_type_,
+                        transA_, transB_, M_, N_, K_, scales, a, weights_type_,
                         lda_, stride_a_, b, src_type_, ldb_, stride_b_,
                         &gemm_beta, scratch, dst_type_, ldc_, stride_c_,
                         batch_count_, acc_type_, gemm_algo_);
@@ -337,12 +337,12 @@ struct cudnn_matmul_impl_t {
             // Calls cublasGemmEx()
             if (transC_ == cublasOperation_t::CUBLAS_OP_T) {
                 CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle,
-                        flip_op(transB_), flip_op(transA_), N_, M_, K_, &scales,
+                        flip_op(transB_), flip_op(transA_), N_, M_, K_, scales,
                         b, src_type_, ldb_, a, weights_type_, lda_, &gemm_beta,
                         scratch, dst_type_, ldc_, acc_type_, gemm_algo_);
             } else {
                 CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle, transA_,
-                        transB_, M_, N_, K_, &scales, a, weights_type_, lda_, b,
+                        transB_, M_, N_, K_, scales, a, weights_type_, lda_, b,
                         src_type_, ldb_, &gemm_beta, scratch, dst_type_, ldc_,
                         acc_type_, gemm_algo_);
             }
@@ -350,7 +350,7 @@ struct cudnn_matmul_impl_t {
         if (with_bias_) {
             // When bias is specified call cudnnAddTensor()
             float bias_beta = 1;
-            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &scales,
+            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, scales,
                     tensor_descs_[io::bias], bias, &bias_beta, temp_mem_desc_,
                     scratch);
         }
