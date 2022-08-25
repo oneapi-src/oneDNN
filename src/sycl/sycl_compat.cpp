@@ -20,10 +20,12 @@
 #include "oneapi/dnnl/dnnl_config.h"
 #include "sycl/sycl_utils.hpp"
 
-#if DNNL_USE_SYCL121_HEADERS
+#if __has_include(<sycl/backend/opencl.hpp>)
+#include <sycl/backend/opencl.hpp>
+#elif __has_include(<CL/sycl/backend/opencl.hpp>)
 #include <CL/sycl/backend/opencl.hpp>
 #else
-#include <sycl/backend/opencl.hpp>
+#error "Unsupported compiler"
 #endif
 
 #if DNNL_USE_SYCL121_API
