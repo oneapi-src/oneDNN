@@ -23,7 +23,14 @@
 #include "gpu/ocl/ocl_utils.hpp"
 
 #include <vector>
+
+#if __has_include(<sycl/sycl.hpp>)
+#include <sycl/sycl.hpp>
+#elif __has_include(<CL/sycl.hpp>)
 #include <CL/sycl.hpp>
+#else
+#error "Unsupported compiler"
+#endif
 
 #if defined(__INTEL_LLVM_COMPILER)
 #if (__INTEL_LLVM_COMPILER < 20220000)
