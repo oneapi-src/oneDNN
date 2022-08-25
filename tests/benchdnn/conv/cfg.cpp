@@ -177,6 +177,27 @@ const _dt_conf_t conf_f32f32u8 = {
         {dnnl_f32},
 };
 
+const _dt_conf_t conf_f32f16f16 = {
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, -2, 1, 1.0,
+                0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -6, 6, 0, 1, 1.0,
+                0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
+                0.},
+        {dnnl_f32},
+};
+
+const _dt_conf_t conf_f16f32f16 = {
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
+                0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
+                0.},
+        {dnnl_f32},
+};
+
 const _dt_conf_t conf_f16f16s8 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
                 0.},
@@ -374,6 +395,8 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(f16f16f32);
     CASE(f16f16s8);
     CASE(f16f16u8);
+    CASE(f32f16f16);
+    CASE(f16f32f16);
 #undef CASE
     []() {
         SAFE(FAIL, CRIT);
@@ -417,6 +440,8 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(f32f32s8);
     CASE(f32f32u8);
     CASE(bf16f32bf16);
+    CASE(f32f16f16);
+    CASE(f16f32f16);
 #undef CASE
     SAFE_V(FAIL);
     return s;
