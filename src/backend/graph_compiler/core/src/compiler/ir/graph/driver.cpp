@@ -75,6 +75,8 @@ create_default_graph_flow(const context_ptr &ctx) {
             true));
     post_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
             elemwise_dimension_alignment, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("layout_propagation",
+            layout_propagation, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("const_folding",
             graph_constant_input_folding, {}, pass_type::post_tune, true));
     // The zero out step only exists in mixed_partition for now.
@@ -84,8 +86,6 @@ create_default_graph_flow(const context_ptr &ctx) {
         post_tune_passes.push_back(create_graph_pass(
                 "pre_padding", pre_padding, {}, pass_type::post_tune, true));
     }
-    post_tune_passes.push_back(create_graph_pass("layout_propagation",
-            layout_propagation, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("tensor_view_transform",
             tensor_view_transform, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass(
