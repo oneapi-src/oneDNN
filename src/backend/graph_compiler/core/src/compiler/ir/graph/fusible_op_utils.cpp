@@ -684,6 +684,7 @@ expr transform_tptr2stsr(const expr &tptr) {
 
 float evaluate_loop_parallel_balance(const sc_dims &loop_ranges) {
     sc_dim prod = get_dims_product(loop_ranges);
+    if (prod == 1) return 0.f;
     const int run_threads = runtime_config_t::get().get_num_threads();
     bool parallelism = (prod / run_threads > 8)
             || (prod % run_threads == 0 && prod >= run_threads);

@@ -254,6 +254,15 @@ struct fuse_anchor_map_t {
         parent->append_anchor(root);
     }
 
+    bool is_parent_for(const fuse_anchor_map_t *cur) {
+        if (!cur) return false;
+        while (cur->parent_) {
+            cur = cur->parent_.get();
+            if (cur == this) return true;
+        }
+        return false;
+    }
+
     void merge(const std::shared_ptr<fuse_anchor_map_t> &other) {
         fsmap_.datamap_.insert(
                 other->fsmap_.datamap_.begin(), other->fsmap_.datamap_.end());
