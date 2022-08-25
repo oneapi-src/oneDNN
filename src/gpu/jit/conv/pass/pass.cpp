@@ -148,6 +148,22 @@ stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx) {
     return ret;
 }
 
+stmt_t maybe_strip_prefetches(
+        const stmt_t &s, ir_context_t &ir_ctx, const conv_config_t &cfg) {
+    trace_start();
+    int ir_usage = get_peak_grf_usage(s, ir_ctx.hw_cfg().grf_size());
+    int grf_usage = ir_usage + cfg.reserved_regs;
+    auto ret = s;
+    //strip prefetches when they exceed available registers
+    if (grf_usage > ir_ctx.hw_cfg().regs()) {
+        ret = remove_stmt_group(s, stmt_label_t::prefetch());
+        ir_warning() << "Dropping prefetches due to too lack of available "
+                        "registers.\n";
+    }
+    trace_pass("maybe_strip_prefetches", ret, ir_ctx);
+    return ret;
+}
+
 } // namespace jit
 } // namespace gpu
 } // namespace impl

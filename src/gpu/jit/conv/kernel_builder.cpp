@@ -2584,6 +2584,7 @@ void kernel_builder_t::build() {
     stmt_ = fixup_if_conditions(stmt_, ir_ctx);
     stmt_ = unroll_loops(stmt_, ir_ctx);
     stmt_ = simplify(stmt_, ir_ctx);
+    stmt_ = maybe_strip_prefetches(stmt_, ir_ctx, cfg_);
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     if (cfg_.hoist_masks_from_compute_loop) {
         stmt_ = remove_spurious_send_mask_cast(stmt_, ir_ctx);

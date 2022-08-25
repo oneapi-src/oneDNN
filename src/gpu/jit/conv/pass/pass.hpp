@@ -55,6 +55,9 @@ stmt_t split_wide_stores(const stmt_t &s, ir_context_t &ir_ctx);
 //     if (bcast8(cond)) { ... }
 stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx);
 
+// Remove prefetches if they exceed available registers
+stmt_t maybe_strip_prefetches(
+        const stmt_t &s, ir_context_t &ir_ctx, const conv_config_t &cfg);
 } // namespace jit
 } // namespace gpu
 } // namespace impl
