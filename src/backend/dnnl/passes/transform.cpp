@@ -3424,7 +3424,8 @@ impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg) {
 
             impl::op_t *producer = op->get_input_op(0);
             ok = producer->get_kind() == op_kind::dnnl_reshape
-                    || producer->get_kind() == op_kind::dnnl_transpose;
+                    || producer->get_kind() == op_kind::dnnl_transpose
+                    || is_layout_reorder(producer);
             if (!ok) continue;
 
             to_be_swapped.emplace_back(
@@ -3460,7 +3461,8 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
 
             impl::op_t *producer = op->get_input_op(0);
             ok = producer->get_kind() == op_kind::dnnl_reshape
-                    || producer->get_kind() == op_kind::dnnl_transpose;
+                    || producer->get_kind() == op_kind::dnnl_transpose
+                    || is_layout_reorder(producer);
             if (!ok) continue;
 
             to_be_swapped.emplace_back(
@@ -3488,15 +3490,19 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                 && cur_op->get_input_value(0)->get_producer().get_kind()
                         == op_kind::dnnl_matmul
                 && !cur_op->get_output_value(0)->get_consumers().empty()
-                && cur_op->get_output_value(0)
-                                ->get_consumers()[0]
-                                .get_op()
-                                .get_kind()
-                        == op_kind::dnnl_reshape) {
+                && (cur_op->get_output_value(0)
+                                        ->get_consumers()[0]
+                                        .get_op()
+                                        .get_kind()
+                                == op_kind::dnnl_reshape
+                        || is_layout_reorder(&cur_op->get_output_value(0)
+                                                      ->get_consumers()[0]
+                                                      .get_op()))) {
             transpose_ops.emplace_back(cur_op);
         }
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &transpose_op : transpose_ops) {
         value_ptr in_val = transpose_op->get_input_value(0);
         auto in_lt = in_val->get_logical_tensor();
@@ -3517,6 +3523,18 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                 [](int64_t index) { return static_cast<int32_t>(index); });
         // calculate the expected transposed layout by permuting the md
         auto expected_stride = get_dense_strides(ltw(out_lt).vdims());
+        auto &consumer = transpose_op->get_output_value(0)
+                                 ->get_consumers()[0]
+                                 .get_op();
+        if (is_layout_reorder(&consumer)) {
+            value_ptr reorder_out_val = consumer.get_output_value(0);
+            if (ltw(reorder_out_val->get_logical_tensor()).layout_type()
+                    == layout_type::strided) {
+                expected_stride
+                        = ltw(reorder_out_val->get_logical_tensor()).vstrides();
+                rewriter.fuse_op_to_predecessor(consumer.shared_from_this());
+            }
+        }
         dnnl::memory::desc out_md {ltw(out_lt).vdims(),
                 static_cast<dnnl::memory::data_type>(ltw(out_lt).data_type()),
                 expected_stride};

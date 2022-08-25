@@ -313,6 +313,11 @@ std::string kind2str(impl::op_kind_t kind);
 // which only has different input/output data type.
 bool is_typecast(const impl::op_t *op);
 
+// This function is used to check if a dnnl_reorder op is converted from or act
+// as a Reorder op. This function will only return true for a dnnl_reorder op
+// which is not for TypeCast or Quantization.
+bool is_layout_reorder(const impl::op_t *op);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
