@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,10 +20,8 @@
 
 #include <cuda.h>
 
-#include <CL/sycl/backend/cuda.hpp>
-
+#include "gpu/nvidia/sycl_cuda_utils.hpp"
 #include "sycl/sycl_compat.hpp"
-#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {

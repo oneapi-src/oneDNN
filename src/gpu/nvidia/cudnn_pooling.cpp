@@ -20,8 +20,6 @@
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "sycl/sycl_buffer_memory_storage.hpp"
 
-#include <CL/sycl.hpp>
-
 #include "common/nstl.hpp"
 
 #include "sycl/sycl_memory_storage_helper.hpp"

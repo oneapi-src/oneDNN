@@ -20,8 +20,6 @@
 
 #include "cudnn.h"
 
-#include <CL/sycl.hpp>
-
 #include "common/primitive.hpp"
 #include "common/softmax_pd.hpp"
 #include "gpu/nvidia/cudnn_softmax_impl.hpp"
