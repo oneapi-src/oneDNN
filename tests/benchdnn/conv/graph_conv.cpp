@@ -51,11 +51,6 @@ static int check_known_skipped_case_graph(
     check_post_sum_for_bf16in_f32out(prb->attr, res, orig_dts);
     if (res->state == SKIPPED) return OK;
 
-    auto const_pd = query_pd(prim);
-    if (check_mem_size(const_pd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     check_graph_eltwise_post_ops(prb->attr, res);
 
     // TODO(xiang): remove after onednn fix this.

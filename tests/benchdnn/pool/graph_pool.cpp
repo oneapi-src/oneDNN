@@ -36,11 +36,6 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::pool::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    auto const_fpd = query_pd(prim);
-    if (check_mem_size(const_fpd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     for (const auto &po : prb->attr.post_ops.entry) {
         if (po.is_binary_kind()) {
             // currently, in the backend there are supported

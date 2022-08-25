@@ -29,11 +29,6 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::eltwise::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    auto const_fpd = query_pd(prim);
-    if (check_mem_size(const_fpd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     check_graph_eltwise_params(res, prb->alg, prb->alpha, prb->beta);
     return OK;
 }

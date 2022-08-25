@@ -547,7 +547,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
-    maybe_reset_profiling();
+    reset_gpu_profiling();
 
     bool is_first_loop = true;
     while (true) {
@@ -556,9 +556,11 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         }
         BENCHDNNEXT_SAFE(stream.wait(), WARN);
 
-        uint64_t ticks = 0;
-        maybe_reset_profiling(&ticks);
-        t.stamp(cur_batch_times, (unsigned long long)ticks);
+        uint64_t nsec = 0;
+        double freq = 0;
+        get_gpu_profiling_info(nsec, freq);
+        reset_gpu_profiling();
+        t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
 
         if (should_stop(t)) break;
 
@@ -711,7 +713,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
-    maybe_reset_profiling();
+    reset_gpu_profiling();
 
     bool is_first_loop = true;
     while (true) {
@@ -724,9 +726,11 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         }
         BENCHDNNEXT_SAFE(stream.wait(), WARN);
 
-        uint64_t ticks = 0;
-        maybe_reset_profiling(&ticks);
-        t.stamp(cur_batch_times, (unsigned long long)ticks);
+        uint64_t nsec = 0;
+        double freq = 0;
+        get_gpu_profiling_info(nsec, freq);
+        reset_gpu_profiling();
+        t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
 
         if (should_stop(t)) break;
 

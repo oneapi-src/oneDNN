@@ -34,10 +34,6 @@ static int check_known_skipped_case_graph(
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, ::reduction::init_pd, prb, res), WARN);
 
-    auto const_pd = query_pd(prim);
-    if (check_mem_size(const_pd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
     return OK;
 }
 

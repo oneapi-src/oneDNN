@@ -45,11 +45,6 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::matmul::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    auto const_pd = query_pd(prim);
-    if (check_mem_size(const_pd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     check_graph_eltwise_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return OK;
 

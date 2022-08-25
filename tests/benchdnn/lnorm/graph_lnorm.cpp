@@ -38,11 +38,6 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::lnorm::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    auto const_pd = query_pd(prim);
-    if (check_mem_size(const_pd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     check_known_skipped_case_graph_common(
             {prb->dt}, normalize_tag(prb->tag[0], prb->ndims), prb->dir, res);
     if (res->state == SKIPPED) return OK;
