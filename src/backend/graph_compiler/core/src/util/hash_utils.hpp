@@ -26,7 +26,7 @@ namespace sc {
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 // https://github.com/boostorg/container_hash/blob/master/include/boost/container_hash/hash.hpp
 template <typename T>
-inline void hash_combine(size_t &seed, T const &v) {
+inline void hash_combine(std::size_t &seed, T const &v) {
     seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 } // namespace sc
