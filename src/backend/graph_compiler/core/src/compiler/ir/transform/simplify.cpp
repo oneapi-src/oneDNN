@@ -33,6 +33,8 @@ class simplify_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
+    bool skip_rename_;
+    simplify_impl_t(bool skip_rename) : skip_rename_(skip_rename) {}
     // the current/ancestor stmts
     std::vector<stmt_c> cur;
     // the defined var/tensor in stmts
@@ -43,15 +45,12 @@ public:
     int var_index = 1;
     // the parent stmts nodes currently met stmt sequences
     std::vector<stmt_c> *pnewseq = nullptr;
-    // only interested in var/tensor
-    expr_c visit(var_c v) override {
-        if (rmap.find(v) != rmap.end()) { return rmap[v]; }
-        return v;
+
+    expr_c dispatch(expr_c v) override {
+        if (skip_rename_) { return v; }
+        return ir_visitor_t::dispatch(v);
     }
-    expr_c visit(tensor_c v) override {
-        if (rmap.find(v) != rmap.end()) { return rmap[v]; }
-        return v;
-    }
+
     stmt_c dispatch(stmt_c v) override {
         if (cur.empty()) { defs.clear(); }
         cur.emplace_back(v);
@@ -61,7 +60,18 @@ public:
         return ret;
     }
 
+    // only interested in var/tensor
+    expr_c visit(var_c v) override {
+        if (rmap.find(v) != rmap.end()) { return rmap[v]; }
+        return v;
+    }
+    expr_c visit(tensor_c v) override {
+        if (rmap.find(v) != rmap.end()) { return rmap[v]; }
+        return v;
+    }
+
     stmt_c visit(define_c v) override {
+        if (skip_rename_) { return v; }
         auto ret = ir_visitor_t::visit(v).static_as<define_c>();
         bool changed = !ret.ptr_same(v);
         auto var0 = ret->var_;
@@ -138,59 +148,29 @@ public:
  * above, which has more quick visit for ir.
  * */
 class if_loop_simplify_impl_t : public ir_consistent_visitor_t {
+public:
+    using ir_consistent_visitor_t::dispatch;
+    bool should_replace_expr_ = false;
+    expr_c dispatch(expr_c v) override {
+        if (!should_replace_expr_) {
+            return v;
+        } else {
+            return ir_consistent_visitor_t::dispatch(v);
+        }
+    }
+
     // eliminate if(){} else(){}
     stmt_c visit(if_else_c v) override {
         stmt_c then_case, else_case;
-        expr_c condition;
-        COMPILE_ASSERT(
-                v->condition_.defined(), "if_else node should have condition")
-        condition = constant_folder_t()(dispatch(v->condition_));
-        if (v->condition_.defined()) condition = dispatch(v->condition_);
-        if (v->then_case_.defined()) then_case = dispatch(v->then_case_);
-        if (v->else_case_.defined()) else_case = dispatch(v->else_case_);
-        /** simplify empty if
-         * if(conditon){
-         *    // empty
-         * }
-         * else{
-         *    // else block
-         * }
-         * RETURN:
-         * NULL or
-         * if(!conditon){
-         *    // else block
-         * }
-         * */
-        if (then_case.defined()
-                && then_case.checked_as<stmts>()->seq_.empty()) {
-            if (!else_case.defined()
-                    || else_case.checked_as<stmts>()->seq_.empty()) {
-                return copy_attr(
-                        *v, make_stmt<stmts_node_t>(std::vector<stmt> {}));
-            } else {
-                return copy_attr(*v,
-                        make_stmt<if_else_node_t>(!(condition.remove_const()),
-                                else_case.remove_const(), stmt()));
-            }
+        expr_c condition = constant_folder_t()(dispatch(v->condition_));
+        bool else_is_empty_stmts = false;
+        then_case = dispatch(v->then_case_);
+        if (v->else_case_.defined()) {
+            else_case = dispatch(v->else_case_);
+            else_is_empty_stmts = else_case.isa<stmts>()
+                    && else_case.checked_as<stmts>()->seq_.empty();
         }
-        /** simplify empty else
-         * if(conditon){
-         *    // if block
-         * }
-         * else{
-         *    // empty
-         * }
-         * RETURN:
-         * if(){
-         *    // if block
-         * }
-         * */
-        if (else_case.defined()
-                && else_case.checked_as<stmts>()->seq_.empty()) {
-            return copy_attr(*v,
-                    make_stmt<if_else_node_t>(condition.remove_const(),
-                            then_case.remove_const(), stmt()));
-        }
+
         /** simplify always true
          * if(True){
          *    // if block
@@ -217,7 +197,52 @@ class if_loop_simplify_impl_t : public ir_consistent_visitor_t {
          * */
         if (condition.isa<constant>() && get_expr_as_int(condition) == 0) {
             // similar to always FALSE
-            return else_case;
+            return else_case.defined()
+                    ? else_case
+                    : make_stmt<stmts_node_t>(std::vector<stmt> {});
+        }
+
+        /** simplify empty if
+         * if(conditon){
+         *    // empty
+         * }
+         * else{
+         *    // else block
+         * }
+         * RETURN:
+         * NULL or
+         * if(!conditon){
+         *    // else block
+         * }
+         * */
+        if (then_case.isa<stmts>()
+                && then_case.static_as<stmts>()->seq_.empty()) {
+            if (!else_case.defined() || else_is_empty_stmts) {
+                return copy_attr(
+                        *v, make_stmt<stmts_node_t>(std::vector<stmt> {}));
+            } else {
+                return copy_attr(*v,
+                        builder::make_if_else_unattached(
+                                constant_folder_t()(!condition), else_case,
+                                stmt()));
+            }
+        }
+        /** simplify empty else
+         * if(conditon){
+         *    // if block
+         * }
+         * else{
+         *    // empty
+         * }
+         * RETURN:
+         * if(){
+         *    // if block
+         * }
+         * */
+        if (else_is_empty_stmts) {
+            return copy_attr(*v,
+                    builder::make_if_else_unattached(
+                            condition, then_case, stmt()));
         }
 
         bool changed_ = !(condition.ptr_same(v->condition_)
@@ -225,9 +250,8 @@ class if_loop_simplify_impl_t : public ir_consistent_visitor_t {
                 && else_case.ptr_same(v->else_case_));
         if (changed_) {
             return copy_attr(*v,
-                    make_stmt<if_else_node_t>(condition.remove_const(),
-                            then_case.remove_const(),
-                            else_case.remove_const()));
+                    builder::make_if_else_unattached(
+                            condition, then_case, else_case));
         }
         return std::move(v);
     }
@@ -260,20 +284,23 @@ class if_loop_simplify_impl_t : public ir_consistent_visitor_t {
             // (begin + step) >= end
             if ((get_expr_as_int(begin) + get_expr_as_int(step))
                     >= get_expr_as_int(end)) {
+                auto old_should_replace_expr = should_replace_expr_;
+                should_replace_expr_ = true;
                 replace_map_[var] = begin;
                 auto body = dispatch(v->body_);
                 // the replace map should only affect in current scope
                 replace_map_.erase(var);
                 is_loop_merge = cached_loop_merge;
+                should_replace_expr_ = old_should_replace_expr;
                 return body;
             }
         }
         auto body = dispatch(v->body_);
-        bool changed_ = !(var.ptr_same(v->var_)
-                && begin.ptr_same(v->iter_begin_) && end.ptr_same(v->iter_end_)
-                && step.ptr_same(v->step_) && body.ptr_same(v->body_));
+        bool changed = !(var.ptr_same(v->var_) && begin.ptr_same(v->iter_begin_)
+                && end.ptr_same(v->iter_end_) && step.ptr_same(v->step_)
+                && body.ptr_same(v->body_));
 
-        if (changed_
+        if (changed
                 || (is_loop_merge
                         && (!v->attr_
                                 || is_loop_merge
@@ -297,12 +324,12 @@ class if_loop_simplify_impl_t : public ir_consistent_visitor_t {
 };
 
 func_c ir_simplifier_t::operator()(func_c f) {
-    simplify_impl_t simpl;
+    simplify_impl_t simpl {skip_rename_};
     if_loop_simplify_impl_t ilimpl;
     return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(f)));
 }
-stmt_c ir_simplifier_t::operator()(stmt_c f) {
-    simplify_impl_t simpl;
+stmt_c ir_simplifier_t::operator()(stmt_c f) const {
+    simplify_impl_t simpl {skip_rename_};
     if_loop_simplify_impl_t ilimpl;
     return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(std::move(f))));
 }
