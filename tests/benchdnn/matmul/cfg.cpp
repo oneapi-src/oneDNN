@@ -97,6 +97,7 @@ std::string str2cfg(const char *str) {
     if (!strcasecmp(STRINGIFY(cfg), str)) return s = str, s;
     CASE(f32);
     CASE(f16);
+    CASE(f16f16f32);
     CASE(f16f16s8);
     CASE(f16f16u8);
     CASE(u8s8f32);
@@ -130,6 +131,8 @@ void handle_legacy_cfg(
         dt = {dnnl_bf16};
     else if (cfg == "f16")
         dt = {dnnl_f16};
+    else if (cfg == "f16f16f32")
+        dt = {dnnl_f16, dnnl_f16, dnnl_f16};
     else if (cfg == "f16f16s8")
         dt = {dnnl_f16, dnnl_f16, dnnl_s8};
     else if (cfg == "f16f16u8")
