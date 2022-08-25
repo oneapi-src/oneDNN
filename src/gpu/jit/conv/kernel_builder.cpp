@@ -2246,10 +2246,16 @@ private:
         // GMEM prefetch.
         auto x_prefetch = make_access_builder(ir_ctx_, thr_view, xp_buf,
                 expr_t(), send_op_t::prefetch, send_address_t::a64, send_hint);
-        ir_trace() << tag << " GMEM prefetch:\n"
-                   << x_prefetch.str() << std::endl;
 
-        prefetch_stmt_ = prefetch_stmt_.append(x_prefetch.stmt());
+        // too many prefetches degrades performance
+        if (find_objects<func_call_t>(x_prefetch.stmt()).size() > 16) {
+            ir_warning() << "Dropping excessive prefetches." << std::endl;
+            prefetch_stmt_ = stmt_t();
+        } else {
+            ir_trace() << tag << " GMEM prefetch:\n"
+                       << x_prefetch.str() << std::endl;
+            prefetch_stmt_ = prefetch_stmt_.append(x_prefetch.stmt());
+        }
     }
 
     layout_t create_slm_layout(const view_t &tg_view, abc_kind_t abc_kind,

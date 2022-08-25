@@ -442,8 +442,7 @@ access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
     , mem_walker_(
               utils::make_unique<memory_walker_t>(ir_ctx.cset(), mem_view)) {
     if (send_hint_.hint_2d.enable) {
-        // Do not emit non 2d prefetch when a 2d prefetch is expected
-        if (try_build_2d() || send_op_ == send_op_t::prefetch) return;
+        if (try_build_2d()) return;
     }
     send_hint.hint_2d = send_2d_hint_t();
     build();
