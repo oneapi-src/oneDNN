@@ -20,8 +20,6 @@
 
 #include "cudnn.h"
 
-#include <CL/sycl.hpp>
-
 #include "common/c_types_map.hpp"
 #include "common/inner_product_pd.hpp"
 #include "common/primitive.hpp"

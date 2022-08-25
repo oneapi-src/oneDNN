@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +20,6 @@
 
 #include <cudnn.h>
 #include <cublas_v2.h>
-
-#include <CL/sycl.hpp>
 
 #include "common/stream.hpp"
 #include "common/thread_local_storage.hpp"

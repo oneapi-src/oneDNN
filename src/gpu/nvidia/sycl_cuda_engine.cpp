@@ -15,8 +15,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/sycl/backend/cuda.hpp>
-
 #include "common/impl_list_item.hpp"
 #include "common/utils.hpp"
 

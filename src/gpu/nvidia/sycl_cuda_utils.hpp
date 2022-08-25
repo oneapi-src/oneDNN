@@ -28,7 +28,7 @@
 #include "common/engine.hpp"
 #include "common/z_magic.hpp"
 
-#include <CL/sycl/backend/cuda.hpp>
+#include "sycl/sycl_utils.hpp"
 
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +19,6 @@
 #define GPU_NVIDIA_CUDNN_LRN_HPP
 
 #include "cudnn.h"
-
-#include <CL/sycl.hpp>
 
 #include "common/c_types_map.hpp"
 #include "common/lrn_pd.hpp"

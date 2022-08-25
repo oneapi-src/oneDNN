@@ -19,7 +19,6 @@
 #define GPU_NVIDIA_CUDNN_RESAMPLING_HPP
 
 #include <cudnn.h>
-#include <CL/sycl.hpp>
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
