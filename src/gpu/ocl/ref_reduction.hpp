@@ -41,7 +41,7 @@ struct ref_reduction_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm::post_ops;
+            const auto attr_skip_mask = sm::post_ops | sm::gpu_attr;
 
             const bool ok = set_default_params() == status::success
                     && !memory_desc_ndims_ok(src_md(), dst_md())
