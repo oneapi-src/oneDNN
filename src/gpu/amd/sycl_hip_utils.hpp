@@ -27,6 +27,8 @@
 #include "common/engine.hpp"
 #include "common/z_magic.hpp"
 
+#include "sycl/sycl_utils.hpp"
+
 #include "gpu/amd/sycl_hip_compat.hpp"
 
 #define MIOPEN_DIM_MAX 5

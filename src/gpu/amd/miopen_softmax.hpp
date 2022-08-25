@@ -22,8 +22,6 @@
 
 #include "miopen/miopen.h"
 
-#include <CL/sycl.hpp>
-
 #include "common/primitive.hpp"
 #include "common/softmax_pd.hpp"
 #include "gpu/amd/miopen_softmax_impl.hpp"

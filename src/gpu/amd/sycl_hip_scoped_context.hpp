@@ -23,7 +23,6 @@
 
 #include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
-#include <CL/sycl.hpp>
 
 namespace dnnl {
 namespace impl {

@@ -24,7 +24,6 @@
 #include "gpu/amd/miopen_binary_impl.hpp"
 #include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
-#include <CL/sycl.hpp>
 #include <miopen/miopen.h>
 
 namespace dnnl {
