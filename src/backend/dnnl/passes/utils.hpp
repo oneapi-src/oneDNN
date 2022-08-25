@@ -322,6 +322,11 @@ bool with_runtime_dst_scales(
 bool with_runtime_zps(const std::shared_ptr<impl::op_t> &op,
         const fusion_info_mgr_t &mgr, bool is_input, size_t indice);
 
+// This function is used to check if a dnnl_reorder op is converted from or act
+// as a Reorder op. This function will only return true for a dnnl_reorder op
+// which is not for TypeCast or Quantization.
+bool is_layout_reorder(const impl::op_t *op);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
