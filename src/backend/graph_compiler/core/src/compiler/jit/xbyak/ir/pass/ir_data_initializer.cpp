@@ -60,6 +60,12 @@ public:
         return xbyak_visitor_t::visit(std::move(v));
     }
 
+    expr_c visit(xbyak_intrin_c v) override {
+        auto &cond_mask = v->modifier_.cond_mask_;
+        if (cond_mask.defined()) { initialize_expr_data(cond_mask, nullptr); }
+        return xbyak_visitor_t::visit(std::move(v));
+    }
+
 private:
     void initialize_expr_data(const expr_c &v, const stmt_base_t *def_scope) {
         if (!v->temp_data().isa<xbyak_expr_data_t>()) {

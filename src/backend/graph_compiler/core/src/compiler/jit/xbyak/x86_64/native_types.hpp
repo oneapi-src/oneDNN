@@ -108,6 +108,7 @@ enum class cpu_data_type {
     float_32_x8,
     float_32_x16,
     mask_x16,
+    mask_x32,
     void_t,
 };
 

@@ -17,6 +17,7 @@
 #include <fstream>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 #include <util/utils.hpp>
 
 #include <compiler/jit/symbol_resolver.hpp>
@@ -73,9 +74,19 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
     return sequential_module_pass_t(std::move(ret));
 }
 
+void *xbyak_external_symbol_resolve(const std::string &name) {
+    static std::unordered_map<std::string, void *> table = {
+            {"memset", (void *)memset},
+    };
+    // Find function in local table first, then external table
+    auto itr = table.find(name);
+    if (itr != table.end()) { return itr->second; }
+    return default_external_symbol_resolve(name);
+}
+
 xbyak_jit_engine::xbyak_jit_engine(context_ptr context)
     : jit_engine_t(std::move(context))
-    , external_symbol_resolver_(default_external_symbol_resolve) {}
+    , external_symbol_resolver_(xbyak_external_symbol_resolve) {}
 
 xbyak_jit_engine::~xbyak_jit_engine() = default;
 
@@ -98,7 +109,7 @@ std::shared_ptr<jit_module> xbyak_jit_engine::make_jit_module(
     // Xbyak passes
     //========================================================================
     x86_64::target_profile_t target_profile
-            = x86_64::get_target_profile(ir_mod->ctx_->machine_);
+            = x86_64::get_target_profile(ir_mod1->ctx_->machine_);
 
     auto xbyak_passes
             = get_xbyak_precodegen_passes(ir_mod1->ctx_, target_profile);
