@@ -25,7 +25,6 @@
 
 #ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.hpp"
-#include <CL/sycl.hpp>
 #endif
 
 namespace dnnl {

@@ -25,7 +25,6 @@
 #include <algorithm>
 #include <memory>
 #include <vector>
-#include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 
