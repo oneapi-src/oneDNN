@@ -26,7 +26,7 @@
 #include <memory>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class neg_sign_kernel;
 class init_kernel;

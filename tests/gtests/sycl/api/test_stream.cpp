@@ -22,7 +22,7 @@
 
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 namespace dnnl {
 class sycl_stream_test : public ::testing::TestWithParam<engine::kind> {

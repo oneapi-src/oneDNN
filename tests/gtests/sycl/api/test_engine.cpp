@@ -22,7 +22,7 @@
 
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 namespace dnnl {
 
