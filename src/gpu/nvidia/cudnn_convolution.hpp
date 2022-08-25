@@ -75,7 +75,11 @@ struct cudnn_convolution_fwd_t : public primitive_t {
                                     && attr()->output_scales_.mask_ == 0);
             ok = ok
                     && IMPLICATION(
-                            src_md_.data_type == s8, check_s8_configuration());
+                            src_md_.data_type == s8, check_s8_configuration())
+                    // cudnnAddTensor used for bias add requires both tensors
+                    // to have the same data type.
+                    && IMPLICATION(
+                            with_bias(), dst_md_.data_type == bias_md_.data_type);
             ok = ok && memory_format_ok(&src_md_);
             ok = ok && memory_format_ok(&weights_md_);
             ok = ok && memory_format_ok(&dst_md_);
