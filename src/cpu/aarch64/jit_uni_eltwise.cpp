@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2017-2022 Intel Corporation
 * Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -338,7 +339,11 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(
 }
 
 template struct jit_uni_eltwise_fwd_t<sve_512, data_type::f32>;
+template struct jit_uni_eltwise_fwd_t<sve_256, data_type::f32>;
+template struct jit_uni_eltwise_fwd_t<sve_128, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<sve_512, data_type::f32>;
+template struct jit_uni_eltwise_bwd_t<sve_256, data_type::f32>;
+template struct jit_uni_eltwise_bwd_t<sve_128, data_type::f32>;
 
 } // namespace aarch64
 } // namespace cpu

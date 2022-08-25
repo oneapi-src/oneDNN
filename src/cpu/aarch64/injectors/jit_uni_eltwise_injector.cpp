@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2019-2022 Intel Corporation
 * Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1680,6 +1681,8 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
 }
 
 template struct jit_uni_eltwise_injector_f32<sve_512>;
+template struct jit_uni_eltwise_injector_f32<sve_256>;
+template struct jit_uni_eltwise_injector_f32<sve_128>;
 
 } // namespace aarch64
 } // namespace cpu
