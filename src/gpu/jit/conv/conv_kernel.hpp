@@ -3148,17 +3148,19 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     int src_stride_bytes = src_stride * src_type_size;
     int dst_stride_bytes = dst_stride * dst_type_size;
     bool dst_b = ngen_is_b(dst_type);
-    bool dst_bf = (dst_type == ngen::DataType::bf);
     bool dst_d = ngen_is_dw(dst_type);
     bool dst_f = (dst_type == ngen::DataType::f);
     bool dst_hf = (dst_type == ngen::DataType::hf);
-    bool dst_xf = dst_bf || dst_f || dst_hf;
+    bool dst_bf = (dst_type == ngen::DataType::bf);
+    bool dst_df = (dst_type == ngen::DataType::df);
+    bool dst_xf = dst_bf || dst_f || dst_hf || dst_df;
     bool src_b = ngen_is_b(src_type);
-    bool src_hf = (src_type == ngen::DataType::hf);
-    bool src_bf = (src_type == ngen::DataType::bf);
     bool src_d = ngen_is_dw(src_type);
     bool src_f = (src_type == ngen::DataType::f);
-    bool src_xf = src_bf || src_f || src_hf;
+    bool src_hf = (src_type == ngen::DataType::hf);
+    bool src_bf = (src_type == ngen::DataType::bf);
+    bool src_df = (src_type == ngen::DataType::df);
+    bool src_xf = src_bf || src_f || src_hf || src_df;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));
     op_plan_t plan = grf_size;
 
@@ -3167,7 +3169,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
         // f32 -> bf16 or f32 -> f16: SIMD16 does not support mixed mode move.
         if (hw < ngen::HW::XeHPC)
-            if (f_to_xf) step = std::min(step, 8);
+            if (f_to_xf) step = 8;
+
+        if (src_df || dst_df) step = 8;
 
         // Max supported stride is 4.
         if (src_stride > 4 || dst_stride > 4) step = 1;
@@ -3278,6 +3282,58 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             else
                 std::swap(t1, t2);
             plan(mov, esize, d(dst_stride), t2(tmp_stride));
+        }
+        return;
+    }
+
+    // f -> df
+    // - f/df mixed operands must be qword aligned
+    // - f -> f striding: use s32
+    if (src_f && dst_df) {
+        int step = get_step();
+        const auto tmp_type = src_type;
+        const int tmp_stride = 2;
+        const int tmp_stride_bytes = tmp_stride * src_type_size;
+        const int reg_size = dst.byte_offset() + width * tmp_stride_bytes;
+        const int nregs = utils::div_up(reg_size, grf_size);
+        auto tmp = scope.alloc_reg_buf_data(nregs);
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, src_stride_bytes);
+            auto d = dst.subregister(i, esize, dst_stride_bytes);
+            auto t = tmp.subregister(d.getByteOffset(), tmp_type);
+            plan(mov, esize, t.d()(tmp_stride), s.d()(src_stride));
+            plan(mov, esize, d(dst_stride), t(tmp_stride));
+        }
+        return;
+    }
+
+    // df -> f
+    // - f/df mixed operands must be qword aligned
+    // - f -> f packing: use s32
+    if (dst_f && src_df) {
+        int step = get_step();
+        const auto tmp_type = dst_type;
+        const int tmp_stride = 2;
+        const int tmp_stride_bytes = tmp_stride * src_type_size;
+        const int reg_size = dst.byte_offset() + width * tmp_stride_bytes;
+        const int nregs = utils::div_up(reg_size, grf_size);
+        auto tmp = scope.alloc_reg_buf_data(nregs);
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, src_stride_bytes);
+            auto d = dst.subregister(i, esize, dst_stride_bytes);
+            auto t = tmp.subregister(s.getByteOffset(), tmp_type);
+            plan(mov, esize, t(tmp_stride), s(src_stride));
+            // df -> f uses the float pipe. Override ngen setting the long pipe.
+            auto mod_with_pipe = esize | ngen::SWSB<float>(1);
+            plan(mov, mod_with_pipe, d.d()(dst_stride), t.d()(tmp_stride));
         }
         return;
     }
