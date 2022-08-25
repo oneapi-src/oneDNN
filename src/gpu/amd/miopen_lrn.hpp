@@ -20,8 +20,6 @@
 
 #include <miopen/miopen.h>
 
-#include <CL/sycl.hpp>
-
 #include "common/c_types_map.hpp"
 #include "common/lrn_pd.hpp"
 #include "common/primitive.hpp"

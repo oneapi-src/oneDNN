@@ -25,7 +25,6 @@
 #include "miopen/miopen.h"
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_engine_base.hpp"
-#include <CL/sycl.hpp>
 #include <hip/hip_runtime.h>
 
 namespace dnnl {

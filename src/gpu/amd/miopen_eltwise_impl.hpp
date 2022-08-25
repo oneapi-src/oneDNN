@@ -18,7 +18,6 @@
 #ifndef GPU_AMD_MIOPEN_ELTWISE_IMPL_HPP
 #define GPU_AMD_MIOPEN_ELTWISE_IMPL_HPP
 
-#include <CL/sycl.hpp>
 #include <gpu/amd/sycl_hip_engine.hpp>
 #include <gpu/amd/sycl_hip_utils.hpp>
 #include <miopen/miopen.h>

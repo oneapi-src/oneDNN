@@ -16,10 +16,12 @@
 
 #ifndef GPU_AMD_SYCL_HIP_COMPAT_HPP
 #define GPU_AMD_SYCL_HIP_COMPAT_HPP
-#include "sycl/sycl_compat.hpp"
-#include "sycl/sycl_utils.hpp"
-#include <CL/sycl/detail/backend_traits_hip.hpp>
+
 #include <hip/hip_runtime.h>
+
+#include "sycl/sycl_compat.hpp"
+
+#include "gpu/amd/sycl_hip_utils.hpp"
 
 namespace dnnl {
 namespace impl {
