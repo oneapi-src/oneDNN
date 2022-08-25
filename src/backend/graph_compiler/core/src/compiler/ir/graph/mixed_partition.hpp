@@ -106,6 +106,8 @@ struct mxp_buffer_allocator {
     void tensor_initialize();
 
     void replace_buffer(graph_tensor *gt, expr &old_input, expr &new_input);
+
+    size_t get_total_allocated_buffer_size() const;
 };
 
 struct mixed_parti_t : fusion_partition_t {

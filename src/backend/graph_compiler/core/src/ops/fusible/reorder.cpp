@@ -747,7 +747,8 @@ void reorder_op_t::infer_slice_ranges(
     };
 
     if (optmized_slice_check
-            && !check_required_slice(get_inputs()[0], input_slice_list, 2))
+            && !check_required_slice(get_inputs()[0], input_slice_list,
+                    get_input_format().is_vnni_format() ? 3 : 2))
         return;
 
     slice_range_list reorder_ranges_list;
@@ -772,8 +773,8 @@ void reorder_op_t::infer_slice_ranges(
         }
     } else {
         if (optmized_slice_check
-                && !check_required_slice(
-                        get_outputs()[0], reorder_ranges_list, 2))
+                && !check_required_slice(get_outputs()[0], reorder_ranges_list,
+                        get_output_format().is_vnni_format() ? 3 : 2))
             return;
     }
 

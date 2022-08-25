@@ -218,6 +218,17 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
     }
 }
 
+size_t mxp_buffer_allocator::get_total_allocated_buffer_size() const {
+    size_t already_allocated_size = 0;
+    for (auto &tsr_anch_pair : tsr_anch_map_) {
+        auto tsr = tsr_anch_pair.first.checked_as<tensor>();
+        already_allocated_size
+                += (get_dims_product(get_expr_to_dims(tsr->dims_))
+                        * utils::get_sizeof_etype(tsr->elem_dtype_.type_code_));
+    }
+    return already_allocated_size;
+}
+
 void mxp_buffer_allocator::replace_buffer(
         graph_tensor *gt, expr &old_input, expr &new_input) {
     g2b_map_.datamap_[gt] = new_input;
@@ -291,7 +302,8 @@ void mxp_buffer_allocator::update_input_buffer_info(
                 tsr_anch_map_[tsr] = real_anchor_map;
                 if (real_anchor_map != commited_anchor_map) b2g_map_[buf] = gt;
             } else if (res == cmp_res::equal) {
-                if (tsr_anch_map_[tsr] != real_anchor_map->parent_) {
+                if (!tsr_anch_map_[tsr]->is_parent_for(
+                            real_anchor_map->parent_.get())) {
                     tsr_anch_map_[tsr] = real_anchor_map;
                     if (real_anchor_map != commited_anchor_map)
                         b2g_map_[buf] = gt;
@@ -665,15 +677,17 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
         if (parti->empty() && op->isa<reorder_op_t>()
                 && !fanchor->fsmap_.haskey(op->get_inputs()[0])) {
             auto reo = op->stc_cast<reorder_op_t>();
-            if (reo->get_output_format().is_vnni_format()) {
+            if (reo->support_optmized_kernel(parti->ctx_)) {
                 auto output_dims
                         = op->get_outputs()[0]->details_.get_blocking_dims();
-                COMPILE_ASSERT(output_dims.size() > 3,
-                        "Unexpected VNNI format kind: "
+                size_t required_axis_from_end
+                        = reo->get_output_format().is_vnni_format() ? 3 : 2;
+                COMPILE_ASSERT(output_dims.size() > required_axis_from_end,
+                        "Unexpected output format kind: "
                                 << reo->get_output_format())
                 std::vector<int> required_axes;
-                for (size_t i = output_dims.size() - 3; i < output_dims.size();
-                        i++) {
+                for (size_t i = output_dims.size() - required_axis_from_end;
+                        i < output_dims.size(); i++) {
                     required_axes.emplace_back(i);
                 }
                 if (!slice_full_on_axes(output_dims,
@@ -769,7 +783,7 @@ enum class parti_dep : int {
 /**
  * Check two partition dependency
  * */
-parti_dep check_parti_dep(
+static parti_dep check_parti_dep(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
     auto A_ops = A->ops, B_ops = B->ops;
     bool A_dep_B = false, B_dep_A = false;
@@ -796,7 +810,7 @@ parti_dep check_parti_dep(
 /**
  * Check two partition connectionship
  * */
-bool check_parti_connectionship(mixed_parti_t *A, mixed_parti_t *B) {
+static bool check_parti_connectionship(mixed_parti_t *A, mixed_parti_t *B) {
     auto A_ops = A->ops, B_ops = B->ops;
     for (auto &op_a : A_ops) {
         std::unordered_set<graph_tensor_ptr> gt_set;
@@ -816,7 +830,7 @@ bool check_parti_connectionship(mixed_parti_t *A, mixed_parti_t *B) {
     return false;
 }
 
-bool try_merge_mixed_parti_parallel(
+static bool try_merge_mixed_parti_parallel(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
     if (A->get_root() == B->get_root()) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
@@ -950,7 +964,7 @@ bool try_merge_mixed_parti_parallel(
     return true;
 }
 
-bool try_merge_mixed_parti_horizontally(
+static bool try_merge_mixed_parti_horizontally(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
     if (A->get_root() == B->get_root()) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
@@ -1110,30 +1124,42 @@ void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
     }
 }
 
-bool try_merge_mixed_parti_vertically(
+static bool try_merge_mixed_parti_vertically(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
     if (A->get_root() == B->get_root()) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
     auto dep_flag = check_parti_dep(A, B, g);
     // if two partition inter-depends each other, could not merge them
     if (dep_flag == parti_dep::inter_dep) return false;
-    mixed_parti_t *pa_to_merge, *parti_be_merged;
+    mixed_parti_t *pa_to_merge = nullptr, *parti_be_merged = nullptr;
 
     try_align_parti_outer_loops(A, B);
 
     auto outer_loops_A = A->get_outer_loops(),
          outer_loops_B = B->get_outer_loops();
+
+    // great common size
+    auto gcs = std::min(outer_loops_A.size(), outer_loops_B.size());
     if (outer_loops_A.empty() || outer_loops_B.empty()) return false;
 
     if (dep_flag == parti_dep::no_dep) {
-        auto loops_dim_A = get_loops_range_prod(outer_loops_A),
-             loops_dim_B = get_loops_range_prod(outer_loops_B);
-        if (loops_dim_A >= loops_dim_B) {
+        // check broadcast loop
+        for (size_t i = 0; i < gcs; i++) {
+            auto A_range = get_loops_range(outer_loops_A[i]),
+                 B_range = get_loops_range(outer_loops_B[i]);
+            if (A_range == B_range)
+                continue;
+            else {
+                if (A_range == 1 && B_range > 1) {
+                    pa_to_merge = B;
+                    parti_be_merged = A;
+                    break;
+                }
+            }
+        }
+        if (!pa_to_merge || !parti_be_merged) {
             pa_to_merge = A;
             parti_be_merged = B;
-        } else {
-            pa_to_merge = B;
-            parti_be_merged = A;
         }
     } else {
         pa_to_merge = (dep_flag == parti_dep::l_dep_r) ? B : A;
@@ -1169,9 +1195,6 @@ bool try_merge_mixed_parti_vertically(
     };
 
     sc_dims loop_range_vec;
-    // great common size
-    auto gcs = std::min(
-            outer_loops_to_merge.size(), outer_loops_be_merged.size());
     size_t merged_loop_size = 0;
     for (; merged_loop_size < gcs; merged_loop_size++) {
         auto common_range
@@ -1193,6 +1216,17 @@ bool try_merge_mixed_parti_vertically(
             return false;
         }
     }
+
+    // pre loaded buffer size tolerance in per core
+    constexpr size_t pre_loaded_buffer_size_tol = 1024 * 1024;
+
+    if (pa_to_merge->ctx_->flags_.use_cost_model_
+            && (pa_to_merge->ops.size() != 1
+                    && (pa_to_merge->buf_alloc_
+                                       .get_total_allocated_buffer_size()
+                               / runtime_config_t::get().get_num_threads())
+                            > pre_loaded_buffer_size_tol))
+        return false;
 
     // evaluate two partition by cost model
     float score_A = A->evaluate_perf(), score_B = B->evaluate_perf();
@@ -1383,7 +1417,7 @@ bool mixed_parti_t::is_ok_to_add(sc_op *op, const op_dep_matrix_t &g) {
         return false;
     }
     if (auto reo = op->dyn_cast<reorder_op_t>()) {
-        if (reo->get_output_format().is_vnni_format()) return false;
+        if (reo->get_inputs()[0]->uses_.size() > 1) return false;
     }
     auto mixed_op = op->dyn_cast<op_traits::mixed_partition_acceptable>();
     mixed_op->search_anchor(this);
@@ -1980,14 +2014,22 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     if (!g.attrs_.get_or_else("temp.mixed_partition_hint.retried_graph", false)
             && redo_flag) {
         sub_graph.attrs_["temp.mixed_partition_hint.retried_graph"] = true;
-        SC_MODULE_INFO << "Optimizing reduce op in current partition...";
+        SC_MODULE_INFO << "Redo mixed partition for current pattern...";
         // redo mixed partition with setting hint
         do_mixed_partition(ctx, sub_graph);
         for (auto &op : sub_graph.ops_) {
             if (auto mx_op = op->dyn_cast<mixed_fuse_op_t>()) {
-                COMPILE_ASSERT(!fused_op,
-                        "It is expected that only one mixed fused op after "
-                        "retry")
+                if (fused_op) {
+                    // reset
+                    fused_op = nullptr;
+                    SC_MODULE_WARN << "It is expected that only one mixed "
+                                      "fused op after "
+                                      "mixed partition redo, fall-back to "
+                                      "original pattern "
+                                      "which may cause performance dropping, "
+                                      "please check it ";
+                    break;
+                }
                 std::vector<graph_tensor_ptr> new_ins(
                         mx_op->get_inputs().size()),
                         new_outs(mx_op->get_outputs().size());
@@ -2027,9 +2069,10 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                     // reset
                     fused_op = nullptr;
                     SC_MODULE_WARN
-                            << "Unexpected op type found after partition redo: "
+                            << "Unexpected op type found after mixed partition "
+                               "redo: "
                             << op->op_name_
-                            << ", fall-back to original partition which may "
+                            << ", fall-back to original pattern which may "
                                "cause performance dropping, please check it";
                     break;
                 }
@@ -2106,7 +2149,7 @@ void horizontal_crossover(
             auto parti_B = op_2_partition[j];
             if (!parti_B) continue;
             try_merge_mixed_parti_horizontally(
-                    parti_A.get(), parti_B.get(), dep);
+                    parti_A->get_root(), parti_B->get_root(), dep);
         }
     }
 }
@@ -2121,7 +2164,8 @@ void parallel_crossover(
         for (size_t j = i; j < op_size; j++) {
             auto parti_B = op_2_partition[j];
             if (!parti_B) continue;
-            try_merge_mixed_parti_parallel(parti_A.get(), parti_B.get(), dep);
+            try_merge_mixed_parti_parallel(
+                    parti_A->get_root(), parti_B->get_root(), dep);
         }
     }
 }
