@@ -556,11 +556,15 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         }
         BENCHDNNEXT_SAFE(stream.wait(), WARN);
 
-        uint64_t nsec = 0;
-        double freq = 0;
-        get_gpu_profiling_info(nsec, freq);
-        reset_gpu_profiling();
-        t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
+        if (is_bench_mode(PROF)) {
+            uint64_t nsec = 0;
+            double freq = 0;
+            get_gpu_profiling_info(nsec, freq);
+            reset_gpu_profiling();
+            t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
+        } else {
+            t.stamp(cur_batch_times);
+        }
 
         if (should_stop(t)) break;
 
@@ -726,11 +730,15 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         }
         BENCHDNNEXT_SAFE(stream.wait(), WARN);
 
-        uint64_t nsec = 0;
-        double freq = 0;
-        get_gpu_profiling_info(nsec, freq);
-        reset_gpu_profiling();
-        t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
+        if (is_bench_mode(PROF)) {
+            uint64_t nsec = 0;
+            double freq = 0;
+            get_gpu_profiling_info(nsec, freq);
+            reset_gpu_profiling();
+            t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
+        } else {
+            t.stamp(cur_batch_times);
+        }
 
         if (should_stop(t)) break;
 
