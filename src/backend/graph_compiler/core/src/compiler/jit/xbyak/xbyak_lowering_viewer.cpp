@@ -811,10 +811,37 @@ void xbyak_lowering_viewer::handle_tensorptr(
     COMPILE_ASSERT(lhs.isa<tensor>() || lhs.isa<var>(),
             "Invalid assign_from_tensorptr lvalue node type: " << lhs);
 
-    auto op_rhs = location_manager_->get_operand(rhs->base_);
-    auto op_lhs = location_manager_->get_operand(lhs);
+    auto imm_exceed_s32 = [this](const expr &idx) {
+        auto op_idx = location_manager_->get_operand(idx);
+        if (!op_idx.is_imm()) { return false; }
+        uint64_t high = op_idx.get_imm() >> 31;
+        if (high != 0 && high != 0x1FFFFFFFF) { return true; }
+        return false;
+    };
 
-    XBYAK_GEN(lea, X86_R64_M, op_lhs, op_rhs);
+    const auto &base = rhs->base_;
+    const auto &ptr = base->ptr_;
+    const auto &idx = base->idx_.back();
+
+    if (imm_exceed_s32(idx)) {
+        const tensor_c tsr = ptr.dyn_as<tensor_c>();
+        assert(tsr.defined());
+
+        auto op_lhs = location_manager_->get_operand(lhs);
+        auto op_tsr = location_manager_->get_operand(tsr);
+        auto op_idx = location_manager_->get_operand(idx);
+
+        auto scale = location_manager_->get_data_type_size(
+                get_cpu_data_type(tsr->elem_dtype_));
+
+        handle_x86_mov(op_lhs, operand(scale * op_idx.get_imm()));
+        XBYAK_GEN(add, X86_RM_RMI, op_lhs, op_tsr);
+    } else {
+        auto op_lhs = location_manager_->get_operand(lhs);
+        auto op_rhs = location_manager_->get_operand(base);
+
+        XBYAK_GEN(lea, X86_R64_M, op_lhs, op_rhs);
+    }
 }
 
 void xbyak_lowering_viewer::handle_func_addr(
@@ -925,6 +952,10 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
     } else if (out_dtype == sc_data_type_t::boolean(16)
             && in_dtype == sc_data_type_t::u16(1)) {
         XBYAK_GEN(kmovw, AVX512_KR32M_KR32M, op_out, op_in);
+    } else if (out_dtype == sc_data_type_t::boolean(32)
+            && (in_dtype == sc_data_type_t::s32(1)
+                    || in_dtype == sc_data_type_t::u32(1))) {
+        XBYAK_GEN(kmovd, AVX512_KR32M_KR32M, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::bf16(16)
             && in_dtype == sc_data_type_t::f32(16)) {
         COMPILE_ASSERT(profile_.target_machine_.cpu_flags_.fAVX512BF16,
@@ -1465,6 +1496,22 @@ void xbyak_lowering_viewer::handle_avx_unpack_low(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs, const operand &op_imm,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
+        case cpu_data_type::uint_16_x32: {
+            switch (op_imm.get_imm()) {
+                case 16: {
+                    XBYAK_GEN(vpunpcklwd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+                } break;
+                case 32: {
+                    XBYAK_GEN(vpunpckldq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+                } break;
+                case 64: {
+                    XBYAK_GEN(vpunpcklqdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+                } break;
+                default:
+                    COMPILE_ASSERT(false,
+                            FUNC_INFO << "Invalid lanes: " << op_imm.get_imm());
+            }
+        } break;
         case cpu_data_type::float_32_x8: {
             XBYAK_GEN(vunpcklps, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
@@ -1477,6 +1524,22 @@ void xbyak_lowering_viewer::handle_avx_unpack_high(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs, const operand &op_imm,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
+        case cpu_data_type::uint_16_x32: {
+            switch (op_imm.get_imm()) {
+                case 16: {
+                    XBYAK_GEN(vpunpckhwd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+                } break;
+                case 32: {
+                    XBYAK_GEN(vpunpckhdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+                } break;
+                case 64: {
+                    XBYAK_GEN(vpunpckhqdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+                } break;
+                default:
+                    COMPILE_ASSERT(false,
+                            FUNC_INFO << "Invalid lanes: " << op_imm.get_imm());
+            }
+        } break;
         case cpu_data_type::float_32_x8: {
             XBYAK_GEN(vunpckhps, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
@@ -1560,6 +1623,11 @@ void xbyak_lowering_viewer::handle_avx_permutex2var(const operand &op_dst,
 void xbyak_lowering_viewer::handle_avx_broadcast(const operand &op_dst,
         const operand &op_src, const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
+        case cpu_data_type::uint_8:
+        case cpu_data_type::sint_8: {
+            // TODO(XXX): add dedicated move reg to xmm in IR if needed
+            XBYAK_GEN(vpbroadcastb, AVX512_X_XxR8M, op_dst, op_src);
+        } break;
         case cpu_data_type::uint_16: {
             // TODO(XXX): add dedicated move reg to xmm in IR if needed
             XBYAK_GEN(vpbroadcastw, AVX512_X_XxR16M, op_dst, op_src);
@@ -1572,6 +1640,10 @@ void xbyak_lowering_viewer::handle_avx_broadcast(const operand &op_dst,
         case cpu_data_type::float_32: {
             XBYAK_GEN(vbroadcastss, AVX_X_XM, op_dst, op_src);
         } break;
+        case cpu_data_type::uint_16_x8: {
+            XBYAK_GEN(vshufi32x4, AVX512_Z_Z_O_I, op_dst, op_src, op_src,
+                    operand(0x0));
+        } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
     }
@@ -1581,7 +1653,8 @@ void xbyak_lowering_viewer::handle_avx_blend(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs, const operand &op_cond,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
-        case cpu_data_type::uint_16_x16: {
+        case cpu_data_type::uint_16_x16:
+        case cpu_data_type::uint_16_x32: {
             XBYAK_GEN(vpblendmw, AVX512_X_X_XM_Kw, op_dst, op_lhs, op_rhs,
                     op_cond);
         } break;

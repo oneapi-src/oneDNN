@@ -308,6 +308,30 @@ void AVX_MOVPI32(Xbyak::CodeGenerator &gen, const operand &op_dst,
         } \
     }
 
+#define AVX512_X_XxR8M(GEN, INS, OP_1, OP_2) \
+    { \
+        if (OP_1.is_xyz() && OP_2.is_reg()) { \
+            (GEN).INS(OP_1.get_xyz(), OP_2.get_reg8()); \
+        } else if (OP_1.is_xyz() && OP_2.is_addr()) { \
+            (GEN).INS(OP_1.get_xyz(), OP_2.get_addr()); \
+        } else if (OP_1.is_xyz() && OP_2.is_xyz()) { \
+            (GEN).INS(OP_1.get_xyz(), OP_2.get_xmm()); \
+        } else { \
+            COMPILE_ASSERT(false, \
+                    "Invalid avx512_" #INS << ": " << OP_1 << ", " << OP_2); \
+        } \
+    }
+
+#define AVX512_Z_Z_O_I(GEN, INS, OP_1, OP_2, OP_3, OP_4) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() \
+                        && (OP_3.is_xyz() || OP_3.is_addr()) && OP_4.is_imm(), \
+                "Invalid avx512_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                       << OP_3 << ", " << OP_4); \
+        (GEN).INS(OP_1.get_zmm(), OP_2.get_zmm(), OP_3.get_operand(), \
+                OP_4.get_imm()); \
+    }
+
 #define AVX512_XM_X(GEN, INS, OP_1, OP_2) \
     { \
         if (OP_1.is_xyz() && OP_2.is_xyz()) { \

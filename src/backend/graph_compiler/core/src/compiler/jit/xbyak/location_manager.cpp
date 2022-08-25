@@ -165,6 +165,7 @@ int64_t location_manager::stack_push(
         } break;
         // not supported
         case cpu_data_type::mask_x16:
+        case cpu_data_type::mask_x32:
         case cpu_data_type::void_t: {
             COMPILE_ASSERT(false, "Invalid stack push reg: " << dtype);
         } break;
@@ -286,6 +287,7 @@ int64_t location_manager::stack_pop(
         } break;
         // not supported
         case cpu_data_type::mask_x16:
+        case cpu_data_type::mask_x32:
         case cpu_data_type::void_t: {
             COMPILE_ASSERT(false, "Invalid stack pop reg: " << dtype);
         } break;
@@ -912,6 +914,7 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
         case cpu_data_type::float_32_x16: return &(gen_.zword);
         // not supported
         case cpu_data_type::mask_x16:
+        case cpu_data_type::mask_x32:
         case cpu_data_type::void_t: {
             COMPILE_ASSERT(false, "Invalid address_frame: " << cpu_dtype);
         } break;
@@ -923,6 +926,10 @@ const content_hash_map<expr_c, Xbyak::Label> &
 location_manager::encode_simd_constant() {
     std::function<uint16_t(union_val)> select_bf16
             = [](union_val u) -> uint16_t { return bf16_t(u.f32).storage_; };
+    std::function<int8_t(union_val)> select_s8
+            = [](union_val u) -> int8_t { return (int8_t)u.s64; };
+    std::function<uint8_t(union_val)> select_u8
+            = [](union_val u) -> uint8_t { return (uint8_t)u.u64; };
     std::function<uint16_t(union_val)> select_u16
             = [](union_val u) -> uint16_t { return (uint16_t)u.u64; };
     std::function<uint32_t(union_val)> select_u32
@@ -942,6 +949,14 @@ location_manager::encode_simd_constant() {
             case sc_data_etype::BF16: {
                 encode_simd_to_buffer(
                         (uint16_t *)buffer, lanes, v->value_, select_bf16);
+            } break;
+            case sc_data_etype::U8: {
+                encode_simd_to_buffer(
+                        (uint8_t *)buffer, lanes, v->value_, select_u8);
+            } break;
+            case sc_data_etype::S8: {
+                encode_simd_to_buffer(
+                        (int8_t *)buffer, lanes, v->value_, select_s8);
             } break;
             case sc_data_etype::U16: {
                 encode_simd_to_buffer(
@@ -988,6 +1003,12 @@ void location_manager::encode_simd_to_buffer(T *buffer, uint32_t lanes,
     }
 }
 
+template void location_manager::encode_simd_to_buffer<int8_t>( //
+        int8_t *, uint32_t, const std::vector<union_val> &,
+        std::function<int8_t(union_val)>);
+template void location_manager::encode_simd_to_buffer<uint8_t>( //
+        uint8_t *, uint32_t, const std::vector<union_val> &,
+        std::function<uint8_t(union_val)>);
 template void location_manager::encode_simd_to_buffer<uint16_t>( //
         uint16_t *, uint32_t, const std::vector<union_val> &,
         std::function<uint16_t(union_val)>);
@@ -1212,6 +1233,7 @@ Xbyak::Reg location_manager::convert_virtual_reg(const expr_c &v) {
         case cpu_data_type::float_32_x16: return to_zmm(reg);
         // simd mask
         case cpu_data_type::mask_x16: return to_mask(reg);
+        case cpu_data_type::mask_x32: return to_mask(reg);
         // not supported
         case cpu_data_type::void_t: {
             assert(false && "Unreachable");

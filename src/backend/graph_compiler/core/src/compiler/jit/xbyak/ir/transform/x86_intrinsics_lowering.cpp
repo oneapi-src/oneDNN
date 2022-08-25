@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <compiler/ir/builder.hpp>
+#include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
 #include <compiler/jit/xbyak/x86_64/registers.hpp>
 #include <util/any_map.hpp>
@@ -358,29 +359,20 @@ public:
 
     void transform_select(const expr &dst, const select &sel) {
         const sc_data_type_t dst_dtype = dst->dtype_;
-        // If f32x16 blend cond is not mask16 type, cast to mask16
+        // If 16+simd blend cond is not mask type, cast to mask
         auto get_cond = [&](expr cond, sc_data_type_t dtype) {
-            if (dtype.lanes_ == 16
-                    && cond->dtype_ != sc_data_type_t::boolean(16)) {
-                auto mask16 = builder::make_var(
-                        sc_data_type_t::boolean(16), "__mmask16");
-                add_defination(mask16, linkage::local);
-                add_assignment(mask16,
-                        builder::make_cast(sc_data_type_t::boolean(16), cond));
-                return mask16;
+            auto lanes = dtype.lanes_;
+            if (lanes >= 16 && cond->dtype_ != sc_data_type_t::boolean(lanes)) {
+                auto mask = builder::make_var(
+                        sc_data_type_t::boolean(lanes), "__mmask");
+                auto tmp = load_when_imm(cond, "__msk_tmp_var");
+                add_defination(mask, linkage::local);
+                add_assignment(mask,
+                        builder::make_cast(
+                                sc_data_type_t::boolean(lanes), tmp));
+                return mask;
             } else {
                 return cond;
-            }
-        };
-        // If x86 select rhs is constant, load to var
-        auto get_rhs = [&](expr r) {
-            if (r.isa<constant>()) {
-                auto rhs = builder::make_var(r->dtype_, "__sel_tmp_var");
-                add_defination(rhs, linkage::local);
-                add_assignment(rhs, r);
-                return rhs;
-            } else {
-                return r;
             }
         };
         // Transform select
@@ -400,9 +392,11 @@ public:
                 add_defination(rax, linkage::local);
                 // rax = lhs
                 add_assignment(rax, sel->l_);
+                // If x86 select rhs is constant, load to var
+                auto rhs = load_when_imm(sel->r_, "__sel_tmp_var");
                 // if(cond = false) rax = rhs
                 add_assignment(rax,
-                        make_xbyak_intrin(dst_dtype, {get_rhs(sel->r_)},
+                        make_xbyak_intrin(dst_dtype, {rhs},
                                 xbyak_intrin_type::cmov, isa,
                                 xbyak_intrin_modifier(xbyak_condition::eq)));
                 add_assignment(dst, rax);
@@ -576,14 +570,8 @@ public:
         // dst = lhs
         add_assignment(dst, lhs);
         // dst = min/max(rhs)
-        if (rhs.isa<constant>()) {
-            auto tmp = builder::make_var(rhs->dtype_, "__imm_tmp_var");
-            add_defination(tmp, linkage::local);
-            add_assignment(tmp, rhs);
-            transform_intrin(dst, {tmp}, intrin, xbyak_intrin_isa::x86);
-        } else {
-            transform_intrin(dst, {rhs}, intrin, xbyak_intrin_isa::x86);
-        }
+        auto tmp = load_when_imm(rhs, "__imm_tmp_var");
+        transform_intrin(dst, {tmp}, intrin, xbyak_intrin_isa::x86);
     }
 
     void transform_x86_mod_div(const expr &dst, const expr &lhs,
@@ -606,18 +594,10 @@ public:
         // Add %rax, %rdx to xbyak_intrin args so, liveness updates
         // TODO(XXX): if transform normal div constant (not unsigned 2^n) is
         // worthy
-        if (rhs.isa<constant>()) {
-            auto tmp = builder::make_var(rhs->dtype_, "div_imm_tmp");
-            add_defination(tmp, linkage::local);
-            add_assignment(tmp, rhs);
-            add_assignment(dst,
-                    make_xbyak_intrin(dst->dtype_, {tmp, rax, rdx}, intrin,
-                            xbyak_intrin_isa::x86));
-        } else {
-            add_assignment(dst,
-                    make_xbyak_intrin(dst->dtype_, {rhs, rax, rdx}, intrin,
-                            xbyak_intrin_isa::x86));
-        }
+        auto tmp = load_when_imm(rhs, "__div_imm_tmp");
+        add_assignment(dst,
+                make_xbyak_intrin(dst->dtype_, {tmp, rax, rdx}, intrin,
+                        xbyak_intrin_isa::x86));
     }
 
     void transform_simd_reduce_seq(const expr &dst, const expr &src,
@@ -675,6 +655,17 @@ public:
     // --------------
     // Intrin helpers
     // --------------
+
+    expr load_when_imm(expr v, const std::string &name) {
+        if (v.isa<constant>()) {
+            auto tmp = builder::make_var(v->dtype_, name);
+            add_defination(tmp, linkage::local);
+            add_assignment(tmp, v);
+            return tmp;
+        } else {
+            return v;
+        }
+    }
 
     void add_assignment(const expr &var, const expr &value) {
         transform_seq_.emplace_back(make_stmt<assign_node_t>(var, value));
