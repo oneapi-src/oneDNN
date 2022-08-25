@@ -172,7 +172,7 @@ public:
 
         // constant propagation
         if (enable_constant_cache) {
-            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<true>);
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
 
         auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {

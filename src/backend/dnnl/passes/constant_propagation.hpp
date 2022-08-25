@@ -16,98 +16,18 @@
 #ifndef BACKEND_DNNL_PASSES_CONSTANT_PROPAGATION_HPP
 #define BACKEND_DNNL_PASSES_CONSTANT_PROPAGATION_HPP
 
-#include <algorithm>
 #include <memory>
-#include <set>
-#include <string>
-#include <vector>
 
-#include "interface/value.hpp"
+#include "interface/c_types_map.hpp"
 
-#include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/passes/utils.hpp"
-#include "backend/dnnl/utils.hpp"
 
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace {
-inline bool has_scratchpad(impl::op_kind_t kind) {
-    const static std::set<impl::op_kind_t> ops {op_kind::dnnl_convolution,
-            op_kind::dnnl_bn_folding, op_kind::dnnl_pool, op_kind::dnnl_matmul,
-            op_kind::dnnl_convtranspose, op_kind::dnnl_reorder,
-            op_kind::dnnl_mul_scales};
-    return ops.count(kind) != 0;
-}
-}; // namespace
-
-// Because we don't know which logical tensors (may be partition's ins/outs
-// edges, or edges inside partition) will be set constant by FWK, so we have to
-// do constant propagation bidirectionally
-template <bool with_scratchpad = true>
-impl::status_t constant_propagation(std::shared_ptr<subgraph_t> &sg) {
-    using op_t = impl::op_t;
-    using ltw = impl::logical_tensor_wrapper_t;
-
-    bool changed;
-    do {
-        changed = false;
-        auto ret = impl::topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
-            size_t scpad_num
-                    = with_scratchpad && has_scratchpad(op->get_kind()) ? 1 : 0;
-            if (op->get_kind() == op_kind::dnnl_reorder
-                    || op->get_kind() == op_kind::dnnl_mul_scales) {
-                if (op->num_outputs() == 1) { scpad_num = 0; }
-            }
-
-            bool all_inputs_are_constant = true;
-            for (const auto &in : op->get_input_values()) {
-                if (ltw(in->get_logical_tensor()).property_type()
-                        != property_type::constant) {
-                    all_inputs_are_constant = false;
-                    break;
-                }
-            }
-
-            bool all_outputs_are_constant = true;
-            for (size_t i = 0; i < op->num_outputs() - scpad_num; i++) {
-                auto out = op->get_output_value(i);
-                if (ltw(out->get_logical_tensor()).property_type()
-                        != property_type::constant) {
-                    all_outputs_are_constant = false;
-                    break;
-                }
-            }
-
-            const bool is_constant
-                    = all_inputs_are_constant || all_outputs_are_constant;
-            op->set_attr<bool>(op_attr::is_constant, is_constant);
-
-            if (all_inputs_are_constant && !all_outputs_are_constant) {
-                // propagate from in to out
-                for (size_t i = 0; i < op->num_outputs() - scpad_num; i++) {
-                    auto out = op->get_output_value(i);
-                    out->set_property(property_type::constant);
-                }
-                changed = changed || true;
-            } else if (!all_inputs_are_constant && all_outputs_are_constant) {
-                // propagate from out to in
-                for (auto &in : op->get_input_values()) {
-                    in->set_property(property_type::constant);
-                }
-                changed = changed || true;
-            } else {
-                changed = changed || false;
-            }
-            return status::success;
-        });
-
-        if (ret != impl::status::success) return ret;
-    } while (changed);
-    return impl::status::success;
-}
+impl::status_t constant_propagation(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace impl

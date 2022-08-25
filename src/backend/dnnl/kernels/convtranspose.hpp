@@ -301,7 +301,7 @@ public:
 
         // constant propagation
         if (enable_constant_cache_) {
-            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<true>);
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
 
         // bind the memory for each op
@@ -375,7 +375,7 @@ public:
 
         // constant propagation
         if (enable_constant_cache_) {
-            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<true>);
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
         // bind the memory for each op
         auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {

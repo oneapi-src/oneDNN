@@ -107,14 +107,14 @@ public:
         // do constant propagation here so that we can
         // prepare constant info for other optimizations.
         if (enable_constant_cache_) {
-            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<false>);
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
         // do constant propagation again since layout propagation may
         // insert/delete operators
         if (enable_constant_cache_) {
-            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<true>);
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
 
         // bind the memory for each op
