@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include <memory>
+#include <vector>
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
@@ -1977,7 +1978,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                     assert(n_vpads < MAX_N_VPADS);
 
                     Label Vpad_loop_end_label;
-                    Label Vpad_loop_iter_label[MAX_N_VPADS];
+                    std::vector<Label> Vpad_loop_iter_label(MAX_N_VPADS);
                     if (vpad_exist) {
                         reg64_t reg_batch = (brg.type == brgemm_addr)
                                 ? reg_aux1_batch
