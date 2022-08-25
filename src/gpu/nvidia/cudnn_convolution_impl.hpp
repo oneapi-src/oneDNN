@@ -66,7 +66,8 @@ protected:
     bool with_bias = false;
 
     bool do_scaling = false;
-    float output_scaling = 1.0f;
+    bool runtime_scaling = false;
+    float oscale = 1.0f;
     bool use_temp_dst_ = false;
     cudnnDataType_t computation_data_type = CUDNN_DATA_FLOAT;
     cudnnDataType_t reorder_type = CUDNN_DATA_INT8;
@@ -136,8 +137,9 @@ public:
         with_bias = pd->with_bias();
         alpha = 1.0f;
         beta = 0.0f;
-        output_scaling = pd->attr()->output_scales_.scales_[0];
-        do_scaling = output_scaling != 1.f;
+        do_scaling = !pd->attr()->output_scales_.has_default_values();
+        runtime_scaling = !pd->attr()->output_scales_.defined();
+        oscale = pd->attr()->output_scales_.scales_[0];
         dnnl_descs[x] = *pd->invariant_src_md();
         dnnl_descs[weights] = *pd->invariant_wei_md();
         dnnl_descs[y] = *pd->invariant_dst_md();
@@ -309,10 +311,10 @@ public:
                 &beta, descs[io::y], y);
     }
 
-    void execute_scale(cudnnHandle_t handle, void *y) const {
+    void execute_scale(cudnnHandle_t handle, void *y, void *rt_oscale) const {
         if (do_scaling) {
-            CUDNN_EXECUTE_FUNC_V(
-                    cudnnScaleTensor, handle, descs[io::y], y, &output_scaling);
+            const void *s = runtime_scaling ? rt_oscale : &oscale;
+            CUDNN_EXECUTE_FUNC_V(cudnnScaleTensor, handle, descs[io::y], y, s);
         }
     }
 
@@ -502,7 +504,7 @@ public:
             const std::vector<void *> &args) const override {
         auto x = args[0], weights = args[1], y = args[2], bias = args[3],
              scratchpad = args[4], post_op_scratch = args[6],
-             post_op_reorder = args[7];
+             post_op_reorder = args[7], runtime_oscale = args[8];
         void *output = use_temp_dst_ ? post_op_scratch : y;
         if (using_transformed_filter()) {
             auto w_scratch = args[5];
@@ -538,7 +540,7 @@ public:
                         output);
             }
         }
-        execute_scale(handle, output);
+        execute_scale(handle, output, runtime_oscale);
         // skip first eltwise in case it is fused into convolution
         const int post_ops_start_pos = fused && conv_bias_eltwise;
         for (int i = post_ops_start_pos; i < num_post_ops; i++) {

@@ -48,8 +48,8 @@ struct cudnn_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
-                    | primitive_attr_t::skip_mask_t::post_ops;
+            using sm_t = primitive_attr_t::skip_mask_t;
+            const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
 
             bool ok = utils::one_of(desc()->prop_kind,
                     prop_kind::forward_training, prop_kind::forward_inference);
@@ -78,8 +78,8 @@ struct cudnn_convolution_fwd_t : public primitive_t {
                             src_md_.data_type == s8, check_s8_configuration())
                     // cudnnAddTensor used for bias add requires both tensors
                     // to have the same data type.
-                    && IMPLICATION(
-                            with_bias(), dst_md_.data_type == bias_md_.data_type);
+                    && IMPLICATION(with_bias(),
+                            dst_md_.data_type == bias_md_.data_type);
             ok = ok && memory_format_ok(&src_md_);
             ok = ok && memory_format_ok(&weights_md_);
             ok = ok && memory_format_ok(&dst_md_);
