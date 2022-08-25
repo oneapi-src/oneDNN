@@ -48,6 +48,7 @@ class nested_parallel_flatten_impl_t : public ir_visitor_t {
     int var_count_ = 0;
     bool cannot_parallel_ = false;
     bool need_pre_barrier_ = false;
+    bool need_post_barrier_ = false;
 
 public:
     using ir_visitor_t::dispatch;
@@ -99,7 +100,7 @@ public:
             COMPILE_ASSERT(my_jobs > 0, "Bad number of jobs");
             if (num_jobs % num_threads == 0) {
                 // fast path. the jobs is divisible by the thread number
-                out_start = def_var("_start", gid * (my_jobs * step));
+                out_start = def_var("_start", gid * (my_jobs * step) + begin);
                 out_end = def_var("_end", out_start + (my_jobs * step));
                 return;
             }
@@ -122,10 +123,10 @@ public:
         }
         expr cur_jobs
                 = builder::make_select(gid < the_tid, my_jobs_e, my_jobs_2_e);
-        expr my_begin
-                = builder::make_select(gid <= the_tid, gid * my_jobs_e,
+        expr my_begin = v->iter_begin_
+                + builder::make_select(gid <= the_tid, gid * my_jobs_e,
                           the_tid * my_jobs_e + (gid - the_tid) * my_jobs_2_e)
-                * v->step_;
+                        * v->step_;
         my_begin = folder(caster(my_begin)).remove_const();
         out_start = def_var("_start", my_begin);
 
@@ -162,6 +163,13 @@ public:
                         uint64_t(info_[info_.size() - 2].threads_per_group_))));
         return builder::tensor_ptr(info_.back().barriers_, {idx});
     }
+
+    void gen_call_to_barrier(std::vector<stmt> *cur_insert_point) {
+        auto b = get_barrier_for_current_for();
+        cur_insert_point->emplace_back(builder::make_evaluate_unattached(
+                builtin::get_barrier_arrive_func()(b)));
+    }
+
     /*
 transforming:
 void work() {
@@ -241,12 +249,7 @@ void work() {
                 "outer parallel-for");
         int num_threads = v->num_threads_;
         if (num_threads == 0) { num_threads = num_threads_parent_group; }
-        COMPILE_ASSERT(num_threads_parent_group % num_threads == 0,
-                "The threads in the threads group:"
-                        << num_threads_parent_group
-                        << " is not divisible by the number of threads in this "
-                           "for-loop:"
-                        << num_threads << ". The loop: " << v);
+        bool divisible = num_threads_parent_group % num_threads == 0;
         uint64_t threads_per_group = num_threads_parent_group / num_threads;
         COMPILE_ASSERT(threads_per_group > 0,
                 "Too many threads in this parallel: " << v);
@@ -260,21 +263,36 @@ void work() {
                 gid1, linkage::local, tid0 / threads_per_group));
         seq.emplace_back(builder::make_var_tensor_def_unattached(
                 tid1, linkage::local, tid0 % threads_per_group));
-        expr begin, end;
-        do_generate_balance211(num_threads, v, gid1, seq, begin, end);
-        if (need_pre_barrier) {
-            auto b = get_barrier_for_current_for();
-            seq.emplace_back(builder::make_evaluate_unattached(
-                    builtin::get_barrier_arrive_func()(b)));
+        std::vector<stmt> *cur_insert_point = &seq;
+        // if parent threads per group is not divisible by the current num of
+        // threads, gid may excess num_threads, need to skip it
+        if (!divisible) {
+            auto gid_ok_body = make_stmt<stmts_node_t>(std::vector<stmt> {});
+            stmts gid_skip_body;
+            if (need_pre_barrier) {
+                gid_skip_body = make_stmt<stmts_node_t>(std::vector<stmt> {});
+                gen_call_to_barrier(&gid_skip_body->seq_);
+            }
+            seq.emplace_back(builder::make_if_else_unattached(
+                    gid1 < make_expr<constant_node>(
+                            uint64_t(num_threads), datatypes::index),
+                    gid_ok_body, gid_skip_body));
+            cur_insert_point = &gid_ok_body->seq_;
+            // the balance211 & for body code will be omited in the if body
         }
+        expr begin, end;
+        do_generate_balance211(
+                num_threads, v, gid1, *cur_insert_point, begin, end);
+        if (need_pre_barrier) { gen_call_to_barrier(cur_insert_point); }
 
         auto new_body = make_stmt<stmts_node_t>(std::vector<stmt> {});
         auto step_expr = v->step_->dtype_ == datatypes::index
                 ? v->step_
                 : constant_folder_t()(
                         builder::make_cast(datatypes::index, v->step_));
-        seq.emplace_back(builder::make_for_loop_unattached(v->var_, begin, end,
-                step_expr, new_body, v->incremental_, for_type::NORMAL));
+        cur_insert_point->emplace_back(builder::make_for_loop_unattached(
+                v->var_, begin, end, step_expr, new_body, v->incremental_,
+                for_type::NORMAL));
 
         auto &old_body = v->body_.checked_as<stmts>()->seq_;
         stmts single_thread_body;
@@ -287,6 +305,24 @@ void work() {
                 // if there are single-threaded sections in the for-body, we
                 // need sync the threads
                 need_pre_barrier_ = single_thread_body.defined();
+                need_post_barrier_ = false;
+                // check if we need to insert post barrier. If the current
+                // parallel-for is the last statement in parent parallel-for, we
+                // don't need the barrier
+                for (size_t n = i + 1; n < old_body.size(); n++) {
+                    // if the next stmt is a pure definition, we can ignore it
+                    if (old_body[i].isa<define_c>()) {
+                        auto &initv = old_body[i].static_as<define_c>()->init_;
+                        if (!initv.defined() || initv.isa<constant>()) {
+                            continue;
+                        }
+                    }
+
+                    // otherwise, we cannot remove the barrier because the stmt
+                    // may depend on the current loop
+                    need_post_barrier_ = true;
+                    break;
+                }
                 auto body = dispatch(old_body[i])
                                     .remove_const()
                                     .checked_as<stmts>();
@@ -296,27 +332,30 @@ void work() {
             } else {
                 cannot_parallel_ = true;
                 if (threads_per_group > 1) {
-                    if (!single_thread_body.defined()) {
-                        single_thread_body
-                                = make_stmt<stmts_node_t>(std::vector<stmt> {});
-                        new_body->seq_.emplace_back(
-                                builder::make_if_else_unattached(
-                                        tid1 == UINT64_C(0), single_thread_body,
-                                        stmt()));
+                    auto dispatched = dispatch(old_body[i]).remove_const();
+                    if (dispatched.isa<stmts>()
+                            && dispatched.static_as<stmts>()->seq_.empty()) {
+                        // if it is a hoisted tensor..., don't need to add to
+                        // the body
+                    } else {
+                        if (!single_thread_body.defined()) {
+                            single_thread_body = make_stmt<stmts_node_t>(
+                                    std::vector<stmt> {});
+                            new_body->seq_.emplace_back(
+                                    builder::make_if_else_unattached(
+                                            tid1 == UINT64_C(0),
+                                            single_thread_body, stmt()));
+                        }
+                        single_thread_body->seq_.emplace_back(dispatched);
                     }
-                    single_thread_body->seq_.emplace_back(
-                            dispatch(old_body[i]).remove_const());
+
                 } else {
                     new_body->seq_.emplace_back(
                             dispatch(old_body[i]).remove_const());
                 }
             }
         }
-        if (need_post_barrier) {
-            auto b = get_barrier_for_current_for();
-            seq.emplace_back(builder::make_evaluate_unattached(
-                    builtin::get_barrier_arrive_func()(b)));
-        }
+        if (need_post_barrier) { gen_call_to_barrier(&seq); }
 
         info_.pop_back();
     }
@@ -395,11 +434,21 @@ void work() {
                 auto tid0
                         = builder::make_var(datatypes::index, make_name("tid"));
                 count_++;
+                // now refine the top-level number of threads
+                int num_threads = v->num_threads_;
+                COMPILE_ASSERT(runtime_threads_ >= num_threads,
+                        "num_threads of the loop excesses the total number of "
+                        "threads: "
+                                << v);
+                // use the greatest number of total threads divisible by the
+                // current num_threads
+                num_threads = runtime_threads_ / num_threads * num_threads;
+
                 auto for_lv1 = builder::make_for_loop_unattached(tid0,
-                        UINT64_C(0), uint64_t(runtime_threads_), UINT64_C(1),
+                        UINT64_C(0), uint64_t(num_threads), UINT64_C(1),
                         body_lv1, true, for_type::PARALLEL);
-                transform_loop(v, runtime_threads_, body_lv1->seq_, tid0, false,
-                        false);
+                transform_loop(
+                        v, num_threads, body_lv1->seq_, tid0, false, false);
                 body_lv0->seq_.insert(body_lv0->seq_.end(),
                         outof_parallel_defs_.begin(),
                         outof_parallel_defs_.end());
@@ -415,7 +464,7 @@ void work() {
                 auto body_lv1 = make_stmt<stmts_node_t>(std::vector<stmt> {});
                 transform_loop(v, parent_info.threads_per_group_,
                         body_lv1->seq_, parent_info.thread_id_,
-                        need_pre_barrier_, /*post barrier*/ true);
+                        need_pre_barrier_, need_post_barrier_);
                 return body_lv1;
             }
         } else {
