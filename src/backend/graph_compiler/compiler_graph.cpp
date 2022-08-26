@@ -189,11 +189,6 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         }
     } else {
         backend_attrs = convert_op_attrs(aop->get_attributes());
-        // adding extra graph compiler internal attributes
-        // for correct output quantization channel axis
-        if (aop->get_kind() == op_kind::Convolution) {
-            backend_attrs.set("output_channel_axis", (int)1);
-        }
     }
     return make(compiler_backend_op.find(aop->get_kind())->second, producer_lt,
             consumer_lt, backend_attrs);

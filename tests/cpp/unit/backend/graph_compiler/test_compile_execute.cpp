@@ -42,7 +42,7 @@ static void compile_execution_pipeline(
                 return a->get_ops().size() < b->get_ops().size();
             });
 
-    std::unordered_map<int, impl::logical_tensor_t> lt_info_map;
+    std::unordered_map<size_t, impl::logical_tensor_t> lt_info_map;
 
     for (size_t i = 0; i < partitions.size(); ++i) {
         impl::partition_t p;

@@ -2202,7 +2202,7 @@ static inline void add_MHA_subgraph_alternative2(impl::graph_t *agraph,
 // returned vector with shape {ic, ks, oc}
 static std::vector<impl::dim_t> extract_filter_info(
         const impl::dims &shape, const std::string &filter_format) {
-    int ndims = shape.size();
+    size_t ndims = shape.size();
     return filter_format == "OIX"
             ? std::vector<impl::dim_t> {shape[1], shape[2], shape[0]}
             : std::vector<impl::dim_t> {

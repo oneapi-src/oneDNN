@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include <string>
+
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/quantization/quantize_info.hpp>
@@ -21,6 +23,7 @@
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/visitor.hpp>
+#include <ops/convolution.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <util/math_utils.hpp>
@@ -109,6 +112,15 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                 if (node->attrs_.has_key(attr_keys::output_channel_axis)) {
                     output_channel_axis = node->attrs_.get<int>(
                             attr_keys::output_channel_axis);
+                } else if (node->isa<ops::conv_fwd_core_op_t>()
+                        && node->attrs_.has_key("data_format")) {
+                    // infer output_channel_axis based on op attributes
+                    auto data_format
+                            = node->attrs_.get<std::string>("data_format");
+                    auto ndims = node->get_outputs()[0]
+                                         ->details_.get_plain_dims()
+                                         .size();
+                    output_channel_axis = data_format == "NCX" ? 1 : ndims - 1;
                 } else {
                     output_channel_axis = node->attrs_.get<int>(
                             attr_keys::weight_channel_axis);
