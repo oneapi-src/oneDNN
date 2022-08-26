@@ -5684,39 +5684,73 @@ private:
                     (int)a_thr_view.tlayout().normalize().blocks()[0].block);
             if (channels_blk > 32) channels_blk = 32;
             const auto c_blk = std::min(channels_blk, m_blk);
-            std::vector<dim_t> a_dims(a_thr_view.vvars().size(), 1);
+            auto a_tdims = a_view.tlayout().dims();
+            auto mask_blk = is_mad ? c_blk : channels_blk;
             size_ = ((cfg.kd * cfg.kh * cfg.kw > 1) || has_pad || has_stride_bd)
-                    * ((!is_scalar) ? !is_mad ? (int)mask_tensor.elems()
-                                                    / channels_blk
-                                              : desc_n * desc_m / m_blk
+                    * ((!is_scalar) ? accumulate(a_tdims.begin(), a_tdims.end(),
+                                              1, std::multiplies<dim_t>())
+                                            / mask_blk
                                     : 1);
             if (size_ == 0) return;
 
             mask_tensor_t masks(
                     layout_t(type_t::_bool(), 0, std::vector<dim_t> {size_}));
-            if (!is_mad) {
-                for (int i = 0; i < size_; i++) {
-                    masks.set_mask(i,
-                            mask_tensor.mask(
-                                    (i * channels_blk) % mask_tensor.elems()));
-                }
-            } else {
-                a_dims[ic_dim] = c_blk;
-                std::vector<dim_t> a_dims_crop(a_dims.size(), 1);
-                a_dims_crop[ic_dim] = c_blk;
-                a_thr_view.for_each_tile(
-                        tensor_t(a_dims), [&](const std::vector<dim_t> &start) {
-                            std::vector<expr_t> a_st(
-                                    start.begin(), start.end());
-                            auto off = expr_cast<int>(
-                                    a_view.offset_in_bytes(a_st));
-                            if (off / m_blk / a_stride >= size_) return;
-                            auto m = mask_tensor.map(tensor_t(a_dims, start));
-                            masks.set_mask(off / m_blk / a_stride,
-                                    m.map(tensor_t(a_dims_crop))
-                                            .to_expr(c_blk));
-                        });
-            }
+            std::vector<dim_t> a_dims(a_view.tlayout().ndims(), 1);
+            a_dims[ic_dim] = mask_blk;
+            int i = 0;
+            a_view.tlayout().for_each_tile(
+                    tensor_t(a_dims), [&](const std::vector<dim_t> &start) {
+                        std::vector<dim_t> a_st(a_thr_view.nvdims(), 0);
+                        for (int idx = 0; idx < (int)start.size(); idx++) {
+                            auto tdim_to_vdims = [&](int idx) {
+                                auto tdim = a_view.tdim(idx);
+                                auto vidx0 = tdim.vidx(0);
+                                auto vidx1 = -1;
+                                int vdim1 = 0;
+                                ir_assert(tdim.nvargs() <= 2);
+                                for (int vdim0 = 0;
+                                        vdim0 < a_thr_view.vdims()[vidx0];
+                                        vdim0++) {
+                                    auto tdim_expr = substitute(tdim.expr(),
+                                            a_view.vvars()[vidx0],
+                                            to_expr(vdim0));
+                                    if (tdim.nvargs() == 2) {
+                                        vidx1 = tdim.vidx(1);
+                                        for (vdim1 = 0; vdim1
+                                                < a_thr_view.vdims()[vidx1];
+                                                vdim1++) {
+                                            auto tdim_expr2 = substitute(
+                                                    tdim_expr,
+                                                    a_view.vvars()[vidx1],
+                                                    to_expr(vdim1));
+                                            if (to_cpp<dim_t>(
+                                                        simplify(tdim_expr2))
+                                                    == start[idx]) {
+                                                a_st[vidx1] = vdim1;
+                                                a_st[vidx0] = vdim0;
+                                                return;
+                                            }
+                                        }
+                                        tdim_expr = substitute(tdim_expr,
+                                                a_view.vvars()[vidx1],
+                                                to_expr(0));
+                                    }
+                                    if (to_cpp<dim_t>(simplify(tdim_expr))
+                                            == start[idx]) {
+                                        a_st[vidx0] = vdim0;
+                                        break;
+                                    }
+                                }
+                            };
+                            tdim_to_vdims(idx);
+                        }
+                        auto off = a_thr_view.create_pseudo_vlayout()
+                                           .make_dense()
+                                           .offset<dim_t>(a_st);
+                        if (i >= size_) return;
+                        masks.set_mask(i, mask_tensor.mask(off));
+                        i++;
+                    });
 
             // 3. Compute some basic properties of the masks just collected
             for (int n = 0; n < size_; n++) {
@@ -6010,7 +6044,7 @@ private:
         const int channels = utils::rnd_up_pow2(
                 (!is_mad) ? (cfg_.is_fwd) ? cfg_.ic : cfg_.oc : cfg_.g);
         const int c_blk = (channels < 32) ? channels : 32;
-        const int k_blk = (!is_mad && (channels > 4)) ? 32 / c_blk : 1;
+        const int k_blk = ((channels > 4)) ? 32 / c_blk : 1;
         const int m_blk = cfg_.simd_size();
 
         const type_t s_type = a_view.type();
@@ -6104,7 +6138,8 @@ private:
                 auto b = (is_runtime) // '4'-s mean '(|i32| / |i16|) * |i16|'
                         ? load_t::make(b_type, zp_buf_, b_off * 4, 4)
                         : cfg_.zp_cfg.common_src_zero_point;
-                auto mask = masks.gen_mask(a_off / m_blk / a_stride);
+                auto mask = masks.gen_mask(
+                        (utils::div_up(k_blk, 2)) * a_off / m_blk / a_stride);
                 auto mad = (masks.is_bool())
                         ? binary_op_t::make(op_kind_t::_sub, a, b, sv_type)
                         : ternary_op_t::make(
