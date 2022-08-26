@@ -75,6 +75,8 @@ create_default_graph_flow(const context_ptr &ctx) {
             true));
     post_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
             elemwise_dimension_alignment, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("const_folding",
+            graph_constant_input_folding, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("layout_propagation",
             layout_propagation, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("const_folding",
