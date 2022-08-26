@@ -107,10 +107,10 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   managed_matmul_core_config_t &cfg
     = *ret.unchecked_get_as<managed_matmul_core_config_t>();
   const int num_threads = runtime_config_t::get().get_num_threads();
-  const auto splits = get_splits(runtime_config_t::get().get_num_threads());
   const int iim_block = iim_block_;
   const int iin_block = iin_block_;
   const int iik_block = iik_block_;
+  bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
   const int M
     = utils::divide_and_ceil(
         static_cast<int>(in_tensors_[0].get_plain_dims()[0]), iim_block)
@@ -130,78 +130,110 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   float cost = std::numeric_limits<float>::max();
   int split_n = 1;
   cfg.im_loop_order = 0;
-  if (M * N / iim_block / iin_block >= num_threads) {
-    for (auto i : splits) {
-      int num_M_block = utils::divide_and_ceil(M / iim_block, num_threads / i);
-      int num_N_block = utils::divide_and_ceil(N / iin_block, i);
-      int num_brgemm = num_M_block * num_N_block;
-      int num_core
-        = std::min(i, N / iin_block) * std::min(num_threads / i, M / iim_block);
-      // Cost = Shape_efficient_weight *
-      // (workload_balance + divide_N_plenty) / core_utilitizaiton
-      // single core gemm prefers square shape for A and B.
-      // For small workload, the A and B shape is not a key problem, but the
-      // num_core and num_brgemm is important to performance. Use 2048 to reduce
-      // the shape weight on small shape.
-      float new_cost = (1024 + M * i / num_threads + N / i)
-        * (num_brgemm + 8 * i) / num_core;
-      if (new_cost < cost) {
-        split_n = i;
-        cost = new_cost;
+  for (int i = 1; i <= num_threads; i++) {
+    int num_M_block = utils::divide_and_ceil(M / iim_block, num_threads / i);
+    int num_N_block = utils::divide_and_ceil(N / iin_block, i);
+    int num_brgemm = num_M_block * num_N_block;
+    int num_core
+      = std::min(i, N / iin_block) * std::min(num_threads / i, M / iim_block);
+    // Cost = Shape_efficient_weight *
+    // (workload_balance + divide_N_plenty) / core_utilitizaiton
+    // single core gemm prefers square shape for A and B.
+    // For small workload, the A and B shape is not a key problem, but the
+    // num_core and num_brgemm is important to performance. Use 2048 to reduce
+    // the shape weight on small shape.
+    float new_cost
+      = (1024 + M * i / num_threads + N / i) * (num_brgemm + 8 * i) / num_core;
+    if (new_cost < cost) {
+      split_n = i;
+      cost = new_cost;
+    }
+  }
+  cfg.M_split_num = num_threads / split_n;
+  cfg.N_split_num = split_n;
+  if (is_int8 && N <= 512 && K <= 512) {
+    // for int8 datatype and small N/Ks, we prefer to give splits only on M
+    cfg.M_split_num = num_threads;
+    cfg.N_split_num = 1;
+  } else if (N <= 192 && K <= 192) {
+    // for other datatypes, we prefer to give splits only on M with much smaller
+    // N/Ks
+    cfg.M_split_num = num_threads;
+    cfg.N_split_num = 1;
+  } else if (K >= 8192) {
+    // for really big K, we need to give splits on K
+    if (M < N) {
+      auto possible_splits = get_splits(cfg.M_split_num);
+      if (possible_splits.size() > 2 && N / M < 3) {
+        cfg.M_split_num = cfg.M_split_num / possible_splits[1];
+      } else {
+        cfg.M_split_num = 1;
+        int K_split_num = get_splits(num_threads).at(1);
+        cfg.N_split_num = num_threads / K_split_num;
+      }
+    } else {
+      auto possible_splits = get_splits(cfg.N_split_num);
+      if (possible_splits.size() > 2) {
+        cfg.N_split_num = cfg.N_split_num / possible_splits[1];
       }
     }
-    cfg.M_split_num = num_threads / split_n;
-    cfg.N_split_num = split_n;
-    int single_M = utils::divide_and_ceil(
-                     utils::divide_and_ceil(M, iim_block), cfg.M_split_num)
-      * iim_block;
-    int single_N = utils::divide_and_ceil(
-                     utils::divide_and_ceil(N, iin_block), cfg.N_split_num)
-      * iin_block;
-    int single_K = K;
-    // TODO(zhennan): Query L2 cache size from hardware
-    int L2_size = 1024 * 1024 * 2;
-    int single_K_threshold
-      = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
-      / sizeofdtypeA;
-    if (single_K >= single_K_threshold) {
-      cfg.K_sub_block = utils::divide_and_ceil(single_K, single_K_threshold);
-      int L2_K = utils::divide_and_ceil(
-                   utils::divide_and_ceil(single_K, iik_block), cfg.K_sub_block)
-        * iik_block;
-      // sizeofdtypeA* (M * K) + sizeofdtypeB * (N * K) + sizeofdtypeC(M * N) <=
-      // L2_size, let M == N, then
-      // 2 * sizeofdtypeA * M * K + sizeofdtypeC * M * M <= L2_size
-      // Then M = (sqrt((2 * sizeofdtypeA * K) ^ 2 + 4 * sizeofdtypeC *
-      // L2_size) - 2 * sizeofdtypeA * K)/ (2 * sizeofdtypeC)
-      int L2_MN
-        = (sqrt(pow(2 * sizeofdtypeA * L2_K, 2) + 4 * sizeofdtypeC * L2_size)
-            - 2 * sizeofdtypeA * L2_K)
-        / (2 * sizeofdtypeC);
-      cfg.M_sub_block = std::max(1, single_M / L2_MN);
-      cfg.N_sub_block = std::max(1, single_N / L2_MN);
-    } else {
-      // sizeofdtypeA * M * K + sizeofdtypeB * N * K <= L2_size
-      // let M == N, then
-      // M = L2_size / (2 * sizeofdtypeA * K)
-      int L2_MN = L2_size / (2 * sizeofdtypeA * single_K);
-      cfg.M_sub_block = std::max(1, single_M / L2_MN);
-      cfg.N_sub_block = std::max(1, single_N / L2_MN);
-      cfg.K_sub_block = 1;
-    }
+  }
+  int single_M = utils::divide_and_ceil(
+                   utils::divide_and_ceil(M, iim_block), cfg.M_split_num)
+    * iim_block;
+  int single_N = utils::divide_and_ceil(
+                   utils::divide_and_ceil(N, iin_block), cfg.N_split_num)
+    * iin_block;
+  int single_K = K;
+  // TODO(zhennan): Query L2 cache size from hardware
+  int L2_size = 1024 * 1024 * 2;
+  int single_K_threshold
+    = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
+    / sizeofdtypeA;
+  if (single_K >= single_K_threshold) {
+    cfg.K_sub_block = utils::divide_and_ceil(single_K, single_K_threshold);
+    int L2_K = utils::divide_and_ceil(
+                 utils::divide_and_ceil(single_K, iik_block), cfg.K_sub_block)
+      * iik_block;
+    // sizeofdtypeA* (M * K) + sizeofdtypeB * (N * K) + sizeofdtypeC(M * N) <=
+    // L2_size, let M == N, then
+    // 2 * sizeofdtypeA * M * K + sizeofdtypeC * M * M <= L2_size
+    // Then M = (sqrt((2 * sizeofdtypeA * K) ^ 2 + 4 * sizeofdtypeC *
+    // L2_size) - 2 * sizeofdtypeA * K)/ (2 * sizeofdtypeC)
+    int L2_MN
+      = (sqrt(pow(2 * sizeofdtypeA * L2_K, 2) + 4 * sizeofdtypeC * L2_size)
+          - 2 * sizeofdtypeA * L2_K)
+      / (2 * sizeofdtypeC);
+    cfg.M_sub_block = std::max(1, single_M / L2_MN);
+    cfg.N_sub_block = std::max(1, single_N / L2_MN);
   } else {
-    // TODO(Zhennan): Need further improvement here.
-    for (auto &split : splits) {
-      if (split <= static_cast<int>(sqrt(num_threads))) { split_n = split; }
-    }
-    cfg.M_split_num = num_threads / split_n;
-    cfg.N_split_num = split_n;
-    cfg.M_sub_block = 1;
-    cfg.N_sub_block = 1;
+    // sizeofdtypeA * M * K + sizeofdtypeB * N * K <= L2_size
+    // let M == N, then
+    // M = L2_size / (2 * sizeofdtypeA * K)
+    int L2_MN = L2_size / (2 * sizeofdtypeA * single_K);
+    cfg.M_sub_block = std::max(1, single_M / L2_MN);
+    cfg.N_sub_block = std::max(1, single_N / L2_MN);
     cfg.K_sub_block = 1;
-    cfg.im_loop_order = 1;
   }
   return std::move(ret);
+}
+
+static int suggest_aligned_block(const size_t plain_X,
+  const size_t default_block, size_t min = 1, size_t align = 1) {
+  if (plain_X < default_block) {
+    if (plain_X <= min) {
+      return min;
+    } else if (plain_X < align) {
+      return utils::rnd_up(plain_X, min);
+    } else {
+      return utils::rnd_up(plain_X, align);
+    }
+  }
+  if (plain_X % default_block == 0) {
+    return utils::rnd_up(default_block, align);
+  }
+  size_t num_X_block = utils::divide_and_ceil(plain_X, default_block);
+  return utils::rnd_up(utils::divide_and_ceil(plain_X, num_X_block), align);
 }
 
 gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
@@ -211,11 +243,40 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     in_tensors_.size() == 2, "input logical tensor size should be two.");
   COMPILE_ASSERT(
     out_tensors_.size() == 1, "output logical tensor size should be one.");
+  const int64_t plain_M = get_mma_plain_dims()[0];
+  const int64_t plain_K = get_mma_plain_dims()[1];
+  const int64_t plain_N = get_mmb_plain_dims()[1];
 
-  iim_block_ = 32;
-  iin_block_
-    = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8) ? 64 : 32;
-  iik_block_ = iin_block_;
+  bool is_bf16 = get_A_dtype() == datatypes::bf16;
+  bool is_f32 = get_A_dtype() == datatypes::f32;
+  int64_t M_block_default = 64;
+  int64_t N_block_default = 64;
+  int64_t K_block_default = 64;
+  if (is_f32) {
+    M_block_default = 16;
+    N_block_default = 16;
+    K_block_default = 16;
+  } else if (is_bf16) {
+    M_block_default = 32;
+    N_block_default = 32;
+    K_block_default = 32;
+  } else {
+    assert(utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8));
+    M_block_default = 32;
+    N_block_default = 64;
+    K_block_default = 64;
+  }
+  if (plain_N <= 512 && plain_K <= 512) {
+    const int num_threads = runtime_config_t::get().get_num_threads();
+    iim_block_ = std::max((int64_t)4,
+      std::min(M_block_default,
+        static_cast<int64_t>(utils::divide_and_ceil(plain_M, num_threads))));
+  } else {
+    iim_block_ = suggest_aligned_block(plain_M, M_block_default);
+  }
+  iin_block_ = suggest_aligned_block(plain_N, N_block_default, 1, 16);
+  iik_block_ = suggest_aligned_block(
+    plain_K, K_block_default, is_bf16 ? 2 : (is_f32 ? 1 : 4), 16);
 }
 
 float gen_managed_matmul_core_t::get_gflop() const {
@@ -490,8 +551,6 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   int M_split_num = config.M_split_num, N_split_num = config.N_split_num;
   int num_threads = runtime_config_t::get().get_num_threads();
   int K_split_num = num_threads / M_split_num / N_split_num;
-  COMPILE_ASSERT(
-    num_threads % (M_split_num * N_split_num) == 0, "wrong split nums!");
   int M_sub_block = config.M_sub_block, N_sub_block = config.N_sub_block,
       K_sub_block = config.K_sub_block, im_loop_order = config.im_loop_order;
   int M = static_cast<int>(in_tensors_[0].get_plain_dims()[0]),
@@ -608,13 +667,16 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   std::vector<int> M_anchor_info = {M_ib_num, M_block_size, M_ib_block_size},
                    N_anchor_info = {N_ib_num, N_block_size, N_ib_block_size};
   for_loop mloop;
+  int M_num_block = utils::divide_and_ceil(M, iim_block_);
+  int N_num_block = utils::divide_and_ceil(N, iin_block_);
+  int K_num_block = utils::divide_and_ceil(K, iik_block_);
+
   if (K_split_num == 1) {
     expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size;
-    _named_for_(
-      mloop, m_s, 0, M_split_num, 1, for_type::PARALLEL, M_split_num) {
-      _for_(n_s, 0, N_split_num, 1,
-        M_split_num == num_threads ? for_type::NORMAL : for_type::PARALLEL,
-        M_split_num == num_threads ? 0 : N_split_num) {
+    _named_for_(mloop, m_s, 0, std::min(M_num_block, M_split_num), 1,
+      for_type::PARALLEL, M_split_num) {
+      _for_(n_s, 0, std::min(N_num_block, N_split_num), 1, for_type::PARALLEL,
+        N_split_num) {
         if (M_block_size == M_ib_block_size) {
           M_single_thr_size = M_block_size;
           m_idx = m_s * M_block_size;
@@ -818,9 +880,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
       : datatypes::f32;
     expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size;
     _tensor_(out_tmp_buf, out_dtype, out_tmp_buf_shape_expr);
-    _named_for_(
-      mloop, m_s, 0, M_split_num, 1, for_type::PARALLEL, M_split_num) {
-      _for_(n_s, 0, N_split_num, 1, for_type::PARALLEL, N_split_num) {
+    _named_for_(mloop, m_s, 0, std::min(M_num_block, M_split_num), 1,
+      for_type::PARALLEL, M_split_num) {
+      _for_(n_s, 0, std::min(N_num_block, N_split_num), 1, for_type::PARALLEL,
+        N_split_num) {
         if (M_block_size == M_ib_block_size) {
           M_single_thr_size = M_block_size;
           m_idx = m_s * M_block_size;
@@ -883,7 +946,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           }
         }
 
-        _for_(k_s, 0, K_split_num, 1, for_type::PARALLEL, K_split_num) { //
+        _for_(k_s, 0, std::min(K_num_block, K_split_num), 1, for_type::PARALLEL,
+          K_split_num) { //
           expr K_single_thr_size;
           if (K_block_size == K_ib_block_size) {
             K_single_thr_size = K_block_size;
@@ -926,11 +990,11 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
         }
         // do reduce here
         for_loop rm, rn;
-        // since the blockings are ix_block_ and plain shapes must be divided by
-        // ix_block_, we can use lanes=16 directly
-        int lanes = 16;
-        assert(iim_block_ % 16 == 0);
-        assert(iin_block_ % 16 == 0);
+        int lanes = 1;
+        if (iin_block_ / 16 && iin_block_ % 16 == 0) {
+          lanes = std::min(
+            16U, ctx->get_max_vector_lanes(get_C_dtype().type_code_));
+        }
         expr M_single_thr_num_block
           = divide_and_ceil(M_single_thr_size, iim_block_);
         expr N_single_thr_num_block
