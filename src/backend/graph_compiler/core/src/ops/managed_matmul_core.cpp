@@ -122,10 +122,6 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     int M_split_num = tcfg.M_split_num, N_split_num = tcfg.N_split_num;
     int num_threads = runtime_config_t::get().get_num_threads();
     int K_split_num = num_threads / M_split_num / N_split_num;
-    COMPILE_ASSERT(num_threads % (M_split_num * N_split_num) == 0,
-            "wrong split nums with M_split_num = "
-                    << M_split_num << ", N_split_num = " << N_split_num
-                    << " when num_threads = " << num_threads);
     in_formats.reserve(2);
     sc_data_type_t B_dtype = info_.inputs_[1]->details_.dtype_;
     sc_data_format_t A_format = info_.inputs_[0]->details_.get_format();
