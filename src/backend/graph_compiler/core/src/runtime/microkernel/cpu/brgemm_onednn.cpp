@@ -762,12 +762,13 @@ SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
     return 0;
 }
 
-SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
-        void *C, int num, int M, int N, int K, int LDA, int LDB, int LDC,
-        int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
-        const void *brg_attrs, char *bd_mask, const void *postops_setting,
-        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
-    float alpha = 1.0, beta = 1.0;
+static int dnnl_brgemm_list_update_func(const void **A_list,
+        const void **B_list, void *C, int num, int M, int N, int K, int LDA,
+        int LDB, int LDC, int stride_a, int stride_b, int len, int dtypeA,
+        int dtypeB, float beta, const void *brg_attrs, char *bd_mask,
+        const void *postops_setting, const void *postops_data, void *c_buf,
+        sc::runtime::stream_t *stream) {
+    float alpha = 1.0;
     const int batch_num = num * len;
 #ifdef _MSC_VER
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
@@ -812,6 +813,32 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
     return 0;
 }
+
+SC_API int dnnl_brgemm_init_list_update(const void **A_list,
+        const void **B_list, void *C, int num, int M, int N, int K, int LDA,
+        int LDB, int LDC, int stride_a, int stride_b, int len, int dtypeA,
+        int dtypeB, const void *brg_attrs, char *bd_mask,
+        const void *postops_setting, const void *postops_data, void *c_buf,
+        sc::runtime::stream_t *stream) {
+    float beta = 0.f;
+    int ret = dnnl_brgemm_list_update_func(A_list, B_list, C, num, M, N, K, LDA,
+            LDB, LDC, stride_a, stride_b, len, dtypeA, dtypeB, beta, brg_attrs,
+            bd_mask, postops_setting, postops_data, c_buf, stream);
+    return ret;
+}
+
+SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
+        void *C, int num, int M, int N, int K, int LDA, int LDB, int LDC,
+        int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
+        const void *brg_attrs, char *bd_mask, const void *postops_setting,
+        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
+    float beta = 1.f;
+    int ret = dnnl_brgemm_list_update_func(A_list, B_list, C, num, M, N, K, LDA,
+            LDB, LDC, stride_a, stride_b, len, dtypeA, dtypeB, beta, brg_attrs,
+            bd_mask, postops_setting, postops_data, c_buf, stream);
+    return ret;
+}
+
 SC_API void dnnl_brgemm_postops_data_init(void *dnnl_data, void *bias,
         void *scales, void *binary_post_ops_rhs, uint64_t oc_logical_off,
         uint64_t dst_row_logical_off, void *data_C_ptr_,
