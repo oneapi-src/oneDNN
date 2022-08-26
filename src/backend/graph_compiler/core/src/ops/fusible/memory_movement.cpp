@@ -31,6 +31,7 @@
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <unordered_map>
+#include <util/math_utils.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
@@ -216,6 +217,7 @@ tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
 bool tensor_view_op_t::try_penetrate(
         sc_data_format_t &new_output_format) const {
     auto input_plain_shapes = info_.inputs_[0]->details_.get_plain_dims();
+    auto input_blocking_shapes = info_.inputs_[0]->details_.get_blocking_dims();
     auto input_format = info_.inputs_[0]->details_.get_format();
     auto output_plain_shapes = info_.outputs_[0]->details_.get_plain_dims();
     auto input_size = input_plain_shapes.size();
@@ -293,6 +295,15 @@ bool tensor_view_op_t::try_penetrate(
                         = input_format.blocks_[inp_blk_idx++];
             }
             new_output_format = new_format;
+            if (!is_dynamic()) {
+                if (math_utils::get_dims_product(input_blocking_shapes)
+                        != math_utils::get_dims_product(
+                                sc_data_format_t::get_blocking_shapes(
+                                        output_plain_shapes,
+                                        new_output_format))) {
+                    return false;
+                }
+            }
             return true;
         } else {
             sc_data_format_t new_format;
@@ -314,6 +325,15 @@ bool tensor_view_op_t::try_penetrate(
                             sc_data_format_kind_t::MAX_DIMS));
             new_format.blocks_ = input_format.blocks_;
             new_output_format = new_format;
+            if (!is_dynamic()) {
+                if (math_utils::get_dims_product(input_blocking_shapes)
+                        != math_utils::get_dims_product(
+                                sc_data_format_t::get_blocking_shapes(
+                                        output_plain_shapes,
+                                        new_output_format))) {
+                    return false;
+                }
+            }
             return true;
         }
     }
