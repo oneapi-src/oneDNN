@@ -307,65 +307,74 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global DST_DATA_T *t_dst = dst + dst_off;
         __global SRC0_DATA_T *t_src0 = src0 + src0_off;
 
-        float8 tmp_src0 = CONVERT_FLOAT8_T(SRC0_BLOCK_READ8(&t_src0[0]));
-        float8 tmp_src1 = CONVERT_FLOAT8_T(SRC1_BLOCK_READ8(&t_src1[0]));
-
+        if ((SRC0_D1 % SUB_GROUP_SIZE != 0)
+                && (dims0[1] + sub_grp_id) >= SRC0_D1) {
+            d = 0;
+        } else {
+            float8 tmp_src0 = CONVERT_FLOAT8_T(SRC0_BLOCK_READ8(&t_src0[0]));
+            float8 tmp_src1 = CONVERT_FLOAT8_T(SRC1_BLOCK_READ8(&t_src1[0]));
 #if WITH_SRC0_SCALE
-        tmp_src0 = tmp_src0 * src0_scale;
+            tmp_src0 = tmp_src0 * src0_scale;
 #endif
 #if WITH_SRC1_SCALE
-        tmp_src1 = tmp_src1 * src1_scale;
+            tmp_src1 = tmp_src1 * src1_scale;
 #endif
 
 #if IS_ADD
-        d = tmp_src0 + tmp_src1;
+            d = tmp_src0 + tmp_src1;
 #elif IS_MUL
-        d = tmp_src0 * tmp_src1;
+            d = tmp_src0 * tmp_src1;
 #elif IS_MAX
-        d = max(tmp_src0, tmp_src1);
+            d = max(tmp_src0, tmp_src1);
 #elif IS_MIN
-        d = min(tmp_src0, tmp_src1);
+            d = min(tmp_src0, tmp_src1);
 #elif IS_DIV
-        d = tmp_src0 / tmp_src1;
+            d = tmp_src0 / tmp_src1;
 #elif IS_SUB
-        d = tmp_src0 - tmp_src1;
+            d = tmp_src0 - tmp_src1;
 #elif IS_GE
-        d = VECT_INT_TO_FLOAT(tmp_src0 >= tmp_src1);
+            d = VECT_INT_TO_FLOAT(tmp_src0 >= tmp_src1);
 #elif IS_GT
-        d = VECT_INT_TO_FLOAT(tmp_src0 > tmp_src1);
+            d = VECT_INT_TO_FLOAT(tmp_src0 > tmp_src1);
 #elif IS_LE
-        d = VECT_INT_TO_FLOAT(tmp_src0 <= tmp_src1);
+            d = VECT_INT_TO_FLOAT(tmp_src0 <= tmp_src1);
 #elif IS_LT
-        d = VECT_INT_TO_FLOAT(tmp_src0 < tmp_src1);
+            d = VECT_INT_TO_FLOAT(tmp_src0 < tmp_src1);
 #elif IS_EQ
-        d = VECT_INT_TO_FLOAT(tmp_src0 == tmp_src1);
+            d = VECT_INT_TO_FLOAT(tmp_src0 == tmp_src1);
 #elif IS_NE
-        d = VECT_INT_TO_FLOAT(tmp_src0 != tmp_src1);
+            d = VECT_INT_TO_FLOAT(tmp_src0 != tmp_src1);
 #endif
 
 #if WITH_SUM
-        dst_data = CONVERT_FLOAT8_T(DST_BLOCK_READ8(&t_dst[0]));
+            dst_data = CONVERT_FLOAT8_T(DST_BLOCK_READ8(&t_dst[0]));
 #endif
 
-        const int po_mb = dims0[0];
-        const int po_oc = dims0[1] + sub_grp_id;
-        for (int lcl_mb = 0; lcl_mb < NVECT; ++lcl_mb) {
-            float d_i = d[lcl_mb];
-            float dst_i = dst_data[lcl_mb];
-            APPLY_POST_OPS_SERIAL(d_i, float, dst_i, float, po_mb + lcl_mb, 1,
-                    po_oc, 1, dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5],
-                    1);
-            d[lcl_mb] = d_i;
-            ++dims0[NDIMS - 1];
+            const int po_mb = dims0[0];
+            const int po_oc = dims0[1] + sub_grp_id;
+            for (int lcl_mb = 0; lcl_mb < NVECT; ++lcl_mb) {
+                if (po_mb + lcl_mb >= SRC0_D0) {
+                    d[lcl_mb] = 0;
+                } else {
+                    float d_i = d[lcl_mb];
+                    float dst_i = dst_data[lcl_mb];
+                    APPLY_POST_OPS_SERIAL(d_i, float, dst_i, float,
+                            po_mb + lcl_mb, 1, po_oc, 1, dims0[2], 1, dims0[3],
+                            1, dims0[4], 1, dims0[5], 1);
+                    d[lcl_mb] = d_i;
+                }
+                ++dims0[NDIMS - 1];
+            }
         }
 
         DST_BLOCK_WRITE8(&t_dst[0], TO_DST8(d));
+
         src0_off += MB_BLOCK * SUB_GROUP_SIZE * SRC0_PD2 * SRC0_PD3 * SRC0_PD4
                 * SRC0_PD5;
-        src1_off += MB_BLOCK * SUB_GROUP_SIZE * SRC0_PD2 * SRC0_PD3 * SRC0_PD4
-                * SRC0_PD5;
-        dst_off += MB_BLOCK * SUB_GROUP_SIZE * SRC0_PD2 * SRC0_PD3 * SRC0_PD4
-                * SRC0_PD5;
+        src1_off += MB_BLOCK * SUB_GROUP_SIZE * SRC1_PD2 * SRC1_PD3 * SRC1_PD4
+                * SRC1_PD5;
+        dst_off += MB_BLOCK * SUB_GROUP_SIZE * DST_PD2 * DST_PD3 * DST_PD4
+                * DST_PD5;
     }
 }
 #else
