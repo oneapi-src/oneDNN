@@ -5551,6 +5551,9 @@ private:
             }
         }
 
+        if (zp_buf_size_ > 0)
+            register_buffer(zp_buf_, zp_buf_size_, alloc_kind_t::grf);
+
         // Handle temporary buffer in case of GRF reorders.
         int tmp_buf_size = 0;
         for (int i = 0; i < cfg_.a_sub_tiles; i++)
@@ -6071,10 +6074,9 @@ private:
         const int m_blk_x2 = std::min(m_blk * 2, 16);
         const int src_zp_size = get_src_zp_size(
                 is_scalar, is_runtime, is_mad, m_blk_x2 * k_blk);
-        auto src_zp = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "zp_buf");
-        if (src_zp_size)
-            register_buffer(
-                    src_zp, src_zp_size * d_type.size(), alloc_kind_t::grf);
+        if (zp_buf_.is_empty())
+            zp_buf_ = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "zp_buf");
+        zp_buf_size_ = std::max(zp_buf_size_, src_zp_size * d_type.size());
 
         for (int i = (is_runtime) ? 0 : std::numeric_limits<int>::max();
                 i < m_blk * simd_per_ic; i += dims[0]) {
@@ -6082,7 +6084,7 @@ private:
             view_t zpv(layout_t(d_type, 0, dims));
             auto read = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_, zpv,
                     kernel_info_.find_arg("src_zero_points")[offs + b],
-                    src_zp[b], send_op_t::load, send_address_t::a64);
+                    zp_buf_[b], send_op_t::load, send_address_t::a64);
             data = data.append(read.stmt());
         }
 
@@ -6103,7 +6105,7 @@ private:
                 auto b_off
                         = (!is_scalar && (channels > m_blk)) ? iter * m_blk : 0;
                 auto b = (is_runtime) // '4'-s mean '(|i32| / |i16|) * |i16|'
-                        ? load_t::make(b_type, src_zp, b_off * 4, 4)
+                        ? load_t::make(b_type, zp_buf_, b_off * 4, 4)
                         : cfg_.zp_cfg.common_src_zero_point;
                 auto mask = masks.gen_mask(a_off / m_blk / a_stride);
                 auto mad = (masks.is_bool())
@@ -6124,17 +6126,17 @@ private:
                     ? (cfg_.zp_cfg.common_src_zero_point & 0xFF) * 0x01010101
                     : cast_t::make(type_t::s8(4),
                             shuffle_t::make_broadcast(
-                                    load_t::make(s_type, src_zp, 0), 4));
-            data = data.append(store_t::make(src_zp, 0, expr));
+                                    load_t::make(s_type, zp_buf_, 0), 4));
+            data = data.append(store_t::make(zp_buf_, 0, expr));
         } else {
-            data = data.append(store_t::make(src_zp, 0,
-                    load_t::make(type_t::u8(m_blk_x2), src_zp, 0, 4)));
+            data = data.append(store_t::make(zp_buf_, 0,
+                    load_t::make(type_t::u8(m_blk_x2), zp_buf_, 0, 4)));
             if (channels > 16)
-                data = data.append(store_t::make(src_zp, 16,
-                        load_t::make(type_t::u8(m_blk_x2), src_zp, 64, 4)));
+                data = data.append(store_t::make(zp_buf_, 16,
+                        load_t::make(type_t::u8(m_blk_x2), zp_buf_, 64, 4)));
             if (m_blk_x2 != m_blk)
-                data = data.append(store_t::make(src_zp, 32,
-                        load_t::make(type_t::u32(4), src_zp, 4, 8), 8));
+                data = data.append(store_t::make(zp_buf_, 32,
+                        load_t::make(type_t::u32(4), zp_buf_, 4, 8), 8));
         }
         std::vector<stmt_t> parts;
 
@@ -6159,9 +6161,10 @@ private:
         std::vector<expr_t> acc;
         for (int i = 1; i <= 2 * k_blk; i++)
             acc.emplace_back(
-                    src_zp[(src_zp_size
-                                   - utils::div_up(i, m_blk != m_blk_x2 ? 1 : 2)
-                                           * m_blk)
+                    zp_buf_[(src_zp_size
+                                    - utils::div_up(
+                                              i, m_blk != m_blk_x2 ? 1 : 2)
+                                            * m_blk)
                             * d_type.size()]);
         for (int i_m = 0; i_m < desc_m; i_m += m_blk) {
             const int blk
@@ -6172,9 +6175,9 @@ private:
                         i_k += m_blk_x2 / m_blk) {
                     type_t vi(i_type.kind(), m_blk_x2);
                     const int szp_off = (is_scalar) ? 0 : (i_k * d_type.size());
-                    auto b0 = load_t::make(d_type, src_zp, szp_off);
+                    auto b0 = load_t::make(d_type, zp_buf_, szp_off);
                     auto b1 = load_t::make(
-                            d_type, src_zp, szp_off + m_blk * d_type.size());
+                            d_type, zp_buf_, szp_off + m_blk * d_type.size());
                     auto b = (is_scalar) ? b0 : wide_scalar(b0, b1, m_blk_x2);
                     auto c = load_t::make(vi, b_buf_,
                             (i_m * (32 / 4) + i_k * m_blk) * d_type.size());
@@ -6315,6 +6318,9 @@ private:
 
     expr_t bp_buf_;
     expr_t b_slm_buf_;
+
+    expr_t zp_buf_;
+    int zp_buf_size_ = 0;
 
     layout_t c_reg_layout_;
 
