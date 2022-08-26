@@ -33,6 +33,7 @@
 #include <util/utils.hpp>
 
 namespace sc {
+SC_MODULE(ops.reorder)
 
 static bool is_dynamic_reorder_inplace(sc_op *op, const context_ptr &ctx) {
     COMPILE_ASSERT(
@@ -696,7 +697,7 @@ void infer_reorder_slice(slice_range_list &input_slice_list,
         std::ostringstream ss;
         ss << "Unsupported data format. in = " << input_format
            << ", out = " << output_format;
-        SC_WARN << ss.str();
+        SC_MODULE_WARN << ss.str();
         throw tuner_recoverable_exception_t(ss.str());
     }
     constant_folder_t f;
@@ -935,6 +936,13 @@ static std::vector<expr> get_reorder_plain2block_indexes(
     return ret;
 }
 
+static void cannot_convert_warning(const sc_data_format_t &input_format,
+        const sc_data_format_t &output_format, const sc_dims &plain_dims) {
+    SC_MODULE_WARN << "Can not do vectorize in reorder: " << input_format
+                   << " to " << output_format
+                   << " with plain dims:" << utils::print_vector(plain_dims);
+}
+
 void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
@@ -948,6 +956,22 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
     std::vector<expr> iter_vars;
     std::vector<expr> in_indexes;
     std::vector<expr> loop_indexes;
+    auto input_blocking_dims
+            = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
+    auto output_blocking_dims
+            = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
+    auto output_last_origin_axis = output_format.format_code_.get(
+            output_format.format_code_.ndims() - 1);
+    auto input_last_origin_axis = input_format.format_code_.get(
+            input_format.format_code_.ndims() - 1);
+    bool can_vectorize = !is_innermost_dim_strided
+            && input_last_origin_axis == output_last_origin_axis
+            && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
+            && output_blocking_dims[output_blocking_dims.size() - 1] % step
+                    == 0;
+    if (!can_vectorize) {
+        cannot_convert_warning(input_format, output_format, plain_dims);
+    }
     for (size_t i = 0; i < plain_dims.size(); i++) {
         iter_vars.emplace_back(builder::make_var(datatypes::index,
                 std::string("_fuseiter") + fusion_create_idx()));
@@ -998,11 +1022,10 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
             == output_format.format_code_.norig_dims());
     auto output_last_origin_axis = output_format.format_code_.get(
             output_format.format_code_.ndims() - 1);
-    auto block_axis = input_format.format_code_.collect_blocking_index(
-            output_last_origin_axis); // {block_idx1, block_idx2,...}
-    bool can_vectorize = !is_innermost_dim_strided && !block_axis.empty()
-            && block_axis.at(block_axis.size() - 1)
-                    == input_format.get_blocks_size() - 1
+    auto input_last_origin_axis = input_format.format_code_.get(
+            input_format.format_code_.ndims() - 1);
+    bool can_vectorize = !is_innermost_dim_strided
+            && input_last_origin_axis == output_last_origin_axis
             && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
             && output_blocking_dims[output_blocking_dims.size() - 1] % step
                     == 0;
@@ -1012,10 +1035,13 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
                 && input_blocking_dims[input_blocking_dims.size() - 1]
                                 % (2 * step)
                         == 0
-                && plain_dims[plain_dims.size() - 1] % (2 * step) == 0) {
+                && output_blocking_dims[output_blocking_dims.size() - 1]
+                                % (2 * step)
+                        == 0) {
             step = 2 * step;
         }
     }
+
     bool no_padding = !is_dynamic
             && sc_data_format_t::get_padded_plain_shapes(
                        input_blocking_dims, input_format)
@@ -1023,12 +1049,9 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
                             output_blocking_dims, output_format);
     no_padding |= (is_dynamic && dynamic_no_padding);
 
-    // For no padding case, vectorize judgement should be more strictly for src
-    // due to input maybe fused by previous op
-    if (no_padding)
-        can_vectorize = can_vectorize && src.get_shape().back().isa<constant>()
-                && get_expr_as_int(src.get_shape().back()) % step == 0;
-
+    if (!can_vectorize) {
+        cannot_convert_warning(input_format, output_format, plain_dims);
+    }
     step = can_vectorize ? step : 1;
     std::vector<expr> iter_vars;
     std::vector<expr> in_indexes;
@@ -1099,11 +1122,11 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             == input_format.format_code_.norig_dims());
     auto input_last_origin_axis = input_format.format_code_.get(
             input_format.format_code_.ndims() - 1);
-    auto block_axis = output_format.format_code_.collect_blocking_index(
-            input_last_origin_axis); // {block_idx1, block_idx2,...}
-    bool can_vectorize = !is_innermost_dim_strided && !block_axis.empty()
-            && block_axis.at(block_axis.size() - 1)
-                    == output_format.get_blocks_size() - 1
+    auto output_last_origin_axis = output_format.format_code_.get(
+            output_format.format_code_.ndims() - 1);
+
+    bool can_vectorize = !is_innermost_dim_strided
+            && input_last_origin_axis == output_last_origin_axis
             && output_blocking_dims[output_blocking_dims.size() - 1] % step == 0
             && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0;
     bool no_padding = !is_dynamic
@@ -1112,11 +1135,9 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                     == sc_data_format_t::get_padded_plain_shapes(
                             input_blocking_dims, input_format);
     no_padding |= (is_dynamic && dynamic_no_padding);
-    // For no padding case, vectorize judgement should be more strictly for src
-    // due to input maybe fused by previous op
-    if (no_padding) {
-        can_vectorize = can_vectorize && src.get_shape().back().isa<constant>()
-                && get_expr_as_int(src.get_shape().back()) % step == 0;
+
+    if (!can_vectorize) {
+        cannot_convert_warning(input_format, output_format, plain_dims);
     }
 
     if (can_vectorize && attrs.get_or_else(op_attr_key::no_fuse, false)) {
@@ -1125,7 +1146,9 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                 && output_blocking_dims[output_blocking_dims.size() - 1]
                                 % (2 * step)
                         == 0
-                && plain_dims[plain_dims.size() - 1] % (2 * step) == 0) {
+                && input_blocking_dims[input_blocking_dims.size() - 1]
+                                % (2 * step)
+                        == 0) {
             step = 2 * step;
         }
     }
@@ -1270,14 +1293,18 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
             && input_block_axis == output_block_axis
             && output_blocking_dims[output_blocking_dims.size() - 1] % step == 0
             && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
-            && no_padding;
+            && plain_dims[input_block_axis]
+                            % input_blocking_dims[input_blocking_dims.size()
+                                    - 1]
+                    == 0
+            && plain_dims[output_block_axis]
+                            % output_blocking_dims[output_blocking_dims.size()
+                                    - 1]
+                    == 0;
 
-    // For no padding case, vectorize judgement should be more strictly for src
-    // due to input maybe fused by previous op
-    if (no_padding)
-        can_vectorize = can_vectorize && src.get_shape().back().isa<constant>()
-                && get_expr_as_int(src.get_shape().back()) % step == 0;
-
+    if (!can_vectorize) {
+        cannot_convert_warning(input_format, output_format, plain_dims);
+    }
     step = can_vectorize ? step : 1;
     std::vector<expr> iter_vars;
     // for input loops
@@ -2647,7 +2674,7 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
         std::ostringstream ss;
         ss << "Unsupported data format. in = " << input_format
            << ", out = " << output_format;
-        SC_WARN << ss.str();
+        SC_MODULE_WARN << ss.str();
         throw tuner_recoverable_exception_t(ss.str());
     }
 }

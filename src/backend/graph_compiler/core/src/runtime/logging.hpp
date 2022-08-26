@@ -39,6 +39,7 @@ SC_INTERNAL_API logging_stream_t get_fatal_logging_stream(
 enum verbose_level { FATAL = 0, WARNING, INFO };
 
 void set_logging_stream(std::ostream *s);
+std::ostream *get_logging_stream();
 } // namespace runtime
 } // namespace sc
 

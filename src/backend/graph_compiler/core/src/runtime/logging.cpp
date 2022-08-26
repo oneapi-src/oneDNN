@@ -78,6 +78,10 @@ void set_logging_stream(std::ostream *s) {
     stream_target = s;
 }
 
+std::ostream *get_logging_stream() {
+    return stream_target;
+}
+
 static logging_stream_t get_stream(verbose_level level, const char *module_name,
         const char *appender, const char *prefix) {
     if (runtime_config_t::get().verbose_level_ < level) {
