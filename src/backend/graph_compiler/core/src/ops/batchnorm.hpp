@@ -39,10 +39,10 @@ public:
  * The batchnorm_forward_training_op
  * Inputs:
  *  - ins[0] - the data input
- *  - ins[1] - gamma
- *  - ins[2] - beta
- *  - ins[3] - mean value
- *  - ins[4] - variance value
+ *  - ins[1] - mean value
+ *  - ins[2] - variance value
+ *  - ins[3] - gamma
+ *  - ins[4] - beta
  * Outputs:
  *  - outs[0] - bn result
  *  - outs[1] - running mean value
@@ -73,9 +73,9 @@ public:
  * Inputs:
  *  - ins[0] - input (src of forward)
  *  - ins[1] - output_delta
- *  - ins[2] - gamma
- *  - ins[3] - mean
- *  - ins[4] - variance
+ *  - ins[2] - mean
+ *  - ins[3] - variance
+ *  - ins[4] - gamma
  * Outputs:
  *  - outs[0] - input_delta
  *  - outs[1] - gamma_delta
