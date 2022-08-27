@@ -61,8 +61,12 @@ if(DNNL_SYCL_CUDA)
 endif()
 
 if(DNNL_SYCL_HIP)
-    # There are no yet implemented primitives that are used in the examples.
+    # Build examples for supported primitives that support required features.
     set(sources)
+    list(APPEND sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/softmax.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/lrn.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/eltwise.cpp)
 endif()
 
 # Skip SYCL, GPU and cross-engine examples
