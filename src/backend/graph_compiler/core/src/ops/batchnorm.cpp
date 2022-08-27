@@ -122,8 +122,8 @@ void batchnorm_forward_training_op::get_graph_impl(
     bool is_ssmv_bf16
             = info_.inputs_[1]->details_.dtype_.is_etype(sc_data_etype::BF16);
     bool is_3D = (inputs[0]->details_.get_plain_dims().size() == 5);
-    auto src = inputs[0], scale = inputs[1], shift = inputs[2],
-         mean = inputs[3], variance = inputs[4];
+    auto src = inputs[0], mean = inputs[1], variance = inputs[2],
+         scale = inputs[3], shift = inputs[4];
     auto src_pass2 = inputs[0];
 
     auto epsilon = graph->make<constant_op_t>(
@@ -339,7 +339,7 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     }
 
     graph_tensor_ptr src = inputs[0], output_delta = inputs[1],
-                     gamma = inputs[2], mean = inputs[3], variance = inputs[4];
+                     mean = inputs[2], variance = inputs[3], gamma = inputs[4];
     graph_tensor_ptr src_pass2 = inputs[0], output_delta_pass2 = inputs[1];
     if (is_bf16_src) {
         auto cast0 = graph->make(
