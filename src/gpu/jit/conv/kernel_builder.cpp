@@ -1434,8 +1434,16 @@ private:
 
             std::unordered_map<size_t, size_t> kind;
             for (const expr_t &e : expr)
-                if (const auto *bin = e.as_ptr<binary_op_t>())
+                if (const auto *bin = e.as_ptr<binary_op_t>()) {
                     kind[hash(*bin)]++;
+                    auto bin_a = bin;
+                    while ((bin_a = bin_a->a.as_ptr<binary_op_t>())) {
+                        if (kind[hash(*bin_a)] > 0) {
+                            kind[hash(*bin)] += kind[hash(*bin_a)];
+                            break;
+                        }
+                    }
+                }
             if (!kind.empty()) {
                 using k_type = decltype(kind)::value_type;
                 auto k = std::max_element(
