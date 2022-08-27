@@ -76,6 +76,13 @@ bool cuda_check_format_tags(memory::format_tag format) {
     return format_ok;
 }
 
+bool hip_check_format_tags(memory::format_tag format) {
+    bool format_ok = format == memory::format_tag::nchw
+            || format == memory::format_tag::ncdhw;
+
+    return format_ok;
+}
+
 template <typename data_t>
 void check_pool_fwd(const pool_test_params_t &p, const memory &src,
         const memory &dst, const memory &ws) {
@@ -104,6 +111,7 @@ void check_pool_fwd(const pool_test_params_t &p, const memory &src,
     size_t padded_c = src_d.data.padded_dims[1];
 
     const bool is_cudnn_gpu = is_nvidia_gpu(src.get_engine());
+    const bool is_miopen_gpu = is_amd_gpu(get_test_engine());
 
     dnnl::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
             [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,
@@ -190,7 +198,7 @@ void check_pool_fwd(const pool_test_params_t &p, const memory &src,
                 // and therefore this check must be skipped
                 if ((p.aalgorithm == algorithm::pooling_max
                             && p.aprop_kind == prop_kind::forward_training)
-                        && !is_cudnn_gpu) {
+                        && ((!is_cudnn_gpu) && (!is_miopen_gpu))) {
                     ASSERT_EQ(out_index, out_ref_index)
                             << " n = " << n << " c = " << c << " od = " << od
                             << " oh = " << oh << " ow = " << ow;
@@ -212,6 +220,12 @@ protected:
                 "Unsupported format tag");
         SKIP_IF_CUDA(!cuda_check_format_tags(p.dst_format),
                 "Unsupported format tag");
+        SKIP_IF_HIP(
+                !hip_check_format_tags(p.src_format), "Unsupported format tag");
+        SKIP_IF_HIP(
+                !hip_check_format_tags(p.dst_format), "Unsupported format tag");
+        SKIP_IF_HIP(data_traits<data_t>::data_type == memory::data_type::s8,
+                "Unsupported data type");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
@@ -275,6 +289,7 @@ protected:
 
         for (size_t i = 0; i < dilation.size(); ++i) {
             SKIP_IF_CUDA(dilation[i] != 0, "Dilation is not supported!");
+            SKIP_IF_HIP(dilation[i] != 0, "Dilation is not supported!");
         }
 
         memory p_src, p_dst;

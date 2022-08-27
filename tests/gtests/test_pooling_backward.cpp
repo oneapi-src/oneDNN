@@ -55,6 +55,12 @@ bool cuda_check_format_tags(memory::format_tag format) {
     return format_ok;
 }
 
+bool hip_check_format_tags(memory::format_tag format) {
+    bool format_ok = format == memory::format_tag::nchw
+            || format == memory::format_tag::ncdhw;
+    return format_ok;
+}
+
 template <typename data_t>
 void check_pool_fwd(
         const pool_bwd_test_params_t &p, const memory &src, const memory &dst) {
@@ -288,6 +294,16 @@ protected:
         // This test makes assumptions on workspace content for the max
         // algorithm therefore it cannot be used for non-intel implementations.
         SKIP_IF_CUDA(p.aalgorithm == algorithm::pooling_max,
+                "Test is not designed to test non-intel implementations of max "
+                "algorithm");
+
+        SKIP_IF_HIP(!hip_check_format_tags(p.diff_src_format),
+                "Unsupported format tag");
+        SKIP_IF_HIP(!hip_check_format_tags(p.diff_dst_format),
+                "Unsupported format tag");
+        // This test makes assumptions on workspace content for the max
+        // algorithm therefore it cannot be used for non-intel implementations.
+        SKIP_IF_HIP(p.aalgorithm == algorithm::pooling_max,
                 "Test is not designed to test non-intel implementations of max "
                 "algorithm");
 
