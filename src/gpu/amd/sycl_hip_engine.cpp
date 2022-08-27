@@ -25,6 +25,7 @@
 #include "gpu/amd/miopen_binary.hpp"
 #include "gpu/amd/miopen_eltwise.hpp"
 #include "gpu/amd/miopen_lrn.hpp"
+#include "gpu/amd/miopen_pooling.hpp"
 #include "gpu/amd/miopen_softmax.hpp"
 #include "gpu/amd/sycl_hip_compat.hpp"
 #include "gpu/amd/sycl_hip_engine.hpp"
@@ -135,6 +136,9 @@ constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
         // LRN
         INSTANCE(miopen_lrn_fwd_t)
         INSTANCE(miopen_lrn_bwd_t)
+        // Pooling
+        INSTANCE(miopen_pooling_fwd_t)
+        INSTANCE(miopen_pooling_bwd_t)
         nullptr,
 };
 // clang-format on
