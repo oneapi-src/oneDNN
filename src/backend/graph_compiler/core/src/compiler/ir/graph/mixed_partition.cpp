@@ -303,7 +303,7 @@ void mxp_buffer_allocator::update_input_buffer_info(
                 if (real_anchor_map != commited_anchor_map) b2g_map_[buf] = gt;
             } else if (res == cmp_res::equal) {
                 if (!tsr_anch_map_[tsr]->is_parent_for(
-                            real_anchor_map->parent_.get())) {
+                            real_anchor_map->parent_)) {
                     tsr_anch_map_[tsr] = real_anchor_map;
                     if (real_anchor_map != commited_anchor_map)
                         b2g_map_[buf] = gt;
@@ -388,7 +388,8 @@ void mxp_buffer_allocator::tensor_initialize() {
  *   {}
  * }
  * */
-stmts get_anchor_inside_loop(mixed_parti_t *parti, const for_loop &loop) {
+static stmts get_anchor_inside_loop(
+        const mixed_parti_t *parti, const for_loop &loop) {
     auto &body = loop->body_;
     if (body.isa<stmts>()) {
         auto ss = body.static_as<stmts>();
@@ -412,6 +413,35 @@ stmts get_anchor_inside_loop(mixed_parti_t *parti, const for_loop &loop) {
         }
     }
     return stmts();
+}
+
+static for_loop get_next_inner_loop_with_anchor(const mixed_parti_t *parti,
+        const for_loop &cur_loop,
+        const fuse_anchor_map_ptr &target_fanchor = nullptr) {
+    if (cur_loop->body_.isa<for_loop>()) {
+        return cur_loop->body_.checked_as<for_loop>();
+    } else if (cur_loop->body_.isa<stmts>()) {
+        auto ss = cur_loop->body_.static_as<stmts>();
+        if (ss->seq_.size() == 1 && ss->seq_[0].isa<for_loop>()) {
+            return cur_loop->body_.checked_as<stmts>()
+                    ->seq_[0]
+                    .checked_as<for_loop>();
+        } else if (ss->seq_.size() == 2 && ss->seq_[0].isa<for_loop>()
+                && ss->seq_[1].isa<stmts>()) {
+            auto inner_ss = ss->seq_[1].static_as<stmts>();
+            if (inner_ss->seq_.empty()) {
+                auto anchor_map = parti->lookup_anchor_map(inner_ss);
+                if (anchor_map) {
+                    return (anchor_map == target_fanchor)
+                            ? for_loop()
+                            : cur_loop->body_.checked_as<stmts>()
+                                      ->seq_[0]
+                                      .checked_as<for_loop>();
+                }
+            }
+        }
+    }
+    return for_loop();
 }
 
 void mxp_buffer_allocator::declare_and_shrink_tensor() {
@@ -617,13 +647,17 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
                       std::unordered_set<graph_tensor_ptr> &known_gt) -> bool {
         return std::all_of(op->get_inputs().begin(), op->get_inputs().end(),
                 [&fanchor, &parti, &known_gt](const graph_tensor_ptr &gt) {
+                    // if the producer owner of gt is excluded in current
+                    // partition
                     if (!parti->contains(gt->producer_owner_)) return true;
+                    // if the producer owner of gt is successfully inferred
                     if (known_gt.find(gt) != known_gt.end()) return true;
                     slice_range_list inferred_slice = fanchor->fsmap_.get(gt);
                     fuse_anchor_map_ptr cur = fanchor;
                     while (cur->parent_) {
                         auto cached_cur = cur;
                         cur = cur->parent_;
+                        // find the borrowed scope
                         if (cur->content_number_map_.find(gt->producer_owner_)
                                 != cur->content_number_map_.end()) {
                             // usually occurs when patition merge and
@@ -742,6 +776,11 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
                     && (parti->contain_tunable_op() || op->isa<tunable_op_t>())
                     && (current_parallelism > evaluate_loop_parallel_balance(
                                 parti->get_outer_loops(fanchor)))) {
+                SC_MODULE_INFO << "Cost model rejects current inferring result "
+                                  "for op: "
+                               << op->op_name_ << op->logical_op_id_
+                               << " under current fusion anchor from "
+                                  "perspective of parallellism";
                 erase_and_block_gt(op, known_gt, fanchor);
                 continue;
             }
@@ -946,6 +985,10 @@ static bool try_merge_mixed_parti_parallel(
     A->fusion_partition_t::merge(
             static_cast<fusion_partition_t *>(B)->shared_from_this());
 
+    // Merge commited ops
+    A->committed_ops_.insert(A->committed_ops_.end(), B->committed_ops_.begin(),
+            B->committed_ops_.end());
+
     A->func_->name_ += "_parallel_merge_" + B->func_->name_;
 
     SC_MODULE_INFO << "parallel merging result:";
@@ -982,7 +1025,13 @@ static bool try_merge_mixed_parti_horizontally(
     if (A->ctx_->flags_.use_cost_model_) {
         auto A_parallelism = evaluate_loop_parallel_balance(outer_loops_A),
              B_parallelism = evaluate_loop_parallel_balance(outer_loops_B);
-        if (A_parallelism == 1.f || B_parallelism == 1.f) return false;
+        if (A_parallelism == 1.f || B_parallelism == 1.f) {
+            SC_MODULE_INFO << "Cost model rejects to horizontally merge two "
+                              "partition: "
+                           << A->func_->name_ << " and " << B->func_->name_
+                           << " from perspective of parallellism";
+            return false;
+        }
     }
 
     // evaluate two partition by cost model
@@ -1039,6 +1088,10 @@ static bool try_merge_mixed_parti_horizontally(
     // call base merge
     A->fusion_partition_t::merge(
             static_cast<fusion_partition_t *>(B)->shared_from_this());
+
+    // Merge commited ops
+    A->committed_ops_.insert(A->committed_ops_.end(), B->committed_ops_.begin(),
+            B->committed_ops_.end());
 
     auto &body = A->func_->body_;
     /* * * * * * * * * * * * * * * * *
@@ -1107,7 +1160,29 @@ static sc_dim get_loops_range_prod(const std::vector<for_loop> &loops) {
     return prod_res;
 }
 
-void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
+static int64_t cmp_loop_range(
+        const for_loop &to_merge, const for_loop &be_merged) {
+    if (!(to_merge->iter_begin_.isa<constant_c>()
+                && to_merge->iter_end_.isa<constant_c>()
+                && to_merge->step_.isa<constant_c>()
+                && be_merged->iter_begin_.isa<constant_c>()
+                && be_merged->iter_end_.isa<constant_c>()
+                && be_merged->step_.isa<constant_c>())) {
+        return 0;
+    }
+    auto to_merge_begin = get_expr_as_int(to_merge->iter_begin_),
+         to_merge_end = get_expr_as_int(to_merge->iter_end_),
+         to_merge_step = get_expr_as_int(to_merge->step_),
+         be_merged_begin = get_expr_as_int(be_merged->iter_begin_),
+         be_merged_end = get_expr_as_int(be_merged->iter_end_),
+         be_merge_step = get_expr_as_int(be_merged->step_);
+    return (to_merge_begin == be_merged_begin && to_merge_end == be_merged_end
+                   && to_merge_step == be_merge_step)
+            ? (to_merge_end - to_merge_begin)
+            : 0;
+}
+
+static void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
     auto outer_loops_A = A->get_outer_loops(),
          outer_loops_B = B->get_outer_loops();
     if (outer_loops_A.empty() || outer_loops_B.empty()) return;
@@ -1124,6 +1199,132 @@ void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
     }
 }
 
+// check brgemm pre-op fusion
+static bool try_merge_brgemm_and_preop_parti(
+        mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+    if (A->get_root() == B->get_root()) return false;
+    if (!A->func_.get() || !B->func_.get()) return false;
+    auto dep_flag = check_parti_dep(A, B, g);
+    if (dep_flag != parti_dep::no_dep) return false;
+
+    mixed_parti_t *brgemm_parti, *preop_parti;
+    if (A->contain_tunable_op() && B->contain_elemwise_op_only()) {
+        brgemm_parti = A;
+        preop_parti = B;
+    } else if (B->contain_tunable_op() && A->contain_elemwise_op_only()) {
+        brgemm_parti = B;
+        preop_parti = A;
+    } else {
+        return false;
+    }
+
+    // evaluate two partition by cost model
+    float score_A = A->evaluate_perf(), score_B = B->evaluate_perf();
+
+    SC_MODULE_INFO << "pre-op merging two partition:";
+    SC_MODULE_INFO << A->func_;
+    SC_MODULE_INFO << B->func_;
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 1: pre infer elementwise op using brgemm parti fusion anchor
+     * * * * * * * * * * * * * * * * */
+    for (auto &brgemm_parti_anchor : brgemm_parti->fanchors_) {
+        fslice_map tmp_fsmap;
+        for (auto iter = brgemm_parti_anchor->fsmap_.datamap_.begin();
+                iter != brgemm_parti_anchor->fsmap_.datamap_.end();) {
+            if (!brgemm_parti->buf_alloc_.g2b_map_.haskey(iter->first)) {
+                auto brgemm_parti_cut_op = iter->first->producer_owner_;
+                if (preop_parti->contains(brgemm_parti_cut_op)) {
+                    COMPILE_ASSERT(brgemm_parti_cut_op
+                                    == preop_parti->committed_ops_.back().get(),
+                            "It is expectedly the same one op, but got two "
+                            "differnt ops, which are "
+                                    << brgemm_parti_cut_op->op_name_
+                                    << brgemm_parti_cut_op->logical_op_id_
+                                    << " and "
+                                    << preop_parti->committed_ops_.back()
+                                               ->op_name_
+                                    << preop_parti->committed_ops_.back()
+                                               ->logical_op_id_)
+
+                    infer_status_map_t stat_map(brgemm_parti->ctx_, false);
+                    // set known slice range and prepare for pre-infer slice
+                    // range
+                    tmp_fsmap.get(iter->first) = iter->second;
+                    for (auto op_iter = preop_parti->committed_ops_.rbegin();
+                            op_iter != preop_parti->committed_ops_.rend();
+                            op_iter++) {
+                        COMPILE_ASSERT((*op_iter)->isa<fusible_op_t>(),
+                                "Only fusible op is expected on pre-op "
+                                "partiion. "
+                                "but got "
+                                        << (*op_iter)->op_name_);
+                        (*op_iter)->stc_cast<fusible_op_t>()->pre_slice_ranges(
+                                tmp_fsmap, stat_map);
+                        COMPILE_ASSERT(stat_map.is_ok(),
+                                "Elementwise ops are expected to infer "
+                                "successfully")
+                    }
+                    iter++;
+                } else {
+                    iter = brgemm_parti_anchor->fsmap_.datamap_.erase(iter);
+                }
+            } else {
+                iter++;
+            }
+        }
+        // move fsmap
+        brgemm_parti_anchor->fsmap_.datamap_.insert(
+                tmp_fsmap.datamap_.begin(), tmp_fsmap.datamap_.end());
+    }
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 2: Commit ops in pre-op parti into brgemm parti by original order
+     * * * * * * * * * * * * * * * * */
+    for (auto &op_in_preop_parti : preop_parti->committed_ops_) {
+        brgemm_parti->add(op_in_preop_parti);
+    }
+
+    // erase joint op in op_anchor_map
+    for (auto iter = brgemm_parti->op_anchor_map_.begin();
+            iter != brgemm_parti->op_anchor_map_.end();) {
+        if (!brgemm_parti->contains(iter->first)) {
+            iter = brgemm_parti->op_anchor_map_.erase(iter);
+        } else {
+            iter++;
+        }
+    }
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 3: Merge op_
+     * * * * * * * * * * * * * * * * */
+    // call base merge
+    brgemm_parti->fusion_partition_t::merge(
+            static_cast<fusion_partition_t *>(preop_parti)->shared_from_this());
+
+    // Merge commited ops
+    brgemm_parti->committed_ops_.insert(brgemm_parti->committed_ops_.end(),
+            preop_parti->committed_ops_.begin(),
+            preop_parti->committed_ops_.end());
+
+    brgemm_parti->func_->name_ += "_preop_merge_" + preop_parti->func_->name_;
+
+    SC_MODULE_INFO << "pre-op merging result:";
+    SC_MODULE_INFO << brgemm_parti->func_;
+
+    // clear merged parti
+    preop_parti->clear();
+
+    float score_C = brgemm_parti->evaluate_perf();
+
+    if (score_C < std::max(score_A, score_B)) {
+        SC_MODULE_WARN << "Merging these two partition may cause performance "
+                          "drop, no fall-back strategy found";
+    }
+
+    return true;
+}
+
 static bool try_merge_mixed_parti_vertically(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
     if (A->get_root() == B->get_root()) return false;
@@ -1133,86 +1334,43 @@ static bool try_merge_mixed_parti_vertically(
     if (dep_flag == parti_dep::inter_dep) return false;
     mixed_parti_t *pa_to_merge = nullptr, *parti_be_merged = nullptr;
 
-    try_align_parti_outer_loops(A, B);
-
-    auto outer_loops_A = A->get_outer_loops(),
-         outer_loops_B = B->get_outer_loops();
-
-    // great common size
-    auto gcs = std::min(outer_loops_A.size(), outer_loops_B.size());
-    if (outer_loops_A.empty() || outer_loops_B.empty()) return false;
-
-    if (dep_flag == parti_dep::no_dep) {
-        // check broadcast loop
-        for (size_t i = 0; i < gcs; i++) {
-            auto A_range = get_loops_range(outer_loops_A[i]),
-                 B_range = get_loops_range(outer_loops_B[i]);
-            if (A_range == B_range)
-                continue;
-            else {
-                if (A_range == 1 && B_range > 1) {
-                    pa_to_merge = B;
-                    parti_be_merged = A;
-                    break;
-                }
-            }
-        }
-        if (!pa_to_merge || !parti_be_merged) {
-            pa_to_merge = A;
-            parti_be_merged = B;
-        }
-    } else {
-        pa_to_merge = (dep_flag == parti_dep::l_dep_r) ? B : A;
-        parti_be_merged = (dep_flag == parti_dep::l_dep_r) ? A : B;
-    }
+    pa_to_merge = (dep_flag == parti_dep::l_dep_r) ? B : A;
+    parti_be_merged = (dep_flag == parti_dep::l_dep_r) ? A : B;
 
     auto outer_loops_to_merge = pa_to_merge->get_outer_loops(),
          outer_loops_be_merged = parti_be_merged->get_outer_loops();
 
-    auto cmp_loop_range = [](const for_loop &to_merge,
-                                  const for_loop &be_merged) -> int64_t {
-        if (!(to_merge->iter_begin_.isa<constant_c>()
-                    && to_merge->iter_end_.isa<constant_c>()
-                    && to_merge->step_.isa<constant_c>()
-                    && be_merged->iter_begin_.isa<constant_c>()
-                    && be_merged->iter_end_.isa<constant_c>()
-                    && be_merged->step_.isa<constant_c>())) {
-            return 0;
-        }
-        auto to_merge_begin = get_expr_as_int(to_merge->iter_begin_),
-             to_merge_end = get_expr_as_int(to_merge->iter_end_),
-             to_merge_step = get_expr_as_int(to_merge->step_),
-             be_merged_begin = get_expr_as_int(be_merged->iter_begin_),
-             be_merged_end = get_expr_as_int(be_merged->iter_end_),
-             be_merge_step = get_expr_as_int(be_merged->step_);
-        return ((to_merge_begin == be_merged_begin
-                        && to_merge_end == be_merged_end
-                        && to_merge_step == be_merge_step)
-                       || (be_merged_begin == 0
-                               && be_merged_end == 1)) // support broadcast loop
-                ? (to_merge_end - to_merge_begin)
-                : 0;
-    };
+    if (outer_loops_to_merge.empty() || outer_loops_be_merged.empty())
+        return false;
 
-    sc_dims loop_range_vec;
+    // great common size
+    auto gcs = std::min(
+            outer_loops_to_merge.size(), outer_loops_be_merged.size());
+
+    sc_dims parallel_loop_range;
     size_t merged_loop_size = 0;
     for (; merged_loop_size < gcs; merged_loop_size++) {
         auto common_range
                 = cmp_loop_range(outer_loops_to_merge[merged_loop_size],
                         outer_loops_be_merged[merged_loop_size]);
         if (!common_range) break;
-        loop_range_vec.emplace_back(common_range);
+        parallel_loop_range.emplace_back(common_range);
     }
 
     if (!merged_loop_size) return false;
     if (pa_to_merge->ctx_->flags_.use_cost_model_) {
-        auto new_parallelism = evaluate_loop_parallel_balance(loop_range_vec),
-             to_merge_parallelism
+        auto new_parallelism
+                = evaluate_loop_parallel_balance(parallel_loop_range),
+                to_merge_parallelism
                 = evaluate_loop_parallel_balance(outer_loops_to_merge),
-             be_merged_parallelism
+                be_merged_parallelism
                 = evaluate_loop_parallel_balance(outer_loops_be_merged);
         if (new_parallelism < to_merge_parallelism
                 || new_parallelism < be_merged_parallelism) {
+            SC_MODULE_INFO << "Cost model rejects to vertically merge two "
+                              "partition: "
+                           << A->func_->name_ << " and " << B->func_->name_
+                           << " from perspective of parallellism";
             return false;
         }
     }
@@ -1225,8 +1383,13 @@ static bool try_merge_mixed_parti_vertically(
                     && (pa_to_merge->buf_alloc_
                                        .get_total_allocated_buffer_size()
                                / runtime_config_t::get().get_num_threads())
-                            > pre_loaded_buffer_size_tol))
+                            > pre_loaded_buffer_size_tol)) {
+        SC_MODULE_INFO << "Cost model rejects to vertically merge two "
+                          "partition: "
+                       << A->func_->name_ << " and " << B->func_->name_
+                       << " from perspective of cache efficiency";
         return false;
+    }
 
     // evaluate two partition by cost model
     float score_A = A->evaluate_perf(), score_B = B->evaluate_perf();
@@ -1289,12 +1452,8 @@ static bool try_merge_mixed_parti_vertically(
     // merge outer loop anchor
     std::unordered_set<fuse_anchor_map_ptr> be_merged_anchor_masks;
     for (size_t i = 0; i < merged_loop_size; i++) {
-        // support broadcast loop
         expr_map[outer_loops_be_merged[i]->var_]
-                = (get_loops_range(outer_loops_to_merge[i]) > 1
-                          && get_loops_range(outer_loops_be_merged[i]) == 1)
-                ? expr(0)
-                : outer_loops_to_merge[i]->var_;
+                = outer_loops_to_merge[i]->var_;
         auto be_merged_anchor = get_anchor_inside_loop(
                      parti_be_merged, outer_loops_be_merged[i]),
              to_merge_anchor
@@ -1369,6 +1528,11 @@ static bool try_merge_mixed_parti_vertically(
             static_cast<fusion_partition_t *>(parti_be_merged)
                     ->shared_from_this());
 
+    // Merge commited ops
+    pa_to_merge->committed_ops_.insert(pa_to_merge->committed_ops_.end(),
+            parti_be_merged->committed_ops_.begin(),
+            parti_be_merged->committed_ops_.end());
+
     pa_to_merge->func_->name_ += "_merge_" + parti_be_merged->func_->name_;
 
     SC_MODULE_INFO << "Merging result:";
@@ -1388,7 +1552,9 @@ static bool try_merge_mixed_parti_vertically(
 }
 
 void mixed_parti_t::merge(const ptr &other, const op_dep_matrix_t &g) const {
-    try_merge_mixed_parti_vertically(get_root(), other->get_root(), g);
+    if (!try_merge_brgemm_and_preop_parti(get_root(), other->get_root(), g)) {
+        try_merge_mixed_parti_vertically(get_root(), other->get_root(), g);
+    }
 }
 
 mixed_parti_t::mixed_parti_t(const sc_op_ptr &op, const context_ptr &ctx)
@@ -1404,6 +1570,7 @@ mixed_parti_t::mixed_parti_t(const sc_op_ptr &op, const context_ptr &ctx)
         SC_MODULE_INFO << func_;
     }
     ops.insert(op);
+    committed_ops_.emplace_back(op);
 }
 
 bool mixed_parti_t::is_ok_to_add(sc_op *op, const op_dep_matrix_t &g) {
@@ -1443,11 +1610,22 @@ void mixed_parti_t::set_anchor_for_op(
     }
     auto iter = op_anchor_map_.find(op);
     if (iter != op_anchor_map_.end()) {
+        auto res = cmp_op_anchor(op, iter->second, fanchor_map);
         // if new anchor is more smaller than the current one
-        if (cmp_op_anchor(op, iter->second, fanchor_map)
-                == cmp_res::l_larger_r) {
+        if (res == cmp_res::l_larger_r) {
             // overwrite new anchor
             op_anchor_map_[op] = fanchor_map;
+        } else if (res == cmp_res::equal) {
+            // Except for reduce_collect_op_t with COPY kind due to this mode
+            // will elimiate first required axis
+            if (auto red_coll = op->dyn_cast<reduce_collect_op_t>()) {
+                if (red_coll->op_ == reduce_collect_op_t::kind::COPY) return;
+            }
+            // if sub anchor is equal to parent one, overwrite it
+            if (iter->second->is_parent_for(fanchor_map)) {
+                // overwrite inner anchor
+                op_anchor_map_[op] = fanchor_map;
+            }
         }
     } else {
         op_anchor_map_[op] = fanchor_map;
@@ -1464,9 +1642,10 @@ void mixed_parti_t::add(const sc_op_ptr &op) {
     func_->name_ += "_" + op->op_name_ + std::to_string(op->logical_op_id_);
     SC_MODULE_INFO << func_;
     ops.insert(op);
+    committed_ops_.emplace_back(op);
 }
 
-fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(sc_op *op) {
+fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(sc_op *op) const {
     if (merged_to) { return get_root()->lookup_anchor_map(op); }
     auto iter = op_anchor_map_.find(op);
     COMPILE_ASSERT(iter != op_anchor_map_.end(),
@@ -1476,7 +1655,7 @@ fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(sc_op *op) {
     return iter->second;
 }
 
-fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(const stmts &ss) {
+fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(const stmts &ss) const {
     if (merged_to) { return get_root()->lookup_anchor_map(ss); }
     auto iter = std::find_if(fanchors_.begin(), fanchors_.end(),
             [&ss](const fuse_anchor_map_ptr &amap) {
@@ -1486,7 +1665,7 @@ fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(const stmts &ss) {
 }
 
 std::vector<fuse_anchor_map_ptr> mixed_parti_t::lookup_sub_anchor_map(
-        const fuse_anchor_map_ptr &parent_fanchor) {
+        const fuse_anchor_map_ptr &parent_fanchor) const {
     if (merged_to) { return get_root()->lookup_sub_anchor_map(parent_fanchor); }
     std::vector<fuse_anchor_map_ptr> subs;
     for (auto &fanc : fanchors_) {
@@ -1531,45 +1710,26 @@ std::vector<for_loop> mixed_parti_t::get_outer_loops(
     if (merged_to) { return get_root()->get_outer_loops(fanchor); }
     auto body = func_->body_;
     std::vector<for_loop> outer_loops;
-    auto ths = this;
+
     fuse_anchor_map_ptr target_fanchor = std::move(fanchor);
     while (target_fanchor && target_fanchor->parent_) {
         target_fanchor = target_fanchor->parent_;
     }
-    auto get_next_inner_loop_with_anchor = [&ths, &target_fanchor](
-                                                   const for_loop &cur_loop) {
-        if (cur_loop->body_.isa<for_loop>()) {
-            return cur_loop->body_.checked_as<for_loop>();
-        } else if (cur_loop->body_.isa<stmts>()) {
-            auto ss = cur_loop->body_.static_as<stmts>();
-            if (ss->seq_.size() == 1 && ss->seq_[0].isa<for_loop>()) {
-                return cur_loop->body_.checked_as<stmts>()
-                        ->seq_[0]
-                        .checked_as<for_loop>();
-            } else if (ss->seq_.size() == 2 && ss->seq_[0].isa<for_loop>()
-                    && ss->seq_[1].isa<stmts>()) {
-                auto inner_ss = ss->seq_[1].static_as<stmts>();
-                if (inner_ss->seq_.empty()) {
-                    auto anchor_map = ths->lookup_anchor_map(inner_ss);
-                    if (anchor_map) {
-                        return (anchor_map == target_fanchor)
-                                ? for_loop()
-                                : cur_loop->body_.checked_as<stmts>()
-                                          ->seq_[0]
-                                          .checked_as<for_loop>();
-                    }
-                }
-            }
+
+    if (body.isa<stmts>()
+            && (body.checked_as<stmts>()->seq_.size() == 1
+                    || body.checked_as<stmts>()->seq_.size() == 2)) {
+        if (body.checked_as<stmts>()->seq_.size() == 2) {
+            if (!body.checked_as<stmts>()->seq_[1].isa<returns>())
+                return outer_loops;
         }
-        return for_loop();
-    };
-    if (body.isa<stmts>() && body.checked_as<stmts>()->seq_.size() == 1) {
         auto st = body.checked_as<stmts>()->seq_[0];
         if (st.isa<for_loop>()) {
             auto loop = st.static_as<for_loop>();
             while (loop.defined()) {
                 outer_loops.emplace_back(loop);
-                loop = get_next_inner_loop_with_anchor(loop);
+                loop = get_next_inner_loop_with_anchor(
+                        this, loop, target_fanchor);
             }
         }
     }
@@ -1624,17 +1784,40 @@ bool mixed_parti_t::is_parti_out(const graph_tensor_ptr &gt) {
     return is_parti_out(gt.get());
 }
 
-bool mixed_parti_t::contain_tunable_op() const {
-    if (merged_to) { return get_root()->contain_tunable_op(); }
+template <typename T>
+size_t mixed_parti_t::count_op_with_type() const {
+    if (merged_to) { return get_root()->count_op_with_type<T>(); }
+    size_t cnt = 0;
     for (auto &op : ops) {
-        if (op->isa<tunable_op_t>()) return true;
+        if (op->isa<T>()) cnt++;
     }
-    return false;
+    return cnt;
+}
+
+template <typename T>
+bool mixed_parti_t::contain_op_with_type() const {
+    if (merged_to) { return get_root()->contain_op_with_type<T>(); }
+    return (count_op_with_type<T>() != 0);
+}
+
+bool mixed_parti_t::contain_tunable_op() const {
+    return contain_op_with_type<tunable_op_t>();
+}
+
+bool mixed_parti_t::contain_elemwise_op_only() const {
+    if (merged_to) { return get_root()->contain_elemwise_op_only(); }
+    for (auto &op : ops) {
+        if (!op->isa<unary_elementwise_op_t>()
+                && !op->isa<binary_elementwise_op_t>())
+            return false;
+    }
+    return true;
 }
 
 void mixed_parti_t::clear() {
     // Graph-related
     ops.clear();
+    committed_ops_.clear();
 
     // IR-related
     func_ = func_t();
@@ -2005,7 +2188,10 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         op_name += copied->op_name_;
     });
 
-    std::shared_ptr<mixed_fuse_op_t> fused_op;
+    std::shared_ptr<mixed_fuse_op_t> fused_op = nullptr;
+
+    // prepare for redo fall-back case
+    auto copied_grpah = copy_graph(sub_graph);
 
     redo_flag = (redo_flag
             || try_optimize_reduce(
@@ -2107,20 +2293,22 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         parti.func_->name_ = prefix + parti.func_->name_;
         parti.func_->decl_->params_ = args;
         parti.func_->decl_->name_ = parti.func_->name_;
-        // remove all parallel flag
-        remove_parallel(parti.func_, false);
 
         // push return to the end of body
         auto ret = builder::make_returns_unattached(true);
         parti.func_->body_.checked_as<stmts>()->seq_.emplace_back(ret);
 
+        // buffer schedule: declare, set shrink info and tensor initilize.
         parti.buffer_schedule();
+
+        // remove all parallel flag
+        remove_parallel(parti.func_, false);
 
         // clear unused fanchor
         partition->clear_fanchors();
 
         fused_op = std::make_shared<mixed_fuse_op_t>(parti.func_->name_,
-                partition, sub_graph,
+                partition, copied_grpah,
                 /*ins*/ fused_op_in,
                 /*outs*/
                 fused_op_out, any_map_t {});

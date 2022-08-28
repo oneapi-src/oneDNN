@@ -210,12 +210,15 @@ struct iter_fuse_anchor_t {
 struct fuse_anchor_map_t {
     stmts anchor_position_;
     fslice_map fsmap_;
-
+    // parent anchor
     std::shared_ptr<fuse_anchor_map_t> parent_;
+    // blocked graph tensor set
     std::unordered_set<graph_tensor_ptr> blocked_gt_set_;
+    // borrowed fanchor map
     std::unordered_map<graph_tensor_ptr, std::shared_ptr<fuse_anchor_map_t>>
             borrowed_fanchor_map_;
-    // content includes op and anchor
+    // content inferred under current fusion anchor scope, includes op and
+    // anchor
     std::unordered_map<void *, size_t> content_number_map_;
 
     fuse_anchor_map_t() = default;
@@ -261,6 +264,10 @@ struct fuse_anchor_map_t {
             if (cur == this) return true;
         }
         return false;
+    }
+
+    bool is_parent_for(const std::shared_ptr<fuse_anchor_map_t> &cur) {
+        return is_parent_for(cur.get());
     }
 
     void merge(const std::shared_ptr<fuse_anchor_map_t> &other) {

@@ -106,11 +106,17 @@ inline void pre_unary_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     auto &input = cur->get_inputs()[0];
     auto &out_ranges = fsmap.get(cur->get_outputs()[0]);
+    if (out_ranges.empty()) {
+        stat_map.append_ops_by_status(cur, infer_status_code::RETRY);
+        return;
+    }
     auto &in_ranges = fsmap.get(input);
     if (in_ranges.empty()) {
         in_ranges = out_ranges;
-        input->producer_owner_->dyn_cast<fusible_op_t>()->pre_slice_ranges(
-                fsmap, stat_map);
+        if (stat_map.is_recursive_mode()) {
+            input->producer_owner_->dyn_cast<fusible_op_t>()->pre_slice_ranges(
+                    fsmap, stat_map);
+        }
     }
 }
 

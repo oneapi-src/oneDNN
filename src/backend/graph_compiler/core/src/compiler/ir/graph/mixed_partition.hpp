@@ -102,15 +102,20 @@ struct mxp_buffer_allocator {
     void clear();
     // check buffer_allocator whether empty
     const bool empty() const { return g2b_map_.empty(); };
-
+    // initilize tensor
     void tensor_initialize();
-
+    // replace the specific buffer
     void replace_buffer(graph_tensor *gt, expr &old_input, expr &new_input);
-
+    // calculate total allocated buffer size
     size_t get_total_allocated_buffer_size() const;
 };
 
 struct mixed_parti_t : fusion_partition_t {
+    /* related to Graph */
+    // different from ops_ in base class, it records the sequence of committed
+    // ops in current partition
+    std::vector<sc_op_ptr> committed_ops_;
+
     /* related to IR */
     context_ptr ctx_;
     // the body of func_ will be updated once the new op is committed into
@@ -179,14 +184,14 @@ struct mixed_parti_t : fusion_partition_t {
     bool ready_for_op(sc_op *op) const;
 
     // look up fanchor by op
-    fuse_anchor_map_ptr lookup_anchor_map(sc_op *op);
+    fuse_anchor_map_ptr lookup_anchor_map(sc_op *op) const;
 
     // look up fanchor by stmts
-    fuse_anchor_map_ptr lookup_anchor_map(const stmts &ss);
+    fuse_anchor_map_ptr lookup_anchor_map(const stmts &ss) const;
 
     // look up sub fanchor by parent fanchor
     std::vector<fuse_anchor_map_ptr> lookup_sub_anchor_map(
-            const fuse_anchor_map_ptr &parent_fanchor);
+            const fuse_anchor_map_ptr &parent_fanchor) const;
 
     // clear all contents of given fanchor, but not erase it from fanchor list
     void clear_fanchor(fuse_anchor_map_ptr &fanchor);
@@ -218,7 +223,19 @@ struct mixed_parti_t : fusion_partition_t {
         return is_parti_inp(gt) || is_parti_out(gt);
     }
 
+    // count op number with given type
+    template <typename T>
+    size_t count_op_with_type() const;
+
+    // query partition whether contains op with given type
+    template <typename T>
+    bool contain_op_with_type() const;
+
+    // query partition whether contains tunable op
     bool contain_tunable_op() const;
+
+    // query partition whether contains only elementwise op
+    bool contain_elemwise_op_only() const;
 
     // clear all contents of partition object
     void clear();

@@ -397,6 +397,10 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
 void binary_elementwise_op_impl_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     auto &outslice = fsmap.get(get_outputs()[0]);
+    if (outslice.empty()) {
+        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+        return;
+    }
     // check broadcast
     int bc_input_idx = get_broadcast_input();
     for (size_t i = 0; i < get_inputs().size(); i++) {
@@ -415,8 +419,10 @@ void binary_elementwise_op_impl_t::pre_slice_ranges(
             } else {
                 inpslice = outslice;
             }
-            input->producer_owner_->dyn_cast<fusible_op_t>()->pre_slice_ranges(
-                    fsmap, stat_map);
+            if (stat_map.is_recursive_mode()) {
+                input->producer_owner_->dyn_cast<fusible_op_t>()
+                        ->pre_slice_ranges(fsmap, stat_map);
+            }
         }
     }
 }
