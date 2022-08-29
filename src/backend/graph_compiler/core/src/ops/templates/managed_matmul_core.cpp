@@ -359,7 +359,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
             auto LDB = !tb.get_format().is_blocking() ? ori_N : iin_block_;
             auto LDC = !tc.get_format().is_blocking() ? ori_N : iin_block_;
             auto stride_a = !ta.get_format().is_blocking()
-              ? iim_block_
+              ? iik_block_
               : iim_block_ * iik_block_;
             auto stride_b = !tb.get_format().is_blocking()
               ? iik_block_ * ori_N
