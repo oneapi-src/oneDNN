@@ -31,6 +31,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm_exec_types.hpp"
 #include "gpu/gpu_resource.hpp"
+#include "gpu/kernel_cache.hpp"
 
 #define CTX_GPU_RES_STORAGE(arg) \
     (*(ctx.get_resource_mapper() \
@@ -173,6 +174,33 @@ struct gpu_primitive_t : public primitive_t {
                 = create_kernels(engine, &kernels, {kernel_name}, kernel_ctx);
         if (status == status::success) *kernel = kernels[0];
         return status;
+    }
+
+    template <typename T>
+    status_t create_kernels(engine_t *engine,
+            std::vector<compute::kernel_t> &kernels,
+            const std::vector<const char *> &kernel_names, const T &params) {
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine);
+        if (cache_blob())
+            return compute_engine->create_kernels_from_cache_blob(
+                    cache_blob(), kernels, kernel_names);
+
+        gpu_kernel_key_t key(params);
+        CHECK(key.get_kernels(engine, kernels, kernel_names));
+
+        register_kernels(kernels);
+
+        return status::success;
+    }
+
+    template <typename T>
+    status_t create_kernel(engine_t *engine, compute::kernel_t &kernel,
+            const char *kernel_name, const T &params) {
+        std::vector<compute::kernel_t> kernels(1);
+        CHECK(create_kernels(engine, kernels, {kernel_name}, params));
+        kernel = kernels[0];
+        return status::success;
     }
 
     status_t create_nested_primitive(std::shared_ptr<primitive_t> &primitive,
