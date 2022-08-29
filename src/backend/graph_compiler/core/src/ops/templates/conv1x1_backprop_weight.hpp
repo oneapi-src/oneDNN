@@ -22,6 +22,7 @@
 #include <vector>
 #include "conv_bwd.hpp"
 #include <ops/body_generator.hpp>
+#include <ops/templates/commit_op.hpp>
 namespace sc {
 
 namespace ops {
@@ -36,7 +37,7 @@ public:
     static constexpr int in_fwd_output = 1;
     static constexpr int out_del_weight = 0;
   };
-  enum generator_type_t { REDUCE_N, REDUCE_ALL, UNDEF };
+  enum generator_type_t { REDUCE_N, REDUCE_ALL, REDUCE_ALL2, UNDEF };
   generator_type_t type_;
   using parent = body_generator_t<conv_bwd_weight_config_t>;
   using parent::generate;
@@ -70,6 +71,11 @@ public:
     std::vector<for_loop> &loops) const;
 
   bool generate_reduce_ALL(const context_ptr &ctx,
+    const conv_bwd_weight_config_t &config, fusion_manager *fusion,
+    const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+    std::vector<for_loop> &loops) const;
+
+  bool generate_reduce_ALL2(const context_ptr &ctx,
     const conv_bwd_weight_config_t &config, fusion_manager *fusion,
     const std::vector<expr> &inputs, const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const;

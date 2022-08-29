@@ -28,6 +28,7 @@
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <ops/templates/utils.hpp>
+#include <runtime/config.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -387,7 +388,7 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
 
 body_generator_ptr conv_bwd_data_core_op_t::create_generator() {
     auto &stride = attrs_.get<sc_dims>("strides");
-    auto &pads_begin = attrs_.has_key("pads_begin")
+    const auto &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
     const bool is_3d = ndims_ == 5;
@@ -516,10 +517,23 @@ body_generator_ptr conv_bwd_weight_core_op_t::create_generator() {
             [](int x) { return x == 1; });
     if (is_1x1) {
         // tested for reduce on ALL
-        return utils::make_unique<gen_conv1x1_backprop_weight_t>(this, stride,
-                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()),
-                gen_conv1x1_backprop_weight_t::generator_type_t::REDUCE_N);
+        int block_size = 64;
+        if (weight_shape[0] * weight_shape[1] * input_dims[0]
+                        / (block_size * block_size * block_size)
+                < runtime_config_t::get().get_num_threads()) {
+            return utils::make_unique<gen_conv1x1_backprop_weight_t>(this,
+                    stride, pads_begin,
+                    graph::extract_detail_from_tensors(get_inputs()),
+                    graph::extract_detail_from_tensors(get_outputs()),
+                    gen_conv1x1_backprop_weight_t::generator_type_t::
+                            REDUCE_ALL2);
+        } else {
+            return utils::make_unique<gen_conv1x1_backprop_weight_t>(this,
+                    stride, pads_begin,
+                    graph::extract_detail_from_tensors(get_inputs()),
+                    graph::extract_detail_from_tensors(get_outputs()),
+                    gen_conv1x1_backprop_weight_t::generator_type_t::REDUCE_N);
+        }
     } else {
         return utils::make_unique<gen_convNxN_backprop_weight>(this, stride,
                 pads_begin, graph::extract_detail_from_tensors(get_inputs()),

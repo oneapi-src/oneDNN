@@ -15,7 +15,9 @@
  *******************************************************************************/
 
 #include "conv1x1_backprop_weight.hpp"
+#include <algorithm>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 #include "utils.hpp"
@@ -23,55 +25,116 @@
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/graph/graph.hpp>
+#include <compiler/ir/transform/tensor_shrink.hpp>
 #include <microkernel/builtin.hpp>
 #include <runtime/config.hpp>
+#include <runtime/trace.hpp>
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
-
-#include <algorithm>
-#include <string>
-
 using namespace sc::builder;
 namespace sc {
 namespace ops {
+struct trace_guard_t {
+  int trace_id;
+  context_ptr ctx;
+  trace_guard_t(const context_ptr &ctx, const std::string &func_name)
+    : ctx(ctx) {
+    trace_id = register_traced_func(func_name);
+    if (ctx->flags_.trace_) {
+      builder::get_current_builder()->push_evaluate(
+        builtin::make_trace(trace_id, 0, 0));
+    }
+  }
+  ~trace_guard_t() {
+    if (ctx->flags_.trace_) {
+      builder::get_current_builder()->push_evaluate(
+        builtin::make_trace(trace_id, 1, 0));
+    }
+  }
+};
 
 config_ptr gen_conv1x1_backprop_weight_t::get_default_config(
   context_ptr ctx) const {
-  auto ret = reflection::general_object_t::make<conv_bwd_weight_config_t>();
-  conv_bwd_weight_config_t &cfg
-    = *ret.unchecked_get_as<conv_bwd_weight_config_t>();
-  int N = static_cast<int>(get_data_dims()[0]);
-  int C = static_cast<int>(get_data_dims()[1]);
-  int K = static_cast<int>(get_grad_input_dims()[1]);
-  int P = static_cast<int>(get_grad_input_dims()[ndims_ - 2]);
-  int Q = static_cast<int>(get_grad_input_dims()[ndims_ - 1]);
+  if (type_ == generator_type_t::REDUCE_ALL) {
+    auto ret = reflection::general_object_t::make<conv_bwd_weight_config_t>();
+    conv_bwd_weight_config_t &cfg
+      = *ret.unchecked_get_as<conv_bwd_weight_config_t>();
+    int N = static_cast<int>(get_data_dims()[0]);
+    int C = static_cast<int>(get_data_dims()[1]);
+    int K = static_cast<int>(get_grad_input_dims()[1]);
+    int P = static_cast<int>(get_grad_input_dims()[ndims_ - 2]);
+    int Q = static_cast<int>(get_grad_input_dims()[ndims_ - 1]);
 
-  // temporarily deal with first stage
-  bool large_spatial = (P >= 56 && Q >= 56);
-  if (large_spatial && N % 16 == 0) {
-    cfg.N_block = 16;
-  } else if (N % 32 == 0) {
-    cfg.N_block = 32;
-  } else {
-    cfg.N_block = N;
-  }
+    // temporarily deal with first stage
+    bool large_spatial = (P >= 56 && Q >= 56);
+    if (large_spatial && N % 16 == 0) {
+      cfg.N_block = 16;
+    } else if (N % 32 == 0) {
+      cfg.N_block = 32;
+    } else {
+      cfg.N_block = N;
+    }
 
-  if (K % 64 == 0 && !large_spatial) {
-    cfg.K_block = 64;
+    if (K % 64 == 0 && !large_spatial) {
+      cfg.K_block = 64;
+    } else {
+      cfg.K_block = K;
+    }
+    if (C % 64 == 0 && !large_spatial) {
+      cfg.C_block = 64;
+    } else {
+      cfg.C_block = C;
+    }
+    cfg.tile_p = 1;
+    cfg.loop_sched = 1;
+    cfg.num_tile_n = 1;
+    cfg.tile_q = 1;
+    return std::move(ret);
   } else {
-    cfg.K_block = K;
+    auto ret = reflection::general_object_t::make<conv_bwd_weight_config_t>();
+    conv_bwd_weight_config_t &cfg
+      = *ret.unchecked_get_as<conv_bwd_weight_config_t>();
+    int N = static_cast<int>(get_data_dims()[0]);
+    int C = static_cast<int>(get_data_dims()[1]);
+    int K = static_cast<int>(get_grad_input_dims()[1]);
+    int P = static_cast<int>(get_grad_input_dims()[ndims_ - 2]);
+    int Q = static_cast<int>(get_grad_input_dims()[ndims_ - 1]);
+    int num_threads = runtime_config_t::get().get_num_threads();
+
+    // temporarily deal with first stage
+    bool large_spatial = (P >= 56 && Q >= 56);
+    if (large_spatial && N % 16 == 0) {
+      cfg.N_block = 16;
+    } else if (N % 32 == 0) {
+      cfg.N_block = 32;
+    } else {
+      cfg.N_block = N;
+    }
+
+    if (K % 64 == 0 && !large_spatial) {
+      cfg.K_block = 64;
+    } else {
+      cfg.K_block = K;
+    }
+    if (C % 64 == 0 && !large_spatial) {
+      cfg.C_block = 64;
+    } else {
+      cfg.C_block = C;
+    }
+    cfg.tile_p = 1;
+    cfg.loop_sched = 1;
+    cfg.num_tile_n = 1;
+    cfg.tile_q = 1;
+    cfg.loop_sched = 1; // split NxHxW
+    if ((K / cfg.K_block) * (C / cfg.C_block) < num_threads * 2) {
+      // ouput chanel and input chanel cannot provide enough parallisiem
+      cfg.loop_sched = 1; // split NxHxW
+    } else {
+      cfg.loop_sched = 2; // don't split reduce axis
+    }
+    return std::move(ret);
   }
-  if (C % 64 == 0 && !large_spatial) {
-    cfg.C_block = 64;
-  } else {
-    cfg.C_block = C;
-  }
-  cfg.tile_p = 1;
-  cfg.loop_sched = 1;
-  cfg.num_tile_n = 1;
-  cfg.tile_q = 1;
-  return std::move(ret);
 }
 
 gen_conv1x1_backprop_weight_t::gen_conv1x1_backprop_weight_t(sc_op *owner,
@@ -120,7 +183,6 @@ float gen_conv1x1_backprop_weight_t::get_gflop() const {
   const int C = get_data_dims()[1];
   const int K = get_grad_input_dims()[1];
   const int N = get_data_dims()[0];
-
   result = 2.f * N * C * D * W * H * K / 1e9;
   return result;
 }
@@ -149,6 +211,19 @@ void gen_conv1x1_backprop_weight_t::schedule_loops(context_ptr ctx,
       auto lrkc = rlko->fuse(rlco);
       auto lrkcc = lrkc->fuse(rlc);
     }
+  } else if (type_ == generator_type_t::REDUCE_ALL2) {
+    for_loop lk = fors.at(0), lc = fors.at(1), ln = fors.at(2), ld = fors.at(3),
+             lp = fors.at(4), rlko = fors.at(5), rlco = fors.at(6);
+    if (config.loop_sched == 1) {
+      lk->reorder(body, {ln, lk, lc, ld, lp});
+      ln->fuse(lk)->fuse(lc)->fuse(ld)->fuse(lp);
+      rlko->fuse(rlco);
+    } else if (config.loop_sched == 2) {
+      lk->fuse(lc);
+      ln->attr().set("temp.loop_no_fuse", true);
+      ld->attr().set("temp.loop_no_fuse", true);
+      lp->attr().set("temp.loop_no_fuse", true);
+    }
   }
 }
 
@@ -160,8 +235,10 @@ bool gen_conv1x1_backprop_weight_t::generate(context_ptr ctx,
     type_ != generator_type_t::UNDEF, "Generator shall have an explicit type.");
   if (type_ == generator_type_t::REDUCE_N) {
     return generate_reduce_N(ctx, config, fusion, inputs, outputs, loops);
-  } else {
+  } else if (type_ == generator_type_t::REDUCE_ALL) {
     return generate_reduce_ALL(ctx, config, fusion, inputs, outputs, loops);
+  } else {
+    return generate_reduce_ALL2(ctx, config, fusion, inputs, outputs, loops);
   }
 }
 
@@ -587,6 +664,223 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL(const context_ptr &ctx,
       }
     }
     loops = {ln, lk, lc, lnt, lnpq, rlko, rlco, rlc};
+  }
+  return true;
+}
+
+bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
+  const conv_bwd_weight_config_t &config, fusion_manager *fusion,
+  const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+  std::vector<for_loop> &loops) const {
+  // Init
+  bool is_3d = ndims_ == 5;
+  bool is_bf16 = (get_dtype() == datatypes::bf16);
+  int num_threads = runtime_config_t::get().get_num_threads();
+  int padding_d = is_3d ? padding_[0] : 0, stride_d = is_3d ? stride_[0] : 1;
+  int padding_h = padding_[0], padding_w = padding_[0];
+  if (padding_.size() > 1) {
+    if (is_3d) { padding_d = padding_[ndims_ - 5]; }
+    padding_h = padding_[ndims_ - 4];
+    padding_w = padding_[ndims_ - 3];
+  }
+  int stride_h = stride_[0], stride_w = stride_[0];
+  if (stride_.size() > 1) {
+    if (is_3d) { stride_d = stride_[ndims_ - 5]; }
+    stride_h = stride_[ndims_ - 4];
+    stride_w = stride_[ndims_ - 3];
+  }
+
+  int N = get_data_dims()[0], IC = get_data_dims()[1],
+      IH = get_data_dims()[ndims_ - 2], IW = get_data_dims()[ndims_ - 1];
+  int OD = is_3d ? get_grad_input_dims()[2] : 1,
+      ID = is_3d ? get_data_dims()[2] : 1;
+  int OH = get_grad_input_dims()[ndims_ - 2],
+      OW = get_grad_input_dims()[ndims_ - 1];
+  int OC = get_grad_input_dims()[1];
+  int OC_block = config.K_block, IC_block = config.C_block,
+      N_block = config.N_block;
+  int OC_num_block = utils::divide_and_ceil(OC, OC_block),
+      IC_num_block = utils::divide_and_ceil(IC, IC_block),
+      N_num_block = utils::divide_and_ceil(N, N_block);
+  int N_tile = N_num_block / config.num_tile_n;
+  bool loop_sched = config.loop_sched;
+  auto dtype = get_dtype();
+  int dtype_block = (dtype == datatypes::bf16) ? 2 : 1;
+  std::vector<int> oh_locations, ow_locations, d_locations;
+  for (int i = 0; i < IH + 2 * padding_h; i++) {
+    if (i * stride_h >= padding_h && i * stride_h < IH + padding_h) {
+      oh_locations.push_back(i * stride_h);
+    }
+  }
+  for (int i = 0; i < IW + 2 * padding_w; i++) {
+    if (i * stride_w >= padding_w && i * stride_w < IW + padding_w) {
+      ow_locations.push_back(i * stride_w);
+    }
+  }
+  for (int i = 0; i < ID + 2 * padding_d; i++) {
+    if (i * stride_d >= padding_d && i * stride_d < ID + padding_d) {
+      d_locations.push_back(i * stride_d);
+    }
+  }
+  int OH_num_block = static_cast<int>(oh_locations.size()),
+      OW_num_block = static_cast<int>(ow_locations.size()),
+      D_num_block = is_3d ? static_cast<int>(d_locations.size()) : 1;
+  int padded_h_num
+    = static_cast<int>(utils::divide_and_ceil(padding_h, stride_h)),
+    padded_d_num
+    = static_cast<int>(utils::divide_and_ceil(padding_d, stride_d)),
+    padded_w_num
+    = static_cast<int>(utils::divide_and_ceil(padding_w, stride_w));
+
+  // define compute
+  for_loop ln, lc, lk, ld, lp;
+  for_loop rlco, rlko, rlk;
+  expr out = outputs.at(op_params_t::out_del_weight),
+       data_input = inputs.at(op_params_t::in_data),
+       grad_input = inputs.at(op_params_t::in_fwd_output);
+  auto filter_dims
+    = out_tensors_[op_params_t::out_del_weight].get_blocking_dims();
+  std::vector<expr> out_tmp_buf_shape;
+  out_tmp_buf_shape.reserve(filter_dims.size());
+  for (auto dim : filter_dims) {
+    out_tmp_buf_shape.emplace_back(dim2unsigned(dim));
+  }
+  out_tmp_buf_shape.insert(out_tmp_buf_shape.begin(), num_threads);
+
+  {
+    _tensor_(out_tmp_buf, datatypes::f32, out_tmp_buf_shape);
+    expr real_out_tmp_buf = out_tmp_buf;
+    slice_range data_input_slice_in_range, data_input_slice_out_range,
+      grad_input_slice_in_range, grad_input_slice_out_range;
+
+    if (config.loop_sched == 1) {
+      // initialize tensor
+      trace_guard_t trg(ctx, "zero_init");
+      _for_(tid, 0, num_threads, 1, for_type::PARALLEL) {
+        auto size = 1UL;
+        for (auto dim : filter_dims) {
+          size *= dim2unsigned(dim);
+        }
+        builtin::mem_zero(tensor_ptr(out_tmp_buf,
+                            is_3d ? std::vector<expr> {tid, 0, 0, 0, 0, 0, 0, 0}
+                                  : std::vector<expr> {tid, 0, 0, 0, 0, 0, 0}),
+          size, datatypes::f32);
+      }
+    } else {
+      real_out_tmp_buf = out;
+    }
+    {
+      // core computation
+      _named_for_(lk, oc, 0, OC_num_block, 1, for_type::PARALLEL) {
+        _named_for_(lc, ic, 0, IC_num_block) {
+          _named_for_(ln, bs, 0, N_num_block) {
+            _named_for_(ld, d, 0, D_num_block) {
+              _named_for_(lp, oh, 0, OH_num_block) {
+                _var_init_(
+                  tid, datatypes::s32, builtin::get_thread_id_func()());
+                std::vector<expr> grad_input_idx
+                  = {bs, oc, oh + padded_h_num, padded_w_num, 0, 0},
+                  data_input_idx
+                  = {bs, ic, oh * stride_h + oh_locations[0] - padding_h,
+                    ow_locations[0] - padding_w, 0, 0},
+                  out_tmp_idx = {tid, oc, ic, 0, 0, 0, 0};
+                if (config.loop_sched == 2) {
+                  out_tmp_idx = {oc, ic, 0, 0, 0, 0};
+                }
+                if (is_3d) {
+                  grad_input_idx.insert(
+                    grad_input_idx.begin() + 2, d + padded_d_num);
+                  data_input_idx.insert(data_input_idx.begin() + 2,
+                    d * stride_d + d_locations[0] - padding_d);
+                  out_tmp_idx.emplace_back(expr(0));
+                }
+                if (dtype_block > 1) { data_input_idx.emplace_back(expr(0)); }
+                trace_guard_t trg(ctx, "brgemm");
+                _if_(d == 0 && oh == 0 && bs == 0) {
+                  builtin::brgemm_init_update(
+                    tensor_ptr(grad_input, grad_input_idx),
+                    tensor_ptr(data_input, data_input_idx),
+                    tensor_ptr(real_out_tmp_buf, out_tmp_idx), OW_num_block,
+                    OC_block, IC_block, N_block, N_block, IC_block, IC_block,
+                    OC_block * N_block,
+                    stride_w * IC_block
+                      * (int)utils::divide_and_ceil(N_block, dtype_block)
+                      * dtype_block,
+                    dtype, dtype);
+                }
+                _else_ {
+                  builtin::brgemm_update(tensor_ptr(grad_input, grad_input_idx),
+                    tensor_ptr(data_input, data_input_idx),
+                    tensor_ptr(real_out_tmp_buf, out_tmp_idx), OW_num_block,
+                    OC_block, IC_block, N_block, N_block, IC_block, IC_block,
+                    OC_block * N_block,
+                    stride_w * IC_block
+                      * (int)utils::divide_and_ceil(N_block, dtype_block)
+                      * dtype_block,
+                    dtype, dtype);
+                }
+              }
+            }
+          }
+          if (config.loop_sched == 2 && fusion) {
+            auto loop = ln->fuse(ld)->fuse(lp);
+            loop->attr().set("temp.loop_no_fuse", true);
+            trace_guard_t trg(ctx, "post_fusion");
+            fusion->create_output_fusion_anchor({tensor_slice(real_out_tmp_buf,
+              {{oc, 1}, {ic, 1}, {0, 1}, {0, 1}, {0, OC_block},
+                {0, IC_block}})});
+          }
+        }
+      }
+    }
+    int lanes = 1;
+    if (IC_block / 16 && IC_block % 16 == 0) {
+      lanes = std::min(16U, ctx->get_max_vector_lanes(get_dtype().type_code_));
+    }
+    if (config.loop_sched == 1) {
+      // final reduce
+      _named_for_(rlko, l_oc, 0, OC_num_block, 1, for_type::PARALLEL) {
+        _named_for_(rlco, l_ic, 0, IC_num_block, 1) {
+          {
+            trace_guard_t trg(ctx, "final_reduce");
+            builtin::mem_zero(
+              tensor_ptr(out,
+                is_3d ? std::vector<expr> {l_oc, l_ic, 0, 0, 0, 0, 0}
+                      : std::vector<expr> {l_oc, l_ic, 0, 0, 0, 0}),
+              IC_block * OC_block, datatypes::f32);
+            _named_for_(rlk, l_k, 0, OC_block, 1) {
+              _for_(l_c, 0, IC_block, lanes) {
+                _for_(l_tid, 0, num_threads, 1) {
+                  std::vector<expr> out_idx = {l_oc, l_ic, 0, 0, l_k, l_c},
+                                    out_tmp_idx
+                    = {l_tid, l_oc, l_ic, 0, 0, l_k, l_c};
+                  if (is_3d) {
+                    out_idx.insert(out_idx.begin() + 2, expr(0));
+                    out_tmp_idx.insert(out_tmp_idx.begin() + 2, expr(0));
+                  }
+                  out[span_t(out_idx, lanes)]
+                    = builder::make_add(out[span_t(out_idx, lanes)],
+                      real_out_tmp_buf[span_t(out_tmp_idx, lanes)]);
+                }
+              }
+            }
+          }
+          if (fusion) {
+            trace_guard_t trg(ctx, "post_fusion");
+            if (is_3d) {
+              fusion->create_output_fusion_anchor({tensor_slice(out,
+                {{l_oc, 1}, {l_ic, 1}, {0, 1}, {0, 1}, {0, 1}, {0, OC_block},
+                  {0, IC_block}})});
+            } else {
+              fusion->create_output_fusion_anchor({tensor_slice(out,
+                {{l_oc, 1}, {l_ic, 1}, {0, 1}, {0, 1}, {0, OC_block},
+                  {0, IC_block}})});
+            }
+          }
+        }
+      }
+    }
+    loops = {lk, lc, ln, ld, lp, rlko, rlco};
   }
   return true;
 }
