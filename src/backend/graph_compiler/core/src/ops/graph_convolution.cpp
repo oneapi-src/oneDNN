@@ -21,6 +21,7 @@
 #include "compiler/ir/graph/fusible_op.hpp"
 #include "convolution.hpp"
 #include "graph_convolution.hpp"
+#include <ops/templates/utils.hpp>
 #include <util/math_utils.hpp>
 
 namespace sc {
@@ -260,6 +261,24 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     COMPILE_ASSERT(dim == 4 || dim == 5, "Only support conv2D and conv3D.");
     auto is_3D = (dim == 5);
 
+    auto filter_shape = inputs[1]->details_.get_plain_dims();
+    bool is_3x3 = std::all_of(filter_shape.begin() + 2, filter_shape.end(),
+                          [](int x) { return x == 3; })
+            || std::all_of(filter_shape.begin(), filter_shape.end() - 2,
+                    [](int x) { return x == 3; });
+    auto &stride = attrs_.get<sc_dims>("strides");
+    auto &pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    bool stride_all_1 = std::all_of(
+            stride.begin(), stride.end(), [](int x) { return x == 1; });
+    bool padding_all_1 = std::all_of(
+            pads_begin.begin(), pads_begin.end(), [](int x) { return x == 1; });
+    bool valid_padding
+            = (attrs_.has_key("auto_pad")
+                      && attrs_.get<std::string>("auto_pad") == "SAME_UPPER")
+            || padding_all_1;
+
     // insert transpose to make NXC --> NCX and XIO --> OIX
     if (data_format == "NXC") {
         auto permute_output_delta = graph->make("transpose", {output_delta}, {},
@@ -281,8 +300,24 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         filter = permute_weight->get_outputs()[0];
     }
 
-    conv = graph->make(
-            "conv_bwd_data_core", {output_delta, filter}, {}, attrs_);
+    auto ctx = sc::get_default_context();
+    if (!is_3D && is_use_amx(ctx) && is_3x3 && stride_all_1 && valid_padding) {
+        // use conv fwd core instead
+        // make KCRS --> CKRS, since
+        // conv_fwd_core is NCHW (x) KCRS
+        // conv_bwd's semantic shall be NKHW (x) CKRS
+        auto permute_channel = graph->make("transpose", {filter}, {},
+                {{"order",
+                        is_3D ? std::vector<int> {1, 0, 2, 3, 4}
+                              : std::vector<int> {1, 0, 2, 3}}});
+        filter = permute_channel->get_outputs()[0];
+        attrs_.set("inverse_filter", true);
+        conv = graph->make("conv_fwd_core", {output_delta, filter}, {}, attrs_);
+    } else {
+        conv = graph->make(
+                "conv_bwd_data_core", {output_delta, filter}, {}, attrs_);
+    }
+
     if (is_bf16) {
         conv = graph->make(
                 "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});

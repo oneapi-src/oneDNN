@@ -997,7 +997,7 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             //  add the axis to indexing node
             out_nd->idx_.insert(
                     out_nd->idx_.begin(), builtin::get_thread_id_func()());
-            return builder::make_assign_unattached(out[0], in[0]);
+            return builder::make_assign_unattached(out[0], out[0] + in[0]);
         };
         compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),

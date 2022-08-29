@@ -154,6 +154,8 @@ public:
         } else if (l->dtype_ != r->dtype_) {
             do_promote(l, r);
             changed = true;
+        } else if (v->dtype_ == datatypes::undef) {
+            changed = true;
         }
         sc_data_type_t dtype = l->dtype_;
         if (changed) {

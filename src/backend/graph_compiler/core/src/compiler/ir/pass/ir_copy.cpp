@@ -38,6 +38,7 @@ bool ir_copier_impl_t::find_and_return(const expr_c &v) {
     auto itr = replace_map_.find(v);
     if (itr != replace_map_.end()) {
         returned_expr_ = itr->second;
+        if (!returned_expr_.defined()) { return false; }
         return true;
     } else {
         // if the var/tensor is not found in the replace map
@@ -61,7 +62,7 @@ void ir_copier_impl_t::view(constant_c v) {
 void ir_copier_impl_t::view(var_c v) {
     if (find_and_return(v)) return;
     returned_expr_ = builder::make_var(v->dtype_, v->name_);
-    replace_map_.insert(std::make_pair(v, returned_expr_));
+    replace_map_[v] = returned_expr_;
 }
 
 void ir_copier_impl_t::view(cast_c v) {
@@ -162,7 +163,7 @@ void ir_copier_impl_t::view(tensor_c v) {
     }
     returned_expr_ = builder::make_stensor(v->name_, args, strides,
             v->elem_dtype_, v->address_space_, v->init_value_);
-    replace_map_.insert(std::make_pair(v, returned_expr_));
+    replace_map_[v] = returned_expr_;
 }
 
 void ir_copier_impl_t::view(assign_c v) {

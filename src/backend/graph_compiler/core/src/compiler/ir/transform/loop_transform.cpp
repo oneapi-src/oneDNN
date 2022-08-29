@@ -139,6 +139,7 @@ class ir_copier_with_unroll_check_t : public ir_copier_impl_t {
     void view(define_c v) override {
         COMPILE_ASSERT(v->linkage_ == linkage::local,
                 "Only allow local variables in unroll, got: " << v);
+        replace_map_[v->var_] = expr();
         ir_copier_impl_t::view(std::move(v));
     }
 
@@ -211,8 +212,6 @@ void for_loop_node_t::unroll(uint64_t factor, const stmt &parent) {
     newvar->name_ += "_u";
 
     // make the new unrolled body
-    std::unordered_map<expr_c, expr> replace_map;
-    ir_copier_with_unroll_check_t copier(replace_map, false);
     stmts seq = make_stmt<stmts_node_t>(std::vector<stmt>());
     // make the indexing variable that can be shared by all unrolled stmts
     expr newidx = oldvar->remake();
@@ -229,6 +228,8 @@ void for_loop_node_t::unroll(uint64_t factor, const stmt &parent) {
     }
     // unroll by the factor
     for (uint64_t i = 0; i < factor; i++) {
+        std::unordered_map<expr_c, expr> replace_map;
+        ir_copier_with_unroll_check_t copier(replace_map, false);
         replace_map[oldvar] = replace_value + (is_const ? i * step : i * step_);
         seq->seq_.emplace_back(copier.copy(body_));
     }

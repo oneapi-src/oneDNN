@@ -342,9 +342,14 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
                      mean = inputs[2], variance = inputs[3], gamma = inputs[4];
     graph_tensor_ptr src_pass2 = inputs[0], output_delta_pass2 = inputs[1];
     if (is_bf16_src) {
-        auto cast0 = graph->make(
-                "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
+        auto cast0 = graph->make("cast", {inputs[0]}, {},
+                {{"dtype", datatypes::f32},
+                        {op_attr_key::not_redundant, true}});
         src = cast0->get_outputs()[0];
+        auto cast0_pass2 = graph->make("cast", {inputs[0]}, {},
+                {{"dtype", datatypes::f32}, {op_attr_key::break_pre_fuse, true},
+                        {op_attr_key::not_redundant, true}});
+        src_pass2 = cast0_pass2->get_outputs()[0];
         auto cast1 = graph->make("cast", {inputs[1]}, {},
                 {{"dtype", datatypes::f32},
                         {op_attr_key::not_redundant, true}});
@@ -383,8 +388,8 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     auto var_eps = graph->make(
             "add", {variance, const_op->get_outputs()[0]}, {}, {});
     // rsqrt(var + eps)
-    auto rsqrt_var_eps = graph->make("squared_root", var_eps->get_outputs(), {},
-            {{"reciprocal", true}, {op_attr_key::break_post_fuse, true}});
+    auto rsqrt_var_eps = graph->make(
+            "squared_root", var_eps->get_outputs(), {}, {{"reciprocal", true}});
     // x - mu
     auto x_mu = graph->make("sub", {src, mean}, {}, {{"bc_axis", bc_axis}});
     // x_hat = (x - mu) *  rsqrt(var + eps)
@@ -392,6 +397,16 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
             {x_mu->get_outputs()[0], rsqrt_var_eps->get_outputs()[0]}, {},
             {{"bc_axis", bc_axis}});
     // ------ calculate x_hat end ------
+
+    // ------ duplicate x_mu && x_hat start ------
+    auto x_mu_pass2
+            = graph->make("sub", {src_pass2, mean}, {}, {{"bc_axis", bc_axis}});
+    // x_hat = (x - mu) *  rsqrt(var + eps)
+    auto x_hat_pass2 = graph->make("mul",
+            {x_mu_pass2->get_outputs()[0], rsqrt_var_eps->get_outputs()[0]}, {},
+            {{"bc_axis", bc_axis}});
+    // ------ duplicate x_mu && x_hat end ------
+
     // gamma_delta = reducesum(dy * x_hat)
     auto dy_x_hat = graph->make(
             "mul", {output_delta, x_hat->get_outputs()[0]}, {}, {});
@@ -400,20 +415,11 @@ void batchnorm_training_backprop_op_t::get_graph_impl(
     // gamma * x_hat + beta = y --> beta_delta = reducesum(dy)
     auto beta_delta = graph->make("reduce", {output_delta}, {},
             {{"rd_axis", rd_axis}, {"rd_op", 0}, {"keep_dims", false}});
-    // ------ cast & cast back x_hat ------
-    if (is_bf16_src) {
-        auto cast_x_hat = graph->make("cast", x_hat->get_outputs(), {},
-                {{"dtype", datatypes::bf16},
-                        {op_attr_key::break_post_fuse, true}});
-        auto cast_x_hat_back = graph->make("cast", cast_x_hat->get_outputs(),
-                {}, {{"dtype", datatypes::f32}});
-        x_hat = cast_x_hat_back;
-    }
     // ------ calculate x_delta start ------
     // calculate: (x - mu) * rsqrt(var + eps) * gamma_delta <==> x_hat *
     // gamma_delta
     auto x_hat_gamma_delta = graph->make("mul",
-            {x_hat->get_outputs()[0], gamma_delta->get_outputs()[0]}, {},
+            {x_hat_pass2->get_outputs()[0], gamma_delta->get_outputs()[0]}, {},
             {{"bc_axis", bc_axis}});
     // add beta_delta and x_hat_gamma_delta
     auto add = graph->make("add",

@@ -87,12 +87,16 @@ static int get_lanes(
 config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   auto ret = reflection::general_object_t::make<conv_fwd_config_t>();
   conv_fwd_config_t &cfg = *ret.unchecked_get_as<conv_fwd_config_t>();
-  if (oc_ % 32 == 0) {
+  if (inverse_filter_) {
+    cfg.K_block = 64;
+  } else if (oc_ % 32 == 0) {
     cfg.K_block = 32;
   } else {
     cfg.K_block = oc_;
   }
-  if (ic_ % 32 == 0) {
+  if (inverse_filter_) {
+    cfg.C_block = 64;
+  } else if (ic_ % 32 == 0) {
     cfg.C_block = 32;
   } else {
     cfg.C_block = ic_;
@@ -1399,7 +1403,13 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
               _for_(r, 0, kh_) {
                 _for_(s, 0, kw_) {
                   _var_(idx, datatypes::u32);
-                  idx = builder::make_cast(datatypes::u32, r * kw_ + s);
+                  // inverse the idx
+                  if (inverse_filter_) {
+                    idx = builder::make_cast(
+                      datatypes::u32, kh_ * kw_ - 1 - (r * kw_ + s));
+                  } else {
+                    idx = builder::make_cast(datatypes::u32, r * kw_ + s);
+                  }
                   B_list[idx] = tensor_ptr(weight,
                     kpack > 1 ? std::vector<expr> {k_o, c_o, r, s, 0, 0, 0}
                               : std::vector<expr> {k_o, c_o, r, s, 0, 0});
@@ -1436,6 +1446,13 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
             }
           }
         }
+      }
+      if (fusion) {
+        fusion->create_output_fusion_anchor({tensor_slice(output,
+          blocking_output_ ? slice_range {{n, 1}, {k_o, 1}, {0, oh_}, {0, ow_},
+            {0, config.K_block}}
+                           : slice_range {{n, 1}, {0, oh_}, {0, ow_},
+                             {k_o * config.K_block, config.K_block}})});
       }
     }
   }
@@ -1616,6 +1633,8 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
   if (is_1x1_conv_) {
     COMPILE_ASSERT(
       pd_ == 0 && ph_ == 0 && pw_ == 0, "1x1 conv doesn't support padding!");
+    COMPILE_ASSERT(
+      !inverse_filter_, "1x1 conv doesn't support inverse convolution.");
     if (is_3d_ || (pack_input == 0 && (sd_ > 1 || sh_ > 1 || sw_ > 1))) {
       compute_1x1_no_pack_input(ctx, config, fusion, output, input, weight,
         loops, K_num_block, C_num_block, os, kpack);
@@ -1625,6 +1644,8 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
     }
   } else {
     if (pd_ == 0 && ph_ == 0 && pw_ == 0) {
+      COMPILE_ASSERT(!inverse_filter_,
+        "conv NxN (no padding) does not support inverse convolution.");
       if (is_3d_) {
         compute_conv3d_no_padding(ctx, config, fusion, output, input, weight,
           loops, K_num_block, C_num_block, os, kpack);
@@ -1635,9 +1656,14 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
       }
     } else {
       if (is_use_amx(ctx) && (ph_ <= kh_ && pw_ <= kw_)) {
+        if (inverse_filter_) {
+          SC_INFO << "inverse_filter_ used in conv padding v2.";
+        }
         compute_conv_padding_v2(ctx, config, fusion, output, input, weight,
           loops, K_num_block, C_num_block, os, kpack);
       } else {
+        COMPILE_ASSERT(!inverse_filter_,
+          "conv padding v1 does not support inverse convolution.");
         compute_conv_padding(ctx, config, fusion, output, input, weight, loops,
           K_num_block, C_num_block, os, kpack);
       }
