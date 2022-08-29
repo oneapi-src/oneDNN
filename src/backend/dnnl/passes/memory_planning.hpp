@@ -29,9 +29,8 @@
 
 #include "utils/utils.hpp"
 
-#include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/scratchpad.hpp"
-#include "backend/dnnl/utils.hpp"
+#include "backend/dnnl/subgraph.hpp"
 
 #include "dnnl.hpp"
 

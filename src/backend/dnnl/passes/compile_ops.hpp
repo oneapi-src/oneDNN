@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,7 @@
 
 #include "interface/c_types_map.hpp"
 
-#include "backend/dnnl/passes/op_executable.hpp"
-#include "backend/dnnl/passes/utils.hpp"
+#include "backend/dnnl/subgraph.hpp"
 
 namespace dnnl {
 namespace graph {

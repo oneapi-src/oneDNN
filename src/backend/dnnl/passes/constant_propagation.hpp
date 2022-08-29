@@ -20,7 +20,7 @@
 
 #include "interface/c_types_map.hpp"
 
-#include "backend/dnnl/passes/utils.hpp"
+#include "backend/dnnl/subgraph.hpp"
 
 namespace dnnl {
 namespace graph {
