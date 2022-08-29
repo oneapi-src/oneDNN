@@ -3137,6 +3137,7 @@ bool reorder_kernel_builder_t::try_build(const std::vector<int> &iter_blocks,
     stmt_ = lift_buffer_offsets_in_send(stmt_, ir_ctx);
     stmt_ = inject_send(stmt_, ir_ctx);
     stmt_ = split_wide_stores(stmt_, ir_ctx);
+    stmt_ = fix_int32_overflow(stmt_, ir_ctx);
     stmt_ = eliminate_common_subexprs(
             stmt_, ir_ctx, hw_cfg_.regs() * hw_cfg_.grf_size());
     stmt_ = simplify(stmt_, ir_ctx);
