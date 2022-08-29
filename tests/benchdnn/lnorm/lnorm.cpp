@@ -70,12 +70,11 @@ int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
         alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
 
     const int64_t flex_bits = alg == ALG_0
-            ? want_flex_bits /* BFloat16 has only 7 bits of mantissa */
-            : MIN2(prb->dt[0] == dnnl_bf16 ? 7 : exact_bits,
-                    (exact_bits - logL) / 2 - 1);
+            ? want_flex_bits
+            : MIN2(exact_bits, (exact_bits - logL) / 2 - 1);
     if (flex_bits < min_flex_bits) return FAIL;
 
-    if (exact_bits == 2 * flex_bits) alg = ALG_2;
+    if (exact_bits / 2 == flex_bits) alg = ALG_2;
 
     if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
         const int64_t flex_mask = (1 << flex_bits) - 1;
