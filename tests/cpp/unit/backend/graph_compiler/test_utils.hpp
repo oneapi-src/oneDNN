@@ -2382,6 +2382,19 @@ inline impl::logical_tensor_t create_relu_bwd(utils::id_generator &id_gen,
     return delta;
 }
 
+inline impl::logical_tensor_t create_relu_bwd2(utils::id_generator &id_gen,
+        impl::graph_t &agraph, const impl::logical_tensor_t &dst,
+        const impl::logical_tensor_t &delta) {
+    impl::op_t relu_bwd(
+            id_gen.get_id(), impl::op_kind::ReLUBackprop, "relu_bwd");
+    auto output = utils::logical_tensor_init(id_gen.get_id(), dst.data_type);
+    relu_bwd.add_input(dst);
+    relu_bwd.add_input(delta);
+    relu_bwd.add_output(output);
+    agraph.add_op(&relu_bwd);
+    return output;
+}
+
 // create conv training fwd and bwd together since the connection is complex
 // src is the src of the first conv_fwd
 // delta_in is the destination of the last conv_bwd
@@ -2404,7 +2417,7 @@ inline std::vector<impl::logical_tensor_t> create_convolution_training(
         const impl::dims &pads_begin, const impl::dims &pads_end,
         const std::string &data_format, const std::string &filter_format,
         bool with_bn = false, float epsilon = 1e-6f, bool with_momentum = false,
-        float momentum = 1e-6f, bool with_relu = false,
+        float momentum = 0.0f, bool with_relu = false,
         impl::logical_tensor_t *known_delta_in_next = nullptr,
         bool is_bn_bf16 = false) {
     auto bn_dtype = is_bn_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
@@ -2412,8 +2425,17 @@ inline std::vector<impl::logical_tensor_t> create_convolution_training(
             id_gen.get_id(), impl::op_kind::Convolution, "conv_fwd");
     conv_fwd.set_attr<impl::dims>(impl::op_attr::strides, strides);
     conv_fwd.set_attr<impl::dims>(impl::op_attr::dilations, impl::dims {1, 1});
-    conv_fwd.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
-    conv_fwd.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    if (std::all_of(strides.begin(), strides.end(),
+                [](size_t x) { return x == 1; })) {
+        conv_fwd.set_attr<impl::dims>(
+                impl::op_attr::pads_begin, impl::dims {0, 0});
+        conv_fwd.set_attr<impl::dims>(
+                impl::op_attr::pads_end, impl::dims {0, 0});
+        conv_fwd.set_attr<std::string>(impl::op_attr::auto_pad, "SAME_UPPER");
+    } else {
+        conv_fwd.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
+        conv_fwd.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    }
     conv_fwd.set_attr<std::string>(impl::op_attr::data_format, data_format);
     conv_fwd.set_attr<std::string>(impl::op_attr::filter_format, filter_format);
 
@@ -2477,10 +2499,10 @@ inline std::vector<impl::logical_tensor_t> create_convolution_training(
                 id_gen.get_id(), {bn_ic}, bn_dtype);
 
         bn_fwd.add_input(bn_src);
-        bn_fwd.add_input(gamma);
-        bn_fwd.add_input(beta);
         bn_fwd.add_input(mean);
         bn_fwd.add_input(var);
+        bn_fwd.add_input(gamma);
+        bn_fwd.add_input(beta);
         bn_fwd.add_output(dst);
         bn_fwd.add_output(running_mean);
         bn_fwd.add_output(running_variance);
@@ -2536,9 +2558,9 @@ inline std::vector<impl::logical_tensor_t> create_convolution_training(
 
         bn_bwd.add_input(bn_src);
         bn_bwd.add_input(output_delta);
-        bn_bwd.add_input(gamma);
         bn_bwd.add_input(mean);
         bn_bwd.add_input(var);
+        bn_bwd.add_input(gamma);
         output_delta = utils::logical_tensor_init(
                 id_gen.get_id(), dst_shape, src.data_type);
         bn_bwd.add_output(output_delta);
@@ -2553,8 +2575,19 @@ inline std::vector<impl::logical_tensor_t> create_convolution_training(
     conv_bwd_data.set_attr<impl::dims>(impl::op_attr::strides, strides);
     conv_bwd_data.set_attr<impl::dims>(
             impl::op_attr::dilations, impl::dims {1, 1});
-    conv_bwd_data.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
-    conv_bwd_data.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    if (std::all_of(strides.begin(), strides.end(),
+                [](size_t x) { return x == 1; })) {
+        conv_bwd_data.set_attr<impl::dims>(
+                impl::op_attr::pads_begin, impl::dims {0, 0});
+        conv_bwd_data.set_attr<impl::dims>(
+                impl::op_attr::pads_end, impl::dims {0, 0});
+        conv_bwd_data.set_attr<std::string>(
+                impl::op_attr::auto_pad, "SAME_UPPER");
+    } else {
+        conv_bwd_data.set_attr<impl::dims>(
+                impl::op_attr::pads_begin, pads_begin);
+        conv_bwd_data.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    }
     conv_bwd_data.set_attr<std::string>(
             impl::op_attr::data_format, data_format);
     conv_bwd_data.set_attr<std::string>(
@@ -2570,8 +2603,19 @@ inline std::vector<impl::logical_tensor_t> create_convolution_training(
     conv_bwd_weight.set_attr<impl::dims>(impl::op_attr::strides, strides);
     conv_bwd_weight.set_attr<impl::dims>(
             impl::op_attr::dilations, impl::dims {1, 1});
-    conv_bwd_weight.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
-    conv_bwd_weight.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    if (std::all_of(strides.begin(), strides.end(),
+                [](size_t x) { return x == 1; })) {
+        conv_bwd_weight.set_attr<impl::dims>(
+                impl::op_attr::pads_begin, impl::dims {0, 0});
+        conv_bwd_weight.set_attr<impl::dims>(
+                impl::op_attr::pads_end, impl::dims {0, 0});
+        conv_bwd_weight.set_attr<std::string>(
+                impl::op_attr::auto_pad, "SAME_UPPER");
+    } else {
+        conv_bwd_weight.set_attr<impl::dims>(
+                impl::op_attr::pads_begin, pads_begin);
+        conv_bwd_weight.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    }
     conv_bwd_weight.set_attr<std::string>(
             impl::op_attr::data_format, data_format);
     conv_bwd_weight.set_attr<std::string>(
@@ -2624,8 +2668,13 @@ inline void construct_identical_bottleneck_training_subgraph(
     auto relu_bwd
             = create_relu_bwd(id_gen, *agraph, relu, delta_in2, input_shape);
     auto add_bwd = utils::create_add(id_gen, *agraph, delta_in2, delta_data);
+    auto relu_bwd_last_src
+            = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto relu_bwd_last
+            = create_relu_bwd2(id_gen, *agraph, relu_bwd_last_src, add_bwd);
     (void)(add_bwd);
     (void)(relu_bwd);
+    (void)(relu_bwd_last);
 }
 
 // filter is in order {rhs, lhs0, lhs1, lhs2}
@@ -2684,9 +2733,14 @@ inline void construct_convolutional_bottleneck_training_subgraph(
             infer_output_shape(input_shape));
     auto add_bwd = utils::create_add(
             id_gen, *agraph, delta_data_lhs, delta_data_rhs);
+    auto relu_bwd_last_src
+            = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto relu_bwd_last
+            = create_relu_bwd2(id_gen, *agraph, relu_bwd_last_src, add_bwd);
     (void)(delta_in_lhs2);
     (void)(add_bwd);
     (void)(relu_bwd);
+    (void)(relu_bwd_last);
 }
 
 } // namespace utils
