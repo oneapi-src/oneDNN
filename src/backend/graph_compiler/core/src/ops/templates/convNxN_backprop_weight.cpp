@@ -54,26 +54,31 @@ config_ptr gen_convNxN_backprop_weight::get_default_config(
   int is_bf16 = (get_dtype() == datatypes::bf16);
   int Q_reduce = calculate_q_reduce(Q, is_bf16);
 
-  if (K % 64 == 0) {
+  // while K and C are small, use N_block = 16; K_block = K; C_block = C
+  bool large_spatial = (P >= 56 && Q >= 56);
+  if (large_spatial && N % 16 == 0) {
+    cfg.N_block = 16;
+  } else if (N % 32 == 0) {
+    cfg.N_block = 32;
+  } else {
+    cfg.N_block = N;
+  }
+
+  if (K % 64 == 0 && !large_spatial) {
     cfg.K_block = 64;
   } else {
     cfg.K_block = K;
   }
-  if (C % 64 == 0) {
+  if (C % 64 == 0 && !large_spatial) {
     cfg.C_block = 64;
   } else {
     cfg.C_block = C;
   }
-  cfg.tile_p = P;
+  cfg.tile_p = 1;
   if (type_ == REDUCE_W) {
     cfg.tile_q = Q_reduce;
   } else {
     cfg.tile_q = Q;
-  }
-  if (N % 64 == 0) {
-    cfg.N_block = 64;
-  } else {
-    cfg.N_block = N;
   }
   cfg.loop_sched = 1;
   return std::move(ret);
@@ -326,8 +331,8 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
     if (N_num_block > 1) {
       int lanes = 1;
       if (C_block / 16 && C_block % 16 == 0) {
-        lanes
-          = std::min(16U, ctx->get_max_vector_lanes(get_dtype().type_code_));
+        lanes = std::min(
+          16U, ctx->get_max_vector_lanes(out_tensors_[0].dtype_.type_code_));
       }
       // KC(D)RSkc
       _named_for_(rlko, l_k_o, 0, K_num_block, 1, for_type::PARALLEL) {

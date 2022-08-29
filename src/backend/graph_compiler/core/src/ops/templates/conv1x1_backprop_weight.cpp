@@ -41,29 +41,33 @@ config_ptr gen_conv1x1_backprop_weight_t::get_default_config(
   auto ret = reflection::general_object_t::make<conv_bwd_weight_config_t>();
   conv_bwd_weight_config_t &cfg
     = *ret.unchecked_get_as<conv_bwd_weight_config_t>();
-  int padding_d = ndims_ == 5 ? padding_[0] : 0;
-  int padding_h = padding_[0];
-  if (padding_.size() > 1) { padding_h = padding_[ndims_ - 4]; }
   int N = static_cast<int>(get_data_dims()[0]);
   int C = static_cast<int>(get_data_dims()[1]);
   int K = static_cast<int>(get_grad_input_dims()[1]);
   int P = static_cast<int>(get_grad_input_dims()[ndims_ - 2]);
-  if (K % 32 == 0) {
-    cfg.K_block = 32;
-  } else {
-    cfg.K_block = K;
-  }
-  if (C % 32 == 0) {
-    cfg.C_block = 32;
-  } else {
-    cfg.C_block = C;
-  }
-  if (N % 32 == 0) {
+  int Q = static_cast<int>(get_grad_input_dims()[ndims_ - 1]);
+
+  // temporarily deal with first stage
+  bool large_spatial = (P >= 56 && Q >= 56);
+  if (large_spatial && N % 16 == 0) {
+    cfg.N_block = 16;
+  } else if (N % 32 == 0) {
     cfg.N_block = 32;
   } else {
     cfg.N_block = N;
   }
-  cfg.tile_p = P - 2 * padding_h;
+
+  if (K % 64 == 0 && !large_spatial) {
+    cfg.K_block = 64;
+  } else {
+    cfg.K_block = K;
+  }
+  if (C % 64 == 0 && !large_spatial) {
+    cfg.C_block = 64;
+  } else {
+    cfg.C_block = C;
+  }
+  cfg.tile_p = 1;
   cfg.loop_sched = 1;
   cfg.num_tile_n = 1;
   cfg.tile_q = 1;
@@ -224,7 +228,7 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
     = static_cast<int>(utils::divide_and_ceil(padding_w, stride_w));
 
   // define compute
-  for_loop ln, lc, lk;
+  for_loop ln, lc, lk, ld, lp;
   for_loop rlco, rlko, rlk;
   expr del_weight = outputs.at(op_params_t::out_del_weight),
        data = inputs.at(op_params_t::in_data),
@@ -242,8 +246,8 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
     _named_for_(ln, n_o, 0, N_num_block, 1, for_type::PARALLEL) {
       _named_for_(lk, k_o, 0, K_num_block) {
         _named_for_(lc, c_o, 0, C_num_block) {
-          _for_(d_o, 0, D_num_block) {
-            _for_(p_o, 0, P_num_block) {
+          _named_for_(ld, d_o, 0, D_num_block) {
+            _named_for_(lp, p_o, 0, P_num_block) {
               std::vector<expr> output_idx
                 = {n_o, k_o, p_o + padded_h_num, padded_w_num, 0, 0},
                 data_idx
@@ -286,7 +290,8 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
     }
     int lanes = 1;
     if (C_block / 16 && C_block % 16 == 0) {
-      lanes = std::min(16U, ctx->get_max_vector_lanes(get_dtype().type_code_));
+      lanes = std::min(
+        16U, ctx->get_max_vector_lanes(out_tensors_[0].dtype_.type_code_));
     }
     // KC(D)RSkc
     _named_for_(rlko, l_k_o, 0, K_num_block, 1, for_type::PARALLEL) {
@@ -327,9 +332,10 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
       }
     }
     loops = {ln, lk, lc, rlko, rlco};
-
-    return true;
   }
+  ld->attr().set("temp.loop_no_fuse", true);
+  lp->attr().set("temp.loop_no_fuse", true);
+  return true;
 }
 
 bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL(const context_ptr &ctx,
@@ -539,7 +545,8 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL(const context_ptr &ctx,
     }
     int lanes = 1;
     if (K_block / 16 && K_block % 16 == 0) {
-      lanes = std::min(16U, ctx->get_max_vector_lanes(get_dtype().type_code_));
+      lanes = std::min(
+        16U, ctx->get_max_vector_lanes(out_tensors_[0].dtype_.type_code_));
     }
     // KC(D)RSck
     _named_for_(rlko, l_k_o, 0, K_num_block, 1, for_type::PARALLEL) {

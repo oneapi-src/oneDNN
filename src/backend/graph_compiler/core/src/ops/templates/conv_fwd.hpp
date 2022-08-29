@@ -89,6 +89,8 @@ public:
 
   std::vector<int> get_os_factors();
 
+  bool inverse_filter_ = false;
+
 protected:
 #define CONV_ARG_LIST \
   const context_ptr &ctx, const conv_fwd_config_t &config, \

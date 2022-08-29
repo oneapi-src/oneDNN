@@ -168,16 +168,20 @@ SC_DEF_FMT(ABba, 0, 1, 1, 0)
 SC_DEF_FMT(BAab, 1, 0, 0, 1)
 SC_DEF_FMT(ABCDb, 0, 1, 2, 3, 1)
 SC_DEF_FMT(ABCDba, 0, 1, 2, 3, 1, 0)
+SC_DEF_FMT(BACDab, 1, 0, 2, 3, 0, 1)
 // for bert
 SC_DEF_FMT(ABDCcd, 0, 1, 3, 2, 2, 3)
 SC_DEF_FMT(ABDCcdc, 0, 1, 3, 2, 2, 3, 2)
 SC_DEF_FMT(ABCDdcd, 0, 1, 2, 3, 3, 2, 3)
 SC_DEF_FMT(ABCDEb, 0, 1, 2, 3, 4, 1)
 SC_DEF_FMT(ABCDEba, 0, 1, 2, 3, 4, 1, 0)
+SC_DEF_FMT(BACDEab, 1, 0, 2, 3, 4, 0, 1)
 
 // vnni format
 SC_DEF_FMT(KCRSckc, 0, 1, 2, 3, 1, 0, 1)
 SC_DEF_FMT(KCDRSckc, 0, 1, 2, 3, 4, 1, 0, 1)
+SC_DEF_FMT(CKRSkck, 1, 0, 2, 3, 0, 1, 0)
+SC_DEF_FMT(CKDRSkck, 1, 0, 2, 3, 4, 0, 1, 0)
 SC_DEF_FMT(NKknk, 1, 0, 0, 1, 0)
 SC_DEF_FMT(BNKknk, 1, 0, 0, 1, 0)
 
@@ -193,7 +197,7 @@ constexpr auto NCHW = ABCD, NHWC = ACDB, KCRS = ABCD, NKHW = ABCD, MK = AB,
                KN = AB, NK = BA, MN = AB, NCHWc = ABCDb, NKHWk = ABCDb,
                KCRSck = ABCDba, MKmk = ABab, NKkn = BAab, MNmn = ABab,
                NCDHW = ABCDE, NDHWC = ACDEB, KCDRS = ABCDE, NCDHWc = ABCDEb,
-               KCDRSck = ABCDEba;
+               KCDRSck = ABCDEba, CKRSkc = BACDab, CKDRSkc = BACDEab;
 #undef SC_DEF_FMT
 }; // namespace format_kinds
 struct SC_API sc_data_format_t {
@@ -291,6 +295,18 @@ struct SC_API sc_data_format_t {
     }
     constexpr static inline sc_data_format_t KCDRSck4c(int c, int k) {
         return sc_data_format_t(format_kinds::KCDRSckc, {c, k, 4, 0});
+    }
+    constexpr static inline sc_data_format_t CKRSkc(int k, int c) {
+        return sc_data_format_t(format_kinds::CKRSkc, {k, c, 0, 0});
+    }
+    constexpr static inline sc_data_format_t CKRSkc2k(int k, int c) {
+        return sc_data_format_t(format_kinds::CKRSkck, {k, c, 2});
+    }
+    constexpr static inline sc_data_format_t CKDRSkc(int k, int c) {
+        return sc_data_format_t(format_kinds::CKDRSkc, {k, c, 0, 0});
+    }
+    constexpr static inline sc_data_format_t CKDRSkc2k(int k, int c) {
+        return sc_data_format_t(format_kinds::CKDRSkck, {k, c, 2});
     }
 
     sc_data_format_kind_t format_code_;

@@ -158,13 +158,6 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
         }
     }
 
-    if (auto collc_op = op->dyn_cast<reduce_collect_op_t>()) {
-        if (collc_op->is_place_holder_op()) {
-            g2b_map_.get(op->get_outputs()[0])
-                    = g2b_map_.get(op->get_inputs()[0]);
-        }
-    }
-
     if (auto tv_op = op->dyn_cast<tensor_view_op_t>()) {
         auto inp = tv_op->get_inputs()[0];
         if ((inp->uses_.size() == 1)
@@ -195,6 +188,16 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                 "output of reduce_compute_op_t should be tensor type")
         buf.checked_as<tensor>()->init_value_
                 = tensor_node::get_zero_tensor_initializer();
+    }
+
+    if (auto collc_op = op->dyn_cast<reduce_collect_op_t>()) {
+        if (!collc_op->is_place_holder_op()) {
+            auto buf = g2b_map_.get(op->get_outputs()[0]);
+            COMPILE_ASSERT(buf.isa<tensor>(),
+                    "output of reduce_collect_op_t should be tensor type")
+            buf.checked_as<tensor>()->init_value_
+                    = tensor_node::get_zero_tensor_initializer();
+        }
     }
 
     if (op->isa<padding_op_t>() && op->get_inputs()[0]->uses_.size() == 1
@@ -1281,6 +1284,7 @@ static bool try_merge_brgemm_and_preop_parti(
     /* * * * * * * * * * * * * * * * *
      * Step 2: Commit ops in pre-op parti into brgemm parti by original order
      * * * * * * * * * * * * * * * * */
+    brgemm_parti->func_->name_ += "_preop_merge";
     for (auto &op_in_preop_parti : preop_parti->committed_ops_) {
         brgemm_parti->add(op_in_preop_parti);
     }
@@ -1306,8 +1310,6 @@ static bool try_merge_brgemm_and_preop_parti(
     brgemm_parti->committed_ops_.insert(brgemm_parti->committed_ops_.end(),
             preop_parti->committed_ops_.begin(),
             preop_parti->committed_ops_.end());
-
-    brgemm_parti->func_->name_ += "_preop_merge_" + preop_parti->func_->name_;
 
     SC_MODULE_INFO << "pre-op merging result:";
     SC_MODULE_INFO << brgemm_parti->func_;
@@ -1384,11 +1386,19 @@ static bool try_merge_mixed_parti_vertically(
                                        .get_total_allocated_buffer_size()
                                / runtime_config_t::get().get_num_threads())
                             > pre_loaded_buffer_size_tol)) {
-        SC_MODULE_INFO << "Cost model rejects to vertically merge two "
-                          "partition: "
-                       << A->func_->name_ << " and " << B->func_->name_
-                       << " from perspective of cache efficiency";
-        return false;
+        // TODO(xxx): enhance the logic here
+        if (pa_to_merge->contain_op_with_type<reduce_impl_op_t>()) {
+            SC_MODULE_INFO
+                    << "Cost model ignores partition with reduce_compute: "
+                    << A->func_->name_ << " and " << B->func_->name_
+                    << " in cache inefficiencent case";
+        } else {
+            SC_MODULE_INFO << "Cost model rejects to vertically merge two "
+                              "partition: "
+                           << A->func_->name_ << " and " << B->func_->name_
+                           << " from perspective of cache efficiency";
+            return false;
+        }
     }
 
     // evaluate two partition by cost model
