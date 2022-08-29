@@ -244,6 +244,13 @@ public:
     param_num_option get_outputs_option() const;
     void set_default_attribute(op_t *l_op) const;
 
+    op_schema_t &set_additional_item(
+            const std::string &key, const utils::any_t &value);
+
+    const utils::any_t &get_additional_item(const std::string &key) const;
+
+    bool has_additional_item(const std::string &key) const;
+
 private:
     void verify_input_(size_t in_offset);
     void verify_output_(size_t out_offset);
@@ -282,6 +289,8 @@ private:
     shape_infer_fn tensor_inference_function_;
     type_constraint_fn op_type_constraint_function_;
     bool commutative_inputs_enabled_ = false;
+    // type erased key-value storage
+    std::unordered_map<std::string, utils::any_t> additional_items_map_;
 };
 
 using op_kind_version_schema_map

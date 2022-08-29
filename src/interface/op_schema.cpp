@@ -172,6 +172,23 @@ type_constraint_fn op_schema_t::get_type_constraint_function() const {
     return op_type_constraint_function_;
 }
 
+op_schema_t &op_schema_t::set_additional_item(
+        const std::string &key, const utils::any_t &value) {
+    additional_items_map_.insert({key, value});
+    return *this;
+}
+
+const utils::any_t &op_schema_t::get_additional_item(
+        const std::string &key) const {
+    auto it = additional_items_map_.find(key);
+    assertm(it != additional_items_map_.end(), "don't have such item");
+    return it->second;
+}
+
+bool op_schema_t::has_additional_item(const std::string &key) const {
+    return additional_items_map_.count(key);
+}
+
 bool op_schema_t::verify_param_num(size_t actual_num,
         const std::set<size_t> &expected_num, param_num_option option) const {
     switch (option) {
