@@ -29,9 +29,9 @@
 #include "interface/value.hpp"
 #include "utils/utils.hpp"
 
+#include "backend/dnnl/fusion_info.hpp"
 #include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/internal_ops.hpp"
-#include "backend/dnnl/passes/fusion_info.hpp"
 #include "backend/dnnl/utils.hpp"
 
 #include "dnnl.hpp"

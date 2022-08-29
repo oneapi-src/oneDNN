@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_DNNL_PASSES_FUSION_INFO_HPP
-#define BACKEND_DNNL_PASSES_FUSION_INFO_HPP
+#ifndef BACKEND_DNNL_FUSION_INFO_HPP
+#define BACKEND_DNNL_FUSION_INFO_HPP
 
 #include <algorithm>
 #include <functional>
