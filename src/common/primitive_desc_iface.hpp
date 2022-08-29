@@ -23,6 +23,16 @@
 #include "cache_blob.hpp"
 #include "primitive_desc_iterator.hpp"
 
+namespace dnnl {
+namespace impl {
+
+status_t primitive_desc_create(primitive_desc_iface_t **primitive_desc_iface,
+        engine_t *engine, const op_desc_t *op_desc,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr);
+}
+} // namespace dnnl
+
 // dnnl_primitive_desc is a user facing entity that has an alias
 // primitive_desc_iface_t for internal use.
 // The primitive_desc_iface_t is responsible for holding:

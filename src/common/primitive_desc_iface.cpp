@@ -26,6 +26,36 @@
 using namespace dnnl::impl;
 using namespace dnnl::impl::status;
 
+namespace dnnl {
+namespace impl {
+
+status_t primitive_desc_create(primitive_desc_iface_t **primitive_desc_iface,
+        engine_t *engine, const op_desc_t *op_desc,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+    using namespace primitive_kind;
+
+    if (!primitive_desc_iface) return invalid_arguments;
+
+    const bool known_primitive_kind = utils::one_of(op_desc->kind,
+            batch_normalization, binary, convolution, deconvolution, eltwise,
+            gemm, inner_product, layer_normalization, lrn, matmul, pooling,
+            prelu, reduction, resampling, rnn, shuffle, softmax);
+    if (!known_primitive_kind) return invalid_arguments;
+
+    auto pd_iface = utils::make_unique<primitive_desc_iface_t>(engine, op_desc,
+            attr, hint_fwd_pd ? hint_fwd_pd->impl().get() : nullptr);
+    if (pd_iface == nullptr) return out_of_memory;
+    CHECK(pd_iface->init());
+
+    *primitive_desc_iface = pd_iface.release();
+
+    return success;
+}
+
+} // namespace impl
+} // namespace dnnl
+
 dnnl_primitive_desc::dnnl_primitive_desc(
         const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine)
     : pd_(pd), engine_(engine) {}
