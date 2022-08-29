@@ -493,6 +493,18 @@ memory::desc to_ncx_format(const memory::desc &adesc) {
             adesc.dims(), adesc.data_type(), get_ncx_format(adesc.data.ndims));
 }
 
+void set_all_layout_to_any(std::vector<std::shared_ptr<impl::op_t>> &subgraph) {
+    for (auto &cur_op : subgraph) {
+        for (const auto &val : cur_op->get_input_values()) {
+            val->set_layout_type(impl::layout_type::any);
+        }
+
+        for (const auto &val : cur_op->get_output_values()) {
+            val->set_layout_type(impl::layout_type::any);
+        }
+    }
+}
+
 impl::status_t fill_layout_info(
         impl::logical_tensor_t *lt, const memory::desc &md) {
     const impl::logical_tensor_wrapper_t ltw(lt);

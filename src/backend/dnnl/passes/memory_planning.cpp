@@ -24,9 +24,9 @@
 #include "interface/value.hpp"
 
 #include "backend/dnnl/common.hpp"
-#include "backend/dnnl/passes/constant_propagation.hpp"
+#include "backend/dnnl/internal_attrs.hpp"
+
 #include "backend/dnnl/passes/memory_planning.hpp"
-#include "backend/dnnl/passes/op_executable.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 #include "dnnl.hpp"

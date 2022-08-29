@@ -33,6 +33,8 @@
 
 #include "dnnl.hpp"
 
+#define DNNL_GRAPH_ARG_POST_SRC (-1)
+
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -54,6 +56,8 @@ using normalization_flag = dnnl::normalization_flags;
 using query = dnnl::query;
 using scale_t = std::vector<float>;
 using exec_args = std::unordered_map<int, memory>;
+
+using pd_cache_t = std::unordered_map<op_t *, impl::utils::any_t>;
 
 struct dnnl_allocator_t {
     static void *malloc(size_t size, const dnnl::engine &p_engine,
@@ -122,6 +126,8 @@ bool is_format(const memory::desc &adesc, const std::string &tag);
 bool is_4c_blocked(const memory::desc &adesc);
 
 memory::desc to_ncx_format(const memory::desc &adesc);
+
+void set_all_layout_to_any(std::vector<std::shared_ptr<impl::op_t>> &subgraph);
 
 impl::status_t fill_layout_info(
         impl::logical_tensor_t *lt, const memory::desc &md);

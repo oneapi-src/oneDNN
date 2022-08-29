@@ -24,8 +24,8 @@
 #include "utils/compatible.hpp"
 
 #include "backend/dnnl/internal_attrs.hpp"
+#include "backend/dnnl/op_executable.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
-#include "backend/dnnl/passes/op_executable.hpp"
 
 #include "dnnl.hpp"
 
@@ -45,114 +45,25 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
     auto &pd_cache = sg->pd_cache_;
 
     return impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
-        auto cur_op = op->shared_from_this();
-        std::shared_ptr<op_executable_t> exec;
+        const op_schema_t *opm
+                = op_schema_registry_t::get_op_schema(op->get_kind());
+        if (!opm) {
+            assertm(false, "no schema for current op");
+            return impl::status::invalid_op;
+        }
 
-        if (cur_op->get_kind() == op_kind::dnnl_convolution
-                || cur_op->get_kind() == op_kind::dnnl_conv_depthwise) {
-            exec = std::make_shared<conv_fwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose) {
-            exec = std::make_shared<deconv_fwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose_bwd_data) {
-            exec = std::make_shared<deconv_bwd_data_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind()
-                == op_kind::dnnl_convtranspose_bwd_weights) {
-            exec = std::make_shared<deconv_bwd_weights_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_matmul) {
-            exec = std::make_shared<matmul_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
-            exec = std::make_shared<eltwise_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_eltwise_bwd) {
-            exec = std::make_shared<eltwise_bwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_shuffle) {
-            exec = std::make_shared<shuffle_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_prelu) {
-            exec = std::make_shared<prelu_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
-            exec = std::make_shared<prelu_bwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_pool) {
-            exec = std::make_shared<pool_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_pool_bwd) {
-            exec = std::make_shared<pool_bwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_concat) {
-            exec = std::make_shared<concat_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_mul_scales
-                || cur_op->get_kind() == op_kind::dnnl_reorder) {
-            exec = std::make_shared<reorder_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_constant_scales) {
-            exec = std::make_shared<fvec_to_fvec_filler>(
-                    cur_op, op_attr::scales);
-        } else if (cur_op->get_kind() == op_kind::dnnl_constant_zps) {
-            exec = std::make_shared<i64vec_to_i32vec_filler>(
-                    cur_op, op_attr::zps);
-        } else if (cur_op->get_kind() == op_kind::dnnl_permute
-                || cur_op->get_kind() == op_kind::dnnl_to_group
-                || cur_op->get_kind() == op_kind::dnnl_from_group
-                || cur_op->get_kind() == op_kind::dnnl_unsqueeze
-                || cur_op->get_kind() == op_kind::dnnl_squeeze
-                || cur_op->get_kind() == op_kind::dnnl_reshape
-                || cur_op->get_kind() == op_kind::dnnl_transpose) {
-            // For preprocess ops. The memory_reparser will not do
-            // computation, it only re-parses the existing buffer.
-            exec = std::make_shared<memory_reparser_t>();
-        } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
-            exec = std::make_shared<bn_folding_t>(cur_op, p_engine);
-        } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
-            exec = std::make_shared<conv_bwd_data_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_weights) {
-            exec = std::make_shared<conv_bwd_weights_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
-            exec = std::make_shared<batchnorm_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
-            exec = std::make_shared<batchnorm_bwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_layernorm) {
-            exec = std::make_shared<layernorm_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_layernorm_bwd) {
-            exec = std::make_shared<layernorm_bwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_resampling) {
-            exec = std::make_shared<resampling_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_resampling_bwd) {
-            exec = std::make_shared<resampling_bwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
-            exec = std::make_shared<sum_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
-            exec = std::make_shared<binary_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_softmax
-                || cur_op->get_kind() == op_kind::dnnl_logsoftmax) {
-            exec = std::make_shared<softmax_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd
-                || cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
-            exec = std::make_shared<softmax_bwd_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else if (cur_op->get_kind() == op_kind::dnnl_reduction) {
-            exec = std::make_shared<reduction_executable_t>(
-                    cur_op, p_engine, mgr, pd_cache);
-        } else {
+        if (!opm->has_additional_item("executable_creator")) {
+            assertm(false, "no executable creator in this op schema");
+            return impl::status::invalid_op;
+        }
+
+        auto cur_op = op->shared_from_this();
+        auto creator = impl::utils::any_cast<executable_creator_func>(
+                opm->get_additional_item("executable_creator"));
+        std::shared_ptr<op_executable_t> exec
+                = creator(cur_op, p_engine, mgr, pd_cache);
+
+        if (!exec) {
             assertm(false, "unimplemented op, can't compile it");
             return impl::status::unimplemented;
         }

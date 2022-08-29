@@ -24,7 +24,8 @@
 #include "interface/value.hpp"
 
 #include "backend/dnnl/common.hpp"
-#include "backend/dnnl/passes/op_executable.hpp"
+#include "backend/dnnl/op_executable.hpp"
+#include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -69,8 +70,8 @@ static inline impl::status_t insert_reorder_before(op_ptr &op, size_t offset,
     reorder_out_val->set_dims(ltw(in_lt).vdims());
 
     // set layout info for scratchpad output
-    const auto &pd
-            = create_reorder_pd(reorder_op, p_engine, mgr, pd_cache).first;
+    const auto &pd = reorder_executable_t::create_desc(
+            reorder_op, p_engine, mgr, pd_cache);
     const memory::desc scratchpad_desc = pd.scratchpad_desc();
     status = fill_layout_info(scratchpad_val, scratchpad_desc);
     return status;
@@ -102,8 +103,8 @@ static inline impl::status_t insert_reorder_after(op_ptr &op, size_t offset,
     reorder_in_val->set_dims(ltw(out_lt).vdims());
 
     // set layout info for scratchpad output
-    const auto &pd
-            = create_reorder_pd(reorder_op, p_engine, mgr, pd_cache).first;
+    const auto &pd = reorder_executable_t::create_desc(
+            reorder_op, p_engine, mgr, pd_cache);
     const memory::desc scratchpad_desc = pd.scratchpad_desc();
     status = fill_layout_info(scratchpad_val, scratchpad_desc);
     return status;
@@ -115,11 +116,11 @@ static impl::status_t layout_propagation_for_conv(op_ptr &op,
     impl::status_t status = impl::status::success;
     const bool is_dw = op->get_kind() == op_kind::dnnl_conv_depthwise;
     // always create pd using any format
-    const auto &pd_flag_pair = create_conv_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = conv_fwd_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     // insert reorders for conv's inputs
     insert_reorder_before(
@@ -171,11 +172,11 @@ static impl::status_t layout_propagation_for_deconv(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_deconv_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = deconv_fwd_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     // insert reorders for deconv's inputs
     insert_reorder_before(
@@ -219,12 +220,11 @@ static impl::status_t layout_propagation_for_deconv_bwd_data(op_ptr &op,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
     // always create pd using any format
-    const auto &pd_flag_pair
-            = create_deconv_bwd_data_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = deconv_bwd_data_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     // insert reorders for inputs
     insert_reorder_before(
@@ -260,12 +260,11 @@ static impl::status_t layout_propagation_for_deconv_bwd_weights(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair
-            = create_deconv_bwd_weights_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = deconv_bwd_weights_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -298,11 +297,11 @@ static impl::status_t layout_propagation_for_eltwise(op_ptr &op,
     impl::status_t status = impl::status::success;
     // When input's layout is specified (opaque or strided),
     // we can propagate it to output.
-    const auto &pd_flag_pair = create_eltwise_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = eltwise_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -319,12 +318,11 @@ static impl::status_t layout_propagation_for_eltwise_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair
-            = create_eltwise_bwd_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = eltwise_bwd_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     // to hit an optimized kernel, input/output of forward and both diff_dst
     // and diff_src should use the same memory format. Primitive is created
@@ -375,11 +373,11 @@ static impl::status_t layout_propagation_for_binary(op_ptr &op,
         return fill_layout_info(op->get_output_value(1), dnnl::memory::desc {});
     }
 
-    const auto &pd_flag_pair = create_binary_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = binary_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -396,10 +394,10 @@ static impl::status_t layout_propagation_for_concat(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_concat_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
-    if (!is_first_time) return status;
+    const auto &pd
+            = concat_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
+    if (is_from_cache) return status;
 
     for (size_t i = 0; i < op->num_inputs(); ++i) {
         insert_reorder_before(op, i, pd.src_desc(static_cast<int>(i)), p_engine,
@@ -424,11 +422,11 @@ static impl::status_t layout_propagation_for_shuffle(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_shuffle_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = shuffle_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     value_ptr src = op->get_input_value(0);
     value_ptr dst = op->get_output_value(0);
@@ -466,11 +464,11 @@ static impl::status_t layout_propagation_for_matmul(op_ptr &op,
         return fill_layout_info(op->get_output_value(1), dnnl::memory::desc {});
     }
 
-    const auto &pd_flag_pair = create_matmul_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = matmul_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     // insert reorders for matmul's inputs
     insert_reorder_before(
@@ -513,11 +511,11 @@ static impl::status_t layout_propagation_for_pool(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_pool_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = pool_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -546,11 +544,11 @@ static impl::status_t layout_propagation_for_pool_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_pool_bwd_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = pool_bwd_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -574,11 +572,11 @@ static impl::status_t layout_propagation_for_batchnorm(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_batchnorm_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = batchnorm_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -628,12 +626,11 @@ static impl::status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
     if (op->num_inputs() != 5 || op->num_outputs() != 4) {
         assert(!"Currently, only support use_scale and use_shift mode!");
     }
-    const auto &pd_flag_pair
-            = create_batchnorm_bwd_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = batchnorm_bwd_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -684,11 +681,11 @@ static impl::status_t layout_propagation_for_prelu(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_prelu_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = prelu_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -718,11 +715,11 @@ static impl::status_t layout_propagation_for_prelu_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_prelu_bwd_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = prelu_bwd_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -761,11 +758,11 @@ static impl::status_t layout_propagation_for_layernorm(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair = create_layernorm_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = layernorm_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -793,12 +790,11 @@ static impl::status_t layout_propagation_for_layernorm_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair
-            = create_layernorm_bwd_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = layernorm_bwd_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     size_t in_index {0};
     insert_reorder_before(
@@ -1255,10 +1251,10 @@ static impl::status_t layout_propagation_for_reorder(op_ptr &op,
     // set layout info for scratchpad output
     if (op->num_outputs() == 1) { insert_empty_scratchpad(op); }
 
-    const auto &pd_flag_pair = create_reorder_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
-    if (!is_first_time) return status;
+    const auto &pd
+            = reorder_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
+    if (is_from_cache) return status;
 
     auto scratchpad_val = op->get_output_value(1);
     const memory::desc scratchpad_desc = pd.scratchpad_desc();
@@ -1272,8 +1268,9 @@ static impl::status_t layout_propagation_for_mul_scales(op_ptr &op,
     return layout_propagation_for_reorder(op, p_engine, mgr, pd_cache);
 }
 
-static impl::status_t layout_propagation_for_bn_folding(
-        op_ptr &op, const dnnl::engine &p_engine) {
+static impl::status_t layout_propagation_for_bn_folding(op_ptr &op,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
+        pd_cache_t &pd_cache) {
     impl::status_t status = impl::status::success;
     // skip the scratchpad
     for (size_t i = 0; i < op->num_outputs() - 1; i++) {
@@ -1287,10 +1284,10 @@ static impl::status_t layout_propagation_for_bn_folding(
         }
     }
 
-    auto prm = std::make_shared<bn_folding_t>(op, p_engine);
+    auto pd = bn_folding_t::create_desc(op, p_engine, mgr, pd_cache);
     // scratchpad is bn_folding's last inputs
     auto val = op->get_output_value(2);
-    status = fill_layout_info(val, prm->scratchpad_desc());
+    status = fill_layout_info(val, pd.scratchpad_desc());
     return status;
 }
 
@@ -1298,12 +1295,11 @@ static impl::status_t layout_propagation_for_conv_bwd_data(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair
-            = create_conv_bwd_data_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = conv_bwd_data_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -1334,12 +1330,11 @@ static impl::status_t layout_propagation_for_conv_bwd_weights(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair
-            = create_conv_bwd_weights_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = conv_bwd_weights_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -1370,13 +1365,11 @@ static impl::status_t layout_propagation_for_resampling(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair
-            = create_resampling_pd(op, p_engine, mgr, pd_cache);
+    const auto &pd
+            = resampling_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
-
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -1394,12 +1387,11 @@ static impl::status_t layout_propagation_for_resampling_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    const auto &pd_flag_pair
-            = create_resampling_bwd_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = resampling_bwd_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_after(
             op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -1429,10 +1421,9 @@ static impl::status_t layout_propagation_for_dnnl_sum(op_ptr &op,
     assertm(!input_has_any_format,
             "input format of sum primitive cannot be any.");
 
-    const auto &pd_flag_pair = create_dnnl_sum_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
-    if (!is_first_time) return status;
+    const auto &pd = sum_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
+    if (is_from_cache) return status;
 
     if (ltw(dst->get_logical_tensor()).is_any()) {
         insert_reorder_after(
@@ -1456,11 +1447,11 @@ static impl::status_t layout_propagation_for_softmax(op_ptr &op,
     assertm(!ltw(src->get_logical_tensor()).is_any(),
             "softmax/logsoftmax's src can't be any layout now");
 
-    const auto &pd_flag_pair = create_softmax_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = softmax_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -1481,12 +1472,11 @@ static impl::status_t layout_propagation_for_softmax_bwd(op_ptr &op,
     assertm(!ltw(dst->get_logical_tensor()).is_any(),
             "softmax/logsoftmax bwd's dst can't be any layout now");
 
-    const auto &pd_flag_pair
-            = create_softmax_bwd_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd = softmax_bwd_executable_t::create_desc(
+            op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_before(
             op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -1514,11 +1504,11 @@ static impl::status_t layout_propagation_for_reduction(op_ptr &op,
     assertm(!ltw(src->get_logical_tensor()).is_any(),
             "reduction's src can't be any layout now");
 
-    const auto &pd_flag_pair = create_reduction_pd(op, p_engine, mgr, pd_cache);
-    const auto &pd = pd_flag_pair.first;
-    const auto is_first_time = pd_flag_pair.second;
+    const auto &pd
+            = reduction_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+    const auto is_from_cache = pd.is_from_cache();
 
-    if (!is_first_time) return status;
+    if (is_from_cache) return status;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
@@ -1692,7 +1682,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 status = layout_propagation_for_squeeze(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
-                status = layout_propagation_for_bn_folding(cur_op, p_engine);
+                status = layout_propagation_for_bn_folding(
+                        cur_op, p_engine, mgr, pd_cache);
             } else if (cur_op->get_kind() == op_kind::dnnl_resampling) {
                 status = layout_propagation_for_resampling(
                         cur_op, p_engine, mgr, pd_cache, reorder_ops);

@@ -32,11 +32,12 @@
 #include "interface/shape_infer.hpp"
 #include "utils/utils.hpp"
 
+#include "backend/dnnl/fusion_info.hpp"
 #include "backend/dnnl/internal_attrs.hpp"
-#include "backend/dnnl/passes/fusion_info.hpp"
+#include "backend/dnnl/op_executable.hpp"
+
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
-#include "backend/dnnl/passes/op_executable.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
@@ -2841,9 +2842,8 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             out_val->set_producer(*fused_op);
 
             auto scratchpad_val = insert_empty_scratchpad(fused_op);
-            const auto &pd
-                    = create_reorder_pd(fused_op, *p_engine, mgr, pd_cache)
-                              .first;
+            const auto &pd = reorder_executable_t::create_desc(
+                    fused_op, *p_engine, mgr, pd_cache);
             const memory::desc scratchpad_desc = pd.scratchpad_desc();
             auto status = fill_layout_info(scratchpad_val, scratchpad_desc);
             if (status != impl::status::success) return status;

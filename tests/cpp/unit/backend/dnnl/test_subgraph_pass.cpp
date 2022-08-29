@@ -26,12 +26,12 @@
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
 #include "backend/dnnl/kernels/large_partition.hpp"
+#include "backend/dnnl/op_executable.hpp"
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
-#include "backend/dnnl/passes/op_executable.hpp"
 
 #include "cpp/unit/unit_test_common.hpp"
 #include "cpp/unit/utils.hpp"
