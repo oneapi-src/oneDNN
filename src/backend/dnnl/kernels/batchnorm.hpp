@@ -27,16 +27,18 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/constant_cache.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/op_executable.hpp"
+#include "backend/dnnl/scratchpad.hpp"
+#include "backend/dnnl/thread_local_cache.hpp"
+#include "backend/dnnl/utils.hpp"
+
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
-#include "backend/dnnl/passes/op_executable.hpp"
-#include "backend/dnnl/scratchpad.hpp"
-#include "backend/dnnl/thread_local_cache.hpp"
-#include "backend/dnnl/utils.hpp"
+#include "backend/dnnl/passes/utils.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
