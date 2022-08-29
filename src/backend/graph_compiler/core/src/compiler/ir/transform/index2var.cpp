@@ -61,6 +61,67 @@ public:
     }
 };
 
+struct written_tensor_analysis_result_t {
+    std::unordered_set<expr_c> written_;
+};
+
+// the visitor to find all tensor written in all stmts
+class written_tensor_finder_t : public ir_viewer_t {
+public:
+    using ir_viewer_t::dispatch;
+    std::unordered_set<expr_c> written_;
+
+    expr_c dispatch(expr_c v) override { return v; }
+    stmt_c dispatch(stmt_c v) override {
+        written_ = std::unordered_set<expr_c> {};
+        ir_viewer_t::dispatch(v);
+        v->temp_data() = written_tensor_analysis_result_t {std::move(written_)};
+        written_ = std::unordered_set<expr_c> {};
+        return v;
+    }
+    void view(assign_c v) override {
+        if (v->var_.isa<indexing>()) {
+            auto idx = v->var_.static_as<indexing>();
+            COMPILE_ASSERT(idx->ptr_.isa<tensor>(),
+                    "The indexing should be based on a tensor. " << v);
+            written_.insert(idx->ptr_);
+        }
+    }
+    void view(for_loop_c v) override {
+        dispatch(v->body_);
+        written_ = v->body_->get_temp_data()
+                           .get<written_tensor_analysis_result_t>()
+                           .written_;
+    }
+
+    void view(if_else_c v) override {
+        dispatch(v->then_case_);
+        if (v->else_case_.defined()) { dispatch(v->else_case_); }
+
+        written_ = v->then_case_->get_temp_data()
+                           .get<written_tensor_analysis_result_t>()
+                           .written_;
+        if (v->else_case_.defined()) {
+            auto &else_result = v->else_case_->get_temp_data()
+                                        .get<written_tensor_analysis_result_t>()
+                                        .written_;
+            written_.insert(else_result.begin(), else_result.end());
+        }
+    }
+    void view(stmts_c v) override {
+        for (auto &s : v->seq_) {
+            dispatch(s);
+        }
+
+        for (auto &s : v->seq_) {
+            auto &result = s->get_temp_data()
+                                   .get<written_tensor_analysis_result_t>()
+                                   .written_;
+            written_.insert(result.begin(), result.end());
+        }
+    }
+};
+
 class indexing2var_impl_t : public ir_visitor_t {
     // the "cache" for an element of a tensor
     // currently, one tensor has only one "cache"
@@ -100,7 +161,22 @@ class indexing2var_impl_t : public ir_visitor_t {
         }
         bool is_valid() const { return tsr_.defined(); }
     };
+
     using tensor_cache_ptr = std::shared_ptr<tensor_cache_t>;
+
+    struct scope_info_t {
+        const std::unordered_set<expr_c> &written_tensors_;
+        std::unordered_set<tensor_cache_ptr> outstanding_cache_;
+
+        bool is_cache_defined_here(const tensor_cache_ptr &v) {
+            return outstanding_cache_.find(v) != outstanding_cache_.end();
+        }
+
+        bool tensor_not_written_here(const expr_c &v) {
+            return written_tensors_.find(v) == written_tensors_.end();
+        }
+    };
+
     // the tensor -> tensor_cache, it stores all "cached" indexing
     std::unordered_map<expr_c, tensor_cache_ptr> cached_index_;
     // the var -> tensor_cache map. The var is the variable used in indexing,
@@ -114,9 +190,9 @@ class indexing2var_impl_t : public ir_visitor_t {
     std::vector<stmt_c> *insertion_point_ = nullptr;
     // the cached tensors which are created in the current scope (stmts). The
     // first dimension is a stack of scopes. At the end of a scope, we need to
-    // evict all cache items in outstanding_cache_.back(), then call
-    // outstanding_cache_.pop()
-    std::vector<std::unordered_set<tensor_cache_ptr>> outstanding_cache_;
+    // evict all cache items in scope_info_.back(), then call
+    // scope_info_.pop()
+    std::vector<scope_info_t> scope_info_;
     int for_depth_ = 0;
 
     // flushes the cache
@@ -178,7 +254,7 @@ class indexing2var_impl_t : public ir_visitor_t {
         out_cache = std::make_shared<tensor_cache_t>(tsr,
                 std::vector<expr_c>(v->idx_.begin(), v->idx_.end()), vcache,
                 v->dtype_.lanes_, v->mask_);
-        outstanding_cache_.back().insert(out_cache);
+        scope_info_.back().outstanding_cache_.insert(out_cache);
         // remember the dependency
         for (auto &itr : vars) {
             dependency_map_.insert(std::make_pair(itr, out_cache));
@@ -239,8 +315,8 @@ class indexing2var_impl_t : public ir_visitor_t {
                 // the cache, which will invalidate the parent scope cache)
                 // 2. or the cache is created in the same scope of the access
                 if ((is_read && for_depth_ == 0)
-                        || outstanding_cache_.back().find(out_cache)
-                                != outstanding_cache_.back().end()) {
+                        || scope_info_.back().is_cache_defined_here(out_cache)
+                        || scope_info_.back().tensor_not_written_here(tsr)) {
                     return itr->second->var_;
                 }
                 SC_MODULE_INFO << "Evict parent scope cache in child scope: "
@@ -281,7 +357,11 @@ class indexing2var_impl_t : public ir_visitor_t {
         std::vector<stmt_c> seq;
         seq.reserve(v->seq_.size());
         insertion_point_ = &seq;
-        outstanding_cache_.emplace_back(std::unordered_set<tensor_cache_ptr>());
+        scope_info_.emplace_back(
+                scope_info_t {v->get_temp_data()
+                                      .get<written_tensor_analysis_result_t>()
+                                      .written_,
+                        {}});
 
         bool changed = false;
         for (auto &s : v->seq_) {
@@ -292,13 +372,13 @@ class indexing2var_impl_t : public ir_visitor_t {
         changed |= v->seq_.size() != seq.size();
 
         // evict all cache items that will die at the end of this stmts
-        for (auto &v : outstanding_cache_.back()) {
+        for (auto &v : scope_info_.back().outstanding_cache_) {
             if (v->is_valid()) {
                 SC_MODULE_INFO << "Evict at the end of scope: " << v->tsr_;
                 invalidate(v);
             }
         }
-        outstanding_cache_.pop_back();
+        scope_info_.pop_back();
         insertion_point_ = old_insert;
 
         if (changed) { return builder::make_stmts_unattached(seq); }
@@ -354,11 +434,13 @@ public:
 };
 
 func_c index2var_t::operator()(func_c f) {
+    written_tensor_finder_t().dispatch(f);
     indexing2var_impl_t impl;
     return impl.dispatch(f);
 }
 
 stmt_c index2var_t::operator()(const stmts_c &f) {
+    written_tensor_finder_t().dispatch(f);
     indexing2var_impl_t impl;
     return impl.dispatch(f);
 }
