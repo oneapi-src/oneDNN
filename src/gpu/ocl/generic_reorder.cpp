@@ -774,10 +774,11 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
 
     const memory_desc_wrapper original_dst_mdw(dst_md());
 
-    conf.scale_quant = !attr()->output_scales_.has_default_values();
-    conf.scale_mask = attr()->output_scales_.mask_;
-    conf.scales_num = get_attr_oscales_count(
-            attr()->output_scales_.mask_, original_dst_mdw);
+    const auto &oscales = attr()->output_scales_;
+    // Set scale_quant only for runtime output scales.
+    conf.scale_quant = !oscales.has_default_values() && !oscales.defined();
+    conf.scale_mask = oscales.mask_;
+    conf.scales_num = get_attr_oscales_count(oscales.mask_, original_dst_mdw);
 
     memory_desc_t new_a;
     memory_desc_t new_b;
@@ -796,7 +797,8 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
 
     const auto &padded_dims = dst_mdw.padded_dims();
     const auto &zp = attr()->zero_points_;
-    conf.with_sum_ab = (alpha() != 1.f || beta() != 0.f);
+    // Set with_sum_a only for creation-time output scales.
+    conf.with_sum_ab = ((oscales.defined() && alpha() != 1.f) || beta() != 0.f);
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
     conf.with_src_zp = !zp.has_default_values(DNNL_ARG_SRC);
