@@ -1245,22 +1245,21 @@ static bool try_merge_brgemm_and_preop_parti(
             if (!brgemm_parti->buf_alloc_.g2b_map_.haskey(iter->first)) {
                 auto brgemm_parti_cut_op = iter->first->producer_owner_;
                 if (preop_parti->contains(brgemm_parti_cut_op)) {
-                    COMPILE_ASSERT(brgemm_parti_cut_op
-                                    == preop_parti->committed_ops_.back().get(),
-                            "It is expectedly the same one op, but got two "
-                            "differnt ops, which are "
-                                    << brgemm_parti_cut_op->op_name_
-                                    << brgemm_parti_cut_op->logical_op_id_
-                                    << " and "
-                                    << preop_parti->committed_ops_.back()
-                                               ->op_name_
-                                    << preop_parti->committed_ops_.back()
-                                               ->logical_op_id_)
-
+                    if (brgemm_parti_cut_op
+                            != preop_parti->committed_ops_.back().get()) {
+                        SC_MODULE_INFO << "brgemm_parti_cut_op "
+                                       << brgemm_parti_cut_op->op_name_
+                                       << brgemm_parti_cut_op->logical_op_id_
+                                       << " is not the end of preop_parti "
+                                          "commited_ops.";
+                    }
+                    bool hit_cut_op = false;
                     infer_status_map_t stat_map(brgemm_parti->ctx_, false);
                     // set known slice range and prepare for pre-infer slice
                     // range
                     tmp_fsmap.get(iter->first) = iter->second;
+                    // only ops before cut_op_iter will be infered with
+                    // pre_slice
                     for (auto op_iter = preop_parti->committed_ops_.rbegin();
                             op_iter != preop_parti->committed_ops_.rend();
                             op_iter++) {
@@ -1269,6 +1268,10 @@ static bool try_merge_brgemm_and_preop_parti(
                                 "partiion. "
                                 "but got "
                                         << (*op_iter)->op_name_);
+                        if ((*op_iter).get() == brgemm_parti_cut_op) {
+                            hit_cut_op = true;
+                        }
+                        if (!hit_cut_op) continue;
                         (*op_iter)->stc_cast<fusible_op_t>()->pre_slice_ranges(
                                 tmp_fsmap, stat_map);
                         COMPILE_ASSERT(stat_map.is_ok(),
