@@ -2410,6 +2410,7 @@ public:
         MAYBE_UNUSED(is_int8_dt);
 
         auto ymm = Xbyak::Ymm(vmm.getIdx());
+        auto xmm = Xbyak::Xmm(vmm.getIdx());
 
         switch (type_out) {
             case data_type::f32:
@@ -2428,6 +2429,16 @@ public:
                 else
                     uni_vpackuswb(vmm, vmm, vmm);
                 store_bytes(vmm, reg, offset, store_size);
+                break;
+            case data_type::bf16:
+                vcvtneps2bf16(xmm, vmm,
+                        is_valid_isa(avx512_core_bf16) ? Xbyak::EvexEncoding
+                                                       : Xbyak::VexEncoding);
+                store_bytes(vmm, reg, offset, sizeof(bfloat16_t) * store_size);
+                break;
+            case data_type::f16:
+                vcvtps2ph(xmm, vmm, _op_mxcsr);
+                store_bytes(vmm, reg, offset, sizeof(float16_t) * store_size);
                 break;
             default: assert(!"unsupported destination data type");
         }
@@ -2463,6 +2474,16 @@ public:
             case data_type::u8:
                 load_bytes_to_dword_extension(
                         vmm, src_addr, type_in == data_type::s8, load_size);
+                break;
+            case data_type::bf16:
+                load_bytes(vmm, src_addr, sizeof(bfloat16_t) * load_size);
+                uni_vpmovzxwd(vmm, vmm);
+                uni_vpslld(vmm, vmm, 16);
+                break;
+            case data_type::f16:
+                load_bytes(vmm, src_addr, sizeof(float16_t) * load_size);
+                vcvtph2ps(vmm,
+                        typename vreg_traits<Vmm>::Vmm_lower_t(vmm.getIdx()));
                 break;
             default: assert(!"unsupported source data type");
         }

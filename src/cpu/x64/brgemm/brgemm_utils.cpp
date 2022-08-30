@@ -121,10 +121,11 @@ void set_isa_impl(brgemm_t *brg) {
                 is_isa_ok(avx512_core_fp16), avx512_core_fp16);
     } else if (brg->is_bf16) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx),
-                avx512_core_amx, is_isa_ok(avx512_core_bf16), avx512_core_bf16);
+                avx512_core_amx, is_isa_ok(avx512_core_bf16), avx512_core_bf16,
+                is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_f16) {
-        brg->isa_impl = utils::map(
-                true, isa_undef, is_isa_ok(avx512_core_fp16), avx512_core_fp16);
+        brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_fp16),
+                avx512_core_fp16, is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx),
                 avx512_core_amx, is_isa_ok(avx512_core_vnni), avx512_core_vnni,
@@ -212,8 +213,10 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->bdb = brg->bcast_dim / brg->bd_block;
         brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
-        // f16 doesn't support vnni.
-        const int size_per_element_at_vnni = brg->is_f16 ? 4 : brg->typesize_A;
+        const int size_per_element_at_vnni
+                = brg->is_f16 && brg->isa_impl == avx512_core_fp16
+                ? 4
+                : brg->typesize_A;
         brg->rd_block = 16 / size_per_element_at_vnni;
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
@@ -479,9 +482,16 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
 
-    // f16 doesn't support vnni.
-    brg->ld_step = brg->rd_step
-            = brg->is_f16 ? 1 : data_type_vnni_granularity(brg->dt_a);
+    const bool is_b_in_vnni_format = !(
+            brg->dt_b == data_type::f16 && brg->isa_impl == avx512_core_fp16);
+    brg->ld_step
+            = is_b_in_vnni_format ? data_type_vnni_granularity(brg->dt_b) : 1;
+
+    const bool has_no_vnni_compute_instruction
+            = brg->is_f16 || (brg->is_bf16 && brg->isa_impl == avx2_vnni_2);
+    brg->rd_step = has_no_vnni_compute_instruction
+            ? 1
+            : data_type_vnni_granularity(brg->dt_b);
 }
 
 void init_brdgmm_conf(brgemm_t *brg, brgemm_batch_kind_t type,

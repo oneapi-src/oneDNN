@@ -237,10 +237,12 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     // check that bias and output data type are supported by isa
     if (!IMPLICATION(one_of(data_type::bf16, dt_bias, dt_d),
-                is_superset(brg->isa_impl, avx512_core)))
+                is_superset(brg->isa_impl, avx512_core)
+                        || is_superset(brg->isa_impl, avx2_vnni_2)))
         return status::unimplemented;
     if (!IMPLICATION(one_of(data_type::f16, dt_bias, dt_d),
-                is_superset(brg->isa_impl, avx512_core_fp16)))
+                is_superset(brg->isa_impl, avx512_core_fp16)
+                        || is_superset(brg->isa_impl, avx2_vnni_2)))
         return status::unimplemented;
     // check that combination of data types is allowed
     if ((brg->dt_a == data_type::u8 && brg->dt_b == data_type::s8)
@@ -476,6 +478,10 @@ status_t brgemm_kernel_create(
             } else if (brg.isa_impl == avx2_vnni) {
                 CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
                         new brgemm_kernel_common_t<avx2_vnni, Xbyak::Ymm>(
+                                brg)));
+            } else if (brg.isa_impl == avx2_vnni_2) {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx2_vnni_2, Xbyak::Ymm>(
                                 brg)));
             }
         }
