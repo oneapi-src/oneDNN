@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -93,6 +93,13 @@ public:
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnCreateTensorDescriptor, &dst_desc_));
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetTensorNdDescriptorEx, dst_desc_,
                 dst_format_, dst_data_type_, ndims_, dims_));
+
+        // dims should fit into uint16_t, otherwise cudnnTransformTensor returns
+        // CUDNN_STATUS_NOT_SUPPORTED at execution
+        for (int d = 0; d < ndims_; d++) {
+            if (dims_[d] > nstl::numeric_limits<uint16_t>::max())
+                return status::unimplemented;
+        }
         return status::success;
     }
 
@@ -156,6 +163,13 @@ public:
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnCreateTensorDescriptor, &dst_desc_));
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetTensorNdDescriptor, dst_desc_,
                 dst_data_type_, ndims_, dims_, dst_strides_));
+
+        // dims should fit into uint16_t, otherwise cudnnTransformTensor returns
+        // CUDNN_STATUS_NOT_SUPPORTED at execution
+        for (int d = 0; d < ndims_; d++) {
+            if (dims_[d] > nstl::numeric_limits<uint16_t>::max())
+                return status::unimplemented;
+        }
         return status::success;
     }
 

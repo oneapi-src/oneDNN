@@ -140,6 +140,9 @@ template <>
 struct numeric_limits<int16_t> : public std::numeric_limits<int16_t> {};
 
 template <>
+struct numeric_limits<uint16_t> : public std::numeric_limits<uint16_t> {};
+
+template <>
 struct numeric_limits<int8_t> : public std::numeric_limits<int8_t> {};
 
 template <>
