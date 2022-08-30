@@ -51,6 +51,12 @@ static int check_known_skipped_case_graph(
     }
 
     check_graph_eltwise_post_ops(prb->attr, res);
+
+    if ((prb->dir & FLAG_BWD) && (prb->flags & ::bnorm::GLOB_STATS)) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return OK;
+    }
+
     return OK;
 }
 
@@ -345,6 +351,12 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
         if (is_bench_mode(CORR)) {
             SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
+
+            if (use_ss) {
+                for (int64_t i = 0; i < prb->ic; i++) {
+                    d_scale_dt.set_elem(prb->ic + i, d_shift_dt.get_elem(i));
+                }
+            }
 
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
