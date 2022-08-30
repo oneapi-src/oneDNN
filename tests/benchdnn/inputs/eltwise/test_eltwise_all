@@ -30,3 +30,6 @@
 
 # f16
 --batch=test_eltwise_float16
+
+# regression check
+--batch=harness_eltwise_regression
