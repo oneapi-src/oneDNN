@@ -41,12 +41,12 @@ status_t ref_reorder_t::pd_t::init_conf(engine_t *engine) {
     status_t status = status::success;
 
     const auto &padded_dims = dst_mdw.padded_dims();
+    const auto &oscales = attr()->output_scales_;
     const auto &zp = attr()->zero_points_;
-    conf.with_sum_ab = (alpha() != 1.f || beta() != 0.f);
-    conf.scale_quant = !attr()->output_scales_.has_default_values();
-    conf.scale_mask = attr()->output_scales_.mask_;
-    conf.scales_num
-            = get_attr_oscales_count(attr()->output_scales_.mask_, dst_mdw);
+    conf.with_sum_ab = ((oscales.defined() && alpha() != 1.f) || beta() != 0.f);
+    conf.scale_quant = !oscales.has_default_values() && !oscales.defined();
+    conf.scale_mask = oscales.mask_;
+    conf.scales_num = get_attr_oscales_count(oscales.mask_, dst_mdw);
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
     conf.with_src_zp = !zp.has_default_values(DNNL_ARG_SRC);
