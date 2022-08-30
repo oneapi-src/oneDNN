@@ -23,7 +23,7 @@
 #include "interface/c_types_map.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-#include <CL/sycl.hpp>
+#include "utils/sycl_utils.hpp"
 #endif
 
 struct dnnl_graph_engine {

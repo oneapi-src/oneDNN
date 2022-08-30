@@ -32,7 +32,7 @@
 #include "interface/partition_cache.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-#include <CL/sycl.hpp>
+#include "utils/sycl_utils.hpp"
 #endif
 
 using namespace dnnl::graph::impl;

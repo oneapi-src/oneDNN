@@ -20,10 +20,7 @@
 #include "cpp/unit/utils.hpp"
 #include "interface/engine.hpp"
 
-#include <CL/sycl.hpp>
-
 namespace impl = dnnl::graph::impl;
-namespace sycl = cl::sycl;
 
 TEST(TestEngine, CreateWithDefaultAllocator) {
     impl::engine_kind_t kind = get_test_engine_kind();

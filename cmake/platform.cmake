@@ -116,11 +116,18 @@ if(MSVC)
     endif()
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
-    if(DNNL_GRAPH_WITH_SYCL)
-        # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
-        append(CMAKE_CCXX_FLAGS "-w -Wno-deprecated-declarations")
-    endif()
     if(DNNL_GRAPH_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+        # When using Debug build mode CMake adds "-g" option without "-O0"
+        # causing the warning. This probably happens because clang/gcc compilers
+        # use "-O0" as the default therefore passing only "-g" is correct
+        # for them, however icx/icpx use "O2" as the default, which makes the
+        # CMake logic incorrect. This should be fixed in CMake.
+        # We disable the warning for debug build mode.
+        if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+            append(CMAKE_CCXX_FLAGS "-Wno-debug-disables-optimization")
+            # Some compiler versions may not know "debug-disables-optimization".
+            append(CMAKE_CCXX_FLAGS "-Wno-unknown-warning-option")
+        endif()
         # Default fp-model in icx and dpcpp (unlike clang) may be precise or
         # fast=1 depending on the version.
         append(CMAKE_CCXX_FLAGS "-ffp-model=precise -fno-reciprocal-math")

@@ -25,7 +25,7 @@
 #include "test_allocator.hpp"
 
 using namespace dnnl::graph;
-using namespace cl::sycl;
+using namespace sycl;
 
 struct api_engine_params {
     engine::kind eng_kind_;

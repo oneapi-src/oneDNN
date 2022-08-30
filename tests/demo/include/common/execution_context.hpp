@@ -27,10 +27,6 @@
 
 #include "utils.hpp"
 
-#ifdef DNNL_GRAPH_WITH_SYCL
-#include <CL/sycl.hpp>
-#endif
-
 struct cpu_deletor {
     cpu_deletor() = default;
     void operator()(void *ptr) {

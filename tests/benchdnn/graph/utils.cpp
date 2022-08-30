@@ -22,10 +22,6 @@
 
 #include "utils.hpp"
 
-#ifdef DNNL_GRAPH_WITH_SYCL
-#include <CL/sycl.hpp>
-#endif
-
 namespace graph {
 
 dnnl::graph::op::kind opstr2kind(const std::string &kind) {

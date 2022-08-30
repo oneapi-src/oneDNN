@@ -22,7 +22,13 @@
 #include <unordered_set>
 
 #ifdef DNNL_GRAPH_WITH_SYCL
+#if __has_include(<sycl/sycl.hpp>)
+#include <sycl/sycl.hpp>
+#elif __has_include(<CL/sycl.hpp>)
 #include <CL/sycl.hpp>
+#else
+#error "Unsupported compiler"
+#endif
 #endif
 
 #include "oneapi/dnnl/dnnl_graph.hpp"

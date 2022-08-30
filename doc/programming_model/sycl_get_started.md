@@ -35,7 +35,7 @@ C++ APIs reside in namespace `dnnl::graph`.
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 using namespace dnnl::graph;
-using namespace cl::sycl; // for SYCL related APIs
+using namespace sycl; // for SYCL related APIs
 ~~~
 
 ## sycl_get_started_tutorial() function

@@ -39,7 +39,7 @@
 #define assertm(exp, msg) assert(((void)msg, exp))
 
 using namespace dnnl::graph;
-using namespace cl::sycl;
+using namespace sycl;
 using data_type = logical_tensor::data_type;
 using layout_type = logical_tensor::layout_type;
 

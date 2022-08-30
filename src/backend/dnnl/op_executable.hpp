@@ -27,7 +27,7 @@
 #include "dnnl.hpp"
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include "dnnl_sycl.hpp"
-#include <CL/sycl.hpp>
+#include "utils/sycl_utils.hpp"
 #endif
 
 #include <utils/utils.hpp>

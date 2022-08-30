@@ -21,7 +21,6 @@
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
 using namespace dnnl::graph;
-namespace sycl = cl::sycl;
 
 struct api_stream_params {
     engine::kind eng_kind_;

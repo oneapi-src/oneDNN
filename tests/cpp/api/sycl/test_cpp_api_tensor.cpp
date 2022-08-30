@@ -18,14 +18,11 @@
 
 #include <vector>
 
-#include <CL/sycl.hpp>
-
 #include "cpp/api/test_api_common.hpp"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
 using namespace dnnl::graph;
-namespace sycl = cl::sycl;
 
 #ifdef DNNL_GRAPH_GPU_SYCL
 TEST(tensor_test, gpu_engine) {

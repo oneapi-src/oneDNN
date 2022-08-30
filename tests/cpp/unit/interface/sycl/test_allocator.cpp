@@ -23,8 +23,6 @@
 #include "cpp/unit/utils.hpp"
 #include "test_allocator.hpp"
 
-#include <CL/sycl.hpp>
-
 namespace impl = dnnl::graph::impl;
 
 TEST(TestAllocator, DefaultSyclAllocator) {
@@ -33,7 +31,6 @@ TEST(TestAllocator, DefaultSyclAllocator) {
     SKIP_IF(kind == impl::engine_kind::cpu,
             "skip sycl api test for native cpu runtime.");
 #endif
-    namespace sycl = cl::sycl;
     namespace impl = dnnl::graph::impl;
     impl::allocator_t &alloc = *impl::allocator_t::create();
     sycl::queue q = kind == impl::engine_kind::gpu
@@ -58,7 +55,6 @@ TEST(TestAllocator, SyclAllocator) {
     SKIP_IF(kind == impl::engine_kind::cpu,
             "skip sycl api test for native cpu runtime.");
 #endif
-    namespace sycl = cl::sycl;
     impl::allocator_t::mem_attr_t alloc_attr {
             impl::allocator_t::mem_type_t::persistent, 1024};
     ASSERT_EQ(alloc_attr.type_, impl::allocator_t::mem_type_t::persistent);

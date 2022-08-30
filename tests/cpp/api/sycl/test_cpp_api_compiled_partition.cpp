@@ -18,8 +18,6 @@
 
 #include <vector>
 
-#include <CL/sycl.hpp>
-
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
@@ -27,7 +25,6 @@
 #include "test_allocator.hpp"
 
 using namespace dnnl::graph;
-namespace sycl = cl::sycl;
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 TEST(ApiExecute, ConvReLU) {

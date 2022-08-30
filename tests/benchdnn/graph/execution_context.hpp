@@ -27,10 +27,6 @@
 
 #include "utils.hpp"
 
-#ifdef DNNL_GRAPH_WITH_SYCL
-#include <CL/sycl.hpp>
-#endif
-
 namespace graph {
 
 /// A mapping from id to tensor is used to manage the lifecycle of all created
