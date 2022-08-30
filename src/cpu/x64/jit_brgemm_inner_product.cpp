@@ -467,6 +467,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     return status::success;
 }
 
+template struct brgemm_inner_product_fwd_t<avx2_vnni_2>;
 template struct brgemm_inner_product_fwd_t<avx512_core>;
 template struct brgemm_inner_product_fwd_t<avx512_core_bf16>;
 template struct brgemm_inner_product_fwd_t<avx512_core_vnni>;
@@ -946,7 +947,7 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
                 = thread_local_input_buffers_ ? 1 : os_chunks_per_thr;
 
         if (jbgp.use_buffer_a) {
-            const size_t dt_sz = buf_dt_size(jbgp.src_dt);
+            const size_t dt_sz = buf_dt_size(jbgp.src_dt, jbgp.isa);
             const size_t ic_chunks_per_thr
                     = utils::div_up(ic_chunks, jbgp.nthr_ic_b);
             const size_t num_ic_chunks_per_thread
@@ -971,7 +972,7 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
         if (jbgp.use_buffer_b) {
             const auto buf_dt
                     = jbgp.dst_dt == f16 ? data_type::f32 : jbgp.dst_dt;
-            const size_t dt_sz = buf_dt_size(jbgp.dst_dt);
+            const size_t dt_sz = buf_dt_size(jbgp.dst_dt, jbgp.isa);
             assert(types::data_type_size(buf_dt) == dt_sz);
             const size_t block_B_size = dt_sz * jbgp.LDB * jbgp.K;
             const size_t os_chunk_B_buffer
