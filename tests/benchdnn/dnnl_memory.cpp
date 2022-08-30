@@ -120,7 +120,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     if (!r_pd_) {
         DNN_SAFE(dnnl_reorder_primitive_desc_create(&r_pd_, &src.md_,
                          src.engine(), &dst.md_, dst.engine(), attr),
-                CRIT);
+                WARN);
     }
     auto r_pd = make_benchdnn_dnnl_wrapper(r_pd_);
     const auto &scratchpad_md = query_md(r_pd, DNNL_ARG_SCRATCHPAD);
