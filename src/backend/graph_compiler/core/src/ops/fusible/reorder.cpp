@@ -2529,9 +2529,9 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                         output_blocking_dims[output_blocking_dims.size()
                                 - iter_v - 1];
                 if (!is_vnni_reorder) { // NK->NKkn2k
-                    if (iter_v == 0 || iter_v == 2) {
+                    if (iter_v == 2 || iter_v == 1) {
                         iter_end = 4;
-                    } else if (iter_v == 1) {
+                    } else if (iter_v == 0) {
                         iter_end = is_bf16 ? 2 : 4;
                     }
                 } else { // KN->NKkn2k
