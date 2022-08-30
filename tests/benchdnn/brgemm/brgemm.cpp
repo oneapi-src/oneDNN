@@ -116,7 +116,8 @@ dnnl_status_t brgemm_attr_init(
     return dnnl_success;
 }
 
-std::string prepare_wei_format_string(dnnl_data_type_t dt, int64_t n) {
+std::string prepare_wei_format_string(
+        dnnl_data_type_t dt, int64_t n, bool is_vnni_layout) {
     // `dt` affects the choice of last inner block (for VNNI-friendliness).
     // `n` affects the choice of B block.
     std::string wtag("BA16a");
@@ -129,12 +130,16 @@ std::string prepare_wei_format_string(dnnl_data_type_t dt, int64_t n) {
             wtag += "16b";
             break;
     }
-    switch (dt) {
-        case dnnl_f32: break;
-        case dnnl_bf16: wtag += "2a"; break;
-        case dnnl_s8: wtag += "4a"; break;
-        default: assert(!"unsupported data type");
+    if (is_vnni_layout) {
+        switch (dt) {
+            case dnnl_f32: break;
+            case dnnl_f16:
+            case dnnl_bf16: wtag += "2a"; break;
+            case dnnl_s8: wtag += "4a"; break;
+            default: assert(!"unsupported data type");
+        }
     }
+
     return wtag;
 }
 
@@ -351,7 +356,8 @@ int doit(const prb_t *prb, res_t *res) {
     // memory. Thus, it requires two memories and we need to pass a memory
     // handle from bigger one (where LDB is an actual dim value) to smaller, but
     // there's some reorder bug resulting in an error.
-    const auto wtag = prepare_wei_format_string(prb->wei_dt(), prb->n);
+    const auto wtag = prepare_wei_format_string(
+            prb->wei_dt(), prb->n, brgemm_desc.is_b_data_layout_vnni());
     BENCHDNN_PRINT(6, "wtag: %s\n", wtag.c_str());
     auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(), wtag);
 
@@ -454,6 +460,7 @@ int doit(const prb_t *prb, res_t *res) {
     int block_size = 0;
     switch (prb->wei_dt()) {
         case dnnl_f32: block_size = 16; break;
+        case dnnl_f16: block_size = 16; break;
         case dnnl_bf16: block_size = 32; break;
         case dnnl_s8: block_size = 64; break;
         default: break;

@@ -4,6 +4,8 @@
 
 --batch=test_brgemm_bf16
 
+--batch=test_brgemm_f16
+
 --batch=test_brgemm_int8
 
 --batch=harness_brgemm_skip_acc
