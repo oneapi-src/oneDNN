@@ -364,20 +364,27 @@ void mxp_buffer_allocator::update_output_buffer_info(
 }
 
 void mxp_buffer_allocator::tensor_initialize() {
-    for (auto &pair : b2g_map_) {
-        auto op = pair.second->producer_owner_;
+    for (auto &pair : g2b_map_.datamap_) {
+        auto op = pair.first->producer_owner_;
         // zero out padding area
         if (auto padding = op->dyn_cast<padding_op_t>()) {
+            if (b2g_map_.find(pair.second) == b2g_map_.end()) continue;
             stmts decl_body;
-            if (pair.first->attr().has_key(mixed_attr_key_cut_buffer)) {
+            auto pad_tsr = get_real_tensor(pair.second);
+            slice_range_list range_list = {};
+            if (pair.second->attr().has_key(mixed_attr_key_cut_buffer)) {
                 decl_body = binded_mxp_->func_->body_.checked_as<stmts>();
             } else {
-                auto anchor = tsr_anch_map_[get_real_tensor(pair.first)];
+                COMPILE_ASSERT(
+                        tsr_anch_map_.find(pad_tsr) != tsr_anch_map_.end(),
+                        "Could not find padding tensor: "
+                                << pad_tsr << " in tsr2anchor map")
+                auto anchor = tsr_anch_map_[pad_tsr];
+                range_list = anchor->fsmap_.get(b2g_map_[pair.second]);
                 decl_body = get_parent_loop(anchor->anchor_position_)
                                     ->body_.checked_as<stmts>();
             }
-
-            auto ret = padding->get_zero_out_stmt(get_real_tensor(pair.first));
+            auto ret = padding->get_zero_out_stmt(pad_tsr, range_list);
             decl_body->seq_.insert(decl_body->seq_.begin(), ret);
         }
     }

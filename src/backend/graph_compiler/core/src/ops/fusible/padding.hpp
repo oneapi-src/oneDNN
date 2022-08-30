@@ -47,7 +47,8 @@ public:
 
     std::vector<expr> get_padding_offsets_exprs();
 
-    stmt get_zero_out_stmt(const tensor &out);
+    stmt get_zero_out_stmt(
+            const tensor &out, const slice_range_list &range_list);
 };
 
 } // namespace sc
