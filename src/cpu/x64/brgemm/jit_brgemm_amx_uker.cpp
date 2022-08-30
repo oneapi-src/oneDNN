@@ -374,7 +374,8 @@ private:
     void maybe_tileloadd_nt(
             brgemm_iteration_t &bi, matrix_kind_t mk, int xdb, size_t offset);
 
-    void tdpbxxd(brgemm_iteration_t &bi, int bdb_idx, int ldb_idx);
+    void tdpbxxd(brgemm_iteration_t &bi, int bdb_idx, int ldb_idx,
+            bool do_pre_tilestore, bool do_post_tilestore);
 
     void gemm_microkernel_amx(brgemm_iteration_t &bi);
 
@@ -435,6 +436,8 @@ private:
     size_t zp_c_values_offset(brgemm_iteration_t &bi, int ldb) const noexcept;
     int get_out_bd(int bd_inp_bdb, int bd) const;
 
+    void maybe_tilestore(brgemm_iteration_t &bi, int bdb_idx, int ldb_idx,
+            bool do_pre_tilestore, bool do_post_tilestore);
     int get_C_tensor(brgemm_iteration_t &bi, int m, int n) const noexcept;
     void top_loop(brgemm_iteration_t &bi);
 
@@ -698,7 +701,10 @@ void jit_brgemm_amx_uker_base_t::load_accumulators(brgemm_iteration_t &bi) {
                 tileloadd(Tmm(get_C_tensor(bi, bdb, ldb)),
                         ptr[reg_C + c_offset + reg_stride_ld_block]);
             } else {
-                tilezero(Tmm(get_C_tensor(bi, bdb, ldb)));
+                // call tilezero on very first iteration
+                if (!brg.interleave_tilestores_
+                        || everyone_is(0u, bi.bdi.idx, bi.ldi.idx))
+                    tilezero(Tmm(get_C_tensor(bi, bdb, ldb)));
             }
         }
     }
@@ -907,7 +913,7 @@ void jit_brgemm_amx_uker_base_t::prefetch_output_range(brgemm_iteration_t &bi,
 void jit_brgemm_amx_uker_base_t::process_output_range(brgemm_iteration_t &bi,
         int bd_start, int bd_finish, int bd_inp_bdb, int bdb, int ldb) {
 
-    const int wsp_offset = use_ils_
+    const int wsp_offset = (use_ils_ || brg.interleave_tilestores_)
             ? (bdb * ils_bi_.ldi.block2 + ldb) * brg.bd_block * ld_block_C_size_
             : 0;
 
@@ -1170,9 +1176,10 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
 
     const auto store_by_vectors = get_store_by_vectors(bi.apply_postops);
 
-    if (store_by_vectors)
-        mov(reg_stride_ld_block, ld_block_C_size_);
-    else
+    if (store_by_vectors) {
+        if (!brg.interleave_tilestores_)
+            mov(reg_stride_ld_block, ld_block_C_size_);
+    } else
         mov(reg_stride_ld_block, LDC_size_);
 
     ils_bi_ = bi;
@@ -1218,7 +1225,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
                         store_vector(bi, vreg_acc.getIdx(), bd_out_bd, ldb);
                     }
                 }
-            } else {
+            } else if (!brg.interleave_tilestores_) {
                 const auto bd_out_bdb = get_out_bd(bd_inp_bdb, 0);
                 const auto c_offset
                         = C_block_offset(bd_out_bdb, bi.ldi.pos + ldb);
@@ -1284,13 +1291,60 @@ void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(
         tileloadd(t1, ptr[reg_base + offset + reg_stride]);
 }
 
-void jit_brgemm_amx_uker_base_t::tdpbxxd(
-        brgemm_iteration_t &bi, int bdb_idx, int ldb_idx) {
+void jit_brgemm_amx_uker_base_t::maybe_tilestore(brgemm_iteration_t &bi,
+        int bdb_idx, int ldb_idx, bool do_pre_tilestore,
+        bool do_post_tilestore) {
+    auto current_tensor_idx = get_C_tensor(bi, bdb_idx, ldb_idx);
+
+    if (!brg.interleave_tilestores_) return;
+    int current_tensor_number = current_tensor_idx - get_C_tensor(bi, 0, 0);
+    int store_tensor_shift
+            = do_pre_tilestore ? (ils_bi_.bdi.is_tail ? 2 : 1) : 0;
+    int store_tensor_idx = current_tensor_idx + store_tensor_shift;
+    int store_tensor_number = current_tensor_number + store_tensor_shift;
+
+    int max_store_tensor_number = ils_bi_.bdi.block2 * ils_bi_.ldi.block2;
+    bool perform_store
+            = (do_pre_tilestore
+                      && (store_tensor_number >= 2
+                              && store_tensor_number < max_store_tensor_number))
+            || (do_post_tilestore && (store_tensor_number < 2));
+
+    if (perform_store) {
+        if (do_pre_tilestore) {
+            bdb_idx = store_tensor_idx / bi.ldi.block2;
+            ldb_idx = store_tensor_idx % bi.ldi.block2;
+        }
+        const bool store_by_vectors = get_store_by_vectors(bi.apply_postops);
+        Tmm acc = Tmm(store_tensor_idx);
+        if (store_by_vectors) {
+            const auto wsp_offset = (use_ils_ || brg.interleave_tilestores_)
+                    ? (bdb_idx * bi.ldi.block2 + ldb_idx) * brg.bd_block
+                            * ld_block_C_size_
+                    : 0;
+            tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset], acc);
+        } else {
+            int store_inp_bd = do_pre_tilestore ? ils_bi_.bdi.pos : bi.bdi.pos;
+            int store_ldb_ind = do_pre_tilestore ? ils_bi_.ldi.pos : bi.ldi.pos;
+            const auto bd_out_bdb
+                    = get_out_bd(get_bd_inp_bdb(store_inp_bd, bdb_idx), 0);
+            const int c_offset
+                    = C_block_offset(bd_out_bdb, store_ldb_ind + ldb_idx);
+            tilestored(ptr[reg_C + reg_stride_ld_block + c_offset], acc);
+        }
+        tilezero(acc);
+    }
+}
+
+void jit_brgemm_amx_uker_base_t::tdpbxxd(brgemm_iteration_t &bi, int bdb_idx,
+        int ldb_idx, bool do_pre_tilestore, bool do_post_tilestore) {
     prefetch_output_data(bi, bi.bsi.is_first, bi.bsi.is_last, false);
+    maybe_tilestore(bi, bdb_idx, ldb_idx, do_pre_tilestore, false);
 
     const Tmm &x1 = Tmm(get_C_tensor(bi, bdb_idx, ldb_idx));
-    const Tmm &x2 = Tmm(brg.get_A_tensor(bdb_idx));
-    const Tmm &x3 = Tmm(brg.get_B_tensor(ldb_idx));
+    const Tmm &x2 = Tmm(brg.get_A_tensor(bdb_idx, bi.bdi.is_tail));
+    const Tmm &x3 = Tmm(brg.get_B_tensor(ldb_idx, bi.ldi.is_tail));
+
     if (brg.is_bf32
             || (brg.dt_a == data_type::bf16 && brg.dt_b == data_type::bf16)) {
         tdpbf16ps(x1, x2, x3);
@@ -1308,6 +1362,7 @@ void jit_brgemm_amx_uker_base_t::tdpbxxd(
         assert(!"unsupported combination");
     }
     interleave_store(bi, false);
+    maybe_tilestore(bi, bdb_idx, ldb_idx, false, do_post_tilestore);
 }
 
 // This method down-converts the data from f32 to bf16 and saves at reg_buf.
@@ -1484,6 +1539,12 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
 void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
     const auto store_by_vectors = get_store_by_vectors(bi.apply_postops);
 
+    bool do_post_tilestore = (brg.interleave_tilestores_ && bi.bsi.is_last
+            && imap_.is_last_rdi(bi.rdi));
+
+    bool do_pre_tilestore = (brg.interleave_tilestores_ && bi.bsi.is_first
+            && bi.rdi.pos == 0);
+
     if (store_by_vectors)
         mov(reg_stride_ld_block, ld_block_C_size_);
     else
@@ -1501,13 +1562,16 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
                 maybe_tileloadd_nt(bi, matrix_kind_t::matrix_B, ldb,
                         rdb_B_off + B_offset(ldb));
             if (ldb == 0) {
-                if (bdb > 0) tdpbxxd(bi, bdb - 1, bi.ldi.block2 - 1);
+                if (bdb > 0)
+                    tdpbxxd(bi, bdb - 1, bi.ldi.block2 - 1, do_pre_tilestore,
+                            do_post_tilestore);
             } else
-                tdpbxxd(bi, bdb, ldb - 1);
+                tdpbxxd(bi, bdb, ldb - 1, do_pre_tilestore, do_post_tilestore);
         }
     }
     // last tdpbxxd
-    tdpbxxd(bi, bi.bdi.block2 - 1, bi.ldi.block2 - 1);
+    tdpbxxd(bi, bi.bdi.block2 - 1, bi.ldi.block2 - 1, do_pre_tilestore,
+            do_post_tilestore);
 }
 
 void jit_brgemm_amx_uker_base_t::rdb_loop(brgemm_iteration_t &bi) {
@@ -1647,6 +1711,14 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
         bdb_loop(bi);
     else
         ldb_loop(bi);
+
+    if (brg.interleave_tilestores_) {
+        bi.ldi = dim_iteration_t(0, brg.ld_block, brg.ld_block2);
+        for_(int bdb = 0; bdb < brg.bd_block2; bdb++)
+        for (int ldb = 0; ldb < brg.ld_block2; ldb++) {
+            maybe_tilestore(bi, bdb, ldb, true, false);
+        }
+    }
 
     interleave_store(bi, true);
 }

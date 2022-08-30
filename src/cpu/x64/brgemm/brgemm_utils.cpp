@@ -466,6 +466,14 @@ status_t brgemm_blocking(brgemm_t *brg) {
                             != 0,
                     brg->is_bf32))
             return status::unimplemented;
+
+        //TODO: check this condition
+        brg->interleave_tilestores_ = brg->beta == 0
+                        && (brg->brgattr.use_interleave_stores
+                                && (brg->bd_block2 * brg->ld_block2 == 4)
+                                && !brg->brgattr.var_bs)
+                ? true
+                : false;
     }
 
     return status::success;

@@ -241,6 +241,8 @@ struct brgemm_t {
 
     int is_M_tail;
 
+    bool interleave_tilestores_ = false;
+
     bool is_row_major() const {
         assert(layout != brgemm_layout_undef);
         return layout == brgemm_row_major;
