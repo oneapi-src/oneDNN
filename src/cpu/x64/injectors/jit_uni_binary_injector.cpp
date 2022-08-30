@@ -38,9 +38,13 @@ static bcast_set_t get_all_strategies_supported_by_injector() {
 
 bool is_data_supported(cpu_isa_t isa, data_type_t data_type) {
     switch (data_type) {
+        case data_type::f32:
+        case data_type::s32:
+        case data_type::s8:
+        case data_type::u8: return true;
         case data_type::bf16: return is_superset(isa, avx512_core);
         case data_type::f16: return is_superset(isa, avx512_core_fp16);
-        default: return true;
+        default: return false;
     }
 }
 
@@ -1587,6 +1591,7 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_no_tail(
         const data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
+    assert(is_data_supported(isa, data_type) && "unsupported data type");
     switch (data_type) {
         case data_type::f32: host_->uni_vbroadcastss(tmp_vmm, rhs_addr); break;
         case data_type::s32: host_->uni_vpbroadcastd(tmp_vmm, rhs_addr); break;
@@ -1598,12 +1603,10 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_no_tail(
             host_->vcvtph2psx(tmp_vmm, host_->ptr_b[rhs_addr.getRegExp()]);
             break;
         case data_type::bf16:
-            if (is_avx512_) {
-                host_->vpbroadcastw(tmp_vmm, rhs_addr);
-                host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
-                break;
-            }
-        default: assert(!"unsupported data type");
+            host_->vpbroadcastw(tmp_vmm, rhs_addr);
+            host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
+            break;
+        default: return;
     }
 }
 
@@ -1709,6 +1712,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_opmask(
         const data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
 
+    assert(is_data_supported(isa, data_type) && "unsupported data type");
     assert(rhs_arg_static_params_.is_opmask_set()
             && "Opmask is not set for tail loading avx512");
     const auto &tail_opmask = rhs_arg_static_params_.tail_opmask;
@@ -1737,13 +1741,10 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_opmask(
                     host_->ptr_b[rhs_addr.getRegExp()]);
             break;
         case data_type::bf16:
-            if (is_avx512_) {
-                host_->vpbroadcastw(tmp_vmm, rhs_addr);
-                host_->vpslld(
-                        tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
-                break;
-            }
-        default: assert(!"unsupported data type");
+            host_->vpbroadcastw(tmp_vmm, rhs_addr);
+            host_->vpslld(tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
+            break;
+        default: return;
     }
 }
 
@@ -2001,6 +2002,7 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_no_tail(
         const data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
+    assert(is_data_supported(isa, data_type) && "unsupported data type");
     switch (data_type) {
         case data_type::f32:
         case data_type::s32: host_->uni_vmovups(tmp_vmm, rhs_addr); break;
@@ -2010,12 +2012,10 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_no_tail(
             break;
         case data_type::f16: host_->vcvtph2psx(tmp_vmm, rhs_addr); break;
         case data_type::bf16:
-            if (is_avx512_) {
-                host_->vpmovzxwd(tmp_vmm, rhs_addr);
-                host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
-                break;
-            }
-        default: assert(!"unsupported data type");
+            host_->vpmovzxwd(tmp_vmm, rhs_addr);
+            host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
+            break;
+        default: return;
     }
 }
 
@@ -2060,7 +2060,7 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically_with_opmask(
         const data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
-
+    assert(is_data_supported(isa, data_type) && "unsupported data type");
     assert(rhs_arg_static_params_.is_opmask_set()
             && "Opmask is not set for tail loading avx512");
 
@@ -2081,13 +2081,10 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically_with_opmask(
             host_->vcvtph2psx(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
             break;
         case data_type::bf16:
-            if (is_avx512_) {
-                host_->vpmovzxwd(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
-                host_->vpslld(
-                        tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
-                break;
-            }
-        default: assert(!"unsupported data type");
+            host_->vpmovzxwd(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
+            host_->vpslld(tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
+            break;
+        default: return;
     }
 }
 
