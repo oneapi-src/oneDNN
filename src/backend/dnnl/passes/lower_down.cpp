@@ -574,23 +574,9 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
                 fused_scales[i] = dq_src_scales[0] * dq_wei_scales[i];
             // FIXME(wuxun): if quantization is per-channel, need to set axis
             // to the last dimension of dst
-            // find the output edge op to get the ndims
-            op_t begin_op = *matmul_op;
-            while (!begin_op.get_output_value(0)->get_consumers().empty()) {
-                begin_op = begin_op.get_output_value(0)
-                                   ->get_consumers()[0]
-                                   .get_op();
-            }
-            // if one of matmul's inputs is 1D tensor, the real ndims of
-            // matmul's output should be (cur_ndims + 1), so we only need set
-            // axis to cur_ndims
             int64_t new_axis
-                    = begin_op.get_output_value(0)->get_logical_tensor().ndims
+                    = matmul_op->get_output_value(0)->get_logical_tensor().ndims
                     - 1;
-            if (matmul_op->get_input_value(0)->get_logical_tensor().ndims == 1
-                    || matmul_op->get_input_value(1)->get_logical_tensor().ndims
-                            == 1)
-                new_axis += 1;
             mul_scales_op->set_attr<int64_t>(op_attr::axis, new_axis);
             mul_scales_op->set_attr<std::string>(
                     op_attr::qtype, in1->get_attr<std::string>(op_attr::qtype));

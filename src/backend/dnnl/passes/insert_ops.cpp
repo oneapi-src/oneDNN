@@ -452,6 +452,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
 impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
         std::shared_ptr<subgraph_t> &sg) {
     subgraph_rewriter_t rewriter(sg);
+    auto &mgr = sg->fusion_info_mgr_;
 
     for (auto &op : sg->get_ops()) {
         if (op->get_kind() != op_kind::dnnl_matmul) continue;
@@ -497,6 +498,20 @@ impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
             squeeze_op->set_attr<std::vector<int64_t>>(
                     op_attr::axes, squeeze_axes);
             rewriter.insert_op_after(squeeze_op, op, 0);
+        }
+
+        // update the axis
+        if (op->has_attr(op_attr::fusion_info_key)
+                && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
+            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+            impl::op_t *oscales_op = fusion_info.get_mutable_output_scales();
+            if (oscales_op
+                    && oscales_op->get_attr<std::string>(op_attr::qtype)
+                            == "per_channel") {
+                oscales_op->set_attr<int64_t>(op_attr::axis,
+                        unsqueezed_dst_ndims - 1); // the 2nd dim;
+            }
         }
     }
 
