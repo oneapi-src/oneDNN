@@ -305,3 +305,15 @@ TEST(Op, KindString) {
     ASSERT_EQ(op_t::kind2str(op_kind::MatMul), "MatMul");
     ASSERT_EQ(op_t::kind2str(op_kind::LastSymbol), "LastSymbol");
 }
+
+TEST(Op, EachPublicOpHasKindString) {
+    using namespace dnnl::graph::impl;
+
+    const int last = static_cast<int>(dnnl_graph_op_last_symbol);
+    for (int i = 0; i < last; i++) {
+        const op_kind_t opk = static_cast<op_kind_t>(i);
+        const std::string str = op_t::kind2str(opk);
+        // public ops should have proper kind strings.
+        ASSERT_NE(str, "internal_op");
+    }
+}
