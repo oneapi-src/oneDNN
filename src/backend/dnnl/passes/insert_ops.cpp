@@ -409,13 +409,6 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
             continue;
         }
 
-        const bool with_bias = cur_op->has_attr(op_attr::with_bias)
-                ? cur_op->get_attr<bool>(op_attr::with_bias)
-                : false;
-        const size_t expected = with_bias ? 4 : 3;
-        // TODO(xx): handle multiple post-binary case
-        if (cur_op->num_inputs() > expected) { continue; }
-
         int32_t src_ndims
                 = cur_op->get_input_value(0)->get_logical_tensor().ndims;
         int32_t wei_ndims
@@ -442,28 +435,27 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
         to_be_inserted_ops.emplace_back(reshape_op2);
         insert_op_after(reshape_op2, cur_op, 0);
 
-        if (!with_bias && cur_op->num_inputs() == 3) {
-            auto post_src_dims = logical_tensor_wrapper_t(
-                    cur_op->get_input_value(2)->get_logical_tensor())
-                                         .vdims();
-            impl::dims expected_dims3 {-1, post_src_dims.back()};
-            auto reshape_op3 = std::make_shared<op_t>(op_kind::dnnl_reshape);
-            reshape_op3->set_attr<bool>(op_attr::special_zero, false);
-            reshape_op3->set_attr<std::vector<int64_t>>(
-                    op_attr::shape, expected_dims3);
-            to_be_inserted_ops.emplace_back(reshape_op3);
-            insert_op_before(reshape_op3, cur_op, 2);
-        } else if (with_bias && cur_op->num_inputs() == 4) {
-            auto post_src_dims = logical_tensor_wrapper_t(
-                    cur_op->get_input_value(3)->get_logical_tensor())
-                                         .vdims();
-            impl::dims expected_dims3 {-1, post_src_dims.back()};
-            auto reshape_op3 = std::make_shared<op_t>(op_kind::dnnl_reshape);
-            reshape_op3->set_attr<bool>(op_attr::special_zero, false);
-            reshape_op3->set_attr<std::vector<int64_t>>(
-                    op_attr::shape, expected_dims3);
-            to_be_inserted_ops.emplace_back(reshape_op3);
-            insert_op_before(reshape_op3, cur_op, 3);
+        if (cur_op->has_attr(op_attr::fusion_info_key)
+                && cur_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            int64_t key = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
+            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+            const auto &pops = fusion_info.get_post_ops();
+            for (int i = 0; i < pops.size(); i++) {
+                if (!pops[i]->is_post_binary() && !pops[i]->is_post_sum())
+                    continue;
+                const size_t offset = pops[i]->get_unfused_input_indices()[0];
+                auto post_src_dims = logical_tensor_wrapper_t(
+                        cur_op->get_input_value(offset)->get_logical_tensor())
+                                             .vdims();
+                impl::dims expected_dims3 {-1, post_src_dims.back()};
+                auto reshape_op3
+                        = std::make_shared<op_t>(op_kind::dnnl_reshape);
+                reshape_op3->set_attr<bool>(op_attr::special_zero, false);
+                reshape_op3->set_attr<std::vector<int64_t>>(
+                        op_attr::shape, expected_dims3);
+                to_be_inserted_ops.emplace_back(reshape_op3);
+                insert_op_before(reshape_op3, cur_op, offset);
+            }
         }
 
         // update the axis

@@ -85,7 +85,8 @@ public:
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_reorder);
-            BACKEND_DNNL_ADD_PASS(pipeline, folding_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fold_sum_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);

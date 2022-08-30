@@ -54,8 +54,14 @@ class fusion_info_t {
         // for post-eltwise
         meta_op_t(const op_ptr &op, float scale) : op_(op), scale_(scale) {};
         // for post-sum
-        meta_op_t(const op_ptr &op, float scale, int32_t zp)
-            : op_(op), scale_(scale), zp_(zp) {};
+        meta_op_t(const op_ptr &op,
+                const std::vector<size_t> &extra_input_indices, float scale,
+                int32_t zp)
+            : op_(op)
+            , scale_(scale)
+            , zp_(zp)
+            , unfused_input_indices_(extra_input_indices)
+            , is_post_sum_(true) {};
         // for post-binary and post-conv
         meta_op_t(const op_ptr &op,
                 const std::vector<size_t> &extra_input_indices)
@@ -69,11 +75,12 @@ class fusion_info_t {
 
         const impl::op_t *get_op() const { return op_.get(); }
 
-        // post-sum is still represented by a dnnl_binary op, but we didn't set
-        // unfused_input_indices_ for it.
         bool is_post_sum() const {
-            return op_->get_kind() == op_kind::dnnl_binary
-                    && unfused_input_indices_.empty();
+            return op_->get_kind() == op_kind::dnnl_binary && is_post_sum_;
+        }
+
+        bool is_post_binary() const {
+            return op_->get_kind() == op_kind::dnnl_binary && !is_post_sum_;
         }
 
     private:
@@ -82,9 +89,11 @@ class fusion_info_t {
         float scale_ = 1.0f;
         // used to represent post-sum's zp
         int32_t zp_ = 0;
-        // used to represent post-binary and post-convolution's unfused input
-        // index
+        // used to represent post-sum, post-binary and post-convolution's
+        // unfused input index
         std::vector<size_t> unfused_input_indices_;
+        // used to identify post-sum
+        bool is_post_sum_ = false;
     };
 
 public:
@@ -130,8 +139,11 @@ public:
         post_ops_.emplace_back(std::make_shared<meta_op_t>(op, scale));
     }
 
-    void append_post_sum(const op_ptr &op, float scale = 1.0f, int32_t zp = 0) {
-        post_ops_.emplace_back(std::make_shared<meta_op_t>(op, scale, zp));
+    void append_post_sum(const op_ptr &op,
+            const std::vector<size_t> &extra_input_indices, float scale = 1.0f,
+            int32_t zp = 0) {
+        post_ops_.emplace_back(std::make_shared<meta_op_t>(
+                op, extra_input_indices, scale, zp));
     }
 
     // the extra input means the unfused input that has been added to the fused

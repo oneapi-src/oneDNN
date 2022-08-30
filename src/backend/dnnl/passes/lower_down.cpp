@@ -469,10 +469,10 @@ impl::status_t replace_quant_data_with_binary_post_op(
     return infer_shape(sg);
 }
 
-impl::status_t folding_mul_scales(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     // lambda function to fold the consecutive mul_scales ops
-    auto folding_mul_scales_func = [&]() {
+    auto fold_mul_scales_func = [&]() {
         std::vector<std::pair<op_t *, op_t *>> folding_groups;
         std::set<op_t *> visited;
         for (const auto &cur_op : subgraph) {
@@ -530,7 +530,7 @@ impl::status_t folding_mul_scales(std::shared_ptr<subgraph_t> &sg) {
 
     bool changed = true;
     do {
-        changed = folding_mul_scales_func();
+        changed = fold_mul_scales_func();
     } while (changed);
     return impl::status::success;
 }
@@ -1074,6 +1074,96 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::set<op_t *> visited;
+    std::vector<op_t *> to_be_removed_ops;
+
+    for (auto &cur_op : subgraph) {
+        if (!(cur_op->get_kind() == op_kind::dnnl_binary
+                    && static_cast<dnnl::algorithm>(
+                               cur_op->get_attr<int64_t>(op_attr::alg_kind))
+                            == dnnl::algorithm::binary_add)
+                || visited.count(cur_op.get()))
+            continue;
+
+        visited.insert(cur_op.get());
+        size_t mul_scale_op_offset = 2;
+        auto lhs_val = cur_op->get_input_value(0);
+        auto rhs_val = cur_op->get_input_value(1);
+
+        if (!lhs_val->has_producer() || !rhs_val->has_producer()) { continue; }
+        const auto &l_op = lhs_val->get_producer();
+        const auto &r_op = rhs_val->get_producer();
+
+        auto consumers = cur_op->get_output_values()[0]->get_consumers();
+        if (consumers.empty()
+                || consumers[0].get_op().get_kind()
+                        != op_kind::dnnl_mul_scales) {
+            continue;
+        }
+
+        if (l_op.get_kind() != op_kind::dnnl_mul_scales
+                || r_op.get_kind() != op_kind::dnnl_mul_scales) {
+            continue;
+        }
+        if (l_op.num_inputs() > 0 && l_op.get_input_value(0)->has_producer()
+                && impl::utils::one_of(
+                        l_op.get_input_value(0)->get_producer().get_kind(),
+                        op_kind::dnnl_matmul, op_kind::dnnl_convolution,
+                        op_kind::dnnl_convtranspose, op_kind::dnnl_reorder)) {
+            mul_scale_op_offset = 1;
+        } else if (r_op.num_inputs() > 0
+                && r_op.get_input_value(0)->has_producer()
+                && impl::utils::one_of(
+                        r_op.get_input_value(0)->get_producer().get_kind(),
+                        op_kind::dnnl_matmul, op_kind::dnnl_convolution,
+                        op_kind::dnnl_convtranspose, op_kind::dnnl_reorder)) {
+            mul_scale_op_offset = 0;
+        }
+
+        if (mul_scale_op_offset != 2
+                && ltw(lhs_val->get_logical_tensor()).vdims()
+                        == ltw(rhs_val->get_logical_tensor()).vdims()) {
+            auto in_val = cur_op->get_input_value(mul_scale_op_offset);
+            auto &mul_scale_op = in_val->get_producer();
+            auto scales = mul_scale_op.get_attr<std::vector<float>>(
+                    op_attr::scales);
+            assert(scales.size() == 1); // per tensor
+
+            auto tmp = mul_scale_op.get_input_value(0);
+            auto &add_zps_op = tmp->get_producer();
+            auto zps = add_zps_op.get_attr<std::vector<int64_t>>(op_attr::zps);
+            assert(scales.size() == zps.size());
+
+            auto out_val = cur_op->get_output_values()[0];
+            auto consumers = out_val->get_consumers();
+            auto &next_op = consumers[0].get_op();
+            // set sum post-ops' second input scale
+            float tmp_scale
+                    = next_op.get_attr<std::vector<float>>(op_attr::scales)[0];
+            scales[0] *= tmp_scale;
+            mul_scale_op.set_attr<std::vector<float>>(op_attr::scales, scales);
+
+            // update the output scales
+            auto other_val = cur_op->get_input_value(1 - mul_scale_op_offset);
+            auto &oscales_op = other_val->get_producer();
+            auto oscales
+                    = oscales_op.get_attr<std::vector<float>>(op_attr::scales);
+            for (auto &v : oscales)
+                v *= tmp_scale;
+            oscales_op.set_attr<std::vector<float>>(op_attr::scales, oscales);
+            to_be_removed_ops.push_back(&next_op);
+        }
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        fuse_op_to_predecessor(op, subgraph);
+    }
+
+    return status::success;
+}
+
 status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     auto &mgr = sg->fusion_info_mgr_;
@@ -1217,40 +1307,21 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     assert(scales.size() == 1); // per tensor
 
                     auto tmp = mul_scale_op.get_input_value(0);
-                    auto &add_zps_op = tmp->get_producer();
-                    auto zps = add_zps_op.get_attr<std::vector<int64_t>>(
-                            op_attr::zps);
-                    assert(scales.size() == zps.size());
+                    int32_t zp = 0;
+                    if (tmp->has_producer()) {
+                        auto &add_zps_op = tmp->get_producer();
+                        auto zps = add_zps_op.get_attr<std::vector<int64_t>>(
+                                op_attr::zps);
+                        zp = static_cast<int32_t>(-zps[0]);
+                        assert(scales.size() == zps.size());
 
-                    fuse_op_to_successor(&add_zps_op, subgraph);
+                        fuse_op_to_successor(&add_zps_op, subgraph);
+                    }
                     fuse_op_to_successor(&mul_scale_op, subgraph);
 
-                    auto out_val = post_op->get_output_values()[0];
-                    auto consumers = out_val->get_consumers();
-                    if (!consumers.empty()) {
-                        auto &next_op = consumers[0].get_op();
-                        // set sum post-ops' second input scale
-                        if (next_op.get_kind() == op_kind::dnnl_mul_scales) {
-                            float tmp_scale
-                                    = next_op.get_attr<std::vector<float>>(
-                                            op_attr::scales)[0];
-                            scales[0] *= tmp_scale;
-                            fuse_op_to_predecessor(&next_op, subgraph);
-
-                            // update the output scales
-                            impl::op_t *oscales_op
-                                    = fusion_info.get_mutable_output_scales();
-                            auto oscales
-                                    = oscales_op->get_attr<std::vector<float>>(
-                                            op_attr::scales);
-                            for (auto &v : oscales)
-                                v *= tmp_scale;
-                            oscales_op->set_attr<std::vector<float>>(
-                                    op_attr::scales, oscales);
-                        }
-                    }
                     fusion_info.append_post_sum(post_op->shared_from_this(),
-                            scales[0], static_cast<int32_t>(-zps[0]));
+                            std::vector<size_t> {base_op->num_inputs()},
+                            scales[0], zp);
                     assertm(!base_op->has_attr(op_attr::with_sum)
                                     || !base_op->get_attr<bool>(
                                             op_attr::with_sum),
@@ -1285,7 +1356,10 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                                                 base_op->num_inputs()});
                             } else {
                                 fusion_info.append_post_sum(
-                                        post_op->shared_from_this(), 1.0f, 0);
+                                        post_op->shared_from_this(),
+                                        std::vector<size_t> {
+                                                base_op->num_inputs()},
+                                        1.0f, 0);
                                 base_op->set_attr<bool>(
                                         op_attr::with_sum, true);
                             }

@@ -180,7 +180,7 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
 
     // 2. merge into int8 conv, change the input's scales to output scale
     dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
-    dnnl_impl::folding_mul_scales(subgraph);
+    dnnl_impl::fold_mul_scales(subgraph);
     auto qconv_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
@@ -307,7 +307,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
 
     // 2. merge into int8 matmul, change the input's scales to output scale
     dnnl_impl::fuse_to_int8_matmul(subgraph);
-    dnnl_impl::folding_mul_scales(subgraph);
+    dnnl_impl::fold_mul_scales(subgraph);
     auto qmatmul_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
@@ -538,7 +538,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     dnnl_impl::check_with_bias(subgraph);
     dnnl_impl::split_quant_dequant(subgraph);
     dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
-    dnnl_impl::folding_mul_scales(subgraph);
+    dnnl_impl::fold_mul_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
     dnnl_impl::fuse_zero_points(subgraph);
@@ -754,7 +754,7 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
 
     dnnl_impl::split_quant_dequant(subgraph);
     dnnl_impl::fuse_to_int8_matmul(subgraph);
-    dnnl_impl::folding_mul_scales(subgraph);
+    dnnl_impl::fold_mul_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
     dnnl_impl::fuse_zero_points(subgraph);

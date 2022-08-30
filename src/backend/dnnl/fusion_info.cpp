@@ -106,17 +106,13 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             dnnl_pops.append_eltwise(scale, alg, alpha, beta);
         } else if (fused_op_kind == op_kind::dnnl_binary) {
             const auto &extra_inputs = pop->get_unfused_input_indices();
-            if (extra_inputs.empty()) {
+            if (pop->is_post_sum()) {
                 // post-sum
                 float scale = pop->get_scale();
                 int32_t zp = pop->get_zp();
                 dnnl::memory::data_type sum_dt = dnnl::memory::data_type::undef;
                 if (op->get_kind() == op_kind::dnnl_convolution) {
-                    const bool with_bias = op->has_attr(op_attr::with_bias)
-                            ? op->get_attr<bool>(op_attr::with_bias)
-                            : false;
-                    const int psrc_idx = with_bias ? 3 : 2;
-                    const auto psrc_dt = op->get_input_value(psrc_idx)
+                    const auto psrc_dt = op->get_input_value(extra_inputs[0])
                                                  ->get_logical_tensor()
                                                  .data_type;
                     const auto dst_dt = op->get_output_value(0)
