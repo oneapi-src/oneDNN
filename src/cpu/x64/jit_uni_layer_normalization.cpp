@@ -438,7 +438,7 @@ struct jit_stat_and_data_kernel_t<sse41>
                 // We need to call tail version once, it's fine to use `vmm_tmp`
                 uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
                 uni_vblendvps(vmm_tmp, vmm_tmp, vmm_mean, vmm_tail_mask);
-                uni_vsubps(vmm_src, vmm_src, vmm_mean);
+                uni_vsubps(vmm_src, vmm_src, vmm_tmp);
             }
             uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
         });
