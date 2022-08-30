@@ -403,7 +403,7 @@ void jit_io_helper_t<Vmm>::prepare_tail_mask() {
     if (is_superset(isa_, avx512_core))
         prepare_opmask(tail_conf_->tail_size_, tail_conf_->reg_tmp_,
                 tail_conf_->tail_opmask_);
-    else if (is_superset(isa_, avx))
+    else if (is_superset(isa_, sse41))
         prepare_vmm_mask(tail_conf_->tail_size_, tail_conf_->simd_w_,
                 tail_conf_->reg_tmp_, Vmm(tail_conf_->tail_vmm_mask_idx_));
 }
