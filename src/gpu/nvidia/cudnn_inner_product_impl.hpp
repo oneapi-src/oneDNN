@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -159,6 +159,7 @@ struct cudnn_inner_product_impl_base_t {
 
 struct cudnn_inner_product_fwd_base_t : public cudnn_inner_product_impl_base_t {
     float output_scales_; // alpha in gemm
+    bool do_scaling_ {false}, runtime_scaling_ {false};
     float sum_scale_; // beta in gemm
     float eltwise_alpha(const inner_product_pd_t *pd) const {
         const int eltwise_idx

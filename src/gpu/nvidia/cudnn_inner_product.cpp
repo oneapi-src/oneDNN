@@ -39,6 +39,7 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
         auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+        auto arg_oscale = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_OUTPUT_SCALES);
         auto arg_ip_scratch = CTX_SCRATCH_SYCL_MEMORY(
                 memory_tracking::names::key_iprod_int_dat_in_acc_dt);
         auto arg_spacial_scratch
@@ -61,6 +62,7 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(arg_ip_scratch.get_native_pointer(ih));
             args.push_back(arg_spacial_scratch.get_native_pointer(ih));
             args.push_back(arg_scaled_bias_scratch.get_native_pointer(ih));
+            args.push_back(arg_oscale.get_native_pointer(ih));
 
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);

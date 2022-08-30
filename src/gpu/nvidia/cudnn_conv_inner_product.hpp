@@ -63,8 +63,8 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
-                    | primitive_attr_t::skip_mask_t::post_ops;
+            using sm_t = primitive_attr_t::skip_mask_t;
+            const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
             // Flag for checking if the fused routine can be used for the
             // blocked format case. If set to true, that implies ReLU and
             // blocking are used.

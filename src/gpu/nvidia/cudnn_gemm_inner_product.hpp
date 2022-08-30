@@ -182,8 +182,8 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             bool need_reorder = (gemm_compatible
                             ? false
                             : reorder_check(src_md(), weights_md(), dst_md()));
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
-                    | primitive_attr_t::skip_mask_t::post_ops;
+            using sm_t = primitive_attr_t::skip_mask_t;
+            const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
 
             bool with_eltwise
                     = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
