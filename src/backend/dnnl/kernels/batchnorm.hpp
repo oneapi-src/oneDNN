@@ -39,7 +39,7 @@
 #include "backend/dnnl/utils.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-#include <CL/sycl.hpp>
+#include "utils/sycl_utils.hpp"
 #include <dnnl_sycl.hpp>
 #endif
 

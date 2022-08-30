@@ -28,7 +28,13 @@
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
+#if __has_include(<sycl/sycl.hpp>)
+#include <sycl/sycl.hpp>
+#elif __has_include(<CL/sycl.hpp>)
 #include <CL/sycl.hpp>
+#else
+#error "Unsupported compiler"
+#endif
 #endif
 
 #include "dnnl_common.hpp"
@@ -102,10 +108,9 @@ void fill_buffer(void *src, size_t total_size, int val) {
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 template <typename dtype>
-void fill_buffer(
-        cl::sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
+void fill_buffer(sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
     dtype *usm_buffer_casted = static_cast<dtype *>(usm_buffer);
-    q.parallel_for(cl::sycl::range<1>(length), [=](cl::sycl::id<1> i) {
+    q.parallel_for(sycl::range<1>(length), [=](sycl::id<1> i) {
          int idx = (int)i[0];
          usm_buffer_casted[idx] = value;
      }).wait();

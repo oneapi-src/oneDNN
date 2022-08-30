@@ -49,7 +49,7 @@
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 using namespace dnnl::graph;
-using namespace cl::sycl;
+using namespace sycl;
 //[Headers and namespace]
 
 #include <iostream>

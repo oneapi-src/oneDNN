@@ -20,7 +20,7 @@
 #include "interface/c_types_map.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-#include <CL/sycl.hpp>
+#include "utils/sycl_utils.hpp"
 #endif
 
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL

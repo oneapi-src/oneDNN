@@ -615,7 +615,7 @@ std::shared_ptr<void> alloc_sycl_mem_for_tensor(
     dnnl::engine test_eng {::get_test_engine()};
     size_t mem_size = lt.get_mem_size();
     std::shared_ptr<void> ts_buff(
-            cl::sycl::malloc_shared(mem_size,
+            sycl::malloc_shared(mem_size,
                     dnnl::sycl_interop::get_device(test_eng),
                     dnnl::sycl_interop::get_context(test_eng)),
             sycl_deletor {dnnl::sycl_interop::get_context(test_eng)});

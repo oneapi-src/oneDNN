@@ -87,7 +87,7 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 /// @param inputs A list of input tensors
 /// @param num_outputs The number of output tensors
 /// @param outputs A non-empty list of output tensors
-/// @param deps Optional handle of list with `cl::sycl::event` dependencies.
+/// @param deps Optional handle of list with `sycl::event` dependencies.
 /// @param sycl_event The handle of sycl event.
 /// @returns #dnnl_graph_success on success and a status describing the
 ///     error otherwise.

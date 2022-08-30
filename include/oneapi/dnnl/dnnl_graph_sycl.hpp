@@ -20,7 +20,13 @@
 /// @cond DO_NOT_DOCUMENT_THIS
 #include <vector>
 
+#if __has_include(<sycl/sycl.hpp>)
+#include <sycl/sycl.hpp>
+#elif __has_include(<CL/sycl.hpp>)
 #include <CL/sycl.hpp>
+#else
+#error "Unsupported compiler"
+#endif
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
@@ -65,7 +71,7 @@ inline allocator make_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
 ///
 /// @returns Created engine.
 inline engine make_engine(
-        const cl::sycl::device &adevice, const cl::sycl::context &acontext) {
+        const sycl::device &adevice, const sycl::context &acontext) {
     dnnl_graph_engine_t c_engine = nullptr;
     error::check_succeed(dnnl_graph_sycl_interop_engine_create(&c_engine,
                                  static_cast<const void *>(&adevice),
@@ -81,8 +87,8 @@ inline engine make_engine(
 /// @param alloc The memory allocator associated to the engine.
 ///
 /// @returns Created engine.
-inline engine make_engine(const cl::sycl::device &adevice,
-        const cl::sycl::context &acontext, const allocator &alloc) {
+inline engine make_engine(const sycl::device &adevice,
+        const sycl::context &acontext, const allocator &alloc) {
     dnnl_graph_engine_t c_engine = nullptr;
     error::check_succeed(
             dnnl_graph_sycl_interop_engine_create_with_allocator(&c_engine,
@@ -99,7 +105,7 @@ inline engine make_engine(const cl::sycl::device &adevice,
 /// @param aqueue SYCL queue to use for the stream.
 ///
 /// @returns An execution stream.
-inline stream make_stream(engine aengine, const cl::sycl::queue &aqueue) {
+inline stream make_stream(engine aengine, const sycl::queue &aqueue) {
     dnnl_graph_stream_t c_stream = nullptr;
     error::check_succeed(
             dnnl_graph_sycl_interop_stream_create(&c_stream, aengine.get(),
@@ -115,11 +121,11 @@ inline stream make_stream(engine aengine, const cl::sycl::queue &aqueue) {
 /// @param astream Stream object to run over
 /// @param inputs Arguments map.
 /// @param outputs Arguments map.
-/// @param deps Optional vector with `cl::sycl::event` dependencies.
+/// @param deps Optional vector with `sycl::event` dependencies.
 /// @returns Output event.
-inline cl::sycl::event execute(compiled_partition &c_partition, stream &astream,
+inline sycl::event execute(compiled_partition &c_partition, stream &astream,
         const std::vector<tensor> &inputs, std::vector<tensor> &outputs,
-        const std::vector<cl::sycl::event> &deps = {}) {
+        const std::vector<sycl::event> &deps = {}) {
     std::vector<const_dnnl_graph_tensor_t> c_inputs;
     c_inputs.reserve(inputs.size());
     for (auto &in : inputs) {
@@ -131,7 +137,7 @@ inline cl::sycl::event execute(compiled_partition &c_partition, stream &astream,
         c_outputs.push_back(out.get());
     }
 
-    cl::sycl::event sycl_event;
+    sycl::event sycl_event;
     error::check_succeed(
             dnnl_graph_sycl_interop_compiled_partition_execute(
                     c_partition.get(), astream.get(), c_inputs.size(),
