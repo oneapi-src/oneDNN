@@ -18,10 +18,6 @@
 
 #include "test_allocator.hpp"
 
-#ifdef DNNL_WITH_SYCL
-#include <CL/sycl.hpp>
-#endif
-
 #ifndef UNUSED
 #define UNUSED(x) ((void)(x))
 #endif

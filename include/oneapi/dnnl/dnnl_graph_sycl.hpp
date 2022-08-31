@@ -20,7 +20,13 @@
 /// @cond DO_NOT_DOCUMENT_THIS
 #include <vector>
 
+#if __has_include(<sycl/sycl.hpp>)
+#include <sycl/sycl.hpp>
+#elif __has_include(<CL/sycl.hpp>)
 #include <CL/sycl.hpp>
+#else
+#error "Unsupported compiler"
+#endif
 
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl_graph.hpp"
@@ -59,8 +65,8 @@ inline allocator make_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
     return allocator(c_allocator);
 }
 
-inline dnnl::engine make_engine_with_allocator(const cl::sycl::device &adevice,
-        const cl::sycl::context &acontext, const allocator &alloc) {
+inline dnnl::engine make_engine_with_allocator(const sycl::device &adevice,
+        const sycl::context &acontext, const allocator &alloc) {
     dnnl_engine_t c_engine;
     error::wrap_c_api(
             dnnl_graph_sycl_interop_make_engine_with_allocator(&c_engine,
@@ -77,11 +83,11 @@ inline dnnl::engine make_engine_with_allocator(const cl::sycl::device &adevice,
 /// @param astream Stream object to run over
 /// @param inputs Arguments map.
 /// @param outputs Arguments map.
-/// @param deps Optional vector with `cl::sycl::event` dependencies.
+/// @param deps Optional vector with `sycl::event` dependencies.
 /// @returns Output event.
-inline cl::sycl::event execute(compiled_partition &c_partition, stream &astream,
+inline sycl::event execute(compiled_partition &c_partition, stream &astream,
         const std::vector<tensor> &inputs, std::vector<tensor> &outputs,
-        const std::vector<cl::sycl::event> &deps = {}) {
+        const std::vector<sycl::event> &deps = {}) {
     std::vector<const_dnnl_graph_tensor_t> c_inputs;
     c_inputs.reserve(inputs.size());
     for (auto &in : inputs) {
@@ -93,7 +99,7 @@ inline cl::sycl::event execute(compiled_partition &c_partition, stream &astream,
         c_outputs.push_back(out.get());
     }
 
-    cl::sycl::event sycl_event;
+    sycl::event sycl_event;
     error::wrap_c_api(dnnl_graph_sycl_interop_compiled_partition_execute(
                               c_partition.get(), astream.get(), c_inputs.size(),
                               c_inputs.data(), c_outputs.size(),

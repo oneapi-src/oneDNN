@@ -18,15 +18,12 @@
 
 #include <vector>
 
-#include <CL/sycl.hpp>
-
 #include "api/test_api_common.hpp"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 
 using namespace dnnl::graph;
-namespace sycl = cl::sycl;
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
 TEST(tensor_test, gpu_engine) {

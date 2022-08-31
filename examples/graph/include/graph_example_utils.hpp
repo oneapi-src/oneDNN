@@ -25,7 +25,13 @@
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #ifdef DNNL_WITH_SYCL
+#if __has_include(<sycl/sycl.hpp>)
+#include <sycl/sycl.hpp>
+#elif __has_include(<CL/sycl.hpp>)
 #include <CL/sycl.hpp>
+#else
+#error "Unsupported compiler"
+#endif
 #endif
 
 #define EXAMPLE_SWITCH_TYPE(type_enum, type_key, ...) \

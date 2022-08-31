@@ -33,7 +33,7 @@
 #include "graph/utils/verbose.hpp"
 
 #ifdef DNNL_WITH_SYCL
-#include <CL/sycl.hpp>
+#include "sycl/sycl_utils.hpp"
 #endif
 
 struct dnnl_graph_allocator final : public dnnl::impl::graph::utils::id_t {

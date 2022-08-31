@@ -25,7 +25,13 @@
 #include "interface/partition_cache.hpp"
 
 #ifdef DNNL_WITH_SYCL
+#if __has_include(<sycl/sycl.hpp>)
+#include <sycl/sycl.hpp>
+#elif __has_include(<CL/sycl.hpp>)
 #include <CL/sycl.hpp>
+#else
+#error "Unsupported compiler"
+#endif
 #endif
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL

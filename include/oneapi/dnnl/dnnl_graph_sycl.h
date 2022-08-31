@@ -59,7 +59,7 @@ dnnl_status_t DNNL_API dnnl_graph_sycl_interop_make_engine_with_allocator(
 /// @param inputs A list of input tensors
 /// @param num_outputs The number of output tensors
 /// @param outputs A non-empty list of output tensors
-/// @param deps Optional handle of list with `cl::sycl::event` dependencies.
+/// @param deps Optional handle of list with `sycl::event` dependencies.
 /// @param sycl_event The handle of sycl event.
 /// @returns #dnnl_success on success and a status describing the
 ///     error otherwise.
