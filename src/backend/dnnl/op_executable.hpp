@@ -43,6 +43,44 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
+struct indice_t {
+    // the type_t is used to indicate the indice is for input or output
+    enum class type_t {
+        input = 0,
+        output = 1,
+    };
+
+    type_t type_;
+    size_t value_;
+};
+
+// DNNL arg to in/outputs indice mapping. For example, <DNNL_ARG_SRC, {input,
+// 0}> means the 0-th input of an op should be used as primitive's src argument.
+// We should be able to know this map according the information on an op.
+using arg_indices_t = std::unordered_map<int, indice_t>;
+
+using arg_indices_getter_func
+        = std::function<arg_indices_t(const impl::op_t *, fusion_info_mgr_t &)>;
+
+// A dummy arg indices getter which is only used for those internal ops that are
+// only for fusion purpose, like dnnl_add_zps and dnnl_sub_zps. The dummy
+// getter should never be called.
+inline arg_indices_t dummy_arg_indices_getter(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(op);
+    UNUSED(mgr);
+    assertm(false, "dummy getter shoule never be called");
+    return {};
+}
+
+// Used to declare the arg indices getter inside an op executable class. The
+// getter can be used to generate the <dnnl_arg, in/output indice> map.
+// According to that, we can form the execution args by using the in/outputs
+// list in op.
+#define DECLARE_ARG_INDICES_GETTER \
+    static arg_indices_t get_arg_indices( \
+            const impl::op_t *op, fusion_info_mgr_t &mgr);
+
 struct op_executable_t {
     virtual ~op_executable_t() = default;
     virtual void execute(const stream &stream,
@@ -134,6 +172,8 @@ struct dummy_impl_t : public op_executable_t {
 };
 
 struct memory_reparser_t : public dummy_impl_t {
+    DECLARE_ARG_INDICES_GETTER;
+
     memory_reparser_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
@@ -165,6 +205,16 @@ struct memory_reparser_t : public dummy_impl_t {
 
 template <op_attr_t attr_name, typename attr_dt, typename target_dt>
 struct const_memory_filler_t : public op_executable_t {
+    static arg_indices_t get_arg_indices(
+            const impl::op_t *op, fusion_info_mgr_t &mgr) {
+        UNUSED(mgr);
+        arg_indices_t arg_indices;
+        // We only set dst argument, to which constant data will be copied
+        arg_indices.insert(
+                {DNNL_ARG_TO, indice_t {indice_t::type_t::output, 0}});
+        return arg_indices;
+    }
+
     const_memory_filler_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
@@ -229,6 +279,7 @@ using const_zps_filler = const_memory_filler_t<op_attr::zps, int64_t, int32_t>;
 
 struct conv_fwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::convolution_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     conv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -325,6 +376,7 @@ private:
 
 struct deconv_fwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::deconvolution_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     deconv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -381,6 +433,7 @@ private:
 struct deconv_bwd_data_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(
             dnnl::deconvolution_backward_data::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     deconv_bwd_data_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -411,6 +464,7 @@ private:
 struct deconv_bwd_weights_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(
             dnnl::deconvolution_backward_weights::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     deconv_bwd_weights_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -440,6 +494,7 @@ private:
 
 struct matmul_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::matmul::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     matmul_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -528,6 +583,7 @@ private:
 
 struct eltwise_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::eltwise_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     eltwise_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -557,6 +613,7 @@ private:
 
 struct eltwise_bwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::eltwise_backward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     eltwise_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -586,6 +643,7 @@ private:
 
 struct binary_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::binary::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     binary_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -663,6 +721,7 @@ private:
 
 struct concat_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::concat::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     concat_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -692,6 +751,7 @@ private:
 
 struct shuffle_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::shuffle_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     shuffle_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -721,6 +781,7 @@ private:
 
 struct pool_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::pooling_v2_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     pool_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -750,6 +811,7 @@ private:
 
 struct pool_bwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::pooling_v2_backward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     pool_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -779,6 +841,7 @@ private:
 
 struct prelu_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::prelu_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     prelu_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -808,6 +871,7 @@ private:
 
 struct prelu_bwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::prelu_backward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     prelu_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -837,6 +901,7 @@ private:
 
 struct reorder_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::reorder::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     reorder_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -890,6 +955,8 @@ private:
 };
 
 struct bn_folding_t : public op_executable_t {
+    DECLARE_ARG_INDICES_GETTER;
+
     // bn_folding_t is a aggregated executable by using multiple primitives, so
     // we need a customized desc class to describe it.
     class desc_t {
@@ -1124,6 +1191,7 @@ private:
 struct conv_bwd_data_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(
             dnnl::convolution_backward_data::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     conv_bwd_data_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1154,6 +1222,7 @@ private:
 struct conv_bwd_weights_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(
             dnnl::convolution_backward_weights::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     conv_bwd_weights_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1184,6 +1253,7 @@ private:
 struct batchnorm_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(
             dnnl::batch_normalization_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     batchnorm_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1312,6 +1382,7 @@ private:
 struct batchnorm_bwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(
             dnnl::batch_normalization_backward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     batchnorm_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1341,6 +1412,7 @@ private:
 
 struct resampling_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::resampling_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     resampling_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1395,6 +1467,7 @@ private:
 
 struct resampling_bwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::resampling_backward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     resampling_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1425,6 +1498,7 @@ private:
 struct layernorm_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(
             dnnl::layer_normalization_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     layernorm_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1455,6 +1529,7 @@ private:
 struct layernorm_bwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(
             dnnl::layer_normalization_backward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     layernorm_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1484,6 +1559,7 @@ private:
 
 struct sum_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::sum::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     sum_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1513,6 +1589,7 @@ private:
 
 struct softmax_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::softmax_v2_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     softmax_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1542,6 +1619,7 @@ private:
 
 struct softmax_bwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::softmax_v2_backward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     softmax_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
@@ -1571,6 +1649,7 @@ private:
 
 struct reduction_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::reduction::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
 
     reduction_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,

@@ -289,15 +289,7 @@ private:
 class memory_planner_t {
 public:
     memory_planner_t()
-        : persistent_buffer_assigner_(16)
-        , temporary_buffer_assigner_(16)
-        , enable_memory_sharing_(true) {
-        // By default, memory reuse is enabled. One can use this internal env
-        // var to disable it. The env var is for debugging purpose only and may
-        // be removed without any prior notice.
-        enable_memory_sharing_
-                = impl::utils::getenv_int_internal("ENABLE_MEM_REUSE", 1) > 0;
-    }
+        : persistent_buffer_assigner_(16), temporary_buffer_assigner_(16) {}
 
     memory_planner_t(memory_planner_t &&) = delete;
     memory_planner_t(const memory_planner_t &other) = delete;
@@ -392,7 +384,6 @@ private:
         temporary_buffer_assigner_.clear();
         persistent_registry_.clear();
         temporary_registry_.clear();
-        temporary_buffer_ref_count_.clear();
         external_inputs_live_range_.clear();
         inplace_pairs_.clear();
     }
@@ -418,82 +409,19 @@ private:
     impl::status_t prepare_subgraph_inplace_pairs(
             std::shared_ptr<subgraph_t> &sg, bool enable_standard_sharing);
 
-    void prepare_args_for_conv_and_matmul(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
+    impl::status_t book_buffers(std::shared_ptr<subgraph_t> &sg);
 
-    void prepare_args_for_binary(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_prelu(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_prelu_bwd(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_siso_op(op_t *op, const dnnl::engine &p_engine,
-            fusion_info_mgr_t &mgr, bool need_scratchpad = false,
-            bool need_workspace = false);
-
-    void prepare_args_for_dnnl_pool(op_t *op, const dnnl::engine &p_engine,
-            fusion_info_mgr_t &mgr, bool need_scratchpad = false,
-            bool need_workspace = false);
-
-    void prepare_args_for_pool_bwd(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_miso_op(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_niso_op(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_softmax_bwd(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void bind_memory_for_bn_folding(op_t *op, const dnnl::engine &p_engine);
-
-    void bind_memory_for_conv_bwd_data(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void bind_memory_for_conv_bwd_weights(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void bind_memory_for_batchnorm(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void bind_memory_for_batchnorm_bwd(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void bind_memory_for_layernorm(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void bind_memory_for_layernorm_bwd(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_reorder_op(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_resampling_bwd(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    void prepare_args_for_eltwise_bwd(
-            op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
-
-    impl::status_t prepare_execution_args_set(
-            const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
+    impl::status_t prepare_execution_args_set(std::shared_ptr<subgraph_t> &sg,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr);
 
     execution_args_set_t exec_args_set_;
 
     std::unordered_map<const value_t *, assign_info_t> buffer_assignments_;
 
-    std::unordered_map<size_t, size_t> temporary_buffer_ref_count_;
     buffer_assigner_t persistent_buffer_assigner_;
     buffer_assigner_t temporary_buffer_assigner_;
     registry_t persistent_registry_;
     registry_t temporary_registry_;
-
-    bool enable_memory_sharing_;
 
     alias_analyzer_t alias_analyzer_;
     std::unordered_map<const assign_info_t *, time_bound_t>

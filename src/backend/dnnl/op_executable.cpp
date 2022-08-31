@@ -37,6 +37,9 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
+const indice_t::type_t input = indice_t::type_t::input;
+const indice_t::type_t output = indice_t::type_t::output;
+
 conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
@@ -1569,6 +1572,521 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
             scratchpad_dims, variance.data_type(), memory::format_tag::a);
 
     return desc;
+}
+
+static void get_arg_indices_for_post_ops(const impl::op_t *op,
+        fusion_info_mgr_t &mgr, arg_indices_t &indices, size_t &base_indice) {
+    const fusion_info_t &fusion_info
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
+            : fusion_info_t();
+    const auto &pops = fusion_info.get_post_ops();
+    for (int i = 0; i < pops.size(); i++) {
+        if (pops[i]->is_post_sum()) {
+            indices.insert(
+                    {DNNL_GRAPH_ARG_POST_SRC, indice_t {input, base_indice++}});
+        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
+            indices.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1,
+                    indice_t {input, base_indice++}});
+        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_convolution) {
+            indices.insert({DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
+                    indice_t {input, base_indice++}});
+        } else {
+        }
+    }
+}
+
+static arg_indices_t get_arg_indices_for_conv_and_matmul(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    arg_indices_t arg_indices;
+
+    // add input args
+    size_t indice = 0;
+    arg_indices.insert({DNNL_ARG_SRC, indice_t {input, indice++}});
+    arg_indices.insert({DNNL_ARG_WEIGHTS, indice_t {input, indice++}});
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
+        arg_indices.insert({DNNL_ARG_BIAS, indice_t {input, indice++}});
+    }
+
+    get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
+
+    // add output args
+    arg_indices.insert({DNNL_ARG_DST, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    return arg_indices;
+}
+
+arg_indices_t conv_fwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_conv_and_matmul(op, mgr);
+}
+
+arg_indices_t deconv_fwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_conv_and_matmul(op, mgr);
+}
+
+arg_indices_t matmul_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_conv_and_matmul(op, mgr);
+}
+
+arg_indices_t binary_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    arg_indices_t arg_indices;
+
+    // add input args
+    size_t indice = 0;
+    arg_indices.insert({DNNL_ARG_SRC_0, indice_t {input, indice++}});
+    arg_indices.insert({DNNL_ARG_SRC_1, indice_t {input, indice++}});
+
+    get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
+
+    // add output args
+    arg_indices.insert({DNNL_ARG_DST, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    return arg_indices;
+}
+
+arg_indices_t prelu_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    // add input args
+    size_t indice = 0;
+    arg_indices.insert({DNNL_ARG_SRC, indice_t {input, indice++}});
+    arg_indices.insert({DNNL_ARG_WEIGHTS, indice_t {input, indice++}});
+
+    // add output args
+    arg_indices.insert({DNNL_ARG_DST, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    return arg_indices;
+}
+
+arg_indices_t prelu_bwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    // add input args
+    arg_indices.insert({DNNL_ARG_SRC, indice_t {input, 0}});
+    arg_indices.insert({DNNL_ARG_WEIGHTS, indice_t {input, 1}});
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, 2}});
+
+    // add output args
+    arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_DIFF_WEIGHTS, indice_t {output, 1}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 2}});
+
+    return arg_indices;
+}
+
+arg_indices_t memory_reparser_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+    arg_indices.insert({DNNL_ARG_FROM, indice_t {input, 0}});
+    arg_indices.insert({DNNL_ARG_TO, indice_t {output, 0}});
+    return arg_indices;
+}
+
+// for single-input-single-output op
+static arg_indices_t get_arg_indices_for_siso_op(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    arg_indices_t arg_indices;
+
+    // add input args
+    size_t indice = 0;
+    arg_indices.insert({DNNL_ARG_FROM, indice_t {input, indice++}});
+
+    get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
+
+    // add output args
+    arg_indices.insert({DNNL_ARG_TO, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    const bool is_training = op->has_attr(op_attr::is_training)
+            ? op->get_attr<bool>(op_attr::is_training)
+            : false;
+    if (is_training) {
+        arg_indices.insert({DNNL_ARG_WORKSPACE, indice_t {output, 2}});
+    }
+
+    return arg_indices;
+}
+
+arg_indices_t pool_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_siso_op(op, mgr);
+}
+
+arg_indices_t softmax_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_siso_op(op, mgr);
+}
+
+arg_indices_t eltwise_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_siso_op(op, mgr);
+}
+
+arg_indices_t shuffle_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_siso_op(op, mgr);
+}
+
+arg_indices_t reduction_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_siso_op(op, mgr);
+}
+
+arg_indices_t resampling_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_siso_op(op, mgr);
+}
+
+arg_indices_t pool_bwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    arg_indices_t arg_indices;
+
+    // add input args
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, 0}});
+    if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
+        // maxpool bwd op must need workspace input
+        arg_indices.insert({DNNL_ARG_WORKSPACE, indice_t {input, 1}});
+    }
+
+    arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+    return arg_indices;
+}
+
+static arg_indices_t get_arg_indices_for_miso_op(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    for (int i = 0; i < op->num_inputs(); ++i) {
+        arg_indices.insert({DNNL_ARG_MULTIPLE_SRC + i,
+                indice_t {input, static_cast<size_t>(i)}});
+    }
+
+    arg_indices.insert({DNNL_ARG_DST, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+    return arg_indices;
+}
+
+arg_indices_t concat_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_miso_op(op, mgr);
+}
+
+arg_indices_t sum_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_miso_op(op, mgr);
+}
+
+arg_indices_t bn_folding_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    size_t in_idx = 0;
+    arg_indices.insert({DNNL_ARG_WEIGHTS, indice_t {input, in_idx++}});
+    if (op->get_attr<bool>(op_attr::with_bias)) {
+        arg_indices.insert({DNNL_ARG_BIAS, indice_t {input, in_idx++}});
+    }
+    arg_indices.insert(
+            {DNNL_ARG_WEIGHTS_1, indice_t {input, in_idx++}}); // scale
+    arg_indices.insert(
+            {DNNL_ARG_WEIGHTS_2, indice_t {input, in_idx++}}); // shift
+    arg_indices.insert({DNNL_ARG_MEAN, indice_t {input, in_idx++}}); // mean
+    arg_indices.insert(
+            {DNNL_ARG_VARIANCE, indice_t {input, in_idx++}}); // variance
+
+    // bind output memory
+    size_t out_idx = 0;
+    arg_indices.insert(
+            {DNNL_ARG_DST_0, indice_t {output, out_idx++}}); // updated weight
+    arg_indices.insert(
+            {DNNL_ARG_DST_1, indice_t {output, out_idx++}}); // updated bias
+    arg_indices.insert(
+            {DNNL_ARG_SCRATCHPAD, indice_t {output, out_idx++}}); // scratchpad
+
+    return arg_indices;
+}
+
+arg_indices_t conv_bwd_data_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, 0}});
+    arg_indices.insert({DNNL_ARG_WEIGHTS, indice_t {input, 1}});
+
+    arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    return arg_indices;
+}
+
+arg_indices_t deconv_bwd_data_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return conv_bwd_data_executable_t::get_arg_indices(op, mgr);
+}
+
+arg_indices_t conv_bwd_weights_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    arg_indices.insert({DNNL_ARG_SRC, indice_t {input, 0}});
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, 1}});
+
+    arg_indices.insert({DNNL_ARG_DIFF_WEIGHTS, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    return arg_indices;
+}
+
+arg_indices_t deconv_bwd_weights_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    return conv_bwd_weights_executable_t::get_arg_indices(op, mgr);
+}
+
+arg_indices_t batchnorm_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    size_t in_indice = 0;
+    arg_indices.insert({DNNL_ARG_SRC, indice_t {input, in_indice++}});
+    if (!op->get_attr<bool>(op_attr::is_training)) { // inference
+        arg_indices.insert({DNNL_ARG_SCALE, indice_t {input, in_indice++}});
+        arg_indices.insert({DNNL_ARG_SHIFT, indice_t {input, in_indice++}});
+        arg_indices.insert({DNNL_ARG_MEAN, indice_t {input, in_indice++}});
+        arg_indices.insert({DNNL_ARG_VARIANCE, indice_t {input, in_indice++}});
+    } else { // training
+        // running_mean/running_variance of last iteration
+        arg_indices.insert({DNNL_ARG_SRC_1, indice_t {input, in_indice++}});
+        arg_indices.insert({DNNL_ARG_SRC_2, indice_t {input, in_indice++}});
+
+        if (op->num_inputs() > 3) {
+            arg_indices.insert({DNNL_ARG_SCALE, indice_t {input, in_indice++}});
+            arg_indices.insert({DNNL_ARG_SHIFT, indice_t {input, in_indice++}});
+        }
+    }
+
+    size_t out_indice = 0;
+    arg_indices.insert({DNNL_ARG_DST, indice_t {output, out_indice++}});
+    if (op->get_attr<bool>(op_attr::is_training)) {
+        // running_mean
+        arg_indices.insert({DNNL_ARG_DST_1, indice_t {output, out_indice++}});
+        // running_variance
+        arg_indices.insert({DNNL_ARG_DST_2, indice_t {output, out_indice++}});
+        // batch_meam
+        arg_indices.insert({DNNL_ARG_MEAN, indice_t {output, out_indice++}});
+        // batch_variance
+        arg_indices.insert(
+                {DNNL_ARG_VARIANCE, indice_t {output, out_indice++}});
+    }
+
+    if (op->num_outputs() > out_indice) {
+        arg_indices.insert(
+                {DNNL_ARG_SCRATCHPAD, indice_t {output, out_indice++}});
+    }
+
+    // workspace (for BatchNormForwardTraining with ReLU)
+    if (op->num_outputs() > out_indice) {
+        arg_indices.insert(
+                {DNNL_ARG_WORKSPACE, indice_t {output, out_indice++}});
+    }
+
+    return arg_indices;
+}
+
+arg_indices_t batchnorm_bwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    arg_indices_t arg_indices;
+    size_t indice = 0;
+
+    arg_indices.insert({DNNL_ARG_SRC, indice_t {input, indice++}});
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, indice++}});
+
+    arg_indices.insert({DNNL_ARG_MEAN, indice_t {input, indice++}});
+    arg_indices.insert({DNNL_ARG_VARIANCE, indice_t {input, indice++}});
+
+    if (op->num_outputs() > 2) {
+        // DNNL_ARG_SCALE and DNNL_ARG_SHIFT use the same memory
+        arg_indices.insert({DNNL_ARG_SCALE, indice_t {input, indice}});
+        arg_indices.insert({DNNL_ARG_SHIFT, indice_t {input, indice++}});
+    }
+
+    indice = 0;
+    arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, indice++}});
+    if (op->num_outputs() > indice) {
+        arg_indices.insert({DNNL_ARG_DIFF_SCALE, indice_t {output, indice++}});
+        arg_indices.insert({DNNL_ARG_DIFF_SHIFT, indice_t {output, indice++}});
+    }
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, indice++}});
+
+    return arg_indices;
+}
+
+arg_indices_t layernorm_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    size_t in_indice = 0;
+    arg_indices.insert({DNNL_ARG_SRC, indice_t {input, in_indice++}});
+    if (!op->has_attr(op_attr::use_affine)
+            || op->get_attr<bool>(op_attr::use_affine)) {
+        arg_indices.insert({DNNL_ARG_SCALE, indice_t {input, in_indice++}});
+        arg_indices.insert({DNNL_ARG_SHIFT, indice_t {input, in_indice++}});
+    }
+
+    size_t out_indice = 0;
+    arg_indices.insert({DNNL_ARG_DST, indice_t {output, out_indice++}});
+    if (!op->has_attr(op_attr::keep_stats)
+            || op->get_attr<bool>(op_attr::keep_stats)) {
+        arg_indices.insert({DNNL_ARG_MEAN, indice_t {output, out_indice++}});
+        arg_indices.insert(
+                {DNNL_ARG_VARIANCE, indice_t {output, out_indice++}});
+    }
+
+    if (op->num_outputs() > out_indice) {
+        arg_indices.insert(
+                {DNNL_ARG_SCRATCHPAD, indice_t {output, out_indice++}});
+    }
+
+    return arg_indices;
+}
+
+arg_indices_t layernorm_bwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    arg_indices_t arg_indices;
+
+    arg_indices.insert({DNNL_ARG_SRC, indice_t {input, 0}});
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, 1}});
+    arg_indices.insert({DNNL_ARG_MEAN, indice_t {input, 2}});
+    arg_indices.insert({DNNL_ARG_VARIANCE, indice_t {input, 3}});
+
+    if (op->num_inputs() > 4) {
+        arg_indices.insert({DNNL_ARG_SCALE, indice_t {input, 4}});
+
+        if (op->num_inputs() > 5) {
+            arg_indices.insert({DNNL_ARG_SHIFT, indice_t {input, 5}});
+        } else {
+            // use scale mem for fake shift
+            arg_indices.insert({DNNL_ARG_SHIFT, indice_t {input, 4}});
+        }
+    }
+
+    size_t out_indice = 0;
+    arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, out_indice++}});
+    if (op->get_attr<bool>(op_attr::use_affine)) {
+        arg_indices.insert(
+                {DNNL_ARG_DIFF_SCALE, indice_t {output, out_indice++}});
+        arg_indices.insert(
+                {DNNL_ARG_DIFF_SHIFT, indice_t {output, out_indice++}});
+    }
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, out_indice++}});
+    return arg_indices;
+}
+
+arg_indices_t reorder_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    arg_indices_t arg_indices;
+
+    size_t indice = 0;
+    arg_indices.insert({DNNL_ARG_FROM, indice_t {input, indice++}});
+
+    // we always insert the input belonging to input fusion before the input
+    // belonging to output fusion. So, src_zps must be before scales if it
+    // exists
+    if (op->has_attr(op_attr::with_runtime_src_zps)
+            && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
+        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC,
+                indice_t {input, indice}});
+        auto src_zps = op->get_input_value(indice++);
+        assertm(src_zps->get_logical_tensor().data_type == impl::data_type::s32,
+                "oneDNN runtime zps must be s32 type");
+    }
+
+    if (op->has_attr(op_attr::with_runtime_scales)
+            && op->get_attr<bool>(op_attr::with_runtime_scales)) {
+        arg_indices.insert(
+                {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, indice++}});
+    }
+
+    if (op->has_attr(op_attr::with_runtime_dst_zps)
+            && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
+        arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST,
+                indice_t {input, indice}});
+        auto dst_zps = op->get_input_value(indice++);
+        assertm(dst_zps->get_logical_tensor().data_type == impl::data_type::s32,
+                "oneDNN runtime zps must be s32 type");
+    }
+
+    get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
+
+    arg_indices.insert({DNNL_ARG_TO, indice_t {output, 0}});
+    if (op->num_outputs() > 1) {
+        arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+    }
+    return arg_indices;
+}
+
+arg_indices_t softmax_bwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, 0}});
+    arg_indices.insert({DNNL_ARG_DST, indice_t {input, 1}});
+
+    arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    return arg_indices;
+}
+
+arg_indices_t resampling_bwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, 1}});
+
+    arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    return arg_indices;
+}
+
+arg_indices_t eltwise_bwd_executable_t::get_arg_indices(
+        const impl::op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
+    arg_indices_t arg_indices;
+
+    if (op->get_attr<bool>(op_attr::use_dst)) {
+        arg_indices.insert({DNNL_ARG_DST, indice_t {input, 0}});
+    } else {
+        arg_indices.insert({DNNL_ARG_SRC, indice_t {input, 0}});
+    }
+    arg_indices.insert({DNNL_ARG_DIFF_DST, indice_t {input, 1}});
+
+    arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, 0}});
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indice_t {output, 1}});
+
+    return arg_indices;
 }
 
 } // namespace dnnl_impl

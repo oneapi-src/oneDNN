@@ -19,12 +19,14 @@
 #include <set>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "interface/c_types_map.hpp"
 #include "interface/value.hpp"
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/internal_attrs.hpp"
+#include "backend/dnnl/op_executable.hpp"
 
 #include "backend/dnnl/passes/memory_planning.hpp"
 #include "backend/dnnl/passes/utils.hpp"
@@ -278,745 +280,6 @@ std::vector<const value_t *> alias_analyzer_t::get_all_aliases(
     return ret;
 }
 
-void memory_planner_t::prepare_args_for_conv_and_matmul(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    exec_args args;
-
-    memory mem;
-    size_t index = 0;
-
-    // add input args
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_WEIGHTS, mem});
-
-    if (op->has_attr(op_attr::with_bias)
-            && op->get_attr<bool>(op_attr::with_bias)) {
-        exec_args_set_.find_value_mem_map(
-                op->get_input_value(index++).get(), mem);
-        args.insert({DNNL_ARG_BIAS, mem});
-    }
-
-    const fusion_info_t &fusion_info
-            = (op->has_attr(op_attr::fusion_info_key)
-                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
-            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
-            : fusion_info_t();
-    const auto &pops = fusion_info.get_post_ops();
-    for (int i = 0; i < pops.size(); i++) {
-        if (pops[i]->is_post_sum()) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert(
-                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
-        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_convolution) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert({DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, mem});
-        } else {
-        }
-    }
-
-    // add output args
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DST, mem});
-
-    if (op->num_outputs() > 1) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_binary(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    exec_args args;
-
-    memory mem;
-    size_t index = 0;
-
-    // add input args
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_SRC_0, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_SRC_1, mem});
-
-    const fusion_info_t &fusion_info
-            = (op->has_attr(op_attr::fusion_info_key)
-                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
-            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
-            : fusion_info_t();
-    const auto &pops = fusion_info.get_post_ops();
-    for (int i = 0; i < pops.size(); i++) {
-        if (pops[i]->is_post_sum()) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert(
-                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
-        } else {
-        }
-    }
-
-    // add output args
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DST, mem});
-
-    if (op->num_outputs() > 1) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_prelu(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    UNUSED(mgr);
-    exec_args args;
-
-    memory mem;
-
-    // add input args
-    exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
-    args.insert({DNNL_ARG_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
-    args.insert({DNNL_ARG_WEIGHTS, mem});
-
-    // add output args
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DST, mem});
-
-    if (op->num_outputs() > 1) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_prelu_bwd(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    UNUSED(mgr);
-    exec_args args;
-
-    memory mem;
-
-    // add input args
-    exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
-    args.insert({DNNL_ARG_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
-    args.insert({DNNL_ARG_WEIGHTS, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(2).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    // add output args
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-    args.insert({DNNL_ARG_DIFF_WEIGHTS, mem});
-
-    // scratchpad is always present
-    exec_args_set_.find_value_mem_map(op->get_output_value(2).get(), mem);
-    args.insert({DNNL_ARG_SCRATCHPAD, mem});
-
-    exec_args_set_.add_exec_args(args);
-}
-
-// for single-input-single-output op
-void memory_planner_t::prepare_args_for_siso_op(op_t *op,
-        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        bool need_scratchpad, bool need_workspace) {
-    exec_args args;
-
-    memory mem;
-    size_t index = 0;
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_FROM, mem});
-
-    const fusion_info_t &fusion_info
-            = (op->has_attr(op_attr::fusion_info_key)
-                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
-            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
-            : fusion_info_t();
-    const auto &pops = fusion_info.get_post_ops();
-    for (int i = 0; i < pops.size(); i++) {
-        if (pops[i]->is_post_sum()) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert(
-                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
-        } else {
-        }
-    }
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_TO, mem});
-
-    if (need_scratchpad && op->num_outputs() > 1) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    if (need_workspace && op->num_outputs() > 2) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(2).get(), mem);
-        args.insert({DNNL_ARG_WORKSPACE, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_dnnl_pool(op_t *op,
-        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        bool need_scratchpad, bool need_workspace) {
-    exec_args args;
-
-    memory mem;
-    size_t index = 0;
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_FROM, mem});
-
-    const fusion_info_t &fusion_info
-            = (op->has_attr(op_attr::fusion_info_key)
-                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
-            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
-            : fusion_info_t();
-    const auto &pops = fusion_info.get_post_ops();
-    for (int i = 0; i < pops.size(); i++) {
-        if (pops[i]->is_post_sum()) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert(
-                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
-        } else {
-        }
-    }
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_TO, mem});
-
-    if (need_scratchpad) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    if (need_workspace) {
-        if (need_scratchpad) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_output_value(2).get(), mem);
-            args.insert({DNNL_ARG_WORKSPACE, mem});
-        } else {
-            exec_args_set_.find_value_mem_map(
-                    op->get_output_value(1).get(), mem);
-            args.insert({DNNL_ARG_WORKSPACE, mem});
-        }
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_pool_bwd(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    exec_args args;
-
-    memory mem;
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
-        // maxpool bwd op must need workspace input
-        exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
-        args.insert({DNNL_ARG_WORKSPACE, mem});
-    }
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-    args.insert({DNNL_ARG_SCRATCHPAD, mem});
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_miso_op(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    UNUSED(mgr);
-    exec_args args;
-    memory mem;
-
-    for (int i = 0; i < op->num_inputs(); ++i) {
-        exec_args_set_.find_value_mem_map(
-                op->get_input_value(static_cast<size_t>(i)).get(), mem);
-        args.insert({DNNL_ARG_MULTIPLE_SRC + i, mem});
-    }
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DST, mem});
-
-    if (op->num_outputs() > 1) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_niso_op(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    UNUSED(mgr);
-    exec_args args;
-    memory mem;
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    // We only set dst argument, to which constant data will be copied
-    args.insert({DNNL_ARG_TO, mem});
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::bind_memory_for_bn_folding(
-        op_t *op, const dnnl::engine &p_engine) {
-    exec_args args;
-    memory mem;
-
-    bool with_bias = op->get_attr<bool>(op_attr::with_bias);
-
-#define INSERT_ARGS(key, val_offset, direction) \
-    exec_args_set_.find_value_mem_map( \
-            op->get_##direction##_value(val_offset).get(), mem); \
-    args.insert({key, mem});
-
-    // bind input memory
-    size_t in_idx = 0;
-    INSERT_ARGS(DNNL_ARG_WEIGHTS, in_idx++, input); // weight
-    if (with_bias) {
-        INSERT_ARGS(DNNL_ARG_BIAS, in_idx++, input); // bias
-    }
-    INSERT_ARGS(DNNL_ARG_WEIGHTS_1, in_idx++, input); // scale
-    INSERT_ARGS(DNNL_ARG_WEIGHTS_2, in_idx++, input); // shift
-    INSERT_ARGS(DNNL_ARG_MEAN, in_idx++, input); // mean
-    INSERT_ARGS(DNNL_ARG_VARIANCE, in_idx++, input); // variance
-
-    // bind output memory
-    size_t out_idx = 0;
-    INSERT_ARGS(DNNL_ARG_DST_0, out_idx++, output); // updated weight
-    INSERT_ARGS(DNNL_ARG_DST_1, out_idx++, output); // updated bias
-    INSERT_ARGS(DNNL_ARG_SCRATCHPAD, out_idx++, output); // scratchpad
-
-#undef INSERT_ARGS
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::bind_memory_for_conv_bwd_data(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    memory mem;
-    size_t index = 0;
-    exec_args args;
-
-    // bind mem for inputs
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_WEIGHTS, mem});
-
-    // bind mem for outputs
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SRC, mem});
-
-    if (op->num_outputs() > 1) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::bind_memory_for_conv_bwd_weights(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    memory mem;
-    size_t index = 0;
-    exec_args args;
-
-    // bind mem for inputs
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    // bind mem for outputs
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_WEIGHTS, mem});
-
-    if (op->num_outputs() > 1) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::bind_memory_for_batchnorm(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    memory mem;
-    exec_args args;
-
-    size_t in_index = 0;
-#define INSERT_ARGS(key, val_offset, direction) \
-    exec_args_set_.find_value_mem_map( \
-            op->get_##direction##_value(val_offset).get(), mem); \
-    args.insert({key, mem});
-
-    // bind mem for inputs
-    INSERT_ARGS(DNNL_ARG_SRC, in_index++, input);
-    if (!op->get_attr<bool>(op_attr::is_training)) { // inference
-        INSERT_ARGS(DNNL_ARG_SCALE, in_index++, input);
-        INSERT_ARGS(DNNL_ARG_SHIFT, in_index++, input);
-        INSERT_ARGS(DNNL_ARG_MEAN, in_index++, input);
-        INSERT_ARGS(DNNL_ARG_VARIANCE, in_index++, input);
-    } else { // training
-        // running_mean/running_variance of last iteration
-        INSERT_ARGS(DNNL_ARG_SRC_1, in_index++, input);
-        INSERT_ARGS(DNNL_ARG_SRC_2, in_index++, input);
-
-        if (op->num_inputs() > 3) {
-            INSERT_ARGS(DNNL_ARG_SCALE, in_index++, input);
-            INSERT_ARGS(DNNL_ARG_SHIFT, in_index++, input);
-        }
-    }
-
-    size_t out_index = 0;
-    // bind mem for outputs
-    INSERT_ARGS(DNNL_ARG_DST, out_index++, output);
-    if (op->get_attr<bool>(op_attr::is_training)) {
-        // running_mean
-        INSERT_ARGS(DNNL_ARG_DST_1, out_index++, output);
-        // running_variance
-        INSERT_ARGS(DNNL_ARG_DST_2, out_index++, output);
-        // batch_meam
-        INSERT_ARGS(DNNL_ARG_MEAN, out_index++, output);
-        // batch_variance
-        INSERT_ARGS(DNNL_ARG_VARIANCE, out_index++, output);
-    }
-
-    // scratchpad
-    if (op->num_outputs() > out_index) {
-        INSERT_ARGS(DNNL_ARG_SCRATCHPAD, out_index++, output);
-    }
-
-    // workspace (for BatchNormForwardTraining with ReLU)
-    if (op->num_outputs() > out_index + 1) {
-        INSERT_ARGS(DNNL_ARG_WORKSPACE, out_index++, output);
-    }
-
-#undef INSERT_ARGS
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::bind_memory_for_batchnorm_bwd(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    memory mem;
-    size_t index = 0;
-    exec_args args;
-
-    // bind mem for inputs
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_MEAN, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_VARIANCE, mem});
-
-    if (op->num_outputs() > 2) {
-        exec_args_set_.find_value_mem_map(
-                op->get_input_value(index++).get(), mem);
-        args.insert({DNNL_ARG_SCALE, mem});
-        args.insert({DNNL_ARG_SHIFT, mem});
-    }
-
-    // bind mem for outputs
-    index = 0;
-    exec_args_set_.find_value_mem_map(op->get_output_value(index++).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SRC, mem});
-
-    if (op->num_outputs() > index) {
-        exec_args_set_.find_value_mem_map(
-                op->get_output_value(index++).get(), mem);
-        args.insert({DNNL_ARG_DIFF_SCALE, mem});
-
-        exec_args_set_.find_value_mem_map(
-                op->get_output_value(index++).get(), mem);
-        args.insert({DNNL_ARG_DIFF_SHIFT, mem});
-    }
-
-    if (op->num_outputs() > index) {
-        exec_args_set_.find_value_mem_map(
-                op->get_output_value(index++).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::bind_memory_for_layernorm(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    memory mem;
-    exec_args args;
-
-    size_t in_index = 0;
-#define INSERT_ARGS(key, val_offset, direction) \
-    exec_args_set_.find_value_mem_map( \
-            op->get_##direction##_value(val_offset).get(), mem); \
-    args.insert({key, mem});
-
-    // bind mem for inputs
-    INSERT_ARGS(DNNL_ARG_SRC, in_index++, input);
-    if (!op->has_attr(op_attr::use_affine)
-            || op->get_attr<bool>(op_attr::use_affine)) {
-        INSERT_ARGS(DNNL_ARG_SCALE, in_index++, input);
-        INSERT_ARGS(DNNL_ARG_SHIFT, in_index++, input);
-    }
-
-    size_t out_index = 0;
-    // bind mem for outputs
-    INSERT_ARGS(DNNL_ARG_DST, out_index++, output);
-    if (!op->has_attr(op_attr::keep_stats)
-            || op->get_attr<bool>(op_attr::keep_stats)) {
-        // meam
-        INSERT_ARGS(DNNL_ARG_MEAN, out_index++, output);
-        // variance
-        INSERT_ARGS(DNNL_ARG_VARIANCE, out_index++, output);
-    }
-
-    // scratchpad
-    if (op->num_outputs() > out_index) {
-        INSERT_ARGS(DNNL_ARG_SCRATCHPAD, out_index++, output);
-    }
-
-#undef INSERT_ARGS
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::bind_memory_for_layernorm_bwd(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    memory mem;
-    exec_args args;
-
-    size_t in_index {0};
-    exec_args_set_.find_value_mem_map(
-            op->get_input_value(in_index++).get(), mem);
-    args.insert({DNNL_ARG_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(
-            op->get_input_value(in_index++).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    exec_args_set_.find_value_mem_map(
-            op->get_input_value(in_index++).get(), mem);
-    args.insert({DNNL_ARG_MEAN, mem});
-
-    exec_args_set_.find_value_mem_map(
-            op->get_input_value(in_index++).get(), mem);
-    args.insert({DNNL_ARG_VARIANCE, mem});
-
-    size_t out_index {0};
-    exec_args_set_.find_value_mem_map(
-            op->get_output_value(out_index++).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SRC, mem});
-
-    if (op->num_inputs() > 4) {
-        exec_args_set_.find_value_mem_map(
-                op->get_input_value(in_index++).get(), mem);
-        args.insert({DNNL_ARG_SCALE, mem});
-    }
-    if (op->num_inputs() > 5) {
-        exec_args_set_.find_value_mem_map(
-                op->get_input_value(in_index++).get(), mem);
-        args.insert({DNNL_ARG_SHIFT, mem});
-    } else {
-        // use scale mem for fake shift
-        args.insert({DNNL_ARG_SHIFT, mem});
-    }
-
-    const bool use_affine = op->get_attr<bool>(op_attr::use_affine);
-    if (use_affine) {
-        exec_args_set_.find_value_mem_map(
-                op->get_output_value(out_index++).get(), mem);
-        args.insert({DNNL_ARG_DIFF_SCALE, mem});
-        exec_args_set_.find_value_mem_map(
-                op->get_output_value(out_index++).get(), mem);
-        args.insert({DNNL_ARG_DIFF_SHIFT, mem});
-    }
-    exec_args_set_.find_value_mem_map(
-            op->get_output_value(out_index).get(), mem);
-    args.insert({DNNL_ARG_SCRATCHPAD, mem});
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_reorder_op(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    exec_args args;
-
-    memory mem;
-    size_t index = 0;
-
-    // src
-    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
-    args.insert({DNNL_ARG_FROM, mem});
-
-    // we always insert the input belonging to input fusion before the input
-    // belonging to output fusion. So, src_zps must be before scales if it
-    // exists
-    if (op->has_attr(op_attr::with_runtime_src_zps)
-            && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
-        auto src_zps = op->get_input_value(index++);
-        assertm(src_zps->get_logical_tensor().data_type == impl::data_type::s32,
-                "oneDNN runtime zps must be s32 type");
-        exec_args_set_.find_value_mem_map(src_zps.get(), mem);
-        args.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, mem});
-    }
-
-    if (op->has_attr(op_attr::with_runtime_scales)
-            && op->get_attr<bool>(op_attr::with_runtime_scales)) {
-        exec_args_set_.find_value_mem_map(
-                op->get_input_value(index++).get(), mem);
-        args.insert({DNNL_ARG_ATTR_OUTPUT_SCALES, mem});
-    }
-
-    if (op->has_attr(op_attr::with_runtime_dst_zps)
-            && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
-        auto dst_zps = op->get_input_value(index++);
-        assertm(dst_zps->get_logical_tensor().data_type == impl::data_type::s32,
-                "oneDNN runtime zps must be s32 type");
-        exec_args_set_.find_value_mem_map(dst_zps.get(), mem);
-        args.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, mem});
-    }
-
-    const fusion_info_t &fusion_info
-            = (op->has_attr(op_attr::fusion_info_key)
-                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
-            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
-            : fusion_info_t();
-    const auto &pops = fusion_info.get_post_ops();
-    for (int i = 0; i < pops.size(); i++) {
-        if (pops[i]->is_post_sum()) {
-            exec_args_set_.find_value_mem_map(
-                    op->get_input_value(index++).get(), mem);
-            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else {
-            assertm(false, "oneDNN reorder only support sum post-ops");
-        }
-    }
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_TO, mem});
-
-    if (op->num_outputs() == 2) {
-        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_softmax_bwd(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    UNUSED(mgr);
-    memory mem;
-    exec_args args;
-
-    // bind mem for inputs
-    exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
-    args.insert({DNNL_ARG_DST, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SRC, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-    args.insert({DNNL_ARG_SCRATCHPAD, mem});
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_resampling_bwd(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    UNUSED(mgr);
-    memory mem;
-    exec_args args;
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SRC, mem});
-
-    // scratchpad is always present
-    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-    args.insert({DNNL_ARG_SCRATCHPAD, mem});
-
-    exec_args_set_.add_exec_args(args);
-}
-
-void memory_planner_t::prepare_args_for_eltwise_bwd(
-        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
-    UNUSED(mgr);
-    memory mem;
-    exec_args args;
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
-    args.insert(
-            {op->get_attr<bool>(op_attr::use_dst) ? DNNL_ARG_DST : DNNL_ARG_SRC,
-                    mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
-    args.insert({DNNL_ARG_DIFF_DST, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
-    args.insert({DNNL_ARG_DIFF_SRC, mem});
-
-    // scratchpad is always present
-    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
-    args.insert({DNNL_ARG_SCRATCHPAD, mem});
-
-    exec_args_set_.add_exec_args(args);
-}
-
 // Assign partition's input edges to user given external inputs buffer. Those
 // external inputs buffers may be used by other partition (which is under the
 // control of user), so we can't reuse them.
@@ -1185,6 +448,8 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
         const std::vector<op_ptr> &subgraph,
         const std::unordered_map<value_t *, size_t> &edge_ref_count,
         fusion_info_mgr_t &mgr, bool enable_standard_sharing) {
+    std::unordered_map<size_t, size_t> temporary_buffer_ref_count;
+
     auto func = [&](impl::op_t *op) {
         // Handle alias first
         auto inputs = op->get_input_values();
@@ -1194,7 +459,7 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
                 if (buffer_assignments_.count(alias)) { continue; }
                 assign_info_t info = buffer_assignments_.at(in.get());
                 buffer_assignments_.insert(std::make_pair(alias, info));
-                temporary_buffer_ref_count_[info.index_]
+                temporary_buffer_ref_count[info.index_]
                         += edge_ref_count.at(const_cast<value_t *>(alias));
             }
         }
@@ -1208,12 +473,12 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
                 if (info.kind_ != internal_temporary) continue;
 
                 bool reuse_in_buffer
-                        = temporary_buffer_ref_count_[info.index_] == 1;
+                        = temporary_buffer_ref_count[info.index_] == 1;
                 if (reuse_in_buffer) {
                     value_t *out = op->get_output_value(pair.out_idx_).get();
                     if (!buffer_assignments_.count(out)) {
                         buffer_assignments_.insert(std::make_pair(out, info));
-                        temporary_buffer_ref_count_[info.index_]
+                        temporary_buffer_ref_count[info.index_]
                                 += edge_ref_count.at(out);
                     }
                 }
@@ -1231,7 +496,7 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
                     make_dnnl_memory_desc(lt).get_size());
             buffer_assignments_.insert(std::make_pair(
                     out.get(), assign_info_t(internal_temporary, idx)));
-            temporary_buffer_ref_count_[idx] = edge_ref_count.at(out.get());
+            temporary_buffer_ref_count[idx] = edge_ref_count.at(out.get());
         }
 
         // Free inputs
@@ -1239,10 +504,10 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
             assign_info_t info = buffer_assignments_.at(in.get());
             if (info.kind_ != internal_temporary) continue;
 
-            --temporary_buffer_ref_count_[info.index_];
+            --temporary_buffer_ref_count[info.index_];
             // if we decrease it to zero, we are ready to release
             if (enable_standard_sharing
-                    && temporary_buffer_ref_count_[info.index_] == 0) {
+                    && temporary_buffer_ref_count[info.index_] == 0) {
                 temporary_buffer_assigner_.release(info.index_);
             }
         }
@@ -1254,7 +519,7 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
 
             auto consumers = out->get_consumers();
             if (consumers.empty()) {
-                --temporary_buffer_ref_count_[info.index_];
+                --temporary_buffer_ref_count[info.index_];
                 if (enable_standard_sharing) {
                     temporary_buffer_assigner_.release(info.index_);
                 }
@@ -1266,150 +531,6 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
 
     return impl::topo_order_visit(
             impl::graph_t(subgraph).get_output_ops(), func);
-}
-
-impl::status_t memory_planner_t::prepare_execution_args_set(
-        const std::vector<op_ptr> &subgraph, const dnnl::engine &p_engine,
-        fusion_info_mgr_t &mgr) {
-    // bind memory object to each value
-    for (value_t *in : impl::graph_t(subgraph).get_input_values()) {
-        exec_args_set_.add_value_mem_map({in,
-                make_dnnl_memory(
-                        make_dnnl_memory_desc(in->get_logical_tensor()),
-                        p_engine, nullptr)});
-    }
-
-    status_t ret = impl::topo_order_visit(
-            impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
-                for (auto &out : op->get_output_values()) {
-                    exec_args_set_.add_value_mem_map({out.get(),
-                            make_dnnl_memory(make_dnnl_memory_desc(
-                                                     out->get_logical_tensor()),
-                                    p_engine, nullptr)});
-                }
-                return impl::status::success;
-            });
-    if (ret != status::success) return ret;
-
-    registrar_t temporary_registrar = temporary_registry_.registrar();
-    registrar_t persistent_registrar = persistent_registry_.registrar();
-
-    // classify binded memory objects and their index to buffer
-    for (const auto &it : exec_args_set_.get_value_mem_map()) {
-        value_t *val = it.first;
-        const dnnl::memory &mem = it.second;
-        const assign_info_t &info = buffer_assignments_.at(val);
-        switch (info.kind_) {
-            case external_input:
-                exec_args_set_.add_mem_use_external_inputs({mem, info.index_});
-                break;
-            case external_output:
-                exec_args_set_.add_mem_use_external_outputs({mem, info.index_});
-                break;
-            case internal_temporary:
-                temporary_registrar.book(info.index_,
-                        temporary_buffer_assigner_.query_size(info.index_));
-                exec_args_set_.add_mem_use_internal_temporary(
-                        {mem, info.index_});
-                break;
-            case internal_persistent:
-                persistent_registrar.book(info.index_,
-                        persistent_buffer_assigner_.query_size(info.index_));
-                exec_args_set_.add_mem_use_internal_persistent(
-                        {mem, info.index_});
-                break;
-            default: return status::unimplemented;
-        }
-    }
-
-    // Prepare exec args for each op by using binded memories
-    // TODO(qun) define each in/output's semantics in op def. Because the
-    // semantics should be fixed and a part of IR
-    ret = impl::topo_order_visit(
-            impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
-                if (op->get_kind() == op_kind::dnnl_convolution
-                        || op->get_kind() == op_kind::dnnl_matmul
-                        || op->get_kind() == op_kind::dnnl_convtranspose
-                        || op->get_kind() == op_kind::dnnl_conv_depthwise) {
-                    prepare_args_for_conv_and_matmul(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_pool
-                        || op->get_kind() == op_kind::dnnl_softmax
-                        || op->get_kind() == op_kind::dnnl_logsoftmax) {
-                    const bool is_training = op->has_attr(op_attr::is_training)
-                            ? op->get_attr<bool>(op_attr::is_training)
-                            : false;
-                    prepare_args_for_siso_op(
-                            op, p_engine, mgr, true, is_training);
-                } else if (op->get_kind() == op_kind::dnnl_softmax_bwd
-                        || op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
-                    prepare_args_for_softmax_bwd(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_pool) {
-                    const bool is_training = op->has_attr(op_attr::is_training)
-                            ? op->get_attr<bool>(op_attr::is_training)
-                            : false;
-                    prepare_args_for_dnnl_pool(
-                            op, p_engine, mgr, true, is_training);
-                } else if (op->get_kind() == op_kind::dnnl_pool_bwd) {
-                    prepare_args_for_pool_bwd(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_concat) {
-                    prepare_args_for_miso_op(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_eltwise
-                        || op->get_kind() == op_kind::dnnl_reduction
-                        || op->get_kind() == op_kind::dnnl_shuffle
-                        || op->get_kind() == op_kind::dnnl_permute
-                        || op->get_kind() == op_kind::dnnl_to_group
-                        || op->get_kind() == op_kind::dnnl_from_group
-                        || op->get_kind() == op_kind::dnnl_unsqueeze
-                        || op->get_kind() == op_kind::dnnl_squeeze
-                        || op->get_kind() == op_kind::dnnl_resampling
-                        || op->get_kind() == op_kind::dnnl_reshape
-                        || op->get_kind() == op_kind::dnnl_transpose) {
-                    prepare_args_for_siso_op(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_prelu) {
-                    prepare_args_for_prelu(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_prelu_bwd) {
-                    prepare_args_for_prelu_bwd(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
-                    bind_memory_for_bn_folding(op, p_engine);
-                } else if (op->get_kind() == op_kind::dnnl_conv_bwd_data
-                        || op->get_kind()
-                                == op_kind::dnnl_convtranspose_bwd_data) {
-                    bind_memory_for_conv_bwd_data(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_conv_bwd_weights
-                        || op->get_kind()
-                                == op_kind::dnnl_convtranspose_bwd_weights) {
-                    bind_memory_for_conv_bwd_weights(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_batchnorm) {
-                    bind_memory_for_batchnorm(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
-                    bind_memory_for_batchnorm_bwd(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_layernorm) {
-                    bind_memory_for_layernorm(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_layernorm_bwd) {
-                    bind_memory_for_layernorm_bwd(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_sum) {
-                    prepare_args_for_miso_op(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_binary) {
-                    prepare_args_for_binary(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_constant_scales
-                        || op->get_kind() == op_kind::dnnl_constant_zps) {
-                    prepare_args_for_niso_op(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_mul_scales
-                        || op->get_kind() == op_kind::dnnl_reorder) {
-                    prepare_args_for_reorder_op(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_resampling_bwd) {
-                    prepare_args_for_resampling_bwd(op, p_engine, mgr);
-                } else if (op->get_kind() == op_kind::dnnl_eltwise_bwd) {
-                    prepare_args_for_eltwise_bwd(op, p_engine, mgr);
-                } else {
-                    assertm(false, "memory planning: unsupported op");
-                    return impl::status::unimplemented;
-                }
-                return impl::status::success;
-            });
-    if (ret != status::success) return ret;
-
-    return status::success;
 }
 
 impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
@@ -1509,6 +630,139 @@ impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
     return ret;
 }
 
+impl::status_t memory_planner_t::book_buffers(std::shared_ptr<subgraph_t> &sg) {
+    // collect all values into the set.
+    std::unordered_set<value_t *> to_be_booked;
+    impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
+        for (auto &in : op->get_input_values()) {
+            to_be_booked.insert(in.get());
+        }
+        for (auto &out : op->get_output_values()) {
+            to_be_booked.insert(out.get());
+        }
+        return impl::status::success;
+    });
+
+    registrar_t temporary_registrar = temporary_registry_.registrar();
+    registrar_t persistent_registrar = persistent_registry_.registrar();
+    for (const value_t *val : to_be_booked) {
+        const assign_info_t &info = buffer_assignments_.at(val);
+        switch (info.kind_) {
+            // external input and output buffer will be allocated by users, we
+            // don't need to book their buffers
+            case external_input:
+            case external_output: break;
+            // book buffers for internal temporary and persistent
+            case internal_temporary:
+                temporary_registrar.book(info.index_,
+                        temporary_buffer_assigner_.query_size(info.index_));
+                break;
+            case internal_persistent:
+                persistent_registrar.book(info.index_,
+                        persistent_buffer_assigner_.query_size(info.index_));
+                break;
+            default: return status::unimplemented;
+        }
+    }
+    return status::success;
+}
+
+impl::status_t memory_planner_t::prepare_execution_args_set(
+        std::shared_ptr<subgraph_t> &sg, const dnnl::engine &p_engine,
+        fusion_info_mgr_t &mgr) {
+    status_t ret;
+
+    auto classify_mem = [&, this](const dnnl::memory &mem, const value_t *val) {
+        const assign_info_t &info = buffer_assignments_.at(val);
+        switch (info.kind_) {
+            case external_input:
+                exec_args_set_.add_mem_use_external_inputs({mem, info.index_});
+                break;
+            case external_output:
+                exec_args_set_.add_mem_use_external_outputs({mem, info.index_});
+                break;
+            case internal_temporary:
+                exec_args_set_.add_mem_use_internal_temporary(
+                        {mem, info.index_});
+                break;
+            case internal_persistent:
+                exec_args_set_.add_mem_use_internal_persistent(
+                        {mem, info.index_});
+                break;
+            default: break;
+        }
+    };
+
+    // create memory object for each value, and classify the memory objects into
+    // different categories
+    std::unordered_set<value_t *> prepared;
+    ret = impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
+        for (auto &in : op->get_input_values()) {
+            if (prepared.count(in.get())) continue;
+            auto md = make_dnnl_memory_desc(in->get_logical_tensor());
+            auto mem = make_dnnl_memory(md, p_engine, nullptr);
+            exec_args_set_.add_value_mem_map({in.get(), mem});
+            classify_mem(mem, in.get());
+            prepared.insert(in.get());
+        }
+
+        for (auto &out : op->get_output_values()) {
+            auto md = make_dnnl_memory_desc(out->get_logical_tensor());
+            auto mem = make_dnnl_memory(md, p_engine, nullptr);
+            exec_args_set_.add_value_mem_map({out.get(), mem});
+            classify_mem(mem, out.get());
+            prepared.insert(out.get());
+        }
+        return impl::status::success;
+    });
+    if (ret != status::success) return ret;
+
+    // construct the dnnl execution args for each op
+    ret = impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
+        const op_schema_t *opm
+                = op_schema_registry_t::get_op_schema(op->get_kind());
+        if (!opm) {
+            assertm(false, "no schema for current op");
+            return impl::status::invalid_op;
+        }
+
+        if (!opm->has_additional_item("arg_indices_getter")) {
+            assertm(false, "no arg indices getter in this op schema");
+            return impl::status::invalid_op;
+        }
+
+        auto getter = impl::utils::any_cast<arg_indices_getter_func>(
+                opm->get_additional_item("arg_indices_getter"));
+
+        auto arg_indices = getter(op, mgr);
+
+        exec_args dnnl_exec_args;
+        for (auto arg_idx : arg_indices) {
+            int dnnl_arg = arg_idx.first;
+            indice_t::type_t type = arg_idx.second.type_;
+            size_t indice = arg_idx.second.value_;
+
+            // get the value by indice
+            value_t *val = type == indice_t::type_t::input
+                    ? op->get_input_value(indice).get()
+                    : op->get_output_value(indice).get();
+
+            // find the corresponding memory object
+            dnnl::memory mem;
+            if (!exec_args_set_.find_value_mem_map(val, mem)) {
+                return impl::status::invalid_arguments;
+            }
+
+            dnnl_exec_args.insert({dnnl_arg, mem});
+        }
+
+        exec_args_set_.add_exec_args(dnnl_exec_args);
+        return impl::status::success;
+    });
+
+    return ret;
+}
+
 // In this function, we will do the following things:
 // - Build the alias map. both the key and value in the map are edges. the key
 //   is the alias of value.
@@ -1544,9 +798,14 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
         edge_ref_count[val]++;
     }
 
-    // if not enable memory sharing, we add additional 1 to edge reference
-    // count, so that tensors will not be reused
-    if (!enable_memory_sharing_) {
+    // By default, memory reuse is enabled. We can use this internal env
+    // var to disable it. The env var is for debugging purpose only and may
+    // be removed without any prior notice.
+    bool enable_memory_sharing
+            = impl::utils::getenv_int_internal("ENABLE_MEM_REUSE", 1) > 0;
+    if (!enable_memory_sharing) {
+        // if not enable memory sharing, we add additional 1 to edge reference
+        // count, so that tensors will not be reused
         for (auto &val_count : edge_ref_count) {
             val_count.second++;
         }
@@ -1590,8 +849,11 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     ret = prepare_subgraph_inplace_pairs(sg, false);
     if (ret != status::success) return ret;
 
+    ret = book_buffers(sg);
+    if (ret != status::success) return ret;
+
     // Bind memory object to each value
-    ret = prepare_execution_args_set(subgraph, p_engine, mgr);
+    ret = prepare_execution_args_set(sg, p_engine, mgr);
     if (ret != status::success) return ret;
 
     return impl::status::success;
