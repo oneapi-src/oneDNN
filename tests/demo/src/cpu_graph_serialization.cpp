@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
     // Step 7: Deserialize Graph
     std::cout << "Deserialize Graph------------------------------";
     deserialized_graph dg;
-    auto g2 = dg.load("./graph-100003-17603300391015650701.json");
+    auto g2 = dg.load("./graph-100003-6555960554362404449.json");
 
     // Step 8: Filter partitions
     std::cout << "Filter partitions of deserialized graph--------";

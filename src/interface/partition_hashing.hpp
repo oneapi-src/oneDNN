@@ -97,8 +97,9 @@ struct key_t {
 
     mutable size_t partition_id_;
     mutable std::vector<op_t *> ops_;
-    mutable std::unordered_set<logical_tensor_t> ins_;
-    mutable std::unordered_set<logical_tensor_t> outs_;
+    mutable std::vector<logical_tensor_t> ins_;
+    mutable std::vector<logical_tensor_t> outs_;
+    // FIXME(wuxun): also need fix
     /// map from id <-> context content
     mutable std::unordered_map<size_t, impl::utils::any_t> context_content_map_;
     int nthread_;
@@ -189,8 +190,8 @@ struct hash<dnnl::graph::impl::partition_hashing::key_t> {
         seed = get_array_hash(seed, key.ops_.data(), key.ops_.size());
 
         // Combine hash for input and output ports with the computed hash
-        seed = get_unordered_array_hash(seed, key.ins_);
-        seed = get_unordered_array_hash(seed, key.outs_);
+        seed = get_array_hash(seed, key.ins_.data(), key.ins_.size());
+        seed = get_array_hash(seed, key.outs_.data(), key.outs_.size());
 
         // Combine hash for context content
         for (const auto &pair : key.context_content_map_) {
