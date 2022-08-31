@@ -141,6 +141,9 @@ double evaluateS(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         int k0_2 = alignUp(divUp(dp.sizes.k, wgCountK2),
                 e.driverInfo.unroll[LoopK] * e.driverInfo.wg[LoopK]);
 
+        k0_1 = std::max(k0_1, 1);
+        k0_2 = std::max(k0_2, 1);
+
         wgCountK1 = std::max<int>(1, divUp(dp.sizes.k, k0_1));
         wgCountK2 = std::max<int>(1, divUp(dp.sizes.k, k0_2));
 
