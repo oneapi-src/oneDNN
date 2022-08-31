@@ -1,5 +1,8 @@
 --reset 
---batch=test_graph_binary_bfloat16_ci
+--batch=test_graph_binary_ci
 
 --reset 
---batch=test_graph_binary_ci
+--batch=test_graph_binary_float16_ci
+
+--reset 
+--batch=test_graph_binary_bfloat16_ci

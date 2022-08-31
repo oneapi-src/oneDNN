@@ -1,0 +1,36 @@
+# main op - no alpha, no beta
+--reset
+--inplace=true,false
+--dir=FWD_D
+--dt=f16
+--alpha=0 --beta=0
+--alg=abs,exp,gelu_erf,hardswish,log,relu,soft_relu,sqrt,square,tanh,logistic,logsigmoid
+32x256x14x14
+
+# main op - clamp, alpha andbeta
+--reset
+--inplace=true,false
+--dir=FWD_D
+--dt=f16
+--alg=clip_v2
+--alpha=-1 --beta=1
+32x256x14x14
+
+# main op - elu, only alpha
+--reset
+--inplace=true,false
+--dir=FWD_D
+--dt=f16
+--alg=elu
+--alpha= --beta=0
+32x256x14x14
+
+# post binary-add
+--reset
+--inplace=true,false
+--dir=FWD_D
+--dt=f16
+--alg=relu
+--alpha=0 --beta=0
+--attr-post-ops=add:f16:common,add:f16:per_oc
+32x256x14x14

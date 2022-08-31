@@ -1,0 +1,19 @@
+# f16
+# main op
+--reset
+--alg=ADD,DIV,MUL,MAX,MIN --ddt=f16 --sdt=f16:f16 --stag=abx:abx 64x128x28x28:64x128x28x28
+
+# post binary
+--reset
+--alg=MUL --ddt=f16 --sdt=f16:f16 --attr-post-ops=add:f16:common --stag=abx:abx 64x128x28x28:64x128x28x28
+
+--reset
+--alg=ADD --ddt=f16 --sdt=f16:f16 --attr-post-ops=mul:f16 --stag=abx:abx 64x128x28x28:64x128x28x28
+
+# post sum
+--reset
+--alg=MAX --ddt=f16 --sdt=f16:f16 --attr-post-ops=sum --stag=abx:abx 64x128x28x28:64x128x28x28
+
+# post eltwise
+--reset
+--alg=ADD,DIV,MUL,MAX,MIN --ddt=f16 --sdt=f16:f16 --attr-post-ops=relu,logistic --stag=abx:abx 64x128x28x28:64x128x28x28

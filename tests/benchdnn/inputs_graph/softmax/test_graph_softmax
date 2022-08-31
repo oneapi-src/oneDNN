@@ -1,6 +1,9 @@
 --reset
---batch=test_graph_softmax_bfloat16_ci
+--batch=test_graph_softmax_ci
 
 --reset
---batch=test_graph_softmax_ci
+--batch=test_graph_softmax_float16_ci
+
+--reset
+--batch=test_graph_softmax_bfloat16_ci
 

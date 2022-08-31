@@ -76,6 +76,13 @@ static int check_known_skipped_case_graph(
     return OK;
 }
 
+static bool is_typecast(graph_dt src_dt, graph_dt dst_dt) {
+    return (src_dt == graph_dt::f32
+                   && (dst_dt == graph_dt::bf16 || dst_dt == graph_dt::f16))
+            || ((src_dt == graph_dt::bf16 || src_dt == graph_dt::f16)
+                    && dst_dt == graph_dt::f32);
+}
+
 static bool is_quantize(graph_dt src_dt, graph_dt dst_dt) {
     return src_dt == graph_dt::f32 && is_low_precision({dst_dt});
 }
@@ -201,9 +208,7 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
     }
 
     const auto is_reorder = src_dt == dst_dt;
-    const auto is_typecast
-            = (src_dt == graph_dt::f32 && dst_dt == graph_dt::bf16)
-            || (src_dt == graph_dt::bf16 && dst_dt == graph_dt::f32);
+    const auto is_tc = is_typecast(src_dt, dst_dt);
     const auto is_qdq
             = is_quantize(src_dt, dst_dt) || is_dequantize(src_dt, dst_dt);
     if (is_low_precision({src_dt}) && is_low_precision({dst_dt})) {
@@ -244,13 +249,13 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
         set_quant_op_attr(quantize_op, qtype, scales, dst_zps, axis);
 
         graph.append(op2_dst_id, quantize_op, {op1_dst_id}, {op2_dst_id});
-    } else if (is_reorder || is_typecast || (!runtime && is_qdq)) {
+    } else if (is_reorder || is_tc || (!runtime && is_qdq)) {
         entry_kind_t e_kind;
         dnnl::graph::op::kind op_kind;
         if (is_reorder) {
             e_kind = entry_kind::REORDER;
             op_kind = dnnl::graph::op::kind::Reorder;
-        } else if (is_typecast) {
+        } else if (is_tc) {
             e_kind = entry_kind::TYPECAST;
             op_kind = dnnl::graph::op::kind::TypeCast;
         } else {

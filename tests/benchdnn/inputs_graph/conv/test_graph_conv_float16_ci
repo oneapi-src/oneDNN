@@ -1,29 +1,29 @@
 # main op
 --reset
 --dir=FWD_B,BWD_D,BWD_W
---cfg=bf16bf16bf16
+--cfg=f16
 mb50ic64ih56oc64oh56kh1ph0
 
 # BWD_W with groups
 --reset
 --dir=BWD_W
---cfg=bf16bf16bf16
+--cfg=f16
 g4oc16ic16_ow5iw5kw3pw1_n"1d_conv:grouped"
 g4oc16ic16_oh5ih5kh3ph1_n"2d_conv:grouped"
 g4oc16ic16_od5id5kd3pd1_n"3d_conv:grouped"
 
 # post bias
 --reset
---cfg=bf16bf16bf16
+--cfg=f16
 --dir=FWD_B mb50ic64ih56oc64oh56kh1ph0
 
 # post relu
 --reset
---cfg=bf16bf16bf16
+--cfg=f16
 --attr-post-ops=relu,mish mb50ic64ih56oc64oh56kh1ph0
 
 # post bias+sum, bias+add, bias+logistic, bias+sqrt, bias+tanh, bias+sum+elu, bias+sum+relu, bias+sum+relu6
 --reset
---cfg=bf16bf16bf16
+--cfg=f16
 --dir=FWD_B
---attr-post-ops=sum,add:bf16:common,add:bf16:per_oc,logistic,sqrt,tanh,sum+elu,sum+relu,sum+clip_v2:0:6 mb50ic64ih56oc64oh56kh1ph0
+--attr-post-ops=sum,add:f16:common,add:f16:per_oc,logistic,sqrt,tanh,sum+elu,sum+relu,sum+clip_v2:0:6 mb50ic64ih56oc64oh56kh1ph0

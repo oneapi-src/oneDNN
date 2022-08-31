@@ -11,6 +11,10 @@ mb1ic64_ih600iw600_oh300ow300_kh3kw3_dh0dw0_ph1pw1_sh2sw2
 --reset
 --cfg=s8,u8 --dir=FWD_I mb1ic64_ih600iw600_oh300ow300_kh3kw3_dh0dw0_ph1pw1_sh2sw2
 
+# f16
+--reset
+--cfg=f16 --dir=FWD_I mb1ic64_ih600iw600_oh300ow300_kh3kw3_dh0dw0_ph1pw1_sh2sw2
+
 # bf16
 --reset
 --cfg=bf16 --dir=FWD_I mb1ic64_ih600iw600_oh300ow300_kh3kw3_dh0dw0_ph1pw1_sh2sw2
