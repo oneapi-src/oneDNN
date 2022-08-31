@@ -515,6 +515,19 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution) {
     compile_execution_pipeline(agraph, 1);
 }
 
+TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
+            id_gen, {1, 56, 56, 256},
+            {{1, 1, 256, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}},
+            {{1, 1}, {1, 1}, {1, 1}}, {{0, 0}, {1, 1}, {0, 0}}, "NXC", "XIO");
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
@@ -534,6 +547,19 @@ TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecution) {
     compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
             id_gen, {1, 56, 56, 256},
             {{1, 1, 256, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 2);
+}
+
+TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecutionNCX) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
+            id_gen, {1, 256, 56, 56},
+            {{64, 256, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}}, false, false,
+            {{1, 1}, {1, 1}, {1, 1}}, {{0, 0}, {1, 1}, {0, 0}}, "NCX", "OIX");
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 2);
