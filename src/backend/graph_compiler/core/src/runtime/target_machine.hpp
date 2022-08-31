@@ -74,7 +74,7 @@ struct cpu_flags_t : public machine_flags_t {
     bool fAVX512BF16 = false; //  AVX512 BF16 Instructions
 };
 
-struct SC_INTERNAL_API target_machine_t {
+struct SC_API target_machine_t {
     enum class type {
         cpu,
     } device_type_;
