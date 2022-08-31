@@ -66,7 +66,7 @@ set(DNNL_GRAPH_CPU_RUNTIME "OMP" CACHE STRING
     "specifies the threading runtime for CPU engines;
     supports OMP (default).")
 
-if(NOT "${DNNL_GRAPH_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|DPCPP|THREADPOOL)$")
+if(NOT "${DNNL_GRAPH_CPU_RUNTIME}" MATCHES "^(NONE|OMP|TBB|SEQ|DPCPP|THREADPOOL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_GRAPH_CPU_RUNTIME}")
 endif()
 

@@ -56,8 +56,12 @@ if(NOT DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE)
 endif()
 
 set(sycl_rt_pattern "(DPCPP)")
-add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test" "--engine=cpu")
-maybe_configure_windows_test("${LIB_NAME}_unit_test" TEST)
+
+# Add CPU test if CPU runtime is enabled
+if(NOT DNNL_GRAPH_CPU_RUNTIME STREQUAL "NONE")
+    add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test" "--engine=cpu")
+    maybe_configure_windows_test("${LIB_NAME}_unit_test" TEST)
+endif()
 
 # Add GPU test if GPU runtime is enabled
 if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})

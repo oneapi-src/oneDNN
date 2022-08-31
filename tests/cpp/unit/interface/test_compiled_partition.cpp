@@ -33,12 +33,10 @@ namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl {
 namespace graph {
 
-#ifndef DNNL_GRAPH_CPU_SYCL
 TEST(CompiledPartitionCache, SingleOpCase) {
     const size_t max_batch = 4;
 
-    auto engine_kind = impl::engine_kind::cpu;
-    impl::engine_t eng(engine_kind, 0);
+    impl::engine_t &eng = get_engine();
     std::vector<impl::op_kind_t> kind_set {
             impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::Tanh};
 
@@ -69,7 +67,7 @@ TEST(CompiledPartitionCache, SingleOpCase) {
             elt.add_output(output);
 
             // Create graph
-            impl::graph_t g {engine_kind};
+            impl::graph_t g {eng.kind()};
             g.add_op(&elt);
             g.build_graph();
 
@@ -135,8 +133,7 @@ TEST(CompiledPartitionCache, SingleOpCase) {
 TEST(CompiledPartitionCache, CompileWithContext) {
     const size_t max_batch = 4;
 
-    auto engine_kind = impl::engine_kind::cpu;
-    impl::engine_t eng(engine_kind, 0);
+    impl::engine_t &eng = get_engine();
     std::vector<impl::op_kind_t> kind_set {
             impl::op_kind::ReLU, impl::op_kind::Tanh};
 
@@ -167,7 +164,7 @@ TEST(CompiledPartitionCache, CompileWithContext) {
             elt.add_output(output);
 
             // Create graph
-            impl::graph_t g {engine_kind};
+            impl::graph_t g {eng.kind()};
             g.add_op(&elt);
             g.build_graph();
 
@@ -240,8 +237,6 @@ TEST(CompiledPartitionCache, CompileWithContext) {
     ASSERT_EQ(get_compiled_partition_cache_size(), new_capacity);
 #endif
 }
-
-#endif
 
 } // namespace graph
 } // namespace dnnl

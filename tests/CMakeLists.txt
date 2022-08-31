@@ -72,6 +72,16 @@ endif()
 
 set(TEST_ALLOCATOR ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp)
 
+if(DNNL_GRAPH_WITH_SYCL AND DNNL_GRAPH_CPU_RUNTIME STREQUAL "NONE")
+    set(DNNL_WITH_SYCL true)
+    list(INSERT CMAKE_MODULE_PATH 0 ${PROJECT_SOURCE_DIR}/third_party/oneDNN/cmake)
+    find_package_tbb(REQUIRED)
+    list(REMOVE_AT CMAKE_MODULE_PATH 0)
+    handle_tbb_target()
+    unset(DNNL_WITH_SYCL)
+    list(APPEND DNNL_GRAPH_EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
+endif()
+
 add_subdirectory(cpp)
 add_subdirectory(benchdnn)
 add_subdirectory(benchdnn_graph)
