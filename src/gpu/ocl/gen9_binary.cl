@@ -61,33 +61,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #if WITH_SRC1_SCALE
             tmp_src1 = tmp_src1 * src1_scale;
 #endif
-
-#if IS_ADD
-            d = tmp_src0 + tmp_src1;
-#elif IS_MUL
-            d = tmp_src0 * tmp_src1;
-#elif IS_MAX
-            d = max(tmp_src0, tmp_src1);
-#elif IS_MIN
-            d = min(tmp_src0, tmp_src1);
-#elif IS_DIV
-            d = tmp_src0 / tmp_src1;
-#elif IS_SUB
-            d = tmp_src0 - tmp_src1;
-#elif IS_GE
-            d = VECT_INT_TO_FLOAT(tmp_src0 >= tmp_src1);
-#elif IS_GT
-            d = VECT_INT_TO_FLOAT(tmp_src0 > tmp_src1);
-#elif IS_LE
-            d = VECT_INT_TO_FLOAT(tmp_src0 <= tmp_src1);
-#elif IS_LT
-            d = VECT_INT_TO_FLOAT(tmp_src0 < tmp_src1);
-#elif IS_EQ
-            d = VECT_INT_TO_FLOAT(tmp_src0 == tmp_src1);
-#elif IS_NE
-            d = VECT_INT_TO_FLOAT(tmp_src0 != tmp_src1);
-#endif
-
+            d = get_eltwise_op(tmp_src0, tmp_src1);
 #if WITH_SUM
             dst_data = CONVERT_FLOAT8_T(DST_BLOCK_READ8(&t_dst[0]));
 #endif
@@ -183,31 +157,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     tmp_src1 = tmp_src1 * src1_scale;
 #endif
 
-#if IS_ADD
-    d = tmp_src0 + tmp_src1;
-#elif IS_MUL
-    d = tmp_src0 * tmp_src1;
-#elif IS_MAX
-    d = max(tmp_src0, tmp_src1);
-#elif IS_MIN
-    d = min(tmp_src0, tmp_src1);
-#elif IS_DIV
-    d = tmp_src0 / tmp_src1;
-#elif IS_SUB
-    d = tmp_src0 - tmp_src1;
-#elif IS_GE
-    d = VECT_INT_TO_FLOAT(tmp_src0 >= tmp_src1);
-#elif IS_GT
-    d = VECT_INT_TO_FLOAT(tmp_src0 > tmp_src1);
-#elif IS_LE
-    d = VECT_INT_TO_FLOAT(tmp_src0 <= tmp_src1);
-#elif IS_LT
-    d = VECT_INT_TO_FLOAT(tmp_src0 < tmp_src1);
-#elif IS_EQ
-    d = VECT_INT_TO_FLOAT(tmp_src0 == tmp_src1);
-#elif IS_NE
-    d = VECT_INT_TO_FLOAT(tmp_src0 != tmp_src1);
-#endif
+    d = get_eltwise_op(tmp_src0, tmp_src1);
 
 #if WITH_SUM
 #if NVECT == 1
@@ -326,32 +276,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #if WITH_SRC1_SCALE
             tmp_src1 = tmp_src1 * src1_scale;
 #endif
-
-#if IS_ADD
-            res = tmp_src0 + tmp_src1;
-#elif IS_MUL
-            res = tmp_src0 * tmp_src1;
-#elif IS_MAX
-            res = max(tmp_src0, tmp_src1);
-#elif IS_MIN
-            res = min(tmp_src0, tmp_src1);
-#elif IS_DIV
-            res = tmp_src0 / tmp_src1;
-#elif IS_SUB
-            res = tmp_src0 - tmp_src1;
-#elif IS_GE
-            res = tmp_src0 >= tmp_src1;
-#elif IS_GT
-            res = tmp_src0 > tmp_src1;
-#elif IS_LE
-            res = tmp_src0 <= tmp_src1;
-#elif IS_LT
-            res = tmp_src0 < tmp_src1;
-#elif IS_EQ
-            res = tmp_src0 == tmp_src1;
-#elif IS_NE
-            res = tmp_src0 != tmp_src1;
-#endif
+            res = get_eltwise_op(tmp_src0, tmp_src1);
 
             APPLY_POST_OPS_SERIAL(res, float, dst_data, float, d0 + d0_i, 1,
                     d1 + d1_i, 1, d2, 1, d3 + sglid, 1, d4, 1, d5, 1);
@@ -422,35 +347,6 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #else
 #define src1_scale_val 1
 #endif
-
-#define READ_DATA(size, name, source_ptr, dest_ptr, scale) \
-    { \
-        unsigned offset = 0; \
-        unroll_for(unsigned j8 = 0; j8 < size / 8; ++j8) { \
-            *((float8 *)(dest_ptr + offset)) = scale \
-                    * CONVERT_FLOAT8_T(CONCAT2(name, _BLOCK_READ8)( \
-                            (source_ptr + offset * SUB_GROUP_SIZE))); \
-            offset += 8; \
-        } \
-        if ((size % 8) / 4) { \
-            *((float4 *)(dest_ptr + offset)) = scale \
-                    * CONVERT_FLOAT4_T(CONCAT2(name, _BLOCK_READ4)( \
-                            (source_ptr + offset * SUB_GROUP_SIZE))); \
-            offset += 4; \
-        } \
-        if ((size % 4) / 2) { \
-            *((float2 *)(dest_ptr + offset)) = scale \
-                    * CONVERT_FLOAT2_T(CONCAT2(name, _BLOCK_READ2)( \
-                            (source_ptr + offset * SUB_GROUP_SIZE))); \
-            offset += 2; \
-        } \
-        if ((size % 2)) { \
-            *((float *)(dest_ptr + offset)) = scale \
-                    * CONVERT_FLOAT_T(CONCAT2(name, _BLOCK_READ)( \
-                            (source_ptr + offset * SUB_GROUP_SIZE))); \
-        } \
-    }
-
     float tmp_src0[NVECT];
     READ_DATA(NVECT, SRC0, (&src0[0]), (&tmp_src0[0]), src0_scale_val);
 
@@ -466,31 +362,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 
     float tmp[NVECT];
     unroll_for(unsigned idx = 0; idx < NVECT; ++idx) {
-#if IS_ADD
-        tmp[idx] = tmp_src0[idx] + tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_MUL
-        tmp[idx] = tmp_src0[idx] * tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_MAX
-        tmp[idx] = max(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
-#elif IS_MIN
-        tmp[idx] = min(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
-#elif IS_DIV
-        tmp[idx] = tmp_src0[idx] / tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_SUB
-        tmp[idx] = tmp_src0[idx] - tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_GE
-        tmp[idx] = tmp_src0[idx] >= tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_GT
-        tmp[idx] = tmp_src0[idx] > tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_LE
-        tmp[idx] = tmp_src0[idx] <= tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_LT
-        tmp[idx] = tmp_src0[idx] < tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_EQ
-        tmp[idx] = tmp_src0[idx] == tmp_src1[idx * SRC1_IDX_MASK];
-#elif IS_NE
-        tmp[idx] = tmp_src0[idx] != tmp_src1[idx * SRC1_IDX_MASK];
-#endif
+        tmp[idx] = get_eltwise_op(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
     }
 
     float dst_data[NVECT];
@@ -507,33 +379,6 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         dims0[NDIMS - 1] += 16;
     }
 
-#define WRITE_DATA(size, name, source_ptr, dest_ptr) \
-    { \
-        unsigned offset = 0; \
-        unroll_for(unsigned j8 = 0; j8 < size / 8; ++j8) { \
-            CONCAT2(name, _BLOCK_WRITE8) \
-            ((dest_ptr + offset * SUB_GROUP_SIZE), \
-                    TO_DST8(*((float8 *)(source_ptr + offset)))); \
-            offset += 8; \
-        } \
-        if ((size % 8) / 4) { \
-            CONCAT2(name, _BLOCK_WRITE4) \
-            ((dest_ptr + offset * SUB_GROUP_SIZE), \
-                    TO_DST4(*((float4 *)(source_ptr + offset)))); \
-            offset += 4; \
-        } \
-        if ((size % 4) / 2) { \
-            CONCAT2(name, _BLOCK_WRITE2) \
-            ((dest_ptr + offset * SUB_GROUP_SIZE), \
-                    TO_DST2(*((float2 *)(source_ptr + offset)))); \
-            offset += 2; \
-        } \
-        if ((size % 2)) { \
-            CONCAT2(name, _BLOCK_WRITE) \
-            ((dest_ptr + offset * SUB_GROUP_SIZE), \
-                    TO_DST(*((float *)(source_ptr + offset)))); \
-        } \
-    }
     WRITE_DATA(NVECT, DST, (&tmp[0]), (&dst[0]));
 }
 

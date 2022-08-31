@@ -276,5 +276,112 @@
     intel_sub_group_block_write_us8((__global ushort *)(dst), as_ushort8(val))
 #endif // SRC_DT_F16
 
+#if NVECT == 1 || IS_NCX_LAYOUT
+#define ELEM_DATA_T float
+#elif NVECT == 2
+#define ELEM_DATA_T float2
+#elif NVECT == 4
+#define ELEM_DATA_T float4
+#elif NVECT == 8
+#define ELEM_DATA_T float8
+#endif
+
+ELEM_DATA_T get_eltwise_op(ELEM_DATA_T src0, ELEM_DATA_T src1) {
+    ELEM_DATA_T d = 0;
+#if IS_ADD
+    d = src0 + src1;
+#elif IS_MUL
+    d = src0 * src1;
+#elif IS_MAX
+    d = max(src0, src1);
+#elif IS_MIN
+    d = min(src0, src1);
+#elif IS_DIV
+    d = src0 / src1;
+#elif IS_SUB
+    d = src0 - src1;
+#elif IS_GE && IS_PLAIN_LAYOUT
+    d = src0 >= src1;
+#elif IS_GE
+    d = VECT_INT_TO_FLOAT(src0 >= src1);
+#elif IS_GT && IS_PLAIN_LAYOUT
+    d = src0 > src1;
+#elif IS_GT
+    d = VECT_INT_TO_FLOAT(src0 > src1);
+#elif IS_LE && IS_PLAIN_LAYOUT
+    d = src0 <= src1;
+#elif IS_LE
+    d = VECT_INT_TO_FLOAT(src0 <= src1);
+#elif IS_LT && IS_PLAIN_LAYOUT
+    d = src0 < src1;
+#elif IS_LT
+    d = VECT_INT_TO_FLOAT(src0 < src1);
+#elif IS_EQ && IS_PLAIN_LAYOUT
+    d = src0 == src1;
+#elif IS_EQ
+    d = VECT_INT_TO_FLOAT(src0 == src1);
+#elif IS_NE && IS_PLAIN_LAYOUT
+    d = src0 != src1;
+#elif IS_NE
+    d = VECT_INT_TO_FLOAT(src0 != src1);
+#endif
+    return d;
+}
+
+#define READ_DATA(size, name, source_ptr, dest_ptr, scale) \
+    { \
+        unsigned offset = 0; \
+        unroll_for(unsigned j8 = 0; j8 < size / 8; ++j8) { \
+            *((float8 *)(dest_ptr + offset)) = scale \
+                    * CONVERT_FLOAT8_T(CONCAT2(name, _BLOCK_READ8)( \
+                            (source_ptr + offset * SUB_GROUP_SIZE))); \
+            offset += 8; \
+        } \
+        if ((size % 8) / 4) { \
+            *((float4 *)(dest_ptr + offset)) = scale \
+                    * CONVERT_FLOAT4_T(CONCAT2(name, _BLOCK_READ4)( \
+                            (source_ptr + offset * SUB_GROUP_SIZE))); \
+            offset += 4; \
+        } \
+        if ((size % 4) / 2) { \
+            *((float2 *)(dest_ptr + offset)) = scale \
+                    * CONVERT_FLOAT2_T(CONCAT2(name, _BLOCK_READ2)( \
+                            (source_ptr + offset * SUB_GROUP_SIZE))); \
+            offset += 2; \
+        } \
+        if ((size % 2)) { \
+            *((float *)(dest_ptr + offset)) = scale \
+                    * CONVERT_FLOAT_T(CONCAT2(name, _BLOCK_READ)( \
+                            (source_ptr + offset * SUB_GROUP_SIZE))); \
+        } \
+    }
+
+#define WRITE_DATA(size, name, source_ptr, dest_ptr) \
+    { \
+        unsigned offset = 0; \
+        unroll_for(unsigned j8 = 0; j8 < size / 8; ++j8) { \
+            CONCAT2(name, _BLOCK_WRITE8) \
+            ((dest_ptr + offset * SUB_GROUP_SIZE), \
+                    TO_DST8(*((float8 *)(source_ptr + offset)))); \
+            offset += 8; \
+        } \
+        if ((size % 8) / 4) { \
+            CONCAT2(name, _BLOCK_WRITE4) \
+            ((dest_ptr + offset * SUB_GROUP_SIZE), \
+                    TO_DST4(*((float4 *)(source_ptr + offset)))); \
+            offset += 4; \
+        } \
+        if ((size % 4) / 2) { \
+            CONCAT2(name, _BLOCK_WRITE2) \
+            ((dest_ptr + offset * SUB_GROUP_SIZE), \
+                    TO_DST2(*((float2 *)(source_ptr + offset)))); \
+            offset += 2; \
+        } \
+        if ((size % 2)) { \
+            CONCAT2(name, _BLOCK_WRITE) \
+            ((dest_ptr + offset * SUB_GROUP_SIZE), \
+                    TO_DST(*((float *)(source_ptr + offset)))); \
+        } \
+    }
 
 #endif
