@@ -227,10 +227,10 @@ void lru_compiled_partition_cache_t::update_entry(const key_t &key,
     it->first.ins_.reserve(ins.size());
     it->first.outs_.reserve(outs.size());
     for (auto &in : ins) {
-        it->first.ins_.emplace(*in);
+        it->first.ins_.emplace_back(*in);
     }
     for (auto &out : outs) {
-        it->first.outs_.emplace(*out);
+        it->first.outs_.emplace_back(*out);
     }
 }
 
