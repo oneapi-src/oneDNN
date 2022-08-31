@@ -243,7 +243,7 @@ auto execute_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
     return f(args...);
 }
 
-#elif
+#else
 #error __FILE__"(" __LINE__ ")" "unsupported threading runtime!"
 #endif
 
