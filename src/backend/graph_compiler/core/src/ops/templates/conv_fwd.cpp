@@ -84,33 +84,158 @@ static int get_lanes(
   return lanes;
 }
 
+void gen_conv_fwd_t::validate_conv_fwd_default_config(
+  const context_ptr &ctx, conv_fwd_config_t &cfg) const {
+  bool dtype_f32 = get_input_dtype() == datatypes::f32;
+  bool use_os_blocking = try_os_blocking_ && is_use_amx(ctx);
+  auto K_block_list = utils::get_blocks(oc_, 16);
+  auto C_block_list = utils::get_blocks(ic_, 16);
+  auto tile_d_list = utils::get_factors(od_);
+  auto tile_p_list = use_os_blocking
+    ? std::vector<int> {-1}
+    : (dtype_f32 ? std::vector<int> {1} : utils::get_factors(oh_));
+  auto tile_q_list
+    = use_os_blocking ? std::vector<int> {-1} : utils::get_factors(ow_);
+  auto tile_os_list
+    = use_os_blocking ? get_os_blocks(ow_, adj_os_) : std::vector<int> {-1};
+  auto pack_input_list = (is_1x1_conv_ && (sd_ > 1 || sh_ > 1 || sw_ > 1))
+    ? std::vector<int> {0, 1}
+    : std::vector<int> {-1};
+  auto loop_sched_list = std::vector<int> {0, 1, 2, 3};
+  if (std::find(K_block_list.begin(), K_block_list.end(), cfg.K_block)
+    == K_block_list.end()) {
+    cfg.K_block = K_block_list.at(0);
+  }
+  if (std::find(C_block_list.begin(), C_block_list.end(), cfg.C_block)
+    == C_block_list.end()) {
+    cfg.C_block = C_block_list.at(0);
+  }
+  if (std::find(tile_d_list.begin(), tile_d_list.end(), cfg.tile_d)
+    == tile_d_list.end()) {
+    cfg.tile_d = tile_d_list.at(0);
+  }
+  if (std::find(tile_p_list.begin(), tile_p_list.end(), cfg.tile_p)
+    == tile_p_list.end()) {
+    cfg.tile_p = tile_p_list.at(0);
+  }
+  if (std::find(tile_q_list.begin(), tile_q_list.end(), cfg.tile_q)
+    == tile_q_list.end()) {
+    cfg.tile_q = tile_q_list.at(0);
+  }
+  if (std::find(tile_os_list.begin(), tile_os_list.end(), cfg.tile_os)
+    == tile_os_list.end()) {
+    cfg.tile_os = tile_os_list.back();
+  }
+  if (std::find(pack_input_list.begin(), pack_input_list.end(), cfg.pack_input)
+    == pack_input_list.end()) {
+    cfg.pack_input = pack_input_list.at(0);
+  }
+  if (std::find(loop_sched_list.begin(), loop_sched_list.end(), cfg.loop_sched)
+    == loop_sched_list.end()) {
+    cfg.loop_sched = loop_sched_list.at(0);
+  }
+}
+
 config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   auto ret = reflection::general_object_t::make<conv_fwd_config_t>();
   conv_fwd_config_t &cfg = *ret.unchecked_get_as<conv_fwd_config_t>();
-  if (inverse_filter_) {
-    cfg.K_block = 64;
-  } else if (oc_ % 32 == 0) {
-    cfg.K_block = 32;
+  const auto nthreads = runtime_config_t::get().get_num_threads();
+  auto C_block_list = utils::get_blocks(ic_, 16);
+  auto K_block_list = utils::get_blocks(oc_, 16);
+
+  auto tile_p_list = utils::get_factors(oh_);
+  auto tile_q_list = utils::get_factors(ow_);
+  cfg.tile_d = 1;
+  cfg.tile_os = -1;
+  cfg.pack_input = (is_1x1_conv_ && (sd_ > 1 || sh_ > 1 || sw_ > 1)) ? 1 : -1;
+  cfg.loop_sched = 0;
+  // C_block shall only relay to ic_
+  int max_ic_block = -1;
+  int max_oc_block = -1;
+  if (ic_ % 32 != 0) {
+    cfg.C_block = ic_ > 32 ? 32 : utils::rnd_up(ic_, 4);
   } else {
-    cfg.K_block = oc_;
+    for (unsigned i = C_block_list.size() - 1; i >= 0; i--) {
+      if (C_block_list[i] <= 128) {
+        max_ic_block = C_block_list[i];
+        break;
+      }
+    }
   }
+  // K block shall only relay to oc_ and apply same logic with ic to avoid
+  // possibly double buffer
+  if (oc_ % 32 != 0) {
+    cfg.K_block = oc_ > 32 ? 32 : utils::rnd_up(oc_, 4);
+  } else {
+    for (unsigned i = K_block_list.size() - 1; i >= 0; i--) {
+      if (K_block_list[i] <= 128) {
+        max_oc_block = K_block_list[i];
+        break;
+      }
+    }
+  }
+  // large K N: adjust K_block and N_block(as gemm)
+  if (oc_ * ic_ >= 512 * 512) {
+    if (is_1x1_conv_) {
+      max_oc_block *= 2;
+    } else {
+      max_ic_block *= 2;
+    }
+    cfg.loop_sched = 3;
+  }
+  if (is_1x1_conv_ && (oc_ / ic_ >= 4 && oc_ >= 1024)) { max_oc_block = 128; }
+  // tile_p and tile_q
+  if (!is_1x1_conv_) {
+    cfg.tile_p = tile_p_list.back();
+  } else {
+    if (ic_ * oc_ <= 64 * 256) {
+      cfg.tile_p = 1;
+    } else {
+      cfg.tile_p = tile_p_list.back();
+    }
+  }
+  if (!is_1x1_conv_) {
+    cfg.tile_q = tile_q_list.back();
+  } else {
+    // handle large M for gemm kernel: shrink M
+    if (sw_ > 1) {
+      cfg.tile_q = 1;
+    } else {
+      cfg.tile_q = tile_q_list.back();
+    }
+    if (iw_ > 28 && oc_ * ic_ >= 128 * 256) {
+      if (iw_ % 2 == 0) cfg.tile_q = iw_ / 2;
+    }
+    if (ih_ > 28 && oc_ * ic_ >= 128 * 256) {
+      if (ih_ % 2 == 0) cfg.tile_p = ih_ / 2;
+    }
+  }
+
+  if (((oc_ / max_oc_block) * mb_) % nthreads > 0
+    && ((oc_ / max_oc_block) * mb_) % nthreads
+      < nthreads / 4) { // serious imbalance
+    // tile_p shall be the first to change if tile_p adjustable, then oc
+    if (cfg.tile_p % 2 == 0 && ih_ % (cfg.tile_p / 2) == 0) {
+      cfg.tile_p /= 2;
+    } else if (max_oc_block % 32 == 0) {
+      max_oc_block /= 2;
+    }
+    // TODO(bh): optimize here
+  }
+  if (get_input_dtype() == datatypes::f32) { cfg.tile_p = 1; }
+  if (try_os_blocking_) {
+    // if use os blocking override tile p and tile q above
+    cfg.tile_os = cfg.tile_q;
+    cfg.tile_q = -1;
+    cfg.tile_p = -1;
+  }
+  cfg.K_block = oc_ % 32 == 0 ? max_oc_block : oc_;
+  cfg.C_block = ic_ % 32 == 0 ? max_ic_block : ic_;
+  validate_conv_fwd_default_config(ctx, cfg);
   if (inverse_filter_) {
     cfg.C_block = 64;
-  } else if (ic_ % 32 == 0) {
-    cfg.C_block = 32;
-  } else {
-    cfg.C_block = ic_;
-  }
-  cfg.tile_d = 1;
-  cfg.tile_p = 1;
-  cfg.tile_q = ow_;
-  if (is_1x1_conv_) {
-    cfg.tile_os = 1;
-  } else {
-    cfg.tile_os = ow_;
-  }
-  cfg.pack_input = 0;
-  cfg.loop_sched = 3;
+    cfg.K_block = 64;
+  };
   return std::move(ret);
 }
 

@@ -123,6 +123,8 @@ private:
   bool is_3d_ = false;
   bool blocking_input_ = false;
   bool blocking_output_ = false;
+  void validate_conv_fwd_default_config(
+    const context_ptr &ctx, conv_fwd_config_t &cfg) const;
 };
 
 } // namespace ops
