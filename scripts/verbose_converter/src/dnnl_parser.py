@@ -93,8 +93,6 @@ class LogParser:
                 return aux
 
             def convert_prim_kind(prim_kind):
-                if prim_kind == 'pooling_v2':
-                    prim_kind = 'pooling'
                 if prim_kind == 'softmax_v2':
                     prim_kind = 'softmax'
                 if prim_kind == 'layer_normalization_v2':

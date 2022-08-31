@@ -48,7 +48,7 @@ void serialize_desc(serialization_stream_t &sstream,
 void serialize_desc(serialization_stream_t &sstream, const lrn_desc_t &desc);
 void serialize_desc(serialization_stream_t &sstream, const matmul_desc_t &desc);
 void serialize_desc(
-        serialization_stream_t &sstream, const pooling_v2_desc_t &desc);
+        serialization_stream_t &sstream, const pooling_desc_t &desc);
 void serialize_desc(serialization_stream_t &sstream, const prelu_desc_t &desc);
 void serialize_desc(
         serialization_stream_t &sstream, const reduction_desc_t &desc);

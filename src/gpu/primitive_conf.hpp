@@ -780,9 +780,9 @@ struct shuffle_conf_t {
     memory_desc_info_t dst_md_info;
 };
 
-inline void set_default_pool_conf(pool_conf_t &conf,
-        const pooling_v2_desc_t &desc, const memory_desc_t &src_md,
-        const memory_desc_t &dst_md, const primitive_attr_t &attr) {
+inline void set_default_pool_conf(pool_conf_t &conf, const pooling_desc_t &desc,
+        const memory_desc_t &src_md, const memory_desc_t &dst_md,
+        const primitive_attr_t &attr) {
     const memory_desc_wrapper src_mdw(src_md);
     const memory_desc_wrapper dst_mdw(dst_md);
 
@@ -811,13 +811,9 @@ inline void set_default_pool_conf(pool_conf_t &conf,
     conf.kh = (ndims == 3) ? 1 : desc.kernel[ndims - 4];
     conf.kw = desc.kernel[ndims - 3];
 
-    if (desc.primitive_kind != dnnl_pooling_v2) {
-        conf.dd = conf.dh = conf.dw = 0;
-    } else {
-        conf.dd = (ndims == 5) ? desc.dilation[0] : 0;
-        conf.dh = (ndims == 3) ? 0 : desc.dilation[ndims - 4];
-        conf.dw = desc.dilation[ndims - 3];
-    }
+    conf.dd = (ndims == 5) ? desc.dilation[0] : 0;
+    conf.dh = (ndims == 3) ? 0 : desc.dilation[ndims - 4];
+    conf.dw = desc.dilation[ndims - 3];
 
     conf.f_pad = (ndims == 5) ? desc.padding[0][0] : 0;
     conf.t_pad = (ndims == 3) ? 0 : desc.padding[0][ndims - 4];

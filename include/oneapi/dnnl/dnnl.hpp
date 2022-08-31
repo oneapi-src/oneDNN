@@ -299,8 +299,8 @@ struct primitive : public handle<dnnl_primitive_t> {
         matmul = dnnl_matmul,
         /// A resampling primitive.
         resampling = dnnl_resampling,
-        /// A pooling version 2 primitive.
-        pooling_v2 = dnnl_pooling_v2,
+        /// A pooling primitive.
+        pooling = dnnl_pooling,
         /// A reduction primitive.
         reduction = dnnl_reduction,
         /// A PReLU primitive.
@@ -12092,7 +12092,7 @@ struct resampling_backward : public primitive {
 
 /// @} dnnl_api_resampling
 
-/// @addtogroup dnnl_api_pooling_v2 Pooling_v2
+/// @addtogroup dnnl_api_pooling Pooling
 ///
 /// A primitive to perform max or average pooling with dilation.
 ///
@@ -12100,14 +12100,13 @@ struct resampling_backward : public primitive {
 ///
 /// @{
 
-/// Pooling v2 (dilated pooling) forward propagation primitive.
-struct pooling_v2_forward : public primitive {
+/// Pooling forward propagation primitive.
+struct pooling_forward : public primitive {
     /// Descriptor for a pooling forward propagation primitive.
     struct desc {
-        dnnl_pooling_v2_desc_t data;
+        dnnl_pooling_desc_t data;
 
-        /// Constructs a descriptor for pooling v2
-        /// (dilated pooling) forward propagation primitive.
+        /// Constructs a descriptor for pooling forward propagation primitive.
         ///
         /// Arrays @p strides, @p kernel, @p dilation, @p padding_l
         /// and @p padding_r contain values for spatial dimensions only and
@@ -12143,7 +12142,7 @@ struct pooling_v2_forward : public primitive {
             memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             memory::validate_dims(dilation, src_desc.data.ndims - 2);
             error::wrap_c_api(
-                    dnnl_pooling_v2_forward_desc_init(&data,
+                    dnnl_pooling_forward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind),
                             convert_to_c(aalgorithm), &src_desc.data,
                             &dst_desc.data, &strides[0], &kernel[0],
@@ -12158,9 +12157,8 @@ struct pooling_v2_forward : public primitive {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
-        /// Constructs a primitive descriptor for a pooling v2
-        /// (dilated pooling) forward
-        /// propagation primitive.
+        /// Constructs a primitive descriptor for a pooling forward propagation
+        /// primitive.
         ///
         /// @param adesc Descriptor for a pooling forward propagation primitive.
         /// @param aengine Engine to use.
@@ -12173,9 +12171,8 @@ struct pooling_v2_forward : public primitive {
             : dnnl::primitive_desc(
                     &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a pooling v2
-        /// (dilated pooling) forward
-        /// propagation primitive.
+        /// Constructs a primitive descriptor for a pooling forward propagation
+        /// primitive.
         ///
         /// @param adesc Descriptor for a pooling forward propagation primitive.
         /// @param aengine Engine to use.
@@ -12189,15 +12186,14 @@ struct pooling_v2_forward : public primitive {
             : dnnl::primitive_desc(
                     &adesc.data, &attr, aengine, nullptr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a pooling v2
-        /// (dilated pooling) forward
-        /// propagation primitive from a C API primitive descriptor that must
-        /// have a matching kind.
+        /// Constructs a primitive descriptor for a pooling forward propagation
+        /// primitive from a C API primitive descriptor that must have a
+        /// matching kind.
         ///
         /// @param pd C API primitive descriptor for a pooling forward
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
-            : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling_v2,
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling,
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
@@ -12212,32 +12208,31 @@ struct pooling_v2_forward : public primitive {
     };
 
     /// Default constructor. Produces an empty object.
-    pooling_v2_forward() = default;
+    pooling_forward() = default;
 
-    /// Constructs a pooling v2 (dilated pooling) forward
-    /// propagation primitive.
-    /// @param pd Primitive descriptor for a pooling v2
-    /// (dilated pooling) forward propagation primitive.
-    pooling_v2_forward(const primitive_desc &pd) : primitive(pd) {}
+    /// Constructs a pooling forward propagation primitive.
+    ///
+    /// @param pd Primitive descriptor for a pooling forward propagation
+    ///     primitive.
+    pooling_forward(const primitive_desc &pd) : primitive(pd) {}
 
-    /// Constructs a pooling v2 (dilated pooling) forward
-    /// propagation primitive from a cache blob.
-    /// @param pd Primitive descriptor for a pooling v2
-    /// (dilated pooling) forward propagation primitive.
+    /// Constructs a pooling forward propagation primitive from a cache blob.
+    ///
+    /// @param pd Primitive descriptor for a pooling forward propagation
+    ///     primitive.
     /// @param cache_blob Cache blob.
-    pooling_v2_forward(
+    pooling_forward(
             const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
         : primitive(pd, cache_blob) {}
 };
 
-/// Pooling v2 (dilated pooling) backward propagation primitive.
-struct pooling_v2_backward : public primitive {
+/// Pooling backward propagation primitive.
+struct pooling_backward : public primitive {
     /// Descriptor for a pooling backward propagation primitive.
     struct desc {
-        dnnl_pooling_v2_desc_t data;
+        dnnl_pooling_desc_t data;
 
-        /// Constructs a descriptor for pooling v2 (dilated pooling) backward
-        /// propagation primitive.
+        /// Constructs a descriptor for pooling backward propagation primitive.
         ///
         /// Arrays @p strides, @p kernel, @p dilation, @p padding_l
         /// and @p padding_r contain values for spatial dimensions only and
@@ -12269,7 +12264,7 @@ struct pooling_v2_backward : public primitive {
             memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
             memory::validate_dims(dilation, diff_src_desc.data.ndims - 2);
             error::wrap_c_api(
-                    dnnl_pooling_v2_backward_desc_init(&data,
+                    dnnl_pooling_backward_desc_init(&data,
                             convert_to_c(aalgorithm), &diff_src_desc.data,
                             &diff_dst_desc.data, &strides[0], &kernel[0],
                             &dilation[0], &padding_l[0], &padding_r[0]),
@@ -12278,15 +12273,13 @@ struct pooling_v2_backward : public primitive {
         }
     };
 
-    /// Primitive descriptor for a pooling v2 (dilated pooling) backward
-    /// propagation primitive.
+    /// Primitive descriptor for a pooling backward propagation primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
-        /// Constructs a primitive descriptor for a pooling v2
-        /// (dilated pooling) backward
-        /// propagation primitive.
+        /// Constructs a primitive descriptor for a pooling backward propagation
+        /// primitive.
         ///
         /// @param adesc Descriptor for a pooling backward propagation primitive.
         /// @param aengine Engine to use.
@@ -12298,14 +12291,13 @@ struct pooling_v2_backward : public primitive {
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
         primitive_desc(const desc &adesc, const engine &aengine,
-                const pooling_v2_forward::primitive_desc &hint_fwd_pd,
+                const pooling_forward::primitive_desc &hint_fwd_pd,
                 bool allow_empty = false)
             : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
                     hint_fwd_pd.get(), allow_empty) {}
 
-        /// Constructs a primitive descriptor for a pooling v2
-        /// (dilated pooling) backward
-        /// propagation primitive.
+        /// Constructs a primitive descriptor for a pooling backward propagation
+        /// primitive.
         ///
         /// @param adesc Descriptor for a pooling backward propagation primitive.
         /// @param attr Primitive attributes to use.
@@ -12319,20 +12311,19 @@ struct pooling_v2_backward : public primitive {
         ///     defaults to false.
         primitive_desc(const desc &adesc, const primitive_attr &attr,
                 const engine &aengine,
-                const pooling_v2_forward::primitive_desc &hint_fwd_pd,
+                const pooling_forward::primitive_desc &hint_fwd_pd,
                 bool allow_empty = false)
             : dnnl::primitive_desc(&adesc.data, &attr, aengine,
                     hint_fwd_pd.get(), allow_empty) {}
 
-        /// Constructs a primitive descriptor for a pooling v2
-        /// (dilated pooling) backward
-        /// propagation primitive from a C API primitive descriptor that must
-        /// have a matching kind.
+        /// Constructs a primitive descriptor for a pooling backward propagation
+        /// primitive from a C API primitive descriptor that must have a
+        /// matching kind.
         ///
         /// @param pd C API primitive descriptor for a pooling backward
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
-            : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling_v2,
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling,
                     dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
@@ -12346,25 +12337,25 @@ struct pooling_v2_backward : public primitive {
     };
 
     /// Default constructor. Produces an empty object.
-    pooling_v2_backward() = default;
+    pooling_backward() = default;
 
-    /// Constructs a pooling v2 (dilated pooling) backward
-    /// propagation primitive.
+    /// Constructs a pooling backward propagation primitive.
+    ///
     /// @param pd Primitive descriptor for a pooling backward propagation
     ///     primitive.
-    pooling_v2_backward(const primitive_desc &pd) : primitive(pd) {}
+    pooling_backward(const primitive_desc &pd) : primitive(pd) {}
 
-    /// Constructs a pooling v2 (dilated pooling) backward
-    /// propagation primitive from a cache blob.
+    /// Constructs a pooling backward propagation primitive from a cache blob.
+    ///
     /// @param pd Primitive descriptor for a pooling backward propagation
     ///     primitive.
     /// @param cache_blob Cache blob.
-    pooling_v2_backward(
+    pooling_backward(
             const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
         : primitive(pd, cache_blob) {}
 };
 
-/// @} dnnl_api_pooling_v2
+/// @} dnnl_api_pooling
 
 /// @addtogroup dnnl_api_prelu PReLU
 ///

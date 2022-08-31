@@ -41,7 +41,7 @@ const impl_list_item_t *gpu_impl_list_t::get_implementation_list(
             CASE(lrn);
             CASE(logsoftmax);
             CASE(matmul);
-            CASE(pooling_v2);
+            CASE(pooling);
             CASE(prelu);
             CASE(reduction);
             CASE(resampling);

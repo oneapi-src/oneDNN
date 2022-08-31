@@ -159,7 +159,7 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
                     {1, 1}, // strides
                     {1, 1}, {1, 1}}, // left and right padding
             eng);
-    auto pool_pd = pooling_v2_forward::primitive_desc(
+    auto pool_pd = pooling_forward::primitive_desc(
             {prop_kind::forward_inference, algorithm::pooling_max,
                     conv_pd.dst_desc(), pool_dst_md, // shape information
                     {1, 1}, {KH, KW}, // strides and kernel
@@ -286,7 +286,7 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
             {{DNNL_ARG_SRC, conv_src_mem}, {DNNL_ARG_WEIGHTS, conv_weights_mem},
                     {DNNL_ARG_DST, conv_dst_mem}});
     auto pool_scratchpad_mem = memory(pool_pd.scratchpad_desc(), eng);
-    auto pool = pooling_v2_forward(pool_pd);
+    auto pool = pooling_forward(pool_pd);
     pool.execute(
             s, {{DNNL_ARG_SRC, conv_dst_mem}, {DNNL_ARG_DST, pool_dst_mem}});
     s.wait();

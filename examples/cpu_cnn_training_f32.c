@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -385,8 +385,8 @@ void simple_net() {
         CHECK(dnnl_memory_desc_init_by_tag(&pool_dst_md, 4, pool_dst_sizes,
                 dnnl_f32, dnnl_format_tag_any));
 
-        dnnl_pooling_v2_desc_t pool_desc;
-        CHECK(dnnl_pooling_v2_forward_desc_init(&pool_desc, dnnl_forward,
+        dnnl_pooling_desc_t pool_desc;
+        CHECK(dnnl_pooling_forward_desc_init(&pool_desc, dnnl_forward,
                 dnnl_pooling_max, pool_src_md, &pool_dst_md, pool_strides,
                 pool_kernel, pool_dilation, pool_padding, pool_padding));
 
@@ -453,8 +453,8 @@ void simple_net() {
     const dnnl_memory_desc_t *pool_diff_dst_md = pool_dst_md;
 
     // create backward pooling descriptor
-    dnnl_pooling_v2_desc_t pool_bwd_desc;
-    CHECK(dnnl_pooling_v2_backward_desc_init(&pool_bwd_desc, dnnl_pooling_max,
+    dnnl_pooling_desc_t pool_bwd_desc;
+    CHECK(dnnl_pooling_backward_desc_init(&pool_bwd_desc, dnnl_pooling_max,
             pool_diff_src_md, pool_diff_dst_md, pool_strides, pool_kernel,
             pool_dilation, pool_padding, pool_padding));
 

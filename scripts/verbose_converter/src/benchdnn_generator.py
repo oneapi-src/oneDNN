@@ -46,7 +46,6 @@ def convert_driver(prop_kind):
         'lrn': 'lrn',
         'matmul': 'matmul',
         'pooling': 'pool',
-        'pooling_v2': 'pool',
         'prelu': 'prelu',
         'reduction': 'reduction',
         'reorder': 'reorder',

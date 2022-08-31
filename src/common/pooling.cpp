@@ -29,7 +29,7 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 namespace {
-status_t pooling_desc_init(pooling_v2_desc_t *pool_desc, prop_kind_t prop_kind,
+status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const dims_t strides,
         const dims_t kernel, const dims_t dilation, const dims_t padding_l,
@@ -45,8 +45,8 @@ status_t pooling_desc_init(pooling_v2_desc_t *pool_desc, prop_kind_t prop_kind,
 
     if (padding_r == nullptr) padding_r = padding_l;
 
-    auto pd = pooling_v2_desc_t();
-    pd.primitive_kind = primitive_kind::pooling_v2;
+    auto pd = pooling_desc_t();
+    pd.primitive_kind = primitive_kind::pooling;
     pd.prop_kind = prop_kind;
     pd.alg_kind = alg_kind;
     pd.src_desc.ndims = src_desc->ndims;
@@ -115,23 +115,23 @@ status_t pooling_desc_init(pooling_v2_desc_t *pool_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t dnnl_pooling_v2_forward_desc_init(pooling_v2_desc_t *pool_v2_desc,
+status_t dnnl_pooling_forward_desc_init(pooling_desc_t *pool_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t kernel, const dims_t dilation,
         const dims_t padding_l, const dims_t padding_r) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return pooling_desc_init(pool_v2_desc, prop_kind, alg_kind, src_desc,
-            dst_desc, strides, kernel, dilation, padding_l, padding_r);
+    return pooling_desc_init(pool_desc, prop_kind, alg_kind, src_desc, dst_desc,
+            strides, kernel, dilation, padding_l, padding_r);
 }
 
-status_t dnnl_pooling_v2_backward_desc_init(pooling_v2_desc_t *pool_v2_desc,
+status_t dnnl_pooling_backward_desc_init(pooling_desc_t *pool_desc,
         alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, const dims_t strides,
         const dims_t kernel, const dims_t dilation, const dims_t padding_l,
         const dims_t padding_r) {
-    return pooling_desc_init(pool_v2_desc, prop_kind::backward_data, alg_kind,
+    return pooling_desc_init(pool_desc, prop_kind::backward_data, alg_kind,
             diff_src_desc, diff_dst_desc, strides, kernel, dilation, padding_l,
             padding_r);
 }

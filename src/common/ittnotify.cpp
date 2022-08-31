@@ -76,7 +76,7 @@ void primitive_task_start(primitive_kind_t kind) {
             CASE(logsoftmax),
             CASE(matmul),
             CASE(resampling),
-            CASE(pooling_v2),
+            CASE(pooling),
             CASE(reduction),
             CASE(prelu),
             CASE(softmax_v2),

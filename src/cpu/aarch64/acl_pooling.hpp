@@ -65,7 +65,7 @@ private:
 struct acl_pooling_fwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
-        pd_t(const pooling_v2_desc_t *adesc, const primitive_attr_t *attr,
+        pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
             : cpu_pooling_fwd_pd_t(adesc, attr, hint_fwd_pd), app() {}
 
@@ -81,7 +81,7 @@ struct acl_pooling_fwd_t : public primitive_t {
                     && !is_dilated() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            const pooling_v2_desc_t *pod = desc();
+            const pooling_desc_t *pod = desc();
 
             // Choose the pooling type
             const alg_kind_t alg = pod->alg_kind;

@@ -293,15 +293,13 @@ protected:
         }
 
         memory p_src, p_dst;
-        auto pool_desc = pooling_v2_forward::desc(p.aprop_kind, p.aalgorithm,
+        auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm,
                 p_src_desc, p_dst_desc, strides, ker, dilation, pad_l, pad_r);
-        auto pool_prim_desc
-                = pooling_v2_forward::primitive_desc(pool_desc, eng);
+        auto pool_prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
         // test construction from a C pd
-        pool_prim_desc
-                = pooling_v2_forward::primitive_desc(pool_prim_desc.get());
+        pool_prim_desc = pooling_forward::primitive_desc(pool_prim_desc.get());
 
-        check_prim_desc<pooling_v2_forward::primitive_desc>(pool_prim_desc);
+        check_prim_desc<pooling_forward::primitive_desc>(pool_prim_desc);
         if (p.src_format != memory::format_tag::any) {
             ASSERT_TRUE(p_src_desc == pool_prim_desc.src_desc());
         }
@@ -318,8 +316,8 @@ protected:
         check_zero_tail<data_t>(1, p_src);
         check_zero_tail<data_t>(1, p_dst);
 
-        EXPECT_ANY_THROW(pooling_v2_forward(pool_prim_desc, {}));
-        pooling_v2_forward(pool_prim_desc)
+        EXPECT_ANY_THROW(pooling_forward(pool_prim_desc, {}));
+        pooling_forward(pool_prim_desc)
                 .execute(strm,
                         {{DNNL_ARG_SRC, p_src}, {DNNL_ARG_DST, p_dst},
                                 {DNNL_ARG_WORKSPACE, workspace}});

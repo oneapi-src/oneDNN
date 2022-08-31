@@ -88,7 +88,7 @@ size_t get_desc_hash(const layer_normalization_desc_t &desc);
 size_t get_desc_hash(const layer_normalization_v2_desc_t &desc);
 size_t get_desc_hash(const lrn_desc_t &desc);
 size_t get_desc_hash(const matmul_desc_t &desc);
-size_t get_desc_hash(const pooling_v2_desc_t &desc);
+size_t get_desc_hash(const pooling_desc_t &desc);
 size_t get_desc_hash(const prelu_desc_t &desc);
 size_t get_desc_hash(const reduction_desc_t &desc);
 size_t get_desc_hash(const reorder_desc_t &desc);
@@ -178,7 +178,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
             CASE(layer_normalization_v2)
             CASE(lrn)
             CASE(matmul)
-            CASE(pooling_v2)
+            CASE(pooling)
             CASE(prelu)
             CASE(reduction)
             CASE(reorder)

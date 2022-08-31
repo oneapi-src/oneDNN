@@ -510,7 +510,7 @@ inline bool operator==(const matmul_desc_t &lhs, const matmul_desc_t &rhs) {
 }
 
 inline bool operator==(
-        const pooling_v2_desc_t &lhs, const pooling_v2_desc_t &rhs) {
+        const pooling_desc_t &lhs, const pooling_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
             && COMPARE_DESC_MEMBERS(alg_kind)
@@ -942,7 +942,7 @@ inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
             CASE_OP_DESC(layer_normalization_v2);
             CASE_OP_DESC(lrn);
             CASE_OP_DESC(matmul);
-            CASE_OP_DESC(pooling_v2);
+            CASE_OP_DESC(pooling);
             CASE_OP_DESC(prelu);
             CASE_OP_DESC(reduction);
             CASE_OP_DESC(resampling);

@@ -2080,11 +2080,10 @@ dnnl_status_t DNNL_API dnnl_logsoftmax_backward_desc_init(
 
 /// @} dnnl_api_logsoftmax
 
-/// @addtogroup dnnl_api_pooling_v2
+/// @addtogroup dnnl_api_pooling
 /// @{
 
-/// Initializes a descriptor for pooling v2 (pooling with dilation support)
-/// forward propagation primitive.
+/// Initializes a descriptor for pooling forward propagation primitive.
 ///
 /// Arrays @p strides, @p kernel, @p dilation, @p padding_l and @p padding_r
 /// contain values for spatial dimensions only and hence must have the same
@@ -2110,15 +2109,14 @@ dnnl_status_t DNNL_API dnnl_logsoftmax_backward_desc_init(
 ///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_pooling_v2_forward_desc_init(
-        dnnl_pooling_v2_desc_t *pool_desc, dnnl_prop_kind_t prop_kind,
+dnnl_status_t DNNL_API dnnl_pooling_forward_desc_init(
+        dnnl_pooling_desc_t *pool_desc, dnnl_prop_kind_t prop_kind,
         dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
         const dnnl_memory_desc_t *dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t kernel, const dnnl_dims_t dilation,
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r);
 
-/// Initializes a descriptor for pooling v2 (pooling with dilation support)
-/// backward propagation primitive.
+/// Initializes a descriptor for pooling backward propagation primitive.
 ///
 /// Arrays @p strides, @p kernel, @p dilation, @p padding_l and @p padding_r
 /// contain values for spatial dimensions only and hence must have the same
@@ -2142,14 +2140,14 @@ dnnl_status_t DNNL_API dnnl_pooling_v2_forward_desc_init(
 ///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_pooling_v2_backward_desc_init(
-        dnnl_pooling_v2_desc_t *pool_desc, dnnl_alg_kind_t alg_kind,
+dnnl_status_t DNNL_API dnnl_pooling_backward_desc_init(
+        dnnl_pooling_desc_t *pool_desc, dnnl_alg_kind_t alg_kind,
         const dnnl_memory_desc_t *diff_src_desc,
         const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t kernel, const dnnl_dims_t dilation,
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r);
 
-/// @} dnnl_api_pooling_v2
+/// @} dnnl_api_pooling
 
 /// @addtogroup dnnl_api_prelu
 /// @{

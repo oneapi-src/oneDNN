@@ -240,14 +240,14 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     /// The example continues to create more layers according
     /// to the AlexNet topology.
     //[Create pooling primitive]
-    auto pool1_desc = pooling_v2_forward::desc(prop_kind::forward_inference,
+    auto pool1_desc = pooling_forward::desc(prop_kind::forward_inference,
             algorithm::pooling_max, lrn1_dst_memory.get_desc(), pool1_dst_md,
             pool1_strides, pool1_kernel, pool_dilation, pool_padding,
             pool_padding);
-    auto pool1_pd = pooling_v2_forward::primitive_desc(pool1_desc, eng);
+    auto pool1_pd = pooling_forward::primitive_desc(pool1_desc, eng);
     auto pool1_dst_memory = memory(pool1_pd.dst_desc(), eng);
 
-    net.push_back(pooling_v2_forward(pool1_pd));
+    net.push_back(pooling_forward(pool1_pd));
     net_args.push_back({{DNNL_ARG_SRC, lrn1_dst_memory},
             {DNNL_ARG_DST, pool1_dst_memory}});
     //[Create pooling primitive]
@@ -359,15 +359,15 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto pool2_dst_md = memory::desc({pool2_dst_tz}, dt::f32, tag::any);
 
     // create a pooling
-    auto pool2_desc = pooling_v2_forward::desc(prop_kind::forward_inference,
+    auto pool2_desc = pooling_forward::desc(prop_kind::forward_inference,
             algorithm::pooling_max, lrn2_dst_memory.get_desc(), pool2_dst_md,
             pool2_strides, pool2_kernel, pool2_dilation, pool2_padding,
             pool2_padding);
-    auto pool2_pd = pooling_v2_forward::primitive_desc(pool2_desc, eng);
+    auto pool2_pd = pooling_forward::primitive_desc(pool2_desc, eng);
     auto pool2_dst_memory = memory(pool2_pd.dst_desc(), eng);
 
     // create pooling primitive an add it to net
-    net.push_back(pooling_v2_forward(pool2_pd));
+    net.push_back(pooling_forward(pool2_pd));
     net_args.push_back({{DNNL_ARG_SRC, lrn2_dst_memory},
             {DNNL_ARG_DST, pool2_dst_memory}});
 
@@ -606,16 +606,16 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto pool5_dst_md = memory::desc({pool5_dst_tz}, dt::f32, tag::any);
 
     // create a pooling
-    auto pool5_desc = pooling_v2_forward::desc(prop_kind::forward_inference,
+    auto pool5_desc = pooling_forward::desc(prop_kind::forward_inference,
             algorithm::pooling_max, conv5_dst_memory.get_desc(), pool5_dst_md,
             pool5_strides, pool5_kernel, pool5_dilation, pool5_padding,
             pool5_padding);
-    auto pool5_pd = pooling_v2_forward::primitive_desc(pool5_desc, eng);
+    auto pool5_pd = pooling_forward::primitive_desc(pool5_desc, eng);
 
     auto pool5_dst_memory = memory(pool5_pd.dst_desc(), eng);
 
     // create pooling primitive an add it to net
-    net.push_back(pooling_v2_forward(pool5_pd));
+    net.push_back(pooling_forward(pool5_pd));
     net_args.push_back({{DNNL_ARG_SRC, conv5_dst_memory},
             {DNNL_ARG_DST, pool5_dst_memory}});
 

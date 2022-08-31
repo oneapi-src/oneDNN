@@ -1417,8 +1417,8 @@ typedef enum {
     dnnl_matmul,
     /// A resampling primitive.
     dnnl_resampling,
-    /// A pooling version 2 primitive (pooling with dilation support).
-    dnnl_pooling_v2,
+    /// A pooling primitive.
+    dnnl_pooling,
     /// A reduction primitive.
     dnnl_reduction,
     /// A PReLU primitive.
@@ -2115,13 +2115,13 @@ typedef dnnl_softmax_desc_t dnnl_logsoftmax_desc_t;
 
 /// @} dnnl_api_logsoftmax
 
-/// @addtogroup dnnl_api_pooling_v2
+/// @addtogroup dnnl_api_pooling
 /// @{
 
 /// A descriptor of a pooling operation.
 typedef struct {
     /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_pooling_v2.
+    /// descriptor. Must be #dnnl_pooling.
     dnnl_primitive_kind_t primitive_kind;
     /// The kind of propagation. Possible values: #dnnl_forward_training,
     /// #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
@@ -2151,9 +2151,9 @@ typedef struct {
     dnnl_data_type_t accum_data_type;
     /// Pooling dilations for spatial dimensions.
     dnnl_dims_t dilation;
-} dnnl_pooling_v2_desc_t;
+} dnnl_pooling_desc_t;
 
-/// @} dnnl_api_pooling_v2
+/// @} dnnl_api_pooling
 
 /// @addtogroup dnnl_api_prelu
 /// @{
@@ -3011,7 +3011,7 @@ typedef enum {
     dnnl_query_logsoftmax_d, ///< logsoftmax descriptor
     dnnl_query_matmul_d, ///< matrix multiplication (matmul) descriptor
     dnnl_query_resampling_d, ///< resampling descriptor
-    dnnl_query_pooling_v2_d, ///< pooling version 2 descriptor
+    dnnl_query_pooling_d, ///< pooling descriptor
     dnnl_query_reduction_d, ///< reduction descriptor
     dnnl_query_prelu_d, ///< prelu descriptor
     dnnl_query_softmax_v2_d, ///< softmax version 2 descriptor

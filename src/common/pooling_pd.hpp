@@ -30,9 +30,9 @@ namespace impl {
 struct pooling_fwd_pd_t;
 
 struct pooling_pd_t : public primitive_desc_t {
-    static constexpr auto base_pkind = primitive_kind::pooling_v2;
+    static constexpr auto base_pkind = primitive_kind::pooling;
 
-    const pooling_v2_desc_t *desc() const { return &desc_; }
+    const pooling_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
@@ -42,8 +42,8 @@ struct pooling_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::pooling_v2_d:
-                *(const pooling_v2_desc_t **)result = desc();
+            case query::pooling_d:
+                *(const pooling_desc_t **)result = desc();
                 break;
             case query::primitive_kind:
                 *(primitive_kind_t *)result = desc_.primitive_kind;
@@ -121,12 +121,12 @@ struct pooling_pd_t : public primitive_desc_t {
     }
 
 protected:
-    pooling_v2_desc_t desc_;
+    pooling_desc_t desc_;
     const pooling_fwd_pd_t *hint_fwd_pd_;
 
     memory_desc_t ws_md_;
 
-    pooling_pd_t(const pooling_v2_desc_t *adesc, const primitive_attr_t *attr,
+    pooling_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
             const pooling_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
@@ -204,8 +204,8 @@ protected:
     memory_desc_t src_md_;
     memory_desc_t dst_md_;
 
-    pooling_fwd_pd_t(const pooling_v2_desc_t *adesc,
-            const primitive_attr_t *attr, const pooling_fwd_pd_t *hint_fwd_pd)
+    pooling_fwd_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+            const pooling_fwd_pd_t *hint_fwd_pd)
         : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , dst_md_(desc_.dst_desc) {}
@@ -270,8 +270,8 @@ protected:
     memory_desc_t diff_src_md_;
     memory_desc_t diff_dst_md_;
 
-    pooling_bwd_pd_t(const pooling_v2_desc_t *adesc,
-            const primitive_attr_t *attr, const pooling_fwd_pd_t *hint_fwd_pd)
+    pooling_bwd_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+            const pooling_fwd_pd_t *hint_fwd_pd)
         : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {

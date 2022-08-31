@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ namespace ocl {
 struct ref_pooling_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_pooling_fwd_pd_t {
-        pd_t(const pooling_v2_desc_t *adesc, const primitive_attr_t *attr,
+        pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
             : gpu_pooling_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
@@ -116,7 +116,7 @@ private:
 struct ref_pooling_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_pooling_bwd_pd_t {
-        pd_t(const pooling_v2_desc_t *adesc, const primitive_attr_t *attr,
+        pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
             : gpu_pooling_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 

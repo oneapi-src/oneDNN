@@ -43,7 +43,7 @@ status_t serialize_desc(
         CASE(logsoftmax)
         CASE(lrn)
         CASE(matmul)
-        CASE(pooling_v2)
+        CASE(pooling)
         CASE(prelu)
         CASE(reduction)
         CASE(reorder)
@@ -396,7 +396,7 @@ void serialize_desc(
 }
 
 void serialize_desc(
-        serialization_stream_t &sstream, const pooling_v2_desc_t &desc) {
+        serialization_stream_t &sstream, const pooling_desc_t &desc) {
     // Kinds
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);

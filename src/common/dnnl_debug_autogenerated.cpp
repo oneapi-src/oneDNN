@@ -1109,7 +1109,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_logsoftmax) return "logsoftmax";
     if (v == dnnl_matmul) return "matmul";
     if (v == dnnl_resampling) return "resampling";
-    if (v == dnnl_pooling_v2) return "pooling_v2";
+    if (v == dnnl_pooling) return "pooling";
     if (v == dnnl_reduction) return "reduction";
     if (v == dnnl_prelu) return "prelu";
     if (v == dnnl_softmax_v2) return "softmax_v2";

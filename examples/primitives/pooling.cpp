@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -102,12 +102,12 @@ void pooling_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(src_data.data(), src_mem);
 
     // Create operation descriptor.
-    auto pooling_d = pooling_v2_forward::desc(prop_kind::forward_training,
+    auto pooling_d = pooling_forward::desc(prop_kind::forward_training,
             algorithm::pooling_max, src_md, dst_md, strides_dims, kernel_dims,
             dilation, padding_dims_l, padding_dims_r);
 
     // Create primitive descriptor.
-    auto pooling_pd = pooling_v2_forward::primitive_desc(pooling_d, engine);
+    auto pooling_pd = pooling_forward::primitive_desc(pooling_d, engine);
 
     // Create workspace memory objects using memory descriptor created by the
     // primitive descriptor.
@@ -116,7 +116,7 @@ void pooling_example(dnnl::engine::kind engine_kind) {
     auto workspace_mem = memory(pooling_pd.workspace_desc(), engine);
 
     // Create the primitive.
-    auto pooling_prim = pooling_v2_forward(pooling_pd);
+    auto pooling_prim = pooling_forward(pooling_pd);
 
     // Primitive arguments. Set up in-place execution by assigning src as DST.
     std::unordered_map<int, memory> pooling_args;

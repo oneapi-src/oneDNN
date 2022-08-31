@@ -46,7 +46,7 @@ DECLARE_IMPL_LIST(layer_normalization_v2);
 DECLARE_IMPL_LIST(lrn);
 DECLARE_IMPL_LIST(logsoftmax);
 DECLARE_IMPL_LIST(matmul);
-DECLARE_IMPL_LIST(pooling_v2);
+DECLARE_IMPL_LIST(pooling);
 DECLARE_IMPL_LIST(prelu);
 DECLARE_IMPL_LIST(reduction);
 DECLARE_IMPL_LIST(resampling);
