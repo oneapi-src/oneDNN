@@ -1397,8 +1397,6 @@ typedef enum {
     dnnl_eltwise,
     /// A softmax primitive.
     dnnl_softmax,
-    /// A pooling primitive.
-    dnnl_pooling,
     /// An LRN primitive.
     dnnl_lrn,
     /// A batch normalization primitive.
@@ -2116,44 +2114,6 @@ typedef struct {
 typedef dnnl_softmax_desc_t dnnl_logsoftmax_desc_t;
 
 /// @} dnnl_api_logsoftmax
-
-/// @addtogroup dnnl_api_pooling
-/// @{
-
-/// A descriptor of a pooling operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_pooling.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
-    dnnl_prop_kind_t prop_kind;
-    /// The kind of pooling algorithm.
-    /// Possible values: #dnnl_pooling_max,
-    /// #dnnl_pooling_avg_include_padding, and
-    /// #dnnl_pooling_avg_exclude_padding.
-    dnnl_alg_kind_t alg_kind;
-    /// Source memory descriptor.
-    dnnl_memory_desc_t src_desc;
-    /// Source gradient memory descriptor.
-    dnnl_memory_desc_t diff_src_desc;
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-    /// Destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_dst_desc;
-    /// Pooling kernel strides for spatial dimensions.
-    dnnl_dims_t strides;
-    /// Pooling kernel spatial dimensions.
-    dnnl_dims_t kernel;
-    /// Padding in each spatial dimension. padding[0] is a padding in the
-    /// beginning (@p padding_l), padding[1] is a padding in the end (@p
-    /// padding_r).
-    dnnl_dims_t padding[2];
-    /// The accumulator data type. Initialized automatically.
-    dnnl_data_type_t accum_data_type;
-} dnnl_pooling_desc_t;
-
-/// @} dnnl_api_pooling
 
 /// @addtogroup dnnl_api_pooling_v2
 /// @{
@@ -3041,7 +3001,6 @@ typedef enum {
     dnnl_query_shuffle_d, ///< shuffle descriptor
     dnnl_query_eltwise_d, ///< eltwise descriptor
     dnnl_query_softmax_d, ///< softmax descriptor
-    dnnl_query_pooling_d, ///< pooling descriptor
     dnnl_query_lrn_d, ///< lrn descriptor
     dnnl_query_batch_normalization_d, ///< batch normalization descriptor
     dnnl_query_layer_normalization_d, ///< layer normalization descriptor

@@ -43,7 +43,6 @@ status_t serialize_desc(
         CASE(logsoftmax)
         CASE(lrn)
         CASE(matmul)
-        CASE(pooling)
         CASE(pooling_v2)
         CASE(prelu)
         CASE(reduction)
@@ -397,7 +396,7 @@ void serialize_desc(
 }
 
 void serialize_desc(
-        serialization_stream_t &sstream, const pooling_desc_t &desc) {
+        serialization_stream_t &sstream, const pooling_v2_desc_t &desc) {
     // Kinds
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);
@@ -412,15 +411,9 @@ void serialize_desc(
     sstream.write(desc.kernel, DNNL_MAX_NDIMS);
     sstream.write(desc.padding[0], DNNL_MAX_NDIMS);
     sstream.write(desc.padding[1], DNNL_MAX_NDIMS);
+    sstream.write(desc.dilation, DNNL_MAX_NDIMS);
     // Accumulator type
     sstream.write(&desc.accum_data_type);
-}
-
-void serialize_desc(
-        serialization_stream_t &sstream, const pooling_v2_desc_t &desc) {
-    const auto &v1_desc = *reinterpret_cast<const pooling_desc_t *>(&desc);
-    serialize_desc(sstream, v1_desc);
-    sstream.write(desc.dilation, DNNL_MAX_NDIMS);
 }
 
 void serialize_desc(serialization_stream_t &sstream, const prelu_desc_t &desc) {

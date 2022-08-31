@@ -66,7 +66,6 @@ void primitive_task_start(primitive_kind_t kind) {
             CASE(deconvolution),
             CASE(eltwise),
             CASE(softmax),
-            CASE(pooling),
             CASE(lrn),
             CASE(batch_normalization),
             CASE(layer_normalization),

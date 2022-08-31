@@ -293,69 +293,37 @@ protected:
         }
 
         memory p_src, p_dst;
-        if (pd.dd == 0 && pd.dh == 0 && pd.dw == 0) {
-            auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm,
-                    p_src_desc, p_dst_desc, strides, ker, pad_l, pad_r);
-            auto pool_prim_desc
-                    = pooling_forward::primitive_desc(pool_desc, eng);
-            // test construction from a C pd
-            pool_prim_desc
-                    = pooling_forward::primitive_desc(pool_prim_desc.get());
-            check_prim_desc<pooling_forward::primitive_desc>(pool_prim_desc);
-            if (p.src_format != memory::format_tag::any) {
-                ASSERT_TRUE(p_src_desc == pool_prim_desc.src_desc());
-            }
+        auto pool_desc = pooling_v2_forward::desc(p.aprop_kind, p.aalgorithm,
+                p_src_desc, p_dst_desc, strides, ker, dilation, pad_l, pad_r);
+        auto pool_prim_desc
+                = pooling_v2_forward::primitive_desc(pool_desc, eng);
+        // test construction from a C pd
+        pool_prim_desc
+                = pooling_v2_forward::primitive_desc(pool_prim_desc.get());
 
-            auto workspace_desc = pool_prim_desc.workspace_desc();
-            workspace = test::make_memory(workspace_desc, eng);
-            p_src = test::make_memory(pool_prim_desc.src_desc(), eng);
-            p_dst = test::make_memory(pool_prim_desc.dst_desc(), eng);
-
-            fill_data<data_t>(p_src.get_desc().get_size() / sizeof(data_t),
-                    p_src, 1., true);
-            fill_data<data_t>(p_dst.get_desc().get_size() / sizeof(data_t),
-                    p_dst, 1., true);
-            check_zero_tail<data_t>(1, p_src);
-            check_zero_tail<data_t>(1, p_dst);
-
-            EXPECT_ANY_THROW(pooling_forward(pool_prim_desc, {}));
-            pooling_forward(pool_prim_desc)
-                    .execute(strm,
-                            {{DNNL_ARG_SRC, p_src}, {DNNL_ARG_DST, p_dst},
-                                    {DNNL_ARG_WORKSPACE, workspace}});
-        } else {
-            auto pool_desc = pooling_v2_forward::desc(p.aprop_kind,
-                    p.aalgorithm, p_src_desc, p_dst_desc, strides, ker,
-                    dilation, pad_l, pad_r);
-            auto pool_prim_desc
-                    = pooling_v2_forward::primitive_desc(pool_desc, eng);
-            // test construction from a C pd
-            pool_prim_desc
-                    = pooling_v2_forward::primitive_desc(pool_prim_desc.get());
-
-            check_prim_desc<pooling_v2_forward::primitive_desc>(pool_prim_desc);
-            if (p.src_format != memory::format_tag::any) {
-                ASSERT_TRUE(p_src_desc == pool_prim_desc.src_desc());
-            }
-
-            auto workspace_desc = pool_prim_desc.workspace_desc();
-            workspace = test::make_memory(workspace_desc, eng);
-            p_src = test::make_memory(pool_prim_desc.src_desc(), eng);
-            p_dst = test::make_memory(pool_prim_desc.dst_desc(), eng);
-
-            fill_data<data_t>(p_src.get_desc().get_size() / sizeof(data_t),
-                    p_src, 1., true);
-            fill_data<data_t>(p_dst.get_desc().get_size() / sizeof(data_t),
-                    p_dst, 1., true);
-            check_zero_tail<data_t>(1, p_src);
-            check_zero_tail<data_t>(1, p_dst);
-
-            EXPECT_ANY_THROW(pooling_v2_forward(pool_prim_desc, {}));
-            pooling_v2_forward(pool_prim_desc)
-                    .execute(strm,
-                            {{DNNL_ARG_SRC, p_src}, {DNNL_ARG_DST, p_dst},
-                                    {DNNL_ARG_WORKSPACE, workspace}});
+        check_prim_desc<pooling_v2_forward::primitive_desc>(pool_prim_desc);
+        if (p.src_format != memory::format_tag::any) {
+            ASSERT_TRUE(p_src_desc == pool_prim_desc.src_desc());
         }
+
+        auto workspace_desc = pool_prim_desc.workspace_desc();
+        workspace = test::make_memory(workspace_desc, eng);
+        p_src = test::make_memory(pool_prim_desc.src_desc(), eng);
+        p_dst = test::make_memory(pool_prim_desc.dst_desc(), eng);
+
+        fill_data<data_t>(
+                p_src.get_desc().get_size() / sizeof(data_t), p_src, 1., true);
+        fill_data<data_t>(
+                p_dst.get_desc().get_size() / sizeof(data_t), p_dst, 1., true);
+        check_zero_tail<data_t>(1, p_src);
+        check_zero_tail<data_t>(1, p_dst);
+
+        EXPECT_ANY_THROW(pooling_v2_forward(pool_prim_desc, {}));
+        pooling_v2_forward(pool_prim_desc)
+                .execute(strm,
+                        {{DNNL_ARG_SRC, p_src}, {DNNL_ARG_DST, p_dst},
+                                {DNNL_ARG_WORKSPACE, workspace}});
+
         strm.wait();
         check_pool_fwd<data_t>(p, p_src, p_dst, workspace);
         check_zero_tail<data_t>(0, p_dst);

@@ -269,20 +269,12 @@ private:
     std::shared_ptr<memory::desc> src_desc;
     std::shared_ptr<memory::desc> dst_desc;
     memory workspace;
-    union prim_desc_union {
-        pooling_forward::primitive_desc pool_prim_desc;
-        pooling_v2_forward::primitive_desc pool_v2_prim_desc;
-        prim_desc_union() {
-            new (&pool_v2_prim_desc) pooling_v2_forward::primitive_desc();
-        }
-        ~prim_desc_union() { pool_v2_prim_desc.~primitive_desc(); }
-    } prim_desc;
+    pooling_v2_forward::primitive_desc pool_prim_desc;
     pool_bwd_test_params_t p;
     memory::dims strides, ker, dilation, pad_l, pad_r;
     engine eng;
     stream strm;
     memory::data_type data_type;
-    bool is_not_dilated;
 
 protected:
     void SetUp() override {
@@ -356,14 +348,12 @@ protected:
                             pd.iw, pd.ow, pd.kw, pd.padl, pd.strw, pd.dw)});
         }
 
-        is_not_dilated = pd.dd == 0 && pd.dh == 0 && pd.dw == 0;
-
         Forward();
         Backward();
     }
 
-    template <typename prim_desc>
-    void check_prim_desc(prim_desc pool_bwd_prim_desc) {
+    void check_prim_desc(
+            pooling_v2_backward::primitive_desc pool_bwd_prim_desc) {
         ASSERT_TRUE(pool_bwd_prim_desc.query_md(
                             query::exec_arg_md, DNNL_ARG_DIFF_SRC)
                 == pool_bwd_prim_desc.diff_src_desc());
@@ -384,39 +374,20 @@ protected:
         check_zero_tail<data_t>(1, src);
         check_zero_tail<data_t>(1, dst);
 
-        if (is_not_dilated) {
-            auto pool_desc = pooling_forward::desc(prop_kind::forward_training,
-                    p.aalgorithm, *src_desc, *dst_desc, strides, ker, pad_l,
-                    pad_r);
-            prim_desc.pool_prim_desc
-                    = pooling_forward::primitive_desc(pool_desc, eng);
+        auto pool_desc = pooling_v2_forward::desc(prop_kind::forward_training,
+                p.aalgorithm, *src_desc, *dst_desc, strides, ker, dilation,
+                pad_l, pad_r);
+        pool_prim_desc = pooling_v2_forward::primitive_desc(pool_desc, eng);
 
-            auto p_workspace_desc = prim_desc.pool_prim_desc.workspace_desc();
-            workspace = test::make_memory(p_workspace_desc, eng);
+        auto p_workspace_desc = pool_prim_desc.workspace_desc();
+        workspace = test::make_memory(p_workspace_desc, eng);
 
-            EXPECT_ANY_THROW(pooling_forward(prim_desc.pool_prim_desc, {}));
-            pooling_forward(prim_desc.pool_prim_desc)
-                    .execute(strm,
-                            {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
-                                    {DNNL_ARG_WORKSPACE, workspace}});
-        } else {
-            auto pool_desc = pooling_v2_forward::desc(
-                    prop_kind::forward_training, p.aalgorithm, *src_desc,
-                    *dst_desc, strides, ker, dilation, pad_l, pad_r);
-            prim_desc.pool_v2_prim_desc
-                    = pooling_v2_forward::primitive_desc(pool_desc, eng);
+        EXPECT_ANY_THROW(pooling_v2_forward(pool_prim_desc, {}));
+        pooling_v2_forward(pool_prim_desc)
+                .execute(strm,
+                        {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
+                                {DNNL_ARG_WORKSPACE, workspace}});
 
-            auto p_workspace_desc
-                    = prim_desc.pool_v2_prim_desc.workspace_desc();
-            workspace = test::make_memory(p_workspace_desc, eng);
-
-            EXPECT_ANY_THROW(
-                    pooling_v2_forward(prim_desc.pool_v2_prim_desc, {}));
-            pooling_v2_forward(prim_desc.pool_v2_prim_desc)
-                    .execute(strm,
-                            {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
-                                    {DNNL_ARG_WORKSPACE, workspace}});
-        }
         strm.wait();
 
         check_zero_tail<data_t>(0, dst);
@@ -434,37 +405,20 @@ protected:
         check_zero_tail<data_t>(1, diff_dst);
         check_zero_tail<data_t>(1, diff_src);
 
-        if (is_not_dilated) {
-            auto pool_bwd_desc = pooling_backward::desc(p.aalgorithm, *src_desc,
-                    *dst_desc, strides, ker, pad_l, pad_r);
-            auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
-                    pool_bwd_desc, eng, prim_desc.pool_prim_desc);
-            pool_bwd_prim_desc = pooling_backward::primitive_desc(
-                    pool_bwd_prim_desc.get()); // test construction from a C pd
+        auto pool_bwd_desc = pooling_v2_backward::desc(p.aalgorithm, *src_desc,
+                *dst_desc, strides, ker, dilation, pad_l, pad_r);
+        auto pool_bwd_prim_desc = pooling_v2_backward::primitive_desc(
+                pool_bwd_desc, eng, pool_prim_desc);
+        pool_bwd_prim_desc = pooling_v2_backward::primitive_desc(
+                pool_bwd_prim_desc.get()); // test construction from a C pd
 
-            check_prim_desc(pool_bwd_prim_desc);
+        check_prim_desc(pool_bwd_prim_desc);
 
-            pooling_backward(pool_bwd_prim_desc)
-                    .execute(strm,
-                            {{DNNL_ARG_DIFF_DST, diff_dst},
-                                    {DNNL_ARG_DIFF_SRC, diff_src},
-                                    {DNNL_ARG_WORKSPACE, workspace}});
-        } else {
-            auto pool_bwd_desc = pooling_v2_backward::desc(p.aalgorithm,
-                    *src_desc, *dst_desc, strides, ker, dilation, pad_l, pad_r);
-            auto pool_bwd_prim_desc = pooling_v2_backward::primitive_desc(
-                    pool_bwd_desc, eng, prim_desc.pool_v2_prim_desc);
-            pool_bwd_prim_desc = pooling_v2_backward::primitive_desc(
-                    pool_bwd_prim_desc.get()); // test construction from a C pd
-
-            check_prim_desc(pool_bwd_prim_desc);
-
-            pooling_v2_backward(pool_bwd_prim_desc)
-                    .execute(strm,
-                            {{DNNL_ARG_DIFF_DST, diff_dst},
-                                    {DNNL_ARG_DIFF_SRC, diff_src},
-                                    {DNNL_ARG_WORKSPACE, workspace}});
-        }
+        pooling_v2_backward(pool_bwd_prim_desc)
+                .execute(strm,
+                        {{DNNL_ARG_DIFF_DST, diff_dst},
+                                {DNNL_ARG_DIFF_SRC, diff_src},
+                                {DNNL_ARG_WORKSPACE, workspace}});
 
         strm.wait();
 

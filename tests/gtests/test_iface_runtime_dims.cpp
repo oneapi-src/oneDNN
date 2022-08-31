@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -162,10 +162,10 @@ TEST_F(runtime_dim_test_t, TestPool) {
     memory::desc dst_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 4, 4}, data_type::f32, tag::abcd};
     CHECK_UNIMPL(
-            pooling_forward::desc(prop_kind::forward, algorithm::pooling_max,
-                    src_md, dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}));
-    CHECK_UNIMPL(pooling_backward::desc(algorithm::pooling_max, src_md, dst_md,
-            {2, 2}, {2, 2}, {0, 0}, {0, 0}));
+            pooling_v2_forward::desc(prop_kind::forward, algorithm::pooling_max,
+                    src_md, dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}));
+    CHECK_UNIMPL(pooling_v2_backward::desc(algorithm::pooling_max, src_md,
+            dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}));
 }
 
 TEST_F(runtime_dim_test_t, TestPReLU) {

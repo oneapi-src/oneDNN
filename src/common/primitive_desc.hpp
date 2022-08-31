@@ -317,13 +317,11 @@ protected:
         bool valid_logsoftmax = pd_t::base_pkind == primitive_kind::softmax_v2
                 && utils::one_of(adesc->kind, primitive_kind::softmax,
                         primitive_kind::logsoftmax);
-        bool valid_pooling = pd_t::base_pkind == primitive_kind::pooling_v2
-                && adesc->kind == primitive_kind::pooling;
         bool valid_lnorm
                 = pd_t::base_pkind == primitive_kind::layer_normalization_v2
                 && adesc->kind == primitive_kind::layer_normalization;
         if (adesc->kind != pd_t::base_pkind && !valid_logsoftmax
-                && !valid_pooling && !valid_lnorm)
+                && !valid_lnorm)
             return invalid_arguments;
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint

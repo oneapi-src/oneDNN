@@ -99,7 +99,6 @@ public:
             CASE(lrn);
             CASE(logsoftmax);
             CASE(matmul);
-            case primitive_kind::pooling:
             CASE(pooling_v2);
             CASE(prelu);
             CASE(reduction);

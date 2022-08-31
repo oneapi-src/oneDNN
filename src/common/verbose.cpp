@@ -1015,7 +1015,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(logsoftmax);
             CASE(matmul);
             case primitive_kind::pooling_v2:
-            CASE(pooling);
+            str_ = init_info_pooling(engine, (const pooling_pd_t *)pd); break;
             CASE(prelu);
             CASE(reduction);
             CASE(reorder);
