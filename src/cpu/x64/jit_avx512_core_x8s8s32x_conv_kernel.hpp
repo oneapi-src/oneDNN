@@ -248,7 +248,7 @@ private:
 struct jit_avx512_core_x8s8s32x_fwd_kernel {
 
     jit_avx512_core_x8s8s32x_fwd_kernel(const jit_conv_conf_t &ajcp,
-            const primitive_attr_t &attr, const dnnl_memory_desc_t &dst_md)
+            const primitive_attr_t &attr, const memory_desc_t &dst_md)
         : kernel_(nullptr) {
         int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.ic_block;
         switch (ch_block) {

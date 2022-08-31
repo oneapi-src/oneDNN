@@ -1190,7 +1190,7 @@ inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 0);
         } else {
-            dnnl_memory_desc_t empty_mem_desc;
+            memory_desc_t empty_mem_desc;
             dnnl_dims_t empty_dims = {1, 1, 1, 1};
             dnnl_memory_desc_init_by_tag(&empty_mem_desc, 4, empty_dims,
                     data_type_t::dnnl_s8, format_tag_t::dnnl_nchw);

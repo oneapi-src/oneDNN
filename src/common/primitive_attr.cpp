@@ -630,7 +630,7 @@ status_t dnnl_post_ops_append_binary(post_ops_t *post_ops, alg_kind_t alg_kind,
 }
 
 status_t dnnl_post_ops_get_params_binary(const post_ops_t *post_ops, int index,
-        alg_kind_t *alg_kind, const dnnl_memory_desc_t **user_src1_desc) {
+        alg_kind_t *alg_kind, const memory_desc_t **user_src1_desc) {
     if (!simple_get_params_check(post_ops, index, primitive_kind::binary))
         return invalid_arguments;
 

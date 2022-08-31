@@ -120,7 +120,7 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
 
         status_t init_reduction(engine_t *engine) {
             reduction_desc_t rdesc;
-            dnnl_memory_desc_t red_diff_mem_desc(*src_md(0));
+            memory_desc_t red_diff_mem_desc(*src_md(0));
             red_diff_mem_desc.data_type = dnnl_f32;
             reduction_desc_init(&rdesc, dnnl_alg_kind_t::dnnl_reduction_sum,
                     &red_diff_mem_desc, diff_weights_md(0), 0, 0);

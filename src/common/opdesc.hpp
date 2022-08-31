@@ -17,7 +17,8 @@
 #ifndef COMMON_OPDESC_HPP
 #define COMMON_OPDESC_HPP
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
+#include "common/gemm_types.hpp"
 
 namespace dnnl {
 namespace impl {

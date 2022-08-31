@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,8 +70,8 @@ private:
     std::once_flag initialization_flag_;
 };
 
-std::string md2fmt_str(const dnnl_memory_desc_t *md);
-std::string md2dim_str(const dnnl_memory_desc_t *md);
+std::string md2fmt_str(const memory_desc_t *md);
+std::string md2dim_str(const memory_desc_t *md);
 
 } // namespace impl
 } // namespace dnnl

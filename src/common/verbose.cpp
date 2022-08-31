@@ -224,7 +224,7 @@ std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
     return ss;
 }
 
-std::string md2fmt_tag_str(const dnnl_memory_desc_t *md) {
+std::string md2fmt_tag_str(const memory_desc_t *md) {
     memory_desc_wrapper mdw(md);
 
     const auto &blk = mdw.blocking_desc();
@@ -277,7 +277,7 @@ std::string md2fmt_tag_str(const dnnl_memory_desc_t *md) {
 //  - fmt_kind -- format kind (blocked, wino, etc...)
 //  - fmt      -- extended format string (format_kind specific)
 //  - extra    -- shows extra fields (underspecified)
-std::string md2fmt_str(const dnnl_memory_desc_t *md) {
+std::string md2fmt_str(const memory_desc_t *md) {
     std::stringstream ss;
     if (!md) {
         ss << data_type::undef << "::" << format_kind::undef << "::";
@@ -319,7 +319,7 @@ static std::string get_val_str(T val) {
 
 // Returns string with dimensions from a given memory descriptor.
 // The format is defined as: dim0xdim1x...xdimN, with RT values signed as `*`.
-std::string md2dim_str(const dnnl_memory_desc_t *md) {
+std::string md2dim_str(const memory_desc_t *md) {
     if (md == nullptr || md->ndims == 0) return "";
 
     memory_desc_wrapper mdw(md);

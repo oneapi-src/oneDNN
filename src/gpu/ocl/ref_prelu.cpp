@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ static status_t init_conf_common(
         conf.diff_src_md_info = memory_desc_info_t::create(diff_src_mdw);
 
         if (conf.reduce_diff_weights) {
-            dnnl_memory_desc_t red_diff_mem_desc(*pd->src_md(0));
+            memory_desc_t red_diff_mem_desc(*pd->src_md(0));
             red_diff_mem_desc.data_type = dnnl_f32;
             const memory_desc_wrapper red_diff_mdw(red_diff_mem_desc);
             conf.diff_wei_md_info = memory_desc_info_t::create(red_diff_mdw);

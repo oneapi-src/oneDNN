@@ -19,7 +19,7 @@
 
 #include <assert.h>
 
-#include "oneapi/dnnl/dnnl_types.h"
+#include "common/c_types_map.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -53,10 +53,10 @@ struct gemm_desc_t {
     // The kind of primitive. Used for self identifying the primitive
     // descriptor. Must be #dnnl_gemm.
     dnnl_primitive_kind_t primitive_kind;
-    dnnl_memory_desc_t a_desc;
-    dnnl_memory_desc_t b_desc;
-    dnnl_memory_desc_t c_desc;
-    dnnl_memory_desc_t bias_desc;
+    memory_desc_t a_desc;
+    memory_desc_t b_desc;
+    memory_desc_t c_desc;
+    memory_desc_t bias_desc;
     // Type for accumulating A*B.
     dnnl_data_type_t acc_type;
     // Sum across k dimension in either A or B tensor
@@ -70,7 +70,7 @@ struct gemm_desc_t {
     inline bool is_batched() const { return c_desc.ndims >= 3; }
 
     // Simplified accessors that comply to GEMM API
-    transpose_t get_trans(dnnl_memory_desc_t md) const {
+    transpose_t get_trans(memory_desc_t md) const {
         return md.format_desc.blocking.strides[md.ndims - 1] != 1
                 ? transpose::trans
                 : transpose::notrans;
@@ -115,7 +115,7 @@ struct gemm_desc_t {
     };
 
     // This assumes that one of the dimensions has strides 1.
-    dnnl_dim_t get_ld(dnnl_memory_desc_t md) const {
+    dnnl_dim_t get_ld(memory_desc_t md) const {
         auto strides = md.format_desc.blocking.strides;
         assert(strides[md.ndims - 1] == 1 || strides[md.ndims - 2] == 1);
         return strides[md.ndims - 1] != 1 ? strides[md.ndims - 1]

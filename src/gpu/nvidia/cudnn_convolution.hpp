@@ -145,12 +145,12 @@ struct cudnn_convolution_fwd_t : public primitive_t {
         }
 
         bool check_s8_configuration() const {
-            const auto check_nhwc = [](const dnnl_memory_desc_t &md,
-                                            bool is_weights = false) {
-                cudnnTensorFormat_t fmt;
-                get_format(&md, fmt, is_weights);
-                return fmt == CUDNN_TENSOR_NHWC;
-            };
+            const auto check_nhwc
+                    = [](const memory_desc_t &md, bool is_weights = false) {
+                          cudnnTensorFormat_t fmt;
+                          get_format(&md, fmt, is_weights);
+                          return fmt == CUDNN_TENSOR_NHWC;
+                      };
 
             return check_nhwc(src_md_) && check_nhwc(dst_md_)
                     && check_nhwc(weights_md_, true)

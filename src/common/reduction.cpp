@@ -30,8 +30,8 @@ namespace dnnl {
 namespace impl {
 
 status_t reduction_desc_init(reduction_desc_t *reduction_desc,
-        alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *dst_desc, float p, float eps) {
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, float p, float eps) {
 
     bool args_ok = !any_null(src_desc, dst_desc)
             && src_desc->format_kind != format_kind::any
@@ -91,8 +91,8 @@ status_t reduction_desc_init(reduction_desc_t *reduction_desc,
 
 dnnl_status_t dnnl_reduction_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *dst_desc, float p, float eps,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, float p, float eps,
         const primitive_attr_t *attr) {
 
     auto reduction_desc = reduction_desc_t();

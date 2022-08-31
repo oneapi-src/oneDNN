@@ -25,8 +25,8 @@ namespace dnnl {
 namespace impl {
 
 status_t reduction_desc_init(reduction_desc_t *reduction_desc,
-        alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *dst_desc, float p, float eps);
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, float p, float eps);
 
 struct reduction_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::reduction;
