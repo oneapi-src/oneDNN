@@ -18,6 +18,7 @@
 #include <vector>
 #include <unordered_map>
 
+#include "compiler/config/context.hpp"
 #include "compiler/ir/graph/driver.hpp"
 #include "compiler/ir/graph/pass/pass.hpp"
 #include "compiler_partition_impl.hpp"
@@ -215,6 +216,15 @@ impl::status_t compiler_partition_impl_t::compile(
                 "Graph compiler backend only supports cpu engine");
         sc::context_ptr ctx;
         ctx = sc::get_default_context();
+        if (pkind_ == partition_kind::residual_conv_blocks
+                || pkind_ == partition_kind::quantized_residual_conv_blocks) {
+            if (pname_.find("forward") == std::string::npos
+                    && pname_.find("backward") == std::string::npos) {
+                // use old fusion manager for conv inference patterns
+                ctx = std::make_shared<sc::context_t>(*ctx);
+                ctx->flags_.mixed_fusion_ = false;
+            }
+        }
         std::shared_ptr<compiler_graph_engine_t> graph_engine;
         {
             std::lock_guard<std::mutex> lock(global_mutex);
@@ -268,7 +278,7 @@ impl::status_t compiler_partition_impl_t::compile(
 std::shared_ptr<impl::partition_impl_t>
 compiler_partition_impl_t::clone() const {
     auto ret = std::make_shared<compiler_partition_impl_t>(
-            get_engine_kind(), get_fpmath_mode(), get_kind());
+            get_engine_kind(), get_fpmath_mode(), get_kind(), get_name());
     ret->ops_ = impl::graph_t::deep_copy(ops_);
     ret->inputs_ = inputs_;
     ret->outputs_ = outputs_;
