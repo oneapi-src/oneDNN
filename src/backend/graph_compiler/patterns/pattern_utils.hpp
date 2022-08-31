@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <vector>
 #include <unordered_set>
 
@@ -42,7 +43,7 @@ public:
             std::vector<std::vector<op_t *>> &fusion_ops);
     inline void set_partitions(dnnl::graph::impl::graph_t &backend_graph,
             std::vector<std::vector<op_t *>> &fusion_ops,
-            dnnl::graph::impl::partition_kind_t pkind);
+            dnnl::graph::impl::partition_kind_t pkind, std::string pname);
 
     pattern_utils_t() = default;
     pattern_utils_t(const pattern_utils_t &) = delete;
@@ -67,7 +68,7 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
 inline void pattern_utils_t::set_partitions(
         dnnl::graph::impl::graph_t &backend_graph,
         std::vector<std::vector<op_t *>> &fusion_ops,
-        dnnl::graph::impl::partition_kind_t pkind) {
+        dnnl::graph::impl::partition_kind_t pkind, std::string pname) {
     std::vector<op_t *> fusion_ops_set;
     std::unordered_set<op_t *> visit;
 
@@ -76,7 +77,7 @@ inline void pattern_utils_t::set_partitions(
         visit.clear();
         auto pimpl = std::make_shared<compiler_partition_impl_t>(
                 backend_graph.get_engine_kind(),
-                backend_graph.get_fpmath_mode(), pkind);
+                backend_graph.get_fpmath_mode(), pkind, pname);
 
         for (size_t i = 0; i < pairs.size(); ++i) {
             visit.insert(pairs[i]);

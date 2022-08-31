@@ -42,9 +42,11 @@ class compiler_partition_impl_t : public partition_impl_t {
 
 public:
     compiler_partition_impl_t(impl::engine_kind_t engine_kind,
-            impl::fpmath_mode_t fpmath_mode, impl::partition_kind_t pkind)
+            impl::fpmath_mode_t fpmath_mode, impl::partition_kind_t pkind,
+            std::string pname)
         : impl::partition_impl_t(engine_kind, fpmath_mode, pkind)
-        , is_init_(true) {
+        , is_init_(true)
+        , pname_(pname) {
         assertm(fpmath_mode == fpmath_mode::strict,
                 "Compiler backend only allows fpmath mode: strict.");
     }
@@ -108,10 +110,13 @@ public:
         return pos != ops_.end();
     }
 
+    std::string get_name() const { return pname_; }
+
 protected:
     bool is_init_ = false;
     mutable std::vector<std::shared_ptr<impl::op_t>> copied_ops_;
     mutable std::mutex mtx_;
+    std::string pname_;
 };
 
 class compiler_compiled_partition_impl_t : public compiled_partition_impl_t {
