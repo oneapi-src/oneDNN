@@ -74,8 +74,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto activation_subgraph = std::make_shared<pb_graph_t>(
                             "activation_subgraph");
                     auto activation = activation_subgraph->append_alternation(
-                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid,
-                                    impl::op_kind::GELU},
+                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid},
                             "activation");
                     activation->allow_external_output(0);
                     activation_subgraph->create_input_port(0, activation, 0);
@@ -115,8 +114,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = std::make_shared<pb_graph_t>("bwd_mlp_layer");
                     auto activation_bwd = bwd_mlp_layer->append_alternation(
                             {impl::op_kind::ReLUBackprop,
-                                    impl::op_kind::SigmoidBackprop,
-                                    impl::op_kind::GELUBackprop},
+                                    impl::op_kind::SigmoidBackprop},
                             "activation_bwd");
                     activation_bwd->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
@@ -220,8 +218,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
                     auto activation_subgraph = std::make_shared<pb_graph_t>(
                             "activation_subgraph");
                     auto activation = activation_subgraph->append_alternation(
-                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid,
-                                    impl::op_kind::GELU},
+                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid},
                             "activation");
                     activation_subgraph->create_input_port(0, activation, 0);
                     activation_subgraph->create_output_port(0, activation, 0);
@@ -287,8 +284,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto activation_subgraph = std::make_shared<pb_graph_t>(
                             "activation_subgraph");
                     auto activation = activation_subgraph->append_alternation(
-                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid,
-                                    impl::op_kind::GELU},
+                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid},
                             "activation");
                     activation->allow_external_output(0);
                     activation_subgraph->create_input_port(0, activation, 0);
@@ -328,8 +324,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = std::make_shared<pb_graph_t>("bwd_mlp_layer");
                     auto activation_bwd = bwd_mlp_layer->append_alternation(
                             {impl::op_kind::ReLUBackprop,
-                                    impl::op_kind::SigmoidBackprop,
-                                    impl::op_kind::GELUBackprop},
+                                    impl::op_kind::SigmoidBackprop},
                             "activation_bwd");
                     activation_bwd->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
