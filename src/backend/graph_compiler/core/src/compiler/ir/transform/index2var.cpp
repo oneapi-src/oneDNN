@@ -65,13 +65,17 @@ struct written_tensor_analysis_result_t {
     std::unordered_set<expr_c> written_;
 };
 
-// the visitor to find all tensor written in all stmts
+struct tensor_usage_analysis_result_t {
+    bool used_in_broadcast_;
+};
+
+// the visitor to find all tensor written in all stmts. Also finds if the tensor
+// is read in "broadcast" intrinsic.
 class written_tensor_finder_t : public ir_viewer_t {
 public:
     using ir_viewer_t::dispatch;
     std::unordered_set<expr_c> written_;
 
-    expr_c dispatch(expr_c v) override { return v; }
     stmt_c dispatch(stmt_c v) override {
         written_ = std::unordered_set<expr_c> {};
         ir_viewer_t::dispatch(v);
@@ -79,24 +83,43 @@ public:
         written_ = std::unordered_set<expr_c> {};
         return v;
     }
-    void view(assign_c v) override {
-        if (v->var_.isa<indexing>()) {
-            auto idx = v->var_.static_as<indexing>();
+
+    expr get_tensor_from_indexing(const expr &v) {
+        if (v.isa<indexing>()) {
+            auto idx = v.static_as<indexing>();
             COMPILE_ASSERT(idx->ptr_.isa<tensor>(),
                     "The indexing should be based on a tensor. " << v);
-            written_.insert(idx->ptr_);
+            return idx->ptr_;
+        }
+        return expr();
+    }
+
+    void view(assign_c v) override {
+        ir_viewer_t::view(v);
+        auto tsr = get_tensor_from_indexing(v->var_);
+        if (tsr.defined()) { written_.insert(tsr); }
+    }
+
+    void view(intrin_call_c v) override {
+        ir_viewer_t::view(v);
+        if (v->type_ == intrin_type::broadcast) {
+            auto &arg = v->args_.at(0);
+            auto tsr = get_tensor_from_indexing(arg);
+            if (tsr.defined()) {
+                tsr->temp_data() = tensor_usage_analysis_result_t {true};
+            }
         }
     }
+
     void view(for_loop_c v) override {
-        dispatch(v->body_);
+        ir_viewer_t::view(v);
         written_ = v->body_->get_temp_data()
                            .get<written_tensor_analysis_result_t>()
                            .written_;
     }
 
     void view(if_else_c v) override {
-        dispatch(v->then_case_);
-        if (v->else_case_.defined()) { dispatch(v->else_case_); }
+        ir_viewer_t::view(v);
 
         written_ = v->then_case_->get_temp_data()
                            .get<written_tensor_analysis_result_t>()
@@ -239,6 +262,15 @@ class indexing2var_impl_t : public ir_visitor_t {
         }
         tensor tsr = v->ptr_.as<tensor>();
         assert(tsr.defined());
+        if (auto ana = tsr->get_temp_data()
+                               .get_or_null<tensor_usage_analysis_result_t>()) {
+            // if the tensor is used in broadcast and it is currently loaded as
+            // scalar
+            if (ana->used_in_broadcast_ && v->dtype_.lanes_ == 1) {
+                out_cache = nullptr;
+                return std::move(v);
+            }
+        }
         var vcache = builder::make_var(
                 v->dtype_, "__cached_" + std::to_string(var_cnt_++))
                              .static_as<var>();
