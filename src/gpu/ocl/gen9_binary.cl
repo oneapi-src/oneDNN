@@ -363,7 +363,6 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
                             1, dims0[4], 1, dims0[5], 1);
                     d[lcl_mb] = d_i;
                 }
-                ++dims0[NDIMS - 1];
             }
         }
 
