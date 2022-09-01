@@ -14,7 +14,6 @@ Supported Primitives
    dev_guide_eltwise
    dev_guide_layer_normalization
    dev_guide_lrn
-   dev_guide_logsoftmax
    dev_guide_pooling
    dev_guide_prelu
    dev_guide_resampling

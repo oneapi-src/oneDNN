@@ -39,7 +39,6 @@ const impl_list_item_t *gpu_impl_list_t::get_implementation_list(
             case primitive_kind::layer_normalization:
             CASE(layer_normalization_v2);
             CASE(lrn);
-            CASE(logsoftmax);
             CASE(matmul);
             CASE(pooling);
             CASE(prelu);
@@ -47,7 +46,6 @@ const impl_list_item_t *gpu_impl_list_t::get_implementation_list(
             CASE(resampling);
             CASE(rnn);
             CASE(shuffle);
-            case primitive_kind::softmax:
             CASE(softmax_v2);
             CASE(zero_pad);
             default: assert(!"unknown primitive kind"); return empty_list;

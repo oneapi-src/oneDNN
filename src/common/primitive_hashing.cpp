@@ -29,7 +29,7 @@ namespace primitive_hashing {
 key_t::key_t(const engine_t *engine, const op_desc_t *op_desc,
         const primitive_attr_t *attr, int pd_iterator_offset,
         const std::vector<memory_desc_t> &hint_mds)
-    : primitive_kind_(get_pkind(op_desc->kind))
+    : primitive_kind_(op_desc->kind)
     , op_desc_(op_desc)
     , attr_(attr)
     , pd_iterator_offset_(pd_iterator_offset)
@@ -48,14 +48,6 @@ key_t::key_t(const engine_t *engine, const op_desc_t *op_desc,
 key_t::key_t(const primitive_desc_t *pd, const engine_t *engine)
     : key_t(engine, pd->op_desc(), pd->attr(), pd->pd_iterator_offset(),
             pd->hint_mds(false /* is_hint */)) {}
-
-primitive_kind_t key_t::get_pkind(primitive_kind_t pkind) {
-    switch (pkind) {
-        case primitive_kind::softmax:
-        case primitive_kind::logsoftmax: return primitive_kind::softmax;
-        default: return pkind;
-    }
-}
 
 bool key_t::operator==(const key_t &rhs) const {
     DNNL_SHORT_CIRCUIT_SELF_COMPARISON(rhs);
@@ -103,7 +95,6 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(resampling)
             CASE(rnn)
             CASE(shuffle)
-            CASE(softmax)
             CASE(softmax_v2)
             CASE(sum)
             CASE(zero_pad)
@@ -642,28 +633,19 @@ size_t get_desc_hash(const shuffle_desc_t &desc) {
     return seed;
 }
 
-size_t get_desc_hash(const softmax_desc_t &desc) {
+size_t get_desc_hash(const softmax_v2_desc_t &desc) {
     size_t seed = 0;
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
-    // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.data_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_desc));
-    // Axis
-    seed = hash_combine(seed, desc.softmax_axis);
-    // Combined hash for softmax desc
-    return seed;
-}
-
-size_t get_desc_hash(const softmax_v2_desc_t &desc) {
-    const auto &v1_desc = *reinterpret_cast<const softmax_desc_t *>(&desc);
-    size_t seed = get_desc_hash(v1_desc);
-    // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.alg_kind));
     // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_src_desc));
     seed = hash_combine(seed, get_md_hash(desc.dst_desc));
     seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
+    // Axis
+    seed = hash_combine(seed, desc.softmax_axis);
     // Combined hash for softmax_v2 desc
     return seed;
 }

@@ -67,7 +67,6 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_reorder.cpp
                               test_cross_engine_reorder.cpp
                               test_concat.cpp
-                              test_softmax.cpp
                               test_eltwise.cpp
                               test_lrn_forward.cpp
                               test_lrn_backward.cpp
@@ -90,7 +89,6 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_deconvolution.cpp
                               test_layer_normalization.cpp
                               test_binary.cpp
-                              test_logsoftmax.cpp
                               test_matmul.cpp
                               test_resampling.cpp
                               test_reduction.cpp

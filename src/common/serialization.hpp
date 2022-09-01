@@ -60,8 +60,6 @@ void serialize_desc(serialization_stream_t &sstream, const rnn_desc_t &desc);
 void serialize_desc(
         serialization_stream_t &sstream, const shuffle_desc_t &desc);
 void serialize_desc(
-        serialization_stream_t &sstream, const softmax_desc_t &desc);
-void serialize_desc(
         serialization_stream_t &sstream, const softmax_v2_desc_t &desc);
 void serialize_desc(serialization_stream_t &sstream, const sum_desc_t &desc);
 

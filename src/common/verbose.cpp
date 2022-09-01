@@ -965,11 +965,6 @@ static std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_logsoftmax(const engine_t *e, const pd_t *pd) {
-    return init_info_softmax(e, pd);
-}
-
-template <typename pd_t>
 static std::string init_info_sum(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
@@ -994,7 +989,6 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
     if (is_initialized_) return;
 
     std::call_once(initialization_flag_, [&] {
-        using logsoftmax_pd_t = softmax_pd_t;
 // clang-format off
 #define CASE(kind) \
     case primitive_kind::kind: \
@@ -1012,7 +1006,6 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             case primitive_kind::layer_normalization_v2:
             CASE(layer_normalization);
             CASE(lrn);
-            CASE(logsoftmax);
             CASE(matmul);
             CASE(pooling);
             CASE(prelu);
@@ -1022,7 +1015,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(rnn);
             CASE(shuffle);
             case primitive_kind::softmax_v2:
-            CASE(softmax);
+                str_ = init_info_softmax(engine, (const softmax_pd_t *)pd); break;
             CASE(sum);
             case primitive_kind::zero_pad: break;
             default: assert(!"unknown primitive kind");

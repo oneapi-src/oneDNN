@@ -40,22 +40,11 @@ struct softmax_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::softmax_d:
-                *(const softmax_desc_t **)result
-                        = reinterpret_cast<const softmax_desc_t *>(desc());
-                break;
-            case query::logsoftmax_d:
-                *(const logsoftmax_desc_t **)result
-                        = reinterpret_cast<const logsoftmax_desc_t *>(desc());
-                break;
             case query::softmax_v2_d:
                 *(const softmax_v2_desc_t **)result = desc();
                 break;
             case query::primitive_kind:
-                if (desc()->primitive_kind == primitive_kind::softmax_v2)
-                    *(primitive_kind_t *)result = desc()->primitive_kind;
-                else
-                    *(primitive_kind_t *)result = primitive_kind::softmax;
+                *(primitive_kind_t *)result = desc()->primitive_kind;
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }
@@ -112,33 +101,12 @@ protected:
     softmax_pd_t(const softmax_v2_desc_t *adesc, const primitive_attr_t *attr,
             const softmax_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(cast_softmax_v1_to_v2(*adesc))
+        , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
         , dst_md_(desc_.dst_desc) {}
 
 private:
     const memory_desc_t &dst_desc() const { return dst_md_; }
-
-    softmax_v2_desc_t cast_softmax_v1_to_v2(
-            const softmax_v2_desc_t &softmax_desc) const {
-        if (softmax_desc.primitive_kind == primitive_kind::softmax_v2)
-            return softmax_desc;
-
-        softmax_v2_desc_t softmax_v2_desc;
-        softmax_v2_desc.primitive_kind = softmax_desc.primitive_kind;
-        softmax_v2_desc.prop_kind = softmax_desc.prop_kind;
-        softmax_v2_desc.src_desc = softmax_desc.src_desc;
-        softmax_v2_desc.diff_src_desc = softmax_desc.diff_src_desc;
-        softmax_v2_desc.softmax_axis = softmax_desc.softmax_axis;
-        softmax_v2_desc.alg_kind
-                = softmax_desc.primitive_kind == primitive_kind::softmax
-                ? alg_kind::softmax_accurate
-                : alg_kind::softmax_log;
-        softmax_v2_desc.dst_desc = softmax_desc.src_desc;
-        softmax_v2_desc.diff_dst_desc = softmax_desc.diff_src_desc;
-
-        return softmax_v2_desc;
-    }
 };
 
 struct softmax_fwd_pd_t : public softmax_pd_t {

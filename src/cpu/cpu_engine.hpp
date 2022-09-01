@@ -60,7 +60,6 @@ DECLARE_IMPL_LIST(eltwise);
 DECLARE_IMPL_LIST(inner_product);
 DECLARE_IMPL_LIST(layer_normalization_v2);
 DECLARE_IMPL_LIST(lrn);
-DECLARE_IMPL_LIST(logsoftmax);
 DECLARE_IMPL_LIST(matmul);
 DECLARE_IMPL_LIST(pooling);
 DECLARE_IMPL_LIST(prelu);
@@ -97,7 +96,6 @@ public:
             case primitive_kind::layer_normalization:
             CASE(layer_normalization_v2);
             CASE(lrn);
-            CASE(logsoftmax);
             CASE(matmul);
             CASE(pooling);
             CASE(prelu);
@@ -105,7 +103,6 @@ public:
             CASE(resampling);
             CASE(rnn);
             CASE(shuffle);
-            case primitive_kind::softmax:
             CASE(softmax_v2);
             default: assert(!"unknown primitive kind"); return empty_list;
         }

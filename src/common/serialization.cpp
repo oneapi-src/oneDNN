@@ -40,7 +40,6 @@ status_t serialize_desc(
         CASE(gemm)
         CASE(layer_normalization)
         CASE(layer_normalization_v2)
-        CASE(logsoftmax)
         CASE(lrn)
         CASE(matmul)
         CASE(pooling)
@@ -50,7 +49,6 @@ status_t serialize_desc(
         CASE(resampling)
         CASE(rnn)
         CASE(shuffle)
-        CASE(softmax)
         CASE(softmax_v2)
         CASE(sum)
         default: return status::invalid_arguments;
@@ -520,26 +518,18 @@ void serialize_desc(
 }
 
 void serialize_desc(
-        serialization_stream_t &sstream, const softmax_desc_t &desc) {
+        serialization_stream_t &sstream, const softmax_v2_desc_t &desc) {
     // Kinds
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);
-    // Memory descriptors
-    serialize_md(sstream, desc.data_desc);
-    serialize_md(sstream, desc.diff_desc);
-    // Axis
-    sstream.write(&desc.softmax_axis);
-}
-
-void serialize_desc(
-        serialization_stream_t &sstream, const softmax_v2_desc_t &desc) {
-    const auto &v1_desc = *reinterpret_cast<const softmax_desc_t *>(&desc);
-    serialize_desc(sstream, v1_desc);
-    // Kinds
     sstream.write(&desc.alg_kind);
     // Memory descriptors
+    serialize_md(sstream, desc.src_desc);
+    serialize_md(sstream, desc.diff_src_desc);
     serialize_md(sstream, desc.dst_desc);
     serialize_md(sstream, desc.diff_dst_desc);
+    // Axis
+    sstream.write(&desc.softmax_axis);
 }
 
 void serialize_desc(serialization_stream_t &sstream, const sum_desc_t &desc) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,6 +71,7 @@ void softmax_example(dnnl::engine::kind engine_kind) {
 
     // Create src memory descriptor and memory object.
     auto src_md = memory::desc(src_dims, dt::f32, tag::nc);
+    auto dst_md = memory::desc(src_dims, dt::f32, tag::nc);
     auto src_mem = memory(src_md, engine);
 
     // Write data to memory object's handle.
@@ -80,14 +81,14 @@ void softmax_example(dnnl::engine::kind engine_kind) {
     const int axis = 1;
 
     // Create operation descriptor.
-    auto softmax_d
-            = softmax_forward::desc(prop_kind::forward_training, src_md, axis);
+    auto softmax_d = softmax_v2_forward::desc(prop_kind::forward_training,
+            algorithm::softmax_accurate, src_md, dst_md, axis);
 
     // Create primitive descriptor.
-    auto softmax_pd = softmax_forward::primitive_desc(softmax_d, engine);
+    auto softmax_pd = softmax_v2_forward::primitive_desc(softmax_d, engine);
 
     // Create the primitive.
-    auto softmax_prim = softmax_forward(softmax_pd);
+    auto softmax_prim = softmax_v2_forward(softmax_pd);
 
     // Primitive arguments. Set up in-place execution by assigning src as DST.
     std::unordered_map<int, memory> softmax_args;

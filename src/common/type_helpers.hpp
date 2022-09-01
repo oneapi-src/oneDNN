@@ -613,24 +613,16 @@ inline bool operator==(const shuffle_desc_t &lhs, const shuffle_desc_t &rhs) {
     return ret;
 }
 
-inline bool operator==(const softmax_desc_t &lhs, const softmax_desc_t &rhs) {
-    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(prop_kind)
-            && COMPARE_DESC_MEMBERS(data_desc)
-            && COMPARE_DESC_MEMBERS(diff_desc)
-            && COMPARE_DESC_MEMBERS(softmax_axis);
-    return ret;
-}
-
 inline bool operator==(
         const softmax_v2_desc_t &lhs, const softmax_v2_desc_t &rhs) {
-    const auto &v1_desc_lhs = *reinterpret_cast<const softmax_desc_t *>(&lhs);
-    const auto &v1_desc_rhs = *reinterpret_cast<const softmax_desc_t *>(&rhs);
-
-    bool ret = v1_desc_lhs == v1_desc_rhs
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
             && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(dst_desc)
-            && COMPARE_DESC_MEMBERS(diff_dst_desc);
+            && COMPARE_DESC_MEMBERS(diff_dst_desc)
+            && COMPARE_DESC_MEMBERS(softmax_axis);
      return ret;
 }
 
@@ -948,13 +940,6 @@ inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
             CASE_OP_DESC(resampling);
             CASE_OP_DESC(rnn);
             CASE_OP_DESC(shuffle);
-        case primitive_kind::logsoftmax:
-        case primitive_kind::softmax: {
-            auto casted_dst_handle = (dnnl_softmax_desc_t *)(dst);
-            auto casted_src_handle = (const dnnl_softmax_desc_t *)(src);
-            *casted_dst_handle = *casted_src_handle;
-            break;
-        }
             CASE_OP_DESC(softmax_v2);
 
             // Internal descs

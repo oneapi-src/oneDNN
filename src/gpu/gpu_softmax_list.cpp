@@ -56,12 +56,6 @@ const impl_list_item_t *get_softmax_v2_impl_list(
                                                 : empty_list;
 }
 
-const impl_list_item_t *get_logsoftmax_impl_list(
-        const logsoftmax_desc_t *desc) {
-    return get_softmax_v2_impl_list(
-            reinterpret_cast<const softmax_v2_desc_t *>(desc));
-}
-
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

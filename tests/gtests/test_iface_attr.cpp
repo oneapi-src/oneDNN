@@ -71,11 +71,12 @@ TEST_F(attr_test_t, TestScratchpadModeEx) {
             {N, C, W}, memory::data_type::f32, memory::format_tag::ncw);
 
     dnnl::primitive_attr attr;
-    auto softmax_d
-            = softmax_forward::desc(prop_kind::forward_inference, data_md, 1);
+    auto softmax_d = softmax_v2_forward::desc(prop_kind::forward_inference,
+            algorithm::softmax_accurate, data_md, data_md, 1);
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
-        auto softmax_pd = softmax_forward::primitive_desc(softmax_d, attr, eng);
+        auto softmax_pd
+                = softmax_v2_forward::primitive_desc(softmax_d, attr, eng);
         auto scratchpad_size = (long)softmax_pd.scratchpad_desc().get_size();
         auto mem_consumption
                 = (long)softmax_pd.query_s64(query::memory_consumption_s64);
@@ -97,11 +98,12 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScratchpadArg) {
             {N, C, W}, memory::data_type::f32, memory::format_tag::ncw);
 
     dnnl::primitive_attr attr;
-    auto softmax_d
-            = softmax_forward::desc(prop_kind::forward_inference, data_md, 1);
+    auto softmax_d = softmax_v2_forward::desc(prop_kind::forward_inference,
+            algorithm::softmax_accurate, data_md, data_md, 1);
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
-        auto softmax_pd = softmax_forward::primitive_desc(softmax_d, attr, eng);
+        auto softmax_pd
+                = softmax_v2_forward::primitive_desc(softmax_d, attr, eng);
 
         auto src = test::make_memory(softmax_pd.src_desc(), eng);
         auto dst = test::make_memory(softmax_pd.dst_desc(), eng);
@@ -111,7 +113,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScratchpadArg) {
 
         stream s(eng);
 
-        softmax_forward softmax_p(softmax_pd);
+        softmax_v2_forward softmax_p(softmax_pd);
         softmax_p.execute(s,
                 {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
                         {DNNL_ARG_SCRATCHPAD, scratchpad}});

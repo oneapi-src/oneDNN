@@ -312,16 +312,10 @@ protected:
             const primitive_desc_t *hint_fwd) {
         using namespace dnnl::impl::status;
         using pd_op_desc_t = typename pkind_traits<pd_t::base_pkind>::desc_type;
-        // A hack to reuse softmax code using logsoftmax primitive.
-        // TODO: consider removing it in v2.0 by introducing alg_kind in softmax
-        bool valid_logsoftmax = pd_t::base_pkind == primitive_kind::softmax_v2
-                && utils::one_of(adesc->kind, primitive_kind::softmax,
-                        primitive_kind::logsoftmax);
         bool valid_lnorm
                 = pd_t::base_pkind == primitive_kind::layer_normalization_v2
                 && adesc->kind == primitive_kind::layer_normalization;
-        if (adesc->kind != pd_t::base_pkind && !valid_logsoftmax
-                && !valid_lnorm)
+        if (adesc->kind != pd_t::base_pkind && !valid_lnorm)
             return invalid_arguments;
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint

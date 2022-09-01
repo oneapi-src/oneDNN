@@ -431,23 +431,6 @@ TEST_F(runtime_attr_test_t, TestShuffle) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestSoftmax) {
-    memory::desc md {{2, 16}, data_type::f32, tag::ab};
-    softmax_forward::desc op_d(prop_kind::forward, md, 1);
-    CHECK_OK(softmax_forward::primitive_desc(op_d, eng));
-    CHECK_UNIMPL(softmax_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(false), eng));
-    CHECK_UNIMPL(softmax_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(true), eng));
-
-    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(softmax_forward::primitive_desc(
-                op_d, gen_attr_with_zp(false, arg), eng));
-        CHECK_UNIMPL(softmax_forward::primitive_desc(
-                op_d, gen_attr_with_zp(true, arg), eng));
-    }
-}
-
 TEST_F(runtime_attr_test_t, TestSoftmax_v2) {
     memory::desc md {{2, 16}, data_type::u8, tag::ab};
     softmax_v2_forward::desc op_d(

@@ -1395,8 +1395,6 @@ typedef enum {
     dnnl_deconvolution,
     /// An element-wise primitive.
     dnnl_eltwise,
-    /// A softmax primitive.
-    dnnl_softmax,
     /// An LRN primitive.
     dnnl_lrn,
     /// A batch normalization primitive.
@@ -1411,8 +1409,6 @@ typedef enum {
     dnnl_gemm,
     /// A binary primitive.
     dnnl_binary,
-    /// A logsoftmax primitive.
-    dnnl_logsoftmax,
     /// A matrix multiplication primitive.
     dnnl_matmul,
     /// A resampling primitive.
@@ -2057,27 +2053,6 @@ typedef struct {
 
 /// @} dnnl_api_eltwise
 
-/// @addtogroup dnnl_api_softmax
-/// @{
-
-/// A descriptor of a Softmax operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_softmax.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, and #dnnl_backward_data.
-    dnnl_prop_kind_t prop_kind;
-    /// Source and destination memory descriptor.
-    dnnl_memory_desc_t data_desc;
-    /// Source and Destination of gradient memory descriptor.
-    dnnl_memory_desc_t diff_desc;
-    /// The axis along which to perform the softmax.
-    int softmax_axis;
-} dnnl_softmax_desc_t;
-
-/// @} dnnl_api_softmax
-
 /// @addtogroup dnnl_api_softmax_v2
 /// @{
 
@@ -2105,15 +2080,6 @@ typedef struct {
 } dnnl_softmax_v2_desc_t;
 
 /// @} dnnl_api_softmax_v2
-
-/// @addtogroup dnnl_api_logsoftmax
-/// @{
-
-/// A descriptor of a LogSoftmax operation. An alias of Softmax structure, but
-/// primitive_kind must be #dnnl_logsoftmax.
-typedef dnnl_softmax_desc_t dnnl_logsoftmax_desc_t;
-
-/// @} dnnl_api_logsoftmax
 
 /// @addtogroup dnnl_api_pooling
 /// @{
@@ -3000,7 +2966,6 @@ typedef enum {
     dnnl_query_deconvolution_d, ///< deconvolution descriptor
     dnnl_query_shuffle_d, ///< shuffle descriptor
     dnnl_query_eltwise_d, ///< eltwise descriptor
-    dnnl_query_softmax_d, ///< softmax descriptor
     dnnl_query_lrn_d, ///< lrn descriptor
     dnnl_query_batch_normalization_d, ///< batch normalization descriptor
     dnnl_query_layer_normalization_d, ///< layer normalization descriptor
@@ -3008,7 +2973,6 @@ typedef enum {
     dnnl_query_rnn_d, ///< rnn descriptor
     dnnl_query_gemm_d, ///< GEMM descriptor (internal)
     dnnl_query_binary_d, ///< binary descriptor
-    dnnl_query_logsoftmax_d, ///< logsoftmax descriptor
     dnnl_query_matmul_d, ///< matrix multiplication (matmul) descriptor
     dnnl_query_resampling_d, ///< resampling descriptor
     dnnl_query_pooling_d, ///< pooling descriptor
