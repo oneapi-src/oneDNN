@@ -28,9 +28,9 @@ namespace impl {
 struct softmax_fwd_pd_t;
 
 struct softmax_pd_t : public primitive_desc_t {
-    static constexpr auto base_pkind = primitive_kind::softmax_v2;
+    static constexpr auto base_pkind = primitive_kind::softmax;
 
-    const softmax_v2_desc_t *desc() const { return &desc_; }
+    const softmax_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
@@ -40,8 +40,8 @@ struct softmax_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::softmax_v2_d:
-                *(const softmax_v2_desc_t **)result = desc();
+            case query::softmax_d:
+                *(const softmax_desc_t **)result = desc();
                 break;
             case query::primitive_kind:
                 *(primitive_kind_t *)result = desc()->primitive_kind;
@@ -93,12 +93,12 @@ struct softmax_pd_t : public primitive_desc_t {
     bool is_logsoftmax() const { return alg_kind() == alg_kind::softmax_log; }
 
 protected:
-    softmax_v2_desc_t desc_;
+    softmax_desc_t desc_;
     const softmax_fwd_pd_t *hint_fwd_pd_;
 
     memory_desc_t dst_md_;
 
-    softmax_pd_t(const softmax_v2_desc_t *adesc, const primitive_attr_t *attr,
+    softmax_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
             const softmax_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
@@ -147,8 +147,8 @@ struct softmax_fwd_pd_t : public softmax_pd_t {
 protected:
     memory_desc_t src_md_;
 
-    softmax_fwd_pd_t(const softmax_v2_desc_t *adesc,
-            const primitive_attr_t *attr, const softmax_fwd_pd_t *hint_fwd_pd)
+    softmax_fwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+            const softmax_fwd_pd_t *hint_fwd_pd)
         : softmax_pd_t(adesc, attr, hint_fwd_pd), src_md_(desc_.src_desc) {}
 
     status_t set_default_formats() {
@@ -213,8 +213,8 @@ protected:
     memory_desc_t diff_src_md_;
     memory_desc_t diff_dst_md_;
 
-    softmax_bwd_pd_t(const softmax_v2_desc_t *adesc,
-            const primitive_attr_t *attr, const softmax_fwd_pd_t *hint_fwd_pd)
+    softmax_bwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+            const softmax_fwd_pd_t *hint_fwd_pd)
         : softmax_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {}

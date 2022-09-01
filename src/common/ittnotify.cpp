@@ -77,7 +77,7 @@ void primitive_task_start(primitive_kind_t kind) {
             CASE(pooling),
             CASE(reduction),
             CASE(prelu),
-            CASE(softmax_v2),
+            CASE(softmax),
             CASE(layer_normalization_v2),
     };
 #undef CASE

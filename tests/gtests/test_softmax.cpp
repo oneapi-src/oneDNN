@@ -24,7 +24,7 @@ namespace dnnl {
 using tag = memory::format_tag;
 using dt = memory::data_type;
 
-struct softmax_v2_test_params_t {
+struct softmax_test_params_t {
     prop_kind aprop_kind;
     algorithm aalgorithm;
     dt src_dt; // diff_src_dt
@@ -39,16 +39,15 @@ struct softmax_v2_test_params_t {
     dnnl_status_t expected_status;
 };
 
-class softmax_v2_test_t
-    : public ::testing::TestWithParam<softmax_v2_test_params_t> {
+class softmax_test_t : public ::testing::TestWithParam<softmax_test_params_t> {
 private:
-    softmax_v2_test_params_t p;
+    softmax_test_params_t p;
     memory dst, workspace;
-    std::shared_ptr<softmax_v2_forward::primitive_desc> pd_fwd_hint;
+    std::shared_ptr<softmax_forward::primitive_desc> pd_fwd_hint;
 
 protected:
     void SetUp() override {
-        p = ::testing::TestWithParam<softmax_v2_test_params_t>::GetParam();
+        p = ::testing::TestWithParam<softmax_test_params_t>::GetParam();
 
         SKIP_IF_CUDA(
                 !cuda_check_format_tag(p.src_tag), "Unsupported format tag");
@@ -138,9 +137,9 @@ protected:
                 || tag == memory::format_tag::abcde);
     }
     void Forward() {
-        // softmax_v2 specific types and values
-        using op_desc_t = softmax_v2_forward::desc;
-        using pd_t = softmax_v2_forward::primitive_desc;
+        // softmax specific types and values
+        using op_desc_t = softmax_forward::desc;
+        using pd_t = softmax_forward::primitive_desc;
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -172,14 +171,14 @@ protected:
         test_fwd_pd_constructors<pd_t>(pd, aa, op_desc);
         pd_fwd_hint = std::make_shared<pd_t>(pd);
 
-        EXPECT_ANY_THROW(softmax_v2_forward(pd, {}));
+        EXPECT_ANY_THROW(softmax_forward(pd, {}));
         // default primitive ctor
-        auto softmax_v2 = softmax_v2_forward();
+        auto softmax = softmax_forward();
         // regular primitive ctor
-        softmax_v2 = softmax_v2_forward(pd);
+        softmax = softmax_forward(pd);
 
-        // check primitive kind is softmax_v2
-        ASSERT_TRUE(softmax_v2.get_kind() == primitive::kind::softmax_v2);
+        // check primitive kind is softmax
+        ASSERT_TRUE(softmax.get_kind() == primitive::kind::softmax);
         // query for descs from pd
         const auto src_desc = pd.src_desc();
         const auto dst_desc = pd.dst_desc();
@@ -205,7 +204,7 @@ protected:
 
         fill_data(p.src_dt, src, 1, 1);
         // test out-place mode
-        softmax_v2.execute(strm,
+        softmax.execute(strm,
                 {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
                         {DNNL_ARG_WORKSPACE, workspace}});
         strm.wait();
@@ -213,7 +212,7 @@ protected:
         // test in-place mode on forward
         if (p.aprop_kind != prop_kind::backward_data && p.src_tag == p.dst_tag
                 && p.src_dt == p.dst_dt) {
-            softmax_v2.execute(strm,
+            softmax.execute(strm,
                     {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, src},
                             {DNNL_ARG_WORKSPACE, workspace}});
             strm.wait();
@@ -221,10 +220,10 @@ protected:
     }
 
     void Backward() {
-        // softmax_v2 specific types and values
-        using op_desc_t = softmax_v2_backward::desc;
-        using pd_t = softmax_v2_backward::primitive_desc;
-        using hint_pd_t = softmax_v2_forward::primitive_desc;
+        // softmax specific types and values
+        using op_desc_t = softmax_backward::desc;
+        using pd_t = softmax_backward::primitive_desc;
+        using hint_pd_t = softmax_forward::primitive_desc;
         allows_attr_t aa {false}; // doesn't support anything
 
         auto eng = get_test_engine();
@@ -247,14 +246,14 @@ protected:
         test_bwd_pd_constructors<pd_t, hint_pd_t>(
                 pd, *pd_fwd_hint, aa, op_desc);
 
-        EXPECT_ANY_THROW(softmax_v2_backward(pd, {}));
+        EXPECT_ANY_THROW(softmax_backward(pd, {}));
         // default primitive ctor
-        auto softmax_v2 = softmax_v2_backward();
+        auto softmax = softmax_backward();
         // regular primitive ctor
-        softmax_v2 = softmax_v2_backward(pd);
+        softmax = softmax_backward(pd);
 
-        // check primitive kind is softmax_v2
-        ASSERT_TRUE(softmax_v2.get_kind() == primitive::kind::softmax_v2);
+        // check primitive kind is softmax
+        ASSERT_TRUE(softmax.get_kind() == primitive::kind::softmax);
 
         // query for descs from pd
         const auto diff_src_desc = pd.diff_src_desc();
@@ -287,7 +286,7 @@ protected:
         fill_data(p.diff_dst_dt, diff_dst, 2, 2);
 
         // test out-place mode
-        softmax_v2.execute(strm,
+        softmax.execute(strm,
                 {{DNNL_ARG_DST, dst}, {DNNL_ARG_DIFF_DST, diff_dst},
                         {DNNL_ARG_DIFF_SRC, diff_src},
                         {DNNL_ARG_WORKSPACE, workspace}});
@@ -295,7 +294,7 @@ protected:
 
         // test in-place mode
         if (p.src_tag == p.diff_dst_tag && p.src_dt == p.diff_dst_dt) {
-            softmax_v2.execute(strm,
+            softmax.execute(strm,
                     {{DNNL_ARG_DST, dst}, {DNNL_ARG_DIFF_DST, diff_dst},
                             {DNNL_ARG_DIFF_SRC, diff_dst},
                             {DNNL_ARG_WORKSPACE, workspace}});
@@ -314,7 +313,7 @@ protected:
     }
 };
 
-using tp = softmax_v2_test_params_t;
+using tp = softmax_test_params_t;
 
 static const auto training = prop_kind::forward_training;
 static const auto inference = prop_kind::forward_inference;
@@ -322,9 +321,9 @@ static const auto backward = prop_kind::backward_data;
 static const auto alg_softmax = algorithm::softmax_accurate;
 static const auto alg_logsoftmax = algorithm::softmax_log;
 
-TEST_P(softmax_v2_test_t, TestsSoftmaxV2) {}
+TEST_P(softmax_test_t, TestsSoftmax) {}
 
-INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_EF, softmax_v2_test_t,
+INSTANTIATE_TEST_SUITE_P(Test_Softmax_EF, softmax_test_t,
         ::testing::Values(
                 // Negative dims
                 tp {training, alg_softmax, dt::f32, dt::f32, dt::undef,
@@ -351,7 +350,7 @@ INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_EF, softmax_v2_test_t,
                         tag::nchw, tag::nchw, tag::undef, {2, 2, 128, 256}, 3,
                         true, dnnl_invalid_arguments}));
 
-INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_Float, softmax_v2_test_t,
+INSTANTIATE_TEST_SUITE_P(Test_Softmax_Forward_Float, softmax_test_t,
         ::testing::Values(
                 tp {training, alg_softmax, dt::f32, dt::f32, dt::undef,
                         tag::nchw, tag::nchw, tag::undef, {2, 0, 5, 5}, 1},
@@ -379,7 +378,7 @@ INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_Float, softmax_v2_test_t,
                         tag::nChw8c, tag::nChw8c, tag::undef, {2, 1011, 32, 1},
                         2}));
 
-INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Backward_Float, softmax_v2_test_t,
+INSTANTIATE_TEST_SUITE_P(Test_Softmax_Backward_Float, softmax_test_t,
         ::testing::Values(
                 tp {backward, alg_softmax, dt::f32, dt::f32, dt::f32, tag::nchw,
                         tag::nchw, tag::nchw, {2, 0, 5, 5}, 1},
@@ -406,7 +405,7 @@ INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Backward_Float, softmax_v2_test_t,
                         tag::nChw8c, tag::nChw8c, tag::nChw8c, {2, 1011, 32, 1},
                         2}));
 
-INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_Bfloat16, softmax_v2_test_t,
+INSTANTIATE_TEST_SUITE_P(Test_Softmax_Forward_Bfloat16, softmax_test_t,
         ::testing::Values(
                 tp {training, alg_softmax, dt::bf16, dt::bf16, dt::undef,
                         tag::nchw, tag::nchw, tag::undef, {2, 0, 5, 5}, 1},
@@ -434,7 +433,7 @@ INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_Bfloat16, softmax_v2_test_t,
                         tag::nChw8c, tag::nChw8c, tag::undef, {2, 1011, 32, 1},
                         2}));
 
-INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Backward_Bfloat16, softmax_v2_test_t,
+INSTANTIATE_TEST_SUITE_P(Test_Softmax_Backward_Bfloat16, softmax_test_t,
         ::testing::Values(
                 tp {backward, alg_softmax, dt::bf16, dt::bf16, dt::bf16,
                         tag::nchw, tag::nchw, tag::nchw, {2, 0, 5, 5}, 1},
@@ -461,7 +460,7 @@ INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Backward_Bfloat16, softmax_v2_test_t,
                         tag::nChw8c, tag::nChw8c, tag::nChw8c, {2, 1011, 32, 1},
                         2}));
 
-GPU_INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_Half, softmax_v2_test_t,
+GPU_INSTANTIATE_TEST_SUITE_P(Test_Softmax_Forward_Half, softmax_test_t,
         ::testing::Values(
                 tp {training, alg_softmax, dt::f16, dt::f16, dt::undef,
                         tag::nchw, tag::nchw, tag::undef, {2, 0, 5, 5}, 1},
@@ -489,7 +488,7 @@ GPU_INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_Half, softmax_v2_test_t,
                         tag::nChw8c, tag::nChw8c, tag::undef, {2, 1011, 32, 1},
                         2}));
 
-INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_U8, softmax_v2_test_t,
+INSTANTIATE_TEST_SUITE_P(Test_Softmax_Forward_U8, softmax_test_t,
         ::testing::Values(
                 tp {training, alg_softmax, dt::f32, dt::u8, dt::undef,
                         tag::nhwc, tag::nhwc, tag::undef, {2, 0, 5, 5}, 1},
@@ -515,7 +514,7 @@ INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_U8, softmax_v2_test_t,
                         tag::nhwc, tag::nhwc, tag::undef, {2, 1011, 32, 1},
                         2}));
 
-INSTANTIATE_TEST_SUITE_P(Test_Softmax_v2_Forward_S8, softmax_v2_test_t,
+INSTANTIATE_TEST_SUITE_P(Test_Softmax_Forward_S8, softmax_test_t,
         ::testing::Values(
                 tp {training, alg_softmax, dt::f32, dt::s8, dt::undef,
                         tag::nhwc, tag::nhwc, tag::undef, {2, 0, 5, 5}, 1},

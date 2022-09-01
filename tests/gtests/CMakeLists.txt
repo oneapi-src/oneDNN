@@ -92,7 +92,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_matmul.cpp
                               test_resampling.cpp
                               test_reduction.cpp
-                              test_softmax_v2.cpp
+                              test_softmax.cpp
                               test_concurrency.cpp
                               test_layer_normalization_v2.cpp
                               )

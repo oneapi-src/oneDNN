@@ -156,7 +156,7 @@ status_t dnnl_primitive_desc_create(
             batch_normalization, binary, convolution, deconvolution, eltwise,
             gemm, inner_product, layer_normalization, layer_normalization_v2,
             lrn, matmul, pooling, prelu, reduction, resampling, rnn, shuffle,
-            softmax_v2);
+            softmax);
     if (!known_primitive_kind) return invalid_arguments;
 
     auto pd_iface = utils::make_unique<primitive_desc_iface_t>(engine, op_desc,

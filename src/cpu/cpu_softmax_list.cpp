@@ -64,8 +64,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
 
 } // namespace
 
-const impl_list_item_t *get_softmax_v2_impl_list(
-        const softmax_v2_desc_t *desc) {
+const impl_list_item_t *get_softmax_impl_list(const softmax_desc_t *desc) {
     static const impl_list_item_t empty_list[] = {nullptr};
 
     const bool is_fwd = utils::one_of(

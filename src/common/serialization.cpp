@@ -49,7 +49,7 @@ status_t serialize_desc(
         CASE(resampling)
         CASE(rnn)
         CASE(shuffle)
-        CASE(softmax_v2)
+        CASE(softmax)
         CASE(sum)
         default: return status::invalid_arguments;
     }
@@ -518,7 +518,7 @@ void serialize_desc(
 }
 
 void serialize_desc(
-        serialization_stream_t &sstream, const softmax_v2_desc_t &desc) {
+        serialization_stream_t &sstream, const softmax_desc_t &desc) {
     // Kinds
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);

@@ -29,13 +29,12 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 namespace {
-status_t softmax_v2_desc_init(softmax_v2_desc_t *softmax_v2_desc,
-        prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
-        const memory_desc_t *diff_src_desc, const memory_desc_t *diff_dst_desc,
-        int softmax_axis) {
+status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, int softmax_axis) {
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    bool args_ok = !any_null(softmax_v2_desc, dst_desc)
+    bool args_ok = !any_null(softmax_desc, dst_desc)
             && IMPLICATION(is_fwd, src_desc != nullptr)
             && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
             && one_of(alg_kind, softmax_accurate, softmax_log)
@@ -59,8 +58,8 @@ status_t softmax_v2_desc_init(softmax_v2_desc_t *softmax_v2_desc,
     }
     if (runtime_dims_or_strides) return unimplemented;
 
-    auto sd = softmax_v2_desc_t();
-    sd.primitive_kind = primitive_kind::softmax_v2;
+    auto sd = softmax_desc_t();
+    sd.primitive_kind = primitive_kind::softmax;
     sd.prop_kind = prop_kind;
 
     if (is_fwd) sd.src_desc = *src_desc;
@@ -70,28 +69,27 @@ status_t softmax_v2_desc_init(softmax_v2_desc_t *softmax_v2_desc,
     sd.dst_desc = *dst_desc;
     if (!is_fwd) sd.diff_dst_desc = *diff_dst_desc;
 
-    *softmax_v2_desc = sd;
+    *softmax_desc = sd;
     return success;
 }
 } // namespace
 
-status_t dnnl_softmax_v2_forward_desc_init(softmax_v2_desc_t *softmax_v2_desc,
+status_t dnnl_softmax_forward_desc_init(softmax_desc_t *softmax_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         int softmax_axis) {
     if (!one_of(prop_kind, forward_inference, forward_training))
         return invalid_arguments;
-    return softmax_v2_desc_init(softmax_v2_desc, prop_kind, alg_kind, src_desc,
+    return softmax_desc_init(softmax_desc, prop_kind, alg_kind, src_desc,
             dst_desc, nullptr, nullptr, softmax_axis);
 }
 
-status_t dnnl_softmax_v2_backward_desc_init(softmax_v2_desc_t *softmax_v2_desc,
+status_t dnnl_softmax_backward_desc_init(softmax_desc_t *softmax_desc,
         alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, const memory_desc_t *dst_desc,
         int softmax_axis) {
-    return softmax_v2_desc_init(softmax_v2_desc, prop_kind::backward_data,
-            alg_kind, nullptr, dst_desc, diff_src_desc, diff_dst_desc,
-            softmax_axis);
+    return softmax_desc_init(softmax_desc, prop_kind::backward_data, alg_kind,
+            nullptr, dst_desc, diff_src_desc, diff_dst_desc, softmax_axis);
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

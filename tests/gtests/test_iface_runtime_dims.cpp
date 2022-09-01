@@ -221,10 +221,10 @@ TEST_F(runtime_dim_test_t, TestShuffle) {
 
 TEST_F(runtime_dim_test_t, TestSoftmax) {
     memory::desc md {{DNNL_RUNTIME_DIM_VAL, 16}, data_type::f32, tag::ab};
-    CHECK_UNIMPL(softmax_v2_forward::desc(
+    CHECK_UNIMPL(softmax_forward::desc(
             prop_kind::forward, algorithm::softmax_accurate, md, md, 1));
-    CHECK_UNIMPL(softmax_v2_backward::desc(
-            algorithm::softmax_accurate, md, md, md, 1));
+    CHECK_UNIMPL(
+            softmax_backward::desc(algorithm::softmax_accurate, md, md, md, 1));
 }
 
 TEST_F(runtime_dim_test_t, TestSum) {

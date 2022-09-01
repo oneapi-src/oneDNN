@@ -95,7 +95,7 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(resampling)
             CASE(rnn)
             CASE(shuffle)
-            CASE(softmax_v2)
+            CASE(softmax)
             CASE(sum)
             CASE(zero_pad)
             default: assert(!"unknown primitive kind");
@@ -633,7 +633,7 @@ size_t get_desc_hash(const shuffle_desc_t &desc) {
     return seed;
 }
 
-size_t get_desc_hash(const softmax_v2_desc_t &desc) {
+size_t get_desc_hash(const softmax_desc_t &desc) {
     size_t seed = 0;
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
@@ -646,7 +646,7 @@ size_t get_desc_hash(const softmax_v2_desc_t &desc) {
     seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
     // Axis
     seed = hash_combine(seed, desc.softmax_axis);
-    // Combined hash for softmax_v2 desc
+    // Combined hash for softmax desc
     return seed;
 }
 

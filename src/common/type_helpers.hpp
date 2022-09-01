@@ -614,7 +614,7 @@ inline bool operator==(const shuffle_desc_t &lhs, const shuffle_desc_t &rhs) {
 }
 
 inline bool operator==(
-        const softmax_v2_desc_t &lhs, const softmax_v2_desc_t &rhs) {
+        const softmax_desc_t &lhs, const softmax_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
             && COMPARE_DESC_MEMBERS(alg_kind)
@@ -940,7 +940,7 @@ inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
             CASE_OP_DESC(resampling);
             CASE_OP_DESC(rnn);
             CASE_OP_DESC(shuffle);
-            CASE_OP_DESC(softmax_v2);
+            CASE_OP_DESC(softmax);
 
             // Internal descs
             CASE_OP_DESC(zero_pad);

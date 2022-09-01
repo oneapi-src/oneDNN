@@ -67,7 +67,7 @@ DECLARE_IMPL_LIST(reduction);
 DECLARE_IMPL_LIST(resampling);
 DECLARE_IMPL_LIST(rnn);
 DECLARE_IMPL_LIST(shuffle);
-DECLARE_IMPL_LIST(softmax_v2);
+DECLARE_IMPL_LIST(softmax);
 
 #undef DECLARE_IMPL_LIST
 
@@ -103,7 +103,7 @@ public:
             CASE(resampling);
             CASE(rnn);
             CASE(shuffle);
-            CASE(softmax_v2);
+            CASE(softmax);
             default: assert(!"unknown primitive kind"); return empty_list;
         }
 #undef CASE

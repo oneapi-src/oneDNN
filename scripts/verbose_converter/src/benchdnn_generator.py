@@ -53,7 +53,6 @@ def convert_driver(prop_kind):
         'rnn': 'rnn',
         'shuffle': 'shuffle',
         'softmax': 'softmax',
-        'softmax_v2': 'softmax',
         'sum': 'sum',
     }.get(prop_kind)
     return driver

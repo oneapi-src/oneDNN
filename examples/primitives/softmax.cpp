@@ -81,14 +81,14 @@ void softmax_example(dnnl::engine::kind engine_kind) {
     const int axis = 1;
 
     // Create operation descriptor.
-    auto softmax_d = softmax_v2_forward::desc(prop_kind::forward_training,
+    auto softmax_d = softmax_forward::desc(prop_kind::forward_training,
             algorithm::softmax_accurate, src_md, dst_md, axis);
 
     // Create primitive descriptor.
-    auto softmax_pd = softmax_v2_forward::primitive_desc(softmax_d, engine);
+    auto softmax_pd = softmax_forward::primitive_desc(softmax_d, engine);
 
     // Create the primitive.
-    auto softmax_prim = softmax_v2_forward(softmax_pd);
+    auto softmax_prim = softmax_forward(softmax_pd);
 
     // Primitive arguments. Set up in-place execution by assigning src as DST.
     std::unordered_map<int, memory> softmax_args;

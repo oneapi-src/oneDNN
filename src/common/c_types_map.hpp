@@ -1273,7 +1273,7 @@ const primitive_kind_t binary = dnnl_binary;
 const primitive_kind_t matmul = dnnl_matmul;
 const primitive_kind_t resampling = dnnl_resampling;
 const primitive_kind_t reduction = dnnl_reduction;
-const primitive_kind_t softmax_v2 = dnnl_softmax_v2;
+const primitive_kind_t softmax = dnnl_softmax;
 const primitive_kind_t layer_normalization_v2 = dnnl_layer_normalization_v2;
 
 // Internal only primitive kinds.
@@ -1324,7 +1324,7 @@ const query_t binary_d = dnnl_query_binary_d;
 const query_t matmul_d = dnnl_query_matmul_d;
 const query_t resampling_d = dnnl_query_resampling_d;
 const query_t reduction_d = dnnl_query_reduction_d;
-const query_t softmax_v2_d = dnnl_query_softmax_v2_d;
+const query_t softmax_d = dnnl_query_softmax_d;
 const query_t layer_normalization_v2_d = dnnl_query_layer_normalization_v2_d;
 
 const query_t some_md = dnnl_query_some_md;
@@ -1364,7 +1364,7 @@ using binary_desc_t = dnnl_binary_desc_t;
 using matmul_desc_t = dnnl_matmul_desc_t;
 using resampling_desc_t = dnnl_resampling_desc_t;
 using reduction_desc_t = dnnl_reduction_desc_t;
-using softmax_v2_desc_t = dnnl_softmax_v2_desc_t;
+using softmax_desc_t = dnnl_softmax_desc_t;
 using layer_normalization_v2_desc_t = dnnl_layer_normalization_v2_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
@@ -1392,7 +1392,7 @@ struct op_desc_t {
         pooling_desc_t pooling;
         prelu_desc_t prelu;
         eltwise_desc_t eltwise;
-        softmax_v2_desc_t softmax_v2;
+        softmax_desc_t softmax;
         lrn_desc_t lrn;
         batch_normalization_desc_t batch_normalization;
         layer_normalization_v2_desc_t layer_normalization_v2;
@@ -1423,7 +1423,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(pooling_desc_t);
     DECL_CTOR_AND_CONVERTERS(prelu_desc_t);
     DECL_CTOR_AND_CONVERTERS(eltwise_desc_t);
-    DECL_CTOR_AND_CONVERTERS(softmax_v2_desc_t);
+    DECL_CTOR_AND_CONVERTERS(softmax_desc_t);
     DECL_CTOR_AND_CONVERTERS(lrn_desc_t);
     DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t);
     DECL_CTOR_AND_CONVERTERS(layer_normalization_v2_desc_t);

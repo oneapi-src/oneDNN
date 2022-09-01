@@ -1419,9 +1419,8 @@ typedef enum {
     dnnl_reduction,
     /// A PReLU primitive.
     dnnl_prelu,
-    /// A softmax version 2 primitive (softmax with destination memory
-    /// descriptor and algorithm kind).
-    dnnl_softmax_v2,
+    /// A softmax primitive.
+    dnnl_softmax,
     /// A layer normalization version 2 primitive (layer normalization with
     /// destination memory descriptor).
     dnnl_layer_normalization_v2,
@@ -2053,13 +2052,13 @@ typedef struct {
 
 /// @} dnnl_api_eltwise
 
-/// @addtogroup dnnl_api_softmax_v2
+/// @addtogroup dnnl_api_softmax
 /// @{
 
 /// A descriptor of a Softmax operation.
 typedef struct {
     /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_softmax_v2.
+    /// descriptor. Must be #dnnl_softmax.
     dnnl_primitive_kind_t primitive_kind;
     /// The kind of propagation. Possible values: #dnnl_forward_training,
     /// #dnnl_forward_inference, and #dnnl_backward_data.
@@ -2077,9 +2076,9 @@ typedef struct {
     dnnl_memory_desc_t dst_desc;
     /// Destination gradient memory descriptor.
     dnnl_memory_desc_t diff_dst_desc;
-} dnnl_softmax_v2_desc_t;
+} dnnl_softmax_desc_t;
 
-/// @} dnnl_api_softmax_v2
+/// @} dnnl_api_softmax
 
 /// @addtogroup dnnl_api_pooling
 /// @{
@@ -2978,7 +2977,7 @@ typedef enum {
     dnnl_query_pooling_d, ///< pooling descriptor
     dnnl_query_reduction_d, ///< reduction descriptor
     dnnl_query_prelu_d, ///< prelu descriptor
-    dnnl_query_softmax_v2_d, ///< softmax version 2 descriptor
+    dnnl_query_softmax_d, ///< softmax descriptor
     dnnl_query_layer_normalization_v2_d, ///< layer normalization version 2 descriptor
 
     // memory descriptor section

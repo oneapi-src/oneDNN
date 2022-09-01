@@ -1014,8 +1014,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(resampling);
             CASE(rnn);
             CASE(shuffle);
-            case primitive_kind::softmax_v2:
-                str_ = init_info_softmax(engine, (const softmax_pd_t *)pd); break;
+            CASE(softmax);
             CASE(sum);
             case primitive_kind::zero_pad: break;
             default: assert(!"unknown primitive kind");

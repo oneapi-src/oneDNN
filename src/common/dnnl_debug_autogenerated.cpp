@@ -1110,7 +1110,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_pooling) return "pooling";
     if (v == dnnl_reduction) return "reduction";
     if (v == dnnl_prelu) return "prelu";
-    if (v == dnnl_softmax_v2) return "softmax_v2";
+    if (v == dnnl_softmax) return "softmax";
     if (v == dnnl_layer_normalization_v2) return "layer_normalization_v2";
     if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
     assert(!"unknown prim_kind");

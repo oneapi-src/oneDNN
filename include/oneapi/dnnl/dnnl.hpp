@@ -301,8 +301,8 @@ struct primitive : public handle<dnnl_primitive_t> {
         reduction = dnnl_reduction,
         /// A PReLU primitive.
         prelu = dnnl_prelu,
-        /// A softmax version 2 primitive.
-        softmax_v2 = dnnl_softmax_v2,
+        /// A softmax primitive.
+        softmax = dnnl_softmax,
         /// A layer normalization version 2 primitive.
         layer_normalization_v2 = dnnl_layer_normalization_v2,
     };
@@ -6590,7 +6590,7 @@ struct eltwise_backward : public primitive {
 
 /// @} dnnl_api_eltwise
 
-/// @addtogroup dnnl_api_softmax_v2 Softmax_v2
+/// @addtogroup dnnl_api_softmax Softmax
 ///
 /// A primitive to perform softmax.
 ///
@@ -6599,10 +6599,10 @@ struct eltwise_backward : public primitive {
 /// @{
 
 /// Softmax forward propagation primitive.
-struct softmax_v2_forward : public primitive {
+struct softmax_forward : public primitive {
     /// Descriptor for a softmax forward propagation primitive.
     struct desc {
-        dnnl_softmax_v2_desc_t data;
+        dnnl_softmax_desc_t data;
 
         /// Default constructor. Produces an empty object.
         desc() = default;
@@ -6623,7 +6623,7 @@ struct softmax_v2_forward : public primitive {
                 const memory::desc &src_desc, const memory::desc &dst_desc,
                 int softmax_axis) {
             error::wrap_c_api(
-                    dnnl_softmax_v2_forward_desc_init(&data,
+                    dnnl_softmax_forward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind),
                             dnnl::convert_to_c(aalgorithm), &src_desc.data,
                             &dst_desc.data, softmax_axis),
@@ -6675,7 +6675,7 @@ struct softmax_v2_forward : public primitive {
         /// @param pd C API primitive descriptor for a softmax forward
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
-            : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax_v2,
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
@@ -6687,27 +6687,27 @@ struct softmax_v2_forward : public primitive {
     };
 
     /// Default constructor. Produces an empty object.
-    softmax_v2_forward() = default;
+    softmax_forward() = default;
 
     /// Constructs a softmax forward propagation primitive.
     /// @param pd Primitive descriptor for a softmax forward propagation
     ///     primitive.
-    softmax_v2_forward(const primitive_desc &pd) : primitive(pd) {}
+    softmax_forward(const primitive_desc &pd) : primitive(pd) {}
 
     /// Constructs a softmax forward propagation primitive from a cache blob.
     /// @param pd Primitive descriptor for a softmax forward propagation
     ///     primitive.
     /// @param cache_blob Cache blob.
-    softmax_v2_forward(
+    softmax_forward(
             const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
         : primitive(pd, cache_blob) {}
 };
 
 /// Softmax backward propagation primitive.
-struct softmax_v2_backward : public primitive {
+struct softmax_backward : public primitive {
     /// Descriptor for a softmax backward propagation primitive.
     struct desc {
-        dnnl_softmax_v2_desc_t data;
+        dnnl_softmax_desc_t data;
 
         /// Default constructor. Produces an empty object.
         desc() = default;
@@ -6726,7 +6726,7 @@ struct softmax_v2_backward : public primitive {
                 const memory::desc &diff_dst_desc, const memory::desc &dst_desc,
                 int softmax_axis) {
             error::wrap_c_api(
-                    dnnl_softmax_v2_backward_desc_init(&data,
+                    dnnl_softmax_backward_desc_init(&data,
                             dnnl::convert_to_c(aalgorithm), &diff_src_desc.data,
                             &diff_dst_desc.data, &dst_desc.data, softmax_axis),
                     "could not create a descriptor for a softmax backward "
@@ -6753,7 +6753,7 @@ struct softmax_v2_backward : public primitive {
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
         primitive_desc(const desc &adesc, const engine &aengine,
-                const softmax_v2_forward::primitive_desc &hint_fwd_pd,
+                const softmax_forward::primitive_desc &hint_fwd_pd,
                 bool allow_empty = false)
             : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
                     hint_fwd_pd.get(), allow_empty) {}
@@ -6774,7 +6774,7 @@ struct softmax_v2_backward : public primitive {
         ///     defaults to false.
         primitive_desc(const desc &adesc, const primitive_attr &attr,
                 const engine &aengine,
-                const softmax_v2_forward::primitive_desc &hint_fwd_pd,
+                const softmax_forward::primitive_desc &hint_fwd_pd,
                 bool allow_empty = false)
             : dnnl::primitive_desc(&adesc.data, &attr, aengine,
                     hint_fwd_pd.get(), allow_empty) {}
@@ -6786,7 +6786,7 @@ struct softmax_v2_backward : public primitive {
         /// @param pd C API primitive descriptor for a softmax backward
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
-            : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax_v2,
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
                     dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
@@ -6800,23 +6800,23 @@ struct softmax_v2_backward : public primitive {
     };
 
     /// Default constructor. Produces an empty object.
-    softmax_v2_backward() = default;
+    softmax_backward() = default;
 
     /// Constructs a softmax backward propagation primitive.
     /// @param pd Primitive descriptor for a softmax backward propagation
     ///     primitive.
-    softmax_v2_backward(const primitive_desc &pd) : primitive(pd) {}
+    softmax_backward(const primitive_desc &pd) : primitive(pd) {}
 
     /// Constructs a softmax backward propagation primitive from a cache blob.
     /// @param pd Primitive descriptor for a softmax backward propagation
     ///     primitive.
     /// @param cache_blob Cache blob.
-    softmax_v2_backward(
+    softmax_backward(
             const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
         : primitive(pd, cache_blob) {}
 };
 
-/// @} dnnl_api_softmax_v2
+/// @} dnnl_api_softmax
 
 /// @addtogroup dnnl_api_batch_normalization Batch Normalization
 ///
