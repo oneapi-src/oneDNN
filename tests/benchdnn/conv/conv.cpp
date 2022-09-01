@@ -438,14 +438,18 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         // Specific configurations are not supported.
         const bool is_f32_src = prb->get_dt_conf(SRC).dt == dnnl_f32;
         const bool is_f32_wei = prb->get_dt_conf(WEI).dt == dnnl_f32;
+        const bool is_f16 = prb->get_dt_conf(WEI).dt == dnnl_f16;
         const bool is_bf16_src = prb->get_dt_conf(SRC).dt == dnnl_bf16;
         const bool is_bf16_wei = prb->get_dt_conf(WEI).dt == dnnl_bf16;
         const bool is_int8_dst = prb->get_dt_conf(DST).dt == dnnl_s8
                 || prb->get_dt_conf(DST).dt == dnnl_u8;
         const bool is_f32f32x8 = is_f32_src && is_f32_wei && is_int8_dst;
         const bool is_bf16bf16x8 = is_bf16_src && is_bf16_wei && is_int8_dst;
+        const bool is_valid_f16 = is_f16
+                && (prb->get_dt_conf(DST).dt == dnnl_f32
+                        || prb->get_dt_conf(DST).dt == dnnl_f16);
 
-        if (is_f32f32x8 || is_bf16bf16x8) {
+        if (is_f32f32x8 || is_bf16bf16x8 || !is_valid_f16) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

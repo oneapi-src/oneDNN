@@ -231,6 +231,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
             res);
 
+    if (is_cpu()) {
+        if (!IMPLICATION(prb->cfg[DST].dt == dnnl_f16,
+                    prb->cfg[SRC].dt == dnnl_f16
+                            && prb->cfg[WEI].dt == dnnl_f16))
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     skip_unimplemented_sum_po(prb->attr, res, prb->get_dt_conf(DST).dt);
 }
 
