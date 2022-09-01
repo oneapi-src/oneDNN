@@ -397,8 +397,8 @@ private:
     data_type_t inp_dt_;
     data_type_t out_dt_;
     data_type_t bia_dt_;
-    static constexpr cpu_isa_t po_isa_t = utils::map(
-            isa, avx512_core, avx2, avx2, avx512_core_fp16, avx512_core_fp16);
+    static constexpr cpu_isa_t po_isa_t = utils::map(isa, avx512_core, avx2,
+            avx2, avx2_vnni_2, avx2_vnni_2, avx512_core_fp16, avx512_core_fp16);
     std::unique_ptr<injector::jit_uni_postops_injector_t<po_isa_t>>
             postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
@@ -413,8 +413,9 @@ private:
     constexpr static int max_vregs_ = cpu_isa_traits<po_isa_t>::n_vregs;
 
     using reg64_t = const Xbyak::Reg64;
-    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
-            Xbyak::Zmm>::type;
+    using Vmm =
+            typename utils::conditional<utils::one_of(isa, avx2, avx2_vnni_2),
+                    Xbyak::Ymm, Xbyak::Zmm>::type;
     using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
 
     // Register decomposition

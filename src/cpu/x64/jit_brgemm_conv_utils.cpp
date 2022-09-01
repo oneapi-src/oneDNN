@@ -49,7 +49,7 @@ namespace brgemm_convolution_utils {
 bool is_any_eligible(const jit_brgemm_conv_conf_t &jcp) {
     return (jcp.prop_kind == prop_kind::forward_inference
             || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
-            || is_amx(jcp.isa));
+            || (jcp.isa == avx2_vnni_2) || is_amx(jcp.isa));
 }
 
 inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
@@ -1796,9 +1796,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (!IMPLICATION(jcp.wei_dt == s8, mayiuse(avx512_core_vnni)))
         return status::unimplemented;
-    if (!IMPLICATION(jcp.wei_dt == bf16, mayiuse(avx512_core_bf16)))
+    if (!IMPLICATION(jcp.wei_dt == bf16,
+                mayiuse(avx512_core_bf16) || mayiuse(avx2_vnni_2)))
         return status::unimplemented;
-    if (!IMPLICATION(jcp.wei_dt == f16, mayiuse(avx512_core_fp16)))
+    if (!IMPLICATION(jcp.wei_dt == f16,
+                mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)))
         return status::unimplemented;
     const bool is_f32
             = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);

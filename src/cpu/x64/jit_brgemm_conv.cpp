@@ -1907,6 +1907,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 #undef BRGEMM_CONV_KER_HEADER
 
 template struct brgemm_convolution_fwd_t<avx2>;
+template struct brgemm_convolution_fwd_t<avx2_vnni_2>;
+template struct brgemm_convolution_fwd_t<avx2_vnni_2, true>;
 template struct brgemm_convolution_fwd_t<avx512_core>;
 template struct brgemm_convolution_fwd_t<avx512_core, true>;
 template struct brgemm_convolution_fwd_t<avx512_core_vnni>;

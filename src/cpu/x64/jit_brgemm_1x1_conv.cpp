@@ -598,6 +598,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
 }
 
 template struct brgemm_1x1_convolution_fwd_t<avx2>;
+template struct brgemm_1x1_convolution_fwd_t<avx2_vnni_2>;
 template struct brgemm_1x1_convolution_fwd_t<avx512_core>;
 template struct brgemm_1x1_convolution_fwd_t<avx512_core_vnni>;
 template struct brgemm_1x1_convolution_fwd_t<avx512_core_bf16>;
