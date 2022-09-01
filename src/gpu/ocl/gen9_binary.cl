@@ -16,9 +16,187 @@
 
 #include "gpu/ocl/binary_types.h"
 
-#if !IS_NCX_LAYOUT
-#if !PLAIN_TO_ABCD4AXB
-#if IS_XA16B
+#if IS_PLAIN_LAYOUT
+KERNEL_ATTR
+__kernel void gen9_binary(__global SRC0_DATA_T *src0,
+        __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
+        float src0_scale, float src1_scale) {
+
+    int dims0[6] = {0};
+
+    unsigned mid_dim = GWS_GET_MIXED_DIM();
+    dims0[5] = mid_dim % DST_D5;
+    mid_dim /= DST_D5;
+    dims0[4] = mid_dim % DST_D4;
+    mid_dim /= DST_D4;
+    dims0[3] = mid_dim % DST_D3;
+    mid_dim /= DST_D3;
+    dims0[2] = mid_dim % DST_D2;
+    mid_dim /= DST_D2;
+    dims0[1] = mid_dim % DST_D1;
+    mid_dim /= DST_D1;
+    dims0[0] = mid_dim;
+
+    int src0_off = SRC0_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    src0 += src0_off;
+
+    int src1_off = SRC1_OFF(dims0[0] * (!BCAST_DIM0), dims0[1] * (!BCAST_DIM1),
+            dims0[2] * (!BCAST_DIM2), dims0[3] * (!BCAST_DIM3),
+            dims0[4] * (!BCAST_DIM4), dims0[5] * (!BCAST_DIM5));
+    src1 += src1_off;
+
+    int dst_off = DST_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    dst += dst_off;
+
+#if WITH_SRC0_SCALE
+#define src0_scale_val src0_scale
+#else
+#define src0_scale_val 1
+#endif
+#if WITH_SRC1_SCALE
+#define src1_scale_val src1_scale
+#else
+#define src1_scale_val 1
+#endif
+    float tmp_src0[NVECT];
+    READ_DATA(NVECT, SRC0, (&src0[0]), (&tmp_src0[0]), src0_scale_val);
+
+#if BCAST_AT_INNERMOST_DIM
+    float tmp_src1[1];
+    tmp_src1[0] = src1_scale_val * CONVERT_FLOAT_T(src1[0]);
+#define SRC1_IDX_MASK 0
+#else
+    float tmp_src1[NVECT];
+    READ_DATA(NVECT, SRC1, (&src1[0]), (&tmp_src1[0]), src1_scale_val);
+#define SRC1_IDX_MASK 1
+#endif
+
+    float tmp[NVECT];
+    unroll_for(unsigned idx = 0; idx < NVECT; ++idx) {
+        tmp[idx] = get_eltwise_op(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
+    }
+
+    float dst_data[NVECT];
+#if WITH_SUM
+    READ_DATA(NVECT, DST, (&dst[0]), (&dst_data[0]), 1);
+#endif
+    dims0[NDIMS - 1] += get_sub_group_local_id();
+    unroll_for(unsigned idx = 0; idx < NVECT; ++idx) {
+        float d_i = tmp[idx];
+        float dst_i = dst_data[idx];
+        APPLY_POST_OPS_SERIAL(d_i, float, dst_i, float, dims0[0], 1, dims0[1],
+                1, dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5], 1);
+        tmp[idx] = d_i;
+        dims0[NDIMS - 1] += 16;
+    }
+
+    WRITE_DATA(NVECT, DST, (&tmp[0]), (&dst[0]));
+}
+
+#elif PLAIN_TO_ABCD4AXB
+KERNEL_ATTR
+__kernel void gen9_binary(__global SRC0_DATA_T *src0,
+        __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
+        float src0_scale, float src1_scale) {
+
+    src0 += SRC0_OFFSET0;
+    src1 += SRC1_OFFSET0;
+    dst += DST_OFFSET0;
+
+    int sglid = get_sub_group_local_id();
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D3();
+    const int d5 = GWS_GET_D3();
+
+    const int d0_block = GWS_GET_D0_BLOCK();
+    const int d1_block = GWS_GET_D1_BLOCK();
+    const int d01_block = d0_block * d1_block;
+
+    SRC0_DATA_T tmp_buf0[d01_block] = {0};
+    SRC1_DATA_T tmp_buf1[d01_block] = {0};
+    DST_DATA_T res_buf[d01_block] = {0};
+
+    const int d0_inner_block = min(d0_block, SRC0_D0);
+    const int d1_inner_block = min(d1_block, SRC0_D1);
+    for (int d0_inner = 0; d0_inner < d0_inner_block; d0_inner++) {
+        for (int d1_inner = 0; d1_inner < d1_inner_block; d1_inner++) {
+            if (SRC0_D0 % d0_inner_block != 0 && d0 + d0_inner >= SRC0_D0)
+                continue;
+            if (SRC0_D1 % d1_inner_block != 0 && d1 + d1_inner >= SRC0_D1)
+                continue;
+            int src0_off;
+            int src1_off;
+            if (SRC0_S3_0 == 1) {
+                // abcd layout.
+                src0_off = SRC0_OFF(d0 + d0_inner, d1 + d1_inner, d2, d3, 0, 0);
+                tmp_buf0[d0_inner * d1_block + d1_inner]
+                        = SRC0_BLOCK_READ(&src0[src0_off]);
+                src1_off = SRC1_OFF((d0 + d0_inner) * (!BCAST_DIM0),
+                        (d1 + d1_inner) * (!BCAST_DIM1), d2 * (!BCAST_DIM2),
+                        d3 * (!BCAST_DIM3), 0, 0);
+            } else {
+                // acdb layout.
+                src0_off = SRC0_OFF(
+                        d0 + d0_inner, d1 + d1_inner, d2, d3 + sglid, 0, 0);
+                tmp_buf0[d0_inner * d1_block + d1_inner] = src0[src0_off];
+                src1_off = SRC1_OFF((d0 + d0_inner) * (!BCAST_DIM0),
+                        (d1 + d1_inner) * (!BCAST_DIM1), d2 * (!BCAST_DIM2),
+                        (d3 + sglid) * (!BCAST_DIM3), 0, 0);
+            }
+#if BCAST_AT_INNERMOST_DIM == 1
+            tmp_buf1[d0_inner * d1_block + d1_inner] = src1[src1_off];
+#else
+            tmp_buf1[d0_inner * d1_block + d1_inner]
+                    = SRC1_BLOCK_READ(&src1[src1_off]);
+#endif //BCAST_AT_INNERMOST_DIM
+        }
+    }
+
+    int i = 0;
+    for (int d0_i = 0; d0_i < d0_block; d0_i++) {
+        for (int d1_i = 0; d1_i < d1_block; d1_i++) {
+
+            float tmp_src0 = CONVERT_FLOAT_T(tmp_buf0[i]);
+            float tmp_src1 = CONVERT_FLOAT_T(tmp_buf1[i]);
+            float res;
+            float dst_data;
+
+#if WITH_SRC0_SCALE
+            tmp_src0 = tmp_src0 * src0_scale;
+#endif
+#if WITH_SRC1_SCALE
+            tmp_src1 = tmp_src1 * src1_scale;
+#endif
+            res = get_eltwise_op(tmp_src0, tmp_src1);
+
+            APPLY_POST_OPS_SERIAL(res, float, dst_data, float, d0 + d0_i, 1,
+                    d1 + d1_i, 1, d2, 1, d3 + sglid, 1, d4, 1, d5, 1);
+
+            res_buf[i] = TO_DST(res);
+            ++i;
+        }
+    }
+
+    DST_DATA_T res_all[d01_block][SUB_GROUP_SIZE];
+    for (int i = 0; i < d01_block; i++)
+        for (int j = 0; j < SUB_GROUP_SIZE; j++)
+            res_all[i][j] = intel_sub_group_shuffle(res_buf[i], j);
+    for (int d = 0; d < SUB_GROUP_SIZE; d += 8) {
+        DST_DATA8_T res_tmp;
+        for (int i = 0; i < 8; i++)
+            res_tmp[i] = res_all[sglid][d + i];
+        int dst_off = DST_OFF(d0, d1, d2, d3 + d, 0, 0);
+
+        DST_BLOCK_WRITE8(&dst[dst_off], res_tmp);
+    }
+}
+#elif IS_XA16B
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
@@ -197,189 +375,4 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     DST_BLOCK_WRITE8(&dst[0], TO_DST8(d));
 #endif
 }
-#endif
-#else // !PLAIN_TO_ABCD4AXB
-KERNEL_ATTR
-__kernel void gen9_binary(__global SRC0_DATA_T *src0,
-        __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
-        float src0_scale, float src1_scale) {
-
-    src0 += SRC0_OFFSET0;
-    src1 += SRC1_OFFSET0;
-    dst += DST_OFFSET0;
-
-    int sglid = get_sub_group_local_id();
-
-    const int d0 = GWS_GET_D0();
-    const int d1 = GWS_GET_D1();
-    const int d2 = GWS_GET_D2();
-    const int d3 = GWS_GET_D3();
-    const int d4 = GWS_GET_D3();
-    const int d5 = GWS_GET_D3();
-
-    const int d0_block = GWS_GET_D0_BLOCK();
-    const int d1_block = GWS_GET_D1_BLOCK();
-    const int d01_block = d0_block * d1_block;
-
-    SRC0_DATA_T tmp_buf0[d01_block] = {0};
-    SRC1_DATA_T tmp_buf1[d01_block] = {0};
-    DST_DATA_T res_buf[d01_block] = {0};
-
-    const int d0_inner_block = min(d0_block, SRC0_D0);
-    const int d1_inner_block = min(d1_block, SRC0_D1);
-    for (int d0_inner = 0; d0_inner < d0_inner_block; d0_inner++) {
-        for (int d1_inner = 0; d1_inner < d1_inner_block; d1_inner++) {
-            if (SRC0_D0 % d0_inner_block != 0 && d0 + d0_inner >= SRC0_D0)
-                continue;
-            if (SRC0_D1 % d1_inner_block != 0 && d1 + d1_inner >= SRC0_D1)
-                continue;
-            int src0_off;
-            int src1_off;
-            if (SRC0_S3_0 == 1) {
-                // abcd layout.
-                src0_off = SRC0_OFF(d0 + d0_inner, d1 + d1_inner, d2, d3, 0, 0);
-                tmp_buf0[d0_inner * d1_block + d1_inner]
-                        = SRC0_BLOCK_READ(&src0[src0_off]);
-                src1_off = SRC1_OFF((d0 + d0_inner) * (!BCAST_DIM0),
-                        (d1 + d1_inner) * (!BCAST_DIM1), d2 * (!BCAST_DIM2),
-                        d3 * (!BCAST_DIM3), 0, 0);
-            } else {
-                // acdb layout.
-                src0_off = SRC0_OFF(
-                        d0 + d0_inner, d1 + d1_inner, d2, d3 + sglid, 0, 0);
-                tmp_buf0[d0_inner * d1_block + d1_inner] = src0[src0_off];
-                src1_off = SRC1_OFF((d0 + d0_inner) * (!BCAST_DIM0),
-                        (d1 + d1_inner) * (!BCAST_DIM1), d2 * (!BCAST_DIM2),
-                        (d3 + sglid) * (!BCAST_DIM3), 0, 0);
-            }
-#if BCAST_AT_INNERMOST_DIM == 1
-            tmp_buf1[d0_inner * d1_block + d1_inner] = src1[src1_off];
-#else
-            tmp_buf1[d0_inner * d1_block + d1_inner]
-                    = SRC1_BLOCK_READ(&src1[src1_off]);
-#endif //BCAST_AT_INNERMOST_DIM
-        }
-    }
-
-    int i = 0;
-    for (int d0_i = 0; d0_i < d0_block; d0_i++) {
-        for (int d1_i = 0; d1_i < d1_block; d1_i++) {
-
-            float tmp_src0 = CONVERT_FLOAT_T(tmp_buf0[i]);
-            float tmp_src1 = CONVERT_FLOAT_T(tmp_buf1[i]);
-            float res;
-            float dst_data;
-
-#if WITH_SRC0_SCALE
-            tmp_src0 = tmp_src0 * src0_scale;
-#endif
-#if WITH_SRC1_SCALE
-            tmp_src1 = tmp_src1 * src1_scale;
-#endif
-            res = get_eltwise_op(tmp_src0, tmp_src1);
-
-            APPLY_POST_OPS_SERIAL(res, float, dst_data, float, d0 + d0_i, 1,
-                    d1 + d1_i, 1, d2, 1, d3 + sglid, 1, d4, 1, d5, 1);
-
-            res_buf[i] = TO_DST(res);
-            ++i;
-        }
-    }
-
-    DST_DATA_T res_all[d01_block][SUB_GROUP_SIZE];
-    for (int i = 0; i < d01_block; i++)
-        for (int j = 0; j < SUB_GROUP_SIZE; j++)
-            res_all[i][j] = intel_sub_group_shuffle(res_buf[i], j);
-    for (int d = 0; d < SUB_GROUP_SIZE; d += 8) {
-        DST_DATA8_T res_tmp;
-        for (int i = 0; i < 8; i++)
-            res_tmp[i] = res_all[sglid][d + i];
-        int dst_off = DST_OFF(d0, d1, d2, d3 + d, 0, 0);
-
-        DST_BLOCK_WRITE8(&dst[dst_off], res_tmp);
-    }
-}
-
-#endif // !PLAIN_TO_ABCD4AXB
-
-#else // #if !IS_NCX_LAYOUT
-
-KERNEL_ATTR
-__kernel void gen9_binary(__global SRC0_DATA_T *src0,
-        __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
-        float src0_scale, float src1_scale) {
-
-    int dims0[6] = {0};
-
-    unsigned mid_dim = GWS_GET_MIXED_DIM();
-    dims0[5] = mid_dim % DST_D5;
-    mid_dim /= DST_D5;
-    dims0[4] = mid_dim % DST_D4;
-    mid_dim /= DST_D4;
-    dims0[3] = mid_dim % DST_D3;
-    mid_dim /= DST_D3;
-    dims0[2] = mid_dim % DST_D2;
-    mid_dim /= DST_D2;
-    dims0[1] = mid_dim % DST_D1;
-    mid_dim /= DST_D1;
-    dims0[0] = mid_dim;
-
-    int src0_off = SRC0_OFF(
-            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
-    src0 += src0_off;
-
-    int src1_off = SRC1_OFF(dims0[0] * (!BCAST_DIM0), dims0[1] * (!BCAST_DIM1),
-            dims0[2] * (!BCAST_DIM2), dims0[3] * (!BCAST_DIM3),
-            dims0[4] * (!BCAST_DIM4), dims0[5] * (!BCAST_DIM5));
-    src1 += src1_off;
-
-    int dst_off = DST_OFF(
-            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
-    dst += dst_off;
-
-#if WITH_SRC0_SCALE
-#define src0_scale_val src0_scale
-#else
-#define src0_scale_val 1
-#endif
-#if WITH_SRC1_SCALE
-#define src1_scale_val src1_scale
-#else
-#define src1_scale_val 1
-#endif
-    float tmp_src0[NVECT];
-    READ_DATA(NVECT, SRC0, (&src0[0]), (&tmp_src0[0]), src0_scale_val);
-
-#if BCAST_AT_INNERMOST_DIM
-    float tmp_src1[1];
-    tmp_src1[0] = src1_scale_val * CONVERT_FLOAT_T(src1[0]);
-#define SRC1_IDX_MASK 0
-#else
-    float tmp_src1[NVECT];
-    READ_DATA(NVECT, SRC1, (&src1[0]), (&tmp_src1[0]), src1_scale_val);
-#define SRC1_IDX_MASK 1
-#endif
-
-    float tmp[NVECT];
-    unroll_for(unsigned idx = 0; idx < NVECT; ++idx) {
-        tmp[idx] = get_eltwise_op(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
-    }
-
-    float dst_data[NVECT];
-#if WITH_SUM
-    READ_DATA(NVECT, DST, (&dst[0]), (&dst_data[0]), 1);
-#endif
-    dims0[NDIMS - 1] += get_sub_group_local_id();
-    unroll_for(unsigned idx = 0; idx < NVECT; ++idx) {
-        float d_i = tmp[idx];
-        float dst_i = dst_data[idx];
-        APPLY_POST_OPS_SERIAL(d_i, float, dst_i, float, dims0[0], 1, dims0[1],
-                1, dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5], 1);
-        tmp[idx] = d_i;
-        dims0[NDIMS - 1] += 16;
-    }
-
-    WRITE_DATA(NVECT, DST, (&tmp[0]), (&dst[0]));
-}
-
-#endif // #if !IS_NCX_LAYOUT
+#endif // IS_PLAIN_LAYOUT

@@ -102,8 +102,8 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
             && src1_d.matches_one_of_tag(
                     ABcd32a16b, ABcde32a16b, ABcd16a16b, ABcde16a16b);
     format_tag_t dst_tag = dst_d.matches_one_of_tag(nc, ncw, nchw, ncdhw);
-    conf.is_ncX_layout = dst_tag;
-    if (!conf.is_ncX_layout) {
+    conf.is_plain_layout = dst_tag;
+    if (!conf.is_plain_layout) {
         format_tag_t src_tag = src0_d.matches_one_of_tag(abcd, acdb);
         const auto &padded_dims = dst_d.padded_dims();
         if (src1_d.matches_tag(src_tag) && dst_d.matches_one_of_tag(ABcd4a4b)
@@ -216,7 +216,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.set_data_type(conf.src0_data_type);
     kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
     kernel_ctx.define_int("NDIMS", conf.ndims);
-    kernel_ctx.define_int("IS_NCX_LAYOUT", conf.is_ncX_layout);
+    kernel_ctx.define_int("IS_PLAIN_LAYOUT", conf.is_plain_layout);
     kernel_ctx.define_int("PLAIN_TO_ABCD4AXB", conf.plain_to_ABcd4a4b);
     kernel_ctx.define_int("IS_XA16B", conf.isXa16b);
     kernel_ctx.define_int("IS_MUL", conf.is_mul);

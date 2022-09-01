@@ -49,7 +49,7 @@ struct gen9_binary_t : public gpu_primitive_t {
             const auto attr_skip_mask = sm::post_ops | sm::scales;
 
             const bool is_blkd_broadcast
-                    = is_broadcast() && !conf.is_ncX_layout;
+                    = is_broadcast() && !conf.is_plain_layout;
             bool ok = set_default_params() == status::success
                     && !is_blkd_broadcast
                     && !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md())

@@ -276,7 +276,7 @@
     intel_sub_group_block_write_us8((__global ushort *)(dst), as_ushort8(val))
 #endif // SRC_DT_F16
 
-#if NVECT == 1 || IS_NCX_LAYOUT
+#if NVECT == 1 || IS_PLAIN_LAYOUT
 #define ELEM_DATA_T float
 #elif NVECT == 2
 #define ELEM_DATA_T float2

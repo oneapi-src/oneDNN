@@ -578,7 +578,7 @@ struct lnorm_conf_t {
 struct binary_conf_t {
     int ndims, nvect;
     bool use_unroll_16b, src0_unroll_16b;
-    bool is_ncX_layout;
+    bool is_plain_layout;
     bool plain_to_ABcd4a4b;
     bool isXa16b;
     data_type_t src0_data_type;
