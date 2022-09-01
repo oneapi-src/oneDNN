@@ -462,7 +462,7 @@ inline bool operator==(
 }
 
 inline bool operator==(
-        const layer_normalization_v2_desc_t &lhs, const layer_normalization_v2_desc_t &rhs) {
+        const layer_normalization_desc_t &lhs, const layer_normalization_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
             && COMPARE_DESC_MEMBERS(src_desc)
@@ -915,19 +915,19 @@ inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
         CASE_OP_DESC(eltwise);
         CASE_OP_DESC(gemm);
         CASE_OP_DESC(inner_product);
-            CASE_OP_DESC(layer_normalization_v2);
-            CASE_OP_DESC(lrn);
-            CASE_OP_DESC(matmul);
-            CASE_OP_DESC(pooling);
-            CASE_OP_DESC(prelu);
-            CASE_OP_DESC(reduction);
-            CASE_OP_DESC(resampling);
-            CASE_OP_DESC(rnn);
-            CASE_OP_DESC(shuffle);
-            CASE_OP_DESC(softmax);
+        CASE_OP_DESC(layer_normalization);
+        CASE_OP_DESC(lrn);
+        CASE_OP_DESC(matmul);
+        CASE_OP_DESC(pooling);
+        CASE_OP_DESC(prelu);
+        CASE_OP_DESC(reduction);
+        CASE_OP_DESC(resampling);
+        CASE_OP_DESC(rnn);
+        CASE_OP_DESC(shuffle);
+        CASE_OP_DESC(softmax);
 
-            // Internal descs
-            CASE_OP_DESC(zero_pad);
+        // Internal descs
+        CASE_OP_DESC(zero_pad);
         default: assert(!"unknown C primitive kind");
     }
 #undef CASE_OP_DESC

@@ -84,7 +84,7 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(eltwise)
             CASE(gemm)
             CASE(inner_product)
-            CASE(layer_normalization_v2)
+            CASE(layer_normalization)
             CASE(lrn)
             CASE(matmul)
             CASE(pooling)
@@ -426,7 +426,7 @@ size_t get_desc_hash(const inner_product_desc_t &desc) {
     return seed;
 }
 
-size_t get_desc_hash(const layer_normalization_v2_desc_t &desc) {
+size_t get_desc_hash(const layer_normalization_desc_t &desc) {
     size_t seed = 0;
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
@@ -443,7 +443,7 @@ size_t get_desc_hash(const layer_normalization_v2_desc_t &desc) {
     seed = hash_combine(seed, desc.layer_norm_epsilon);
     // Flags
     seed = hash_combine(seed, desc.flags);
-    // Combined hash for layer_normalization_v2 desc
+    // Combined hash for layer_normalization desc
     return seed;
 }
 

@@ -42,7 +42,6 @@ def convert_driver(prop_kind):
         'eltwise': 'eltwise',
         'inner_product': 'ip',
         'layer_normalization': 'lnorm',
-        'layer_normalization_v2': 'lnorm',
         'lrn': 'lrn',
         'matmul': 'matmul',
         'pooling': 'pool',

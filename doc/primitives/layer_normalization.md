@@ -2,7 +2,7 @@ Layer Normalization {#dev_guide_layer_normalization}
 ====================================================
 
 >
-> [API Reference](@ref dnnl_api_layer_normalization_v2)
+> [API Reference](@ref dnnl_api_layer_normalization)
 >
 
 ## General

@@ -58,7 +58,7 @@ DECLARE_IMPL_LIST(convolution);
 DECLARE_IMPL_LIST(deconvolution);
 DECLARE_IMPL_LIST(eltwise);
 DECLARE_IMPL_LIST(inner_product);
-DECLARE_IMPL_LIST(layer_normalization_v2);
+DECLARE_IMPL_LIST(layer_normalization);
 DECLARE_IMPL_LIST(lrn);
 DECLARE_IMPL_LIST(matmul);
 DECLARE_IMPL_LIST(pooling);
@@ -93,7 +93,7 @@ public:
             CASE(deconvolution);
             CASE(eltwise);
             CASE(inner_product);
-            CASE(layer_normalization_v2);
+            CASE(layer_normalization);
             CASE(lrn);
             CASE(matmul);
             CASE(pooling);

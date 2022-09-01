@@ -302,7 +302,7 @@ struct primitive : public handle<dnnl_primitive_t> {
         /// A softmax primitive.
         softmax = dnnl_softmax,
         /// A layer normalization version 2 primitive.
-        layer_normalization_v2 = dnnl_layer_normalization_v2,
+        layer_normalization = dnnl_layer_normalization,
     };
 
     using handle::handle;
@@ -901,7 +901,7 @@ enum class query {
     /// reduction descriptor
     reduction_d = dnnl_query_reduction_d,
     /// batch normalization descriptor
-    layer_normalization_v2_d = dnnl_query_layer_normalization_v2_d,
+    layer_normalization_d = dnnl_query_layer_normalization_d,
 
     /// source memory desc
     src_md = dnnl_query_src_md,
@@ -7115,7 +7115,7 @@ struct batch_normalization_backward : public primitive {
 
 /// @} dnnl_api_batch_normalization
 
-/// @addtogroup dnnl_api_layer_normalization_v2 Layer Normalization
+/// @addtogroup dnnl_api_layer_normalization Layer Normalization
 ///
 /// A primitive to perform layer normalization. Normalization is performed
 /// within the last logical dimension of data tensor.
@@ -7139,7 +7139,7 @@ struct batch_normalization_backward : public primitive {
 struct layer_normalization_forward : public primitive {
     /// Descriptor for a layer normalization forward propagation primitive.
     struct desc {
-        dnnl_layer_normalization_v2_desc_t data;
+        dnnl_layer_normalization_desc_t data;
 
         /// Constructs a descriptor for layer normalization forward
         /// propagation primitive.
@@ -7157,7 +7157,7 @@ struct layer_normalization_forward : public primitive {
                 const memory::desc &dst_desc, const memory::desc &stat_desc,
                 float epsilon, normalization_flags flags) {
             error::wrap_c_api(
-                    dnnl_layer_normalization_v2_forward_desc_init(&data,
+                    dnnl_layer_normalization_forward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind), &src_desc.data,
                             &dst_desc.data, &stat_desc.data, epsilon,
                             convert_to_c(flags)),
@@ -7179,8 +7179,8 @@ struct layer_normalization_forward : public primitive {
         desc(prop_kind aprop_kind, const memory::desc &src_desc,
                 const memory::desc &dst_desc, float epsilon,
                 normalization_flags flags) {
-            error::wrap_c_api(dnnl_layer_normalization_v2_forward_desc_init(
-                                      &data, dnnl::convert_to_c(aprop_kind),
+            error::wrap_c_api(dnnl_layer_normalization_forward_desc_init(&data,
+                                      dnnl::convert_to_c(aprop_kind),
                                       &src_desc.data, &dst_desc.data, nullptr,
                                       epsilon, convert_to_c(flags)),
                     "could not create a descriptor for a layer normalization "
@@ -7233,7 +7233,7 @@ struct layer_normalization_forward : public primitive {
         ///     forward propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd,
-                    dnnl::primitive::kind::layer_normalization_v2,
+                    dnnl::primitive::kind::layer_normalization,
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
@@ -7261,11 +7261,11 @@ struct layer_normalization_forward : public primitive {
             var = 2,
         };
         memory::desc stat_desc(int kind) const {
-            dnnl_layer_normalization_v2_desc_t *p;
+            dnnl_layer_normalization_desc_t *p;
             error::wrap_c_api(
                     dnnl_primitive_desc_query(get(),
-                            dnnl::convert_to_c(query::layer_normalization_v2_d),
-                            0, &p),
+                            dnnl::convert_to_c(query::layer_normalization_d), 0,
+                            &p),
                     "could not retrieve a descriptor from a primitive "
                     "descriptor for layer normalization forward propagation "
                     "primitive");
@@ -7297,7 +7297,7 @@ struct layer_normalization_forward : public primitive {
 struct layer_normalization_backward : public primitive {
     /// Descriptor for a layer normalization backward propagation primitive.
     struct desc {
-        dnnl_layer_normalization_v2_desc_t data;
+        dnnl_layer_normalization_desc_t data;
 
         /// Constructs a descriptor for layer normalization backward
         /// propagation primitive.
@@ -7317,7 +7317,7 @@ struct layer_normalization_backward : public primitive {
                 const memory::desc &stat_desc, float epsilon,
                 normalization_flags flags) {
             error::wrap_c_api(
-                    dnnl_layer_normalization_v2_backward_desc_init(&data,
+                    dnnl_layer_normalization_backward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind), &diff_src_desc.data,
                             &diff_dst_desc.data, &src_desc.data,
                             &stat_desc.data, epsilon, convert_to_c(flags)),
@@ -7341,7 +7341,7 @@ struct layer_normalization_backward : public primitive {
                 const memory::desc &diff_dst_desc, const memory::desc &src_desc,
                 float epsilon, normalization_flags flags) {
             error::wrap_c_api(
-                    dnnl_layer_normalization_v2_backward_desc_init(&data,
+                    dnnl_layer_normalization_backward_desc_init(&data,
                             dnnl::convert_to_c(aprop_kind), &diff_src_desc.data,
                             &diff_dst_desc.data, &src_desc.data, nullptr,
                             epsilon, convert_to_c(flags)),
@@ -7404,7 +7404,7 @@ struct layer_normalization_backward : public primitive {
         ///     backward propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd,
-                    dnnl::primitive::kind::layer_normalization_v2,
+                    dnnl::primitive::kind::layer_normalization,
                     dnnl::prop_kind::backward, dnnl::prop_kind::backward_data) {
         }
 
@@ -7458,7 +7458,7 @@ struct layer_normalization_backward : public primitive {
         : primitive(pd, cache_blob) {}
 };
 
-/// @} dnnl_api_layer_normalization_v2
+/// @} dnnl_api_layer_normalization
 
 /// @addtogroup dnnl_api_inner_product Inner Product
 ///

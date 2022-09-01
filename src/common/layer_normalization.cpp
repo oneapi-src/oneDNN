@@ -28,12 +28,12 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
 namespace {
-status_t lnorm_v2_desc_init(layer_normalization_v2_desc_t *lnorm_v2_desc,
+status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const memory_desc_t *stat_desc,
         const memory_desc_t *diff_src_desc, const memory_desc_t *diff_dst_desc,
         float epsilon, unsigned flags) {
-    bool args_ok = !any_null(lnorm_v2_desc, src_desc) && 2 <= src_desc->ndims
+    bool args_ok = !any_null(lnorm_desc, src_desc) && 2 <= src_desc->ndims
             && src_desc->ndims <= 5
             && (flags
                        & ~(dnnl_use_global_stats | dnnl_use_scaleshift
@@ -48,8 +48,8 @@ status_t lnorm_v2_desc_init(layer_normalization_v2_desc_t *lnorm_v2_desc,
             && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
-    auto ld = layer_normalization_v2_desc_t();
-    ld.primitive_kind = primitive_kind::layer_normalization_v2;
+    auto ld = layer_normalization_desc_t();
+    ld.primitive_kind = primitive_kind::layer_normalization;
     ld.prop_kind = prop_kind;
 
     bool runtime_dims_or_strides
@@ -119,29 +119,29 @@ status_t lnorm_v2_desc_init(layer_normalization_v2_desc_t *lnorm_v2_desc,
         if (!consistency) return invalid_arguments;
     }
 
-    *lnorm_v2_desc = ld;
+    *lnorm_desc = ld;
     return success;
 }
 } // namespace
 
-status_t dnnl_layer_normalization_v2_forward_desc_init(
-        layer_normalization_v2_desc_t *lnorm_v2_desc, prop_kind_t prop_kind,
+status_t dnnl_layer_normalization_forward_desc_init(
+        layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         const memory_desc_t *stat_desc, float epsilon, unsigned flags) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return lnorm_v2_desc_init(lnorm_v2_desc, prop_kind, src_desc, dst_desc,
-            stat_desc, nullptr, nullptr, epsilon, flags);
+    return lnorm_desc_init(lnorm_desc, prop_kind, src_desc, dst_desc, stat_desc,
+            nullptr, nullptr, epsilon, flags);
 }
 
-status_t dnnl_layer_normalization_v2_backward_desc_init(
-        layer_normalization_v2_desc_t *lnorm_v2_desc, prop_kind_t prop_kind,
+status_t dnnl_layer_normalization_backward_desc_init(
+        layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_src_desc, const memory_desc_t *diff_dst_desc,
         const memory_desc_t *src_desc, const memory_desc_t *stat_desc,
         float epsilon, unsigned flags) {
     if (!one_of(prop_kind, backward, backward_data)) return invalid_arguments;
-    return lnorm_v2_desc_init(lnorm_v2_desc, prop_kind, src_desc, nullptr,
-            stat_desc, diff_src_desc, diff_dst_desc, epsilon, flags);
+    return lnorm_desc_init(lnorm_desc, prop_kind, src_desc, nullptr, stat_desc,
+            diff_src_desc, diff_dst_desc, epsilon, flags);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

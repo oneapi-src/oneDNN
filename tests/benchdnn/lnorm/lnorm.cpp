@@ -242,7 +242,7 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_layer_normalization_v2_desc_t ld;
+    dnnl_layer_normalization_desc_t ld;
 
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
@@ -261,7 +261,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_layer_normalization_v2_forward_desc_init(
+        DNN_SAFE_STATUS(dnnl_layer_normalization_forward_desc_init(
                 &ld, prop, &src_d, &dst_d, stat_d_ptr, prb->eps, flags));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(
@@ -269,9 +269,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
-        DNN_SAFE_STATUS(dnnl_layer_normalization_v2_backward_desc_init(&ld,
-                prop, &diff_src_d, &diff_dst_d, &src_d, stat_d_ptr, prb->eps,
-                flags));
+        DNN_SAFE_STATUS(dnnl_layer_normalization_backward_desc_init(&ld, prop,
+                &diff_src_d, &diff_dst_d, &src_d, stat_d_ptr, prb->eps, flags));
     }
 
     attr_args_t attr_args;

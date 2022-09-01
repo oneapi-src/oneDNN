@@ -38,7 +38,7 @@ status_t serialize_desc(
         CASE(eltwise)
         CASE(inner_product)
         CASE(gemm)
-        CASE(layer_normalization_v2)
+        CASE(layer_normalization)
         CASE(lrn)
         CASE(matmul)
         CASE(pooling)
@@ -335,7 +335,7 @@ void serialize_desc(
 }
 
 void serialize_desc(serialization_stream_t &sstream,
-        const layer_normalization_v2_desc_t &desc) {
+        const layer_normalization_desc_t &desc) {
     // Kinds
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);

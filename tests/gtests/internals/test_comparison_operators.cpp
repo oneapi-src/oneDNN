@@ -134,7 +134,7 @@ TEST(comparison_operators_t, TestEltwiseDesc) {
 }
 
 TEST(comparison_operators_t, TestLayerNormDesc) {
-    auto lnorm_desc = dnnl::impl::layer_normalization_v2_desc_t();
+    auto lnorm_desc = dnnl::impl::layer_normalization_desc_t();
     lnorm_desc.layer_norm_epsilon = NAN;
     TEST_SELF_COMPARISON(lnorm_desc);
 }

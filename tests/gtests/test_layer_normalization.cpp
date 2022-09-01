@@ -26,7 +26,7 @@ namespace dnnl {
 
 static constexpr float epsilon = 1e-5f;
 
-struct test_lnorm_v2_params_t {
+struct test_lnorm_params_t {
     memory::format_tag src_tag;
     memory::format_tag stat_tag;
     memory::format_tag diff_src_tag;
@@ -44,8 +44,7 @@ void fill(const memory &m) {
     fill_data<T>(numElements, m);
 }
 
-class lnorm_v2_test_t
-    : public ::testing::TestWithParam<test_lnorm_v2_params_t> {
+class lnorm_test_t : public ::testing::TestWithParam<test_lnorm_params_t> {
 private:
     std::shared_ptr<test_memory> src, dst, diff_src, diff_dst;
     memory weights, bias, diff_weights, diff_bias, mean, variance;
@@ -58,7 +57,7 @@ private:
     layer_normalization_forward::primitive_desc lnorm_fwd_pd;
     layer_normalization_backward::primitive_desc lnorm_bwd_pd;
 
-    test_lnorm_v2_params_t p;
+    test_lnorm_params_t p;
     engine eng;
     stream strm;
 
@@ -401,17 +400,17 @@ private:
 #define TAGS_cLDSNC EXPAND_FORMATS(abcde, acdb, abcde)
 
 #define LNORM_TEST_CASE(...) \
-    test_lnorm_v2_params_t { __VA_ARGS__, false, dnnl_success }
+    test_lnorm_params_t { __VA_ARGS__, false, dnnl_success }
 
 static auto expected_failure_cases = []() {
     // clang-format off
     return ::testing::Values(
         // Negative dimension
-        test_lnorm_v2_params_t {TAGS_NC, EXPAND_DTS(f32, f32, f32), {-1, 10}, true, dnnl_invalid_arguments},
+        test_lnorm_params_t {TAGS_NC, EXPAND_DTS(f32, f32, f32), {-1, 10}, true, dnnl_invalid_arguments},
         // Undef data type
-        test_lnorm_v2_params_t {TAGS_NC, EXPAND_DTS(undef, f32, f32), {1, 10}, true, dnnl_invalid_arguments},
+        test_lnorm_params_t {TAGS_NC, EXPAND_DTS(undef, f32, f32), {1, 10}, true, dnnl_invalid_arguments},
         // Only `any` tags
-        test_lnorm_v2_params_t {EXPAND_FORMATS(any, any, any), EXPAND_DTS(f32, f32, f32), {1, 10}, true, dnnl_invalid_arguments}
+        test_lnorm_params_t {EXPAND_FORMATS(any, any, any), EXPAND_DTS(f32, f32, f32), {1, 10}, true, dnnl_invalid_arguments}
     );
     // clang-format on
 };
@@ -456,22 +455,20 @@ static auto simple_cases = [](memory::data_type src_dt,
     // clang-format on
 };
 
-TEST_P(lnorm_v2_test_t, TestsLnormV2) {}
+TEST_P(lnorm_test_t, TestsLnormV2) {}
 
 #define INST_TEST_CASE(name, ...) \
-    INSTANTIATE_TEST_SUITE_P(name, lnorm_v2_test_t, simple_cases(__VA_ARGS__));
+    INSTANTIATE_TEST_SUITE_P(name, lnorm_test_t, simple_cases(__VA_ARGS__));
 
 #define CPU_INST_TEST_CASE(name, ...) \
-    CPU_INSTANTIATE_TEST_SUITE_P( \
-            name, lnorm_v2_test_t, simple_cases(__VA_ARGS__));
+    CPU_INSTANTIATE_TEST_SUITE_P(name, lnorm_test_t, simple_cases(__VA_ARGS__));
 
 #define GPU_INST_TEST_CASE(name, ...) \
-    GPU_INSTANTIATE_TEST_SUITE_P( \
-            name, lnorm_v2_test_t, simple_cases(__VA_ARGS__));
+    GPU_INSTANTIATE_TEST_SUITE_P(name, lnorm_test_t, simple_cases(__VA_ARGS__));
 
-INSTANTIATE_TEST_SUITE_P(LnormEF, lnorm_v2_test_t, expected_failure_cases());
-INSTANTIATE_TEST_SUITE_P(LnormZeroDim, lnorm_v2_test_t,
-        zero_dim_cases(EXPAND_DTS(f32, f32, f32)));
+INSTANTIATE_TEST_SUITE_P(LnormEF, lnorm_test_t, expected_failure_cases());
+INSTANTIATE_TEST_SUITE_P(
+        LnormZeroDim, lnorm_test_t, zero_dim_cases(EXPAND_DTS(f32, f32, f32)));
 
 INST_TEST_CASE(LnormSimpleF32, EXPAND_DTS(f32, f32, f32))
 INST_TEST_CASE(LnormSimpleBF16, EXPAND_DTS(bf16, bf16, bf16))

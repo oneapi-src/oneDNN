@@ -93,8 +93,6 @@ class LogParser:
                 return aux
 
             def convert_prim_kind(prim_kind):
-                if prim_kind == 'layer_normalization_v2':
-                    prim_kind = 'layer_normalization'
                 return prim_kind
 
             def convert_exts(exts):
