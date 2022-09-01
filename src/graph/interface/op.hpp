@@ -285,9 +285,9 @@ public:
     }
 
     static std::string attr2str(op_attr_t attr) {
-        using namespace dnnl::impl::graph::op_attr;
+        using namespace dnnl::impl::graph;
 #define CASE(a) \
-    case (a): return #a
+    case (op_attr::a): return #a
 
         switch (attr) {
             CASE(alpha);
