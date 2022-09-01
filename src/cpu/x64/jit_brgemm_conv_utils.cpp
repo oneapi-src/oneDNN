@@ -46,6 +46,12 @@ using namespace data_type;
 
 namespace brgemm_convolution_utils {
 
+bool is_any_eligible(const jit_brgemm_conv_conf_t &jcp) {
+    return (jcp.prop_kind == prop_kind::forward_inference
+            || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
+            || is_amx(jcp.isa));
+}
+
 inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
         const memory_desc_wrapper &mdw, const format_tag_t tag_value,
         bool any_eligible) {
@@ -385,9 +391,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
 
     src_tag = dst_tag;
 
-    const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
-            || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
-            || is_amx(jcp.isa));
+    const bool any_eligible = is_any_eligible(jcp);
     CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
     CHECK(init_tag(jcp.dst_tag, dst_md, dst_d, dst_tag, any_eligible));
     CHECK(init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag, true));
@@ -1841,10 +1845,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.prop_kind != prop_kind::backward_weights) {
         // fast check data layout before spending time for blocking selection
         format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
-        const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
-                || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
-                || is_amx(jcp.isa));
-        CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
+        CHECK(init_tag(
+                jcp.src_tag, src_md, src_d, src_tag, is_any_eligible(jcp)));
     }
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
