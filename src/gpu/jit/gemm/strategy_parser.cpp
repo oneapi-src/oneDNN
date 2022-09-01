@@ -44,6 +44,15 @@ AccessType getAccessType(char c) {
     }
 }
 
+char downgradeBlock2D(char c) {
+    switch (std::tolower(c)) {
+        case 'm':
+        case 'v': return 'b';
+        case 't': return 's';
+        default: return c;
+    }
+}
+
 AddressBase getAddressBase(char c) {
     switch (c) {
         case 'a': return AddressBase::createA64(true);
@@ -102,9 +111,12 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     bool overrideFusedLoop = false;
 
     char eat, asA, asB, asC, accessA, accessB, accessC;
+    char accessAUnaligned = '\0', accessBUnaligned = '\0';
     char accessAPrefetch = 's', accessBPrefetch = 's', accessCPrefetch = 's';
 
-    s >> std::ws >> asA >> accessA >> strategy.ka_load;
+    s >> std::ws >> asA >> accessA;
+    if (s.peek() == '/') s >> eat >> accessAUnaligned;
+    s >> strategy.ka_load;
     if (s.peek() == '/') s >> eat >> strategy.ka_load_masked;
     if (s.peek() == 'x') s >> eat >> strategy.A_copies;
     getCaching(s, strategy.A);
@@ -119,7 +131,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.prefetchAMasked = strategy.prefetchA;
         getCaching(s, strategy.A_prefetch);
     }
-    s >> std::ws >> asB >> accessB >> strategy.kb_load;
+    s >> std::ws >> asB >> accessB;
+    if (s.peek() == '/') s >> eat >> accessBUnaligned;
+    s >> strategy.kb_load;
     if (s.peek() == '/') s >> eat >> strategy.kb_load_masked;
     if (s.peek() == 'x') s >> eat >> strategy.B_copies;
     getCaching(s, strategy.B);
@@ -143,6 +157,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         getCaching(s, strategy.C_prefetch);
     }
 
+    if (!accessAUnaligned) accessAUnaligned = downgradeBlock2D(accessA);
+    if (!accessBUnaligned) accessBUnaligned = downgradeBlock2D(accessB);
+
     strategy.A.base = strategy.A_prefetch.base = getAddressBase(asA);
     strategy.B.base = strategy.B_prefetch.base = getAddressBase(asB);
     strategy.C.base = strategy.C_prefetch.base = getAddressBase(asC);
@@ -151,9 +168,12 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     strategy.A.newDP = bool(std::isupper(accessA));
     strategy.B.newDP = bool(std::isupper(accessB));
     strategy.C.newDP = bool(std::isupper(accessC));
+    strategy.CO.newDP = strategy.C.newDP;
     strategy.A.accessType = getAccessType(accessA);
     strategy.B.accessType = getAccessType(accessB);
     strategy.C.accessType = getAccessType(accessC);
+    strategy.unalignedAccA = getAccessType(accessAUnaligned);
+    strategy.unalignedAccB = getAccessType(accessBUnaligned);
     strategy.A.cachingW = CacheSettingsLSC::Default;
     strategy.B.cachingW = CacheSettingsLSC::Default;
     strategy.A_prefetch.prefetch = true;
@@ -276,6 +296,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         else if (mod == "kb") {
             strategy.kParallel = true;
             strategy.C.atomic = true;
+            strategy.CO.atomic = problem.sumA || problem.sumB;
+            if (strategy.CO.atomic)
+                strategy.CO.base = AddressBase::createA64(true);
         } else if (mod == "kr")
             strategy.kParallelLocal = true;
         else if (mod == "au")

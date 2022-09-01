@@ -48,9 +48,9 @@ private:
     Iteration(int value_, int rem_, int offset_)
         : value(value_), rem(rem_), offset(offset_) {}
 
-    int value = 0;
-    int rem = 0;
-    int offset = 0;
+    int value;
+    int rem;
+    int offset;
 };
 
 class LoopSequencer {

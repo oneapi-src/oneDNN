@@ -241,6 +241,8 @@ MatchParams::MatchParams(ngen::HW hw, const GEMMProblem &problem) {
     }
 
     if (problem.abOffset != ABOffset::None) *tagPtr++ = ReqABOffset;
+
+    if (problem.sumA || problem.sumB) *tagPtr++ = ReqSumAB;
 }
 
 } // namespace jit

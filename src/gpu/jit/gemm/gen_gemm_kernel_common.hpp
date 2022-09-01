@@ -105,12 +105,13 @@ struct CommonDriverInfo {
 
 // Definitions for flag arguments to kernels.
 enum {
-    FlagCOColumn = 4,
-    FlagCORow = 8,
-    FlagNonfinalKBlock = 16,
-    FlagNoninitialKBlock = 128,
-    FlagLateFusedGEMMDone = 256,
-    FlagEarlyFusedGEMMDone = 512,
+    FlagCOColumn = 0x4,
+    FlagCORow = 0x8,
+    FlagNonfinalKBlock = 0x10,
+    FlagNoninitialKBlock = 0x80,
+    FlagLateFusedGEMMDone = 0x100,
+    FlagEarlyFusedGEMMDone = 0x200,
+    FlagStoreSums = 0x400,
 };
 
 } // namespace jit

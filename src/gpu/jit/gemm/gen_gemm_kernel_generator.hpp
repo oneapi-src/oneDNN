@@ -89,6 +89,11 @@ public:
     constexpr int log2Size() const { return uint32_t(val) & 0xFF; }
     constexpr int size() const { return (uint32_t(val) >> 8) & 0xFF; }
     constexpr int components() const { return isComplex() ? 2 : 1; }
+
+    constexpr Type arithmetic() const {
+        return (val == tf32) ? Type(f32) : real();
+    }
+
     data_type_t get_dnnl_type() const {
         switch (val) {
             case Type::f32: return data_type::f32;
@@ -771,6 +776,9 @@ struct GEMMProblem : public CommonProblem {
     COffset cOffset = COffset::None; // C offset mode.
     BatchMode batch = BatchMode::None; // Batch mode.
     int batchDims = 0; // # of batch dimensions (strided batch only).
+    bool sumA = false,
+         sumB
+            = false; // If true, calculate A row sums/B column sums and store in CO.
     post_ops_t post_ops; // Fused eltwise post-op to apply
     bool postOpFwd = true; // Eltwise parameters
 
@@ -799,6 +807,10 @@ struct GEMMProblem : public CommonProblem {
 
     bool gemmt() const { return false; }
     bool backward() const { return false; }
+
+    bool needsASums() const { return (abOffset == ABOffset::Calc) || sumA; }
+    bool needsBSums() const { return (abOffset == ABOffset::Calc) || sumB; }
+    bool usesCO() const { return (cOffset != COffset::None) || sumA || sumB; }
 };
 
 struct GEMMState;
@@ -854,6 +866,8 @@ struct GEMMStrategy : public CommonStrategy {
     bool slmRepackAhead = false; // Repack SLM data ahead of stores?
     int optAlignAB
             = 0; // Optional alignment for A/B. If > 0, create two versions of k loop, one for A/B aligned to this value, one not.
+    AccessType unalignedAccA,
+            unalignedAccB; // Access types to use for A/B on unaligned path.
     int ka_prefetch = 0, kb_prefetch = 0; // Chunk size for prefetching A/B.
     int ka_pfStride = 0, kb_pfStride = 0; // k stride between A/B prefetches.
     bool cooperativePF = true; // Enable WG-cooperative A/B prefetches.
@@ -920,6 +934,8 @@ struct GEMMStrategy : public CommonStrategy {
             = false; // Add extra SLM fences that are not usually required on HW.
     bool skipFence
             = false; // Skip SLM fences that theoretically should be required but HW doesn't need.
+    bool slmFenceWARWA
+            = false; // Work around buggy SLM fence that doesn't protect against WAR hazards.
     bool systolic = false; // Use systolic array if applicable.
     bool dpasw = false; // Use DPASW (only fixed systolic for now).
     bool fixedSystolic
@@ -942,7 +958,8 @@ struct GEMMStrategy : public CommonStrategy {
     bool minimize(ngen::HW hw, const GEMMProblem &problem);
 
     bool lateExit() const {
-        return (slmBuffers > 0) || barrierFreq || kParallelLocal;
+        return (slmBuffers > 0) || barrierFreq || kParallelLocal
+                || (cooperativePF && (prefetchA || prefetchB));
     }
 
     int maxKSLM(const GEMMProblem &problem, bool isA) const;
@@ -1090,6 +1107,8 @@ struct GEMMState : public CommonState {
     ngen::Subregister postRemAi, postRemBi; // ud
     ngen::Subregister postRemAo, postRemBo; // ud
     ngen::Subregister isCompute; // ud
+    ngen::GRF sysSumAll1s; // Ta/Tb
+    bool systolicSumA = false, systolicSumB = false;
     int ma_slm, ka_slm, kb_slm, nb_slm;
     int ma_prefetch, ka_prefetch, kb_prefetch, nb_prefetch;
     CoopSplit effCoopA = CoopSplit::K;
@@ -1117,6 +1136,8 @@ struct GEMMState : public CommonState {
     bool copyC = false;
     bool broadcast;
     bool repackA = false, repackB = false;
+    bool slmASums = false, slmBSums = false;
+    bool doLateExit = false;
 
     struct {
         bool active = false;
@@ -1419,10 +1440,7 @@ protected:
     template <typename DT = void>
     void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
             const ngen::RegData &src0, const ngen::RegData &src1,
-            const CommonStrategy &strategy, const CommonState &state) {
-        EmulationImplementation::eadd<DT>(
-                *this, mod, dst, src0, src1, strategy.emulate, state.emulate);
-    }
+            const CommonStrategy &strategy, CommonState &state);
     template <typename DT = void>
     void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
             const ngen::RegData &src0, ngen::Immediate src1,
@@ -1661,7 +1679,7 @@ protected:
             bool reverseOrder = false);
     void makeUnbackedRegLayout(Type T, std::vector<RegisterBlock> &layout,
             int r, int c, bool colMajor, int crosspack = 1, int tileR = 0,
-            int tileC = 0);
+            int tileC = 0, bool allowPartialRegs = true);
 
     void setupTeardownLoadStoreDesc(bool setup,
             const std::vector<RegisterBlock> &layout,
@@ -1889,6 +1907,9 @@ protected:
             const std::vector<RegisterBlock> &B_layout,
             const GRFMultirange &A_regs, const GRFMultirange &B_regs,
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+    void setupTeardownAccumulateSumSystolic(bool setup, Type Tother,
+            const GEMMProblem &problem, GEMMStrategy &strategy,
+            GEMMState &state);
 
     void updateC(const GRFMultirange &C_acc, const GRFMultirange &C_accSwap,
             const GRFMultirange &C_load, GEMMProblem &problem,
@@ -1919,7 +1940,7 @@ protected:
             std::vector<RegisterBlock> &dstLayout,
             const CommonStrategy &strategy, CommonState &state);
     void horizontalAdd(bool column, Type T, const GRFMultirange &regs,
-            std::vector<RegisterBlock> &layout);
+            std::vector<RegisterBlock> &layout, CommonState &state);
     bool gemmFinalizeSums(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
 
@@ -1950,6 +1971,8 @@ protected:
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmApplyABOffset(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
+    void gemmStoreSums(const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
     bool gemmApplyCOffset(bool row, bool column, const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     bool gemmApplyCOffsetDispatch(const GEMMProblem &problem,
@@ -2149,6 +2172,8 @@ protected:
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmReverseLoops(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
+    void gemmDowngradeAccess(const GEMMProblem &problem, GEMMStrategy &strategy,
+            GEMMState &state);
     void gemmSubkernel(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState state);
     static size_t gemmSLMSize(

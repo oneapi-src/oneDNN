@@ -73,6 +73,8 @@ enum RestrictionTags : char {
     ReqNoBatchMultiDim = 'w',
     ReqABOffset = 'O',
     ReqNoABOffset = 'o',
+    ReqSumAB = 'Q',
+    ReqNoSumAB = 'q',
     ReqCustom1 = 'D',
     ReqNoCustom1 = 'd',
 };

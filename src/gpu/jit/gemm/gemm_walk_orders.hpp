@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,7 +124,9 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
                 slice = gc;
             else
                 slice = gc / utils::div_up(gc, int(std::round(s)));
+
             thresh = nstl::max(0, (gc / slice) - (gc % slice));
+            if (nslice) slice *= -1;
         }
 
         if (slice == 0) {
