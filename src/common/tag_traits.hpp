@@ -42,6 +42,7 @@ enum class inner_blk_t {
     _,
     _4a,
     _4b,
+    _4c,
     _8a,
     _8b,
     _16a,
@@ -524,6 +525,11 @@ DECL_TRAITS(aBCdef4c8b2c, _BC, _4c8b2c, 6);
 DECL_TRAITS(abDc32d, _D, _32d, 4);
 DECL_TRAITS(abDC32d4c, _CD, _32d4c, 4);
 DECL_TRAITS(abCd32c, _C, _32c, 4);
+DECL_TRAITS(abCde32c, _C, _32c, 5);
+DECL_TRAITS(abCdef32c, _C, _32c, 6);
+DECL_TRAITS(abCd4c, _C, _4c, 4);
+DECL_TRAITS(abCde4c, _C, _4c, 5);
+DECL_TRAITS(abCdef4c, _C, _4c, 6);
 DECL_TRAITS(abdEc32e, _E, _32e, 5);
 DECL_TRAITS(abdEC32e2c, _CE, _32e2c, 5);
 DECL_TRAITS(abdEC32e4c, _CE, _32e4c, 5);
