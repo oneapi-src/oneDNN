@@ -382,9 +382,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
 /*
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
-1. Conv with dst zero points
-2. Post-sum/binary with zero points
-3. Reorder with zero points (used in weight u8->s8)
+1. Post-sum/binary with zero points
+2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -494,9 +493,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 /*
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
-1. Conv with dst zero points
-2. Post-sum/binary with zero points
-3. Reorder with zero points (used in weight u8->s8)
+1. Post-sum/binary with zero points
+2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -597,7 +595,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             "poptional_quant_out");
                     pm::pb_op_t *pquant_out = popt_graph->append_op(
                             impl::op_kind::Quantize, "pquant_out");
-                    pquant_out->append_decision_function(check_zps_values<0>);
                     popt_qout_graph->create_input_port(0, pquant_out, 0);
                     popt_qout_graph->create_output_port(0, pquant_out, 0);
                     pgraph->append_optional(popt_qout_graph,
@@ -628,9 +625,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 /*
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
-1. Conv with dst zero points
-2. Post-sum/binary with zero points
-3. Reorder with zero points (used in weight u8->s8)
+1. Post-sum/binary with zero points
+2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -820,7 +816,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             "poptional_quant_out");
                     pm::pb_op_t *pquant_out = popt_graph->append_op(
                             impl::op_kind::Quantize, "pquant_out");
-                    pquant_out->append_decision_function(check_zps_values<0>);
                     popt_qout_graph->create_input_port(0, pquant_out, 0);
                     popt_qout_graph->create_output_port(0, pquant_out, 0);
                     pgraph->append_optional(popt_qout_graph,
@@ -851,8 +846,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 /*
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
-1. Conv with dst zero points
-2. Reorder with zero points (used in weight u8->s8)
+1. Reorder with zero points (used in weight u8->s8)
 while CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_cpu)
@@ -936,8 +930,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_cpu)
 /*
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
-1. Conv with dst zero points
-2. Reorder with zero points (used in weight u8->s8)
+1. Reorder with zero points (used in weight u8->s8)
 while CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
@@ -1013,10 +1006,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
                                     in_edges_t {in_edge(0, popt_gelu, 0)});
                     typecast_gelu->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
-                    pm::pb_op_t *quant_out
-                            = pgraph->append_op(impl::op_kind::Quantize,
-                                    in_edges_t {in_edge(0, typecast_gelu, 0)});
-                    quant_out->append_decision_function(check_zps_values<0>);
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, typecast_gelu, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();

@@ -5426,11 +5426,7 @@ TEST(PassSystem, FuseToInt8Conv) {
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
-        if (engine_kind == engine_kind::cpu) {
-            ASSERT_EQ(agraph.get_num_partitions(), 1);
-        } else {
-            ASSERT_EQ(agraph.get_num_partitions(), 2);
-        }
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
                 impl::partition_kind::quantized_convolution_post_ops);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
@@ -5438,11 +5434,7 @@ TEST(PassSystem, FuseToInt8Conv) {
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
 
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-        if (engine_kind == engine_kind::cpu) {
-            ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
-        } else {
-            ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
-        }
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
     }
 }
 
