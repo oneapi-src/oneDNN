@@ -210,18 +210,6 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       if (ih_ % 2 == 0) cfg.tile_p = ih_ / 2;
     }
   }
-
-  if (((oc_ / max_oc_block) * mb_) % nthreads > 0
-    && ((oc_ / max_oc_block) * mb_) % nthreads
-      < nthreads / 4) { // serious imbalance
-    // tile_p shall be the first to change if tile_p adjustable, then oc
-    if (cfg.tile_p % 2 == 0 && ih_ % (cfg.tile_p / 2) == 0) {
-      cfg.tile_p /= 2;
-    } else if (max_oc_block % 32 == 0) {
-      max_oc_block /= 2;
-    }
-    // TODO(bh): optimize here
-  }
   if (get_input_dtype() == datatypes::f32) { cfg.tile_p = 1; }
   if (try_os_blocking_) {
     // if use os blocking override tile p and tile q above
@@ -235,6 +223,9 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   if (inverse_filter_) {
     cfg.C_block = 64;
     cfg.K_block = 64;
+    cfg.tile_d = 1;
+    cfg.tile_p = 1;
+    cfg.tile_q = ow_;
   };
   return std::move(ret);
 }
