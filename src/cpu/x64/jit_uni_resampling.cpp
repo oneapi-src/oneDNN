@@ -37,8 +37,8 @@ namespace x64 {
 
 using namespace resampling_utils;
 
-static cpu_isa_t get_supported_isa(bool is_blocked_8_format) {
-    if (mayiuse(avx512_core_fp16)) return avx512_core_fp16;
+static cpu_isa_t get_supported_isa(bool is_plain) {
+    if (is_plain && mayiuse(avx512_core_fp16)) return avx512_core_fp16;
     if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
     if (mayiuse(avx512_core)) return avx512_core;
     if (mayiuse(avx2)) return avx2;
@@ -59,7 +59,7 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
     conf_.dst_data_type = dst_md()->data_type;
 
     fill_format_tag_info();
-    conf_.isa = get_supported_isa(conf_.is_blocked_8_format);
+    conf_.isa = get_supported_isa(src_d.is_plain());
 
     const bool ok = is_fwd() && !has_zero_dim_memory()
             && conf_.src_tag != format_tag::undef
