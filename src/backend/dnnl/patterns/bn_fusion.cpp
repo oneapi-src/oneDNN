@@ -46,8 +46,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
         .set_kind(impl::partition_kind::batch_norm_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto bn = pgraph->append_op(
-                            impl::op_kind::BatchNormInference);
+                    auto bn = pgraph->append_alternation(
+                            std::vector<impl::op_kind_t> {
+                                    impl::op_kind::BatchNormInference,
+                                    impl::op_kind::BatchNormForwardTraining});
                     pgraph->append_op(impl::op_kind::ReLU, {in_edge(0, bn, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {

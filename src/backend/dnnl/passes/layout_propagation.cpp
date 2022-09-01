@@ -36,14 +36,6 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper_t;
 
-static value_ptr insert_workspace(op_ptr &op) {
-    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
-    value_ptr workspace_val
-            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
-    op->add_output(workspace_val);
-    return workspace_val;
-}
-
 static inline impl::status_t insert_reorder_before(op_ptr &op, size_t offset,
         const dnnl::memory::desc &opt_mdesc, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache,
@@ -606,16 +598,21 @@ static impl::status_t layout_propagation_for_batchnorm(op_ptr &op,
         if (status != impl::status::success) return status;
     }
 
-    // make scratchpad as batchnorm's last output
-    value_ptr scratchpad_val = op->get_output_values().back();
-    status = fill_layout_info(scratchpad_val, pd.scratchpad_desc());
-    if (status != impl::status::success) return status;
-    // if batchnorm's prop_kind is forward_training and fused with ReLU
+    size_t scratchpad_index = op->num_outputs() - 1;
+
+    // if batchnorm's prop_kind is forward_training and fused with ReLU, it will
+    // have a workspace output
     if (op->has_attr(op_attr::fuse_relu)
             && op->get_attr<bool>(op_attr::fuse_relu)) {
-        value_ptr workspace_val = insert_workspace(op);
+        scratchpad_index = op->num_outputs() - 2;
+        value_ptr workspace_val = op->get_output_value(op->num_outputs() - 1);
         status = fill_layout_info(workspace_val, pd.workspace_desc());
     }
+
+    value_ptr scratchpad_val = op->get_output_value(scratchpad_index);
+    status = fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+    if (status != impl::status::success) return status;
+
     return status;
 }
 

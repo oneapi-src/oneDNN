@@ -320,6 +320,9 @@ std::string kind2str(impl::op_kind_t kind);
 std::shared_ptr<impl::value_t> insert_empty_scratchpad(
         std::shared_ptr<op_t> &op);
 
+std::shared_ptr<impl::value_t> insert_empty_workspace(
+        std::shared_ptr<op_t> &op);
+
 // This function is used to check if a dnnl_reorder op is converted from or act
 // as a TypeCast op. This function will only return true for a dnnl_reorder op
 // which only has different input/output data type.

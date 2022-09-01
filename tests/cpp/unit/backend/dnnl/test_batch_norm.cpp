@@ -461,6 +461,9 @@ INSTANTIATE_TEST_SUITE_P(Execute, BatchNorm4D,
                         2, 0.001f, "NCX", "dnnl", impl::data_type::f32},
                 dnnl_graph_test_batchnorm_params {
                         impl::op_kind::BatchNormForwardTraining, false, 3, 3, 2,
+                        2, 0.001f, "NXC", "dnnl", impl::data_type::f32},
+                dnnl_graph_test_batchnorm_params {
+                        impl::op_kind::BatchNormForwardTraining, true, 3, 3, 2,
                         2, 0.001f, "NXC", "dnnl", impl::data_type::f32}));
 
 TEST(Compile, BatchNormBackpropFp32) {

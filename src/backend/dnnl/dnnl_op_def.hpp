@@ -741,7 +741,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({3, 4, 5}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
-                .set_num_outputs(std::set<size_t>({2, 6}))
+                .set_num_outputs(std::set<size_t>({2, 3, 6, 7}))
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "gamma", "gamma scaling for normalized value")
                 .set_input(
@@ -758,6 +758,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops. when output number is "
                         "2, this tensor will be the second one")
+                .set_output(6, "workspace", "(Optional) workspace tensor")
                 // Attributes inherited from BatchNormInference and
                 // BatchNormForwardTraining op
                 .set_attr(op_attr::epsilon,

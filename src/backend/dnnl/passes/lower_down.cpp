@@ -1257,6 +1257,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     // remove the fused post_ops op
                     fuse_op_to_predecessor(
                             post_op, subgraph, fuse_op_predecessor_offset);
+                    auto tmp_ptr = base_op->shared_from_this();
+                    insert_empty_workspace(tmp_ptr);
                     continue;
                 }
 
@@ -3512,11 +3514,9 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             // split_quant_dequant pass to perform the lowering?
             new_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
             new_op->set_attr<bool>(op_attr::change_layout, true);
-            insert_scratchpad = true;
         } else if (cur_op->get_kind() == impl::op_kind::TypeCast) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
             new_op->set_attr<bool>(op_attr::change_layout, false);
-            insert_scratchpad = true;
         } else if (cur_op->get_kind() == impl::op_kind::Reciprocal) {
             // mapping to dnnl algorithm pow
             new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
