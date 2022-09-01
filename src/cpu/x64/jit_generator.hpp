@@ -825,235 +825,319 @@ public:
     }
 
     void uni_vfmadd132ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        // Note: x1 gets overriden by x1*op
-        // This is incorrect if x1 == x2
+            const Xbyak::Operand &op, const Xbyak::Xmm &buf) {
         if (is_valid_isa(avx2))
             vfmadd132ps(x1, x2, op);
         else if (is_valid_isa(avx)) {
-            assert(x1.getIdx() != x2.getIdx());
-            vmulps(x1, x1, op);
-            vaddps(x1, x1, x2);
+            assert(buf.getIdx() != x2.getIdx());
+            vmulps(buf, x1, op);
+            vaddps(x1, buf, x2);
         } else {
-            assert(x1.getIdx() != x2.getIdx());
-            mulps(x1, op);
-            addps(x1, x2);
+            assert(buf.getIdx() != x2.getIdx());
+            if (x1.getIdx() != buf.getIdx()) movups(buf, x1);
+            mulps(buf, op);
+            addps(buf, x2);
+            if (x1.getIdx() != buf.getIdx()) movups(x1, buf);
+        }
+    }
+    void uni_vfmadd132ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x1 gets overridden by x1*op
+        // This is incorrect if x1 == x2
+        uni_vfmadd132ps(x1, x2, op, x1);
+    }
+
+    void uni_vfmadd132ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, const Xbyak::Ymm &buf) {
+        if (is_valid_isa(avx2))
+            vfmadd132ps(x1, x2, op);
+        else {
+            assert(buf.getIdx() != x2.getIdx());
+            vmulps(buf, x1, op);
+            vaddps(x1, buf, x2);
         }
     }
     void uni_vfmadd132ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (is_valid_isa(avx2))
-            vfmadd132ps(x1, x2, op);
-        else {
-            // Note: x1 gets overriden by x1*op
-            // This is incorrect if x1 == x2
-            assert(x1.getIdx() != x2.getIdx());
-            vmulps(x1, x1, op);
-            vaddps(x1, x1, x2);
-        }
+        // Note: SSE, AVX: x1 gets overridden by x1*op
+        // This is incorrect if x1 == x2
+        uni_vfmadd132ps(x1, x2, op, x1);
     }
 
     void uni_vfmadd213ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        // Note: x1 gets overriden by x1*x2
-        // This is incorrect if x1 == op
+            const Xbyak::Operand &op, const Xbyak::Xmm &buf) {
         if (is_valid_isa(avx2))
             vfmadd213ps(x1, x2, op);
         else if (is_valid_isa(avx)) {
-            assert(!x1.isEqualIfNotInherited(op));
-            vmulps(x1, x1, x2);
-            vaddps(x1, x1, op);
+            assert(!buf.isEqualIfNotInherited(op));
+            vmulps(buf, x1, x2);
+            vaddps(x1, buf, op);
         } else {
-            assert(!x1.isEqualIfNotInherited(op));
-            mulps(x1, x2);
-            addps(x1, op);
+            assert(!buf.isEqualIfNotInherited(op));
+            if (x1.getIdx() != buf.getIdx()) movups(buf, x1);
+            mulps(buf, x2);
+            addps(buf, op);
+            if (x1.getIdx() != buf.getIdx()) movups(x1, buf);
+        }
+    }
+    void uni_vfmadd213ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x1 gets overridden by x1*x2
+        // This is incorrect if x1 == op
+        uni_vfmadd213ps(x1, x2, op, x1);
+    }
+
+    void uni_vfmadd213ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, const Xbyak::Ymm &buf) {
+        if (is_valid_isa(avx2))
+            vfmadd213ps(x1, x2, op);
+        else {
+            assert(!buf.isEqualIfNotInherited(op));
+            vmulps(buf, x1, x2);
+            vaddps(x1, buf, op);
         }
     }
     void uni_vfmadd213ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (is_valid_isa(avx2))
-            vfmadd213ps(x1, x2, op);
-        else {
-            // Note: x1 gets overriden by x1*x2
-            // This is incorrect if x1 == op
-            assert(!x1.isEqualIfNotInherited(op));
-            vmulps(x1, x1, x2);
-            vaddps(x1, x1, op);
-        }
+        // Note: SSE, AVX: x1 gets overridden by x1*x2
+        // This is incorrect if x1 == op
+        uni_vfmadd213ps(x1, x2, op, x1);
     }
 
     void uni_vfmadd213ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        // Note: x1 gets overriden by x1*x2
-        // This is incorrect if x1 == op
+            const Xbyak::Operand &op, const Xbyak::Xmm &buf) {
         if (is_valid_isa(avx2))
             vfmadd213ss(x1, x2, op);
         else if (is_valid_isa(avx)) {
-            assert(!x1.isEqualIfNotInherited(op));
-            vmulss(x1, x1, x2);
-            vaddss(x1, x1, op);
+            assert(!buf.isEqualIfNotInherited(op));
+            vmulss(buf, x1, x2);
+            vaddss(x1, buf, op);
         } else {
-            assert(!x1.isEqualIfNotInherited(op));
-            mulss(x1, x2);
+            assert(!buf.isEqualIfNotInherited(op));
+            if (x1.getIdx() != buf.getIdx()) movss(buf, x1);
+            mulss(buf, x2);
             addss(x1, op);
+            if (x1.getIdx() != buf.getIdx()) movss(x1, buf);
+        }
+    }
+    void uni_vfmadd213ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x1 gets overridden by x1*x2
+        // This is incorrect if x1 == op
+        uni_vfmadd213ss(x1, x2, op, x1);
+    }
+
+    void uni_vfmadd213ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, const Xbyak::Ymm &buf) {
+        if (is_valid_isa(avx2))
+            vfmadd213ss(x1, x2, op);
+        else {
+            assert(!buf.isEqualIfNotInherited(op));
+            vmulss(buf, x1, x2);
+            vaddss(x1, buf, op);
         }
     }
     void uni_vfmadd213ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (is_valid_isa(avx2))
-            vfmadd213ss(x1, x2, op);
-        else {
-            // Note: x1 gets overriden by x1*x2
-            // This is incorrect if x1 == op
-            assert(!x1.isEqualIfNotInherited(op));
-            vmulss(x1, x1, x2);
-            vaddss(x1, x1, op);
-        }
+        // Note: SSE, AVX: x1 gets overridden by x1*x2
+        // This is incorrect if x1 == op
+        uni_vfmadd213ss(x1, x2, op, x1);
     }
 
     void uni_vfmadd231ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        // Note: x2 gets overriden by x2*op
-        // This is incorrect if x1 == x2
+            const Xbyak::Operand &op, const Xbyak::Xmm &buf) {
         if (is_valid_isa(avx2))
             vfmadd231ps(x1, x2, op);
         else if (is_valid_isa(avx)) {
-            assert(x1.getIdx() != x2.getIdx());
-            vmulps(x2, x2, op);
-            vaddps(x1, x1, x2);
+            assert(buf.getIdx() != x1.getIdx());
+            vmulps(buf, x2, op);
+            vaddps(x1, x1, buf);
         } else {
-            assert(x1.getIdx() != x2.getIdx());
-            mulps(x2, op);
-            addps(x1, x2);
+            assert(buf.getIdx() != x1.getIdx());
+            if (x2.getIdx() != buf.getIdx()) movups(buf, x2);
+            mulps(buf, op);
+            addps(x1, buf);
+        }
+    }
+    void uni_vfmadd231ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x2 gets overridden by x2*op
+        // This is incorrect if x1 == x2
+        uni_vfmadd231ps(x1, x2, op, x2);
+    }
+
+    void uni_vfmadd231ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, const Xbyak::Ymm &buf) {
+        if (is_valid_isa(avx2))
+            vfmadd231ps(x1, x2, op);
+        else {
+            assert(buf.getIdx() != x1.getIdx());
+            vmulps(buf, x2, op);
+            vaddps(x1, x1, buf);
         }
     }
     void uni_vfmadd231ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x2 gets overridden by x2*op
+        // This is incorrect if x1 == x2
+        uni_vfmadd231ps(x1, x2, op, x2);
+    }
+
+    void uni_vfmadd231ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op, const Xbyak::Xmm &buf) {
         if (is_valid_isa(avx2))
-            vfmadd231ps(x1, x2, op);
-        else {
-            // Note: x2 gets overriden by x2*op
-            // This is incorrect if x1 == x2
-            assert(x1.getIdx() != x2.getIdx());
-            vmulps(x2, x2, op);
-            vaddps(x1, x1, x2);
+            vfmadd231ss(x1, x2, op);
+        else if (is_valid_isa(avx)) {
+            assert(buf.getIdx() != x1.getIdx());
+            vmulss(buf, x2, op);
+            vaddss(x1, x1, buf);
+        } else {
+            assert(buf.getIdx() != x1.getIdx());
+            if (x2.getIdx() != buf.getIdx()) movss(buf, x2);
+            mulss(buf, op);
+            addss(x1, buf);
         }
     }
     void uni_vfmadd231ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        // Note: x2 gets overriden by x2*op
+        // Note: SSE, AVX: x2 gets overridden by x2*op
         // This is incorrect if x1 == x2
+        uni_vfmadd231ss(x1, x2, op, x2);
+    }
+
+    void uni_vfmadd231ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, const Xbyak::Ymm &buf) {
         if (is_valid_isa(avx2))
-            vfmadd231ss(x1, x2, op);
-        else if (is_valid_isa(avx)) {
-            vmulss(x2, x2, op);
-            vaddss(x1, x1, x2);
-        } else {
-            assert(x1.getIdx() != x2.getIdx());
-            mulss(x2, op);
-            addss(x1, x2);
+            vfmadd231ss(Xbyak::Xmm(x1.getIdx()), Xbyak::Xmm(x2.getIdx()), op);
+        else {
+            assert(buf.getIdx() != x1.getIdx());
+            vmulss(buf, x2, op);
+            vaddss(x1, x1, buf);
         }
     }
     void uni_vfmadd231ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (is_valid_isa(avx2))
-            vfmadd231ss(Xbyak::Xmm(x1.getIdx()), Xbyak::Xmm(x2.getIdx()), op);
-        else {
-            // Note: x2 gets overriden by x2*op
-            // This is incorrect if x1 == x2
-            assert(x1.getIdx() != x2.getIdx());
-            vmulss(x2, x2, op);
-            vaddss(x1, x1, x2);
-        }
+        // Note: SSE, AVX: x2 gets overridden by x2*op
+        // This is incorrect if x1 == x2
+        uni_vfmadd231ss(x1, x2, op, x2);
     }
 
     void uni_vfnmadd231ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        // Note: x2 gets overriden by x2*op
-        // This is incorrect if x1 == x2
+            const Xbyak::Operand &op, const Xbyak::Xmm &buf) {
         if (is_valid_isa(avx2))
             vfnmadd231ps(x1, x2, op);
         else if (is_valid_isa(avx)) {
-            assert(x1.getIdx() != x2.getIdx());
-            vmulps(x2, x2, op);
-            vsubps(x1, x1, x2);
+            assert(buf.getIdx() != x1.getIdx());
+            vmulps(buf, x2, op);
+            vsubps(x1, x1, buf);
         } else {
-            assert(x1.getIdx() != x2.getIdx());
-            mulps(x2, op);
-            subps(x1, x2);
+            assert(buf.getIdx() != x1.getIdx());
+            if (x2.getIdx() != buf.getIdx()) movups(buf, x2);
+            mulps(buf, op);
+            subps(x1, buf);
         }
+    }
+    void uni_vfnmadd231ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x2 gets overridden by x2*op
+        // This is incorrect if x1 == x2
+        uni_vfnmadd231ps(x1, x2, op, x2);
     }
 
     void uni_vfnmadd231ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op) {
+            const Xbyak::Operand &op, const Xbyak::Ymm &buf) {
         if (is_valid_isa(avx2))
             vfnmadd231ps(x1, x2, op);
         else {
-            // Note: x2 gets overriden by x2*op
-            // This is incorrect if x1 == x2
-            assert(x1.getIdx() != x2.getIdx());
-            vmulps(x2, x2, op);
-            vsubps(x1, x1, x2);
+            assert(buf.getIdx() != x1.getIdx());
+            vmulps(buf, x2, op);
+            vsubps(x1, x1, buf);
         }
+    }
+    void uni_vfnmadd231ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x2 gets overridden by x2*op
+        // This is incorrect if x1 == x2
+        uni_vfnmadd231ps(x1, x2, op, x2);
     }
 
     void uni_vfnmadd231ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        // Note: x2 gets overriden by x2*op
-        // This is incorrect if x1 == x2
+            const Xbyak::Operand &op, const Xbyak::Xmm &buf) {
         if (is_valid_isa(avx2))
             vfnmadd231ss(x1, x2, op);
         else if (is_valid_isa(avx)) {
-            assert(x1.getIdx() != x2.getIdx());
-            vmulss(x2, x2, op);
-            vsubss(x1, x1, x2);
+            assert(buf.getIdx() != x1.getIdx());
+            vmulss(buf, x2, op);
+            vsubss(x1, x1, buf);
         } else {
-            assert(x1.getIdx() != x2.getIdx());
-            mulss(x2, op);
-            subss(x1, x2);
+            assert(buf.getIdx() != x1.getIdx());
+            if (x2.getIdx() != buf.getIdx()) movss(buf, x2);
+            mulss(buf, op);
+            subss(x1, buf);
         }
+    }
+    void uni_vfnmadd231ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x2 gets overridden by x2*op
+        // This is incorrect if x1 == x2
+        uni_vfnmadd231ss(x1, x2, op, x2);
     }
 
     void uni_vfnmadd231ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op) {
+            const Xbyak::Operand &op, const Xbyak::Ymm &buf) {
         if (is_valid_isa(avx2))
             vfnmadd231ss(x1, x2, op);
         else {
-            // Note: x2 gets overriden by x2*op
-            // This is incorrect if x1 == x2
-            assert(x1.getIdx() != x2.getIdx());
-            vmulss(x2, x2, op);
-            vsubss(x1, x1, x2);
+            assert(buf.getIdx() != x1.getIdx());
+            vmulss(buf, x2, op);
+            vsubss(x1, x1, buf);
         }
+    }
+    void uni_vfnmadd231ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x2 gets overridden by x2*op
+        // This is incorrect if x1 == x2
+        uni_vfnmadd231ss(x1, x2, op, x2);
     }
 
     void uni_vfmsub213ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        // Note: x1 gets overriden by x1*x2
-        // This is incorrect if x1 == op
+            const Xbyak::Operand &op, const Xbyak::Xmm &buf) {
         if (is_valid_isa(avx2))
             vfmsub213ps(x1, x2, op);
         else if (is_valid_isa(avx)) {
-            assert(!x1.isEqualIfNotInherited(op));
-            vmulps(x1, x1, x2);
-            vsubps(x1, x1, op);
+            assert(!buf.isEqualIfNotInherited(op));
+            vmulps(buf, x1, x2);
+            vsubps(x1, buf, op);
         } else {
-            assert(!x1.isEqualIfNotInherited(op));
-            mulps(x1, x2);
-            subps(x1, op);
+            assert(!buf.isEqualIfNotInherited(op));
+            if (buf.getIdx() != x1.getIdx()) movups(buf, x1);
+            mulps(buf, x2);
+            subps(buf, op);
+            if (buf.getIdx() != x1.getIdx()) movups(x1, buf);
+        }
+    }
+    void uni_vfmsub213ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: SSE, AVX: x1 gets overridden by x1*x2
+        // This is incorrect if x1 == op
+        uni_vfmsub213ps(x1, x2, op, x1);
+    }
+
+    void uni_vfmsub213ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, const Xbyak::Ymm &buf) {
+        if (is_valid_isa(avx2))
+            vfmsub213ps(x1, x2, op);
+        else {
+            assert(!buf.isEqualIfNotInherited(op));
+            vmulps(buf, x1, x2);
+            vsubps(x1, buf, op);
         }
     }
     void uni_vfmsub213ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (is_valid_isa(avx2))
-            vfmsub213ps(x1, x2, op);
-        else {
-            // Note: x1 gets overriden by x1*x2
-            // This is incorrect if x1 == op
-            assert(!x1.isEqualIfNotInherited(op));
-            vmulps(x1, x1, x2);
-            vsubps(x1, x1, op);
-        }
+        // Note: SSE, AVX: x1 gets overridden by x1*x2
+        // This is incorrect if x1 == op
+        uni_vfmsub213ps(x1, x2, op, x1);
     }
 
     void uni_vsqrtps(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
