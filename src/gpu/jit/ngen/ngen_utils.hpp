@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,6 +118,27 @@ template <typename T> static inline constexpr14 int log2(T x)
 template <typename T> static inline constexpr T alignup_pow2(T x, int align)
 {
     return (x + align - 1) & -align;
+}
+
+template <typename Container>
+static inline void copy_into(std::vector<uint8_t> &dst, size_t dst_offset,
+                             const Container &src, size_t src_offset,
+                             size_t bytes)
+{
+    if (src_offset >= src.size()) return;
+    if (dst_offset >= dst.size()) return;
+
+    bytes = std::min({bytes, src.size() - src_offset, dst.size() - dst_offset});
+
+    for (size_t i = 0; i < bytes; i++)
+        dst[i + dst_offset] = src[i + src_offset];
+}
+
+template <typename Container>
+static inline void copy_into(std::vector<uint8_t> &dst, size_t dst_offset,
+                             const Container &src)
+{
+    copy_into(dst, dst_offset, src, 0, src.size());
 }
 
 } /* namespace utils */

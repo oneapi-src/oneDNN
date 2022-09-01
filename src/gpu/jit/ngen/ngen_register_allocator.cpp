@@ -344,7 +344,7 @@ GRF RegisterAllocator::try_alloc(Bundle bundle)
 Subregister RegisterAllocator::try_alloc_sub(DataType type, Bundle bundle)
 {
     int dwords = getDwords(type);
-    int r_alloc, o_alloc;
+    int r_alloc = 0, o_alloc = 0;
 
     auto find_alloc_sub = [&,bundle,dwords](bool search_full_grf) -> bool {
         static const uint16_t alloc_patterns[4] = {0b1111111111111111, 0b0101010101010101, 0, 0b0001000100010001};

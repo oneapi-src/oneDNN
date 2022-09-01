@@ -218,6 +218,7 @@ enum class HW {
 enum {
     SteppingPVCXTA0 = 3,
     SteppingPVCXTB0 = 5,
+    SteppingPVCXTB4 = 7,
 };
 
 // Data types. Bits[0:4] are the ID, bits[5:7] hold log2(width in bytes).
@@ -952,7 +953,8 @@ public:
     AccumulatorRegister &operator=(const Invalid &i) { this->invalidate(); return *this; }
 
     static constexpr14 int count(HW hw, DataType dt = DataType::invalid) {
-        if (hw == HW::Gen9 && dt == DataType::df) return 0;
+        if (hw == HW::Gen9  && dt == DataType::df) return 0;
+        if (hw == HW::XeHPG && dt == DataType::df) return 0;
         if (hw >= HW::XeHP) return 4;
         return 2;
     }

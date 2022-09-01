@@ -119,6 +119,7 @@ struct DependencyRegion {
 
     bool empty() const {
         if (unspecified) return false;
+        if (size == 0) return true;
         for (auto m : masks)
             if (m != 0)
                 return false;
@@ -251,16 +252,21 @@ struct SyncInsertion {
 struct BasicBlock;
 
 struct BasicBlock {
-    uint32_t id;                                    // index
-    int32_t label;                                  // multipurpose flag for use in algorithms
-    uint32_t istart, iend;                          // instruction range: [istart, iend)
-    uint32_t wrdeps;                                // # of wrdep pseudo-instructions in this BB
-    std::array<uint32_t, NPipes> lengths;           // # of instructions in each pipe in this BB
-    std::vector<BasicBlock *> pred, succ;           // list of predecessor/successor BBs
-    DependencyTable<false> producers;               // table of dependencies produced and consumed by this BB.
-    DependencyTable<true> consumers;                //   production table re-used for live incoming dependencies.
-    DependencyTable<false> incoming;                // table of dependencies produced by prior BBs (temporary).
-    std::vector<SyncInsertion> syncs;               // list of sync instructions to generate.
+    uint32_t id;                                            // index
+    int32_t label;                                          // multipurpose flag for use in algorithms
+    uint32_t istart, iend;                                  // instruction range: [istart, iend)
+    uint32_t wrdeps;                                        // # of wrdep pseudo-instructions in this BB
+    std::array<uint32_t, NPipes> lengths;                   // # of instructions in each pipe in this BB
+    std::vector<BasicBlock *> pred, succ;                   // list of predecessor/successor BBs
+    DependencyTable<false> producers;                       // table of dependencies produced and consumed by this BB.
+    DependencyTable<true> consumers;                        //   production table re-used for live incoming dependencies.
+    DependencyTable<false> incoming;                        // table of dependencies produced by prior BBs (temporary).
+    std::vector<SyncInsertion> syncs;                       // list of sync instructions to generate.
+    std::vector<std::array<DependencyRegion, 4>> opRegions; // cache of instruction operand regions.
+
+    const DependencyRegion &getOperandRegion(int inum, int opNum) const {
+        return opRegions[inum - istart][opNum + 1];
+    }
 };
 
 using BasicBlockList = std::vector<BasicBlock>;
@@ -586,7 +592,7 @@ inline bool intersects(const Dependency<false> &dep1, const Dependency<true> &de
         return intersects(dep1.region, dep2.region);
     } else {
         // SWSB dependency.
-        if (dep1.hasToken() && dep2.hasToken() && (dep1.token == dep2.token) && (dep1.tokenSrc || dep2.tokenDst) && (dep1.token != dep1.tokenTBD))
+        if (dep1.hasToken() && dep2.hasToken() && (dep1.token == dep2.token) && (dep1.tokenSrc || dep2.tokenDst))
             return true;
         if (dep1.pipe.inOrder()) {
             auto commonPipe = (dep1.pipe.inOrderPipe() | PipeMaskA) & dep2.depPipe;
@@ -637,9 +643,8 @@ inline bool impliesWithoutRegion(const Dependency<false> &dep1, const Dependency
 // Check whether one consumer dependency implies another, without checking regions.
 inline bool impliesWithoutRegion(const Dependency<true> &dep1, const Dependency<true> &dep2)
 {
-    // Writes never imply reads. However, if a read is inserted overlapping a prior
-    //   write, we may assume the dependency was handled in a prior instruction.
-    /* if (dep2.read() && dep1.write()) return false; */
+    // Writes never imply reads.
+    if (dep2.read() && dep1.write()) return false;
 
     // Check pipes.
     if (dep2.pipe != dep1.pipe)
@@ -685,8 +690,7 @@ void DependencyTable<consumer>::clear()
 template <bool consumer>
 void DependencyTable<consumer>::reserve(int icount)
 {
-    if (consumer)
-        icount *= 4;
+    icount *= 4;
     deps.reserve(icount);
     frags.reserve(icount * 4);
 }
@@ -757,7 +761,10 @@ bool DependencyTable<consumer>::insert(Dependency<consumer> &dep, bool checkWeak
     bool toAdd = true;
     int pidx = getPipeIndex(dep);
 
-    if (dep.hasToken())
+    bool checkToken = dep.hasToken()
+        && !(!consumer && dep.token == Dependency<consumer>::tokenTBD && !dep.region.unspecified);
+
+    if (checkToken)
         toAdd = toAdd && insertPrepare(ListTypeToken, dep.token, dep, checkWeaker, checkStronger);
     else if (!dep.region.unspecified) {
         for (int r = dep.region.base; r < dep.region.base + dep.region.size; r++)
@@ -1221,6 +1228,19 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
         // Preallocate dependency memory.
         bb.producers.reserve(bb.iend - bb.istart);
         bb.consumers.reserve(bb.iend - bb.istart);
+
+        // Decode and cache operand regions.
+        bb.opRegions.resize(bb.iend - bb.istart);
+        for (uint32_t n = bb.istart; n < bb.iend; n++) {
+            auto &regions = bb.opRegions[n - bb.istart];
+            const auto &insn = program[n];
+
+            for (int srcN = -1; srcN < 3; srcN++) {
+                regions[srcN + 1].hw = hw;
+                if (!insn.getOperandRegion(regions[srcN + 1], srcN))
+                    regions[srcN + 1].clear();
+            }
+        }
     }
 
     return list;
@@ -1330,7 +1350,7 @@ inline uint8_t preferredSBID(HW hw, uint8_t base)
 
 // Choose SBID for an OOO instruction, based on preceding OOO instructions.
 template <typename Program>
-inline uint8_t chooseSBID(HW hw, Program &program, int32_t inum, int32_t counterA, const DependencyTable<false> &incoming, const DependencyTable<false> &producers, uint32_t maskDst)
+inline uint8_t chooseSBID(HW hw, Program &program, const BasicBlock &bb, int32_t inum, int32_t counterA, const DependencyTable<false> &incoming, const DependencyTable<false> &producers, uint32_t maskDst)
 {
     uint32_t unclaimed = (uint64_t(1) << tokenCount(hw)) - 1;
     std::array<int32_t, 32> pastExpiration;
@@ -1371,9 +1391,8 @@ inline uint8_t chooseSBID(HW hw, Program &program, int32_t inum, int32_t counter
     // Priority 2: assign SBID based on base register of dst, src1, src0 (in that order),
     //  if it's unclaimed or expired.
     for (int opNum : {-1, 1, 0}) {
-        DependencyRegion region;
-        region.hw = hw;
-        if (program[inum].getOperandRegion(region, opNum) && (region.size > 0)) {
+        auto &region = bb.getOperandRegion(inum, opNum);
+        if (region.size > 0) {
             auto sbid = preferredSBID(hw, region.base);
             if (pastExpiration[sbid] >= 0)
                 return sbid;
@@ -1412,10 +1431,11 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
     const bool computeSWSB = (phase > 0);
     bool forceA1 = false;
     int inumChain = -1;
-    uint32_t chainTokenMaskSrc = 0, chainTokenMaskDst = 0, wrdepTokenMaskDst = 0;
+    uint32_t chainTokenMaskSrc = 0, chainTokenMaskDst = 0, chainTokenMaskDstX = 0;
+    uint32_t wrdepTokenMaskDst = 0;
     Dependency<true> chainGenerated;
     std::array<int32_t, NPipes> counters;
-    std::vector<Dependency<false>> depList, chainProducers;
+    std::vector<Dependency<false>> depList, depListIncoming, chainProducers;
 
     // Initialize "preconsumes." These are region-less consumes arising from SWSB.
     int noPreconsume = std::numeric_limits<int>::min();
@@ -1454,8 +1474,8 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
 
         // Process wrdep pseudo-instructions, which add OOO write dependencies on the next real instruction.
         if (insn.opcode() == Opcode::wrdep) {
-            DependencyRegion region;
-            if (insn.getOperandRegion(region, 0))
+            auto &region = bb.getOperandRegion(inum, 0);
+            if (!region.empty())
                 wrdepTokenMaskDst |= bb.producers.removeOOOWritesByRegion(region);
             continue;
         }
@@ -1504,13 +1524,8 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             }
         }
 
-        // Decode all regions.
-        DependencyRegion regions[4];
-        for (int srcN = -1; srcN < 3; srcN++) {
-            regions[srcN + 1].hw = hw;
-            if (!insn.getOperandRegion(regions[srcN + 1], srcN))
-                regions[srcN + 1].clear();
-        }
+        // Grab pre-decoded operand regions for this instruction.
+        auto &regions = bb.opRegions[inum - bb.istart];
 
         // Check for cr/ce/sr destination operand, and force A@1 on the next instruction.
         ARFType dstARFType;
@@ -1520,13 +1535,15 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             // If auto-SWSB has been requested for this instruction, analyze its source operands.
             // Start a list of dependencies for this instruction.
             depList.clear();
+            depListIncoming.clear();
             bool foundAllDeps = true;
-            uint32_t tokenMaskSrc = 0, tokenMaskDst = 0;
+            uint32_t tokenMaskSrc = 0, tokenMaskDst = 0, tokenMaskDstX = 0;
             SWSBInfo syncSWSB;
 
             if (!atChainStart && (inumChain >= 0)) {
                 tokenMaskSrc = chainTokenMaskSrc;
                 tokenMaskDst = chainTokenMaskDst;
+                tokenMaskDstX = chainTokenMaskDstX;
                 generated = chainGenerated;
             }
 
@@ -1547,8 +1564,11 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 }
             }
 
+            // Check if we need to assign an SBID to this instruction.
+            bool assignSBID = (phase == 1) && isVariableLatency(hw, insn.opcode()) && (tokenInfo.token == tokenInfo.tokenTBD) && !insn.atomic();
+
             // Analyze operands.
-            for (int srcN = -1; srcN < 3; srcN++) {
+            for (int srcN = 2; srcN >= -1; srcN--) {
                 // Skip non-GRF operands.
                 // Special case: check for cr/sr/ce source operands and force A@1 if any.
                 if (regions[srcN + 1].empty()) {
@@ -1568,6 +1588,14 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 auto dStart = depList.size();
                 bb.producers.findAndRemoveIntersections(consumeOp, &depList);
                 auto dEnd = depList.size();
+
+                // Do the same for the incoming producers table if we need to assign an SBID.
+                size_t dStartIncoming = 0, dEndIncoming = 0;
+                if (assignSBID) {
+                    dStartIncoming = depListIncoming.size();
+                    bb.incoming.findAndRemoveIntersections(consumeOp, &depListIncoming);
+                    dEndIncoming = depListIncoming.size();
+                }
 
                 // If not final, subtract each of them from original dependency region.
                 // If anything remains, add to consumer table. If it is not implied
@@ -1602,12 +1630,28 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                         if (dep.tokenDst) tokenMaskDst |= (1 << dep.token);
                     }
                 }
+
+                // Also collect incoming SBIDs if choosing an SBID.
+                tokenMaskDstX = tokenMaskDst;
+                if (assignSBID) for (auto d = dStartIncoming; d < dEndIncoming; d++) {
+                    auto &dep = depListIncoming[d];
+                    if (!dep.tokenDst) continue;
+                    if (dep.token != dep.tokenTBD)
+                        tokenMaskDstX |= (1 << dep.token);
+                    else {
+                        // Check SWSB again in case it was recently assigned.
+                        auto curSWSB = program[dep.inum()].swsb();
+                        if (curSWSB.hasTokenSet())
+                            tokenMaskDstX |= (1 << curSWSB.parts.token);
+                    }
+                }
             }
 
             // Transfer dependencies down the {Atomic} chain (will be put later on first instruction).
             if (insn.atomic()) {
                 chainTokenMaskSrc = tokenMaskSrc;
                 chainTokenMaskDst = tokenMaskDst;
+                chainTokenMaskDstX = tokenMaskDstX;
                 chainGenerated = generated;
                 tokenMaskSrc = tokenMaskDst = 0;
                 generated = consumeOp;
@@ -1619,8 +1663,8 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 foundAllDeps = false;
 
             // If token missing on OOO instruction, assign one during phase 1.
-            if ((phase == 1) && isVariableLatency(hw, insn.opcode()) && (tokenInfo.token == tokenInfo.tokenTBD) && !insn.atomic()) {
-                auto newToken = chooseSBID(hw, program, inum, counters[PipeBitA], bb.incoming, bb.producers, tokenMaskDst);
+            if (assignSBID) {
+                auto newToken = chooseSBID(hw, program, bb, inum, counters[PipeBitA], bb.incoming, bb.producers, tokenMaskDstX);
                 generated.token = tokenInfo.token = newToken;
                 generated.tokenSrc = generated.tokenDst = true;
                 insn.setSWSB(SBID(generated.token).set);
@@ -1754,8 +1798,8 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             }
 
             // Consume destination dependencies too.
-            consumeOp.region.hw = hw;
-            if (insn.getOperandRegion(consumeOp.region, -1)) {
+            if (!regions[0].empty()) {
+                consumeOp.region = regions[0];
                 consumeOp.rw = true;
                 bb.producers.removeIntersections(consumeOp);
             }
@@ -1880,6 +1924,14 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 preconsume.tokenDst = (preconsumeTokenDst & (1 << token)) != 0;
                 bb.consumers.insertStrong(preconsume);
             }
+        }
+        if (~preconsumeTokenSrc == 0 || ~preconsumeTokenDst == 0) {
+            Dependency<true> preconsume;
+            preconsume.swsb = true;
+            preconsume.token = preconsume.tokenTBD;
+            preconsume.tokenSrc = (~preconsumeTokenSrc == 0);
+            preconsume.tokenDst = (~preconsumeTokenDst == 0);
+            bb.consumers.insertStrong(preconsume);
         }
     }
 }

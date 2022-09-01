@@ -23,6 +23,7 @@
 #include "elf_structs.hpp"
 #include "neo_structs.hpp"
 #include "hash.hpp"
+#include "../ngen_utils.hpp"
 
 namespace ngen {
 namespace npack {
@@ -85,8 +86,6 @@ inline void findDeviceBinary(const std::vector<uint8_t> &binary, const SElf64Sec
 
 inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_t> &kernel, const std::vector<uint8_t> &patches = std::vector<uint8_t>())
 {
-    using std::memmove;
-
     auto elf_binary = binary.data();
     auto elf_size = binary.size();
     auto kernel_size = kernel.size();
@@ -126,18 +125,18 @@ inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_
     // Copy ELF up to kernel heap to new ELF.
     size_t before_kernel = start_xsum + kheader->KernelNameSize;
     size_t after_kernel = before_kernel + kheader->KernelHeapSize;
-    memmove(new_elf, elf_binary, before_kernel);
+    utils::copy_into(new_binary, 0, binary, 0, before_kernel);
 
     // Copy kernel heap and pad with zeros.
-    memmove(new_elf + before_kernel, kernel.data(), kernel_size);
+    utils::copy_into(new_binary, before_kernel, kernel, 0, kernel_size);
     memset(new_elf + before_kernel + kernel_size, 0, kernel_padded_size - kernel_size);
 
     // Copy other heaps and patch list.
     size_t after_patches = after_kernel + heap_plus_patches;
-    memmove(new_elf + before_kernel + kernel_padded_size, elf_binary + after_kernel, after_patches - after_kernel);
+    utils::copy_into(new_binary, before_kernel + kernel_padded_size, binary, after_kernel, after_patches - after_kernel);
 
     // Copy extra patches.
-    memmove(new_elf + before_kernel + kernel_padded_size + heap_plus_patches, patches.data(), patches_size);
+    utils::copy_into(new_binary, before_kernel + kernel_padded_size + heap_plus_patches, patches, 0, patches_size);
 
     // Update kernel header.
     auto new_kheader = (SKernelBinaryHeader *)(((const unsigned char *)kheader - elf_binary) + new_elf);
@@ -149,7 +148,7 @@ inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_
     new_kheader->PatchListSize += uint32_t(patches_size);
 
     // Copy remainder of ELF.
-    memmove(new_elf + new_end_xsum, elf_binary + end_xsum, elf_size - end_xsum);
+    utils::copy_into(new_binary, new_end_xsum, binary, end_xsum, elf_size - end_xsum);
 
     // Update ELF section header, and all following headers.
     auto new_sheader = (SElf64SectionHeader *)(((const unsigned char *)sheader - elf_binary) + new_elf);

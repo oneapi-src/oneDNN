@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -452,7 +452,7 @@ void slmfence(const InstructionModifier &mod, const RegData &dst, const RegData 
 void slmfence(const RegData &dst, const RegData &header = GRF(0)) { slmfence(InstructionModifier(), dst, header); }
 
 // XeHP+ prologues.
-void loadlid(int argGRFs, int dims = 3, int simd = 8, const GRF &temp = GRF(127), int paddedSize = 0)
+void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127), int paddedSize = 0)
 {
     if (hardware >= HW::XeHP) {
         const int grfSize = GRF::bytes(hardware);
@@ -467,14 +467,19 @@ void loadlid(int argGRFs, int dims = 3, int simd = 8, const GRF &temp = GRF(127)
             mov<uint32_t>(8, temp, uint16_t(0));
             and_<uint32_t>(1, temp[2], r0[0], uint32_t(~0x1F));
             and_<uint16_t>(1, temp[0], r0[4], uint16_t(0xFF));
-            add<uint32_t>(1, temp[2], temp[2], uint16_t(argGRFs * grfSize));
-            mad<uint32_t>(1, temp[2], temp[2], temp.uw(0), uint16_t(3 * simdGRFs * grfSize));
-            load(8, r1, aligned_block_oword(simdGRFs * ((dims == 1) ? 1 : 2) * grfOW), A32NC, temp);
-            insns += 6;
-            if (dims == 3) {
-                add<uint32_t>(1, temp[2], temp[2], uint16_t(2 * simdGRFs * grfSize));
-                load(8, GRF(1 + 2 * simdGRFs), aligned_block_oword(grfOW * simdGRFs), A32NC, temp);
-                insns += 2;
+            add<uint32_t>(1, temp[2], temp[2], uint16_t(argBytes));
+            if (simd == 1) {
+                mad<uint32_t>(1, temp[2], temp[2], temp.uw(0), uint16_t(grfSize));
+                load(8, r1, aligned_block_oword(1), A32NC, temp);
+            } else {
+                mad<uint32_t>(1, temp[2], temp[2], temp.uw(0), uint16_t(3 * simdGRFs * grfSize));
+                load(8, r1, aligned_block_oword(simdGRFs * ((dims == 1) ? 1 : 2) * grfOW), A32NC, temp);
+                insns += 6;
+                if (dims == 3) {
+                    add<uint32_t>(1, temp[2], temp[2], uint16_t(2 * simdGRFs * grfSize));
+                    load(8, GRF(1 + 2 * simdGRFs), aligned_block_oword(grfOW * simdGRFs), A32NC, temp);
+                    insns += 2;
+                }
             }
 
             defaultModifier = dmSave;

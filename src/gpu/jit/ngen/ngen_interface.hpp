@@ -169,9 +169,11 @@ protected:
     int walkOrder[3] = {-1, -1, -1};
     size_t wg[3] = {0, 0, 0};
 
+    int crossthreadBytes = 0;
     int crossthreadGRFs = 0;
     int inlineGRFs = 0;
     inline int getCrossthreadGRFs() const;
+    inline int getCrossthreadBytes() const;
     inline GRF getCrossthreadBase(bool effective = true) const;
     int grfsPerLID() const { return (simd > 16 && GRF::bytes(hw) < 64) ? 2 : 1; }
 
@@ -327,7 +329,7 @@ void InterfaceHandler::generateDummyCL(std::ostream &stream) const
 
     if (needLocalID)        stream << "    (void) ____[get_local_id(0)];\n";
     if (needLocalSize)      stream << "    (void) ____[get_enqueued_local_size(0)];\n";
-    if (barrierCount > 0)   stream << "    barrier(CLK_GLOBAL_MEM_FENCE);\n";
+    if (barrierCount > 0)   stream << "    __asm__ volatile(\"barrier\");\n";
     for (int i = 1; i < barrierCount; i++) {
         stream << "    local NamedBarrier_t *bar" << i << ";\n"
                   "    bar" << i << " = named_barrier_init(1);\n"
@@ -434,7 +436,9 @@ void InterfaceHandler::finalize()
 
     assignArgsOfType(ExternalArgumentType::Hidden);
 
-    crossthreadGRFs = base.getBase() - getCrossthreadBase().getBase() + 1;
+    crossthreadBytes = (base.getBase() - getCrossthreadBase().getBase()) * GRF::bytes(hw)
+                     + ((offset + 31) & -32);
+    crossthreadGRFs = GRF::bytesToGRFs(hw, crossthreadBytes);
 
     // Manually add regular local size arguments.
     if (needLocalSize && !needNonuniformWGs)
@@ -453,6 +457,14 @@ GRF InterfaceHandler::getCrossthreadBase(bool effective) const
         return GRF(2);
     else
         return GRF(1 + 3 * grfsPerLID());
+}
+
+int InterfaceHandler::getCrossthreadBytes() const
+{
+#ifdef NGEN_SAFE
+    if (!finalized) throw interface_not_finalized();
+#endif
+    return crossthreadBytes;
 }
 
 int InterfaceHandler::getCrossthreadGRFs() const
@@ -475,12 +487,12 @@ void InterfaceHandler::generatePrologue(CodeGenerator &generator, const GRF &tem
 {
 #ifdef NGEN_INTERFACE_OLD_PROLOGUE
     if (needLocalID)
-        generator.loadlid(getCrossthreadGRFs(), needLocalID, simd, temp, 8*16);
+        generator.loadlid(getCrossthreadBytes(), needLocalID, simd, temp, 8*16);
     if (getCrossthreadGRFs() > 1)
         generator.loadargs(getCrossthreadBase(), getCrossthreadGRFs(), temp);
 #else
     if (needLocalID)
-        generator.loadlid(getCrossthreadGRFs(), needLocalID, simd, temp, 12*16);
+        generator.loadlid(getCrossthreadBytes(), needLocalID, simd, temp, 12*16);
     if (getCrossthreadGRFs() > inlineGRFs)
         generator.loadargs(getCrossthreadBase().advance(inlineGRFs), getCrossthreadGRFs() - inlineGRFs, temp);
 #endif
