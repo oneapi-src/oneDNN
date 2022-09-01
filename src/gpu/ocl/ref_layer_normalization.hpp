@@ -67,6 +67,8 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
+        if (pd()->has_zero_dim_memory()) return status::success;
+
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -128,6 +130,8 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
+        if (pd()->has_zero_dim_memory()) return status::success;
+
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
