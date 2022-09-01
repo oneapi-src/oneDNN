@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
@@ -124,28 +125,6 @@ private:
 
 #define BACKEND_DNNL_ADD_PASS(pipeline, pass) pipeline.add_pass(pass, #pass)
 
-void insert_op_before(std::shared_ptr<impl::op_t> &inserted_op,
-        std::shared_ptr<impl::op_t> &base_op, size_t offset);
-
-void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset);
-
-void insert_op_before(op_t *inserted_op, op_t *base_op, size_t base_offset,
-        size_t inserted_offset);
-
-void insert_op_after(std::shared_ptr<impl::op_t> &inserted_op,
-        std::shared_ptr<impl::op_t> &base_op, size_t offset);
-
-void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset);
-
-void insert_op_after(op_t *inserted_op, op_t *base_op, size_t output_offset,
-        size_t input_offset);
-
-void fuse_op_to_successor(
-        op_t *op, std::vector<std::shared_ptr<op_t>> &subgraph);
-
-void fuse_op_to_predecessor(op_t *op,
-        std::vector<std::shared_ptr<op_t>> &subgraph, size_t in_offset = 0);
-
 status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs);
@@ -154,7 +133,7 @@ status_t set_given_inputs_outputs(std::vector<std::shared_ptr<op_t>> &subgraph,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs);
 
-void set_weight_bias_constant(std::vector<std::shared_ptr<op_t>> &subgraph);
+void set_weight_bias_constant(std::shared_ptr<subgraph_t> &sg);
 
 inline bool is_preprocess_op(impl::op_t &op) {
     static const std::set<impl::op_kind_t> preprocess_ops
@@ -165,10 +144,8 @@ inline bool is_preprocess_op(impl::op_t &op) {
     return preprocess_ops.count(op.get_kind()) != 0;
 }
 
-void replace_op(std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
-
 void merge_common_eltwise_attrs(
-        std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
+        const std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
 
 inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
     static const std::map<op_kind_t, dnnl::algorithm> &eltwise_alg_map = {
@@ -272,7 +249,7 @@ inline bool is_reduction_kind(op_kind_t kind) {
 }
 
 std::vector<value_t *> get_constant_block_output_values(
-        const std::vector<std::shared_ptr<op_t>> &subgraph);
+        const std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t infer_shape(std::shared_ptr<subgraph_t> &sg);
 

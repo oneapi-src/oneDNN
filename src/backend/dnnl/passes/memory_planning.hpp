@@ -389,20 +389,19 @@ private:
     }
 
     impl::status_t assign_external_inputs_buffer(
-            const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
+            std::shared_ptr<subgraph_t> &sg,
             const std::vector<impl::logical_tensor_t> &inputs);
 
     impl::status_t assign_external_outputs_buffer(
-            const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
+            std::shared_ptr<subgraph_t> &sg,
             const std::vector<impl::logical_tensor_t> &outputs,
             fusion_info_mgr_t &mgr);
 
     impl::status_t assign_internal_persistent_buffer(
-            const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
-            fusion_info_mgr_t &mgr);
+            std::shared_ptr<subgraph_t> &sg, fusion_info_mgr_t &mgr);
 
     impl::status_t assign_internal_temporary_buffer(
-            const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
+            std::shared_ptr<subgraph_t> &sg,
             const std::unordered_map<value_t *, size_t> &edge_ref_count,
             fusion_info_mgr_t &mgr, bool enable_standard_sharing);
 

@@ -56,6 +56,8 @@ public:
         val_ = lt;
     }
 
+    void set_ndims(int32_t ndims) { val_.ndims = ndims; }
+
     void set_dims(const std::vector<dim_t> &dims) {
         val_.ndims = static_cast<int>(dims.size());
         for (size_t d = 0; d < dims.size(); ++d) {

@@ -366,6 +366,154 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
     return ret;
 }
 
+void subgraph_rewriter_t::run() {
+    std::vector<op_ptr> &mutable_ops = subgraph_->get_mutable_ops();
+
+    // first remove and then insert to minimize the memory re-allocation
+    for (const auto &op : to_be_removed_ops_) {
+        auto pos = std::find_if(mutable_ops.begin(), mutable_ops.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != mutable_ops.end()) mutable_ops.erase(pos);
+    }
+
+    for (const auto &op : to_be_inserted_ops_) {
+        mutable_ops.emplace_back(op);
+    }
+
+    to_be_removed_ops_.clear();
+    to_be_inserted_ops_.clear();
+}
+
+subgraph_rewriter_t::~subgraph_rewriter_t() {
+    run();
+}
+
+void subgraph_rewriter_t::fuse_op_to_successor(const op_ptr &op) {
+    assertm(op->num_inputs() == 1, "this op should have only one input value.");
+    value_ptr in_val = op->get_input_value(0);
+    in_val->remove_consumer(*op, 0);
+
+    value_ptr out_val = op->get_output_value(0);
+    auto consumers = out_val->get_consumers();
+    assertm(!consumers.empty() && consumers.size() == 1,
+            "this op has zero consumer or more than one consumers.");
+
+    op_t &successor = consumers[0].get_op();
+    size_t offset = consumers[0].get_offset();
+    in_val->add_consumer(successor, offset);
+    successor.connect_input(offset, in_val);
+
+    to_remove(op);
+}
+
+void subgraph_rewriter_t::fuse_op_to_predecessor(const op_ptr &op, size_t i) {
+    value_ptr in_val = op->get_input_value(i);
+    value_ptr out_val = op->get_output_value(0);
+
+    op_t &predecessor = in_val->get_producer();
+    size_t offset = in_val->get_offset();
+    predecessor.connect_output(offset, out_val);
+
+    for (size_t iter = 0; iter < op->num_inputs(); iter++) {
+        value_ptr tmp = op->get_input_value(iter);
+        if (tmp == in_val) { continue; }
+
+        tmp->remove_consumer(*op, iter);
+        tmp->add_consumer(predecessor, predecessor.num_inputs());
+        predecessor.add_input(tmp);
+    }
+
+    to_remove(op);
+}
+
+void subgraph_rewriter_t::insert_op_before(const op_ptr &inserted_op,
+        const op_ptr &base_op, size_t i, size_t j, size_t k) {
+    // make sure the base_op is not to be removed
+    if (is_to_be_removed(base_op)) {
+        assertm(false, "the base op is to be removed");
+        return;
+    }
+
+    value_ptr in_val = base_op->get_input_value(i);
+    in_val->remove_consumer(*base_op, i);
+    if (j == std::numeric_limits<size_t>::max()) {
+        j = inserted_op->num_inputs();
+    }
+    inserted_op->connect_input(j, in_val);
+
+    impl::logical_tensor_t new_lt
+            = impl::empty_logical_tensor_with_default_id();
+    auto new_val = std::make_shared<value_t>(*inserted_op, 0, new_lt, true);
+    auto in_dtype = in_val->get_logical_tensor().data_type;
+    new_val->set_data_type(in_dtype);
+
+    if (k == std::numeric_limits<size_t>::max()) {
+        k = inserted_op->num_outputs();
+    }
+    inserted_op->connect_output(k, new_val);
+
+    new_val->add_consumer(*base_op, i);
+    base_op->connect_input(i, new_val);
+
+    to_insert(inserted_op);
+}
+
+void subgraph_rewriter_t::insert_op_after(const op_ptr &inserted_op,
+        const op_ptr &base_op, size_t i, size_t j, size_t k) {
+    // make sure the base_op is not to be removed
+    if (is_to_be_removed(base_op)) {
+        assertm(false, "the base op is to be removed");
+        return;
+    }
+
+    value_ptr out_val = base_op->get_output_value(i);
+    if (k == std::numeric_limits<size_t>::max()) {
+        k = inserted_op->num_outputs();
+    }
+    inserted_op->connect_output(k, out_val);
+
+    impl::logical_tensor_t new_lt
+            = impl::empty_logical_tensor_with_default_id();
+    auto new_val = std::make_shared<value_t>(*base_op, 0, new_lt, true);
+    auto out_type = out_val->get_logical_tensor().data_type;
+    new_val->set_data_type(out_type);
+
+    base_op->connect_output(i, new_val);
+
+    if (j == std::numeric_limits<size_t>::max()) {
+        j = inserted_op->num_inputs();
+    }
+    new_val->add_consumer(*inserted_op, j);
+    inserted_op->connect_input(j, new_val);
+
+    to_insert(inserted_op);
+}
+
+void subgraph_rewriter_t::replace_op(
+        const op_ptr &org_op, const op_ptr &new_op) {
+    for (size_t i = 0; i < org_op->num_inputs(); i++) {
+        auto in_val = org_op->get_input_value(i);
+        in_val->remove_consumer(*org_op, i);
+        in_val->add_consumer(*new_op, new_op->num_inputs());
+        new_op->add_input(in_val);
+    }
+    for (size_t i = 0; i < org_op->num_outputs(); i++) {
+        auto out_val = org_op->get_output_value(i);
+        new_op->add_output(out_val);
+    }
+
+    to_insert(new_op);
+    to_remove(org_op);
+}
+
+bool subgraph_rewriter_t::is_to_be_removed(
+        const std::shared_ptr<impl::op_t> &op) const {
+    auto pos
+            = std::find_if(to_be_removed_ops_.begin(), to_be_removed_ops_.end(),
+                    [&](const op_ptr &tmp) { return op.get() == tmp.get(); });
+    return pos != to_be_removed_ops_.end();
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

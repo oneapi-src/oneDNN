@@ -49,12 +49,11 @@ static bool need_insert_permute(op_kind_t kind) {
 }
 
 impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
     // insert permute for convolution/convtranspose op
-    auto insert_permute_for_conv_or_deconv = [&](op_ptr &conv_op) -> bool {
+    auto insert_permute_for_conv_or_deconv
+            = [&](const op_ptr &conv_op) -> bool {
         const bool need_permute_0 = conv_op->has_attr(op_attr::data_format)
                 ? (conv_op->get_attr<std::string>(op_attr::data_format)
                         == "NXC")
@@ -107,8 +106,7 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
                 perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
             }
 
-            insert_op_before(perm_op, conv_op, i);
-            to_be_inserted_ops.emplace_back(perm_op);
+            rewriter.insert_op_before(perm_op, conv_op, i);
         }
 
         // remove the attrs in cur_op to avoid re-permute
@@ -124,7 +122,7 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
     // insert permute for those ops only requiring data_format attribute
     // (e.g pool, batchnorm, interpolate)
     auto insert_permute_for_op_only_require_data_format
-            = [&](op_ptr &op) -> bool {
+            = [&](const op_ptr &op) -> bool {
         const bool need_permute_0 = op->has_attr(op_attr::data_format)
                 ? (op->get_attr<std::string>(op_attr::data_format) == "NXC")
                 : false;
@@ -160,15 +158,14 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
             perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
             perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            insert_op_before(perm_op, op, i);
-            to_be_inserted_ops.emplace_back(perm_op);
+            rewriter.insert_op_before(perm_op, op, i);
         }
         // remove the attrs in cur_op to avoid re-permute
         op->set_attr<std::string>(op_attr::data_format, "NCX");
         return true;
     };
 
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (!need_insert_permute(cur_op->get_kind())) continue;
 
         bool require_output_permute = false;
@@ -189,8 +186,7 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
             perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
             perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
-            insert_op_after(perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(perm_op);
+            rewriter.insert_op_after(perm_op, cur_op, 0);
 
             // Insert permute after prelu bprop second output
             if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
@@ -200,26 +196,20 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
                         op_attr::permute_kind, "permute");
                 perm_op_1->set_attr<std::string>(op_attr::from_format, "NCX");
                 perm_op_1->set_attr<std::string>(op_attr::to_format, "NXC");
-                insert_op_after(perm_op_1, cur_op, 1);
-                to_be_inserted_ops.emplace_back(perm_op_1);
+                rewriter.insert_op_after(perm_op_1, cur_op, 1);
             }
         }
     }
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
+
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
     // optimization for NXC case - it will help to hit an optimized kernel
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
+    subgraph_rewriter_t rewriter(sg);
+
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_shuffle) continue;
 
         impl::logical_tensor_t src_lt
@@ -239,8 +229,7 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         perm_src_op->set_attr<std::string>(op_attr::permute_kind, "permute");
         perm_src_op->set_attr<std::string>(op_attr::from_format, "NXC");
         perm_src_op->set_attr<std::string>(op_attr::to_format, "NCX");
-        insert_op_before(perm_src_op, cur_op, 0);
-        to_be_inserted_ops.emplace_back(perm_src_op);
+        rewriter.insert_op_before(perm_src_op, cur_op, 0);
 
         // permute output back to NXC
         op_ptr perm_dst_op
@@ -248,25 +237,19 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         perm_dst_op->set_attr<std::string>(op_attr::permute_kind, "permute");
         perm_dst_op->set_attr<std::string>(op_attr::from_format, "NCX");
         perm_dst_op->set_attr<std::string>(op_attr::to_format, "NXC");
-        insert_op_after(perm_dst_op, cur_op, 0);
-        to_be_inserted_ops.emplace_back(perm_dst_op);
+        rewriter.insert_op_after(perm_dst_op, cur_op, 0);
     }
 
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_to_group_for_conv_or_deconv(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    auto insert_to_group
-            = [&to_be_inserted_ops](op_ptr &op, op_attr_t attr_name,
-                      const size_t offset) -> bool {
+    auto insert_to_group = [&](const op_ptr &op, op_attr_t attr_name,
+                                   const size_t offset) -> bool {
         auto groups = op->get_attr<int64_t>(attr_name);
         if (groups <= 1) {
             op->set_attr<bool>(op_attr::canonicalized, true);
@@ -280,8 +263,7 @@ impl::status_t insert_to_group_for_conv_or_deconv(
         op->set_attr<bool>(op_attr::canonicalized, true);
         op->set_attr<int64_t>(op_attr::groups, 1);
 
-        insert_op_before(to_group_op, op, offset);
-        to_be_inserted_ops.emplace_back(to_group_op);
+        rewriter.insert_op_before(to_group_op, op, offset);
 
         if (op->get_kind() == op_kind::dnnl_convtranspose
                 || op->get_kind() == op_kind::dnnl_convtranspose_bwd_data)
@@ -290,7 +272,7 @@ impl::status_t insert_to_group_for_conv_or_deconv(
         return true;
     };
 
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_convolution
                 && cur_op->get_kind() != op_kind::dnnl_convtranspose
                 && cur_op->get_kind() != op_kind::dnnl_convtranspose_bwd_data
@@ -306,20 +288,15 @@ impl::status_t insert_to_group_for_conv_or_deconv(
         const auto inserted = insert_to_group(cur_op, op_attr::groups, 1);
         if (!inserted) continue;
     }
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
+
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
+    subgraph_rewriter_t rewriter(sg);
+
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_reorder) continue;
         auto in_md = make_dnnl_memory_desc(
                 cur_op->get_input_value(0)->get_logical_tensor());
@@ -346,23 +323,21 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
                     = std::make_shared<impl::op_t>(op_kind::dnnl_to_group);
             to_group_op->set_attr<int64_t>(op_attr::groups, group);
 
-            insert_op_before(to_group_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(to_group_op);
+            rewriter.insert_op_before(to_group_op, cur_op, 0);
         } else {
             // illegal shape
             return impl::status::invalid_shape;
         }
     }
 
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
+    subgraph_rewriter_t rewriter(sg);
+
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
 
         std::vector<bool> trans_flag(2);
@@ -382,25 +357,24 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
             op_ptr transpose_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             transpose_op->set_attr<std::string>(
                     op_attr::permute_kind, "transpose");
-            insert_op_before(transpose_op, cur_op, i);
-            to_be_inserted_ops.emplace_back(transpose_op);
+            rewriter.insert_op_before(transpose_op, cur_op, i);
         }
         // remove attr to avoid re-transpose during shape inference
         cur_op->set_attr<bool>(op_attr::transpose_a, false);
         cur_op->set_attr<bool>(op_attr::transpose_b, false);
     }
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
+
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_reshape_for_ndx2d_matmul(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     auto &mgr = sg->fusion_info_mgr_;
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
+    subgraph_rewriter_t rewriter(sg);
+
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
         // skip due to dnnl cannot reshape such kind of strided memory desc
         if (cur_op->get_input_value(0)->has_producer()
@@ -423,8 +397,8 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
         reshape_op->set_attr<bool>(op_attr::special_zero, false);
         reshape_op->set_attr<std::vector<int64_t>>(
                 op_attr::shape, expected_dims);
-        to_be_inserted_ops.emplace_back(reshape_op);
-        insert_op_before(reshape_op, cur_op, 0);
+
+        rewriter.insert_op_before(reshape_op, cur_op, 0);
 
         impl::dims expected_dims2(src_dims);
         expected_dims2[expected_dims2.size() - 1] = 0;
@@ -432,8 +406,8 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
         reshape_op2->set_attr<bool>(op_attr::special_zero, true);
         reshape_op2->set_attr<std::vector<int64_t>>(
                 op_attr::shape, expected_dims2);
-        to_be_inserted_ops.emplace_back(reshape_op2);
-        insert_op_after(reshape_op2, cur_op, 0);
+
+        rewriter.insert_op_after(reshape_op2, cur_op, 0);
 
         if (cur_op->has_attr(op_attr::fusion_info_key)
                 && cur_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
@@ -453,8 +427,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
                 reshape_op3->set_attr<bool>(op_attr::special_zero, false);
                 reshape_op3->set_attr<std::vector<int64_t>>(
                         op_attr::shape, expected_dims3);
-                to_be_inserted_ops.emplace_back(reshape_op3);
-                insert_op_before(reshape_op3, cur_op, offset);
+                rewriter.insert_op_before(reshape_op3, cur_op, offset);
             }
         }
 
@@ -471,16 +444,16 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
             }
         }
     }
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
+
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &op : subgraph) {
+    subgraph_rewriter_t rewriter(sg);
+
+    for (auto &op : sg->get_ops()) {
         if (op->get_kind() != op_kind::dnnl_matmul) continue;
 
         int32_t src_ndims = op->get_input_value(0)->get_logical_tensor().ndims;
@@ -514,8 +487,7 @@ impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
                         = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
                 unsqueeze_op->set_attr<std::vector<int64_t>>(
                         op_attr::axes, axes);
-                insert_op_before(unsqueeze_op, op, i);
-                to_be_inserted_ops.emplace_back(unsqueeze_op);
+                rewriter.insert_op_before(unsqueeze_op, op, i);
             }
         }
 
@@ -524,22 +496,20 @@ impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
             auto squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
             squeeze_op->set_attr<std::vector<int64_t>>(
                     op_attr::axes, squeeze_axes);
-            insert_op_after(squeeze_op, op, 0);
-            to_be_inserted_ops.emplace_back(squeeze_op);
+            rewriter.insert_op_after(squeeze_op, op, 0);
         }
     }
 
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     auto &mgr = sg->fusion_info_mgr_;
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
+    subgraph_rewriter_t rewriter(sg);
+
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
 
         int32_t new_src0_dtype
@@ -583,25 +553,21 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
         op_ptr u8_to_s8_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
         u8_to_s8_op->set_attr<std::vector<int64_t>>(
                 op_attr::dst_zps, std::vector<int64_t> {-128});
-        insert_op_before(u8_to_s8_op, cur_op, 1);
+        rewriter.insert_op_before(u8_to_s8_op, cur_op, 1);
         u8_to_s8_op->get_output_value(0)->set_data_type(impl::data_type::s8);
         insert_empty_scratchpad(u8_to_s8_op);
-        to_be_inserted_ops.emplace_back(u8_to_s8_op);
     }
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
 
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_unsqueeze_for_prelu(std::shared_ptr<subgraph_t> &sg) {
     using ltw = impl::logical_tensor_wrapper_t;
 
-    std::vector<op_ptr> to_be_inserted_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_prelu) continue;
 
         // check doable
@@ -636,15 +602,11 @@ impl::status_t insert_unsqueeze_for_prelu(std::shared_ptr<subgraph_t> &sg) {
             auto unsqueeze_op = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
             unsqueeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
             int wei_id = 1; // weight is the second input
-            insert_op_before(unsqueeze_op, cur_op, wei_id);
-            to_be_inserted_ops.emplace_back(unsqueeze_op);
+            rewriter.insert_op_before(unsqueeze_op, cur_op, wei_id);
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
@@ -652,12 +614,9 @@ impl::status_t insert_unsqueeze_and_squeeze_for_prelu_bwd(
         std::shared_ptr<subgraph_t> &sg) {
     using ltw = impl::logical_tensor_wrapper_t;
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_prelu_bwd) continue;
 
         // check doable
@@ -696,8 +655,7 @@ impl::status_t insert_unsqueeze_and_squeeze_for_prelu_bwd(
             auto unsqueeze_op = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
             unsqueeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
             int wei_id = 1; // weight is the second input
-            insert_op_before(unsqueeze_op, cur_op, wei_id);
-            to_be_inserted_ops.emplace_back(unsqueeze_op);
+            rewriter.insert_op_before(unsqueeze_op, cur_op, wei_id);
 
             // the squeeze is exactly the inverse of unsqueeze, so they use same
             // axes
@@ -707,30 +665,19 @@ impl::status_t insert_unsqueeze_and_squeeze_for_prelu_bwd(
                     op_attr::axes, squeeze_axes);
             // Insert squeeze after diff weights, so that its dimensions
             // have their original shape.
-            insert_op_after(squeeze_op, cur_op, 1);
-            to_be_inserted_ops.emplace_back(squeeze_op);
+            rewriter.insert_op_after(squeeze_op, cur_op, 1);
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_unsqueeze_and_squeeze_for_reduction(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_reduction) continue;
 
         const auto keep_dims = cur_op->get_attr<bool>(op_attr::keep_dims);
@@ -758,46 +705,33 @@ impl::status_t insert_unsqueeze_and_squeeze_for_reduction(
                         = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
                 unsqueeze_op->set_attr<std::vector<int64_t>>(
                         op_attr::axes, axes);
-                insert_op_before(unsqueeze_op.get(), &post_op, src1_offset);
-                to_be_inserted_ops.emplace_back(unsqueeze_op);
+                rewriter.insert_op_before(
+                        unsqueeze_op, post_op.shared_from_this(), src1_offset);
             }
 
-            // set fresh value for cur_op_ptr output (which is post-op input
-            // value), so later correct shape will be inferred
-            impl::logical_tensor_t new_lt
-                    = impl::empty_logical_tensor_with_default_id();
-            auto new_val
-                    = std::make_shared<value_t>(*cur_op_ptr, 0, new_lt, true);
-            new_val->set_data_type(cur_op_ptr->get_input_value(0)
-                                           ->get_logical_tensor()
-                                           .data_type);
-            cur_op_ptr->connect_output(0, new_val);
-            post_op.connect_input(1 - src1_offset, new_val);
-
+            // clear the existing shape for cur_op_ptr output (which is post-op
+            // input value), so later correct shape will be inferred
+            cur_op_ptr->get_output_value(0)->set_ndims(-1);
             cur_op_ptr = &post_op;
         }
 
         op_ptr squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
         squeeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
         // insert squeeze op after reduction or after its last post-op
-        insert_op_after(squeeze_op.get(), cur_op_ptr, 0);
-        to_be_inserted_ops.emplace_back(squeeze_op);
+        rewriter.insert_op_after(squeeze_op, cur_op_ptr->shared_from_this(), 0);
 
         // set to true, as squeeze will be handled by separate op
         cur_op->set_attr(op_attr::keep_dims, true);
     }
 
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
-    for (auto &cur_op : subgraph) {
+    subgraph_rewriter_t rewriter(sg);
+
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != impl::op_kind::MaxPoolBackprop) continue;
 
         // For MaxPoolBackprop op, we get diff_src (the output) shape from it's
@@ -870,7 +804,7 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
             maxpool_fwd_ws_value->add_consumer(*maxpool_bwd, 1);
             maxpool_bwd->add_input(maxpool_fwd_ws_value);
 
-            to_be_inserted_ops.emplace_back(maxpool_fwd);
+            rewriter.to_insert(maxpool_fwd);
         }
 
         // connect the forward src as the dnnl_pool_bwd op's 3rd input (used
@@ -888,17 +822,11 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
         // connect scratchpad
         insert_empty_scratchpad(maxpool_bwd);
 
-        to_be_inserted_ops.emplace_back(maxpool_bwd);
-        to_be_removed_ops.emplace_back(cur_op);
+        rewriter.to_insert(maxpool_bwd);
+        rewriter.to_remove(cur_op);
     }
 
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
+    rewriter.run();
     return infer_shape(sg);
 }
 

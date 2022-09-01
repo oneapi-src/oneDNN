@@ -39,7 +39,7 @@ using ltw = impl::logical_tensor_wrapper_t;
 static inline impl::status_t insert_reorder_before(op_ptr &op, size_t offset,
         const dnnl::memory::desc &opt_mdesc, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache,
-        std::vector<op_ptr> &reorder_ops) {
+        subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     value_ptr in_val = op->get_input_value(offset);
     const logical_tensor_t &in_lt = in_val->get_logical_tensor();
@@ -50,9 +50,8 @@ static inline impl::status_t insert_reorder_before(op_ptr &op, size_t offset,
 
     // create reorder op, connect it to graph and add it's scratchpad output
     auto reorder_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
-    insert_op_before(reorder_op, op, offset);
+    rewriter.insert_op_before(reorder_op, op, offset);
     auto scratchpad_val = insert_empty_scratchpad(reorder_op);
-    reorder_ops.emplace_back(reorder_op);
     // set optimal layout to reorder's output
     auto reorder_out_val = reorder_op->get_output_value(0);
     status = fill_layout_info(reorder_out_val, opt_mdesc);
@@ -72,7 +71,7 @@ static inline impl::status_t insert_reorder_before(op_ptr &op, size_t offset,
 static inline impl::status_t insert_reorder_after(op_ptr &op, size_t offset,
         const dnnl::memory::desc &opt_mdesc, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache,
-        std::vector<op_ptr> &reorder_ops) {
+        subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     value_ptr out_val = op->get_output_value(offset);
     const logical_tensor_t &out_lt = out_val->get_logical_tensor();
@@ -83,9 +82,8 @@ static inline impl::status_t insert_reorder_after(op_ptr &op, size_t offset,
 
     // create reorder op, connect it to graph and add it's scratchpad output
     auto reorder_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
-    insert_op_after(reorder_op, op, offset);
+    rewriter.insert_op_after(reorder_op, op, offset);
     auto scratchpad_val = insert_empty_scratchpad(reorder_op);
-    reorder_ops.emplace_back(reorder_op);
     // set optimal layout to reorder's input
     auto reorder_in_val = reorder_op->get_input_value(0);
     status = fill_layout_info(reorder_in_val, opt_mdesc);
@@ -104,7 +102,7 @@ static inline impl::status_t insert_reorder_after(op_ptr &op, size_t offset,
 
 static impl::status_t layout_propagation_for_conv(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const bool is_dw = op->get_kind() == op_kind::dnnl_conv_depthwise;
     // always create pd using any format
@@ -116,13 +114,13 @@ static impl::status_t layout_propagation_for_conv(op_ptr &op,
 
     // insert reorders for conv's inputs
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr wei = op->get_input_value(1);
     status = fill_layout_info(wei, pd.weights_desc());
     if (status != impl::status::success) return status;
@@ -130,7 +128,7 @@ static impl::status_t layout_propagation_for_conv(op_ptr &op,
     if (op->has_attr(op_attr::with_bias)
             && op->get_attr<bool>(op_attr::with_bias)) {
         insert_reorder_before(
-                op, 2, pd.bias_desc(), p_engine, mgr, pd_cache, reorder_ops);
+                op, 2, pd.bias_desc(), p_engine, mgr, pd_cache, rewriter);
         value_ptr bias = op->get_input_value(2);
         status = fill_layout_info(bias, pd.bias_desc());
         if (status != impl::status::success) return status;
@@ -138,7 +136,7 @@ static impl::status_t layout_propagation_for_conv(op_ptr &op,
         const auto &dw_wei_opt_mdesc = pd.query_md(query::exec_arg_md,
                 DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
         insert_reorder_before(
-                op, 2, dw_wei_opt_mdesc, p_engine, mgr, pd_cache, reorder_ops);
+                op, 2, dw_wei_opt_mdesc, p_engine, mgr, pd_cache, rewriter);
         value_ptr dw_wei = op->get_input_value(2);
         status = fill_layout_info(dw_wei, dw_wei_opt_mdesc);
         if (status != impl::status::success) return status;
@@ -147,7 +145,7 @@ static impl::status_t layout_propagation_for_conv(op_ptr &op,
     // 1) output layout is opaque
     // 2) output is any, directly set optimal layout
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -162,7 +160,7 @@ static impl::status_t layout_propagation_for_conv(op_ptr &op,
 
 static impl::status_t layout_propagation_for_deconv(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = deconv_fwd_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -172,13 +170,13 @@ static impl::status_t layout_propagation_for_deconv(op_ptr &op,
 
     // insert reorders for deconv's inputs
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr wei = op->get_input_value(1);
     status = fill_layout_info(wei, pd.weights_desc());
     if (status != impl::status::success) return status;
@@ -186,7 +184,7 @@ static impl::status_t layout_propagation_for_deconv(op_ptr &op,
     if (op->has_attr(op_attr::with_bias)
             && op->get_attr<bool>(op_attr::with_bias)) {
         insert_reorder_before(
-                op, 2, pd.bias_desc(), p_engine, mgr, pd_cache, reorder_ops);
+                op, 2, pd.bias_desc(), p_engine, mgr, pd_cache, rewriter);
         value_ptr bias = op->get_input_value(2);
         status = fill_layout_info(bias, pd.bias_desc());
         if (status != impl::status::success) return status;
@@ -195,7 +193,7 @@ static impl::status_t layout_propagation_for_deconv(op_ptr &op,
     // 1) output layout is opaque
     // 2) output is any, directly set optimal layout
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -209,7 +207,7 @@ static impl::status_t layout_propagation_for_deconv(op_ptr &op,
 
 static impl::status_t layout_propagation_for_deconv_bwd_data(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     // always create pd using any format
     const auto &pd = deconv_bwd_data_executable_t::create_desc(
@@ -220,13 +218,13 @@ static impl::status_t layout_propagation_for_deconv_bwd_data(op_ptr &op,
 
     // insert reorders for inputs
     insert_reorder_before(
-            op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(0);
     status = fill_layout_info(diff_dst, pd.diff_dst_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr wei = op->get_input_value(1);
     status = fill_layout_info(wei, pd.weights_desc());
     if (status != impl::status::success) return status;
@@ -235,7 +233,7 @@ static impl::status_t layout_propagation_for_deconv_bwd_data(op_ptr &op,
     // 1) output layout is opaque
     // 2) output is any, directly set optimal layout
     insert_reorder_after(
-            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_src = op->get_output_value(0);
     status = fill_layout_info(diff_src, pd.diff_src_desc());
     if (status != impl::status::success) return status;
@@ -250,7 +248,7 @@ static impl::status_t layout_propagation_for_deconv_bwd_data(op_ptr &op,
 
 static impl::status_t layout_propagation_for_deconv_bwd_weights(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd = deconv_bwd_weights_executable_t::create_desc(
             op, p_engine, mgr, pd_cache);
@@ -259,19 +257,19 @@ static impl::status_t layout_propagation_for_deconv_bwd_weights(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.diff_dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(1);
     status = fill_layout_info(diff_dst, pd.diff_dst_desc());
     if (status != impl::status::success) return status;
 
-    insert_reorder_after(op, 0, pd.diff_weights_desc(), p_engine, mgr, pd_cache,
-            reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_weights = op->get_output_value(0);
     status = fill_layout_info(diff_weights, pd.diff_weights_desc());
     if (status != impl::status::success) return status;
@@ -285,7 +283,7 @@ static impl::status_t layout_propagation_for_deconv_bwd_weights(op_ptr &op,
 
 static impl::status_t layout_propagation_for_eltwise(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     // When input's layout is specified (opaque or strided),
     // we can propagate it to output.
@@ -296,7 +294,7 @@ static impl::status_t layout_propagation_for_eltwise(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -308,7 +306,7 @@ static impl::status_t layout_propagation_for_eltwise(op_ptr &op,
 
 static impl::status_t layout_propagation_for_eltwise_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd = eltwise_bwd_executable_t::create_desc(
             op, p_engine, mgr, pd_cache);
@@ -324,14 +322,13 @@ static impl::status_t layout_propagation_for_eltwise_bwd(op_ptr &op,
                             && op->get_attr<bool>(op_attr::use_dst))
             ? pd.dst_desc()
             : pd.src_desc();
-    insert_reorder_before(
-            op, 0, opt_desc, p_engine, mgr, pd_cache, reorder_ops);
+    insert_reorder_before(op, 0, opt_desc, p_engine, mgr, pd_cache, rewriter);
     value_ptr data = op->get_input_value(0);
     status = fill_layout_info(data, opt_desc);
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.diff_dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(1);
     status = fill_layout_info(diff_dst, opt_desc);
     if (status != impl::status::success) return status;
@@ -347,7 +344,7 @@ static impl::status_t layout_propagation_for_eltwise_bwd(op_ptr &op,
 
 static impl::status_t layout_propagation_for_binary(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     using ltw = impl::logical_tensor_wrapper_t;
     impl::status_t status = impl::status::success;
 
@@ -372,7 +369,7 @@ static impl::status_t layout_propagation_for_binary(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -384,7 +381,7 @@ static impl::status_t layout_propagation_for_binary(op_ptr &op,
 
 static impl::status_t layout_propagation_for_concat(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = concat_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -393,14 +390,14 @@ static impl::status_t layout_propagation_for_concat(op_ptr &op,
 
     for (size_t i = 0; i < op->num_inputs(); ++i) {
         insert_reorder_before(op, i, pd.src_desc(static_cast<int>(i)), p_engine,
-                mgr, pd_cache, reorder_ops);
+                mgr, pd_cache, rewriter);
         status = fill_layout_info(
                 op->get_input_value(i), pd.src_desc(static_cast<int>(i)));
         if (status != impl::status::success) return status;
     }
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     status = fill_layout_info(op->get_output_value(0), pd.dst_desc());
     if (status != impl::status::success) return status;
 
@@ -412,7 +409,7 @@ static impl::status_t layout_propagation_for_concat(op_ptr &op,
 
 static impl::status_t layout_propagation_for_shuffle(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = shuffle_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -427,7 +424,7 @@ static impl::status_t layout_propagation_for_shuffle(op_ptr &op,
             "shuffle's src can't be any layout");
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
 
@@ -438,7 +435,7 @@ static impl::status_t layout_propagation_for_shuffle(op_ptr &op,
 
 static impl::status_t layout_propagation_for_matmul(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     using ltw = impl::logical_tensor_wrapper_t;
     impl::status_t status = impl::status::success;
 
@@ -464,13 +461,13 @@ static impl::status_t layout_propagation_for_matmul(op_ptr &op,
 
     // insert reorders for matmul's inputs
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr wei = op->get_input_value(1);
     status = fill_layout_info(wei, pd.weights_desc());
     if (status != impl::status::success) return status;
@@ -478,7 +475,7 @@ static impl::status_t layout_propagation_for_matmul(op_ptr &op,
     if (op->has_attr(op_attr::with_bias)
             && op->get_attr<bool>(op_attr::with_bias)) {
         insert_reorder_before(
-                op, 2, pd.bias_desc(), p_engine, mgr, pd_cache, reorder_ops);
+                op, 2, pd.bias_desc(), p_engine, mgr, pd_cache, rewriter);
         value_ptr bias = op->get_input_value(2);
         status = fill_layout_info(bias, pd.bias_desc());
         if (status != impl::status::success) return status;
@@ -487,7 +484,7 @@ static impl::status_t layout_propagation_for_matmul(op_ptr &op,
     // 1) output layout is opaque
     // 2) output is any, directly set optimal layout
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -501,7 +498,7 @@ static impl::status_t layout_propagation_for_matmul(op_ptr &op,
 
 static impl::status_t layout_propagation_for_pool(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = pool_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -510,7 +507,7 @@ static impl::status_t layout_propagation_for_pool(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -534,7 +531,7 @@ static impl::status_t layout_propagation_for_pool(op_ptr &op,
 
 static impl::status_t layout_propagation_for_pool_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = pool_bwd_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -543,13 +540,13 @@ static impl::status_t layout_propagation_for_pool_bwd(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(0);
     status = fill_layout_info(diff_dst, pd.diff_dst_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_after(
-            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_src = op->get_output_value(0);
     status = fill_layout_info(diff_src, pd.diff_src_desc());
     if (status != impl::status::success) return status;
@@ -562,7 +559,7 @@ static impl::status_t layout_propagation_for_pool_bwd(op_ptr &op,
 
 static impl::status_t layout_propagation_for_batchnorm(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = batchnorm_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -571,13 +568,13 @@ static impl::status_t layout_propagation_for_batchnorm(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -618,7 +615,7 @@ static impl::status_t layout_propagation_for_batchnorm(op_ptr &op,
 
 static impl::status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     if (op->num_inputs() != 5 || op->num_outputs() != 4) {
         assert(!"Currently, only support use_scale and use_shift mode!");
@@ -630,31 +627,31 @@ static impl::status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.diff_dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(1);
     status = fill_layout_info(diff_dst, pd.diff_dst_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 2, pd.mean_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 2, pd.mean_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr mean = op->get_input_value(2);
     status = fill_layout_info(mean, pd.mean_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 3, pd.variance_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 3, pd.variance_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr var = op->get_input_value(3);
     status = fill_layout_info(var, pd.variance_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_after(
-            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.diff_src_desc());
     if (status != impl::status::success) return status;
@@ -676,7 +673,7 @@ static impl::status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
 
 static impl::status_t layout_propagation_for_prelu(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = prelu_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -685,19 +682,19 @@ static impl::status_t layout_propagation_for_prelu(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr wei = op->get_input_value(1);
     status = fill_layout_info(wei, pd.weights_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -710,7 +707,7 @@ static impl::status_t layout_propagation_for_prelu(op_ptr &op,
 
 static impl::status_t layout_propagation_for_prelu_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = prelu_bwd_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -719,13 +716,13 @@ static impl::status_t layout_propagation_for_prelu_bwd(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr wei = op->get_input_value(1);
     status = fill_layout_info(wei, pd.weights_desc());
     if (status != impl::status::success) return status;
@@ -735,13 +732,13 @@ static impl::status_t layout_propagation_for_prelu_bwd(op_ptr &op,
     if (status != impl::status::success) return status;
 
     insert_reorder_after(
-            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_src = op->get_output_value(0);
     status = fill_layout_info(diff_src, pd.diff_src_desc());
     if (status != impl::status::success) return status;
 
-    insert_reorder_after(op, 1, pd.diff_weights_desc(), p_engine, mgr, pd_cache,
-            reorder_ops);
+    insert_reorder_after(
+            op, 1, pd.diff_weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_wei = op->get_output_value(1);
     status = fill_layout_info(diff_wei, pd.diff_weights_desc());
     if (status != impl::status::success) return status;
@@ -753,7 +750,7 @@ static impl::status_t layout_propagation_for_prelu_bwd(op_ptr &op,
 
 static impl::status_t layout_propagation_for_layernorm(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = layernorm_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -762,7 +759,7 @@ static impl::status_t layout_propagation_for_layernorm(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -785,7 +782,7 @@ static impl::status_t layout_propagation_for_layernorm(op_ptr &op,
 
 static impl::status_t layout_propagation_for_layernorm_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd = layernorm_bwd_executable_t::create_desc(
             op, p_engine, mgr, pd_cache);
@@ -795,32 +792,32 @@ static impl::status_t layout_propagation_for_layernorm_bwd(op_ptr &op,
 
     size_t in_index {0};
     insert_reorder_before(
-            op, in_index, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, in_index, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(in_index++);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(op, in_index, pd.diff_dst_desc(), p_engine, mgr,
-            pd_cache, reorder_ops);
+            pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(in_index++);
     status = fill_layout_info(diff_dst, pd.diff_dst_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, in_index, pd.mean_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, in_index, pd.mean_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr mean = op->get_input_value(in_index++);
     status = fill_layout_info(mean, pd.mean_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(op, in_index, pd.variance_desc(), p_engine, mgr,
-            pd_cache, reorder_ops);
+            pd_cache, rewriter);
     value_ptr var = op->get_input_value(in_index++);
     status = fill_layout_info(var, pd.variance_desc());
     if (status != impl::status::success) return status;
 
     size_t out_index {0};
     insert_reorder_after(op, out_index, pd.diff_src_desc(), p_engine, mgr,
-            pd_cache, reorder_ops);
+            pd_cache, rewriter);
     value_ptr diff_src = op->get_output_value(out_index++);
     status = fill_layout_info(diff_src, pd.diff_src_desc());
     if (status != impl::status::success) return status;
@@ -830,7 +827,7 @@ static impl::status_t layout_propagation_for_layernorm_bwd(op_ptr &op,
         const auto &diff_scale_opt_mdesc
                 = pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SCALE);
         insert_reorder_after(op, out_index, diff_scale_opt_mdesc, p_engine, mgr,
-                pd_cache, reorder_ops);
+                pd_cache, rewriter);
         value_ptr diff_scale = op->get_output_value(out_index++);
         status = fill_layout_info(diff_scale, diff_scale_opt_mdesc);
         if (status != impl::status::success) return status;
@@ -838,7 +835,7 @@ static impl::status_t layout_propagation_for_layernorm_bwd(op_ptr &op,
         const auto &diff_shift_opt_mdesc
                 = pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SHIFT);
         insert_reorder_after(op, out_index, diff_shift_opt_mdesc, p_engine, mgr,
-                pd_cache, reorder_ops);
+                pd_cache, rewriter);
         value_ptr diff_shift = op->get_output_value(out_index++);
         status = fill_layout_info(diff_shift, diff_shift_opt_mdesc);
         if (status != impl::status::success) return status;
@@ -850,7 +847,7 @@ static impl::status_t layout_propagation_for_layernorm_bwd(op_ptr &op,
 
 static impl::status_t layout_propagation_for_permute(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
@@ -949,7 +946,7 @@ static impl::status_t layout_propagation_for_permute(op_ptr &op,
         // input mem desc, just insert a reorder before the op
         if (make_dnnl_memory_desc(in_lt) != tmp_in_md)
             insert_reorder_before(
-                    op, 0, tmp_in_md, p_engine, mgr, pd_cache, reorder_ops);
+                    op, 0, tmp_in_md, p_engine, mgr, pd_cache, rewriter);
     }
     return status;
 }
@@ -981,7 +978,7 @@ static impl::status_t layout_propagation_for_to_group(op_ptr &op) {
 
 static impl::status_t layout_propagation_for_from_group(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto get_dst_md
             = [](const dnnl::memory::desc &src_md,
@@ -1028,7 +1025,7 @@ static impl::status_t layout_propagation_for_from_group(op_ptr &op,
         dnnl::memory::desc strided_dst_md(src_md.dims(), src_md.data_type(),
                 get_strides(src_md, is_convtranspose));
         insert_reorder_before(
-                op, 0, strided_dst_md, p_engine, mgr, pd_cache, reorder_ops);
+                op, 0, strided_dst_md, p_engine, mgr, pd_cache, rewriter);
         infered_dst_md = get_dst_md(strided_dst_md, is_convtranspose);
     }
 
@@ -1036,14 +1033,14 @@ static impl::status_t layout_propagation_for_from_group(op_ptr &op,
         status = fill_layout_info(dst, infered_dst_md);
     } else {
         insert_reorder_after(
-                op, 0, infered_dst_md, p_engine, mgr, pd_cache, reorder_ops);
+                op, 0, infered_dst_md, p_engine, mgr, pd_cache, rewriter);
     }
     return status;
 }
 
 static impl::status_t layout_propagation_for_reshape_like_ops(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops,
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter,
         const dnnl::memory::dims &target_dims) {
     impl::status_t status = impl::status::success;
     std::shared_ptr<impl::value_t> src, dst;
@@ -1071,7 +1068,7 @@ static impl::status_t layout_propagation_for_reshape_like_ops(op_ptr &op,
             dnnl::memory::desc reshapable_md(in_md.dims(), in_md.data_type(),
                     get_ncx_format(in_md.data.ndims));
             insert_reorder_before(
-                    op, 0, reshapable_md, p_engine, mgr, pd_cache, reorder_ops);
+                    op, 0, reshapable_md, p_engine, mgr, pd_cache, rewriter);
             out_md = reshapable_md.reshape(target_dims);
         }
 
@@ -1089,7 +1086,7 @@ static impl::status_t layout_propagation_for_reshape_like_ops(op_ptr &op,
             // reorder if needed.
             if (expected_in_md != in_md) {
                 insert_reorder_before(op, 0, expected_in_md, p_engine, mgr,
-                        pd_cache, reorder_ops);
+                        pd_cache, rewriter);
             }
             // finally, we have a chain of: in_md -> (optional reorder) ->
             // expected_in_md -> reshape -> out_md
@@ -1101,14 +1098,14 @@ static impl::status_t layout_propagation_for_reshape_like_ops(op_ptr &op,
                 dnnl::memory::desc reshapable_md(in_md.dims(),
                         in_md.data_type(), get_ncx_format(in_md.data.ndims));
                 insert_reorder_before(op, 0, reshapable_md, p_engine, mgr,
-                        pd_cache, reorder_ops);
+                        pd_cache, rewriter);
                 reshaped_in_md = reshapable_md.reshape(target_dims);
             }
             // If the reshaped_in_md is not same as the specified out_md, we
             // insert reorder
             if (reshaped_in_md != out_md) {
                 insert_reorder_after(op, 0, reshaped_in_md, p_engine, mgr,
-                        pd_cache, reorder_ops);
+                        pd_cache, rewriter);
             }
             // finally, we have a chain of: in_md -> (optional reorder) ->
             // reshapable_md -> reshape -> reshaped_in_md -> (optional reorder)
@@ -1121,17 +1118,17 @@ static impl::status_t layout_propagation_for_reshape_like_ops(op_ptr &op,
 
 static impl::status_t layout_propagation_for_reshape(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     auto out_lt = op->get_output_value(0)->get_logical_tensor();
     auto target_dims = ltw(out_lt).vdims();
     impl::status_t status = layout_propagation_for_reshape_like_ops(
-            op, p_engine, mgr, pd_cache, reorder_ops, target_dims);
+            op, p_engine, mgr, pd_cache, rewriter, target_dims);
     return status;
 }
 
 static impl::status_t layout_propagation_for_transpose(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
@@ -1180,8 +1177,8 @@ static impl::status_t layout_propagation_for_transpose(op_ptr &op,
         // to convert the transposed layout to the specified one.
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
         if (expected_out_md != out_md) {
-            insert_reorder_after(op, 0, expected_out_md, p_engine, mgr,
-                    pd_cache, reorder_ops);
+            insert_reorder_after(
+                    op, 0, expected_out_md, p_engine, mgr, pd_cache, rewriter);
         }
     }
     return status;
@@ -1204,11 +1201,11 @@ static impl::status_t layout_propagation_for_unsqueeze(op_ptr &op) {
 
 static impl::status_t layout_propagation_for_squeeze(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     auto out_lt = op->get_output_value(0)->get_logical_tensor();
     auto target_dims = ltw(out_lt).vdims();
     impl::status_t status = layout_propagation_for_reshape_like_ops(
-            op, p_engine, mgr, pd_cache, reorder_ops, target_dims);
+            op, p_engine, mgr, pd_cache, rewriter, target_dims);
     return status;
 }
 
@@ -1290,7 +1287,7 @@ static impl::status_t layout_propagation_for_bn_folding(op_ptr &op,
 
 static impl::status_t layout_propagation_for_conv_bwd_data(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd = conv_bwd_data_executable_t::create_desc(
             op, p_engine, mgr, pd_cache);
@@ -1299,19 +1296,19 @@ static impl::status_t layout_propagation_for_conv_bwd_data(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(0);
     status = fill_layout_info(diff_dst, pd.diff_dst_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr wei = op->get_input_value(1);
     status = fill_layout_info(wei, pd.weights_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_after(
-            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_src = op->get_output_value(0);
     status = fill_layout_info(diff_src, pd.diff_src_desc());
     if (status != impl::status::success) return status;
@@ -1325,7 +1322,7 @@ static impl::status_t layout_propagation_for_conv_bwd_data(op_ptr &op,
 
 static impl::status_t layout_propagation_for_conv_bwd_weights(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd = conv_bwd_weights_executable_t::create_desc(
             op, p_engine, mgr, pd_cache);
@@ -1334,19 +1331,19 @@ static impl::status_t layout_propagation_for_conv_bwd_weights(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr src = op->get_input_value(0);
     status = fill_layout_info(src, pd.src_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_before(
-            op, 1, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 1, pd.diff_dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(1);
     status = fill_layout_info(diff_dst, pd.diff_dst_desc());
     if (status != impl::status::success) return status;
 
-    insert_reorder_after(op, 0, pd.diff_weights_desc(), p_engine, mgr, pd_cache,
-            reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_weights_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_weights = op->get_output_value(0);
     status = fill_layout_info(diff_weights, pd.diff_weights_desc());
     if (status != impl::status::success) return status;
@@ -1360,7 +1357,7 @@ static impl::status_t layout_propagation_for_conv_bwd_weights(op_ptr &op,
 
 static impl::status_t layout_propagation_for_resampling(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd
             = resampling_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -1369,7 +1366,7 @@ static impl::status_t layout_propagation_for_resampling(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -1382,7 +1379,7 @@ static impl::status_t layout_propagation_for_resampling(op_ptr &op,
 
 static impl::status_t layout_propagation_for_resampling_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     const auto &pd = resampling_bwd_executable_t::create_desc(
             op, p_engine, mgr, pd_cache);
@@ -1391,7 +1388,7 @@ static impl::status_t layout_propagation_for_resampling_bwd(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_after(
-            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_src = op->get_output_value(0);
     status = fill_layout_info(diff_src, pd.diff_src_desc());
     if (status != impl::status::success) return status;
@@ -1403,7 +1400,7 @@ static impl::status_t layout_propagation_for_resampling_bwd(op_ptr &op,
 
 static impl::status_t layout_propagation_for_dnnl_sum(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     value_ptr dst = op->get_output_value(0);
     bool input_has_any_format = false;
@@ -1424,7 +1421,7 @@ static impl::status_t layout_propagation_for_dnnl_sum(op_ptr &op,
 
     if (ltw(dst->get_logical_tensor()).is_any()) {
         insert_reorder_after(
-                op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+                op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
         dst = op->get_output_value(0);
         status = fill_layout_info(dst, pd.dst_desc());
         if (status != impl::status::success) return status;
@@ -1438,7 +1435,7 @@ static impl::status_t layout_propagation_for_dnnl_sum(op_ptr &op,
 
 static impl::status_t layout_propagation_for_softmax(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     value_ptr src = op->get_input_value(0);
     assertm(!ltw(src->get_logical_tensor()).is_any(),
@@ -1451,7 +1448,7 @@ static impl::status_t layout_propagation_for_softmax(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -1463,7 +1460,7 @@ static impl::status_t layout_propagation_for_softmax(op_ptr &op,
 
 static impl::status_t layout_propagation_for_softmax_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     value_ptr dst = op->get_input_value(1);
     assertm(!ltw(dst->get_logical_tensor()).is_any(),
@@ -1476,13 +1473,13 @@ static impl::status_t layout_propagation_for_softmax_bwd(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_before(
-            op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_dst = op->get_input_value(0);
     status = fill_layout_info(diff_dst, pd.diff_dst_desc());
     if (status != impl::status::success) return status;
 
     insert_reorder_after(
-            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_src = op->get_output_value(0);
     status = fill_layout_info(diff_src, pd.diff_src_desc());
     if (status != impl::status::success) return status;
@@ -1495,7 +1492,7 @@ static impl::status_t layout_propagation_for_softmax_bwd(op_ptr &op,
 
 static impl::status_t layout_propagation_for_reduction(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
     value_ptr src = op->get_input_value(0);
     assertm(!ltw(src->get_logical_tensor()).is_any(),
@@ -1508,7 +1505,7 @@ static impl::status_t layout_propagation_for_reduction(op_ptr &op,
     if (is_from_cache) return status;
 
     insert_reorder_after(
-            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, reorder_ops);
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr dst = op->get_output_value(0);
     status = fill_layout_info(dst, pd.dst_desc());
     if (status != impl::status::success) return status;
@@ -1518,12 +1515,12 @@ static impl::status_t layout_propagation_for_reduction(op_ptr &op,
     return status;
 }
 
-static void remove_optional_conv_dw_output(
-        std::vector<op_ptr> &subgraph, pd_cache_t &pd_cache) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+static void remove_optional_conv_dw_output(std::shared_ptr<subgraph_t> &sg) {
+    subgraph_rewriter_t rewriter(sg);
 
-    for (auto &cur_op : subgraph) {
+    auto &pd_cache = sg->pd_cache_;
+
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_conv_depthwise) continue;
 
         op_ptr new_conv_dw
@@ -1551,17 +1548,11 @@ static void remove_optional_conv_dw_output(
             pd_cache.erase(pos);
         }
 
-        to_be_inserted_ops.emplace_back(new_conv_dw);
-        to_be_removed_ops.emplace_back(cur_op);
+        rewriter.to_insert(new_conv_dw);
+        rewriter.to_remove(cur_op);
     }
 
-    for (const auto &op : to_be_inserted_ops)
-        subgraph.emplace_back(op);
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
+    rewriter.run();
 }
 
 /// This function is used to chooses optimal layout for computation bound op and
@@ -1583,15 +1574,15 @@ static void remove_optional_conv_dw_output(
 /// support propagating layout both from inputs to outputs and from outputs to
 /// inputs.
 impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     const auto &p_engine = *(sg->p_engine_);
     auto &mgr = sg->fusion_info_mgr_;
     auto &pd_cache = sg->pd_cache_;
 
     // lambda function to do layout propagation for all ops
-    auto layout_propagation_func = [&](std::shared_ptr<subgraph_t> &sg,
-                                           std::vector<op_ptr> &reorder_ops) {
+    auto layout_propagation_func = [&](std::shared_ptr<subgraph_t> &sg) {
         impl::status_t ret = impl::status::success;
+        subgraph_rewriter_t rewriter(sg);
+
         ret = impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
             impl::status_t status = impl::status::success;
             auto cur_op = op->shared_from_this();
@@ -1599,63 +1590,63 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             if (cur_op->get_kind() == op_kind::dnnl_convolution
                     || cur_op->get_kind() == op_kind::dnnl_conv_depthwise) {
                 status = layout_propagation_for_conv(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose) {
                 status = layout_propagation_for_deconv(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind()
                     == op_kind::dnnl_convtranspose_bwd_data) {
                 status = layout_propagation_for_deconv_bwd_data(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind()
                     == op_kind::dnnl_convtranspose_bwd_weights) {
                 status = layout_propagation_for_deconv_bwd_weights(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
                 status = layout_propagation_for_conv_bwd_data(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_weights) {
                 status = layout_propagation_for_conv_bwd_weights(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_matmul) {
                 status = layout_propagation_for_matmul(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_pool) {
                 status = layout_propagation_for_pool(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_pool_bwd) {
                 layout_propagation_for_pool_bwd(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
                 status = layout_propagation_for_batchnorm(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
                 status = layout_propagation_for_batchnorm_bwd(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_layernorm) {
                 status = layout_propagation_for_layernorm(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_layernorm_bwd) {
                 status = layout_propagation_for_layernorm_bwd(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
                 status = layout_propagation_for_eltwise(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_eltwise_bwd) {
                 status = layout_propagation_for_eltwise_bwd(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_concat) {
                 status = layout_propagation_for_concat(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_prelu) {
                 status = layout_propagation_for_prelu(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
                 status = layout_propagation_for_prelu_bwd(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_permute) {
                 status = layout_propagation_for_permute(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_mul_scales) {
                 status = layout_propagation_for_mul_scales(
                         cur_op, p_engine, mgr, pd_cache);
@@ -1663,13 +1654,13 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 status = layout_propagation_for_to_group(cur_op);
             } else if (cur_op->get_kind() == op_kind::dnnl_from_group) {
                 status = layout_propagation_for_from_group(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_reshape) {
                 status = layout_propagation_for_reshape(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_transpose) {
                 status = layout_propagation_for_transpose(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_unsqueeze) {
                 status = layout_propagation_for_unsqueeze(cur_op);
             } else if (cur_op->get_kind() == op_kind::dnnl_reorder) {
@@ -1677,36 +1668,36 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, mgr, pd_cache);
             } else if (cur_op->get_kind() == op_kind::dnnl_squeeze) {
                 status = layout_propagation_for_squeeze(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
                 status = layout_propagation_for_bn_folding(
                         cur_op, p_engine, mgr, pd_cache);
             } else if (cur_op->get_kind() == op_kind::dnnl_resampling) {
                 status = layout_propagation_for_resampling(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_resampling_bwd) {
                 status = layout_propagation_for_resampling_bwd(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
                 status = layout_propagation_for_dnnl_sum(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
                 status = layout_propagation_for_binary(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_softmax
                     || cur_op->get_kind() == op_kind::dnnl_logsoftmax) {
                 status = layout_propagation_for_softmax(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd
                     || cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
                 status = layout_propagation_for_softmax_bwd(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_shuffle) {
                 status = layout_propagation_for_shuffle(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() == op_kind::dnnl_reduction) {
                 status = layout_propagation_for_reduction(
-                        cur_op, p_engine, mgr, pd_cache, reorder_ops);
+                        cur_op, p_engine, mgr, pd_cache, rewriter);
             } else if (cur_op->get_kind() != op_kind::dnnl_constant_scales
                     && cur_op->get_kind() != op_kind::dnnl_constant_zps) {
                 assertm(false,
@@ -1714,6 +1705,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             }
             return status;
         });
+
+        rewriter.run();
         return ret;
     };
 
@@ -1742,21 +1735,20 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
         return false;
     };
 
-    // store those reorders inserted during propagation
-    std::vector<op_ptr> reorder_ops;
     do {
         // main layout propgation function
-        auto status = layout_propagation_func(sg, reorder_ops);
+        auto status = layout_propagation_func(sg);
         if (status != impl::status::success) return status;
     } while (need_prop_once_more(sg));
 
-    remove_optional_conv_dw_output(subgraph, pd_cache);
+    remove_optional_conv_dw_output(sg);
 
     // Add check for the layout type of partition outputs to make partition
     // always output public layouts: abcd or acdb. If non-strided output, we
     // need insert a reorder to convert to public acdb layout. Currently,
     // deconvolution primitive still chooses blocked layout for best
     // performance.
+    subgraph_rewriter_t rewriter(sg);
     for (const auto &out_op : sg->get_output_ops()) {
         auto out_op_ptr = out_op->shared_from_this();
         const auto &out_vals = out_op_ptr->get_output_values();
@@ -1771,13 +1763,11 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 out_vals[i]->set_strides(
                         {strides, strides + expect_mem_desc.data.ndims});
                 insert_reorder_after(out_op_ptr, i, ori_mem_desc, p_engine, mgr,
-                        pd_cache, reorder_ops);
+                        pd_cache, rewriter);
             }
         }
     }
-
-    for (const auto &op : reorder_ops)
-        subgraph.emplace_back(op);
+    rewriter.run();
 
     // fill layout information for subgraph's inputs
     for (size_t i = 0; i < sg->ins_.size(); i++) {

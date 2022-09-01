@@ -781,7 +781,7 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
 
     if (params.constant_weight) {
-        dnnl_impl::set_weight_bias_constant(subgraph->get_mutable_ops());
+        dnnl_impl::set_weight_bias_constant(subgraph);
         dnnl_impl::constant_propagation(subgraph);
     }
 
@@ -889,7 +889,7 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
     ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
 
     if (params.constant_weight) {
-        dnnl_impl::set_weight_bias_constant(subgraph->get_mutable_ops());
+        dnnl_impl::set_weight_bias_constant(subgraph);
         dnnl_impl::constant_propagation(subgraph);
     }
 
@@ -1213,7 +1213,7 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
     ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
     // fused conv and to_groupped ops
-    ASSERT_EQ(subgraph->get_mutable_ops().size(), 2);
+    ASSERT_EQ(subgraph->num_ops(), 2);
 }
 
 TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
@@ -1262,11 +1262,11 @@ TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
             dnnl_impl::subgraph_visualizer_t(), true, false);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
     ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
-    ASSERT_EQ(subgraph->get_mutable_ops().size(), 1);
-    ASSERT_EQ(subgraph->get_mutable_ops()[0]->get_kind(),
+    ASSERT_EQ(subgraph->num_ops(), 1);
+    ASSERT_EQ(subgraph->get_ops()[0]->get_kind(),
             dnnl_impl::op_kind::dnnl_eltwise);
     ASSERT_EQ(static_cast<dnnl::algorithm>(
-                      subgraph->get_mutable_ops()[0]->get_attr<int64_t>(
+                      subgraph->get_ops()[0]->get_attr<int64_t>(
                               dnnl_impl::op_attr::alg_kind)),
             dnnl::algorithm::eltwise_swish);
 }
@@ -1817,7 +1817,7 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
     ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
     // 1 bias scaling, 1 bias unsqueezing, 1 fused matmul, 2 reshape
-    ASSERT_EQ(subgraph->get_mutable_ops().size(), 5);
+    ASSERT_EQ(subgraph->num_ops(), 5);
 }
 
 TEST(SubgraphPass, CheckUndefinedOpAttribute) {

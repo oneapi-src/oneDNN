@@ -366,7 +366,7 @@ TEST(Execute, ConvtransposeWithGroups) {
     std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
     std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
 
-    p.compile(&cp, inputs, outputs, &eng);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
@@ -374,7 +374,8 @@ TEST(Execute, ConvtransposeWithGroups) {
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
 
     impl::stream_t &strm = get_stream();
-    cp.execute(&strm, {src_ts, weight_ts}, {dst_ts});
+    ASSERT_EQ(cp.execute(&strm, {src_ts, weight_ts}, {dst_ts}),
+            impl::status::success);
     strm.wait();
     for (size_t i = 0; i < dst.size(); ++i) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);

@@ -217,9 +217,8 @@ void alias_analyzer_t::clear() {
 
 impl::status_t alias_analyzer_t::run(std::shared_ptr<subgraph_t> &sg) {
     clear();
-    auto &subgraph = sg->get_mutable_ops();
     // find alias values
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (!is_preprocess_op(*cur_op)) continue;
         value_t *out = cur_op->get_output_value(0).get();
         value_t *in = cur_op->get_input_value(0).get();
@@ -287,10 +286,10 @@ std::vector<const value_t *> alias_analyzer_t::get_all_aliases(
 // we also find the edges that share the same buffers and assign the same buffer
 // to them.
 impl::status_t memory_planner_t::assign_external_inputs_buffer(
-        const std::vector<op_ptr> &subgraph,
+        std::shared_ptr<subgraph_t> &sg,
         const std::vector<impl::logical_tensor_t> &inputs) {
     // Remove duplicated input values
-    auto sg_ins = impl::graph_t(subgraph).get_input_values();
+    auto sg_ins = sg->get_input_values();
     std::sort(sg_ins.begin(), sg_ins.end());
     sg_ins.erase(std::unique(sg_ins.begin(), sg_ins.end()), sg_ins.end());
 
@@ -314,19 +313,18 @@ impl::status_t memory_planner_t::assign_external_inputs_buffer(
 
     // Get the live range of external inputs
     size_t time_point = 0;
-    impl::status_t ret = impl::topo_order_visit(
-            impl::graph_t(subgraph).get_output_ops(), [&](op_t *op) {
-                auto in_vals = op->get_input_values();
-                for (auto &in_val : in_vals) {
-                    if (!buffer_assignments_.count(in_val.get())) continue;
-                    const auto &info = buffer_assignments_.at(in_val.get());
-                    if (info.kind_ != external_input) continue;
-                    external_inputs_live_range_[&info]
-                            = time_bound_t {0, time_point};
-                }
-                time_point++;
-                return impl::status::success;
-            });
+    impl::status_t ret;
+    ret = impl::topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
+        auto in_vals = op->get_input_values();
+        for (auto &in_val : in_vals) {
+            if (!buffer_assignments_.count(in_val.get())) continue;
+            const auto &info = buffer_assignments_.at(in_val.get());
+            if (info.kind_ != external_input) continue;
+            external_inputs_live_range_[&info] = time_bound_t {0, time_point};
+        }
+        time_point++;
+        return impl::status::success;
+    });
 
     return ret;
 }
@@ -340,10 +338,10 @@ impl::status_t memory_planner_t::assign_external_inputs_buffer(
 // we also find the edges that share the same buffers and assign the same buffer
 // to them.
 impl::status_t memory_planner_t::assign_external_outputs_buffer(
-        const std::vector<op_ptr> &subgraph,
+        std::shared_ptr<subgraph_t> &sg,
         const std::vector<impl::logical_tensor_t> &outputs,
         fusion_info_mgr_t &mgr) {
-    for (auto &val : impl::graph_t(subgraph).get_output_values()) {
+    for (auto &val : sg->get_output_values()) {
         for (size_t i = 0; i < outputs.size(); i++) {
             if (val->get_logical_tensor().id == outputs[i].id) {
                 assign_info_t orig_info = buffer_assignments_.at(val);
@@ -393,8 +391,8 @@ impl::status_t memory_planner_t::assign_external_outputs_buffer(
 // the same buffers and assign the same buffer to them. This can be regarded as
 // a kind of constant folding, with which the cached buffer can be reduced.
 impl::status_t memory_planner_t::assign_internal_persistent_buffer(
-        const std::vector<op_ptr> &subgraph, fusion_info_mgr_t &mgr) {
-    for (auto &val : get_constant_block_output_values(subgraph)) {
+        std::shared_ptr<subgraph_t> &sg, fusion_info_mgr_t &mgr) {
+    for (auto &val : get_constant_block_output_values(sg)) {
         assign_info_t orig_info = buffer_assignments_.at(val);
         if (orig_info.kind_ != internal_temporary) continue;
 
@@ -445,7 +443,7 @@ impl::status_t memory_planner_t::assign_internal_persistent_buffer(
 // even if its consumer is not computed, as long as it consumer only need the
 // tensor's metadata instead of content)
 impl::status_t memory_planner_t::assign_internal_temporary_buffer(
-        const std::vector<op_ptr> &subgraph,
+        std::shared_ptr<subgraph_t> &sg,
         const std::unordered_map<value_t *, size_t> &edge_ref_count,
         fusion_info_mgr_t &mgr, bool enable_standard_sharing) {
     std::unordered_map<size_t, size_t> temporary_buffer_ref_count;
@@ -529,8 +527,7 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
         return impl::status::success;
     };
 
-    return impl::topo_order_visit(
-            impl::graph_t(subgraph).get_output_ops(), func);
+    return impl::topo_order_visit(sg->get_output_ops(), func);
 }
 
 impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
@@ -776,7 +773,6 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
 impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     status_t ret;
 
-    auto &subgraph = sg->get_mutable_ops();
     auto &mgr = sg->fusion_info_mgr_;
     const auto &p_engine = *(sg->p_engine_);
     const auto &inputs = sg->ins_;
@@ -788,13 +784,13 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
 
     // get the reference count of each edge
     std::unordered_map<value_t *, size_t> edge_ref_count;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         auto in_vals = cur_op->get_input_values();
         for (auto &val : in_vals) {
             edge_ref_count[val.get()]++;
         }
     }
-    for (auto &val : impl::graph_t(subgraph).get_output_values()) {
+    for (auto &val : sg->get_output_values()) {
         edge_ref_count[val]++;
     }
 
@@ -812,21 +808,20 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     }
 
     // Assign external_input buffers to subgraph's inputs and their alias
-    ret = assign_external_inputs_buffer(subgraph, inputs);
+    ret = assign_external_inputs_buffer(sg, inputs);
     if (ret != status::success) return ret;
 
     // Assign internal temporary buffer for all other edges
-    ret = assign_internal_temporary_buffer(
-            subgraph, edge_ref_count, mgr, false);
+    ret = assign_internal_temporary_buffer(sg, edge_ref_count, mgr, false);
     if (ret != status::success) return ret;
 
     // Replace some internal temporary buffers to user given external output
     // buffer
-    ret = assign_external_outputs_buffer(subgraph, outputs, mgr);
+    ret = assign_external_outputs_buffer(sg, outputs, mgr);
     if (ret != status::success) return ret;
 
     // Replace some internal temporary buffers to cached persistent buffer
-    ret = assign_internal_persistent_buffer(subgraph, mgr);
+    ret = assign_internal_persistent_buffer(sg, mgr);
     if (ret != status::success) return ret;
 
     // Reset the unreplaced internal temporary buffer
@@ -842,7 +837,7 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
 
     // Re-assign internal temporary buffer for reset ones (will re-do memory
     // sharing between temporary buffers)
-    ret = assign_internal_temporary_buffer(subgraph, edge_ref_count, mgr, true);
+    ret = assign_internal_temporary_buffer(sg, edge_ref_count, mgr, true);
     if (ret != status::success) return ret;
 
     // Check which input/output pair of the subgraph can be inplaced

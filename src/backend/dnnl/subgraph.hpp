@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
@@ -47,12 +48,22 @@ namespace impl {
 namespace dnnl_impl {
 
 struct op_executable_t;
+class subgraph_rewriter_t;
 
 // The subgraph_t class is a subclass of graph_t, which is used as the only
 // parameter of transformation passes. Each transformation pass will process the
 // subgraph_t object, and after that, the content of subgraph_t object will be
 // changed.
 class subgraph_t : public impl::graph_t {
+    friend class subgraph_rewriter_t;
+
+private:
+    // Make this member private so that only the friend class
+    // subgraph_rewriter_t can change the subgraph structure
+    std::vector<op_ptr> &get_mutable_ops() {
+        return const_cast<std::vector<op_ptr> &>(get_ops());
+    }
+
 public:
     subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
             bool reset_layout = true);
@@ -61,10 +72,6 @@ public:
             impl::fpmath_mode_t fpm_mode, bool reset_layout);
 
     subgraph_t(const std::vector<op_ptr> &ops, bool reset_layout = true);
-
-    std::vector<op_ptr> &get_mutable_ops() {
-        return const_cast<std::vector<op_ptr> &>(get_ops());
-    }
 
     // The inputs and outputs logical tensors given by users at compilation
     // stage
@@ -125,6 +132,97 @@ class subgraph_validator_t {
 public:
     subgraph_validator_t() = default;
     status_t run(const std::shared_ptr<subgraph_t> &sg);
+};
+
+// This class provide some common used utils to do subgraph rewriting. Those
+// utils use "lazy rewrite" policy, which only change the connections but not
+// modify the op list in subgraph. To finalize the rewriting process and modify
+// the op list, we must call run() method. This class is not thread safe, we
+// must not rewrite the same subgraph in multiple threads.
+class subgraph_rewriter_t {
+public:
+    subgraph_rewriter_t(std::shared_ptr<subgraph_t> &sg) : subgraph_(sg) {}
+
+    ~subgraph_rewriter_t();
+
+    // Finalize the rewriting, which actually insert/remove the op to/from
+    // subgraph op list
+    void run();
+
+    // Puts the op into the to_be_inserted_ops_ list
+    void to_insert(const std::shared_ptr<impl::op_t> &op) {
+        to_be_inserted_ops_.emplace_back(op);
+    }
+
+    // Puts the op into the to_be_removed_ops_ list
+    void to_remove(const std::shared_ptr<impl::op_t> &op) {
+        to_be_removed_ops_.emplace_back(op);
+    }
+
+    // Insert the inserted_op before the base_op, and put the inserted_op to the
+    // to_be_inserted_ops_ list
+    //                              in_val
+    //     in_val                 \   |      /
+    //   \   |      /              \  |[j]  /
+    //    \  |[i]  /      -->     inserted_op
+    //    base_op                     |[k]
+    //                                |
+    //                             \  |[i]  /
+    //                              base_op
+    void insert_op_before(const std::shared_ptr<impl::op_t> &inserted_op,
+            const std::shared_ptr<impl::op_t> &base_op, size_t i,
+            size_t j = std::numeric_limits<size_t>::max(),
+            size_t k = std::numeric_limits<size_t>::max());
+
+    // Insert the inserted_op after the base_op, and put the inserted_op to the
+    // to_be_inserted_ops_ list
+    //                           base_op
+    //   base_op                /  |[i]
+    //   /  |[i]  \    -->         |
+    //  /   |      \            \  |[j]  /
+    //    out_val               inserted_op
+    //                             |[k]
+    //                             |
+    //                          out_val
+    void insert_op_after(const std::shared_ptr<impl::op_t> &inserted_op,
+            const std::shared_ptr<impl::op_t> &base_op, size_t i,
+            size_t j = std::numeric_limits<size_t>::max(),
+            size_t k = std::numeric_limits<size_t>::max());
+
+    // Fuse a op to its successor, and put the op to the to_be_removed list.
+    // The op must have only one successor and one input value
+    //   in_val
+    //     |
+    //    op             in_val
+    //     |      -->      |
+    //  successor       successor
+    //     |               |
+    //   out_val         out_val
+    void fuse_op_to_successor(const std::shared_ptr<impl::op_t> &op);
+
+    // Fuse a op to its predecessor, and put the op to the to_be_removed list.
+    // The unfused input values of op will be add to predecessor's inputs.
+    //     in_val1                  in_val1     in_val2
+    //       |                         \       /
+    //   predecessor  in_val2         predecessor
+    //        \       /       -->          |
+    //         \[i]  /                     |
+    //           op                     out_val
+    //            |
+    //         out_val
+    void fuse_op_to_predecessor(
+            const std::shared_ptr<impl::op_t> &op, size_t i = 0);
+
+    // Replace the org_op with the new_op
+    void replace_op(const std::shared_ptr<impl::op_t> &org_op,
+            const std::shared_ptr<impl::op_t> &new_op);
+
+private:
+    bool is_to_be_removed(const std::shared_ptr<impl::op_t> &op) const;
+
+    std::shared_ptr<subgraph_t> subgraph_;
+    std::vector<std::shared_ptr<impl::op_t>> to_be_inserted_ops_;
+    std::vector<std::shared_ptr<impl::op_t>> to_be_removed_ops_;
 };
 
 } // namespace dnnl_impl

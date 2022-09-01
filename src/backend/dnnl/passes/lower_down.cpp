@@ -75,21 +75,16 @@ static bool is_output_scales_supported(op_kind_t kind) {
 }
 
 impl::status_t split_squared_difference(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (need_attr_adjustment(cur_op->get_kind())) {
             if (cur_op->get_kind() == impl::op_kind::SquaredDifference) {
                 op_ptr subtract = std::make_shared<op_t>(op_kind::dnnl_binary);
                 subtract->set_attr<int64_t>(op_attr::alg_kind,
                         static_cast<int64_t>(dnnl::algorithm::binary_sub));
 
-                replace_op(cur_op, subtract);
-                to_be_inserted_ops.emplace_back(subtract);
-                to_be_removed_ops.emplace_back(cur_op);
+                rewriter.replace_op(cur_op, subtract);
 
                 op_ptr square = std::make_shared<op_t>(op_kind::dnnl_eltwise);
                 square->set_attr<int64_t>(op_attr::alg_kind,
@@ -99,31 +94,19 @@ impl::status_t split_squared_difference(std::shared_ptr<subgraph_t> &sg) {
                 square->set_attr<float>(op_attr::alpha, default_attr_value);
                 square->set_attr<float>(op_attr::beta, default_attr_value);
 
-                insert_op_after(square, subtract, 0);
-                to_be_inserted_ops.emplace_back(square);
+                rewriter.insert_op_after(square, subtract, 0);
                 insert_empty_scratchpad(subtract);
                 insert_empty_scratchpad(square);
             }
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t check_with_bias(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (!has_optional_bias(cur_op->get_kind())) continue;
         if (cur_op->num_inputs() == 3) {
             cur_op->set_attr<bool>(op_attr::with_bias, true);
@@ -135,11 +118,11 @@ impl::status_t check_with_bias(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_t *> bias_add_ops;
+    std::vector<op_ptr> bias_add_ops;
+    subgraph_rewriter_t rewriter(sg);
 
     std::set<op_t *> visited;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_binary
                 || visited.count(cur_op.get()) != 0)
             continue;
@@ -151,7 +134,7 @@ impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
         // bias add may be standalone
         if (!cur_op->get_input_value(0)->has_producer()) continue;
 
-        bias_add_ops.emplace_back(cur_op.get());
+        bias_add_ops.emplace_back(cur_op);
         visited.insert(cur_op.get());
     }
 
@@ -159,24 +142,24 @@ impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
         auto in_val = bias_add->get_input_value(0);
         auto &prv_op = in_val->get_producer();
         if (!has_optional_bias(prv_op.get_kind())) continue;
-        fuse_op_to_predecessor(bias_add, subgraph);
+        rewriter.fuse_op_to_predecessor(bias_add);
         prv_op.set_attr<bool>(op_attr::with_bias, true);
     }
 
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t split_quant_dequant(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-
     std::vector<op_ptr> q_dq_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == impl::op_kind::Quantize
                 || cur_op->get_kind() == impl::op_kind::Dequantize) {
             q_dq_ops.emplace_back(cur_op);
         }
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &cur_op : q_dq_ops) {
         const auto &zps = cur_op->get_attr<std::vector<int64_t>>(op_attr::zps);
         const auto &scales
@@ -236,27 +219,26 @@ impl::status_t split_quant_dequant(std::shared_ptr<subgraph_t> &sg) {
         op2->add_output(out_vals[0]);
 
         // add new ops and delete quantize or dequantize op
-        subgraph.emplace_back(op1);
-        subgraph.emplace_back(op2);
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [cur_op](const op_ptr &op) { return *cur_op == *op; });
-        if (pos != subgraph.end()) subgraph.erase(pos);
+        rewriter.to_insert(op1);
+        rewriter.to_insert(op2);
+        rewriter.to_remove(cur_op);
     }
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t replace_quant_dequant_with_mul_scales(
         std::shared_ptr<subgraph_t> &sg) {
     // replaces Quant/Dequant OPs with mul_scales, zps attribute is ignored.
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> q_dq_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == impl::op_kind::Quantize
                 || cur_op->get_kind() == impl::op_kind::Dequantize) {
             q_dq_ops.emplace_back(cur_op);
         }
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &cur_op : q_dq_ops) {
         // directly ignoring zps attribute
         const auto &scales
@@ -294,22 +276,21 @@ impl::status_t replace_quant_dequant_with_mul_scales(
         mul_scales_op->add_output(out_vals[0]);
 
         // add new op and delete quantize or dequantize op
-        subgraph.emplace_back(mul_scales_op);
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [cur_op](const op_ptr &op) { return *cur_op == *op; });
-        if (pos != subgraph.end()) subgraph.erase(pos);
+        rewriter.to_insert(mul_scales_op);
+        rewriter.to_remove(cur_op);
     }
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     auto &mgr = sg->fusion_info_mgr_;
+    subgraph_rewriter_t rewriter(sg);
 
     std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
     std::set<op_t *> visited;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if ((!has_int8_support(cur_op->get_kind())
                     && cur_op->get_kind() != op_kind::dnnl_softmax)
                 || visited.count(cur_op.get()) != 0)
@@ -343,8 +324,10 @@ impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
 
         fusion_info_t &fusion_info = mgr.get_mutable_info(key);
         fusion_info.set_output_scales(scale_op->shared_from_this());
-        fuse_op_to_predecessor(scale_op, subgraph);
+        rewriter.fuse_op_to_predecessor(scale_op->shared_from_this());
     }
+
+    rewriter.run();
     return impl::status::success;
 }
 
@@ -370,11 +353,10 @@ impl::status_t replace_quant_data_with_binary_post_op(
 
     const std::set<op_kind_t> accepted_kinds_in_chain = {op_kind::dnnl_binary,
             op_kind::dnnl_mul_scales, op_kind::dnnl_add_zps};
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<const op_t *> to_be_removed_ops;
+
+    subgraph_rewriter_t rewriter(sg);
     std::set<op_t *> visited;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if ((is_output_scales_supported(cur_op->get_kind())
                     && cur_op->get_kind() != op_kind::dnnl_softmax)
                 || visited.count(cur_op.get()))
@@ -447,35 +429,25 @@ impl::status_t replace_quant_data_with_binary_post_op(
             // connect binary and constant data
             bin_op->connect_input(1, const_data_dst_value);
 
-            to_be_inserted_ops.emplace_back(bin_op);
-            to_be_inserted_ops.emplace_back(const_data_op);
-            to_be_removed_ops.push_back(quant_data_op);
+            rewriter.to_insert(bin_op);
+            rewriter.to_insert(const_data_op);
+            rewriter.to_remove(quant_data_op->shared_from_this());
 
             visited.insert(next_op);
             next_op = get_next_op(next_op);
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &f_op) { return f_op.get() == op; });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     // lambda function to fold the consecutive mul_scales ops
     auto fold_mul_scales_func = [&]() {
         std::vector<std::pair<op_t *, op_t *>> folding_groups;
         std::set<op_t *> visited;
-        for (const auto &cur_op : subgraph) {
+        for (const auto &cur_op : sg->get_ops()) {
             if (cur_op->get_kind() != op_kind::dnnl_mul_scales
                     || visited.count(cur_op.get()) != 0)
                 continue;
@@ -497,6 +469,7 @@ impl::status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg) {
 
         if (folding_groups.empty()) return false;
 
+        subgraph_rewriter_t rewriter(sg);
         for (auto &folding_ops : folding_groups) {
             auto base_op = folding_ops.first;
             auto next_op = folding_ops.second;
@@ -523,8 +496,9 @@ impl::status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg) {
             }
             base_op->set_attr<std::vector<float>>(op_attr::scales, new_scales);
 
-            fuse_op_to_predecessor(next_op, subgraph, 0);
+            rewriter.fuse_op_to_predecessor(next_op->shared_from_this(), 0);
         }
+        rewriter.run();
         return true;
     };
 
@@ -536,9 +510,8 @@ impl::status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &op : subgraph) {
+    for (const auto &op : sg->get_ops()) {
         if ((op->get_kind() == op_kind::dnnl_convolution
                     || op->get_kind() == op_kind::dnnl_convtranspose)
                 && op->get_input_value(0)->has_producer()
@@ -554,8 +527,7 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fusion_group : fusion_groups) {
         op_t *conv_op = fusion_group[0];
         op_t *in0 = fusion_group[1];
@@ -607,8 +579,8 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         in0_ivalue->remove_consumer(*in0, 0);
         in1_ivalue->remove_consumer(*in1, 0);
 
-        to_be_removed_ops.emplace_back(in0->shared_from_this());
-        to_be_removed_ops.emplace_back(in1->shared_from_this());
+        rewriter.to_remove(in0->shared_from_this());
+        rewriter.to_remove(in1->shared_from_this());
 
         if (conv_op->num_inputs() == 3) { //with bias
             op_ptr mul_op1 = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
@@ -627,34 +599,22 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
             mul_op1->set_attr<std::string>(op_attr::qtype,
                     mul_op->get_attr<std::string>(op_attr::qtype));
 
-            insert_op_before(mul_op1.get(), conv_op, 2);
+            rewriter.insert_op_before(mul_op1, conv_op->shared_from_this(), 2);
             // Some of oneDNN's conv primitive implementation can't support bf16
             // bias
             mul_op1->get_output_value(0)->set_data_type(impl::data_type::f32);
-            to_be_inserted_ops.emplace_back(mul_op1);
         }
 
-        insert_op_after(mul_op.get(), conv_op, 0);
-        to_be_inserted_ops.emplace_back(mul_op);
+        rewriter.insert_op_after(mul_op, conv_op->shared_from_this(), 0);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul
                 || !cur_op->get_input_value(0)->has_producer()
                 || !cur_op->get_input_value(1)->has_producer())
@@ -667,8 +627,7 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
                     std::vector<op_t *> {cur_op.get(), &in0, &in1});
     }
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fusion_group : fusion_groups) {
         op_t *matmul_op = fusion_group[0];
         op_t *in0 = fusion_group[1];
@@ -727,8 +686,8 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
         in0_value->remove_consumer(*in0, 0);
         in1_value->remove_consumer(*in1, 0);
 
-        to_be_removed_ops.emplace_back(in0->shared_from_this());
-        to_be_removed_ops.emplace_back(in1->shared_from_this());
+        rewriter.to_remove(in0->shared_from_this());
+        rewriter.to_remove(in1->shared_from_this());
 
         // with bias
         if (matmul_op->num_inputs() == 3) {
@@ -748,35 +707,25 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
             bias_mul_op->set_attr<std::string>(op_attr::qtype,
                     mul_scales_op->get_attr<std::string>(op_attr::qtype));
 
-            insert_op_before(bias_mul_op.get(), matmul_op, 2);
+            rewriter.insert_op_before(
+                    bias_mul_op, matmul_op->shared_from_this(), 2);
             // Some of oneDNN's matmul primitive implementation can't support
             // bf16 bias
             bias_mul_op->get_output_value(0)->set_data_type(
                     impl::data_type::f32);
-            to_be_inserted_ops.emplace_back(bias_mul_op);
         }
 
-        insert_op_after(mul_scales_op.get(), matmul_op, 0);
-        to_be_inserted_ops.emplace_back(mul_scales_op);
+        rewriter.insert_op_after(
+                mul_scales_op, matmul_op->shared_from_this(), 0);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_reorder
                 || !cur_op->get_input_value(0)->has_producer())
             continue;
@@ -810,9 +759,8 @@ impl::status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_t *> fusion_ops;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_concat) continue;
 
         bool matched = true;
@@ -832,13 +780,12 @@ impl::status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
 
     if (fusion_ops.empty()) return impl::status::success;
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &concat_op : fusion_ops) {
         // We only support int8 Concat with the same scales and zps
         // for all inputs. As Concat is not changing the range of values,
         // we are simply ignoring here De/Quantize OPs by disconnecting
         // them from the Concat.
-        std::vector<const op_t *> deleted_ops;
-
         for (size_t i = 0; i < concat_op->num_inputs(); ++i) {
             op_t &dq_op = concat_op->get_input_value(i)->get_producer();
             assertm(dq_op.get_kind() == impl::op_kind::Dequantize,
@@ -847,7 +794,7 @@ impl::status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
             value_ptr in_value = dq_op.get_input_value(0);
             in_value->remove_consumer(dq_op, 0);
             concat_op->connect_input(i, in_value);
-            deleted_ops.push_back(&dq_op);
+            rewriter.to_remove((&dq_op)->shared_from_this());
         }
 
         assertm(concat_op->get_output_value(0)->get_consumers().size() == 1,
@@ -858,17 +805,10 @@ impl::status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
                 "int8 concat output value should be consumed by Quantize op.");
         value_ptr out_value = q_op.get_output_value(0);
         concat_op->connect_output(0, out_value);
-        deleted_ops.push_back(&q_op);
-
-        for (const auto &del_op : deleted_ops) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [del_op](const op_ptr &f_op) {
-                        return f_op.get() == del_op;
-                    });
-            if (pos != subgraph.end()) subgraph.erase(pos);
-        }
+        rewriter.to_remove((&q_op)->shared_from_this());
     }
 
+    rewriter.run();
     return impl::status::success;
 }
 
@@ -890,9 +830,8 @@ impl::status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
 //           |                     |
 //
 impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> pool_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == op_kind::dnnl_pool
                 && cur_op->get_input_value(0)->has_producer()
                 && !cur_op->get_output_value(0)->get_consumers().empty()
@@ -959,9 +898,8 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
 //           |                     |
 //
 impl::status_t defer_src_zps_for_pool(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> pool_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == op_kind::dnnl_pool
                 && cur_op->get_input_value(0)->has_producer()
                 && !cur_op->get_output_value(0)->get_consumers().empty()
@@ -1014,9 +952,8 @@ impl::status_t defer_src_zps_for_pool(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_reshape) continue;
 
         if (cur_op->get_output_value(0)->get_consumers().size() != 1) continue;
@@ -1031,6 +968,7 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
                 std::vector<op_t *> {cur_op.get(), &next0, &next1});
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fusion_group : fusion_groups) {
         op_t *reshape0 = fusion_group[0];
         op_t *reshape1 = fusion_group[2];
@@ -1061,25 +999,21 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
         insert_empty_scratchpad(shuffle);
 
         for (auto &del_op : fusion_group) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [del_op](const op_ptr &f_op) {
-                        return del_op == f_op.get();
-                    });
-            if (pos != subgraph.end()) subgraph.erase(pos);
+            rewriter.to_remove(del_op->shared_from_this());
         }
 
-        subgraph.emplace_back(shuffle);
+        rewriter.to_insert(shuffle);
     }
 
+    rewriter.run();
     return impl::status::success;
 }
 
 status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::set<op_t *> visited;
-    std::vector<op_t *> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (!(cur_op->get_kind() == op_kind::dnnl_binary
                     && static_cast<dnnl::algorithm>(
                                cur_op->get_attr<int64_t>(op_attr::alg_kind))
@@ -1153,30 +1087,25 @@ status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg) {
             for (auto &v : oscales)
                 v *= tmp_scale;
             oscales_op.set_attr<std::vector<float>>(op_attr::scales, oscales);
-            to_be_removed_ops.push_back(&next_op);
+            rewriter.fuse_op_to_predecessor(next_op.shared_from_this());
         }
     }
 
-    for (const auto &op : to_be_removed_ops) {
-        fuse_op_to_predecessor(op, subgraph);
-    }
-
+    rewriter.run();
     return status::success;
 }
 
 status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    auto &mgr = sg->fusion_info_mgr_;
-
     // lambda function to fuse one post op into base primitive
-    auto fuse_post_ops_func
-            = [&](std::vector<op_ptr> &subgraph, fusion_info_mgr_t &mgr,
-                      bool &changed) -> impl::status_t {
+    auto fuse_post_ops_func = [&](bool &changed) -> impl::status_t {
+        auto &mgr = sg->fusion_info_mgr_;
+        subgraph_rewriter_t rewriter(sg);
+
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<op_t *> visited;
         impl::status_t ret = impl::topo_order_visit(
-                impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
+                sg->get_output_ops(), [&](impl::op_t *op) {
                     const auto &pops_fusible_map = get_post_ops_fusible_map();
 
                     auto base_op_kind = op->get_kind();
@@ -1255,8 +1184,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                         && alg == dnnl::algorithm::eltwise_relu) {
                     base_op->set_attr<bool>(op_attr::fuse_relu, true);
                     // remove the fused post_ops op
-                    fuse_op_to_predecessor(
-                            post_op, subgraph, fuse_op_predecessor_offset);
+                    rewriter.fuse_op_to_predecessor(post_op->shared_from_this(),
+                            fuse_op_predecessor_offset);
                     auto tmp_ptr = base_op->shared_from_this();
                     insert_empty_workspace(tmp_ptr);
                     continue;
@@ -1270,7 +1199,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     if (next_op.get_kind() == op_kind::dnnl_mul_scales) {
                         scale = next_op.get_attr<std::vector<float>>(
                                 op_attr::scales)[0];
-                        fuse_op_to_predecessor(&next_op, subgraph);
+                        rewriter.fuse_op_to_predecessor(
+                                next_op.shared_from_this());
                     }
                 }
                 fusion_info.append_post_eltwise(
@@ -1317,9 +1247,11 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                         zp = static_cast<int32_t>(-zps[0]);
                         assert(scales.size() == zps.size());
 
-                        fuse_op_to_successor(&add_zps_op, subgraph);
+                        rewriter.fuse_op_to_successor(
+                                add_zps_op.shared_from_this());
                     }
-                    fuse_op_to_successor(&mul_scale_op, subgraph);
+                    rewriter.fuse_op_to_successor(
+                            mul_scale_op.shared_from_this());
 
                     fusion_info.append_post_sum(post_op->shared_from_this(),
                             std::vector<size_t> {base_op->num_inputs()},
@@ -1400,16 +1332,12 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 conv_dw->set_attr(op_attr::dw_filter_format, dw_filter_format);
                 conv_dw->set_attr(op_attr::dw_type, dw_type);
 
-                auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                        [base_op](const op_ptr &f_op) {
-                            return base_op == f_op.get();
-                        });
-                assert(pos != subgraph.end());
-                replace_op(*pos, conv_dw);
-                conv_dw->merge_attributes((*pos)->get_attributes());
+                auto base_op_shared_ptr = base_op->shared_from_this();
+                rewriter.replace_op(base_op_shared_ptr, conv_dw);
+                conv_dw->merge_attributes(base_op->get_attributes());
 
-                fuse_op_to_predecessor(
-                        post_op, subgraph, fuse_op_predecessor_offset);
+                rewriter.fuse_op_to_predecessor(post_op->shared_from_this(),
+                        fuse_op_predecessor_offset);
                 // conv_depthwise op may have additional output, which is
                 // intermediate base conv output. It is needed in layout
                 // propagation step.
@@ -1421,9 +1349,6 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 conv_dw->connect_output(
                         conv_dw->num_outputs(), intermediate_out);
 
-                subgraph.erase(pos);
-                subgraph.emplace_back(conv_dw);
-
                 with_op_replacement = true;
             } else {
                 // unsupported post ops
@@ -1432,21 +1357,22 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
 
             if (!with_op_replacement) {
                 // remove the fused post_ops op
-                fuse_op_to_predecessor(
-                        post_op, subgraph, fuse_op_predecessor_offset);
+                rewriter.fuse_op_to_predecessor(post_op->shared_from_this(),
+                        fuse_op_predecessor_offset);
             }
         }
 
+        rewriter.run();
         changed = true;
         return impl::status::success;
     };
 
     int cnt = 0;
-    const int max_num_limit = static_cast<int>(subgraph.size());
+    const int max_num_limit = static_cast<int>(sg->num_ops());
 
     bool changed = true;
     do {
-        auto ret = fuse_post_ops_func(subgraph, mgr, changed);
+        auto ret = fuse_post_ops_func(changed);
         if (ret != impl::status::success) return ret;
         cnt++;
     } while (changed && cnt <= max_num_limit);
@@ -1458,13 +1384,12 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     auto &mgr = sg->fusion_info_mgr_;
 
     std::vector<op_t *> zp_ops;
 
     std::set<op_t *> visited;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_add_zps
                 || visited.count(cur_op.get()) != 0)
             continue;
@@ -1473,6 +1398,7 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
         visited.insert(cur_op.get());
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &zp_op : zp_ops) {
         assertm(zp_op->num_outputs() == 1,
                 "zp_op should have only one output value.");
@@ -1516,7 +1442,7 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
                 }
             }
 
-            fuse_op_to_successor(zp_op, subgraph);
+            rewriter.fuse_op_to_successor(zp_op->shared_from_this());
         } else if (is_output_zps) {
             auto in_val = zp_op->get_input_values()[0];
             auto &prv_op = in_val->get_producer();
@@ -1531,7 +1457,7 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
 
             fusion_info_t &fusion_info = mgr.get_mutable_info(key);
             fusion_info.set_zero_points(zp_op->shared_from_this(), false, 0);
-            fuse_op_to_predecessor(zp_op, subgraph);
+            rewriter.fuse_op_to_predecessor(zp_op->shared_from_this());
         } else {
             // Nothing to do
         }
@@ -1540,10 +1466,9 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::pair<op_t *, op_t *>> fuse_groups;
     std::set<op_t *> visited;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if ((cur_op->get_kind() != op_kind::dnnl_mul_scales
                     && cur_op->get_kind() != op_kind::dnnl_add_zps)
                 || visited.count(cur_op.get()) != 0)
@@ -1574,6 +1499,7 @@ impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
 
     if (fuse_groups.empty()) return impl::status::success;
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fuse_ops : fuse_groups) {
         op_t *op1 = fuse_ops.first;
         op_t *op2 = fuse_ops.second;
@@ -1611,28 +1537,24 @@ impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
         fused_op->add_output(out_val);
         out_val->set_producer(*fused_op);
 
-        subgraph.emplace_back(fused_op);
+        rewriter.to_insert(fused_op);
 
         // add scratchpad output
         insert_empty_scratchpad(fused_op);
 
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op1](const op_ptr &f_op) { return op1 == f_op.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-
-        pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op2](const op_ptr &f_op) { return op2 == f_op.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
+        rewriter.to_remove(op1->shared_from_this());
+        rewriter.to_remove(op2->shared_from_this());
     }
+
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_t *> bn_ops;
 
     std::set<op_t *> visited;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_batchnorm
                 || visited.count(cur_op.get()) != 0)
             continue;
@@ -1650,6 +1572,7 @@ impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
         visited.insert(cur_op.get());
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &bn_op : bn_ops) {
         auto &prv_op = bn_op->get_input_value(0)->get_producer();
         if (prv_op.get_kind() != op_kind::dnnl_convolution) continue;
@@ -1704,21 +1627,18 @@ impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
         auto bn_out_val = bn_op->get_output_value(0);
         prv_op.connect_output(0, bn_out_val);
 
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [bn_op](const op_ptr &op) { return *bn_op == *op; });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-
-        subgraph.emplace_back(bn_folding_op);
+        rewriter.to_remove(bn_op->shared_from_this());
+        rewriter.to_insert(bn_folding_op);
     }
+
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_conv_bwd_data) continue;
 
         // insert permute
@@ -1737,8 +1657,7 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             in_perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
             in_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
             in_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            insert_op_before(in_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(in_perm_op);
+            rewriter.insert_op_before(in_perm_op, cur_op, 0);
 
             // output permute
             op_ptr out_perm_op
@@ -1747,8 +1666,7 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::permute_kind, "permute");
             out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
             out_perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
-            insert_op_after(out_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(out_perm_op);
+            rewriter.insert_op_after(out_perm_op, cur_op, 0);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
             if (cur_op->has_attr(op_attr::output_shape)) {
@@ -1766,8 +1684,7 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
             perm_op->set_attr<std::string>(op_attr::from_format, "XIO");
             perm_op->set_attr<std::string>(op_attr::to_format, "OIX");
-            insert_op_before(perm_op, cur_op, 1);
-            to_be_inserted_ops.emplace_back(perm_op);
+            rewriter.insert_op_before(perm_op, cur_op, 1);
             cur_op->set_attr<std::string>(op_attr::filter_format, "OIX");
         }
 
@@ -1777,31 +1694,20 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             op_ptr to_group_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_to_group);
             to_group_op->set_attr<int64_t>(op_attr::groups, groups);
-            insert_op_before(to_group_op, cur_op, 1);
-            to_be_inserted_ops.emplace_back(to_group_op);
+            rewriter.insert_op_before(to_group_op, cur_op, 1);
             cur_op->set_attr<int64_t>(op_attr::groups, 1);
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t conv_bwd_weights_canonicalization(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_conv_bwd_weights
                 && cur_op->get_kind()
                         != op_kind::dnnl_convtranspose_bwd_weights)
@@ -1836,8 +1742,7 @@ impl::status_t conv_bwd_weights_canonicalization(
                     op_attr::permute_kind, "permute");
             in0_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
             in0_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            insert_op_before(in0_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(in0_perm_op);
+            rewriter.insert_op_before(in0_perm_op, cur_op, 0);
 
             op_ptr in1_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
@@ -1845,8 +1750,7 @@ impl::status_t conv_bwd_weights_canonicalization(
                     op_attr::permute_kind, "permute");
             in1_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
             in1_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            insert_op_before(in1_perm_op, cur_op, 1);
-            to_be_inserted_ops.emplace_back(in1_perm_op);
+            rewriter.insert_op_before(in1_perm_op, cur_op, 1);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
         }
@@ -1858,8 +1762,7 @@ impl::status_t conv_bwd_weights_canonicalization(
                     op_attr::permute_kind, "permute");
             out_perm_op->set_attr<std::string>(op_attr::from_format, "OIX");
             out_perm_op->set_attr<std::string>(op_attr::to_format, "XIO");
-            insert_op_after(out_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(out_perm_op);
+            rewriter.insert_op_after(out_perm_op, cur_op, 0);
 
             const auto filter_shape_attr
                     = cur_op->get_attr<std::vector<int64_t>>(
@@ -1877,8 +1780,7 @@ impl::status_t conv_bwd_weights_canonicalization(
             op_ptr from_group_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_from_group);
             from_group_op->set_attr<int64_t>(op_attr::groups, groups);
-            insert_op_after(from_group_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(from_group_op);
+            rewriter.insert_op_after(from_group_op, cur_op, 0);
 
             if (cur_op->get_kind() == op_kind::dnnl_convtranspose_bwd_weights)
                 from_group_op->set_attr<bool>(op_attr::is_convtranspose, true);
@@ -1887,24 +1789,14 @@ impl::status_t conv_bwd_weights_canonicalization(
         cur_op->set_attr<bool>(op_attr::canonicalized, true);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_pool) continue;
 
         // insert permute
@@ -1920,8 +1812,7 @@ impl::status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::permute_kind, "permute");
             in0_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
             in0_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            insert_op_before(in0_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(in0_perm_op);
+            rewriter.insert_op_before(in0_perm_op, cur_op, 0);
 
             // dst permute
             op_ptr out0_perm_op
@@ -1930,31 +1821,20 @@ impl::status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::permute_kind, "permute");
             out0_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
             out0_perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
-            insert_op_after(out0_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(out0_perm_op);
+            rewriter.insert_op_after(out0_perm_op, cur_op, 0);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_pool_bwd) continue;
 
         // insert permute
@@ -1970,8 +1850,7 @@ impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::permute_kind, "permute");
             in1_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
             in1_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            insert_op_before(in1_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(in1_perm_op);
+            rewriter.insert_op_before(in1_perm_op, cur_op, 0);
 
             // src permute
             if (cur_op->get_attr<std::string>(op_attr::kind) == "maxpool") {
@@ -1981,8 +1860,7 @@ impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                         op_attr::permute_kind, "permute");
                 src_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
                 src_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-                insert_op_before(src_perm_op, cur_op, 2);
-                to_be_inserted_ops.emplace_back(src_perm_op);
+                rewriter.insert_op_before(src_perm_op, cur_op, 2);
             }
 
             // diff_src permute
@@ -1992,8 +1870,7 @@ impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::permute_kind, "permute");
             out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
             out_perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
-            insert_op_after(out_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(out_perm_op);
+            rewriter.insert_op_after(out_perm_op, cur_op, 0);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
 
@@ -2007,26 +1884,17 @@ impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> swish_patterns;
     std::vector<size_t> mul_other_offsets;
 
     // find all swish pattern in subgraph
     std::set<op_t *> visited;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_eltwise
                 || visited.count(cur_op.get()) != 0)
             continue;
@@ -2075,6 +1943,7 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
     if (swish_patterns.empty()) return impl::status::success;
 
     // fuse swish pattern to a swish op
+    subgraph_rewriter_t rewriter(sg);
     for (size_t i = 0; i < swish_patterns.size(); i++) {
         op_t *sigmoid_op = swish_patterns[i][0];
         op_t *mul_op = swish_patterns[i][1];
@@ -2096,26 +1965,19 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
 
         insert_empty_scratchpad(swish_op);
 
-        subgraph.emplace_back(swish_op);
-
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [sigmoid_op](const op_ptr &f_op) {
-                    return sigmoid_op == f_op.get();
-                });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-
-        pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [mul_op](const op_ptr &f_op) { return mul_op == f_op.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
+        rewriter.to_insert(swish_op);
+        rewriter.to_remove(sigmoid_op->shared_from_this());
+        rewriter.to_remove(mul_op->shared_from_this());
     }
+
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t fuse_typecast_to_matmul_or_conv(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if ((cur_op->get_kind() != op_kind::dnnl_matmul
                     && cur_op->get_kind() != op_kind::dnnl_convolution)
                 || !cur_op->get_input_value(0)->has_producer()
@@ -2134,7 +1996,7 @@ impl::status_t fuse_typecast_to_matmul_or_conv(
                     std::vector<op_t *> {cur_op.get(), &in0, &in1});
     }
 
-    std::vector<op_t *> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fusion_group : fusion_groups) {
         op_t *base_op = fusion_group[0];
         op_t *in0 = fusion_group[1];
@@ -2149,23 +2011,17 @@ impl::status_t fuse_typecast_to_matmul_or_conv(
         in0_value->remove_consumer(*in0, 0);
         in1_value->remove_consumer(*in1, 0);
 
-        to_be_removed_ops.emplace_back(in0);
-        to_be_removed_ops.emplace_back(in1);
+        rewriter.to_remove(in0->shared_from_this());
+        rewriter.to_remove(in1->shared_from_this());
     }
 
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_binary
                 || static_cast<dnnl::algorithm>(
                            cur_op->get_attr<int64_t>(op_attr::alg_kind))
@@ -2193,6 +2049,7 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fusion_group : fusion_groups) {
         op_t *add_op = fusion_group[0];
         op_t *typecast_op = fusion_group[1];
@@ -2227,24 +2084,21 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
 
         // delete original matmul/convolution and typecast ops
         for (auto &del_op : fusion_group) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [del_op](const op_ptr &f_op) {
-                        return del_op == f_op.get();
-                    });
-            if (pos != subgraph.end()) subgraph.erase(pos);
+            rewriter.to_remove(del_op->shared_from_this());
         }
 
-        subgraph.emplace_back(new_add_op);
+        rewriter.to_insert(new_add_op);
     }
+
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t fuse_post_typecast_to_matmul_or_conv(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     const std::set<op_kind_t> post_ops_kinds {impl::op_kind::GELU};
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul
                 && cur_op->get_kind() != op_kind::dnnl_convolution)
             continue;
@@ -2290,22 +2144,19 @@ impl::status_t fuse_post_typecast_to_matmul_or_conv(
         }
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fusion_group : fusion_groups)
         // delete original typecast ops
         for (auto &del_op : fusion_group) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [del_op](const op_ptr &f_op) {
-                        return del_op == f_op.get();
-                    });
-            if (pos != subgraph.end()) subgraph.erase(pos);
+            rewriter.to_remove(del_op->shared_from_this());
         }
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t fuse_post_typecast_to_softmax(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_softmax) continue;
         auto out = cur_op->get_output_value(0);
         if (out->get_consumers().size() != 1) continue;
@@ -2316,15 +2167,13 @@ impl::status_t fuse_post_typecast_to_softmax(std::shared_ptr<subgraph_t> &sg) {
         fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fusion_group : fusion_groups)
         // delete original typecast ops
         for (auto &del_op : fusion_group) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [del_op](const op_ptr &f_op) {
-                        return del_op == f_op.get();
-                    });
-            if (pos != subgraph.end()) subgraph.erase(pos);
+            rewriter.to_remove(del_op->shared_from_this());
         }
+    rewriter.run();
     return impl::status::success;
 }
 
@@ -2348,11 +2197,11 @@ impl::status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg) {
                |                      out0
               out0
     */
-    auto &subgraph = sg->get_mutable_ops();
+
     std::vector<std::pair<op_t *, op_t *>> div_patterns;
     std::vector<size_t> mul_other_offsets;
     std::set<op_t *> visited;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_eltwise
                 || visited.count(cur_op.get()) != 0)
             continue;
@@ -2403,6 +2252,7 @@ impl::status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg) {
 
     if (div_patterns.empty()) return impl::status::success;
 
+    subgraph_rewriter_t rewriter(sg);
     for (size_t i = 0; i < div_patterns.size(); ++i) {
         auto reciprocal_op = div_patterns[i].first;
         auto mul_op = div_patterns[i].second;
@@ -2426,25 +2276,18 @@ impl::status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg) {
 
         insert_empty_scratchpad(div_op);
 
-        subgraph.emplace_back(div_op);
-
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [reciprocal_op](const op_ptr &f_op) {
-                    return reciprocal_op == f_op.get();
-                });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-
-        pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [mul_op](const op_ptr &f_op) { return mul_op == f_op.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
+        rewriter.to_insert(div_op);
+        rewriter.to_remove(reciprocal_op->shared_from_this());
+        rewriter.to_remove(mul_op->shared_from_this());
     }
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
+    subgraph_rewriter_t rewriter(sg);
+
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_batchnorm_bwd) continue;
 
         // insert permute
@@ -2460,8 +2303,7 @@ impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::permute_kind, "permute");
             in_perm_op_0->set_attr<std::string>(op_attr::from_format, "NXC");
             in_perm_op_0->set_attr<std::string>(op_attr::to_format, "NCX");
-            insert_op_before(in_perm_op_0, cur_op, 0);
-            to_be_inserted_ops.emplace_back(in_perm_op_0);
+            rewriter.insert_op_before(in_perm_op_0, cur_op, 0);
 
             // input1 permute
             op_ptr in_perm_op_1
@@ -2470,8 +2312,7 @@ impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::permute_kind, "permute");
             in_perm_op_1->set_attr<std::string>(op_attr::from_format, "NXC");
             in_perm_op_1->set_attr<std::string>(op_attr::to_format, "NCX");
-            insert_op_before(in_perm_op_1, cur_op, 1);
-            to_be_inserted_ops.emplace_back(in_perm_op_1);
+            rewriter.insert_op_before(in_perm_op_1, cur_op, 1);
 
             // output permute
             op_ptr out_perm_op
@@ -2480,23 +2321,17 @@ impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::permute_kind, "permute");
             out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
             out_perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
-            insert_op_after(out_perm_op, cur_op, 0);
-            to_be_inserted_ops.emplace_back(out_perm_op);
+            rewriter.insert_op_after(out_perm_op, cur_op, 0);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-
     auto is_non_broadcast_add = [](const op_t *op) {
         return op->get_kind() == dnnl_impl::op_kind::dnnl_binary
                 && static_cast<dnnl::algorithm>(
@@ -2508,7 +2343,7 @@ impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
 
     std::vector<std::vector<op_ptr>> op_lists;
     std::set<op_t *> visited;
-    for (auto &op : subgraph) {
+    for (auto &op : sg->get_ops()) {
         if (!is_non_broadcast_add(op.get()) || visited.count(op.get()))
             continue;
         std::vector<op_ptr> list;
@@ -2535,6 +2370,7 @@ impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
 
     if (op_lists.empty()) return impl::status::success;
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &list : op_lists) {
         op_ptr sum_op = std::make_shared<op_t>(op_kind::dnnl_sum);
 
@@ -2575,25 +2411,21 @@ impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
 
         // remove original add/mul ops
         for (const auto &op : list) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-            if (pos != subgraph.end()) subgraph.erase(pos);
+            rewriter.to_remove(op);
         }
 
         // add dnnl_sum to subgraph
-        subgraph.emplace_back(sum_op);
+        rewriter.to_insert(sum_op);
     }
 
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_binary) continue;
 
         bool is_bias_add = cur_op->has_attr(op_attr::is_bias_add)
@@ -2646,34 +2478,21 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
             auto unsqueeze_op = std::make_shared<op_t>(op_kind::dnnl_unsqueeze);
             unsqueeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
-            insert_op_before(unsqueeze_op, cur_op, i);
-            to_be_inserted_ops.emplace_back(unsqueeze_op);
+            rewriter.insert_op_before(unsqueeze_op, cur_op, i);
         }
 
         // set attr
         cur_op->set_attr<bool>(op_attr::canonicalized, true);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t binary_broadcast_swap(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_binary) continue;
         const auto alg_kind = static_cast<dnnl::algorithm>(
                 cur_op->get_attr<int64_t>(op_attr::alg_kind));
@@ -2707,96 +2526,77 @@ impl::status_t binary_broadcast_swap(std::shared_ptr<subgraph_t> &sg) {
         auto out1_value = cur_op->get_output_value(1);
         binary_op->add_output(out1_value);
 
-        to_be_inserted_ops.emplace_back(binary_op);
-        to_be_removed_ops.emplace_back(cur_op);
+        rewriter.to_insert(binary_op);
+        rewriter.to_remove(cur_op);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
-
     const static std::set<impl::op_kind_t> reorder_op_set
             = {op_kind::dnnl_reorder};
 
-    auto &subgraph = sg->get_mutable_ops();
-    auto &mgr = sg->fusion_info_mgr_;
-    auto &p_engine = sg->p_engine_;
-    auto &pd_cache = sg->pd_cache_;
+    auto fuse_two_adjacent_reorders = [&](bool &changed) -> impl::status_t {
+        auto &mgr = sg->fusion_info_mgr_;
+        auto &p_engine = sg->p_engine_;
+        auto &pd_cache = sg->pd_cache_;
 
-    auto fuse_two_adjacent_reorders
-            = [&mgr, &p_engine, &pd_cache](std::vector<op_ptr> &subgraph,
-                      bool &changed) -> impl::status_t {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<const op_t *> visited;
-        impl::status_t ret = impl::topo_order_visit(
-                impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
-                    if (!reorder_op_set.count(op->get_kind())
-                            || visited.count(op) != 0)
-                        return impl::status::success;
+        impl::status_t ret;
+        ret = impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
+            if (!reorder_op_set.count(op->get_kind()) || visited.count(op) != 0)
+                return impl::status::success;
 
-                    auto out_val = op->get_output_values()[0];
-                    auto consumers = out_val->get_consumers();
-                    if (consumers.size() != 1) return impl::status::success;
-                    auto &next_op = consumers[0].get_op();
+            auto out_val = op->get_output_values()[0];
+            auto consumers = out_val->get_consumers();
+            if (consumers.size() != 1) return impl::status::success;
+            auto &next_op = consumers[0].get_op();
 
-                    // check if fusible
-                    if (reorder_op_set.count(next_op.get_kind()) == 0) {
-                        return impl::status::success;
-                    }
+            // check if fusible
+            if (reorder_op_set.count(next_op.get_kind()) == 0) {
+                return impl::status::success;
+            }
 
-                    // two reorders should have same shape
-                    auto next_op_out = next_op.get_output_value(0);
-                    auto lhs = out_val->get_logical_tensor();
-                    auto rhs = next_op_out->get_logical_tensor();
-                    if (ltw(lhs).vdims() != ltw(rhs).vdims()) {
-                        return impl::status::success;
-                    }
+            // two reorders should have same shape
+            auto next_op_out = next_op.get_output_value(0);
+            auto lhs = out_val->get_logical_tensor();
+            auto rhs = next_op_out->get_logical_tensor();
+            if (ltw(lhs).vdims() != ltw(rhs).vdims()) {
+                return impl::status::success;
+            }
 
-                    // if reorder do per channel scaling, their axis should be
-                    // same
-                    int64_t cur_axis = op->has_attr(op_attr::axis)
-                            ? op->get_attr<int64_t>(op_attr::axis)
-                            : -1;
-                    int64_t next_axis = next_op.has_attr(op_attr::axis)
-                            ? next_op.get_attr<int64_t>(op_attr::axis)
-                            : -1;
-                    if (cur_axis != -1 && next_axis != -1
-                            && cur_axis != next_axis) {
-                        return impl::status::success;
-                    }
+            // if reorder do per channel scaling, their axis should be
+            // same
+            int64_t cur_axis = op->has_attr(op_attr::axis)
+                    ? op->get_attr<int64_t>(op_attr::axis)
+                    : -1;
+            int64_t next_axis = next_op.has_attr(op_attr::axis)
+                    ? next_op.get_attr<int64_t>(op_attr::axis)
+                    : -1;
+            if (cur_axis != -1 && next_axis != -1 && cur_axis != next_axis) {
+                return impl::status::success;
+            }
 
-                    // Skip fusion if reorder's output has extra info, because
-                    // oneDNN doesn't have good supports for such fused cases.
-                    // TODO(qun) improve the skip rule
-                    auto fused_out_lt
-                            = next_op.get_output_value(0)->get_logical_tensor();
-                    auto fused_out_md = make_dnnl_memory_desc(fused_out_lt);
-                    if (fused_out_md.data.extra.flags
-                            != dnnl_memory_extra_flag_none) {
-                        return impl::status::success;
-                    }
+            // Skip fusion if reorder's output has extra info, because
+            // oneDNN doesn't have good supports for such fused cases.
+            // TODO(qun) improve the skip rule
+            auto fused_out_lt
+                    = next_op.get_output_value(0)->get_logical_tensor();
+            auto fused_out_md = make_dnnl_memory_desc(fused_out_lt);
+            if (fused_out_md.data.extra.flags != dnnl_memory_extra_flag_none) {
+                return impl::status::success;
+            }
 
-                    // push fusible pair to fuse group for later fusion
-                    fuse_groups.emplace_back(
-                            std::pair<op_t *, op_t *> {op, &next_op});
-                    visited.insert(op);
-                    visited.insert(&next_op);
-                    return impl::status::success;
-                });
+            // push fusible pair to fuse group for later fusion
+            fuse_groups.emplace_back(std::pair<op_t *, op_t *> {op, &next_op});
+            visited.insert(op);
+            visited.insert(&next_op);
+            return impl::status::success;
+        });
 
         if (ret != impl::status::success) return ret;
 
@@ -2805,6 +2605,7 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             return impl::status::success;
         }
 
+        subgraph_rewriter_t rewriter(sg);
         for (auto &fuse_group : fuse_groups) {
             auto op1 = fuse_group.first;
             auto op2 = fuse_group.second;
@@ -2924,25 +2725,20 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             auto status = fill_layout_info(scratchpad_val, scratchpad_desc);
             if (status != impl::status::success) return status;
 
-            subgraph.emplace_back(fused_op);
-
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [op1](const op_ptr &f_op) { return op1 == f_op.get(); });
-            if (pos != subgraph.end()) subgraph.erase(pos);
-
-            pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [op2](const op_ptr &f_op) { return op2 == f_op.get(); });
-            if (pos != subgraph.end()) subgraph.erase(pos);
+            rewriter.to_insert(fused_op);
+            rewriter.to_remove(op1->shared_from_this());
+            rewriter.to_remove(op2->shared_from_this());
         }
+        rewriter.run();
         return impl::status::success;
     };
 
     int cnt = 0;
-    const int max_num_limit = static_cast<int>(subgraph.size());
+    const int max_num_limit = static_cast<int>(sg->num_ops());
 
     bool changed = true;
     do {
-        auto ret = fuse_two_adjacent_reorders(subgraph, changed);
+        auto ret = fuse_two_adjacent_reorders(changed);
         if (ret != impl::status::success) return ret;
         cnt++;
     } while (changed && cnt <= max_num_limit);
@@ -2954,9 +2750,8 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != dnnl_impl::op_kind::dnnl_mul_scales
                 || !cur_op->get_input_value(0)->has_producer())
             continue;
@@ -2966,25 +2761,24 @@ impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg) {
             fusion_groups.emplace_back(std::vector<op_t *> {cur_op.get(), &in});
     }
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fusion_group : fusion_groups) {
         op_t *in0 = fusion_group[1];
-        fuse_op_to_successor(in0, subgraph);
+        rewriter.fuse_op_to_successor(in0->shared_from_this());
     }
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-
     std::vector<op_ptr> q_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == impl::op_kind::DynamicQuantize) {
             q_ops.emplace_back(cur_op);
         }
     }
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
     for (auto &cur_op : q_ops) {
         const auto &qtype = cur_op->get_attr<std::string>(op_attr::qtype);
         const auto &axis = cur_op->get_attr<int64_t>(op_attr::axis);
@@ -3014,7 +2808,7 @@ impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg) {
         mul_scales->connect_input(0, src);
         src->remove_consumer(*cur_op, 0);
         mul_scales->add_output(dst);
-        to_be_inserted_ops.emplace_back(mul_scales);
+        rewriter.to_insert(mul_scales);
 
         // op used to inverse the scales
         auto inv_scales_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
@@ -3023,9 +2817,8 @@ impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg) {
                 static_cast<int64_t>(dnnl::algorithm::eltwise_pow));
         inv_scales_op->set_attr<float>(op_attr::alpha, 1.0f);
         inv_scales_op->set_attr<float>(op_attr::beta, -1.0f);
-        insert_op_before(inv_scales_op, mul_scales, 1);
+        rewriter.insert_op_before(inv_scales_op, mul_scales, 1);
         insert_empty_scratchpad(inv_scales_op);
-        to_be_inserted_ops.emplace_back(inv_scales_op);
 
         if (has_zps) {
             op_ptr add_zps = std::make_shared<op_t>(op_kind::dnnl_add_zps);
@@ -3036,38 +2829,25 @@ impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg) {
             add_zps->set_attr<bool>(op_attr::with_runtime_zps, true);
 
             // connect add_zps to subgraph
-            insert_op_after(add_zps.get(), mul_scales.get(), 0, 0);
-            to_be_inserted_ops.emplace_back(add_zps);
+            rewriter.insert_op_after(add_zps, mul_scales, 0, 0);
         }
 
-        to_be_removed_ops.emplace_back(cur_op);
+        rewriter.to_remove(cur_op);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t split_dynamic_dequant(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-
     std::vector<op_ptr> dq_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == impl::op_kind::DynamicDequantize) {
             dq_ops.emplace_back(cur_op);
         }
     }
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
     for (auto &cur_op : dq_ops) {
         const auto &qtype = cur_op->get_attr<std::string>(op_attr::qtype);
         const auto &axis = cur_op->get_attr<int64_t>(op_attr::axis);
@@ -3097,7 +2877,7 @@ impl::status_t split_dynamic_dequant(std::shared_ptr<subgraph_t> &sg) {
         mul_scales->connect_input(0, src);
         src->remove_consumer(*cur_op, 0);
         mul_scales->add_output(dst);
-        to_be_inserted_ops.emplace_back(mul_scales);
+        rewriter.to_insert(mul_scales);
 
         if (has_zps) {
             op_ptr sub_zps = std::make_shared<op_t>(op_kind::dnnl_sub_zps);
@@ -3108,32 +2888,21 @@ impl::status_t split_dynamic_dequant(std::shared_ptr<subgraph_t> &sg) {
             sub_zps->set_attr<bool>(op_attr::with_runtime_zps, true);
 
             // connect sub_zps op to subgraph
-            insert_op_before(sub_zps.get(), mul_scales.get(), 0, 0);
-            to_be_inserted_ops.emplace_back(sub_zps);
+            rewriter.insert_op_before(sub_zps, mul_scales, 0, 0);
         }
 
-        to_be_removed_ops.emplace_back(cur_op);
+        rewriter.to_remove(cur_op);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t fuse_dynamic_mul_scales_add_zps(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::pair<op_ptr, op_ptr>> fuse_groups;
     std::set<op_t *> visited;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if ((cur_op->get_kind() != op_kind::dnnl_mul_scales)
                 || visited.count(cur_op.get()) != 0)
             continue;
@@ -3162,8 +2931,7 @@ impl::status_t fuse_dynamic_mul_scales_add_zps(
 
     if (fuse_groups.empty()) return impl::status::success;
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fuse_ops : fuse_groups) {
         op_ptr &mul_scales = fuse_ops.first; // mul_scales
         op_ptr &add_zps = fuse_ops.second; // add_zps
@@ -3200,30 +2968,20 @@ impl::status_t fuse_dynamic_mul_scales_add_zps(
 
         insert_empty_scratchpad(fused_op);
 
-        to_be_inserted_ops.emplace_back(fused_op);
-        to_be_removed_ops.emplace_back(mul_scales);
-        to_be_removed_ops.emplace_back(add_zps);
+        rewriter.to_insert(fused_op);
+        rewriter.to_remove(mul_scales);
+        rewriter.to_remove(add_zps);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t fuse_dynamic_sub_zps_mul_scales(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<std::pair<op_ptr, op_ptr>> fuse_groups;
     std::set<op_t *> visited;
-    for (const auto &cur_op : subgraph) {
+    for (const auto &cur_op : sg->get_ops()) {
         if ((cur_op->get_kind() != op_kind::dnnl_sub_zps)
                 || visited.count(cur_op.get()) != 0)
             continue;
@@ -3251,8 +3009,7 @@ impl::status_t fuse_dynamic_sub_zps_mul_scales(
 
     if (fuse_groups.empty()) return impl::status::success;
 
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
     for (auto &fuse_ops : fuse_groups) {
         op_ptr &op1 = fuse_ops.first; // sub_zps
         op_ptr &op2 = fuse_ops.second; // mul_scales
@@ -3288,31 +3045,19 @@ impl::status_t fuse_dynamic_sub_zps_mul_scales(
 
         insert_empty_scratchpad(fused_op);
 
-        to_be_inserted_ops.emplace_back(fused_op);
-        to_be_removed_ops.emplace_back(op1);
-        to_be_removed_ops.emplace_back(op2);
+        rewriter.to_insert(fused_op);
+        rewriter.to_remove(op1);
+        rewriter.to_remove(op2);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_reorder) continue;
 
         size_t index = 1; // the start index of optional runtime scales and zps
@@ -3326,9 +3071,8 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                 auto tc_op = std::make_shared<op_t>(
                         dnnl_impl::op_kind::dnnl_reorder);
                 tc_op->set_attr<bool>(op_attr::change_layout, false);
-                insert_op_before(tc_op, cur_op, index);
+                rewriter.insert_op_before(tc_op, cur_op, index);
                 insert_empty_scratchpad(tc_op);
-                to_be_inserted_ops.emplace_back(tc_op);
                 tc_op->get_output_value(0)->set_data_type(impl::data_type::s32);
                 index++;
             }
@@ -3348,34 +3092,21 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                 auto tc_op = std::make_shared<op_t>(
                         dnnl_impl::op_kind::dnnl_reorder);
                 tc_op->set_attr<bool>(op_attr::change_layout, false);
-                insert_op_before(tc_op, cur_op, index);
-                to_be_inserted_ops.emplace_back(tc_op);
+                rewriter.insert_op_before(tc_op, cur_op, index);
                 tc_op->get_output_value(0)->set_data_type(impl::data_type::s32);
                 index++;
             }
         }
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
+    subgraph_rewriter_t rewriter(sg);
 
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         op_ptr new_op;
         bool merge_attr = true;
         bool insert_scratchpad = true;
@@ -3536,7 +3267,7 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             continue;
         }
 
-        replace_op(cur_op, new_op);
+        rewriter.replace_op(cur_op, new_op);
 
         // Not all ops will merge attr, it depends on the op definition in
         // schema. For example, dnnl_eltwise need to convert original attrs to
@@ -3545,33 +3276,19 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
 
         if (insert_scratchpad)
             auto scratchpad_val = insert_empty_scratchpad(new_op);
-
-        to_be_inserted_ops.emplace_back(new_op);
-        to_be_removed_ops.emplace_back(cur_op);
     }
 
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-
     // Eliminate two equal reorder with same input
-    auto cse_func = [](std::vector<op_ptr> &subgraph, bool &changed) {
+    auto cse_func = [&](bool &changed) {
         std::vector<op_t *> fusion;
 
         // find two fusible ops
-        for (auto &op : subgraph) {
+        for (auto &op : sg->get_ops()) {
             if (op->get_kind() != impl::op_kind::Reorder) continue;
 
             auto ins = op->get_input_values();
@@ -3642,9 +3359,9 @@ impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
             }
         }
 
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op2](const op_ptr &tmp) { return op2 == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
+        subgraph_rewriter_t rewriter(sg);
+        rewriter.to_remove(op2->shared_from_this());
+        rewriter.run();
 
         changed = true;
         return impl::status::success;
@@ -3655,7 +3372,7 @@ impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
 
     bool changed = true;
     do {
-        auto ret = cse_func(subgraph, changed);
+        auto ret = cse_func(changed);
         if (ret != impl::status::success) return ret;
         cnt++;
     } while (changed && cnt <= max_iter_num);
@@ -3670,9 +3387,8 @@ impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
 
 impl::status_t remove_unnecessary_quant_dequant(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> pool_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == op_kind::dnnl_pool) {
             pool_ops.emplace_back(cur_op);
         }
@@ -3680,6 +3396,7 @@ impl::status_t remove_unnecessary_quant_dequant(
 
     if (pool_ops.empty()) return impl::status::success;
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &pool_op : pool_ops) {
         value_ptr pool_in_val = pool_op->get_input_value(0);
         value_ptr pool_out_val = pool_op->get_output_value(0);
@@ -3702,16 +3419,11 @@ impl::status_t remove_unnecessary_quant_dequant(
         pool_op->connect_input(0, dequant_in_val);
         pool_op->connect_output(0, quant_out_val);
 
-        std::vector<const op_t *> ops_to_delete {&dequant_op, &quant_op};
-        for (const auto &del_op : ops_to_delete) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [del_op](const op_ptr &f_op) {
-                        return del_op == f_op.get();
-                    });
-            if (pos != subgraph.end()) subgraph.erase(pos);
-        }
+        rewriter.to_remove(dequant_op.shared_from_this());
+        rewriter.to_remove(quant_op.shared_from_this());
     }
 
+    rewriter.run();
     return impl::status::success;
 }
 
@@ -3773,9 +3485,8 @@ impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
         return std::make_pair("per_tensor", static_cast<int64_t>(1));
     };
 
-    auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> bin_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == op_kind::dnnl_binary) {
             value_ptr bin_in0_val = cur_op->get_input_value(0);
             value_ptr bin_in1_val = cur_op->get_input_value(1);
@@ -3798,6 +3509,7 @@ impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
 
     if (bin_ops.empty()) return impl::status::success;
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &bin_op : bin_ops) {
         value_ptr bin_in0_val = bin_op->get_input_value(0);
         value_ptr bin_in1_val = bin_op->get_input_value(1);
@@ -3889,12 +3601,12 @@ impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
         }
 
         // drop out scales op
-        fuse_op_to_predecessor(&scales_out_op, subgraph);
+        rewriter.fuse_op_to_predecessor(scales_out_op.shared_from_this());
 
         // if possible, drop other scales, and connect zps with binary
         // otherwise, update other scales data
         if (drop_other_scales) {
-            fuse_op_to_successor(&other_scales_op, subgraph);
+            rewriter.fuse_op_to_successor(other_scales_op.shared_from_this());
         } else {
             other_scales_op.set_attr(op_attr::scales, new_scales_in1)
                     .set_attr(op_attr::qtype, new_qtype_in1)
@@ -3907,15 +3619,14 @@ impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
                 .set_attr(op_attr::axis, new_axis_in0);
     }
 
+    rewriter.run();
     return infer_shape(sg);
 }
 
 impl::status_t remove_quant_data_with_no_effect(
         std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_removed_ops;
     std::vector<op_ptr> quant_data_ops;
-    for (auto &cur_op : subgraph) {
+    for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == op_kind::dnnl_mul_scales
                 || cur_op->get_kind() == op_kind::dnnl_add_zps) {
             quant_data_ops.emplace_back(cur_op);
@@ -3924,6 +3635,7 @@ impl::status_t remove_quant_data_with_no_effect(
 
     if (quant_data_ops.empty()) return impl::status::success;
 
+    subgraph_rewriter_t rewriter(sg);
     for (auto &quant_data_op : quant_data_ops) {
         bool to_remove = false;
         if (quant_data_op->get_kind() == op_kind::dnnl_mul_scales) {
@@ -3947,28 +3659,23 @@ impl::status_t remove_quant_data_with_no_effect(
                 value_ptr quant_data_in_val = quant_data_op->get_input_value(0);
                 op_t &predecessor_op = quant_data_in_val->get_producer();
                 predecessor_op.connect_output(0, quant_data_out_val);
-                to_be_removed_ops.push_back(quant_data_op);
+                rewriter.to_remove(quant_data_op);
             } else {
-                fuse_op_to_successor(quant_data_op.get(), subgraph);
+                rewriter.fuse_op_to_successor(quant_data_op);
             }
         }
     }
 
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
+    rewriter.run();
     return impl::status::success;
 }
 
 impl::status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg) {
     using ltw = impl::logical_tensor_wrapper_t;
-    auto &subgraph = sg->get_mutable_ops();
+
     while (true) {
         std::vector<std::pair<impl::op_t *, impl::op_t *>> to_be_swapped;
-        for (auto &op : subgraph) {
+        for (auto &op : sg->get_ops()) {
             bool ok = op->get_kind() == dnnl_impl::op_kind::dnnl_matmul
                     && op->get_input_value(0)->has_producer();
             if (!ok) continue;

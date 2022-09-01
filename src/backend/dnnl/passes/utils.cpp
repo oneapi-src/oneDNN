@@ -47,157 +47,6 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper_t;
 
-// this function fuse a op to its successor.
-// you should guarantee that the op has only one successor
-//
-//   in_val
-//     |
-//   next_op         in_val
-//     |      --->     |
-//   base_op         base_op
-//     |               |
-//   out_val         out_val
-void fuse_op_to_successor(op_t *op, std::vector<op_ptr> &subgraph) {
-    assertm(op->num_inputs() == 1, "this op should have only one input value.");
-    value_ptr in_val = op->get_input_value(0);
-    in_val->remove_consumer(*op, 0);
-
-    value_ptr out_val = op->get_output_value(0);
-    auto consumers = out_val->get_consumers();
-    assertm(!consumers.empty() && consumers.size() == 1,
-            "this op has zero consumer or more than one consumers.");
-
-    op_t &successor = consumers[0].get_op();
-    size_t offset = consumers[0].get_offset();
-    in_val->add_consumer(successor, offset);
-    successor.connect_input(offset, in_val);
-
-    auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-            [op](const op_ptr &tmp) { return op == tmp.get(); });
-    if (pos != subgraph.end()) subgraph.erase(pos);
-}
-
-//   in_val                  in_val     in_val2
-//     |                         \       /
-//   base_op  in_val2             base_op
-//      \       /       --->         |
-//       next_op                  out_val
-//          |
-//       out_val
-void fuse_op_to_predecessor(
-        op_t *op, std::vector<op_ptr> &subgraph, size_t in_offset) {
-    value_ptr in_val = op->get_input_value(in_offset);
-    value_ptr out_val = op->get_output_value(0);
-
-    op_t &predecessor = in_val->get_producer();
-    size_t offset = in_val->get_offset();
-    predecessor.connect_output(offset, out_val);
-
-    for (size_t i = 0; i < op->num_inputs(); i++) {
-        value_ptr tmp = op->get_input_value(i);
-        if (tmp == in_val) { continue; }
-
-        tmp->remove_consumer(*op, i);
-        tmp->add_consumer(predecessor, predecessor.num_inputs());
-        predecessor.add_input(tmp);
-    }
-
-    auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-            [op](const op_ptr &tmp) { return op == tmp.get(); });
-    if (pos != subgraph.end()) subgraph.erase(pos);
-}
-
-//   in_val          in_val
-//     |               |
-//     |     ->    inserted_op
-//     |               |
-//     |             new_val
-//     |               |
-//  base_op         base_op
-void insert_op_before(op_ptr &inserted_op, op_ptr &base_op, size_t offset) {
-    return insert_op_before(inserted_op.get(), base_op.get(), offset);
-}
-
-void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset) {
-    value_ptr in_val = base_op->get_input_value(offset);
-    in_val->remove_consumer(*base_op, offset);
-    in_val->add_consumer(*inserted_op, inserted_op->num_inputs());
-    inserted_op->add_input(in_val);
-
-    impl::logical_tensor_t new_lt
-            = impl::empty_logical_tensor_with_default_id();
-    auto new_val = std::make_shared<value_t>(*inserted_op, 0, new_lt, true);
-    auto in_dtype = in_val->get_logical_tensor().data_type;
-    new_val->set_data_type(in_dtype);
-
-    inserted_op->add_output(new_val);
-
-    new_val->add_consumer(*base_op, offset);
-    base_op->connect_input(offset, new_val);
-}
-
-void insert_op_before(op_t *inserted_op, op_t *base_op, size_t base_offset,
-        size_t inserted_offset) {
-    value_ptr in_val = base_op->get_input_value(base_offset);
-    in_val->remove_consumer(*base_op, base_offset);
-    inserted_op->connect_input(inserted_offset, in_val);
-
-    impl::logical_tensor_t new_lt
-            = impl::empty_logical_tensor_with_default_id();
-    auto new_val = std::make_shared<value_t>(*inserted_op, 0, new_lt, true);
-    auto in_dtype = in_val->get_logical_tensor().data_type;
-    new_val->set_data_type(in_dtype);
-
-    inserted_op->add_output(new_val);
-
-    new_val->add_consumer(*base_op, base_offset);
-    base_op->connect_input(base_offset, new_val);
-}
-
-//   base_op         base_op
-//     |               |
-//     |             new_val
-//     |               |
-//     |     ->    inserted_op
-//     |               |
-//  out_val         out_value
-void insert_op_after(op_ptr &inserted_op, op_ptr &base_op, size_t offset) {
-    return insert_op_after(inserted_op.get(), base_op.get(), offset);
-}
-
-void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset) {
-    value_ptr out_val = base_op->get_output_value(offset);
-    inserted_op->add_output(out_val);
-
-    impl::logical_tensor_t new_lt
-            = impl::empty_logical_tensor_with_default_id();
-    auto new_val = std::make_shared<value_t>(*base_op, 0, new_lt, true);
-    auto out_type = out_val->get_logical_tensor().data_type;
-    new_val->set_data_type(out_type);
-
-    base_op->connect_output(offset, new_val);
-
-    new_val->add_consumer(*inserted_op, inserted_op->num_inputs());
-    inserted_op->add_input(new_val);
-}
-
-void insert_op_after(op_t *inserted_op, op_t *base_op, size_t output_offset,
-        size_t input_offset) {
-    value_ptr out_val = base_op->get_output_value(output_offset);
-    inserted_op->add_output(out_val);
-
-    impl::logical_tensor_t new_lt
-            = impl::empty_logical_tensor_with_default_id();
-    auto new_val = std::make_shared<value_t>(*base_op, 0, new_lt, true);
-    auto out_type = out_val->get_logical_tensor().data_type;
-    new_val->set_data_type(out_type);
-
-    base_op->connect_output(output_offset, new_val);
-
-    new_val->add_consumer(*inserted_op, input_offset);
-    inserted_op->connect_input(input_offset, new_val);
-}
-
 status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs) {
@@ -268,8 +117,8 @@ status_t set_given_inputs_outputs(std::vector<op_ptr> &subgraph,
 
 // Constant property should be set by users from API level, this function is
 // just a workaround at this moment.
-void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
-    for (auto &op : subgraph) {
+void set_weight_bias_constant(std::shared_ptr<subgraph_t> &sg) {
+    for (auto &op : sg->get_ops()) {
         if (!(op->get_kind() == op_kind::dnnl_matmul
                     || op->get_kind() == op_kind::dnnl_convolution))
             continue;
@@ -285,21 +134,8 @@ void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
     }
 }
 
-void replace_op(op_ptr &org_op, op_ptr &new_op) {
-    for (size_t i = 0; i < org_op->num_inputs(); i++) {
-        auto in_val = org_op->get_input_value(i);
-        in_val->remove_consumer(*org_op, i);
-        in_val->add_consumer(*new_op, new_op->num_inputs());
-        new_op->add_input(in_val);
-    }
-    for (size_t i = 0; i < org_op->num_outputs(); i++) {
-        auto out_val = org_op->get_output_value(i);
-        new_op->add_output(out_val);
-    }
-}
-
 void merge_common_eltwise_attrs(
-        std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op) {
+        const std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op) {
     if (org_op->has_attr(op_attr::alpha)) {
         new_op->set_attr<float>(
                 op_attr::alpha, org_op->get_attr<float>(op_attr::alpha));
@@ -322,7 +158,7 @@ void merge_common_eltwise_attrs(
 }
 
 std::vector<value_t *> get_constant_block_output_values(
-        const std::vector<op_ptr> &subgraph) {
+        const std::shared_ptr<subgraph_t> &sg) {
     using ltw = impl::logical_tensor_wrapper_t;
     std::vector<value_t *> ret;
     auto func = [&](impl::op_t *op) {
@@ -342,8 +178,7 @@ std::vector<value_t *> get_constant_block_output_values(
         }
         return impl::status::success;
     };
-    impl::status_t status = impl::topo_order_visit(
-            impl::graph_t(subgraph).get_output_ops(), func);
+    impl::status_t status = impl::topo_order_visit(sg->get_output_ops(), func);
     if (status != impl::status::success) return {};
     return ret;
 }
