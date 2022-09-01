@@ -75,6 +75,9 @@ SC_INTERNAL_API void inplace_transform(
 void brgemm_fusion_transform(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 namespace quantize {
+SC_INTERNAL_API void annotate_fusion_break(
+        sc_graph_t &mgr, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API void quantize_info_propagation(
         sc_graph_t &mgr, const context_ptr &ctx = get_default_context());
 

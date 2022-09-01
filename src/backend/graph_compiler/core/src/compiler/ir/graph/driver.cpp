@@ -51,6 +51,8 @@ create_default_graph_flow(const context_ptr &ctx) {
     std::vector<basic_graph_pass_ptr> pre_tune_passes, post_tune_passes;
     pre_tune_passes.push_back(create_graph_pass("analysis_quantized",
             analysis_quantized, {}, pass_type::analysis, true));
+    pre_tune_passes.push_back(create_graph_pass("annotate_fusion_break",
+            quantize::annotate_fusion_break, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass(
             "graph_inline", graph_inline, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass("constant_optimization",
