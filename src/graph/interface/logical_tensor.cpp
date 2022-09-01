@@ -154,6 +154,7 @@ size_t logical_tensor_wrapper_t::hash() const noexcept {
     seed = nd > 0 ? partition_hashing::get_array_hash(seed, this->dims(), nd)
                   : hash_combine(seed, nd);
     seed = hash_combine(seed, static_cast<size_t>(this->data_type()));
+    seed = hash_combine(seed, static_cast<size_t>(this->layout_type()));
     // layout type
     switch (this->layout_type()) {
         case layout_type::undef:

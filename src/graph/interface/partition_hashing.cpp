@@ -38,10 +38,10 @@ key_t::key_t(size_t partition_id, engine_kind_t engine_kind,
     ins_.reserve(ins.size());
     outs_.reserve(outs.size());
     for (auto &in : ins) {
-        ins_.emplace(*in);
+        ins_.emplace_back(*in);
     }
     for (auto &out : outs) {
-        outs_.emplace(*out);
+        outs_.emplace_back(*out);
     }
 }
 
@@ -75,12 +75,24 @@ bool key_t::operator==(const key_t &rhs) const {
             return false;
     }
 
-    for (auto &&e : ins_) {
-        if (rhs.ins_.count(e) == 0) return false;
+    for (size_t i = 0; i < lhs_num_ins; ++i) {
+        const logical_tensor_wrapper_t lhs_lt {ins_[i]};
+        if (std::find_if(rhs.ins_.begin(), rhs.ins_.end(),
+                    [&lhs_lt](const logical_tensor_t &rhs_lt) {
+                        return logical_tensor_wrapper_t(rhs_lt) == lhs_lt;
+                    })
+                == rhs.ins_.end())
+            return false;
     }
 
-    for (auto &&e : outs_) {
-        if (rhs.outs_.count(e) == 0) return false;
+    for (size_t i = 0; i < lhs_num_outs; ++i) {
+        const logical_tensor_wrapper_t lhs_lt {outs_[i]};
+        if (std::find_if(rhs.outs_.begin(), rhs.outs_.end(),
+                    [&lhs_lt](const logical_tensor_t &rhs_lt) {
+                        return logical_tensor_wrapper_t(rhs_lt) == lhs_lt;
+                    })
+                == rhs.outs_.end())
+            return false;
     }
 
     return true;
