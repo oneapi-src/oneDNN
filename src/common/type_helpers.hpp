@@ -461,28 +461,19 @@ inline bool operator==(
     return ret;
 }
 
-inline bool operator==(const layer_normalization_desc_t &lhs,
-        const layer_normalization_desc_t &rhs) {
+inline bool operator==(
+        const layer_normalization_v2_desc_t &lhs, const layer_normalization_v2_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
-            && COMPARE_DESC_MEMBERS(data_desc)
-            && COMPARE_DESC_MEMBERS(diff_data_desc)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(data_scaleshift_desc)
             && COMPARE_DESC_MEMBERS(diff_data_scaleshift_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(diff_dst_desc)
             && COMPARE_DESC_MEMBERS(stat_desc)
             && COMPARE_FLOAT_DESC_MEMBERS(layer_norm_epsilon)
             && COMPARE_DESC_MEMBERS(flags);
-    return ret;
-}
-
-inline bool operator==(
-        const layer_normalization_v2_desc_t &lhs, const layer_normalization_v2_desc_t &rhs) {
-    const auto &v1_desc_lhs = *reinterpret_cast<const layer_normalization_desc_t *>(&lhs);
-    const auto &v1_desc_rhs = *reinterpret_cast<const layer_normalization_desc_t *>(&rhs);
-
-    bool ret = v1_desc_lhs == v1_desc_rhs
-            && COMPARE_DESC_MEMBERS(dst_desc)
-            && COMPARE_DESC_MEMBERS(diff_dst_desc);
      return ret;
 }
 
@@ -924,13 +915,6 @@ inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
         CASE_OP_DESC(eltwise);
         CASE_OP_DESC(gemm);
         CASE_OP_DESC(inner_product);
-        case primitive_kind::layer_normalization: {
-            auto casted_dst_handle = (dnnl_layer_normalization_desc_t *)(dst);
-            auto casted_src_handle
-                    = (const dnnl_layer_normalization_desc_t *)(src);
-            *casted_dst_handle = *casted_src_handle;
-            break;
-        }
             CASE_OP_DESC(layer_normalization_v2);
             CASE_OP_DESC(lrn);
             CASE_OP_DESC(matmul);

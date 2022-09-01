@@ -28,91 +28,6 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
 namespace {
-status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
-        prop_kind_t prop_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *stat_desc, const memory_desc_t *diff_data_desc,
-        float epsilon, unsigned flags) {
-    bool args_ok = !any_null(lnorm_desc, data_desc)
-            && one_of(prop_kind, forward_training, forward_inference,
-                    backward_data, backward)
-            && 2 <= data_desc->ndims && data_desc->ndims <= 5
-            && IMPLICATION(prop_kind & backward, diff_data_desc != nullptr)
-            && (flags
-                       & ~(dnnl_use_global_stats | dnnl_use_scaleshift
-                               | dnnl_use_scale | dnnl_use_shift))
-                    == 0
-            && IMPLICATION(
-                    one_of(prop_kind, forward_training, forward_inference),
-                    !memory_desc_wrapper(data_desc).format_any());
-    if (!args_ok) return invalid_arguments;
-
-    auto ld = layer_normalization_desc_t();
-    ld.primitive_kind = primitive_kind::layer_normalization;
-    ld.prop_kind = prop_kind;
-
-    bool runtime_dims_or_strides
-            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides()
-            || (stat_desc
-                    && memory_desc_wrapper(stat_desc)
-                               .has_runtime_dims_or_strides());
-    if (one_of(prop_kind, backward_data, backward))
-        runtime_dims_or_strides = runtime_dims_or_strides
-                || memory_desc_wrapper(diff_data_desc)
-                           .has_runtime_dims_or_strides();
-    if (runtime_dims_or_strides) return unimplemented;
-
-    ld.data_desc = *data_desc;
-    ld.stat_desc = zero_md();
-    ld.diff_data_desc = zero_md();
-    if (one_of(ld.prop_kind, backward_data, backward))
-        ld.diff_data_desc = *diff_data_desc;
-
-    if (stat_desc)
-        ld.stat_desc = *stat_desc;
-    else
-        CHECK(dnnl_memory_desc_init_by_tag(&ld.stat_desc,
-                ld.data_desc.ndims - 1, ld.data_desc.dims, data_type::f32,
-                format_tag::any));
-
-    int ndims = data_desc->ndims;
-    ld.data_scaleshift_desc = zero_md();
-    if (flags & (dnnl_use_scale | dnnl_use_shift)) {
-        dims_t scaleshift_dims = {data_desc->dims[ndims - 1]};
-        dnnl_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 1,
-                scaleshift_dims, data_type::f32, dnnl_x);
-    } else {
-        dims_t scaleshift_dims = {2, data_desc->dims[ndims - 1]};
-        dnnl_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 2,
-                scaleshift_dims, data_type::f32, dnnl_nc);
-    }
-    ld.diff_data_scaleshift_desc = zero_md();
-    if (ld.prop_kind == backward) {
-        ld.diff_data_scaleshift_desc = ld.data_scaleshift_desc;
-    }
-
-    ld.layer_norm_epsilon = epsilon;
-
-    // dnnl_use_scaleshift can't be mixed with dnnl_use_scale or dnnl_use_shift
-    if ((flags & dnnl_use_scaleshift)
-            && (flags & (dnnl_use_scale | dnnl_use_shift)))
-        return invalid_arguments;
-
-    ld.flags = flags;
-
-    if (ld.prop_kind == backward_data) {
-        bool consistency = ld.diff_data_desc.ndims == ld.data_desc.ndims
-                && array_cmp(ld.diff_data_desc.dims, ld.data_desc.dims,
-                        ld.diff_data_desc.ndims)
-                && ld.data_desc.ndims == ld.stat_desc.ndims + 1
-                && array_cmp(ld.stat_desc.dims, ld.data_desc.dims,
-                        ld.stat_desc.ndims);
-        if (!consistency) return invalid_arguments;
-    }
-
-    *lnorm_desc = ld;
-    return success;
-}
-
 status_t lnorm_v2_desc_init(layer_normalization_v2_desc_t *lnorm_v2_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const memory_desc_t *stat_desc,
@@ -208,25 +123,6 @@ status_t lnorm_v2_desc_init(layer_normalization_v2_desc_t *lnorm_v2_desc,
     return success;
 }
 } // namespace
-
-status_t dnnl_layer_normalization_forward_desc_init(
-        layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *data_desc, const memory_desc_t *stat_desc,
-        float epsilon, unsigned flags) {
-    if (!one_of(prop_kind, forward_training, forward_inference))
-        return invalid_arguments;
-    return lnorm_desc_init(lnorm_desc, prop_kind, data_desc, stat_desc, nullptr,
-            epsilon, flags);
-}
-
-status_t dnnl_layer_normalization_backward_desc_init(
-        layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
-        const memory_desc_t *stat_desc, float epsilon, unsigned flags) {
-    if (!one_of(prop_kind, backward, backward_data)) return invalid_arguments;
-    return lnorm_desc_init(lnorm_desc, prop_kind, data_desc, stat_desc,
-            diff_data_desc, epsilon, flags);
-}
 
 status_t dnnl_layer_normalization_v2_forward_desc_init(
         layer_normalization_v2_desc_t *lnorm_v2_desc, prop_kind_t prop_kind,

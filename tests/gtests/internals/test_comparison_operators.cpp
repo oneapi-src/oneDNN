@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ TEST(comparison_operators_t, TestEltwiseDesc) {
 }
 
 TEST(comparison_operators_t, TestLayerNormDesc) {
-    auto lnorm_desc = dnnl::impl::layer_normalization_desc_t();
+    auto lnorm_desc = dnnl::impl::layer_normalization_v2_desc_t();
     lnorm_desc.layer_norm_epsilon = NAN;
     TEST_SELF_COMPARISON(lnorm_desc);
 }

@@ -67,7 +67,6 @@ void primitive_task_start(primitive_kind_t kind) {
             CASE(eltwise),
             CASE(lrn),
             CASE(batch_normalization),
-            CASE(layer_normalization),
             CASE(inner_product),
             CASE(rnn),
             CASE(gemm),

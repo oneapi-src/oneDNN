@@ -1004,7 +1004,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(eltwise);
             CASE(inner_product);
             case primitive_kind::layer_normalization_v2:
-            CASE(layer_normalization);
+                str_ = init_info_layer_normalization(engine, (const layer_normalization_pd_t *)pd); break;
             CASE(lrn);
             CASE(matmul);
             CASE(pooling);

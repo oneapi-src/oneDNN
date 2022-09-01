@@ -1399,8 +1399,6 @@ typedef enum {
     dnnl_lrn,
     /// A batch normalization primitive.
     dnnl_batch_normalization,
-    /// A layer normalization primitive.
-    dnnl_layer_normalization,
     /// An inner product primitive.
     dnnl_inner_product,
     /// A rnn primitive.
@@ -2206,43 +2204,6 @@ typedef struct {
 
 /// @} dnnl_api_batch_normalization
 
-/// @addtogroup dnnl_api_layer_normalization
-/// @{
-
-/// A descriptor of a Layer Normalization operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_layer_normalization.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
-    dnnl_prop_kind_t prop_kind;
-    /// Source and destination memory descriptor.
-    dnnl_memory_desc_t data_desc;
-    /// Source and destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_data_desc;
-    /// Scale and shift data and gradient memory descriptors.
-    ///
-    /// Scaleshift memory descriptor uses 2D #dnnl_ab
-    /// format[2, normalized_dim] where 1-st dimension contains gamma parameter,
-    /// 2-nd dimension contains beta parameter. Normalized_dim is equal to the
-    /// last logical dimension of the data tensor across which normalization is
-    /// performed.
-    dnnl_memory_desc_t data_scaleshift_desc;
-    dnnl_memory_desc_t diff_data_scaleshift_desc;
-    /// Mean and variance data memory descriptors.
-    ///
-    /// Statistics (mean and variance) memory descriptor is the k-dimensional tensor
-    /// where k is equal to data_tensor_ndims - 1 and may have any plain
-    /// (stride[last_dim] == 1) user-provided format.
-    dnnl_memory_desc_t stat_desc;
-    /// Layer normalization epsilon parameter.
-    float layer_norm_epsilon;
-    unsigned flags;
-} dnnl_layer_normalization_desc_t;
-
-/// @} dnnl_api_layer_normalization
-
 /// @addtogroup dnnl_api_layer_normalization_v2
 /// @{
 
@@ -2967,7 +2928,6 @@ typedef enum {
     dnnl_query_eltwise_d, ///< eltwise descriptor
     dnnl_query_lrn_d, ///< lrn descriptor
     dnnl_query_batch_normalization_d, ///< batch normalization descriptor
-    dnnl_query_layer_normalization_d, ///< layer normalization descriptor
     dnnl_query_inner_product_d, ///< inner product descriptor
     dnnl_query_rnn_d, ///< rnn descriptor
     dnnl_query_gemm_d, ///< GEMM descriptor (internal)

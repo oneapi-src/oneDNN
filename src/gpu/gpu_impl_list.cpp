@@ -36,7 +36,6 @@ const impl_list_item_t *gpu_impl_list_t::get_implementation_list(
             CASE(eltwise);
             CASE(gemm);
             CASE(inner_product);
-            case primitive_kind::layer_normalization:
             CASE(layer_normalization_v2);
             CASE(lrn);
             CASE(matmul);

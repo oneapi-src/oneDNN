@@ -87,7 +87,6 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_convolution_backward_data_f32.cpp
                               test_convolution_backward_weights_f32.cpp
                               test_deconvolution.cpp
-                              test_layer_normalization.cpp
                               test_binary.cpp
                               test_matmul.cpp
                               test_resampling.cpp

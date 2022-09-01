@@ -84,7 +84,6 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(eltwise)
             CASE(gemm)
             CASE(inner_product)
-            CASE(layer_normalization)
             CASE(layer_normalization_v2)
             CASE(lrn)
             CASE(matmul)
@@ -427,33 +426,23 @@ size_t get_desc_hash(const inner_product_desc_t &desc) {
     return seed;
 }
 
-// Layer normalization
-size_t get_desc_hash(const layer_normalization_desc_t &desc) {
+size_t get_desc_hash(const layer_normalization_v2_desc_t &desc) {
     size_t seed = 0;
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
     // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.data_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_data_desc));
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_src_desc));
     seed = hash_combine(seed, get_md_hash(desc.data_scaleshift_desc));
     seed = hash_combine(seed, get_md_hash(desc.diff_data_scaleshift_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
     seed = hash_combine(seed, get_md_hash(desc.stat_desc));
     // Epsilon
     seed = hash_combine(seed, desc.layer_norm_epsilon);
     // Flags
     seed = hash_combine(seed, desc.flags);
-    // Combined hash for layer_normalization desc
-    return seed;
-}
-
-size_t get_desc_hash(const layer_normalization_v2_desc_t &desc) {
-    const auto &v1_desc
-            = *reinterpret_cast<const layer_normalization_desc_t *>(&desc);
-    size_t seed = get_desc_hash(v1_desc);
-    // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
     // Combined hash for layer_normalization_v2 desc
     return seed;
 }

@@ -41,11 +41,6 @@ struct layer_normalization_pd_t : public primitive_desc_t {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
-            case query::layer_normalization_d:
-                *(const layer_normalization_desc_t **)result
-                        = reinterpret_cast<const layer_normalization_desc_t *>(
-                                desc());
-                break;
             case query::layer_normalization_v2_d:
                 *(const layer_normalization_v2_desc_t **)result = desc();
                 break;
@@ -101,7 +96,7 @@ protected:
             const primitive_attr_t *attr,
             const layer_normalization_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(cast_layer_normalization_v1_to_v2(*adesc))
+        , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , stat_md_(desc_.stat_desc)
@@ -144,39 +139,6 @@ protected:
 
 private:
     const memory_desc_t &src_desc() const { return desc_.src_desc; }
-
-    layer_normalization_v2_desc_t cast_layer_normalization_v1_to_v2(
-            const layer_normalization_v2_desc_t &layer_normalization_desc)
-            const {
-        if (layer_normalization_desc.primitive_kind
-                == primitive_kind::layer_normalization_v2)
-            return layer_normalization_desc;
-
-        layer_normalization_v2_desc_t layer_normalization_v2_desc;
-        layer_normalization_v2_desc.primitive_kind
-                = primitive_kind::layer_normalization;
-        layer_normalization_v2_desc.prop_kind
-                = layer_normalization_desc.prop_kind;
-        layer_normalization_v2_desc.src_desc
-                = layer_normalization_desc.src_desc;
-        layer_normalization_v2_desc.diff_src_desc
-                = layer_normalization_desc.diff_src_desc;
-        layer_normalization_v2_desc.data_scaleshift_desc
-                = layer_normalization_desc.data_scaleshift_desc;
-        layer_normalization_v2_desc.diff_data_scaleshift_desc
-                = layer_normalization_desc.diff_data_scaleshift_desc;
-        layer_normalization_v2_desc.stat_desc
-                = layer_normalization_desc.stat_desc;
-        layer_normalization_v2_desc.layer_norm_epsilon
-                = layer_normalization_desc.layer_norm_epsilon;
-        layer_normalization_v2_desc.flags = layer_normalization_desc.flags;
-        layer_normalization_v2_desc.dst_desc
-                = layer_normalization_desc.src_desc;
-        layer_normalization_v2_desc.diff_dst_desc
-                = layer_normalization_desc.diff_src_desc;
-
-        return layer_normalization_v2_desc;
-    }
 };
 
 struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {

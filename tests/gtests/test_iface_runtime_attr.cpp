@@ -227,7 +227,7 @@ TEST_F(runtime_attr_test_t, TestLNorm) {
         memory::desc stat_md {{1, 16}, data_type::f32, tag::ab};
         normalization_flags flags = normalization_flags::use_global_stats;
         layer_normalization_forward::desc op_d(
-                prop_kind::forward_inference, md, stat_md, 0.1f, flags);
+                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags);
         CHECK_OK(layer_normalization_forward::primitive_desc(op_d, eng));
 
         if (get_test_engine_kind() == engine::kind::gpu) {

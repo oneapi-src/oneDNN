@@ -322,7 +322,7 @@ protected:
         // no stat_md provided at all
         {
             layer_normalization_forward::primitive_desc fwd_pd(
-                    {pk, *src_md, epsilon, flags}, eng);
+                    {pk, *src_md, *dst_md, epsilon, flags}, eng);
 
             EXPECT_EQ(fwd_pd.mean_desc(), expect_stat_md);
             EXPECT_EQ(fwd_pd.variance_desc(), expect_stat_md);
@@ -333,7 +333,7 @@ protected:
             memory::desc any_stat_md(
                     stat_dims, memory::data_type::f32, tag::any);
             layer_normalization_forward::primitive_desc fwd_pd(
-                    {pk, *src_md, any_stat_md, epsilon, flags}, eng);
+                    {pk, *src_md, *dst_md, any_stat_md, epsilon, flags}, eng);
 
             EXPECT_EQ(fwd_pd.mean_desc(), expect_stat_md);
             EXPECT_EQ(fwd_pd.variance_desc(), expect_stat_md);
@@ -351,7 +351,8 @@ protected:
                 stat_dims, memory::data_type::f32, expect_stat_tag);
 
         layer_normalization_forward::primitive_desc fwd_pd(
-                {prop_kind::forward_training, *src_md, epsilon, flags}, eng);
+                {prop_kind::forward_training, *src_md, *dst_md, epsilon, flags},
+                eng);
 
         // stat_md with format_tag::any
         {

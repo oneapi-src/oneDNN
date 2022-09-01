@@ -93,7 +93,6 @@ public:
             CASE(deconvolution);
             CASE(eltwise);
             CASE(inner_product);
-            case primitive_kind::layer_normalization:
             CASE(layer_normalization_v2);
             CASE(lrn);
             CASE(matmul);

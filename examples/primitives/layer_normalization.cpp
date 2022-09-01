@@ -91,6 +91,7 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
 
     // Create src memory descriptor and memory object.
     auto src_md = memory::desc(src_dims, dt::f32, tag::tnc);
+    auto dst_md = memory::desc(src_dims, dt::f32, tag::tnc);
     auto src_mem = memory(src_md, engine);
 
     // Create scale/shift memory object.
@@ -102,9 +103,9 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
 
     // Create operation descriptor.
     const float epsilon = 1.e-10f;
-    auto lnorm_desc
-            = layer_normalization_forward::desc(prop_kind::forward_training,
-                    src_md, epsilon, normalization_flags::use_scale_shift);
+    auto lnorm_desc = layer_normalization_forward::desc(
+            prop_kind::forward_training, src_md, dst_md, epsilon,
+            normalization_flags::use_scale_shift);
 
     // Create primitive descriptor.
     auto lnorm_pd

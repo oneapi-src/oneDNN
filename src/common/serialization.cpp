@@ -38,7 +38,6 @@ status_t serialize_desc(
         CASE(eltwise)
         CASE(inner_product)
         CASE(gemm)
-        CASE(layer_normalization)
         CASE(layer_normalization_v2)
         CASE(lrn)
         CASE(matmul)
@@ -335,32 +334,23 @@ void serialize_desc(
     sstream.write(&desc.accum_data_type);
 }
 
-// Layer normalization
 void serialize_desc(serialization_stream_t &sstream,
-        const layer_normalization_desc_t &desc) {
+        const layer_normalization_v2_desc_t &desc) {
     // Kinds
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);
     // Memory descriptors
-    serialize_md(sstream, desc.data_desc);
-    serialize_md(sstream, desc.diff_data_desc);
+    serialize_md(sstream, desc.src_desc);
+    serialize_md(sstream, desc.diff_src_desc);
     serialize_md(sstream, desc.data_scaleshift_desc);
     serialize_md(sstream, desc.diff_data_scaleshift_desc);
+    serialize_md(sstream, desc.dst_desc);
+    serialize_md(sstream, desc.diff_dst_desc);
     serialize_md(sstream, desc.stat_desc);
     // Epsilon
     sstream.write(&desc.layer_norm_epsilon);
     // Flags
     sstream.write(&desc.flags);
-}
-
-void serialize_desc(serialization_stream_t &sstream,
-        const layer_normalization_v2_desc_t &desc) {
-    const auto &v1_desc
-            = *reinterpret_cast<const layer_normalization_desc_t *>(&desc);
-    serialize_desc(sstream, v1_desc);
-    // Memory descriptors
-    serialize_md(sstream, desc.dst_desc);
-    serialize_md(sstream, desc.diff_dst_desc);
 }
 
 void serialize_desc(serialization_stream_t &sstream, const lrn_desc_t &desc) {
