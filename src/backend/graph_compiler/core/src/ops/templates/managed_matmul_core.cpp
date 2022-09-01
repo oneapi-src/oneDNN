@@ -396,8 +396,8 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
         // 16 cases in total
         if (M_anchor_info[1] == M_anchor_info[2]
           && N_anchor_info[1] == N_anchor_info[2]
-          && M_anchor_info[1] % config.M_sub_block == 0
-          && N_anchor_info[1] % config.N_sub_block == 0) {
+          && M_anchor_info[1] / iim_block_ % config.M_sub_block == 0
+          && N_anchor_info[1] / iin_block_ % config.N_sub_block == 0) {
           // case 1: no imbalance on single core, X_sub_block can be
           // dividedevenly
           fusion->create_output_fusion_anchor({tensor_slice(C,
