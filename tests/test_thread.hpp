@@ -61,9 +61,11 @@ struct thr_ctx_t {
 };
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ \
-        || DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP \
         || DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 const thr_ctx_t default_thr_ctx = {0, -1, 0};
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+#include "omp.h"
+const thr_ctx_t default_thr_ctx = {omp_get_max_threads(), -1, 0};
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
 #include "oneapi/tbb/task_arena.h"
 
