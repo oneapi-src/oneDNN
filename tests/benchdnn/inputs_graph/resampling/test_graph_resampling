@@ -1,2 +1,8 @@
 --reset
 --batch=test_graph_resampling_ci
+
+--reset
+--batch=test_graph_resampling_float16_ci
+
+--reset
+--batch=test_graph_resampling_bfloat16_ci

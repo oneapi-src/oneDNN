@@ -1,0 +1,12 @@
+# f16
+--reset
+
+--sdt=f16 --ddt=f16
+--attr-post-ops=,sum,relu,add:f16:common,add:f16:per_tensor # ,add:f16:per_oc
+--p=1 --eps=0.0
+--alg=sum,mul,max,min,mean,norm_lp_power_p_sum
+--batch=option_set_ci
+
+--p=2 --eps=0.0
+--alg=norm_lp_sum
+--batch=option_set_ci

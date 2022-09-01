@@ -2,6 +2,9 @@
 --reset
 --sdt=f32  --ddt=f32  --stag=abx,axb,xba --dtag=abx,axb,xba 2x64x3x3
 
+--reset
+--sdt=f16 --ddt=f16 --stag=abx,axb,xba --dtag=abx,axb,xba 2x64x3x3
+
 # post sum
 --reset
 --sdt=f32  --ddt=f32 --stag=nchw --dtag=aBcd16b  --attr-post-ops=sum 2x64x3x4

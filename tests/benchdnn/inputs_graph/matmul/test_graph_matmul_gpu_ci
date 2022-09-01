@@ -1,6 +1,11 @@
-# main op
+# main op f32
 --reset
 384x512:512x1024:384x1024
+
+# main op f16
+--reset
+--cfg=f16
+16x1024:1024x1024:16x1024
 
 # post bias
 --reset

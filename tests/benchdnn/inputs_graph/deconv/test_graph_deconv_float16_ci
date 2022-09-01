@@ -1,0 +1,35 @@
+# no groups
+--reset
+--dir=FWD_D,BWD_D,BWD_W
+--cfg=f16
+g1oc3ic16_oh5ih5kh3ph1_n"2d_conv:1st"
+g1oc3ic17_oh5ih5kh3ph1_n"2d_tail_conv:1st"
+
+# with groups
+--reset
+--dir=FWD_D,BWD_D,BWD_W
+--cfg=f16
+--stag=abcd
+--wtag=acbde
+--dtag=abcd
+g4oc16ic16_oh5ih5kh3ph1_n"2d_conv:grouped"
+g4oc20ic16_oh5ih5kh3ph1_n"2d_oc_tail_conv:grouped"
+
+# no groups + post-ops
+--reset
+--dir=FWD_D,FWD_B
+--cfg=f16
+--attr-post-ops=add:f16:common,add:f16:per_oc,sum,relu,add:f16:common+mul:f16:common+add:f16:common,add:f16:per_oc+mul:f16:per_oc+add:f16:per_oc,abs+elu+exp,gelu_erf+hardswish+log,relu+round+sqrt,square+tanh
+g1oc3ic16_oh5ih5kh3ph1_n"2d_conv:1st"
+g1oc3ic17_oh5ih5kh3ph1_n"2d_tail_conv:1st"
+
+# with groups + post-ops
+--reset
+--dir=FWD_D,FWD_B
+--cfg=f16
+--stag=abcd
+--wtag=acbde
+--dtag=abcd
+--attr-post-ops=add:f16:common,add:f16:per_oc,sum,relu,add:f16:common+mul:f16:common+add:f16:common,add:f16:per_oc+mul:f16:per_oc+add:f16:per_oc,abs+elu+exp,gelu_erf+hardswish+log,relu+round+sqrt,square+tanh
+g4oc16ic16_oh5ih5kh3ph1_n"2d_conv:grouped"
+g4oc20ic16_oh5ih5kh3ph1_n"2d_oc_tail_conv:grouped"

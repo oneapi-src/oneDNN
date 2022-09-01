@@ -1,0 +1,15 @@
+--reset
+
+--mb=2
+--alg=nearest,linear
+--tag=abx,axb
+--dir=FWD_D,BWD_D
+
+--sdt=bf16 --ddt=bf16 ic17iw21ow17
+
+--reset
+--sdt=bf16 --ddt=bf16  --attr-post-ops=relu,sum   ic17iw21ow17
+
+--reset
+--sdt=bf16 --ddt=bf16
+--attr-post-ops=mul:bf16:per_tensor+sum+add:bf16:common,tanh+logistic+add:bf16:per_oc ic17iw21ow17

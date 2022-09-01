@@ -1,8 +1,11 @@
 --reset
---batch=test_graph_reorder_bfloat16_ci
+--batch=test_graph_reorder_ci
 
 --reset
---batch=test_graph_reorder_ci
+--batch=test_graph_reorder_float16_ci
+
+--reset
+--batch=test_graph_reorder_bfloat16_ci
 
 --reset
 --batch=test_graph_reorder_int8_ci

@@ -18,6 +18,10 @@
 --reset
 --alg=MIN --ddt=f32 --sdt=f32:f32 --attr-post-ops=logistic --stag=abx:abx 64x128x28x28:64x128x28x28
 
+# f16 post binary
+--reset
+--alg=MUL --ddt=f16 --sdt=f16:f16 --attr-post-ops=add:f16:common --stag=abx:abx 64x128x28x28:64x128x28x28
+
 # bf16 post binary
 --reset
 --alg=MUL --ddt=bf16 --sdt=bf16:bf16 --attr-post-ops=add:bf16:common --stag=abx:abx 64x128x28x28:64x128x28x28

@@ -1,0 +1,9 @@
+# main op
+--reset
+--sdt=f16
+--inplace=true,false
+--dir=FWD_I
+--alg=SOFTMAX
+--stag=abx,axb
+--axis=0,1,2
+8x384x1024
