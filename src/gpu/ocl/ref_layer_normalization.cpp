@@ -261,6 +261,7 @@ status_t ref_layer_normalization_fwd_t::pd_t::init_kernel_ctx(
 
 status_t ref_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
+    if (pd()->has_zero_dim_memory()) return status::success;
 
     const auto &conf = pd()->conf;
     status_t status = status::success;
@@ -312,6 +313,8 @@ void ref_layer_normalization_bwd_t::pd_t::init_scratchpad() {
 
 status_t ref_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
+    if (pd()->has_zero_dim_memory()) return status::success;
+
     status_t status = status::success;
 
     const auto &conf = pd()->conf;
