@@ -197,6 +197,16 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                     "output of reduce_collect_op_t should be tensor type")
             buf.checked_as<tensor>()->init_value_
                     = tensor_node::get_zero_tensor_initializer();
+        } else {
+            // inplace reduce_compute_op output
+            COMPILE_ASSERT(
+                    op->get_inputs()[0]
+                            ->producer_owner_->isa<reduce_compute_op_t>(),
+                    "reduce collect op is expected to follow reduce compute "
+                    "op, but got "
+                            << op->get_inputs()[0]->producer_owner_->op_name_)
+            g2b_map_.get(op->get_outputs()[0])
+                    = g2b_map_.get(op->get_inputs()[0]);
         }
     }
 
@@ -738,6 +748,7 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
                             fanchor->fsmap_.get(op->get_outputs()[0])[0],
                             required_axes)) {
                     stat_map.append_ops_by_status(op, infer_status_code::RETRY);
+                    erase_and_block_gt(op, known_gt, fanchor);
                     continue;
                 }
             }
@@ -2005,6 +2016,31 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
 
     if (!reduce_contained) return false;
 
+    auto split_rd_op = [](const context_ptr &ctx, sc_graph_t &g, sc_op *op,
+                               std::unordered_map<graph_tensor_ptr,
+                                       graph_tensor_ptr> &graph2orig) {
+        COMPILE_ASSERT(op->isa<op_traits::maybe_split_optimized_t>(),
+                op->op_name_ << " could not be split")
+        auto orig_out = op->get_outputs()[0];
+        auto new_out
+                = op->dyn_cast<op_traits::maybe_split_optimized_t>()->split_op(
+                        ctx, g, 1);
+        auto iter = graph2orig.find(orig_out);
+        if (iter != graph2orig.end()) {
+            if (orig_out->attrs_.get_or_else("temp.mixed_partition_hint.no_"
+                                             "inplace",
+                        false)) {
+                new_out->attrs_
+                        ["temp.mixed_partition_hint.no_"
+                         "inplace"]
+                        = true;
+            }
+            auto orig_v = iter->second;
+            graph2orig.erase(iter);
+            graph2orig.insert(std::make_pair(new_out, orig_v));
+        }
+    };
+
     if (!tunable_op_set.empty()) {
         auto ops = g.ops_;
         op_dep_matrix_t dep(g);
@@ -2028,7 +2064,7 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
 
         if (!splited_reduce_set.empty()) {
             std::for_each(splited_reduce_set.begin(), splited_reduce_set.end(),
-                    [&g, &buf_alloc, &ctx, &graph2orig](
+                    [&g, &buf_alloc, &ctx, &graph2orig, &split_rd_op](
                             op_traits::maybe_split_optimized_t *red_op) {
                         auto op = dynamic_cast<sc_op *>(red_op);
                         // pre-check
@@ -2060,24 +2096,7 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
                                 return;
                         };
                         if (red_op->can_split_op()) {
-                            auto orig_out = op->get_outputs()[0];
-                            auto new_out = red_op->split_op(ctx, g, 1);
-                            auto iter = graph2orig.find(orig_out);
-                            if (iter != graph2orig.end()) {
-                                if (orig_out->attrs_.get_or_else(
-                                            "temp.mixed_partition_hint.no_"
-                                            "inplace",
-                                            false)) {
-                                    new_out->attrs_
-                                            ["temp.mixed_partition_hint.no_"
-                                             "inplace"]
-                                            = true;
-                                }
-                                auto orig_v = iter->second;
-                                graph2orig.erase(iter);
-                                graph2orig.insert(
-                                        std::make_pair(new_out, orig_v));
-                            }
+                            split_rd_op(ctx, g, op, graph2orig);
                         }
                     });
             return true;
@@ -2088,7 +2107,9 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
         auto old_ops = g.ops_;
         for (auto &op : old_ops) {
             if (auto rd = op->dyn_cast<reduce_op_t>()) {
-                if (rd->can_split_op()) { rd->split_op(ctx, g, 1); }
+                if (rd->can_split_op()) {
+                    split_rd_op(ctx, g, op.get(), graph2orig);
+                }
             }
         }
     }
