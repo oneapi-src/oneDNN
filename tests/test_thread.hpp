@@ -60,15 +60,26 @@ struct thr_ctx_t {
     void *get_interop_obj() const;
 };
 
+// tbb constraints on core type appear in 2021.2
+// tbb constraints on max_concurrency appear in 2020
+// we check only for 2021.2 to enable thread context knobs
+#ifdef TBB_INTERFACE_VERSION
+#define TBB_CONSTRAINTS_ENABLED (TBB_INTERFACE_VERSION >= 12020)
+#else
+#define TBB_CONSTRAINTS_ENABLED 0
+#endif
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ \
-        || DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+        || DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL \
+        || ((DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB) \
+                && !TBB_CONSTRAINTS_ENABLED)
 const thr_ctx_t default_thr_ctx = {0, -1, 0};
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
 #include "omp.h"
 const thr_ctx_t default_thr_ctx = {omp_get_max_threads(), -1, 0};
-#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
+#elif (DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB) \
+        && TBB_CONSTRAINTS_ENABLED
 #include "oneapi/tbb/task_arena.h"
-
 const thr_ctx_t default_thr_ctx = {tbb::task_arena::automatic,
         tbb::task_arena::automatic, tbb::task_arena::automatic};
 #endif
@@ -165,7 +176,9 @@ struct scoped_tp_deactivation_t {
         return run_in_thr_ctx<F, Args_t...>(ctx, f, args...); \
     }
 
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
+#if (DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ) \
+        || (DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB \
+                && !TBB_CONSTRAINTS_ENABLED)
 template <typename F, class... Args_t>
 auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
         -> decltype(f(args...)) {
@@ -193,7 +206,8 @@ auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
 ALIAS_TO_RUN_IN_THR_CTX(create_in_thr_ctx)
 ALIAS_TO_RUN_IN_THR_CTX(execute_in_thr_ctx)
 
-#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
+#elif (DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB) \
+        && TBB_CONSTRAINTS_ENABLED
 #include "oneapi/tbb/info.h"
 
 template <typename F, class... Args_t>

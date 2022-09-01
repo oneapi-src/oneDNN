@@ -54,7 +54,9 @@ macro(handle_tbb_target)
     # XXX: this is to make "ctest" working out-of-the-box with TBB
     string(REPLACE "/lib/" "/redist/" _tbb_redist_dir "${_tbb_lib_dir}")
     append_to_windows_path_list(CTESTCONFIG_PATH "${_tbb_redist_dir}")
-    add_compile_definitions(TBB_PREVIEW_TASK_ARENA_CONSTRAINTS_EXTENSION=1)
+
+    # Adds definitions for heterogenous ISA testing
+    add_definitions(-DTBB_PREVIEW_TASK_ARENA_CONSTRAINTS_EXTENSION=1)
 endmacro()
 
 if(NOT DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
