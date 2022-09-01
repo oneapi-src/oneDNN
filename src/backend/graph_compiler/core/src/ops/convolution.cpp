@@ -17,13 +17,13 @@
 #include <memory>
 #include <string>
 #include <utility>
-
 #include "templates/conv1x1_backprop_data.hpp"
 #include "templates/conv1x1_backprop_weight.hpp"
 #include "templates/convNxN_backprop_data.hpp"
 #include "templates/convNxN_backprop_weight.hpp"
 #include "templates/conv_bwd.hpp"
 #include "templates/conv_fwd.hpp"
+#include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
@@ -349,6 +349,66 @@ sc_op_ptr conv_fwd_core_op_t::do_compensations(
         sc_graph_t &mgr, const context_ptr &ctx) {
     need_compensation_ = false;
     return shared_from_this();
+}
+
+// TODO(baihui): this is only for 2d conv
+void conv_fwd_core_op_t::collect_shrinked_lt_map(
+        int bw_size, gt2gt_map &bw_lt_map) {
+    auto data_plain_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto weight_plain_dims = get_inputs()[1]->details_.get_plain_dims();
+    auto out_plain_dims = get_outputs()[0]->details_.get_plain_dims();
+    auto data_blocking_dims = get_inputs()[0]->details_.get_blocking_dims();
+    auto out_blocking_dims = get_outputs()[0]->details_.get_blocking_dims();
+    sc_dims input_dims
+            = {1, data_plain_dims[1], data_plain_dims[2], data_plain_dims[3]};
+    sc_dims out_dims
+            = {1, out_plain_dims[1], out_plain_dims[2], out_plain_dims[3]};
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
+            bw_lt_map, get_outputs()[0], out_dims);
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
+            bw_lt_map, get_inputs()[0], input_dims);
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
+            bw_lt_map, get_inputs()[1], weight_plain_dims);
+}
+
+void conv_fwd_core_op_t::collect_shrinked_axes_map(
+        int bw_size, gt2axes_map &bw_axes_map) {
+    auto data = get_inputs()[0], weight = get_inputs()[1],
+         out = get_outputs()[0];
+    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+            bw_axes_map, data, std::vector<int> {0});
+    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+            bw_axes_map, weight, std::vector<int> {-1});
+    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+            bw_axes_map, out, std::vector<int> {0});
+}
+
+sc_dims conv_fwd_core_op_t::get_bwise_fuse_shrink_dims() {
+    const int L2_size = 1024 * 1024 * 2;
+    auto weight_dims = get_inputs()[1]->details_.get_plain_dims();
+    auto data_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto out_dims = get_outputs()[0]->details_.get_plain_dims();
+    const int dtype_sz = get_inputs()[1]->details_.dtype_ == datatypes::f32
+            ? 4
+            : get_inputs()[1]->details_.dtype_ == datatypes::bf16 ? 2 : 1;
+    const int weight_size_byte = weight_dims[0] * weight_dims[1]
+            * weight_dims[2] * weight_dims[3] * dtype_sz;
+    const int data_size_byte
+            = data_dims[1] * data_dims[2] * data_dims[3] * dtype_sz;
+    const int output_size_byte
+            = out_dims[1] * out_dims[2] * out_dims[3] * dtype_sz;
+    bool enable_bwise = true;
+    if (weight_size_byte >= L2_size / 4) {
+        if (weight_size_byte >= L2_size / 2 || data_dims[1] >= 1024) {
+            enable_bwise = false;
+        }
+    }
+    sc_dims ret = {0};
+    if (enable_bwise) {
+        auto out_blocking_dims = get_outputs()[0]->details_.get_blocking_dims();
+        ret = {out_blocking_dims[0]};
+    }
+    return ret;
 }
 
 conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(

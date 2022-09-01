@@ -24,7 +24,9 @@
 
 namespace sc {
 namespace ops {
-class SC_INTERNAL_API conv_fwd_core_op_t : public tunable_op_t {
+class SC_INTERNAL_API conv_fwd_core_op_t
+    : public tunable_op_t,
+      public op_traits::batchwise_shrinkable_t {
 public:
     conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
@@ -48,7 +50,10 @@ public:
     sc_op_ptr get_data_compensation(sc_graph_t &g);
     sc_op_ptr get_weight_compensation(sc_graph_t &g);
     sc_op_ptr get_constant_compensation(sc_graph_t &g);
-
+    sc_dims get_bwise_fuse_shrink_dims() override;
+    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
+    void collect_shrinked_axes_map(
+            int bw_size, gt2axes_map &bw_axes_map) override;
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override {
         /** TODO(XXX)
