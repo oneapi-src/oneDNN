@@ -35,16 +35,17 @@ layout_t normalize_conv_layout(const layout_t &_layout, bool with_groups,
         bool add_groups, bool is_wei);
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
-        layout_t &dst_layout, layout_t &bia_layout, bool with_groups,
-        int groups, bool is_dw, int reduced_dim, bool fuse_spatial,
+        layout_t &dst_layout, layout_t &bia_layout, bool with_groups, int g,
+        int ic, int oc, bool is_dw, int reduced_dim, bool fuse_spatial,
         bool add_groups);
 
 inline void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
-        layout_t &dst_layout, bool with_groups, int groups, bool is_dw,
-        int reduced_dim, bool fuse_spatial, bool add_groups) {
+        layout_t &dst_layout, bool with_groups, int g, int ic, int oc,
+        bool is_dw, int reduced_dim, bool fuse_spatial, bool add_groups) {
     layout_t bia_layout;
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, bia_layout,
-            with_groups, groups, is_dw, reduced_dim, fuse_spatial, add_groups);
+            with_groups, g, ic, oc, is_dw, reduced_dim, fuse_spatial,
+            add_groups);
 }
 
 } // namespace jit
