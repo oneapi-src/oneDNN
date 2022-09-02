@@ -49,7 +49,7 @@ void init_kernel_datatype(
         brgemm_t *brg, impl::data_type_t dt_a, impl::data_type_t dt_b) {
     assert(dt_a != data_type::undef && dt_b != data_type::undef);
     brg->is_int8 = utils::one_of(dt_a, data_type::u8, data_type::s8)
-            && (dt_b == data_type::s8);
+            && utils::one_of(dt_b, data_type::u8, data_type::s8);
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
     brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
