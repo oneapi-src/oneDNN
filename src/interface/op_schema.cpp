@@ -314,9 +314,31 @@ bool op_schema_t::verify(const op_t *l_op, bool check_undefined_attrs) const {
     if (tc_fn) { param_dtype_verify_result = tc_fn(l_op); }
     if (!param_dtype_verify_result) { return false; }
 
-    bool attr_verify_result = verify_attributes(
-            l_op->get_attributes(), attributes_, check_undefined_attrs);
-    return attr_verify_result;
+    auto attrs = l_op->get_attributes();
+    bool attr_verify_result
+            = verify_attributes(attrs, attributes_, check_undefined_attrs);
+
+    if (!attr_verify_result) { return false; };
+
+    // additional check for Quantize and Dequantize
+    // TODO(team): better to move it op schema as a constraint.
+    const op_kind_t opk = l_op->get_kind();
+    if (opk == op_kind::Quantize || opk == op_kind::Dequantize) {
+        // attrs should always have the attributes, verified above.
+        const size_t sz_scales
+                = attrs[op_attr::scales].get<std::vector<float>>().size();
+        const size_t sz_zps
+                = attrs[op_attr::zps].get<std::vector<int64_t>>().size();
+        if (sz_scales != sz_zps) return false;
+
+        // qtype is not a required attribute.
+        auto it = attrs.find(op_attr::qtype);
+        if (it == attrs.end()
+                || it->second.get<std::string>() == "per_tensor") {
+            if (sz_scales != 1 || sz_zps != 1) { return false; }
+        }
+    }
+    return true;
 }
 
 status_t op_schema_t::shape_infer(op_t *n,
