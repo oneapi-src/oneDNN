@@ -110,6 +110,24 @@ inline const std::vector<impl::op_kind_t> &get_unary_binary_ops() {
     return unary_binary;
 }
 
+// Optional Quantize for weight will only be fused
+// when:
+// 1. input logical tensor has constant property type
+// 2. the optional Quantize has a Wildcard producer
+// 3. the optional Quantize has no producer
+inline bool check_if_constant_weight(op_t *op) {
+    const auto &in_value = op->get_input_value(0);
+    if (in_value->get_logical_tensor().property
+            == impl::property_type::constant) {
+        return true;
+    }
+    if (in_value->has_producer()) {
+        return in_value->get_producer().get_kind() == impl::op_kind::Wildcard;
+    } else {
+        return true;
+    }
+}
+
 } // namespace pattern
 } // namespace dnnl_impl
 } // namespace impl

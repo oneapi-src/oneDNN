@@ -11972,6 +11972,95 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBiasGelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
+TEST(PassSystem, MixInt8AndBf16ConvolutionAdd) {
+    /*
+        | (u8/s8)  | s8
+     dequant    dequant
+        | (f32)    | (f32)
+     typecast  typecast
+    (bf16) \     / (bf16)
+        convolution
+      (bf16) | typecast
+             | / (bf16)
+            add
+             | (bf16)
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
+    op_t typecast1 {2, TypeCast, "typecast"};
+    op_t typecast2 {3, TypeCast, "typecast"};
+    op_t convolution {4, Convolution, "convolution"};
+    set_conv_common_attr(convolution);
+    op_t typecast3 {5, TypeCast, "typecast"};
+    op_t add {6, Add, "add"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
+    typecast1.add_input(fp32_data);
+    typecast1.add_output(bf16_data);
+
+    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
+    dequant2.add_input(int8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
+    typecast2.add_input(fp32_weight);
+    typecast2.add_output(bf16_weight);
+
+    logical_tensor_t fp32_bias = logical_tensor_init(6, data_type::f32);
+    logical_tensor_t bf16_bias = logical_tensor_init(7, data_type::bf16);
+    typecast3.add_input(fp32_bias);
+    typecast3.add_output(bf16_bias);
+
+    logical_tensor_t bf16_convolution_out
+            = logical_tensor_init(8, data_type::bf16);
+    convolution.add_input(bf16_data);
+    convolution.add_input(bf16_weight);
+    convolution.add_output(bf16_convolution_out);
+
+    logical_tensor_t bf16_bia_outs = logical_tensor_init(9, data_type::bf16);
+    add.add_input(bf16_convolution_out);
+    add.add_input(bf16_bias);
+    add.add_output(bf16_bia_outs);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast1), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast2), status::success);
+    ASSERT_EQ(agraph.add_op(&convolution), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast3), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 7);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
+}
+
 TEST(Pass, FuseAddIntoSum) {
     /*
         \   /

@@ -33,24 +33,6 @@ using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
 using FCreatePattern = impl::pass::FCreatePattern;
 
-// Optional Quantize for weight will only be fused
-// when:
-// 1. input logical tensor has constant property type
-// 2. the optional Quantize has a Wildcard producer
-// 3. the optional Quantize has no producer
-bool check_if_constant_weight(op_t *op) {
-    const auto &in_value = op->get_input_value(0);
-    if (in_value->get_logical_tensor().property
-            == impl::property_type::constant) {
-        return true;
-    }
-    if (in_value->has_producer()) {
-        return in_value->get_producer().get_kind() == impl::op_kind::Wildcard;
-    } else {
-        return true;
-    }
-}
-
 /*!
  * \brief This provides matmul-related fusion, i.e.
  *        matmul-relu fusion
