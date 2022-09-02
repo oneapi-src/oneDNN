@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,8 +125,7 @@ private:
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
     void compute_diff_bias(int load_loop_blk);
 
-    Xbyak::Address output_ptr(
-            const int i_load, const int i_ur, const int scale = 1);
+    Xbyak::Address output_ptr(const int i_load, const int i_ur);
     void apply_postops(const int load_loop_blk, const int ur);
     void generate() override;
     static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
