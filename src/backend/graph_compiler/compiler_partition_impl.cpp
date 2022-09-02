@@ -13,13 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include <algorithm>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 
 #include "compiler/config/context.hpp"
 #include "compiler/ir/graph/driver.hpp"
+#include "compiler/ir/graph/dynamic_utils.hpp"
 #include "compiler/ir/graph/pass/pass.hpp"
 #include "compiler_partition_impl.hpp"
 
@@ -140,15 +143,30 @@ impl::status_t compiler_partition_impl_t::compile(
         if (res != status::success) { return res; }
 
         std::lock_guard<std::mutex> lck(mtx_);
+        std::vector<sc::runtime::dynamic_tensor_t> dyn_inputs, dyn_outputs;
         std::unordered_map<size_t, sc::sc_op_ptr> inputs_map, outputs_map;
+        std::vector<sc::sc_op_ptr> sc_inputs;
         compiler_graph_impl_t sub_graph;
         size_t id = 0;
         std::vector<size_t> out_lt_ids(outputs.size());
+        sc_inputs.reserve(inputs.size());
+        bool is_dynamic = false;
         for (auto &in_lt : inputs) {
             sc::sc_op_ptr in_ret;
             in_ret = sub_graph.make_compiler_backend_input(in_lt);
+            if (!is_dynamic && sub_graph.is_dynamic()) { is_dynamic = true; }
             inputs_map[in_lt.id] = in_ret;
+            sc_inputs.emplace_back(in_ret);
             in_ret->attrs_.set("unique_id", id++);
+        }
+        if (is_dynamic) {
+            dyn_inputs.resize(inputs.size());
+            dyn_outputs.reserve(outputs.size());
+            std::transform(sc_inputs.begin(), sc_inputs.end(),
+                    dyn_inputs.begin(), [](const sc::sc_op_ptr &in) {
+                        return sc::convert_graph_tensor_to_dynamic_tensor(
+                                in->get_outputs()[0]);
+                    });
         }
         for (auto &out_lt : outputs) {
             out_lt_ids.emplace_back(out_lt.id);
@@ -175,14 +193,32 @@ impl::status_t compiler_partition_impl_t::compile(
                             inputs_map[lt.id]->get_outputs()[0]);
                 }
             }
+            // Get consumer lt
+            if (!is_dynamic) {
+                for (auto &out_value : cur_op->get_output_values()) {
+                    auto lt = out_value->get_logical_tensor();
+                    consumer_lt.emplace_back(
+                            compiler_graph_impl_t::convert_logical_tensor(lt));
+                }
+            }
+            // translate op
+            sc::sc_op_ptr ret;
+            ret = sub_graph.make_backend_op(cur_op, producer_lt, consumer_lt);
             // translate output value
-            for (auto &out_value : cur_op->get_output_values()) {
+            for (size_t i = 0; i < cur_op->get_output_values().size(); i++) {
+                auto &out_value = cur_op->get_output_values()[i];
                 auto lt = out_value->get_logical_tensor();
-                consumer_lt.emplace_back(
-                        compiler_graph_impl_t::convert_logical_tensor(lt));
+
                 if (std::find(out_lt_ids.begin(), out_lt_ids.end(), lt.id)
                         != out_lt_ids.end()) {
-                    auto out_ret = sub_graph.make_output({consumer_lt.back()});
+                    auto out_ret
+                            = sub_graph.make_output({ret->get_outputs()[i]});
+                    if (is_dynamic) {
+                        auto out_dyn_tsr
+                                = sc::convert_graph_tensor_to_dynamic_tensor(
+                                        out_ret->get_inputs()[0]);
+                        dyn_outputs.emplace_back(out_dyn_tsr);
+                    }
                     out_ret->attrs_.set("unique_id", id++);
                     sc::sc_data_format_t output_format
                             = out_ret->get_inputs()[0]->details_.get_format();
@@ -198,9 +234,6 @@ impl::status_t compiler_partition_impl_t::compile(
                     outputs_map[lt.id] = out_ret;
                 }
             }
-            // translate op
-            sc::sc_op_ptr ret;
-            ret = sub_graph.make_backend_op(cur_op, producer_lt, consumer_lt);
             sub_graph.op_mapping_[cur_op->get_id()] = ret;
             return impl::status::success;
         });
@@ -269,7 +302,8 @@ impl::status_t compiler_partition_impl_t::compile(
         std::shared_ptr<sc::jit_function_t> fptr
                 = sc::jit_engine_t::make(ctx)->get_entry_func(ir_mod, true);
         auto pimpl = std::make_shared<compiler_compiled_partition_impl_t>(
-                *aengine, inputs, outputs, fptr, graph_engine);
+                *aengine, inputs, outputs, fptr, graph_engine,
+                std::move(dyn_inputs), std::move(dyn_outputs));
         compiled_partition->init(pimpl);
         return res;
     } catch (...) { return impl::status::unimplemented; }
@@ -348,10 +382,14 @@ compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
         const std::vector<impl::logical_tensor_t> &outputs,
         const std::shared_ptr<sc::jit_function_t> &jit_func,
         const std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>
-                &graph_engine)
+                &graph_engine,
+        std::vector<sc::runtime::dynamic_tensor_t> &&dyn_inputs,
+        std::vector<sc::runtime::dynamic_tensor_t> &&dyn_outputs)
     : impl::compiled_partition_impl_t(engine, inputs, outputs, {})
     , jit_func_(jit_func)
-    , graph_engine_(graph_engine) {
+    , graph_engine_(graph_engine)
+    , dyn_inputs_(std::move(dyn_inputs))
+    , dyn_outputs_(std::move(dyn_outputs)) {
     std::lock_guard<std::mutex> lock(global_mutex);
     partition_count_map[graph_engine_]++;
     graph_engine_->allocator_->retain();
@@ -383,14 +421,29 @@ impl::status_t compiler_compiled_partition_impl_t::execute(
         const std::vector<impl::tensor_t> &outputs) {
     // set backend runtime stream
     compiler_graph_stream_t backend_stream {graph_engine_.get()};
-
     std::vector<sc::generic_val> generic_args;
-    generic_args.reserve(inputs.size() + outputs.size());
-    for (auto out_tensor : outputs) {
-        generic_args.emplace_back(out_tensor.get_data_handle());
-    }
-    for (auto in_tensor : inputs) {
-        generic_args.emplace_back(in_tensor.get_data_handle());
+    if (dyn_inputs_.empty()) {
+        generic_args.reserve(inputs.size() + outputs.size());
+        for (auto out_tensor : outputs) {
+            generic_args.emplace_back(out_tensor.get_data_handle());
+        }
+        for (auto in_tensor : inputs) {
+            generic_args.emplace_back(in_tensor.get_data_handle());
+        }
+    } else {
+        generic_args.resize(inputs.size() + outputs.size());
+        auto trans_func = [](const impl::tensor_t &tsr,
+                                  sc::runtime::dynamic_tensor_t &dyn) {
+            dyn.data_ = tsr.get_data_handle();
+            dyn.dims_ = const_cast<sc::sc_dim *>(
+                    reinterpret_cast<const sc::sc_dim *>(
+                            tsr.get_logical_tensor().dims));
+            return &dyn;
+        };
+        auto arg_it = std::transform(outputs.begin(), outputs.end(),
+                dyn_outputs_.begin(), generic_args.begin(), trans_func);
+        std::transform(inputs.begin(), inputs.end(), dyn_inputs_.begin(),
+                arg_it, trans_func);
     }
     jit_func_->call_generic(&backend_stream, generic_args.data());
     return status::success;

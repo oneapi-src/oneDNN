@@ -25,6 +25,7 @@
 #include "compiler/jit/cfake/cfake_jit.hpp"
 #include "interface/backend.hpp"
 #include "interface/partition.hpp"
+#include "runtime/dynamic_dispatch/dynamic_tensor.hpp"
 #include "runtime/memorypool.hpp"
 
 #include "compiler_allocator.hpp"
@@ -118,7 +119,6 @@ protected:
     mutable std::mutex mtx_;
     std::string pname_;
 };
-
 class compiler_compiled_partition_impl_t : public compiled_partition_impl_t {
 public:
     compiler_compiled_partition_impl_t(const impl::engine_t &engine,
@@ -126,7 +126,9 @@ public:
             const std::vector<impl::logical_tensor_t> &outputs,
             const std::shared_ptr<sc::jit_function_t> &jit_func,
             const std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>
-                    &graph_engine);
+                    &graph_engine,
+            std::vector<sc::runtime::dynamic_tensor_t> &&dyn_inputs,
+            std::vector<sc::runtime::dynamic_tensor_t> &&dyn_outputs);
     virtual ~compiler_compiled_partition_impl_t();
     impl::status_t execute(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
@@ -135,6 +137,7 @@ public:
 private:
     std::shared_ptr<sc::jit_function_t> jit_func_;
     std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t> graph_engine_;
+    std::vector<sc::runtime::dynamic_tensor_t> dyn_inputs_, dyn_outputs_;
 };
 
 } // namespace compiler_impl
