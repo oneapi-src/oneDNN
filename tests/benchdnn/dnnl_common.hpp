@@ -709,8 +709,8 @@ int init_prim(const thr_ctx_t &thr_ctx,
         const func_t &init_pd_func, prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr,
         bool is_service_prim = false) {
-    int (*f)(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &, const func_t &,
-            prb_t *, res_t *, dir_t, const_dnnl_primitive_desc_t, bool)
+    int (*f)(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &, func_t &, prb_t *,
+            res_t *, dir_t, const_dnnl_primitive_desc_t, bool)
             = &init_prim<func_t, prb_t>;
     return create_in_thr_ctx(thr_ctx, f, user_prim, init_pd_func, prb, res, dir,
             hint, is_service_prim);
