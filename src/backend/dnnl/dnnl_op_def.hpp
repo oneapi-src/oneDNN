@@ -26,6 +26,7 @@
 #include "backend/dnnl/dnnl_shape_infer.hpp"
 #include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/layout_propagator.hpp"
 #include "backend/dnnl/op_executable.hpp"
 
 namespace dnnl {
@@ -40,11 +41,14 @@ namespace dnnl_impl {
             false, attribute_kind::b, false)
 
 #define SET_EXECUTABLE_CREATOR(func) \
-    set_additional_item("executable_creator", executable_creator_func {func})
+    set_additional_item<executable_creator_func>("executable_creator", {func})
 
 #define SET_ARG_INDICES_GETTER(executable_class) \
-    set_additional_item("arg_indices_getter", \
-            arg_indices_getter_func {executable_class::get_arg_indices})
+    set_additional_item<arg_indices_getter_func>( \
+            "arg_indices_getter", {executable_class::get_arg_indices})
+
+#define SET_LAYOUT_PROPAGATOR(func) \
+    set_additional_item<layout_propagator_func>("layout_propagator", {func})
 
 template <typename T>
 op_schema_t get_op_schema();
@@ -100,6 +104,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_depthwise, 1,
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_conv_depthwise_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_conv)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<conv_fwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(conv_fwd_executable_t))
@@ -127,6 +132,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_mul_scales, 1,
                         false, attribute_kind::b, false)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_mul_scales)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<reorder_executable_t>)
                 .SET_ARG_INDICES_GETTER(reorder_executable_t))
@@ -143,6 +149,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant_scales, 1,
                         attribute_kind::is)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_dnnl_constant_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_constant_filler)
                 .SET_EXECUTABLE_CREATOR(executable_creator<const_scales_filler>)
                 .SET_ARG_INDICES_GETTER(const_scales_filler))
 
@@ -164,9 +171,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_add_zps, 1,
                         "indicate whether the op has runtime zps input", false,
                         attribute_kind::b, false)
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_add_zps)
                 .SET_EXECUTABLE_CREATOR(dummy_executable_creator)
-                .set_additional_item("arg_indices_getter",
-                        arg_indices_getter_func {dummy_arg_indices_getter}))
+                .set_additional_item<arg_indices_getter_func>(
+                        "arg_indices_getter", {dummy_arg_indices_getter}))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_sub_zps, 1,
         op_schema_t()
@@ -186,9 +194,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_sub_zps, 1,
                         "indicate whether the op has runtime zps input", false,
                         attribute_kind::b, false)
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_sub_zps)
                 .SET_EXECUTABLE_CREATOR(dummy_executable_creator)
-                .set_additional_item("arg_indices_getter",
-                        arg_indices_getter_func {dummy_arg_indices_getter}))
+                .set_additional_item<arg_indices_getter_func>(
+                        "arg_indices_getter", {dummy_arg_indices_getter}))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_constant_zps, 1,
         op_schema_t()
@@ -202,6 +211,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant_zps, 1,
                         attribute_kind::is)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_dnnl_constant_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_constant_filler)
                 .SET_EXECUTABLE_CREATOR(executable_creator<const_zps_filler>)
                 .SET_ARG_INDICES_GETTER(const_zps_filler))
 
@@ -223,6 +233,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_permute, 1,
                         false, attribute_kind::s, "none")
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_permute_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_permute)
                 .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
                 .SET_ARG_INDICES_GETTER(memory_reparser_t))
 
@@ -239,6 +250,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_to_group, 1,
                         attribute_kind::b, false)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_to_group_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_to_group)
                 .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
                 .SET_ARG_INDICES_GETTER(memory_reparser_t))
 
@@ -259,6 +271,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_from_group, 1,
                         attribute_kind::b, false)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_from_group_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_from_group)
                 .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
                 .SET_ARG_INDICES_GETTER(memory_reparser_t))
 
@@ -276,6 +289,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_unsqueeze, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
 
                 .set_shape_inference_function(infer_unsqueeze_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_unsqueeze)
                 .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
                 .SET_ARG_INDICES_GETTER(memory_reparser_t))
 
@@ -291,6 +305,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_squeeze, 1,
                         false, attribute_kind::is)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_squeeze_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_squeeze)
                 .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
                 .SET_ARG_INDICES_GETTER(memory_reparser_t))
 
@@ -310,6 +325,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reshape, 1,
                         true, attribute_kind::b)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_static_reshape_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_reshape)
                 .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
                 .SET_ARG_INDICES_GETTER(memory_reparser_t))
 
@@ -327,6 +343,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_transpose, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(
                         infer_static_transpose_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_transpose)
                 .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
                 .SET_ARG_INDICES_GETTER(memory_reparser_t))
 
@@ -358,6 +375,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_conv_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_conv)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<conv_fwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(conv_fwd_executable_t))
@@ -397,6 +415,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_convtranspose_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_deconv)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<deconv_fwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(deconv_fwd_executable_t))
@@ -424,6 +443,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_data, 1,
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_convtranspose_bwd_data_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_deconv_bwd_data)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<deconv_bwd_data_executable_t>)
                 .SET_ARG_INDICES_GETTER(deconv_bwd_data_executable_t))
@@ -459,6 +479,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_weights, 1,
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_convtranspose_bwd_weight_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_deconv_bwd_weights)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<deconv_bwd_weights_executable_t>)
                 .SET_ARG_INDICES_GETTER(deconv_bwd_weights_executable_t))
@@ -516,6 +537,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                         false, attribute_kind::b)
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_pool_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_pool)
                 .SET_EXECUTABLE_CREATOR(executable_creator<pool_executable_t>)
                 .SET_ARG_INDICES_GETTER(pool_executable_t))
 
@@ -563,6 +585,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
                         true, attribute_kind::s)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_dnnl_pool_bwd_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_pool_bwd)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<pool_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(pool_bwd_executable_t))
@@ -594,6 +617,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_prelu)
                 .SET_EXECUTABLE_CREATOR(executable_creator<prelu_executable_t>)
                 .SET_ARG_INDICES_GETTER(prelu_executable_t))
 
@@ -627,6 +651,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu_bwd, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_prelu_bwd_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_prelu_bwd)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<prelu_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(prelu_bwd_executable_t))
@@ -666,6 +691,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
                         attribute_kind::s, "XIO")
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_bn_folding_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_bn_folding)
                 .SET_EXECUTABLE_CREATOR(executable_creator<bn_folding_t>)
                 .SET_ARG_INDICES_GETTER(bn_folding_t))
 
@@ -698,6 +724,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_conv_bwd_data_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_conv_bwd_data)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<conv_bwd_data_executable_t>)
                 .SET_ARG_INDICES_GETTER(conv_bwd_data_executable_t))
@@ -729,6 +756,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_weights, 1,
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_conv_bwd_weight_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_conv_bwd_weights)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<conv_bwd_weights_executable_t>)
                 .SET_ARG_INDICES_GETTER(conv_bwd_weights_executable_t))
@@ -790,6 +818,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_batchnorm_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_batchnorm)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<batchnorm_executable_t>)
                 .SET_ARG_INDICES_GETTER(batchnorm_executable_t))
@@ -836,6 +865,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
                         false, attribute_kind::s, "NXC")
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_bn_bwd_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_batchnorm_bwd)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<batchnorm_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(batchnorm_bwd_executable_t))
@@ -880,6 +910,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling_bwd, 1,
                         false, attribute_kind::i, (int64_t)-1)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_resampling_bwd)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<resampling_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(resampling_bwd_executable_t))
@@ -897,6 +928,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_sum, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_sum)
                 .SET_EXECUTABLE_CREATOR(executable_creator<sum_executable_t>)
                 .SET_ARG_INDICES_GETTER(sum_executable_t))
 
@@ -943,6 +975,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_binary_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_binary)
                 .SET_EXECUTABLE_CREATOR(executable_creator<binary_executable_t>)
                 .SET_ARG_INDICES_GETTER(binary_executable_t))
 
@@ -977,6 +1010,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_eltwise)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<eltwise_executable_t>)
                 .SET_ARG_INDICES_GETTER(eltwise_executable_t))
@@ -1023,6 +1057,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise_bwd, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_eltwise_bwd)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<eltwise_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(eltwise_bwd_executable_t))
@@ -1049,6 +1084,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_shuffle, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_shuffle)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<shuffle_executable_t>)
                 .SET_ARG_INDICES_GETTER(shuffle_executable_t))
@@ -1082,6 +1118,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reduction, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_reduce_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_reduction)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<reduction_executable_t>)
                 .SET_ARG_INDICES_GETTER(reduction_executable_t))
@@ -1106,6 +1143,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_softmax_bwd, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_softmax_bwd)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<softmax_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(softmax_bwd_executable_t))
@@ -1131,6 +1169,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax_bwd, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_softmax_bwd)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<softmax_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(softmax_bwd_executable_t))
@@ -1179,6 +1218,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_interpolate_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_resampling)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<resampling_executable_t>)
                 .SET_ARG_INDICES_GETTER(resampling_executable_t))
@@ -1201,6 +1241,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_concat, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_concat_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_concat)
                 .SET_EXECUTABLE_CREATOR(executable_creator<concat_executable_t>)
                 .SET_ARG_INDICES_GETTER(concat_executable_t))
 
@@ -1247,6 +1288,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm_bwd, 1,
                         false, attribute_kind::i, (int64_t)-1)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_norm_bprop_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_layernorm_bwd)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<layernorm_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(layernorm_bwd_executable_t))
@@ -1280,6 +1322,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_matmul, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_matmul_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_matmul)
                 .SET_EXECUTABLE_CREATOR(executable_creator<matmul_executable_t>)
                 .SET_ARG_INDICES_GETTER(matmul_executable_t))
 
@@ -1304,6 +1347,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_softmax, 1,
                         false, attribute_kind::i, (int64_t)-1)
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_softmax)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<softmax_executable_t>)
                 .SET_ARG_INDICES_GETTER(softmax_executable_t))
@@ -1325,6 +1369,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_softmax)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<softmax_executable_t>)
                 .SET_ARG_INDICES_GETTER(softmax_executable_t))
@@ -1367,6 +1412,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_norm_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_layernorm)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<layernorm_executable_t>)
                 .SET_ARG_INDICES_GETTER(layernorm_executable_t))
@@ -1418,6 +1464,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reorder, 1,
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_reorder)
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<reorder_executable_t>)
                 .SET_ARG_INDICES_GETTER(reorder_executable_t))

@@ -244,10 +244,24 @@ public:
     param_num_option get_outputs_option() const;
     void set_default_attribute(op_t *l_op) const;
 
+    /*! @brief Add additional item. The item can be any type*/
     op_schema_t &set_additional_item(
             const std::string &key, const utils::any_t &value);
 
+    /*! @brief Get additional item. The item can be any type*/
     const utils::any_t &get_additional_item(const std::string &key) const;
+
+    /*! @brief Add additional item. The item can be specified by template*/
+    template <typename T>
+    op_schema_t &set_additional_item(const std::string &key, const T &value) {
+        return set_additional_item(key, utils::any_t {value});
+    }
+
+    /*! @brief Get additional item. The item can be specified by template*/
+    template <typename T>
+    T get_additional_item(const std::string &key) const {
+        return utils::any_cast<T>(get_additional_item(key));
+    }
 
     bool has_additional_item(const std::string &key) const;
 

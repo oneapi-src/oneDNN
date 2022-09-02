@@ -117,6 +117,8 @@ dims get_ncx_strides(const dims &shape);
 
 dims get_nxc_strides(const dims &shape);
 
+dims get_dense_strides(const dims &shape);
+
 memory::desc to_nxc_format(const memory::desc &adesc);
 
 bool is_format(const memory::desc &adesc, memory::format_tag tag);
@@ -134,6 +136,12 @@ impl::status_t fill_layout_info(
 
 impl::status_t fill_layout_info(
         const std::shared_ptr<impl::value_t> &val, const memory::desc &md);
+
+std::shared_ptr<impl::value_t> insert_empty_scratchpad(
+        std::shared_ptr<op_t> &op);
+
+std::shared_ptr<impl::value_t> insert_empty_workspace(
+        std::shared_ptr<impl::op_t> &op);
 
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \

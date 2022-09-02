@@ -728,8 +728,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
             return impl::status::invalid_op;
         }
 
-        auto getter = impl::utils::any_cast<arg_indices_getter_func>(
-                opm->get_additional_item("arg_indices_getter"));
+        auto getter = opm->get_additional_item<arg_indices_getter_func>(
+                "arg_indices_getter");
 
         auto arg_indices = getter(op, mgr);
 

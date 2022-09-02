@@ -294,29 +294,10 @@ get_post_ops_fusible_map();
 
 std::string kind2str(impl::op_kind_t kind);
 
-std::shared_ptr<impl::value_t> insert_empty_scratchpad(
-        std::shared_ptr<op_t> &op);
-
-std::shared_ptr<impl::value_t> insert_empty_workspace(
-        std::shared_ptr<op_t> &op);
-
 // This function is used to check if a dnnl_reorder op is converted from or act
 // as a TypeCast op. This function will only return true for a dnnl_reorder op
 // which only has different input/output data type.
 bool is_typecast(const impl::op_t *op);
-
-// get the dense strides of a given shape
-// eg. (3, 4, 5) -> (20, 5, 1)
-inline dims get_dense_strides(const dims &shape) {
-    dims strides(shape.size());
-    for (auto it = shape.begin(); it < shape.end(); ++it) {
-        const auto val = std::accumulate(
-                std::next(it), shape.end(), 1, std::multiplies<dim_t>());
-        const auto dist = std::distance(shape.begin(), it);
-        strides[static_cast<size_t>(dist)] = val;
-    }
-    return strides;
-}
 
 } // namespace dnnl_impl
 } // namespace impl

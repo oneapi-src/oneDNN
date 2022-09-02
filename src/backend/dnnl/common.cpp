@@ -446,6 +446,22 @@ dims get_nxc_strides(const dims &shape) {
     return strides;
 }
 
+// get the dense strides of a given shape
+// eg. (3, 4, 5) -> (20, 5, 1)
+dims get_dense_strides(const dims &shape) {
+    dims strides(shape.size());
+    for (auto it = shape.begin(); it < shape.end(); ++it) {
+        const auto val = std::accumulate(
+                std::next(it), shape.end(), 1, [](dim_t x, dim_t y) {
+                    // replace 0 in shape to 1 when computing the strides
+                    return std::max<dim_t>(x, 1) * std::max<dim_t>(y, 1);
+                });
+        const auto dist = std::distance(shape.begin(), it);
+        strides[static_cast<size_t>(dist)] = val;
+    }
+    return strides;
+}
+
 memory::desc to_nxc_format(const memory::desc &adesc) {
     if (is_format(adesc, "nxc")) return adesc;
 
@@ -589,6 +605,23 @@ impl::status_t fill_layout_info(
         }
     }
     return impl::status::success;
+}
+
+std::shared_ptr<impl::value_t> insert_empty_scratchpad(
+        std::shared_ptr<impl::op_t> &op) {
+    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
+    auto scratchpad_val = std::make_shared<value_t>(*op, op->num_outputs(), lt);
+    op->add_output(scratchpad_val);
+    scratchpad_val->set_data_type(impl::data_type::u8);
+    return scratchpad_val;
+}
+
+std::shared_ptr<impl::value_t> insert_empty_workspace(
+        std::shared_ptr<impl::op_t> &op) {
+    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
+    auto workspace_val = std::make_shared<value_t>(*op, op->num_outputs(), lt);
+    op->add_output(workspace_val);
+    return workspace_val;
 }
 
 } // namespace dnnl_impl

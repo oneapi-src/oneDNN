@@ -58,8 +58,8 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         }
 
         auto cur_op = op->shared_from_this();
-        auto creator = impl::utils::any_cast<executable_creator_func>(
-                opm->get_additional_item("executable_creator"));
+        auto creator = opm->get_additional_item<executable_creator_func>(
+                "executable_creator");
         std::shared_ptr<op_executable_t> exec
                 = creator(cur_op, p_engine, mgr, pd_cache);
 

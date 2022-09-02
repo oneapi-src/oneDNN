@@ -472,23 +472,6 @@ bool prelu_doable(const std::vector<dim_t> &src_dims,
     return doable;
 }
 
-value_ptr insert_empty_scratchpad(op_ptr &op) {
-    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
-    value_ptr scratchpad_val
-            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
-    op->add_output(scratchpad_val);
-    scratchpad_val->set_data_type(impl::data_type::u8);
-    return scratchpad_val;
-}
-
-value_ptr insert_empty_workspace(op_ptr &op) {
-    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
-    value_ptr workspace_val
-            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
-    op->add_output(workspace_val);
-    return workspace_val;
-}
-
 bool is_typecast(const impl::op_t *op) {
     bool is_typecast = op->get_kind() == dnnl_impl::op_kind::dnnl_reorder
             && !op->get_attr<bool>(op_attr::change_layout)
