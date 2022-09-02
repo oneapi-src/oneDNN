@@ -2102,9 +2102,7 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
         auto &in1 = cur_op->get_input_value(1)->get_producer();
         if (is_typecast(&in0)
                 && (in1.get_kind() == op_kind::dnnl_matmul
-                        || in1.get_kind() == op_kind::dnnl_convolution)
-                && in0.get_input_value(0)->get_producer().get_kind()
-                        == dnnl_impl::op_kind::dnnl_mul_scales) {
+                        || in1.get_kind() == op_kind::dnnl_convolution)) {
             fusion_groups.emplace_back(
                     std::vector<op_t *> {cur_op.get(), &in0});
         } else if (is_typecast(&in1)
@@ -2133,12 +2131,10 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
             new_add_op->connect_input(0, tc_in);
             new_add_op->connect_input(1, in1);
             tc_in->remove_consumer(*typecast_op, 0);
-            tc_in->set_data_type(in0->get_logical_tensor().data_type);
         } else {
             new_add_op->connect_input(1, tc_in);
             new_add_op->connect_input(0, in0);
             tc_in->remove_consumer(*typecast_op, 0);
-            tc_in->set_data_type(in1->get_logical_tensor().data_type);
         }
 
         auto out_val = add_op->get_output_value(0);
