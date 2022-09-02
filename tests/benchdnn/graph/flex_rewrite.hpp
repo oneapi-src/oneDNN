@@ -87,7 +87,7 @@ struct flex_rewrite {
                 x.push_back(in[i]);
             }
         } else { // XIO
-            for (size_t i = 1; i < in.size() - 2; i++) {
+            for (size_t i = 0; i < in.size() - 2; i++) {
                 x.push_back(in[i]);
             }
             oi = {in[in.size() - 1], in[in.size() - 2]};
