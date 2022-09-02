@@ -108,6 +108,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
                             intel_subgroup_split_matrix_multiply_accumulate)
             && attr()->has_default_values(attr_skip_mask)
             && attr()->output_scales_.mask_ == 0 && attr()->post_ops_.len() <= 2
+            && desc()->sum_ab == sum_ab::sum_none
             && IMPLICATION(with_bias(),
                     (dt_float_ok || dt_int_ok)
                             && utils::one_of(d->bias_type(), d->a_type(), f32)
