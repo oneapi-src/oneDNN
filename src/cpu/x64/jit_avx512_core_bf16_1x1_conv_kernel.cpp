@@ -148,7 +148,7 @@ static int vreg_accum_idx(
 }
 
 Address jit_avx512_core_bf16_1x1_conv_kernel::output_ptr(
-        const int i_load, const int i_ur, const int scale) {
+        const int i_load, const int i_ur) {
     if (one_of(jcp.prop_kind, forward_training, forward_inference,
                 backward_data)) {
         const bool is_output_layout_nxc = is_out_layout_nxc();
@@ -157,7 +157,7 @@ Address jit_avx512_core_bf16_1x1_conv_kernel::output_ptr(
                 : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
         int i_ur_shift = is_output_layout_nxc ? jcp.load_dim : jcp.load_block;
         int offset = (i_load * i_load_shift + i_ur * i_ur_shift)
-                * jcp.typesize_out * scale;
+                * jcp.typesize_out;
         return EVEX_compress_addr(aux_reg_output_data, offset);
     } else
         return ptr[aux_reg_output_data
