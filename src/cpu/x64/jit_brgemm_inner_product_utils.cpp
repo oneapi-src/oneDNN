@@ -875,6 +875,20 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     } else
         return status::unimplemented;
 
+    // Dispatch small shapes to VNNI for better performance
+    const bool is_amx_int8 = jbgp.isa == avx512_core_bf16_amx_int8;
+    const auto amx_row
+            = static_cast<int32_t>(data_type_vnni_granularity(jbgp.src_dt))
+            * jbgp.simd_w;
+    const auto max_size = is_amx_int8 ? 1024 : 512;
+    const bool is_small_shapes
+            = (jbgp.os <= 16 && jbgp.ic <= amx_row && jbgp.oc <= amx_row)
+            || (jbgp.ic <= max_size && jbgp.oc <= max_size && jbgp.mb == 1
+                    && jbgp.ic % amx_row != 0);
+    if (one_of(jbgp.isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16)
+            && is_small_shapes)
+        return status::unimplemented;
+
     auto set_or_check_tags = [&]() -> status_t {
         using namespace format_tag;
         format_tag_t desired_src_tag = pick(ndims - 2, nc, ncw, nchw, ncdhw);
