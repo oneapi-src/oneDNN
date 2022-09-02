@@ -223,6 +223,11 @@ ReduceProd | ReduceSum]
   - Pattern: Dequantize<sub>>t1</sub>, Dequantize + Reorder +
     Add<sub><t1</sub> + Quantize<sub>>out</sub>
 
+Note: oneDNN Graph performs limited input validation to minimize the performance
+overheads. The user application is responsible for sanitizing inputs passed to
+the library. For large u8 or s8 inputs may lead to accumulator overflow, user can
+use floating point patterns instead of quantized patterns.
+
 #### 2.2 Training
 
 - ConvolutionBackpropFilters Post-ops
