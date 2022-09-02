@@ -892,7 +892,7 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
             handle_x86_mov(op_out, op_in);
         }
     } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::s8)
-            && (in_dtype == datatypes::generic
+            && (in_dtype == datatypes::generic || in_dtype == datatypes::s32
                     || in_dtype == datatypes::index)) {
         handle_x86_mov(op_out, op_in);
     } else if ((out_dtype == datatypes::u16 || out_dtype == datatypes::bf16)
@@ -900,24 +900,20 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         handle_x86_mov(op_out, op_in);
     } else if (out_dtype == datatypes::generic && in_dtype == datatypes::s32) {
         handle_x86_mov(op_out, op_in);
+    } else if ((out_dtype == datatypes::index || out_dtype == datatypes::u32)
+            && (in_dtype == datatypes::u32 || in_dtype == datatypes::index)) {
+        handle_x86_mov(op_out, op_in);
+    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::u32)
+            && (in_dtype == datatypes::u32 || in_dtype == datatypes::s32)) {
+        handle_x86_mov(op_out, op_in);
     } else if (out_dtype == datatypes::index && in_dtype == datatypes::s32) {
-        if (op_in.is_imm()) {
-            handle_x86_mov(op_out, op_in);
-        } else {
-            XBYAK_GEN(movsxd, X86_R64_RM, op_out, op_in);
-        }
+        XBYAK_GEN(movsxd, X86_R64_RM, op_out, op_in);
     } else if (out_dtype == datatypes::u32 && in_dtype == datatypes::u16) {
-        if (op_in.is_imm()) {
-            handle_x86_mov(op_out, op_in);
-        } else {
-            XBYAK_GEN(movsx, X86_R_RM, op_out, op_in);
-        }
+        XBYAK_GEN(movzx, X86_R_RM, op_out, op_in);
     } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::s8) {
-        if (op_in.is_imm()) {
-            handle_x86_mov(op_out, op_in);
-        } else {
-            XBYAK_GEN(movsx, X86_R_RM, op_out, op_in);
-        }
+        XBYAK_GEN(movsx, X86_R_RM, op_out, op_in);
+    } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::u8) {
+        XBYAK_GEN(movzx, X86_R_RM, op_out, op_in);
     } else if (out_dtype == datatypes::f32 && in_dtype == datatypes::generic) {
         XBYAK_GEN(vmovd, AVX_XxR32M_XxR32M, op_out, op_in);
     } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::f32) {
@@ -930,10 +926,6 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
     } else if (out_dtype == sc_data_type_t::f32(16)
             && in_dtype == sc_data_type_t::s32(16)) {
         XBYAK_GEN(vcvtdq2ps, AVX_X_XM, op_out, op_in);
-    } else if (out_dtype == sc_data_type_t::f32(16)
-            && in_dtype == sc_data_type_t::u8(16)) {
-        XBYAK_GEN(vpmovzxbd, AVX_X_XM, op_out, op_in);
-        XBYAK_GEN(vcvtdq2ps, AVX_X_XM, op_out, op_out);
     } else if (out_dtype == sc_data_type_t::s8(16)
             && in_dtype == sc_data_type_t::s32(16)) {
         XBYAK_GEN(vpmovdb, AVX512_XM_X, op_out, op_in);
@@ -1000,6 +992,9 @@ void xbyak_lowering_viewer::handle_round_and_cast(
     if (dst_dtype == sc_data_type_t::s32(16)
             && src_dtype == sc_data_type_t::f32(16)) {
         XBYAK_GEN(vcvtps2dq, AVX_X_XM, op_dst, op_src);
+    } else if (dst_dtype == sc_data_type_t::s32(1)
+            && src_dtype == sc_data_type_t::f32(1)) {
+        XBYAK_GEN(vcvtss2si, AVX_R32_XM, op_dst, op_src);
     } else {
         COMPILE_ASSERT(false,
                 FUNC_INFO << "Invalid type: " << dst_dtype << " <- "
@@ -1671,6 +1666,10 @@ void xbyak_lowering_viewer::handle_avx_zero_mov(const operand &op_dst,
         const operand &op_src, const operand &op_cond,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
+        // may have other datatypes needs to support
+        case cpu_data_type::uint_16_x16: {
+            XBYAK_GEN(vmovdqu16, AVX512_XM_XM_Kwz, op_dst, op_src, op_cond);
+        } break;
         case cpu_data_type::float_32_x16: {
             XBYAK_GEN(vmovups, AVX512_XM_XM_Kwz, op_dst, op_src, op_cond);
         } break;
@@ -1784,8 +1783,7 @@ void xbyak_lowering_viewer::handle_post_call() {
 void xbyak_lowering_viewer::handle_call(const expr_c &lhs, const call_c &v) {
     COMPILE_ASSERT(v->para_attr_.empty(), "Xbyak JIT not support.");
 
-    func_t callee = std::dynamic_pointer_cast<func_base>(v->func_);
-    assert(callee);
+    func_t callee = v->get_prototype();
 
     // STEP 1: Shadow space padding
     if (profile_.call_convention_ == call_convention::microsoft) {
@@ -1882,6 +1880,9 @@ void xbyak_lowering_viewer::view(returns_c v) {
 
         switch (cpu_dtype) {
             case cpu_data_type::uint_8:
+            case cpu_data_type::sint_8:
+            case cpu_data_type::uint_16:
+            case cpu_data_type::uint_32:
             case cpu_data_type::sint_32:
             case cpu_data_type::uint_64: {
                 handle_x86_mov(operand(reg_ret), op_val);

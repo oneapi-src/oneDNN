@@ -306,13 +306,13 @@ public:
             case intrin_type::saturated_cast: {
                 transform(dst, {intrin->args_[0]},
                         dst->dtype_, //
-                        transform_disabled("saturated_cast"),
+                        transform_intrin(xbyak_intrin_type::saturated_cast),
                         transform_intrin(xbyak_intrin_type::saturated_cast));
             } break;
             case intrin_type::round_and_cast: {
                 transform(dst, {intrin->args_[0]},
                         dst->dtype_, //
-                        transform_disabled("round_and_cast"),
+                        transform_intrin(xbyak_intrin_type::round_and_cast),
                         transform_intrin(xbyak_intrin_type::round_and_cast));
             } break;
             default: add_assignment(dst, intrin); break;

@@ -38,6 +38,7 @@
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_propagation.hpp>
+#include <compiler/jit/xbyak/ir/transform/low_level_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/module_var_resolver.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
 #include <compiler/jit/xbyak/ir/transform/x86_intrinsics_lowering.hpp>
@@ -52,6 +53,7 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
 
     ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<module_var_resolver_t>());
+    ret.emplace_back(module_function_pass_t::make<low_level_legalizer_t>());
     ret.emplace_back(module_function_pass_t::make<constant_optimizer_t>());
     ret.emplace_back(module_function_pass_t::make<call_transform_t>(profile));
 

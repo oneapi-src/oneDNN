@@ -83,6 +83,14 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("SIGN_EXT", x86, sign_ext, undefined, _2A_);
     REGISTER_INTRIN("REINTERPRET", x86, reinterpret, directed_dst_reg, _2A_);
     REGISTER_INTRIN("REINTERPRET", avx, reinterpret, directed_dst_reg, _2A_);
+    REGISTER_INTRIN(
+            "SATURATED_CAST", x86, saturated_cast, directed_dst_mem, _2A_);
+    REGISTER_INTRIN(
+            "SATURATED_CAST", avx, saturated_cast, directed_dst_mem, _2A_);
+    REGISTER_INTRIN(
+            "ROUND_AND_CAST", x86, round_and_cast, directed_dst_reg, _2A_);
+    REGISTER_INTRIN(
+            "ROUND_AND_CAST", avx, round_and_cast, directed_dst_reg, _2A_);
 
     //---------------
     // X86 Intrinsic
@@ -162,11 +170,6 @@ static handler_table register_handlers() {
 
     REGISTER_INTRIN(
             "AVX_PERMUTEX2VAR", avx, permutex2var, directed_end_mem, _3A_);
-
-    REGISTER_INTRIN(
-            "AVX_SATURATED_CAST", avx, saturated_cast, directed_dst_mem, _2A_);
-    REGISTER_INTRIN(
-            "AVX_ROUND_AND_CAST", avx, round_and_cast, directed_dst_reg, _2A_);
 
     // Finalize table
     return intrin_handlers;

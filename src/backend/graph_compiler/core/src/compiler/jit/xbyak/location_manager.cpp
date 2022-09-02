@@ -821,7 +821,7 @@ operand location_manager::get_operand_indexing(const indexing_c &v) {
         addr_exp = addr_exp + idx_location.get_imm() * scale;
     } else {
         // addr_exp += s*REG(I)
-        addr_exp = addr_exp + idx_location.get_reg() * scale;
+        addr_exp = addr_exp + to_reg64(idx_location.get_reg()) * scale;
     }
     // Get address frame
     auto xaf = get_address_frame(get_cpu_data_type(v->dtype_));

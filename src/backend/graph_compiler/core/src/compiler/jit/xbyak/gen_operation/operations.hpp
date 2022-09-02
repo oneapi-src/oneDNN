@@ -155,6 +155,18 @@ void AVX_MOVPI32(Xbyak::CodeGenerator &gen, const operand &op_dst,
  * AVX Instruction Format
  */
 
+#define AVX_R32_XM(GEN, INS, OP_1, OP_2) \
+    { \
+        if (OP_1.is_reg() && OP_2.is_xyz()) { \
+            (GEN).INS(OP_1.get_reg32(), OP_2.get_xyz()); \
+        } else if (OP_1.is_reg() && OP_2.is_addr()) { \
+            (GEN).INS(OP_1.get_reg32(), OP_2.get_addr()); \
+        } else { \
+            COMPILE_ASSERT(false, \
+                    "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        } \
+    }
+
 #define AVX_R32M_Xx_I(GEN, INS, OP_1, OP_2, OP_3) \
     { \
         if (OP_1.is_reg() && OP_2.is_xyz() && OP_3.is_imm()) { \

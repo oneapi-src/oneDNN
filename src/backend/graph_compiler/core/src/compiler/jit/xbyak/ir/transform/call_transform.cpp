@@ -40,9 +40,7 @@ abi_function_interface::ptr cached_func_abi_interface(const func_t &v) {
 
 // Cached ABI infomation inside call node
 abi_function_interface::ptr cached_call_abi_interface(const call_c &v) {
-    func_t callee = std::dynamic_pointer_cast<func_base>(v->func_);
-    assert(callee);
-    return cached_func_abi_interface(callee);
+    return cached_func_abi_interface(v->get_prototype());
 }
 
 /* *
@@ -126,8 +124,7 @@ public:
     expr_c dispatch(expr_c v) override {
         if (v.isa<call>()) {
             auto vv = v.static_as<call_c>();
-            func_t callee = std::dynamic_pointer_cast<func_base>(vv->func_);
-            assert(callee);
+            func_t callee = vv->get_prototype();
             func_iface_ = cache_abi_interface(callee);
             auto &old_args = vv->args_;
             std::vector<expr> new_args;
