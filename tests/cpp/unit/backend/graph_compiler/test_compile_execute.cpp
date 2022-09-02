@@ -26,14 +26,23 @@ namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace compiler_utils = dnnl::graph::tests::unit::compiler::utils;
 
-static void compile_execution_pipeline(
-        impl::graph_t &agraph, int expected_part_size) {
+using ltsr_vec = std::vector<impl::logical_tensor_t>;
+static void set_mlp_dynamic_parti_ltsrs(int64_t real_batch_size,
+        ltsr_vec &parti_inputs, ltsr_vec &parti_outputs) {
+    parti_inputs[0].dims[0] = real_batch_size;
+    parti_outputs[0].dims[0] = real_batch_size;
+}
+
+static void compile_execution_pipeline(impl::graph_t &agraph,
+        int expected_part_size,
+        std::function<void(ltsr_vec &, ltsr_vec &)> dynamic_callback
+        = nullptr) {
     auto &compiler_backend_ptr
             = impl::compiler_impl::compiler_backend_t::get_singleton();
     compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
     auto partitions = agraph.get_partitions();
     ASSERT_EQ(partitions.size(), expected_part_size);
-
+    if (dynamic_callback) { ASSERT_EQ(expected_part_size, 1); }
     // TODO(yifei): generalize the logic here
     // sort partitions to run forward first according to num ops
     std::sort(partitions.begin(), partitions.end(),
@@ -68,7 +77,9 @@ static void compile_execution_pipeline(
         impl::compiled_partition_t cp(p);
         impl::engine_t &eng = get_engine();
         ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
-
+        if (dynamic_callback) {
+            dynamic_callback(partition_inputs, partition_outputs);
+        }
         std::vector<impl::tensor_t> execution_inputs;
         std::vector<impl::tensor_t> execution_outputs;
         partition_outputs.clear();
@@ -428,6 +439,48 @@ TEST(GCGraphTest, BF16MLPCompileExecution) {
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32MLPDynamicGraphCompileExecution) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_mlp_subgraph(&agraph, false, -1, 5,
+            {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_mlp_dynamic_parti_ltsrs, static_cast<int64_t>(1),
+                    std::placeholders::_1, std::placeholders::_2));
+}
+
+TEST(GCGraphTest, INT8MLPDynamicGraphCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_int8_mlp_subgraph(&agraph, -1, 5,
+            {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_mlp_dynamic_parti_ltsrs, static_cast<int64_t>(1),
+                    std::placeholders::_1, std::placeholders::_2));
+}
+
+TEST(GCGraphTest, BF16MLPDynamicGraphCompileExecution) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_mlp_subgraph(&agraph, true, -1, 5,
+            {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_mlp_dynamic_parti_ltsrs, static_cast<int64_t>(1),
+                    std::placeholders::_1, std::placeholders::_2));
 }
 
 TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution) {
