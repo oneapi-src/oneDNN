@@ -5377,6 +5377,163 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
     }
 }
 
+TEST(ExecuteSubgraphInt8, ConvolutionAddU8s8u8MixBf16) {
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::string qtype = "per_channel";
+    int64_t in_channel = 8, out_channel = 8;
+    std::vector<int64_t> src_shape = {1, in_channel, 12, 12};
+    std::vector<int64_t> weight_shape = {out_channel, in_channel, 3, 3};
+    std::vector<int64_t> bias_shape = {1, out_channel, 1, 1};
+    std::vector<int64_t> dst_shape = {1, out_channel, 10, 10};
+
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<float> weight_data(product(weight_shape));
+    test::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> distribution(0.0f, 255.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return static_cast<uint8_t>(distribution(generator)); });
+    std::uniform_real_distribution<float> distribution2(-1.f, 1.f);
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return distribution2(generator); });
+    std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return distribution3(generator); });
+    float scale_src = 1 / 255.f; // map to 0~255
+    int64_t zp_src = 110;
+
+    size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
+    std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+    std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+    impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    impl::op_t qweight_op(10, impl::op_kind::Quantize, "qweight_op");
+    qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
+    impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
+
+    impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+
+    impl::op_t tc_bias_op {5, impl::op_kind::TypeCast, "typecast_bias"};
+
+    impl::op_t add_op {6, impl::op_kind::Add, "add_op"};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_u8
+            = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
+    impl::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t src_bf16
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::bf16);
+    impl::logical_tensor_t weight_f32 = utils::logical_tensor_init(
+            30, weight_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_s8
+            = utils::logical_tensor_init(3, weight_shape, impl::data_type::s8);
+    impl::logical_tensor_t weight_f32_dq
+            = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+            5, weight_shape, impl::data_type::bf16);
+    impl::logical_tensor_t conv_bf16
+            = utils::logical_tensor_init(6, dst_shape, impl::data_type::bf16);
+    impl::logical_tensor_t bias_f32
+            = utils::logical_tensor_init(7, bias_shape, impl::data_type::f32);
+    impl::logical_tensor_t bias_bf16
+            = utils::logical_tensor_init(8, bias_shape, impl::data_type::bf16);
+    impl::logical_tensor_t bias_out_bf16
+            = utils::logical_tensor_init(9, dst_shape, impl::data_type::bf16);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    qweight_op.add_input(weight_f32);
+    qweight_op.add_output(weight_s8);
+
+    dqweight_op.add_input(weight_s8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    tcdata_op.add_input(src_f32_dq);
+    tcdata_op.add_output(src_bf16);
+
+    tcweight_op.add_input(weight_f32_dq);
+    tcweight_op.add_output(weight_bf16);
+
+    conv_op.add_input(src_bf16);
+    conv_op.add_input(weight_bf16);
+    conv_op.add_output(conv_bf16);
+
+    tc_bias_op.add_input(bias_f32);
+    tc_bias_op.add_output(bias_bf16);
+
+    add_op.add_input(conv_bf16);
+    add_op.add_input(bias_bf16);
+    add_op.add_output(bias_out_bf16);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&dqdata_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&qweight_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&dqweight_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&conv_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&tc_bias_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_bf16_conv_post_ops_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src_u8, &weight_f32, &bias_f32};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&bias_out_bf16};
+
+    ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, &engine), impl::status::success);
+
+    test::vector<float> dst_data(product(dst_shape));
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    impl::tensor_t dst_ts(bias_out_bf16, &engine, dst_data.data());
+    cp.execute(&strm, {src_u8_ts, weight_f32_ts, bias_f32_ts}, {dst_ts});
+    strm.wait();
+}
+
 TEST(Execute, ConvSumSum) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     // default engine kind is cpu.
