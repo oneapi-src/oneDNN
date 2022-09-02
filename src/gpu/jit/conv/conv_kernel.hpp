@@ -2837,9 +2837,9 @@ public:
 
         // Prepare headers for loads and stores.
         eshl(1, src_header.uq(0), global_id_,
-                math::ilog2q(elems_per_thr / simd_size * src_size));
+                math::ilog2q(src_tile_bytes / simd_size));
         eshl(1, dst_header.uq(0), global_id_,
-                math::ilog2q(elems_per_thr / simd_size * dst_size));
+                math::ilog2q(dst_tile_bytes / simd_size));
         eadd(1, src_header.uq(0), src_header.uq(0), src_ptr_);
         eadd(1, dst_header.uq(0), dst_header.uq(0), dst_ptr_);
 
