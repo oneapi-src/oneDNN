@@ -116,6 +116,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
                     && attr()->post_ops_.len() <= 2
+                    && desc()->sum_ab == sum_ab::sum_none
                     && IMPLICATION(attr()->post_ops_.len() == 1,
                             attr()->post_ops_.find(eltwise) != -1
                                     || attr()->post_ops_.find(sum) != -1)

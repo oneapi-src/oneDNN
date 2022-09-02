@@ -64,6 +64,7 @@ struct ref_gemm_t : public gpu_gemm_t {
                     && attr()->has_default_values(smask_t::oscale_runtime
                             | smask_t::zero_points_runtime | smask_t::post_ops)
                     && attr_oscale_ok() && attr_zp_ok() && attr_post_ops_ok()
+                    && desc()->sum_ab == sum_ab::sum_none
                     && ((utils::one_of(a_dt, u8, s8)
                                 && utils::one_of(b_dt, u8, s8)
                                 && utils::one_of(c_dt, f32, s8, u8, s32)
