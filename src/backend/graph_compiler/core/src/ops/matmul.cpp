@@ -168,12 +168,10 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                             - 2];
     int K = trans0->details_.get_plain_dims().back();
     int N = trans1->details_.get_plain_dims().back();
-    if (trans0->details_.get_plain_dims().size() > 2
+    if (is_dynamic() || trans0->details_.get_plain_dims().size() > 2
             || trans1->details_.get_plain_dims().size() > 2) {
         matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
     } else {
-        COMPILE_ASSERT(!is_dynamic(),
-                "managed_matmul_core has not supported dynamic yet");
         matmul = graph->make("managed_matmul_core", {trans0, trans1}, {}, {});
     }
 
