@@ -6980,7 +6980,7 @@ TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
     */
     graph_t agraph;
     //asymmetric zps
-    std::vector<int64_t> zps = {0, 0, 0, 1};
+    std::vector<int64_t> zps = {1};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
@@ -7410,7 +7410,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddReluWithAsymmetricZp) {
     */
     graph_t agraph;
     //asymmetric zps
-    std::vector<int64_t> zps = {0, 0, 0, 1};
+    std::vector<int64_t> zps = {1};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
@@ -7503,7 +7503,7 @@ TEST(Pass, TestQuantizedConv) {
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     graph_t agraph;
     //asymmetric zps
-    std::vector<int64_t> zps = {0, 0, 0, 0};
+    std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
@@ -9062,8 +9062,8 @@ TEST(Pass, FuseToInt8MatmulAdd) {
              | (u8/s8)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -9150,8 +9150,8 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
              | (u8/s8)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -9245,8 +9245,8 @@ TEST(PassSystem, FuseToInt8MatmulBiasBinary) {
                     impl::op_kind::Divide, impl::op_kind::Subtract};
     for (const auto &binary_kind : binary_kinds) {
         graph_t agraph;
-        std::vector<int64_t> zps {0, 1};
-        std::vector<float> scales {3.1f, 3.1f};
+        std::vector<int64_t> zps {0};
+        std::vector<float> scales {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
         dequant1.set_attr(op_attr::scales, scales);
         dequant1.set_attr(op_attr::zps, zps);
@@ -9384,8 +9384,8 @@ TEST(Pass, FuseToX8s8f32MatmulBiasAdd) {
              | (f32)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -9465,8 +9465,8 @@ TEST(Pass, FuseToX8x8f32MatmulAdd) {
              | (f32)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 0};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -9542,8 +9542,8 @@ TEST(Pass, FuseToX8x8f32MatmulBiasAdd) {
              | (f32)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 0};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -10413,8 +10413,8 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAdd) {
              | (bf16)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {1};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -10517,8 +10517,8 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAdd) {
              | (bf16)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {1};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -10610,8 +10610,8 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
              | (bf16)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -10698,8 +10698,8 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAddBF16) {
              | (bf16)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -10780,8 +10780,8 @@ TEST(PassSystem, FuseToX8s8bf16MatmulAdd) {
              | (bf16)
     */
     graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
+    std::vector<int64_t> zps {0};
+    std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
