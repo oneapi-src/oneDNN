@@ -962,7 +962,7 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     // Normalize layouts: add group dimension for all layouts and reduce/fuse
     // spatial dimensions when applicable.
     normalize_conv_layouts(src_layout, wei_layout, dst_layout, bia_layout,
-            with_groups, g, is_dw, reduced_dim, fuse_spatial,
+            with_groups, g, ic, oc, is_dw, reduced_dim, fuse_spatial,
             /*add_groups=*/true);
 
     return status::success;
