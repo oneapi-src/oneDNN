@@ -108,9 +108,10 @@ fill_status_t append_graph_with_block(
     dnnl::graph::op resampling_op(
             op_id, resampling_kind, graph.stringify_id(op_id));
     resampling_op.set_attr("data_format", std::string("NCX"))
-            .set_attr("mode", std::string(alg2str(prb->alg)))
-            .set_attr("sizes", get_sizes(prb->dst_dims()));
-    if (rand_testmode == test_mode_t::SCALES_ATTR)
+            .set_attr("mode", std::string(alg2str(prb->alg)));
+    if (rand_testmode == test_mode_t::SIZES_ATTR)
+        resampling_op.set_attr("sizes", get_sizes(prb->dst_dims()));
+    else if (rand_testmode == test_mode_t::SCALES_ATTR)
         resampling_op.set_attr(
                 "scales", get_scales(prb->src_dims(), prb->dst_dims()));
 
