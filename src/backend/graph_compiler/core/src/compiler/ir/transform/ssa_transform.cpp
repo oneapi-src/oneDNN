@@ -190,6 +190,9 @@ public:
                 // current for loop
                 auto phi = add_ssa_def(make_expr<ssa_phi_node>(
                         std::vector<expr> {ret->current_value}, false));
+                assert(ret->current_value.isa<var>()
+                        || ret->current_value.isa<tensor>()
+                        || ret->current_value.isa<constant>());
                 rename_temp_var_with_version(phi.checked_as<var>(), v);
                 // update the local var mapping to the phi node
                 insert_local_var(v, phi)->for_loop_phi.emplace_back(phi);
@@ -280,18 +283,21 @@ public:
         }
     }
 
-    expr resolve_single_phi(const expr &val) {
+    expr resolve_single_phi(const expr &val, expr *out_last_level_var) {
         if (val.isa<var>()) {
+            if (out_last_level_var) { *out_last_level_var = val; }
             if (val->ssa_data_->is_global_
                     || !val->ssa_data_->get_owner().defined()) {
                 return val;
             }
-            return resolve_single_phi(val->ssa_data_->get_value_of_var());
+            return resolve_single_phi(
+                    val->ssa_data_->get_value_of_var(), out_last_level_var);
         }
         if (val.isa<ssa_phi>()) {
             auto val_phi = val.static_as<ssa_phi>();
             if (val_phi->values_.size() == 1) {
-                return resolve_single_phi(val_phi->values_[0]);
+                return resolve_single_phi(
+                        val_phi->values_[0], out_last_level_var);
             }
         }
         return val;
@@ -299,11 +305,20 @@ public:
 
     bool is_same_with_parent_var(
             const expr &val, const expr &parent_val, expr *out_same) {
-        auto v1 = resolve_single_phi(val);
-        auto v2 = resolve_single_phi(parent_val);
+        expr last_level_var;
+        auto v1 = resolve_single_phi(val, nullptr);
+        auto v2 = resolve_single_phi(
+                parent_val, out_same ? &last_level_var : nullptr);
         if (v1.ptr_same(v2)) {
             // if the variable is unchanged in loop
-            if (out_same) *out_same = v1;
+            if (out_same) {
+                if (!v1.isa<var>() && !v1.isa<tensor>()
+                        && !v1.isa<constant>()) {
+                    *out_same = last_level_var;
+                } else {
+                    *out_same = v1;
+                }
+            }
             return true;
         }
         return false;
@@ -413,6 +428,8 @@ public:
                                 kv.second[0], kv.second[1], &same_var)) {
                         get_local_var_for_update(kv.first)->current_value
                                 = same_var;
+                        assert(same_var.isa<var>() || same_var.isa<tensor>()
+                                || same_var.isa<constant>());
                         continue;
                     }
                 }

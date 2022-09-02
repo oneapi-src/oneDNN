@@ -796,32 +796,19 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
                 }
                 if (dtype_block > 1) { data_input_idx.emplace_back(expr(0)); }
                 trace_guard_t trg(ctx, "brgemm");
-                if (config.loop_sched == 2) {
-                  _if_(d == 0 && oh == 0 && bs == 0) {
-                    builtin::brgemm_init_update(
-                      tensor_ptr(grad_input, grad_input_idx),
-                      tensor_ptr(data_input, data_input_idx),
-                      tensor_ptr(real_out_tmp_buf, out_tmp_idx), OW_num_block,
-                      OC_block, IC_block, N_block, N_block, IC_block, IC_block,
-                      OC_block * N_block,
-                      stride_w * IC_block
-                        * (int)utils::divide_and_ceil(N_block, dtype_block)
-                        * dtype_block,
-                      dtype, dtype);
-                  }
-                  _else_ {
-                    builtin::brgemm_update(
-                      tensor_ptr(grad_input, grad_input_idx),
-                      tensor_ptr(data_input, data_input_idx),
-                      tensor_ptr(real_out_tmp_buf, out_tmp_idx), OW_num_block,
-                      OC_block, IC_block, N_block, N_block, IC_block, IC_block,
-                      OC_block * N_block,
-                      stride_w * IC_block
-                        * (int)utils::divide_and_ceil(N_block, dtype_block)
-                        * dtype_block,
-                      dtype, dtype);
-                  }
-                } else {
+                _if_(d == 0 && oh == 0 && bs == 0) {
+                  builtin::brgemm_init_update(
+                    tensor_ptr(grad_input, grad_input_idx),
+                    tensor_ptr(data_input, data_input_idx),
+                    tensor_ptr(real_out_tmp_buf, out_tmp_idx), OW_num_block,
+                    OC_block, IC_block, N_block, N_block, IC_block, IC_block,
+                    OC_block * N_block,
+                    stride_w * IC_block
+                      * (int)utils::divide_and_ceil(N_block, dtype_block)
+                      * dtype_block,
+                    dtype, dtype);
+                }
+                _else_ {
                   builtin::brgemm_update(tensor_ptr(grad_input, grad_input_idx),
                     tensor_ptr(data_input, data_input_idx),
                     tensor_ptr(real_out_tmp_buf, out_tmp_idx), OW_num_block,
