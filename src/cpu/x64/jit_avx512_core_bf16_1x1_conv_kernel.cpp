@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,8 +152,6 @@ Address jit_avx512_core_bf16_1x1_conv_kernel::output_ptr(
     if (one_of(jcp.prop_kind, forward_training, forward_inference,
                 backward_data)) {
         const bool is_output_layout_nxc = is_out_layout_nxc();
-        assert(IMPLICATION(
-                is_output_layout_nxc, scale == 1 && !jcp.with_dw_conv));
         int i_load_shift = is_output_layout_nxc
                 ? jcp.load_block
                 : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
