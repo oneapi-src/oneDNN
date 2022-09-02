@@ -44,7 +44,7 @@ status_t compiled_partition_impl_t::query_logical_tensor(
     // outputs_, this means the logical tensor is not required by this compiled
     // partition. this will be a common situation if FWK gives arbitrary
     // connection, and shouldn't be regarded as an error
-    std::memset(lt, 0, sizeof(logical_tensor_t));
+    *lt = empty_logical_tensor_with_default_id();
     return status::success;
 }
 

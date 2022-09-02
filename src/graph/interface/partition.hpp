@@ -180,7 +180,7 @@ public:
     impl::status_t query_logical_tensor(
             size_t tid, impl::logical_tensor_t *lt) const {
         if (!pimpl_) {
-            std::memset(lt, 0, sizeof(impl::logical_tensor_t));
+            *lt = impl::empty_logical_tensor_with_default_id();
             return impl::status::success;
         }
         return pimpl_->query_logical_tensor(tid, lt);
