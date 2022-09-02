@@ -148,20 +148,23 @@ std::vector<dim_t> normalize_conv_dims(std::vector<dim_t> &dims,
 }
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
-        layout_t &dst_layout, layout_t &bia_layout, bool with_groups,
-        int groups, bool is_dw, int reduced_dim, bool fuse_spatial,
+        layout_t &dst_layout, layout_t &bia_layout, bool with_groups, int g,
+        int ic, int oc, bool is_dw, int reduced_dim, bool fuse_spatial,
         bool add_groups) {
     src_layout = normalize_conv_layout(src_layout, /*with_groups=*/false,
-            groups, is_dw, reduced_dim, fuse_spatial, add_groups,
+            g > 1 ? src_layout.dim(1) / ic : 1, is_dw, reduced_dim,
+            fuse_spatial, add_groups,
             /*is_wei=*/false);
-    wei_layout = normalize_conv_layout(wei_layout, with_groups, groups, is_dw,
-            reduced_dim, /*fuse_spatial=*/false, add_groups, /*is_wei=*/true);
+    wei_layout = normalize_conv_layout(wei_layout, with_groups, g, is_dw,
+            reduced_dim,
+            /*fuse_spatial=*/false, add_groups, /*is_wei=*/true);
     dst_layout = normalize_conv_layout(dst_layout, /*with_groups=*/false,
-            groups, is_dw, reduced_dim, fuse_spatial, add_groups,
+            g > 1 ? dst_layout.dim(1) / oc : 1, is_dw, reduced_dim,
+            fuse_spatial, add_groups,
             /*is_wei=*/false);
     if (add_groups && !bia_layout.is_empty()) {
         ir_assert(bia_layout.ndims() == 1) << bia_layout;
-        bia_layout = split_dimension(bia_layout, 0, groups);
+        bia_layout = split_dimension(bia_layout, 0, g);
     }
 }
 
