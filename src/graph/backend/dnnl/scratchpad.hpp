@@ -47,13 +47,18 @@ public:
 class temporary_scratchpad_t : public scratchpad_t {
 public:
     temporary_scratchpad_t(
-            size_t size, const dnnl::engine &eng, const allocator_t &alloc) {
+            size_t size, const dnnl::engine &eng, const allocator_t &alloc)
+        : buffer_(nullptr)
+        , size_(size)
+        , eng_(&eng)
+        , alloc_(&alloc)
+#ifdef DNNL_WITH_SYCL
+        , e_(::sycl::event())
+#endif
+    {
         buffer_ = reinterpret_cast<char *>(dnnl_allocator_t::malloc(
                 size, eng, &alloc, allocator_t::mem_type_t::temp));
         if (!buffer_) { size_ = 0; }
-        eng_ = &eng;
-        alloc_ = &alloc;
-        size_ = size;
     }
 
     ~temporary_scratchpad_t() override {

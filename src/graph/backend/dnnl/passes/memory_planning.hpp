@@ -184,7 +184,7 @@ class buffer_assigner_t {
 public:
     // constructor
     explicit buffer_assigner_t(const size_t match_range)
-        : match_range_(match_range) {}
+        : match_range_(match_range), free_(), data_() {}
 
     // request a free buffer
     size_t request(size_t size) {
