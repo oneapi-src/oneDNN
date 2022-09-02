@@ -269,8 +269,8 @@ bool post_ops_ok(jit_brgemm_primitive_conf_t &jbgp,
             {sum, eltwise, binary}, post_ops, &dst_d,
             false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
             true /*sum_requires_zp_zero*/,
-            {broadcasting_strategy_t::per_oc,
-                    broadcasting_strategy_t::scalar}));
+            {broadcasting_strategy_t::per_oc, broadcasting_strategy_t::scalar,
+                    broadcasting_strategy_t::no_broadcast}));
 }
 
 status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
