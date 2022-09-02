@@ -464,10 +464,17 @@ SC_INTERNAL_API void layout_propagation(
                             } else if (in_fs_pair != target_fs_pair) {
                                 if (graph.attrs_.get_or_else(
                                             "insert_reorder", true)) {
+                                    // static update
                                     insert_reorder_op(graph, reorder_map,
                                             inputs[i], i, target_fs_pair, node,
                                             is_input_plain,
                                             insert_reorder_callback);
+                                } else {
+                                    // For dynamic fused op internal format
+                                    // update.
+                                    inputs[i]->details_.set_format_and_stride(
+                                            target_fs_pair.first,
+                                            target_fs_pair.second);
                                 }
                             } else if (!insert_reorder_callback) {
                                 // if static and no need of reorder

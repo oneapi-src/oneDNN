@@ -33,12 +33,18 @@ static void check_and_set_matmul_impl(runtime::dynamic_tensor_t *data_dyn_tsr,
                     runtime::get_runtime_target_machine()
                             .cpu_flags_.get_max_vector_lanes(
                                     sc_data_etype(data_dyn_tsr->dtype_))));
+    int ndims = data_dyn_tsr->ndims_;
+    if (data_dyn_tsr->dims_[ndims - 2] < data_fmt_st->get_block1()
+            || weight_dyn_tsr->dims_[ndims - 1] < weight_fmt_st->get_block2()) {
+        impl_alg = impl_kind_t::normal;
+    }
     for (int i = 0; i < data_dyn_tsr->ndims_; i++) {
         if (data_dyn_tsr->dims_[i] % simd_length) {
             impl_alg = impl_kind_t::normal;
             break;
         }
     }
+
     if (impl_alg == impl_kind_t::no_padding) {
         for (int i = 0; i < weight_dyn_tsr->ndims_; i++) {
             if (weight_dyn_tsr->dims_[i] % simd_length) {
@@ -108,11 +114,11 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     bool is_K_dynamic = data_dyn_tsr->dyn_mask_ & (1 << (data_ndims - 1));
     assert(is_K_dynamic
             == (bool)(weight_dyn_tsr->dyn_mask_ & (1 << (weight_ndims - 2))));
-    assert(is_M_dynamic || is_N_dynamic || is_K_dynamic);
-    *data_fmt = *ori_data_fmt;
-    *weight_fmt = *ori_weight_fmt;
-    auto data_fmt_st = reinterpret_cast<runtime::dispatch_key *>(data_fmt);
-    auto weight_fmt_st = reinterpret_cast<runtime::dispatch_key *>(weight_fmt);
+    auto cp_data_fmt = *ori_data_fmt;
+    auto cp_weight_fmt = *ori_weight_fmt;
+    auto data_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_data_fmt);
+    auto weight_fmt_st
+            = reinterpret_cast<runtime::dispatch_key *>(&cp_weight_fmt);
     int a = weight_fmt_st->get(0);
 
     int M_blk, N_blk, K_blk;
@@ -167,23 +173,26 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
         // reuse last blocking.
     }
 
-    uint64_t fmt_keys[2] = {*data_fmt, *weight_fmt};
+    uint64_t fmt_keys[2] = {cp_data_fmt, cp_weight_fmt};
     void *value = format_table->get(fmt_keys, 2);
     assert(value);
     *out_fmt = reinterpret_cast<uint64_t *>(value)[0];
     // query kernel, need determine the impl alg first.
-    auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(out_fmt);
+    uint64_t cp_out_fmt = *out_fmt;
+    auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
     check_and_set_matmul_impl(data_dyn_tsr, weight_dyn_tsr, data_fmt_st,
             weight_fmt_st, out_fmt_st);
     auto &kernel_table = op_table->kernel_table_;
-    uint64_t keys[3] = {*data_fmt, *weight_fmt, *out_fmt};
-
+    uint64_t keys[3] = {cp_data_fmt, cp_weight_fmt, cp_out_fmt};
     void *func = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 3);
     assert(func);
     data_fmt_st->reset_blocks_and_impl();
     weight_fmt_st->reset_blocks_and_impl();
-    out_fmt_st->reset_blocks_and_impl();
     *reinterpret_cast<void **>(kernel) = func;
+    // avoid internal status change in multi thread case.
+    *data_fmt = cp_data_fmt;
+    *weight_fmt = cp_weight_fmt;
+
     // query inplace
     *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
 }

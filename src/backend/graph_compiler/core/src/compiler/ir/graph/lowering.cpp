@@ -412,7 +412,11 @@ std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
 } // namespace graph
 
 static bool need_query_next_first(const sc_op_ptr &node) {
-    return node->get_outputs()[0]->details_.get_format_candidates().size() > 1;
+    return node->get_outputs()[0]
+                   ->uses_[0]
+                   .second->get_dispatch_key_set()
+                   ->set_.size()
+            > 1;
 }
 
 expr call_op_dynamic_query_function(
@@ -736,7 +740,7 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
         op_kinds kind) {
     std::vector<expr> plhd_ins, fmt_ins;
     std::vector<expr> plhd_outs, fmt_outs, size_outs;
-    bool need_dispatch = node->get_dispatch_key_set()->set_.size() > 1;
+    bool need_dispatch = can_op_be_dispatched(node);
     // current input
     for (auto &ltensor : node->get_inputs()) {
         auto const_type = ltensor->producer_owner_->attrs_.get_or_else(

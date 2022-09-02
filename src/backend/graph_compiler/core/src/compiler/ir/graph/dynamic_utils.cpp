@@ -92,7 +92,7 @@ void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
 
 bool can_op_be_dispatched(const sc_op_ptr &op) {
     return op->op_name_ != "input" && op->op_name_ != "output"
-            && op->op_name_ != "constant" && op->op_name_ != "tensor_view"
+            && op->op_name_ != "constant"
             && op->get_dispatch_key_set()->set_.size() > 1;
 }
 

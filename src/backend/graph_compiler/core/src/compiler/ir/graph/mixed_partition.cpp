@@ -2061,7 +2061,6 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
                         }
                     }
                 });
-
         if (!splited_reduce_set.empty()) {
             std::for_each(splited_reduce_set.begin(), splited_reduce_set.end(),
                     [&g, &buf_alloc, &ctx, &graph2orig, &split_rd_op](

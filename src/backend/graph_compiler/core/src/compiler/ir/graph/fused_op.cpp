@@ -806,17 +806,21 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
         if (node->get_dispatch_key_set()->set_.size() <= 1) { return false; }
         for (size_t i = 0; i < inputs.size(); i++) {
             auto &in = inputs[i];
+            // original ltensor is legal and is constant
             if (!(visited[in]
-                        || fmgr_2_orig[in]->producer_owner_->attrs_.get_or_else(
-                                   "constant", const_kind::not_const)
-                                != const_kind::not_const)) {
+                        || (!fmgr_2_orig[in]->uses_.empty()
+                                && fmgr_2_orig[in]
+                                                ->producer_owner_->attrs_
+                                                .get_or_else("constant",
+                                                        const_kind::not_const)
+                                        != const_kind::not_const))) {
                 return true;
             }
         }
         if (node->isa<binary_elementwise_op_t>()) {
-            main_idx = 1
-                    - node->stc_cast<binary_elementwise_op_t>()
-                              ->get_broadcast_input();
+            int bc_idx = node->stc_cast<binary_elementwise_op_t>()
+                                 ->get_broadcast_input();
+            main_idx = bc_idx == -1 ? 0 : 1 - bc_idx;
         }
         for (size_t i = 0; i < outputs.size(); i++) {
             auto &out = outputs[i];
@@ -873,6 +877,7 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             COMPILE_ASSERT(false, "Currently dynamic only support matmul op.");
         }
     }
+
     for (auto &op : mgr_->get_graph().ops_) {
         size_t in_size = op->get_inputs().size();
         size_t out_size = op->get_outputs().size();
@@ -883,6 +888,8 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
         for (size_t i = 0; i < in_size; i++) {
             op_ins[i] = get_or_create_tsr_and_fmt(op->get_inputs()[i]);
         }
+        // Can not use can_op_be_dispatched as tsr and format need pass through
+        // each op.
         if (op->isa<input_op>() || op->isa<output_op>()
                 || op->isa<constant_op_t>()) {
             continue;
@@ -893,6 +900,8 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
         if (!kernel_has_been_dispatched) {
             table_var = main_table_var;
             table_name = main_table_var.checked_as<var>()->name_;
+            main_table_var_ = table_var;
+            cur_kernel = kernel;
         } else {
             table_name = op_name_ + "__" + std::to_string(logical_op_id_)
                     + "_inner__" + std::to_string(op->logical_op_id_)
@@ -901,11 +910,6 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
         }
         auto table_ptr = std::make_shared<op_dispatch_tables_t>();
 
-        if (!kernel_has_been_dispatched) {
-            main_table_var_ = table_var;
-            kernel_has_been_dispatched = true;
-            cur_kernel = kernel;
-        }
         int main_idx = 0;
         if (op->isa<unary_elementwise_op_impl_t>()) {
             if (!kernel_has_been_dispatched || need_inner_query(op, main_idx)) {
@@ -959,6 +963,7 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
                     "Currently dynamic fusbile op only support unary/binary.");
         }
         update_op_visited(op);
+        if (!kernel_has_been_dispatched) { kernel_has_been_dispatched = true; }
     }
     bld.push_returns(true);
     auto body = bld.pop_scope();
@@ -1026,7 +1031,19 @@ void fused_op_t::update_internal_graph_format(const op_dispatch_key_t &key) {
         }
         op->info_.cur_impl_ = key.impl_;
     }
-    // sync node output format with inner graph
+    // sync node input/output format with inner graph
+    size_t node_input_offset = main_op_.empty() ? 0 : 2;
+    size_t input_offset = main_op_.empty() ? 0 : 1;
+    auto &node_inputs = get_inputs();
+    auto inputs = mgr_->get_graph().get_input_ops();
+    assert(node_inputs.size() + input_offset
+            == inputs.size() + node_input_offset);
+    for (size_t i = 0; i + input_offset < inputs.size(); i++) {
+        node_inputs[i + node_input_offset]->details_.set_format(
+                inputs[i + input_offset]
+                        ->get_outputs()[0]
+                        ->details_.get_format());
+    }
     auto &node_outputs = get_outputs();
     auto outputs = mgr_->get_graph().get_output_ops();
     assert(outputs.size() == node_outputs.size());

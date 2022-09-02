@@ -183,8 +183,8 @@ void dequantize_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
     outputs = remake_logical_tensors(info_.outputs_);
-    const auto qinfos = get_quantize_info_from_attrs(attrs_);
-    assert(utils::is_one_of(qinfos.dtype_, datatypes::f32));
+    auto qinfos = get_quantize_info_from_attrs(attrs_);
+    qinfos.dtype_ = datatypes::f32;
     std::vector<float> scales = qinfos.scales_;
     std::shared_ptr<static_data_t> scales_ptr
             = std::make_shared<static_data_t>(scales);
@@ -321,8 +321,8 @@ void dynamic_dequantize_op_t::get_graph_impl(
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
     outputs = remake_logical_tensors(info_.outputs_);
-    const auto qinfos = get_quantize_info_from_attrs(attrs_);
-    assert(qinfos.dtype_ == datatypes::f32);
+    auto qinfos = get_quantize_info_from_attrs(attrs_);
+    qinfos.dtype_ = datatypes::f32;
     auto &inp = inputs[0];
     auto &scales = inputs[1];
     auto inp_op = graph->make_input(inputs);

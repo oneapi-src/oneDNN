@@ -33,13 +33,22 @@
 #include <util/utils.hpp>
 
 namespace sc {
+
 SC_MODULE(ops.reorder)
+
+static bool has_output_use(const sc_op *op) {
+    for (auto &use : op->get_outputs()[0]->uses_) {
+        if (use.second->isa<output_op>()) { return true; }
+    }
+    return false;
+}
 
 static bool is_dynamic_reorder_inplace(sc_op *op, const context_ptr &ctx) {
     COMPILE_ASSERT(
             ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu,
             "Currently support cpu only.");
     return op->get_owner_graph().is_dynamic() && op->isa<reorder_op_t>()
+            && !has_output_use(op)
             && op->get_inputs()[0]->details_.get_format()
             == op->get_outputs()[0]->details_.get_format()
             && op->get_inputs()[0]->details_.get_strides()

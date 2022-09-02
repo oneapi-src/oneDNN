@@ -28,6 +28,11 @@ static void check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
             static_cast<uint64_t>(runtime::get_runtime_target_machine()
                                           .cpu_flags_.get_max_vector_lanes(
                                                   sc_data_etype(in0->dtype_))));
+    int ndims = in0->ndims_;
+    if (in0->dims_[ndims - 2] < in0_fmt_st->get_block1()
+            || in1->dims_[ndims - 1] < in1_fmt_st->get_block2()) {
+        impl_alg = impl_kind_t::normal;
+    }
     for (int i = 0; i < in0->ndims_; i++) {
         if (!(in0->dims_[i] == 1 || in0->dims_[i] % simd_length == 0)) {
             impl_alg = impl_kind_t::normal;
@@ -146,8 +151,10 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     auto &kernel_table = op_table->kernel_table_;
     // reset blocks for plain format
     if (kernel_table) {
-        auto *in_fmt_st = reinterpret_cast<runtime::dispatch_key *>(in_fmt);
-        auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(out_fmt);
+        uint64_t cp_in_fmt = *in_fmt, cp_out_fmt = *out_fmt;
+        auto *in_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_in_fmt);
+        auto *out_fmt_st
+                = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
         check_and_set_fusible_impl(
                 in_dyn_tsr, out_dyn_tsr, in_fmt_st, out_fmt_st, out_fmt_st);
         uint64_t keys[2] = {*in_fmt_st, *out_fmt_st};

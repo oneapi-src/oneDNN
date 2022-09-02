@@ -402,7 +402,7 @@ using gr_rule = std::function<void(sc_graph_t &graph, const context_ptr &ctx)>;
 void global_reschedule(sc_graph_t &graph, const context_ptr &ctx) {
     if (!graph.attrs_.get_or_else("temp.fuse", 1)) { return; }
     std::vector<gr_rule> gr_rule_list;
-    if (ctx->flags_.mixed_fusion_) {
+    if (!graph.is_dynamic() && ctx->flags_.mixed_fusion_) {
         gr_rule_list.emplace_back(nearby_input_reorder_rule);
     } else {
         // old fusion mgr need this rule to do pre-op fusion
