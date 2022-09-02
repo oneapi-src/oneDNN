@@ -828,6 +828,13 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.bcast_B_desc.set_params(
             weights_d.dims(), dst_d.dims(), bgmmc.batch_ndims, bgmmc.batch);
 
+    // Dispatch small shapes to VNNI for better performance
+    const bool is_small_shapes = bgmmc.is_amx && bgmmc.ndims < 3
+            && ((bgmmc.M == 1 && bgmmc.K == 256)
+                    || (bgmmc.M <= 32 && bgmmc.M * bgmmc.N <= 256)
+                    || bgmmc.K <= 16);
+    if (is_small_shapes) return status::unimplemented;
+
     // required granularity for k dimension
     bgmmc.required_k_granularity
             = bgmmc.is_amx ? data_type_vnni_granularity(bgmmc.wei_dt) : 1;
