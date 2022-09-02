@@ -1,8 +1,5 @@
 --reset
+--batch=test_graph_prelu_bf16_ci
+
+--reset
 --batch=test_graph_prelu_ci
-
---reset
---batch=test_graph_prelu_float16_ci
-
---reset
---batch=test_graph_prelu_bfloat16_ci

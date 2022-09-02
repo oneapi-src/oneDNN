@@ -2,10 +2,4 @@
 --batch=test_graph_pool_ci
 
 --reset
---batch=test_graph_pool_float16_ci
-
---reset
---batch=test_graph_pool_bfloat16_ci
-
---reset
 --batch=test_graph_pool_int8_ci

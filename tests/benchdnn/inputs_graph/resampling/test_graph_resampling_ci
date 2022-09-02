@@ -8,9 +8,15 @@
 --sdt=f32 --ddt=f32
 --batch=shapes_ci
 
+--sdt=bf16 --ddt=bf16
+--batch=shapes_ci
+
 --reset
 --attr-post-ops=relu,sum,add:f32:common,add:f32:per_oc,add:f32:per_tensor   ic17iw21ow17
+--sdt=bf16 --ddt=bf16  --attr-post-ops=relu,sum   ic17iw21ow17
 
 --reset
 --sdt=f32 --ddt=f32
 --attr-post-ops=mul:f32:per_tensor+relu+add:f32:common,sum+elu+add:f32:per_oc ic17iw21ow17
+--sdt=bf16 --ddt=bf16
+--attr-post-ops=mul:bf16:per_tensor+sum+add:bf16:common,tanh+logistic+add:bf16:per_oc ic17iw21ow17

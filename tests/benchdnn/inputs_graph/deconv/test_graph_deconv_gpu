@@ -1,7 +1,4 @@
 --reset
---batch=test_graph_deconv_float16_ci
-
---reset
 --batch=test_graph_deconv_bfloat16_ci
 
 --reset

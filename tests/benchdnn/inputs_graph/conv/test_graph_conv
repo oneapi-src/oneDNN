@@ -1,17 +1,14 @@
 --reset
---batch=test_graph_conv_ci
-
---reset
---batch=test_graph_conv_float16_ci
-
---reset
 --batch=test_graph_conv_bfloat16_ci
+
+--reset
+--batch=test_graph_conv_bias_swish_ci
 
 --reset
 --batch=test_graph_conv_int8_ci
 
 --reset
---batch=test_graph_conv_bias_swish_ci
+--batch=test_graph_conv_ci
 
 --reset
 --batch=test_conv_fused_depthwise_ci

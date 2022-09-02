@@ -64,17 +64,6 @@
 64x2048x7x7
 
 # main op - no alpha, no beta
-# f16
---reset
---inplace=false
---dir=FWD_D
---dt=f16
---alpha=0 --beta=0
---alg=sqrt,square,tanh,logistic,logsigmoid
-64x16x28x28
-
-# main op - no alpha, no beta
-# bf16
 --reset
 --inplace=false
 --dir=FWD_D

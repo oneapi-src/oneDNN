@@ -1,8 +1,5 @@
 --reset
---batch=test_graph_eltwise_ci
-
---reset
---batch=test_graph_eltwise_float16_ci
-
---reset
 --batch=test_graph_eltwise_bfloat16_ci
+
+--reset
+--batch=test_graph_eltwise_ci

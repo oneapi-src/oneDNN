@@ -45,11 +45,6 @@ g1mb1ic3id116ih132iw132oc32od114oh130ow130kd3kh3kw3sd1sh1sw1pd0ph0pw0dd0dh0dw0n"
 # main op
 --reset
 --dir=FWD_B,BWD_D,BWD_W
---cfg=f16
-mb50ic64ih56oc64oh56kh1ph0
-
---reset
---dir=FWD_B,BWD_D,BWD_W
 --cfg=bf16bf16bf16
 mb50ic64ih56oc64oh56kh1ph0
 

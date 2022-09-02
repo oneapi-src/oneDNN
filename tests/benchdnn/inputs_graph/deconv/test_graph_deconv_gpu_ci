@@ -1,22 +1,10 @@
-# no groups f32
+# no groups
 --reset
 --dir=FWD_D,BWD_D,BWD_W
 --stag=abcd
 --wtag=abcde
 --dtag=abcd
 --batch=shapes_2d
-
-# no groups f16
---reset
---dir=FWD_D,BWD_D,BWD_W
---cfg=f16
-g1oc3ic16_oh5ih5kh3ph1_n"2d_conv:1st"
-
-# no groups bf16
---reset
---dir=FWD_D,BWD_D,BWD_W
---cfg=bf16bf16bf16
-g1oc3ic16_oh5ih5kh3ph1_n"2d_conv:1st"
 
 # no groups + post-ops
 --reset

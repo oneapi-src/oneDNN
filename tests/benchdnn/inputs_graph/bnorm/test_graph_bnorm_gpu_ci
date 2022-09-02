@@ -8,11 +8,6 @@
 --dir=BWD_D,BWD_DW
 --dt=f32 --inplace=false,true mb96_ic192_ih71iw71_n
 
-# f16 fwd op
---reset
---dir=FWD_I
---dt=f16 --inplace=false,true --attr-post-ops=,relu mb96_ic192_ih71iw71_n
-
 # bf16 fwd op
 --reset
 --dir=FWD_I
