@@ -45,38 +45,61 @@ bool check_optional_inputs(pb_node_t *n) {
     if (rep_node->get_min_rep() != 0) return false;
 
     std::vector<std::pair<iport_t, producer_t>> node_inputs = n->get_inputs();
-    if (!node_inputs.empty()) {
-        for (auto &node_input : node_inputs) {
-            bool is_optional = check_optional_inputs(node_input.second.first);
-            if (!is_optional) return false;
-        }
-    }
-    return true;
+    if (node_inputs.empty()) return true;
+    /* for optional input, only 1 producer is supported
+           opt_input?
+              |
+             n?
+     */
+    if (node_inputs.size() != 1) return false;
+    return check_optional_inputs(node_inputs[0].second.first);
 }
 
-// check if a pb_node is optional and its consumers are all optional
-// also record the nodes that are likely to be inner producers
-bool get_optional_outputs(
-        pb_node_t *n, std::unordered_set<pb_node_t *> &opt_nodes) {
-    if (n->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
-        return false;
-    repetition_t *rep_node = dynamic_cast<repetition_t *>(n);
-    if (rep_node->get_min_rep() != 0) return false;
+// fill local context in map when optional exists
+void fill_optional_in_map(match_context_t *local_ctx, pb_node_t *cur_node,
+        op_t *cur_op, size_t cur_op_port = 0) {
+    fill_local_in_map(local_ctx, cur_node, cur_op, cur_op_port);
 
+    std::vector<std::pair<iport_t, producer_t>> node_inputs
+            = cur_node->get_inputs();
+    if (node_inputs.empty()) return;
+
+    pb_node_t *next_node = node_inputs[0].second.first;
+    fill_optional_in_map(local_ctx, next_node, cur_op);
+}
+
+// check if a pb_node's all consumers are optional
+bool check_optional_outputs(pb_node_t *n) {
     std::vector<std::pair<oport_t, consumers_t>> node_outputs
             = n->get_outputs();
-    if (!node_outputs.empty()) {
-        for (auto &node_output : node_outputs) {
-            for (size_t i = 0; i < node_output.second.size(); i++) {
-                bool is_optional = get_optional_outputs(
-                        node_output.second[i]->first, opt_nodes);
-                if (!is_optional) return false;
-            }
-        }
-    } else
-        // only a node without outputs is likely to be a inner producer
-        opt_nodes.emplace(n);
-    return true;
+    if (node_outputs.empty()) return true;
+    /* for optional output, only 1 consumer is supported
+             n
+             |
+         opt_output?
+     */
+    if (node_outputs.size() != 1) return false;
+    if (node_outputs[0].second.size() != 1) return false;
+    pb_node_t *node_output = node_outputs[0].second[0]->first;
+    if (node_output->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
+        return false;
+    repetition_t *rep_node = dynamic_cast<repetition_t *>(node_output);
+    if (rep_node->get_min_rep() != 0) return false;
+
+    return check_optional_outputs(node_output);
+}
+
+// fill local context out map when optional exists
+void fill_optional_out_map(match_context_t *local_ctx, pb_node_t *cur_node,
+        op_t *cur_op, size_t cur_op_port = 0) {
+    fill_local_out_map(local_ctx, cur_node, cur_op, cur_op_port);
+
+    std::vector<std::pair<oport_t, consumers_t>> node_outputs
+            = cur_node->get_outputs();
+    if (node_outputs.empty()) return;
+
+    pb_node_t *next_node = node_outputs[0].second[0]->first;
+    fill_optional_out_map(local_ctx, next_node, cur_op);
 }
 } // namespace
 
@@ -113,13 +136,20 @@ bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *ctx,
     auto match_input
             = [&](size_t op_input_offset, size_t node_input_offset) -> bool {
         pb_node_t *in_node = node_inputs[node_input_offset].second.first;
-        std::shared_ptr<value_t> op_in_value
-                = op->get_input_value(op_input_offset);
-        if (!op_in_value->has_producer()) {
+        std::shared_ptr<value_t> op_in_value = nullptr;
+        if (op->num_inputs() > op_input_offset) {
+            op_in_value = op->get_input_value(op_input_offset);
+        }
+
+        if (!op_in_value || !op_in_value->has_producer()) {
             // pattern node has producer while graph op
             // doesn't have. In this case, only optional
             // can survive
-            if (!check_optional_inputs(in_node)) return false;
+            bool support_optional = check_optional_inputs(in_node);
+            if (support_optional) {
+                fill_optional_in_map(ctx, in_node, op, op_input_offset);
+            }
+            return support_optional;
         } else {
             op_t *in_op = op->get_input_op(op_input_offset);
             size_t in_op_oport = op_in_value->get_offset();
@@ -127,12 +157,12 @@ bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *ctx,
                     = node_inputs[node_input_offset].second.second;
             binding_t in_bind(
                     BIND_OUT, in_op, in_op_oport, in_node, in_node_oport);
-            if (!match_graph_helper(in_bind, ctx, copied_op_map)) {
-                // match failure, check if the node is optional
-                if (!check_optional_inputs(in_node)) return false;
-            }
+            // handle the potential zero trip match case, fill context's i/o
+            // map with hint op
+            in_bind.hint_op = op;
+            in_bind.hint_op_port = op_input_offset;
+            return match_graph_helper(in_bind, ctx, copied_op_map);
         }
-        return true;
     };
 
     if (node->get_inputs().size() == VARIADIC_INPUT_NUM) {
@@ -140,20 +170,16 @@ bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *ctx,
                 "variadic input num should be larger than actual op's num of "
                 "inputs");
         for (size_t i = 0; i < node_inputs.size(); ++i) {
-            if (op->num_inputs() < i + 1) break;
             iport_t node_iport = node_inputs[i].first;
+            if (op->num_inputs() < node_iport + 1) break;
             if (!match_input(node_iport, i)) return false;
         }
     } else if (!has_commutative_inputs(op)) {
         for (size_t i = 0; i < node_inputs.size(); ++i) {
-            if (op->num_inputs() < i + 1) return false;
             iport_t node_iport = node_inputs[i].first;
-            if (op->num_inputs() < node_iport + 1) return false;
             if (!match_input(node_iport, i)) return false;
         }
     } else { // commutative ops need to consider switching inputs
-        // TODO(Zitian): fill input port map
-        // if an optional subpattern is not matched
         size_t matched_op_input_offset = op->num_inputs(); // init with illegal
         for (size_t node_input_offset = 0;
                 node_input_offset < node_inputs.size(); ++node_input_offset) {
@@ -181,69 +207,18 @@ bool match_node_outputs(op_t *op, pb_node_t *node, match_context_t *ctx,
     std::vector<std::pair<oport_t, consumers_t>> node_outputs
             = node->get_outputs();
     if (node_outputs.empty()) return true;
+    if (op->num_outputs() < node_outputs.size()) return false;
 
     // the worst situation for matching node output is that pattern node
     // output and graph op output cannot be matched, in this case,
     // only optional can survive.
-    std::vector<std::pair<bool, std::unordered_set<pb_node_t *>>>
-            all_opt_out_nodes {};
-    bool support_optional = true;
-    std::vector<size_t> output_ranges {};
-    size_t output_count = 0;
-    for (const auto &node_output : node_outputs) {
-        output_ranges.emplace_back(output_count);
-        for (const auto &con : node_output.second) {
-            pb_node_t *out_node = con->first;
-            all_opt_out_nodes.emplace_back(
-                    false, std::initializer_list<pb_node_t *> {});
-            bool is_optional = get_optional_outputs(
-                    out_node, all_opt_out_nodes.back().second);
-            if (!is_optional) {
-                support_optional = false;
-                all_opt_out_nodes.back().second.clear();
-            } else
-                all_opt_out_nodes.back().first = true;
-            ++output_count;
-        }
-    }
-
-    pb_graph_t *graph = ctx->get_graph();
-    auto inner_pros = graph->get_inner_producers();
-    std::unordered_map<pb_node_t *, std::pair<size_t, oport_t>> inner_outputs;
-    for (size_t i = 0; i < inner_pros.size(); i++) {
-        auto pro = inner_pros[i].second;
-        inner_outputs.emplace(
-                pro.first, std::pair<size_t, oport_t>(i, pro.second));
-    }
+    bool support_optional = check_optional_outputs(node);
 
     std::unordered_map<op_t *, pb_op_t *> copied_op_map = matched_op_map;
 
-    auto fill_consumer_outportmaps
-            = [&](op_t *current_op, match_context_t *current_ctx,
-                      const std::unordered_set<pb_node_t *> &out_nodes,
-                      const std::unordered_map<pb_node_t *,
-                              std::pair<size_t, oport_t>> &inner_outputs)
-            -> void {
-        // fill the output map to all the optional subgraphs in out_nodes
-        for (const auto &on : out_nodes)
-            if (inner_outputs.find(on) != inner_outputs.end())
-                current_ctx->out_port_map[inner_outputs.at(on).first]
-                        = {current_op, inner_outputs.at(on).second};
-    };
-
-    // match output for node and op
-    for (size_t i = 0; i < node_outputs.size(); ++i) {
-        auto node_output = node_outputs[i];
+    //match output for node and op
+    for (auto &node_output : node_outputs) {
         size_t node_oport = node_output.first;
-        if (op->num_outputs() < node_oport + 1) {
-            if (support_optional) {
-                for (const auto &opt_nodes : all_opt_out_nodes)
-                    fill_consumer_outportmaps(
-                            op, ctx, opt_nodes.second, inner_outputs);
-            }
-            return support_optional;
-        }
-
         std::shared_ptr<value_t> op_out_value
                 = op->get_output_value(node_oport);
         std::unordered_set<size_t> node_oport_matched_cons;
@@ -260,6 +235,10 @@ bool match_node_outputs(op_t *op, pb_node_t *node, match_context_t *ctx,
                 if (node_oport_matched_cons.count(k)) continue;
                 binding_t out_bind(BIND_IN, out_op, op_consumer.get_offset(),
                         out_node, node_consumer->second);
+                // handle the potential zero trip match case, fill context's i/o
+                // map with hint op
+                out_bind.hint_op = op;
+                out_bind.hint_op_port = node_oport;
                 if (!match_graph_helper(out_bind, ctx, copied_op_map)) {
                     continue;
                 } else {
@@ -289,39 +268,21 @@ bool match_node_outputs(op_t *op, pb_node_t *node, match_context_t *ctx,
                                 != external_outputs.end()) {
                     continue;
                 }
-
-                // the consumer op not matched,
-                // success if all the consumer nodes are optional
+                // if it's the optional case, also fine
                 if (support_optional) {
-                    // success matched, should also fill the outport map
-                    for (const auto &opt_nodes : all_opt_out_nodes)
-                        fill_consumer_outportmaps(
-                                op, ctx, opt_nodes.second, inner_outputs);
+                    fill_optional_out_map(ctx, node, op);
+                    return true;
                 }
-                return support_optional;
+                return false;
             }
         }
-
         // check if not all consumers of node output are matched
         if (node_oport_matched_cons.size() != node_output.second.size()) {
-            // if an output node is not matched, check whether it is optional
-            std::vector<size_t> unmatched_opt_nodes {};
-            for (size_t k = 0; k < node_output.second.size(); ++k) {
-                auto node_consumer = node_output.second[k];
-                if (node_oport_matched_cons.find(k)
-                        == node_oport_matched_cons.end()) {
-                    if (all_opt_out_nodes[k].first)
-                        unmatched_opt_nodes.emplace_back(output_ranges[i] + k);
-                    else
-                        return false;
-                }
+            if (support_optional) {
+                fill_optional_out_map(ctx, node, op);
+                return true;
             }
-
-            // all the unmatched nodes are optional, the match is still success
-            // so we can fill the outport map
-            for (auto out_idx : unmatched_opt_nodes)
-                fill_consumer_outportmaps(op, ctx,
-                        all_opt_out_nodes[out_idx].second, inner_outputs);
+            return false;
         }
     }
 
@@ -509,28 +470,50 @@ inline std::vector<op_t *> reorder_matched_list(
 void fill_parent_io_map(
         match_context_t *local_ctx, const binding_t &local_bind) {
     auto parent_ctx = local_ctx->get_parent_context();
-    auto pgraph = parent_ctx->get_graph();
-    if (!pgraph) return; // pgraph is the toplevel graph (nullptr)
 
-    auto inner_cons = pgraph->get_inner_consumers();
-    for (size_t i = 0; i < inner_cons.size(); i++) {
-        auto con_set = inner_cons[i].second;
-        if (con_set.empty()) continue;
-        pb_node_t *con_node = con_set[0]->first;
-        if (con_node == local_bind.bind_node) {
-            parent_ctx->in_port_map[i] = {local_ctx->in_port_map[i].first,
-                    local_ctx->in_port_map[i].second};
+    for (const auto &in_port_con : local_ctx->in_port_map) {
+        fill_local_in_map(parent_ctx, local_bind.bind_node,
+                in_port_con.second.first, in_port_con.second.second);
+    }
+
+    for (const auto &out_port_pro : local_ctx->out_port_map) {
+        fill_local_out_map(parent_ctx, local_bind.bind_node,
+                out_port_pro.second.first, out_port_pro.second.second);
+    }
+}
+
+void fill_local_in_map(match_context_t *local_ctx, pb_node_t *cur_node,
+        op_t *cur_op, size_t cur_op_port) {
+    pb_graph_t *graph = local_ctx->get_graph();
+    if (!graph) return;
+
+    // TODO(Zitian): restrict to 1 port 1 consumer in pattern def
+    auto inner_cons = graph->get_inner_consumers();
+    if (inner_cons.empty()) return;
+
+    for (size_t i = 0; i < inner_cons.size(); ++i) {
+        for (size_t j = 0; j < inner_cons[i].second.size(); ++j) {
+            size_t iport = inner_cons[i].first;
+            const std::shared_ptr<consumer_t> &con = inner_cons[i].second[j];
+            if (con->first == cur_node)
+                local_ctx->in_port_map[iport] = {cur_op, cur_op_port};
         }
     }
-    auto inner_prods = pgraph->get_inner_producers();
-    for (size_t i = 0; i < inner_prods.size(); i++) {
-        auto prod = inner_prods[i];
-        pb_node_t *prod_node = prod.second.first;
-        if (prod_node == local_bind.bind_node) {
-            parent_ctx->out_port_map[i] = {local_ctx->out_port_map[i].first,
-                    local_ctx->out_port_map[i].second};
-        }
-    }
+}
+
+void fill_local_out_map(match_context_t *local_ctx, pb_node_t *cur_node,
+        op_t *cur_op, size_t cur_op_port) {
+    pb_graph_t *graph = local_ctx->get_graph();
+    if (!graph) return;
+
+    auto inner_pros = graph->get_inner_producers();
+    if (inner_pros.empty()) return;
+
+    assertm(inner_pros.size() == 1, "only support 1 port 1 consumer");
+    size_t oport = inner_pros[0].first;
+    const producer_t &pro = inner_pros[0].second;
+    if (pro.first == cur_node)
+        local_ctx->out_port_map[oport] = {cur_op, cur_op_port};
 }
 
 bool match_graph_helper(const binding_t &local_bind, match_context_t *ctx,
@@ -552,21 +535,10 @@ bool match_graph_helper(const binding_t &local_bind, match_context_t *ctx,
             return false;
         }
         // match node success, fill local_context's io ports
-        pb_graph_t *graph = ctx->get_graph();
-        auto inner_cons = graph->get_inner_consumers();
-        for (size_t i = 0; i < inner_cons.size(); i++) {
-            auto con_set = inner_cons[i].second;
-            for (auto &con : con_set) {
-                if (con->first == local_bind.bind_node)
-                    ctx->in_port_map[i] = {local_bind.bind_op, con->second};
-            }
-        }
-        auto inner_pros = graph->get_inner_producers();
-        for (size_t i = 0; i < inner_pros.size(); i++) {
-            auto pro = inner_pros[i].second;
-            if (pro.first == local_bind.bind_node)
-                ctx->out_port_map[i] = {local_bind.bind_op, pro.second};
-        }
+        fill_local_in_map(ctx, local_bind.bind_node, local_bind.bind_op,
+                local_bind.bind_op_port);
+        fill_local_out_map(ctx, local_bind.bind_node, local_bind.bind_op,
+                local_bind.bind_op_port);
     }
     return true;
 }
@@ -741,8 +713,14 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
         // Zero trip match
         // need to forward binding to neighboring nodes
         if (forward_match) {
-            // nothing matched and nothing needs to be matched, failed
-            if (bind_arg.bind_node->get_outputs().empty()) return false;
+            // nothing needs to be matched, success
+            if (bind_arg.bind_node->get_outputs().empty()) {
+                if (bind_arg.hint_op) {
+                    fill_optional_out_map(parent_ctx, bind_arg.bind_node,
+                            bind_arg.hint_op, bind_arg.hint_op_port);
+                }
+                return true;
+            }
             assertm(bind_arg.bind_node->get_outputs().size() == 1,
                     "repetition is restricted to have only 1 output");
             assertm(bind_arg.bind_node->get_consumers(0)->size() == 1,
@@ -754,7 +732,13 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             if (!match_graph_helper(con_bind, parent_ctx, temp_op_map))
                 return false;
         } else {
-            if (bind_arg.bind_node->get_inputs().empty()) return false;
+            if (bind_arg.bind_node->get_inputs().empty()) {
+                if (bind_arg.hint_op) {
+                    fill_optional_in_map(parent_ctx, bind_arg.bind_node,
+                            bind_arg.hint_op, bind_arg.hint_op_port);
+                }
+                return true;
+            }
             binding_t b = bind_arg;
             b.bind_node = b.bind_node->get_producer(pmap.second)->first;
             if (!match_graph_helper(b, parent_ctx, temp_op_map)) return false;

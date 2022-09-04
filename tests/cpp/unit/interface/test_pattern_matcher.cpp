@@ -2021,53 +2021,6 @@ TEST(PatternMatcher, OptionalSubgraphFailure) {
     ASSERT_EQ(fusion_ops.size(), 3);
 }
 
-TEST(PatternMatcher, OptionalSubgraphFailure2) {
-    /*
-           [   \     /
-               matmul
-                 |
-                / \
-           relu     [Sigmoid, Tanh]
-             |             |          ]*[1,5]
-    */
-    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
-    auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
-    auto relu_layer = mlp_layer->append_op(
-            impl::op_kind::ReLU, {in_edge(0, matmul_layer, 0)}, "prelu");
-    auto optional_activation_subgraph
-            = std::make_shared<pb_graph_t>("poptional_activation_subgraph");
-    auto activation = optional_activation_subgraph->append_alternation(
-            {impl::op_kind::Sigmoid, impl::op_kind::Tanh}, "palternation");
-    optional_activation_subgraph->create_input_port(0, activation, 0);
-    optional_activation_subgraph->create_output_port(0, activation, 0);
-    auto optional_activation
-            = mlp_layer->append_optional(optional_activation_subgraph,
-                    {in_edge(0, matmul_layer, 0)}, "poptional_activation");
-    mlp_layer->create_input_port(0, matmul_layer, 0);
-    mlp_layer->create_output_port(0, relu_layer, 0);
-    mlp_layer->create_output_port(1, optional_activation, 0);
-    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5, "prepetition");
-
-    impl::graph_t agraph;
-    op_t matmul {0, MatMul, "matmul"};
-    op_t relu {1, ReLU, "relu"};
-    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
-    matmul.add_input(lt_vec[0]);
-    matmul.add_input(lt_vec[1]);
-    matmul.add_output(lt_vec[2]);
-    relu.add_input(lt_vec[2]);
-    relu.add_output(lt_vec[3]);
-
-    ASSERT_EQ(agraph.add_op(&matmul), status::success);
-    ASSERT_EQ(agraph.add_op(&relu), status::success);
-    agraph.build_graph();
-
-    std::vector<op_t *> fusion_ops;
-    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
-}
-
 TEST(PatternMatcher, OptionalSubgraphFailure3) {
     /*
             [  \     /

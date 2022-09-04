@@ -86,6 +86,10 @@ public:
     node_bind_kind bind_kind;
     size_t bind_port;
     size_t bind_op_port;
+    // hint op and hint_op_port are the previous binding info
+    // used to handle the optional case
+    op_t *hint_op = nullptr;
+    size_t hint_op_port;
 };
 
 using graph_port_map = std::unordered_map<size_t, std::pair<op_t *, size_t>>;
@@ -203,6 +207,14 @@ inline std::vector<op_t *> reorder_matched_list(
 // to pattern match_context. Useful for nested patterns
 //
 void fill_parent_io_map(match_context_t *local_ctx);
+
+//
+// fill the current match_context's in/out port map
+//
+void fill_local_in_map(match_context_t *local_ctx, pb_node_t *cur_node,
+        op_t *cur_op, size_t cur_op_port);
+void fill_local_out_map(match_context_t *local_ctx, pb_node_t *cur_node,
+        op_t *cur_op, size_t cur_op_port);
 
 } // namespace pm
 } // namespace utils

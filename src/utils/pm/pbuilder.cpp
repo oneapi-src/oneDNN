@@ -312,6 +312,20 @@ repetition_t *pb_graph_t::append_repetition(std::shared_ptr<pb_graph_t> p_node,
 
 repetition_t *pb_graph_t::append_optional(std::shared_ptr<pb_graph_t> p_node,
         const in_edges_t &p_in_edges, std::string name) {
+    // When append optional consumer B to a producer A, some conditions need
+    // to be met:
+    // A -> B*
+    // 1. for the optional consumer B, it should have only 1 producer (A in
+    // this case)
+    // 2. for the producer A, it should have only 1 output, and the output
+    // should have only 1 consumer (B in this case)
+    //
+    assertm(p_in_edges.size() <= 1, "optional graph can only have 0/1 input");
+    if (p_in_edges.size() == 1) {
+        assertm(p_in_edges[0]->second->first->get_outputs().empty(),
+                "optional graph's producer can only have 1 output and 1 "
+                "consumer");
+    }
     std::shared_ptr<repetition_t> p_repetition(
             new repetition_t(std::move(p_node)));
     p_repetition->set_name(std::move(name));
