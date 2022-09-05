@@ -325,57 +325,6 @@ bool compiler_partition_impl_t::is_initialized() const {
     return is_init_;
 }
 
-std::string compiler_partition_impl_t::to_string() const {
-    std::ostringstream os;
-
-    const auto dims_to_string = [&](const std::vector<int64_t> &dims) {
-        std::ostringstream oss;
-        oss << "(";
-        const char *delimer = "";
-        for (const auto &d : dims) {
-            oss << delimer << d;
-            delimer = "x";
-        }
-        oss << ")";
-        return oss.str();
-    };
-
-    for (const auto &op : ops_) {
-        os << " [ op: (";
-        if (op) {
-            os << "ID: " << op->get_id()
-               << ", kind: " << impl::op_t::kind2str(op->get_kind()) << " ), ";
-        }
-    }
-    os << " ] \n";
-
-    os << "  [ inputs: ";
-    const char *delimer = "";
-    for (const auto &i : inputs_) {
-        const impl::logical_tensor_wrapper_t v(i);
-        os << delimer << "(ID: " << v.id() << "("
-           << impl::utils::data_type2str(v.data_type()) << ":"
-           << dims_to_string(v.vdims());
-        delimer = ")), ";
-    }
-    os << " ]\n";
-
-    os << "  [ outputs: ";
-    delimer = "";
-    for (const auto &o : outputs_) {
-        const impl::logical_tensor_wrapper_t v(o);
-        os << delimer << "(ID: " << v.id() << "("
-           << impl::utils::data_type2str(v.data_type()) << ":"
-           << dims_to_string(v.vdims());
-        delimer = ")), ";
-    }
-    os << " ]\n";
-    os << " ]\n";
-    os << "]";
-
-    return os.str();
-}
-
 compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
         const impl::engine_t &engine,
         const std::vector<impl::logical_tensor_t> &inputs,

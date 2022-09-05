@@ -174,9 +174,6 @@ public:
             const engine_t *aengine,
             const compilation_context_t *acompilation_context) const = 0;
 
-    // dump a partition to string
-    virtual std::string to_string() const = 0;
-
     /// get partition_impl id
     size_t id() const { return id_; }
 

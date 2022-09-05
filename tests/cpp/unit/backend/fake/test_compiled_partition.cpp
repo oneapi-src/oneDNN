@@ -57,5 +57,4 @@ TEST(CompiledPartition, Unsupported) {
 
     impl::status_t status = p.compile(&cp, lt_ins, lt_outs, &eng);
     ASSERT_EQ(status, impl::status::unimplemented);
-    std::cout << p.to_string() << "\n";
 }

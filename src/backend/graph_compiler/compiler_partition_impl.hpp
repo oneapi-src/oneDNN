@@ -65,7 +65,6 @@ public:
             const impl::engine_t *aengine,
             const impl::compilation_context_t *acompilation_context)
             const override;
-    std::string to_string() const override;
 
     const impl::backend *get_assigned_backend() const override {
         return &compiler_backend_t::get_singleton();

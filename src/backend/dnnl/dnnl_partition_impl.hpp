@@ -229,60 +229,6 @@ public:
         return impl::status::success;
     }
 
-    std::string to_string() const override {
-        std::ostringstream os;
-
-        const auto type_to_string = [](impl::data_type_t t) {
-            switch (t) {
-                case dnnl_graph_data_type_undef: return "undef";
-                case dnnl_graph_f16: return "f16";
-                case dnnl_graph_bf16: return "f16";
-                case dnnl_graph_f32: return "f32";
-                case dnnl_graph_s32: return "s32";
-                case dnnl_graph_s8: return "s8";
-                case dnnl_graph_u8: return "u8";
-                default: return "undef";
-            }
-        };
-
-        const auto dims_to_string = [&](const std::vector<int64_t> &dims) {
-            std::ostringstream oss;
-            oss << "(";
-            const char *delimer = "";
-            for (const auto &d : dims) {
-                oss << delimer << d;
-                delimer = "x";
-            }
-            oss << ")";
-            return oss.str();
-        };
-
-        os << "  [ inputs: ";
-        const char *delimer = "";
-        for (const auto &i : inputs_) {
-            const impl::logical_tensor_wrapper_t v(i);
-            os << delimer << "(ID: " << v.id() << "("
-               << type_to_string(v.data_type()) << ":"
-               << dims_to_string(v.vdims());
-            delimer = ")), ";
-        }
-        os << " ]\n";
-
-        os << "  [ outputs: ";
-        delimer = "";
-        for (const auto &o : outputs_) {
-            const impl::logical_tensor_wrapper_t v(o);
-            os << delimer << "(ID: " << v.id() << "("
-               << type_to_string(v.data_type()) << ":"
-               << dims_to_string(v.vdims());
-            delimer = ")), ";
-        }
-        os << " ]\n";
-        os << " ]\n";
-        os << "]";
-
-        return os.str();
-    }
 
 private:
     FCreateKernel kernel_creator_;
