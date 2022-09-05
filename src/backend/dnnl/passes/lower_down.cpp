@@ -1849,7 +1849,6 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
 
 impl::status_t fuse_post_typecast_to_matmul_or_conv(
         std::shared_ptr<subgraph_t> &sg) {
-    const std::set<op_kind_t> post_ops_kinds {impl::op_kind::GELU};
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul
@@ -1858,40 +1857,24 @@ impl::status_t fuse_post_typecast_to_matmul_or_conv(
         auto out = cur_op->get_output_value(0);
         if (out->get_consumers().size() != 1) continue;
         auto &next_op = out->get_consumers()[0].get_op();
-        if (post_ops_kinds.count(next_op.get_kind())) {
-            auto post_out = next_op.get_output_value(0);
-            if (post_out->get_consumers().size() != 1) continue;
-            auto &tc_op = post_out->get_consumers()[0].get_op();
-            if (!is_typecast(&tc_op)) continue;
-            auto tc_out = tc_op.get_output_value(0);
-            if (tc_out->get_consumers().size() != 1) continue;
+
+        if (!is_typecast(&next_op)) continue;
+        auto tc_out = next_op.get_output_value(0);
+        if (tc_out->get_consumers().size() > 1) continue;
+        if (tc_out->get_consumers().size() == 1) {
+            // bf16-int8 mix precision case
             auto &q_op = tc_out->get_consumers()[0].get_op();
             if (q_op.get_kind() != op_kind::dnnl_mul_scales) continue;
-            post_out->remove_consumer(tc_op, 0);
+            out->remove_consumer(next_op, 0);
             tc_out->remove_consumer(q_op, 0);
-            q_op.connect_input(0, post_out);
+            q_op.connect_input(0, out);
             out->set_data_type(impl::data_type::f32);
-            post_out->set_data_type(impl::data_type::f32);
-            fusion_groups.emplace_back(std::vector<op_t *> {&tc_op});
+            fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
         } else {
-            if (!is_typecast(&next_op)) continue;
-            auto tc_out = next_op.get_output_value(0);
-            if (tc_out->get_consumers().size() > 1) continue;
-            if (tc_out->get_consumers().size() == 1) {
-                // bf16-int8 mix precision case
-                auto &q_op = tc_out->get_consumers()[0].get_op();
-                if (q_op.get_kind() != op_kind::dnnl_mul_scales) continue;
-                out->remove_consumer(next_op, 0);
-                tc_out->remove_consumer(q_op, 0);
-                q_op.connect_input(0, out);
-                out->set_data_type(impl::data_type::f32);
-                fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
-            } else {
-                // tc has no consumer in the subgraph
-                // which means the fp32-in-bf16 out case
-                cur_op->connect_output(0, tc_out);
-                fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
-            }
+            // tc has no consumer in the subgraph
+            // which means the fp32-in-bf16 out case
+            cur_op->connect_output(0, tc_out);
+            fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
         }
     }
 
