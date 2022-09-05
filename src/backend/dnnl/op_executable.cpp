@@ -1930,7 +1930,8 @@ arg_indices_t batchnorm_bwd_executable_t::get_arg_indices(
 
     indice = 0;
     arg_indices.insert({DNNL_ARG_DIFF_SRC, indice_t {output, indice++}});
-    if (op->num_outputs() > indice) {
+    // check if has diff_scale and diff_shift outputs
+    if (op->num_outputs() > 2) {
         arg_indices.insert({DNNL_ARG_DIFF_SCALE, indice_t {output, indice++}});
         arg_indices.insert({DNNL_ARG_DIFF_SHIFT, indice_t {output, indice++}});
     }

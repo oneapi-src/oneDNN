@@ -575,3 +575,82 @@ TEST(Compile, BatchNormBackpropFp32) {
         ASSERT_NEAR(diff_shift_data[i], ref_diff_shift_data[i], 1e-3);
     }
 }
+
+TEST(Compile, BatchNormBackpropFp32WithSingleOutput) {
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
+
+    impl::op_t bn_op(impl::op_kind::BatchNormTrainingBackprop);
+    bn_op.set_attr<float>(impl::op_attr::epsilon, 0.0);
+    bn_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+
+    impl::engine_t &engine = get_engine();
+
+    // Tensor dimensions.
+    const impl::dim_t N = 1, // batch size
+            IC = 1, // channels
+            IH = 2, // tensor height
+            IW = 2; // tensor width
+    // Source (src) and destination (dst) tensors dimensions.
+    dims src_dims = {N, IC, IH, IW};
+    // Scale/shift tensor dimensions.
+    dims scale_dims = {IC};
+    dims shift_dims = {IC};
+    dims mean_dims = {IC};
+    dims variance_dims = {IC};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src = utils::logical_tensor_init(
+            0, src_dims, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t mean = utils::logical_tensor_init(
+            1, mean_dims, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t variance = utils::logical_tensor_init(
+            2, variance_dims, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            3, src_dims, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t diff_src = utils::logical_tensor_init(
+            4, src_dims, impl::data_type::f32, impl::layout_type::strided);
+
+    // Allocate buffers.
+    test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
+    test::vector<float> mean_data {2.5f};
+    test::vector<float> variance_data {1.25f};
+    test::vector<float> diff_dst_data {0.1f, 0.1f, 0.2f, 0.2f};
+    test::vector<float> diff_src_data(src_data.size(), 0.0);
+
+    bn_op.add_input(src);
+    bn_op.add_input(diff_dst);
+    bn_op.add_input(mean);
+    bn_op.add_input(variance);
+    bn_op.add_output(diff_src);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&bn_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &diff_dst, &mean, &variance};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), impl::status::success);
+
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t mean_ts(mean, &engine, mean_data.data());
+    impl::tensor_t variance_ts(variance, &engine, variance_data.data());
+    impl::tensor_t diff_dst_ts(diff_dst, &engine, diff_dst_data.data());
+    impl::tensor_t diff_src_ts(diff_src, &engine, diff_src_data.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(
+            &strm, {src_ts, diff_dst_ts, mean_ts, variance_ts}, {diff_src_ts});
+    strm.wait();
+}
