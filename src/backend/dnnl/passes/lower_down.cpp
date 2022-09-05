@@ -143,62 +143,6 @@ impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t replace_quant_dequant_with_mul_scales(
-        std::shared_ptr<subgraph_t> &sg) {
-    // replaces Quant/Dequant OPs with mul_scales, zps attribute is ignored.
-    std::vector<op_ptr> q_dq_ops;
-    for (auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() == impl::op_kind::Quantize
-                || cur_op->get_kind() == impl::op_kind::Dequantize) {
-            q_dq_ops.emplace_back(cur_op);
-        }
-    }
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &cur_op : q_dq_ops) {
-        // directly ignoring zps attribute
-        const auto &scales
-                = cur_op->get_attr<std::vector<float>>(op_attr::scales);
-        const auto &qtype = cur_op->get_attr<std::string>(op_attr::qtype);
-        const auto &axis = cur_op->get_attr<int64_t>(op_attr::axis);
-
-        auto in_vals = cur_op->get_input_values();
-        auto out_vals = cur_op->get_output_values();
-        assertm(in_vals.size() == 1 && out_vals.size() == 1,
-                "static quantize/dequantize should only have one input and "
-                "output");
-
-        op_ptr mul_scales_op = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
-        mul_scales_op->set_attr<std::string>(op_attr::qtype, qtype);
-        mul_scales_op->set_attr<int64_t>(op_attr::axis, axis);
-        if (impl::op_kind::Dequantize == cur_op->get_kind()) {
-            mul_scales_op->set_attr<std::vector<float>>(
-                    op_attr::scales, scales);
-        } else { // Quantize
-            assertm(std::all_of(scales.begin(), scales.end(),
-                            [](float i) { return i != 0.f; }),
-                    "scales can't be zero");
-
-            std::vector<float> inv_scales = dnnl_impl::utils::fmap(
-                    scales, [](float s) { return 1.f / s; });
-            mul_scales_op->set_attr<std::vector<float>>(
-                    op_attr::scales, inv_scales);
-        }
-
-        // reconnect
-        in_vals[0]->remove_consumer(*cur_op, 0);
-        in_vals[0]->add_consumer(*mul_scales_op, 0);
-        mul_scales_op->add_input(in_vals[0]);
-        mul_scales_op->add_output(out_vals[0]);
-
-        // add new op and delete quantize or dequantize op
-        rewriter.to_insert(mul_scales_op);
-        rewriter.to_remove(cur_op);
-    }
-    rewriter.run();
-    return impl::status::success;
-}
-
 impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
     auto &mgr = sg->fusion_info_mgr_;
     subgraph_rewriter_t rewriter(sg);

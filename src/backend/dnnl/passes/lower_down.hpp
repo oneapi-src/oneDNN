@@ -35,9 +35,6 @@ impl::status_t check_with_bias(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t replace_quant_dequant_with_mul_scales(
-        std::shared_ptr<subgraph_t> &sg);
-
 impl::status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg);
