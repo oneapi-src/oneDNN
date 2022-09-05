@@ -263,7 +263,7 @@ impl::status_t replace_quant_data_with_binary_post_op(
             const std::vector<int64_t> out_shape
                     = ltw(out_val->get_logical_tensor()).vdims();
             std::vector<int64_t> new_shape(out_shape.size(), 1);
-            if (qtype == "per_tensor") new_shape[axis] = out_shape[axis];
+            if (qtype == "per_channel") new_shape[axis] = out_shape[axis];
             op_ptr const_data_op;
             if (quant_data_op->get_kind() == op_kind::dnnl_mul_scales) {
                 const auto scales = quant_data_op->get_attr<std::vector<float>>(
@@ -3387,48 +3387,6 @@ impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t remove_unnecessary_quant_dequant(
-        std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> pool_ops;
-    for (auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() == op_kind::dnnl_pool) {
-            pool_ops.emplace_back(cur_op);
-        }
-    }
-
-    if (pool_ops.empty()) return impl::status::success;
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &pool_op : pool_ops) {
-        value_ptr pool_in_val = pool_op->get_input_value(0);
-        value_ptr pool_out_val = pool_op->get_output_value(0);
-        if (!pool_in_val->has_producer()
-                || pool_out_val->get_consumers().empty())
-            continue;
-
-        op_t &quant_op = pool_out_val->get_consumers()[0].get_op();
-        const bool pool_with_post_ops
-                = quant_op.get_kind() != impl::op_kind::Quantize;
-        if (pool_with_post_ops) continue;
-
-        op_t &dequant_op = pool_in_val->get_producer();
-        assertm(dequant_op.get_kind() == impl::op_kind::Dequantize,
-                "the predecessor of a pooling op should be dequantize.");
-
-        value_ptr dequant_in_val = dequant_op.get_input_value(0);
-        value_ptr quant_out_val = quant_op.get_output_value(0);
-        dequant_in_val->remove_consumer(dequant_op, 0);
-        pool_op->connect_input(0, dequant_in_val);
-        pool_op->connect_output(0, quant_out_val);
-
-        rewriter.to_remove(dequant_op.shared_from_this());
-        rewriter.to_remove(quant_op.shared_from_this());
-    }
-
-    rewriter.run();
-    return impl::status::success;
-}
-
 // combine scales around binary post op
 //
 //         |                     |        |
@@ -3658,7 +3616,8 @@ impl::status_t remove_quant_data_with_no_effect(
 
         if (to_remove) {
             value_ptr quant_data_out_val = quant_data_op->get_output_value(0);
-            if (quant_data_out_val->get_consumers().empty()) {
+            if (quant_data_out_val->get_consumers().empty()
+                    || quant_data_op->get_kind() == op_kind::dnnl_add_zps) {
                 value_ptr quant_data_in_val = quant_data_op->get_input_value(0);
                 op_t &predecessor_op = quant_data_in_val->get_producer();
                 predecessor_op.connect_output(0, quant_data_out_val);

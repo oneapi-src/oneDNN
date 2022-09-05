@@ -93,7 +93,6 @@ public:
 
         // TODO(xx) The implementation of these two passes relay on a non-fully
         // lowered subgraph. We need to improve them.
-        BACKEND_DNNL_ADD_PASS(pipeline, remove_unnecessary_quant_dequant);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_concat);
 
         // Indirectly lower down (1 to N mapping)
@@ -136,6 +135,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points);
 
         BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         BACKEND_DNNL_ADD_PASS(pipeline, replace_quant_data_with_binary_post_op);
 
         // fuse those new post-binaries converted from add_zps and mul_scales

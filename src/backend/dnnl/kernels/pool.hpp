@@ -101,12 +101,12 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
 
         if (quantized) {
-            BACKEND_DNNL_ADD_PASS(pipeline, remove_unnecessary_quant_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, split_static_quant);
             BACKEND_DNNL_ADD_PASS(pipeline, split_static_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_pool);
             BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
             BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
             BACKEND_DNNL_ADD_PASS(
                     pipeline, replace_quant_data_with_binary_post_op);

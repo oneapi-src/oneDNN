@@ -195,13 +195,6 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg);
 impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg);
 
 // This pass currently can be used for int8 Pooling and int8 Eltwise only (as
-// they are not supporting quantization-related attributes). Quant/Dequant OPs
-// will be dropped in the following scenarios:
-// - no post-ops are present
-impl::status_t remove_unnecessary_quant_dequant(
-        std::shared_ptr<subgraph_t> &sg);
-
-// This pass currently can be used for int8 Pooling and int8 Eltwise only (as
 // they are not supporting quantization-related attributes). Scales will get
 // combined only if there is a single binary post-op.
 impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg);
