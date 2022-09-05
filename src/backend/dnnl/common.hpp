@@ -40,7 +40,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-using error = dnnl::error;
 using memory = dnnl::memory;
 using desc = memory::desc;
 using format_tag = memory::format_tag;
@@ -48,13 +47,6 @@ using tag = memory::format_tag;
 using data_type = typename memory::data_type;
 using dims = typename memory::dims;
 using dim = memory::dim;
-using query = dnnl::query;
-using kind = dnnl::primitive::kind;
-using prop_kind = dnnl::prop_kind;
-using algorithm = dnnl::algorithm;
-using normalization_flag = dnnl::normalization_flags;
-using query = dnnl::query;
-using scale_t = std::vector<float>;
 using exec_args = std::unordered_map<int, memory>;
 
 using pd_cache_t = std::unordered_map<op_t *, impl::utils::any_t>;
@@ -158,15 +150,6 @@ std::shared_ptr<impl::value_t> insert_empty_workspace(
         impl::status_t ret = (statement); \
         if (ret != impl::status::success) return ret; \
     } while (false)
-
-#define BACKEND_DNNL_TYPE_DISPATCH(type_enum, type_key, ...) \
-    switch (type_enum) { \
-        case data_type::f32: { \
-            using type_key = float; \
-            __VA_ARGS__ \
-        } break; \
-        default: error::wrap_c_api(dnnl_unimplemented, "Unimplemented type"); \
-    }
 
 } // namespace dnnl_impl
 } // namespace impl

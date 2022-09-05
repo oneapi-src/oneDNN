@@ -87,7 +87,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
@@ -237,7 +236,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
         BACKEND_DNNL_ADD_PASS(pipeline, batchnorm_bwd_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

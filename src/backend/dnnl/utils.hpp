@@ -96,31 +96,6 @@ inline void simultaneous_sort(
     }
 }
 
-template <typename T>
-inline T rnd_up(const T a, const T b) {
-    return (a + b - 1) / b * b;
-}
-
-inline uintptr_t mod_ptr(void *ptr, size_t bytes) {
-    return reinterpret_cast<uintptr_t>(ptr) & (bytes - 1);
-}
-
-inline bool is_aligned_ptr(void *ptr, size_t bytes) {
-    return mod_ptr(ptr, bytes) == 0;
-}
-
-inline std::pair<std::vector<float>, std::vector<float>> compute_scales(
-        float src_scale, float dst_scale, std::vector<float> weight_scales) {
-    auto scale_size = weight_scales.size();
-    std::vector<float> bias_scales(scale_size), op_scales(scale_size);
-
-    for (size_t i = 0; i < scale_size; i++) {
-        bias_scales[i] = src_scale * weight_scales[i];
-        op_scales[i] = dst_scale / bias_scales[i];
-    }
-    return std::make_pair(std::move(bias_scales), std::move(op_scales));
-}
-
 inline std::pair<bool, int64_t> try_reverse_axis(
         const int64_t axis, const int32_t rank) {
     // oneDNN can not operate on the negative axis
@@ -128,18 +103,6 @@ inline std::pair<bool, int64_t> try_reverse_axis(
     if (new_axis < 0 || new_axis >= static_cast<int64_t>(rank))
         return std::make_pair(false, axis);
     return std::make_pair(true, new_axis);
-}
-
-inline int op_scale_mask(dim scale_size) {
-    return scale_size > 1 ? 2 : 0;
-}
-
-inline int tensor_scale_mask(dim scale_size, bool grouped) {
-    return scale_size > 1 ? grouped ? 3 : 1 : 0;
-}
-
-inline int tensor_zp_mask(dim zp_size) {
-    return zp_size > 1 ? 1 : 0;
 }
 
 inline bool compare_float(

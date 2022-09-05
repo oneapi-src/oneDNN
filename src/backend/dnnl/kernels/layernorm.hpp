@@ -81,8 +81,6 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
@@ -229,7 +227,6 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

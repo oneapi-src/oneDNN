@@ -82,7 +82,6 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, insert_unsqueeze_for_prelu);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
@@ -235,11 +234,9 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(
                 pipeline, insert_unsqueeze_and_squeeze_for_prelu_bwd);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

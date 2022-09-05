@@ -78,17 +78,13 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         BACKEND_DNNL_ADD_PASS(
                 pipeline, insert_unsqueeze_and_squeeze_for_reduction);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         pipeline.reset_visualize_arg(true, false);
 
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

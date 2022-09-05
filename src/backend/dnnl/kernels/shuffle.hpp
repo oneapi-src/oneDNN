@@ -83,7 +83,6 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_shuffle);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 

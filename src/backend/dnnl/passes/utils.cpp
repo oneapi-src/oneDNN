@@ -473,7 +473,7 @@ bool prelu_doable(const std::vector<dim_t> &src_dims,
 }
 
 bool is_typecast(const impl::op_t *op) {
-    bool is_typecast = op->get_kind() == dnnl_impl::op_kind::dnnl_reorder
+    bool is_typecast = op->get_kind() == op_kind::dnnl_reorder
             && !op->get_attr<bool>(op_attr::change_layout)
             && (!op->has_attr(op_attr::qtype)
                     || op->get_attr<std::string>(op_attr::qtype)

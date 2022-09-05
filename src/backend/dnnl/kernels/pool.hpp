@@ -43,26 +43,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace pool {
-enum pool_inputs { kSrc };
-enum pool_outputs { kDst };
-enum mem_keys {
-    kOpt_src,
-    kOpt_dst,
-    kScratchpad,
-    kWorkspace,
-};
-} // namespace pool
-
-namespace pool_bwd {
-enum pool_bwd_inputs { kSrc, kDiff_dst };
-enum pool_bwd_outputs { kDiff_src };
-} // namespace pool_bwd
-
-namespace pool_bwd_with_indices {
-enum maxpool_bwd_inputs { kSrc, kIndices, kDiff_dst };
-} // namespace pool_bwd_with_indices
-
 template <bool quantized>
 struct pooling_fwd_t : public kernel_base_t {
 private:
@@ -118,9 +98,7 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, remove_unnecessary_quant_dequant);
@@ -130,18 +108,14 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
             BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
-            BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
             BACKEND_DNNL_ADD_PASS(
                     pipeline, replace_quant_data_with_binary_post_op);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);
-            BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, pool_fwd_canonicalization);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         // do constant propagation here so that we can
@@ -401,8 +375,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, insert_maxpool_forward);
         BACKEND_DNNL_ADD_PASS(pipeline, pool_fwd_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, pool_bwd_canonicalization);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

@@ -565,22 +565,22 @@ batchnorm_executable_t::desc_t batchnorm_executable_t::create_desc(
 
     float epsilon = op->get_attr<float>(op_attr::epsilon);
 
-    auto flags = normalization_flag::none;
+    auto flags = dnnl::normalization_flags::none;
     // for inference
     if (!op->get_attr<bool>(op_attr::is_training)) {
-        flags |= normalization_flag::use_global_stats;
-        flags |= normalization_flag::use_scale;
-        flags |= normalization_flag::use_shift;
+        flags |= dnnl::normalization_flags::use_global_stats;
+        flags |= dnnl::normalization_flags::use_scale;
+        flags |= dnnl::normalization_flags::use_shift;
     } else {
         // for training, inputs: [src, mean, variance, gamma, beta]
         if (op->num_inputs() > 3) {
-            flags |= normalization_flag::use_scale;
-            flags |= normalization_flag::use_shift;
+            flags |= dnnl::normalization_flags::use_scale;
+            flags |= dnnl::normalization_flags::use_shift;
         }
 
         if (op->has_attr(op_attr::fuse_relu)
                 && op->get_attr<bool>(op_attr::fuse_relu))
-            flags |= normalization_flag::fuse_norm_relu;
+            flags |= dnnl::normalization_flags::fuse_norm_relu;
     }
 
     dnnl::primitive_attr prm_attr;
@@ -625,14 +625,14 @@ batchnorm_bwd_executable_t::desc_t batchnorm_bwd_executable_t::create_desc(
 
     float epsilon = op->get_attr<float>(op_attr::epsilon);
 
-    auto flags = normalization_flag::none;
+    auto flags = dnnl::normalization_flags::none;
     // [diff_src, diff_scale, diff_shift, scratchpad]
     if (op->num_outputs() > 2) {
-        flags |= normalization_flag::use_scale;
-        flags |= normalization_flag::use_shift;
+        flags |= dnnl::normalization_flags::use_scale;
+        flags |= dnnl::normalization_flags::use_shift;
     } else {
         // [diff_src, scratchpad]
-        flags |= normalization_flag::use_global_stats;
+        flags |= dnnl::normalization_flags::use_global_stats;
     }
 
     dnnl::primitive_attr prm_attr;
@@ -686,10 +686,10 @@ layernorm_executable_t::desc_t layernorm_executable_t::create_desc(
     if (op->has_attr(op_attr::use_affine))
         use_affine = op->get_attr<bool>(op_attr::use_affine);
 
-    auto flags = normalization_flag::none;
+    auto flags = dnnl::normalization_flags::none;
     if (use_affine)
-        flags |= (normalization_flag::use_scale
-                | normalization_flag::use_shift);
+        flags |= (dnnl::normalization_flags::use_scale
+                | dnnl::normalization_flags::use_shift);
 
     prop_kind pkind = keep_stats ? prop_kind::forward_training
                                  : prop_kind::forward_inference;
@@ -723,11 +723,11 @@ layernorm_bwd_executable_t::desc_t layernorm_bwd_executable_t::create_desc(
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
     auto epsilon = op->get_attr<float>(op_attr::epsilon);
-    auto flags = normalization_flag::none;
+    auto flags = dnnl::normalization_flags::none;
     const bool use_affine = op->get_attr<bool>(op_attr::use_affine);
     if (use_affine) {
-        flags |= normalization_flag::use_scale;
-        flags |= normalization_flag::use_shift;
+        flags |= dnnl::normalization_flags::use_scale;
+        flags |= dnnl::normalization_flags::use_shift;
     }
 
     auto data = make_dnnl_memory_desc(

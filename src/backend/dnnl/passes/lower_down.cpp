@@ -49,11 +49,6 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper_t;
 
-static bool need_attr_adjustment(op_kind_t kind) {
-    static const std::set<op_kind_t> ops {impl::op_kind::SquaredDifference};
-    return ops.count(kind) != 0;
-}
-
 static bool has_optional_bias(op_kind_t kind) {
     std::set<op_kind_t> ops {op_kind::dnnl_convolution, op_kind::dnnl_matmul,
             op_kind::dnnl_convtranspose};
@@ -78,26 +73,24 @@ impl::status_t split_squared_difference(std::shared_ptr<subgraph_t> &sg) {
     subgraph_rewriter_t rewriter(sg);
 
     for (auto &cur_op : sg->get_ops()) {
-        if (need_attr_adjustment(cur_op->get_kind())) {
-            if (cur_op->get_kind() == impl::op_kind::SquaredDifference) {
-                op_ptr subtract = std::make_shared<op_t>(op_kind::dnnl_binary);
-                subtract->set_attr<int64_t>(op_attr::alg_kind,
-                        static_cast<int64_t>(dnnl::algorithm::binary_sub));
+        if (cur_op->get_kind() == impl::op_kind::SquaredDifference) {
+            op_ptr subtract = std::make_shared<op_t>(op_kind::dnnl_binary);
+            subtract->set_attr<int64_t>(op_attr::alg_kind,
+                    static_cast<int64_t>(dnnl::algorithm::binary_sub));
 
-                rewriter.replace_op(cur_op, subtract);
+            rewriter.replace_op(cur_op, subtract);
 
-                op_ptr square = std::make_shared<op_t>(op_kind::dnnl_eltwise);
-                square->set_attr<int64_t>(op_attr::alg_kind,
-                        static_cast<int64_t>(dnnl::algorithm::eltwise_square));
+            op_ptr square = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+            square->set_attr<int64_t>(op_attr::alg_kind,
+                    static_cast<int64_t>(dnnl::algorithm::eltwise_square));
 
-                const float default_attr_value = 0.0f;
-                square->set_attr<float>(op_attr::alpha, default_attr_value);
-                square->set_attr<float>(op_attr::beta, default_attr_value);
+            const float default_attr_value = 0.0f;
+            square->set_attr<float>(op_attr::alpha, default_attr_value);
+            square->set_attr<float>(op_attr::beta, default_attr_value);
 
-                rewriter.insert_op_after(square, subtract, 0);
-                insert_empty_scratchpad(subtract);
-                insert_empty_scratchpad(square);
-            }
+            rewriter.insert_op_after(square, subtract, 0);
+            insert_empty_scratchpad(subtract);
+            insert_empty_scratchpad(square);
         }
     }
 
@@ -262,10 +255,10 @@ impl::status_t replace_quant_data_with_binary_post_op(
         if (!out_val->get_consumers().empty()) {
             size_t offset = out_val->get_consumers()[0].get_offset();
             auto &next_op = out_val->get_consumers()[0].get_op();
-            if (next_op.get_kind() == dnnl_impl::op_kind::dnnl_add_zps
-                    || next_op.get_kind() == dnnl_impl::op_kind::dnnl_sub_zps
-                    || next_op.get_kind()
-                            == dnnl_impl::op_kind::dnnl_mul_scales)
+            if (next_op.get_kind() == op_kind::dnnl_add_zps
+                    || next_op.get_kind() == op_kind::dnnl_sub_zps
+                    || next_op.get_kind() == op_kind::dnnl_mul_scales)
+
                 // cur_op's output must be mul_scales and add_zps ops' first
                 // input
                 return offset == 0 ? &next_op : nullptr;
@@ -1809,9 +1802,9 @@ impl::status_t fuse_typecast_to_matmul_or_conv(
                 && in0.get_input_value(0)->has_producer()
                 && in1.get_input_value(0)->has_producer()
                 && in0.get_input_value(0)->get_producer().get_kind()
-                        == dnnl_impl::op_kind::dnnl_mul_scales
+                        == op_kind::dnnl_mul_scales
                 && in1.get_input_value(0)->get_producer().get_kind()
-                        == dnnl_impl::op_kind::dnnl_mul_scales)
+                        == op_kind::dnnl_mul_scales)
             fusion_groups.emplace_back(
                     std::vector<op_t *> {cur_op.get(), &in0, &in1});
     }
@@ -1929,8 +1922,7 @@ impl::status_t fuse_post_typecast_to_matmul_or_conv(
             auto tc_out = tc_op.get_output_value(0);
             if (tc_out->get_consumers().size() != 1) continue;
             auto &q_op = tc_out->get_consumers()[0].get_op();
-            if (q_op.get_kind() != dnnl_impl::op_kind::dnnl_mul_scales)
-                continue;
+            if (q_op.get_kind() != op_kind::dnnl_mul_scales) continue;
             post_out->remove_consumer(tc_op, 0);
             tc_out->remove_consumer(q_op, 0);
             q_op.connect_input(0, post_out);
@@ -1944,8 +1936,7 @@ impl::status_t fuse_post_typecast_to_matmul_or_conv(
             if (tc_out->get_consumers().size() == 1) {
                 // bf16-int8 mix precision case
                 auto &q_op = tc_out->get_consumers()[0].get_op();
-                if (q_op.get_kind() != dnnl_impl::op_kind::dnnl_mul_scales)
-                    continue;
+                if (q_op.get_kind() != op_kind::dnnl_mul_scales) continue;
                 out->remove_consumer(next_op, 0);
                 tc_out->remove_consumer(q_op, 0);
                 q_op.connect_input(0, out);
@@ -2149,7 +2140,7 @@ impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
 impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
     auto is_non_broadcast_add = [](const op_t *op) {
-        return op->get_kind() == dnnl_impl::op_kind::dnnl_binary
+        return op->get_kind() == op_kind::dnnl_binary
                 && static_cast<dnnl::algorithm>(
                            op->get_attr<int64_t>(op_attr::alg_kind))
                 == dnnl::algorithm::binary_add
@@ -2568,7 +2559,7 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
 impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != dnnl_impl::op_kind::dnnl_mul_scales
+        if (cur_op->get_kind() != op_kind::dnnl_mul_scales
                 || !cur_op->get_input_value(0)->has_producer())
             continue;
 
@@ -3137,8 +3128,7 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             auto src_zps = cur_op->get_input_value(index);
             if (src_zps->get_logical_tensor().data_type
                     != impl::data_type::s32) {
-                auto tc_op = std::make_shared<op_t>(
-                        dnnl_impl::op_kind::dnnl_reorder);
+                auto tc_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
                 tc_op->set_attr<bool>(op_attr::change_layout, false);
                 rewriter.insert_op_before(tc_op, cur_op, index);
                 insert_empty_scratchpad(tc_op);
@@ -3158,8 +3148,7 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             auto dst_zps = cur_op->get_input_value(index);
             if (dst_zps->get_logical_tensor().data_type
                     != impl::data_type::s32) {
-                auto tc_op = std::make_shared<op_t>(
-                        dnnl_impl::op_kind::dnnl_reorder);
+                auto tc_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
                 tc_op->set_attr<bool>(op_attr::change_layout, false);
                 rewriter.insert_op_before(tc_op, cur_op, index);
                 tc_op->get_output_value(0)->set_data_type(impl::data_type::s32);
@@ -3746,12 +3735,12 @@ impl::status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg) {
     while (true) {
         std::vector<std::pair<impl::op_t *, impl::op_t *>> to_be_swapped;
         for (auto &op : sg->get_ops()) {
-            bool ok = op->get_kind() == dnnl_impl::op_kind::dnnl_matmul
+            bool ok = op->get_kind() == op_kind::dnnl_matmul
                     && op->get_input_value(0)->has_producer();
             if (!ok) continue;
 
             impl::op_t *producer = op->get_input_op(0);
-            ok = producer->get_kind() == dnnl_impl::op_kind::dnnl_binary
+            ok = producer->get_kind() == op_kind::dnnl_binary
                     && dnnl::algorithm::binary_div
                             == static_cast<dnnl::algorithm>(
                                     producer->get_attr<int64_t>(

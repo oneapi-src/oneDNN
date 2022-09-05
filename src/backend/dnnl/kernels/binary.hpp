@@ -49,16 +49,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace bin {
-enum binary_inputs { kSrc0, kSrc1 };
-enum binary_outputs { kDst };
-enum mem_keys {
-    kOpt_src0,
-    kOpt_src1,
-    kOpt_dst,
-};
-} // namespace bin
-
 // We support both multidirectional and unidirectional broadcast. And the
 // broadcast semantics is consistent with PyTorch broadcast:
 // Two tensors are “broadcastable” if the following rules hold:
@@ -111,20 +101,10 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_reciprocal_mul_to_div);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
 
-        // Because we use binary post-ops for broadcast add and sum post-ops for
-        // non-broadcast add. So we have to know concret shape before fuse
-        // post-ops
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, split_squared_difference);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
-
-        // fuse binary post-ops need shape and type info
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

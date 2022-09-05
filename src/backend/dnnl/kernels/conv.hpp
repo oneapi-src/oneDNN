@@ -291,9 +291,7 @@ public:
         // Because we use binary post-ops for broadcast add and sum post-ops for
         // non-broadcast add. So we have to know concret shape before fuse
         // post-ops
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
 
         if (quantized) {
@@ -312,8 +310,6 @@ public:
         }
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
 
@@ -389,7 +385,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_data_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
@@ -451,11 +446,9 @@ public:
         });
         pass_pipeline_t pipeline(vis);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_weights_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

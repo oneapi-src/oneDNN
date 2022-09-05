@@ -38,11 +38,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace {
-enum reorder_input { kSrc };
-enum reorder_output { kDst };
-} // namespace
-
 template <bool quantized>
 struct reorder_t : public kernel_base_t {
 private:
@@ -79,7 +74,6 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
 
         if (quantized) {
@@ -94,7 +88,6 @@ public:
         if (quantized) { BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points); }
         // insert_to_group_for_reorder: work for weight prepacking case
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_reorder);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
