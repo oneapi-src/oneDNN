@@ -25,8 +25,9 @@ namespace ocl {
 
 struct ocl_stream_t;
 
-void register_profiling_event(cl_event event, const ocl_stream_t *stream);
-status_t get_profiling_info(uint64_t &nsec, double &freq);
+void notify_before_exec();
+void register_profile_event(cl_event event, const ocl_stream_t *stream);
+status_t get_profile_info(uint64_t &nsec, double &freq, int mode);
 status_t reset_profiling();
 
 } // namespace ocl

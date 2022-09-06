@@ -19,6 +19,7 @@
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/profile.hpp"
+#include "sycl/profile.hpp"
 #include "sycl/sycl_engine.hpp"
 
 #include <map>
@@ -96,6 +97,10 @@ status_t sycl_stream_t::init() {
     }
 
     return status::success;
+}
+
+void sycl_stream_t::before_exec_hook() {
+    if (gpu::is_profiling_enabled()) notify_before_exec();
 }
 
 } // namespace sycl

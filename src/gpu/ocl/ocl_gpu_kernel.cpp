@@ -196,7 +196,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             range.global_range(), range.local_range(), 0, nullptr,
             is_profiling_enabled() ? &event : nullptr);
     OCL_CHECK(err);
-    if (is_profiling_enabled()) register_profiling_event(event, ocl_stream);
+    if (is_profiling_enabled()) register_profile_event(event, ocl_stream);
     return status::success;
 }
 

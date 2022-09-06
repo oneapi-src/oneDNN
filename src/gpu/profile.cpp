@@ -41,6 +41,36 @@ bool is_profiling_enabled() {
     return profile.get();
 }
 
+status_t get_profile_info_impl(uint64_t &nsec, double &freq, int _mode,
+        const std::unordered_map<uint64_t, profile_entry_t> &stamp2entry) {
+    auto mode = static_cast<profile_mode_t>(_mode);
+    switch (mode) {
+        case profile_mode_t::sum:
+            nsec = 0;
+            freq = 0;
+            for (auto &kv : stamp2entry) {
+                auto &e = kv.second;
+                nsec += e.nsec;
+                freq += e.freq / e.kernel_count;
+            }
+            freq /= stamp2entry.size();
+            break;
+        case profile_mode_t::min:
+            nsec = std::numeric_limits<uint64_t>::max();
+            freq = 0;
+            for (auto &kv : stamp2entry) {
+                auto &e = kv.second;
+                if (e.nsec < nsec) {
+                    nsec = e.nsec;
+                    freq = e.freq / e.kernel_count;
+                }
+            }
+            break;
+        default: assert(!"Unexpected mode");
+    }
+    return status::success;
+}
+
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
@@ -60,13 +90,13 @@ extern "C" status_t DNNL_API dnnl_impl_gpu_reset_profiling() {
     return status::unimplemented;
 }
 
-extern "C" status_t DNNL_API dnnl_impl_gpu_get_profiling_info(
-        uint64_t &nsec, double &freq) {
+extern "C" status_t DNNL_API dnnl_impl_gpu_get_profile_info(
+        uint64_t &nsec, double &freq, int mode) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    return dnnl::impl::gpu::ocl::get_profiling_info(nsec, freq);
+    return dnnl::impl::gpu::ocl::get_profile_info(nsec, freq, mode);
 #endif
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    return dnnl::impl::sycl::get_profiling_info(nsec, freq);
+    return dnnl::impl::sycl::get_profile_info(nsec, freq, mode);
 #endif
     return status::unimplemented;
 }

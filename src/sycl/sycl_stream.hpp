@@ -80,6 +80,8 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return status::success;
     }
 
+    void before_exec_hook() override;
+
     ::sycl::queue &queue() { return *queue_; }
 
     status_t enqueue_primitive(const primitive_iface_t *prim_iface,
@@ -199,7 +201,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 cgh.copy(acc_src, acc_dst);
             });
         }
-        if (gpu::is_profiling_enabled()) register_profiling_event(e);
+        if (gpu::is_profiling_enabled()) register_profile_event(e);
         set_deps({e});
 
         return status::success;
@@ -237,7 +239,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 cgh.fill(acc_dst, pattern);
             });
         }
-        if (gpu::is_profiling_enabled()) register_profiling_event(out_event);
+        if (gpu::is_profiling_enabled()) register_profile_event(out_event);
         set_deps({out_event});
         return status::success;
     }

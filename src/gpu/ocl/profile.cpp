@@ -14,12 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
+#include <limits>
 #include <mutex>
 #include <utility>
 #include <vector>
 #include <CL/cl.h>
+#include <unordered_map>
 
 #include "gpu/ocl/profile.hpp"
+#include "gpu/profile.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
@@ -35,36 +39,49 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static std::vector<std::pair<cl_event, const ocl_stream_t *>> events;
+struct profile_event_t {
+    profile_event_t(cl_event event, const ocl_stream_t *stream, uint64_t stamp)
+        : event(event), stream(stream), stamp(stamp) {}
 
-void register_profiling_event(cl_event event, const ocl_stream_t *ocl_stream) {
-    static std::mutex mutex;
-    std::lock_guard<std::mutex> lock(mutex);
-    events.emplace_back(event, ocl_stream);
+    cl_event event;
+    const ocl_stream_t *stream;
+    uint64_t stamp;
+};
+
+static std::vector<profile_event_t> events;
+static std::atomic<uint64_t> stamp(0);
+
+void notify_before_exec() {
+    stamp++;
 }
 
-status_t get_profiling_info(uint64_t &nsec, double &freq) {
+void register_profile_event(cl_event event, const ocl_stream_t *ocl_stream) {
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+    events.emplace_back(event, ocl_stream, stamp);
+}
+
+status_t get_profile_info(uint64_t &nsec, double &freq, int mode) {
     nsec = 0;
     freq = 0;
-    for (auto &p : events) {
-        auto &ev = p.first;
-        auto *stream = p.second;
+    std::unordered_map<uint64_t, profile_entry_t> stamp2entry;
+    for (auto &ev : events) {
         cl_ulong beg, end;
-        OCL_CHECK(clGetEventProfilingInfo(
-                ev, CL_PROFILING_COMMAND_START, sizeof(beg), &beg, nullptr));
-        OCL_CHECK(clGetEventProfilingInfo(
-                ev, CL_PROFILING_COMMAND_END, sizeof(end), &end, nullptr));
-        nsec += (end - beg);
-        freq += stream->mdapi_helper().get_freq(ev);
+        OCL_CHECK(clGetEventProfilingInfo(ev.event, CL_PROFILING_COMMAND_START,
+                sizeof(beg), &beg, nullptr));
+        OCL_CHECK(clGetEventProfilingInfo(ev.event, CL_PROFILING_COMMAND_END,
+                sizeof(end), &end, nullptr));
+        auto &entry = stamp2entry[ev.stamp];
+        entry.nsec += (end - beg);
+        entry.freq += ev.stream->mdapi_helper().get_freq(ev.event);
+        entry.kernel_count++;
     }
-    freq /= events.size();
-    return status::success;
+    return get_profile_info_impl(nsec, freq, mode, stamp2entry);
 }
 
 status_t reset_profiling() {
-    for (auto &p : events) {
-        clReleaseEvent(p.first);
-    }
+    for (auto &ev : events)
+        clReleaseEvent(ev.event);
     events.clear();
     return status::success;
 }

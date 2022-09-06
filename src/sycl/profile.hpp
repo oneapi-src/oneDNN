@@ -21,8 +21,9 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-void register_profiling_event(const ::sycl::event &event);
-status_t get_profiling_info(uint64_t &nsec, double &freq);
+void notify_before_exec();
+void register_profile_event(const ::sycl::event &event);
+status_t get_profile_info(uint64_t &nsec, double &freq, int mode);
 status_t reset_profiling();
 
 } // namespace sycl

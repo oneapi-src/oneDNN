@@ -68,6 +68,8 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return status::success;
     }
 
+    void before_exec_hook() override;
+
     cl_command_queue queue() const { return queue_; }
 
     const mdapi_helper_t &mdapi_helper() const { return *mdapi_helper_; }

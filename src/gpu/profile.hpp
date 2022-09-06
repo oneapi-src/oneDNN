@@ -14,12 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifndef GPU_PROFILE_HPP
+#define GPU_PROFILE_HPP
+
+#include <unordered_map>
+
+#include "common/c_types_map.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
 
+enum class profile_mode_t : int {
+    sum = 0,
+    min = 1,
+};
+
+struct profile_entry_t {
+    uint64_t nsec = 0;
+    double freq = 0;
+    int kernel_count = 0;
+};
+
 bool is_profiling_enabled();
+
+status_t get_profile_info_impl(uint64_t &nsec, double &freq, int mode,
+        const std::unordered_map<uint64_t, profile_entry_t> &entries);
 
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif

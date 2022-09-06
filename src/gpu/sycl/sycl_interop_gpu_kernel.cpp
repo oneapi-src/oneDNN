@@ -195,7 +195,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
         }
     });
 
-    if (gpu::is_profiling_enabled()) register_profiling_event(event);
+    if (gpu::is_profiling_enabled()) register_profile_event(event);
     sycl_stream->set_deps({event});
     return status::success;
 }

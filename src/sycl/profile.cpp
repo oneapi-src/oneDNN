@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
 #include <mutex>
 #include <vector>
 
@@ -21,6 +22,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
+#include "gpu/profile.hpp"
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::sycl;
@@ -29,24 +31,39 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-static std::vector<::sycl::event> events;
+struct profile_event_t {
+    profile_event_t(const ::sycl::event &event, uint64_t stamp)
+        : event(event), stamp(stamp) {}
 
-void register_profiling_event(const ::sycl::event &event) {
-    static std::mutex mutex;
-    std::lock_guard<std::mutex> lock(mutex);
-    events.push_back(event);
+    ::sycl::event event;
+    uint64_t stamp;
+};
+
+static std::vector<profile_event_t> events;
+static std::atomic<uint64_t> stamp(0);
+
+void notify_before_exec() {
+    stamp++;
 }
 
-status_t get_profiling_info(uint64_t &nsec, double &freq) {
+void register_profile_event(const ::sycl::event &event) {
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+    events.emplace_back(event, stamp);
+}
+
+status_t get_profile_info(uint64_t &nsec, double &freq, int mode) {
     using namespace ::sycl::info;
-    nsec = 0;
-    freq = 0;
-    for (auto ev : events) {
-        auto beg = ev.get_profiling_info<event_profiling::command_start>();
-        auto end = ev.get_profiling_info<event_profiling::command_end>();
-        nsec += (end - beg);
+    std::unordered_map<uint64_t, gpu::profile_entry_t> stamp2entry;
+    for (auto &ev : events) {
+        auto beg
+                = ev.event.get_profiling_info<event_profiling::command_start>();
+        auto end = ev.event.get_profiling_info<event_profiling::command_end>();
+        auto &entry = stamp2entry[ev.stamp];
+        entry.nsec += (end - beg);
+        entry.kernel_count++;
     }
-    return status::success;
+    return gpu::get_profile_info_impl(nsec, freq, mode, stamp2entry);
 }
 
 status_t reset_profiling() {
