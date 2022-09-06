@@ -24,7 +24,7 @@
 --attr-post-ops=
 
 # Output scale check
---cfg=f32,bf16bf16bf16,u8s8u8,s8s8s32
+--cfg=f32,bf16bf16bf16,u8s8u8,s8s8s32,s8s8f32
 --attr-oscale=common:2.25,per_oc:2.25,common:0.5*,per_oc:5*
 --batch=shapes_2d_ci
 --batch=shapes_3d
