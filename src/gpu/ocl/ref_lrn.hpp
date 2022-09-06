@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,7 +66,8 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
 
             if (desc_.prop_kind == prop_kind::forward_training) {
                 ws_md_ = *src_md();
-                if (ws_md_.data_type == data_type::bf16)
+                if (ws_md_.data_type == data_type::bf16
+                        || ws_md_.data_type == data_type::f16)
                     ws_md_.data_type = data_type::f32;
             }
 
