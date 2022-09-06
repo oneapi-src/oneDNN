@@ -20,6 +20,7 @@
 
 #include <oneapi/dnnl/dnnl_debug.h>
 
+#include "src/cpu/platform.hpp"
 #include "utils.hpp"
 
 namespace graph {
@@ -123,6 +124,38 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
         fprintf(stderr, "graph: ERROR: Unsupported opkind: `%s`, exiting...\n",
                 kind.c_str());
         exit(2);
+    }
+}
+
+void skip_unimplemented_data_type(
+        const std::vector<dnnl::graph::logical_tensor> &in_out_lts,
+        res_t *res) {
+#if DNNL_GRAPH_CPU_RUNTIME != DNNL_GRAPH_RUNTIME_NONE
+    using namespace dnnl::impl::cpu::platform;
+    // bf16 is supported on AVX512-CORE+
+    const bool has_bf16_support
+            = is_gpu() || (is_cpu() && has_data_type_support(dnnl_bf16));
+    const bool has_f16_support
+            = is_gpu() || (is_cpu() && has_data_type_support(dnnl_f16));
+#else
+    const bool has_bf16_support = is_gpu();
+    const bool has_f16_support = is_gpu();
+#endif
+    for (const auto &in : in_out_lts) {
+        bool need_skip = false;
+        switch (in.get_data_type()) {
+            case dnnl::graph::logical_tensor::data_type::bf16:
+                need_skip = !has_bf16_support;
+                break;
+            case dnnl::graph::logical_tensor::data_type::f16:
+                need_skip = !has_f16_support;
+                break;
+            default: break;
+        }
+        if (need_skip) {
+            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
+            return;
+        }
     }
 }
 
