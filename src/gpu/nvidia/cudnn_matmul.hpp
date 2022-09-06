@@ -93,6 +93,15 @@ struct cudnn_matmul_t : public primitive_t {
         bool attr_post_ops_ok() const {
             using namespace primitive_kind;
             const auto &p = attr()->post_ops_;
+            const int eltwise_idx = p.find(eltwise);
+            if (eltwise_idx != -1) {
+                using namespace alg_kind;
+                const bool ok = utils::one_of(p.entry_[eltwise_idx].eltwise.alg,
+                        eltwise_relu, eltwise_bounded_relu, eltwise_tanh,
+                        eltwise_elu, eltwise_logistic);
+                if (!ok) return false;
+            }
+
             switch (p.len()) {
                 case 0: return true;
                 case 1: return p.contain(sum, 0) || p.contain(eltwise, 0);
