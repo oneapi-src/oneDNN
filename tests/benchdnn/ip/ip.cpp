@@ -232,11 +232,19 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res);
 
     if (is_cpu()) {
-        if (!IMPLICATION(prb->cfg[DST].dt == dnnl_f16,
-                    prb->cfg[SRC].dt == dnnl_f16
-                            && prb->cfg[WEI].dt == dnnl_f16))
+
+        auto is_dt_f16_or_f32 = [&](dnnl_data_type_t dt) {
+            return dt == dnnl_f16 || dt == dnnl_f32;
+        };
+
+        if (!IMPLICATION(prb->cfg[SRC].dt == dnnl_f16
+                            || prb->cfg[WEI].dt == dnnl_f16
+                            || prb->cfg[DST].dt == dnnl_f16,
+                    is_dt_f16_or_f32(prb->cfg[SRC].dt)
+                            && is_dt_f16_or_f32(prb->cfg[WEI].dt)
+                            && is_dt_f16_or_f32(prb->cfg[DST].dt))) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
+        }
     }
 
     skip_unimplemented_sum_po(prb->attr, res, prb->get_dt_conf(DST).dt);
