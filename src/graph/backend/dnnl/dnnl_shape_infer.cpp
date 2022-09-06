@@ -478,6 +478,18 @@ status_t infer_dnnl_batchnorm_output_shape(op_t *n,
     return stat;
 }
 
+status_t infer_dnnl_batchnorm_bwd_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    // skip shape inference for scratchpad output
+    // FIXME(wuxun): may remove this temporary solution after we refine op
+    // definition to handle one or more optional input/outputs
+    auto new_outputs = outputs;
+    new_outputs.pop_back();
+    infer_bn_bwd_output_shape(n, inputs, new_outputs);
+    return status::success;
+}
+
 status_t infer_dnnl_constant_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {

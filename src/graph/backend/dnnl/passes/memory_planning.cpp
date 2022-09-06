@@ -785,7 +785,8 @@ void memory_planner_t::bind_memory_for_batchnorm_bwd(
     exec_args_set_.find_value_mem_map(op->get_output_value(index++).get(), mem);
     args.insert({DNNL_ARG_DIFF_SRC, mem});
 
-    if (op->num_outputs() > index) {
+    // check if has diff_scale and diff_shift outputs
+    if (op->num_outputs() > 2) {
         exec_args_set_.find_value_mem_map(
                 op->get_output_value(index++).get(), mem);
         args.insert({DNNL_ARG_DIFF_SCALE, mem});
