@@ -1372,8 +1372,11 @@ impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
 
         auto updated_conv_bias = std::make_shared<value_t>(*bn_folding_op, 1,
                 impl::empty_logical_tensor_with_default_id(), true);
-        updated_conv_bias->set_data_type(
-                prv_op.get_input_value(1)->get_logical_tensor().data_type);
+        // when bias is none, f32 zero bias will be allocated
+        const auto bias_dtype = prv_op.num_inputs() == 3
+                ? prv_op.get_input_value(2)->get_logical_tensor().data_type
+                : impl::data_type::f32;
+        updated_conv_bias->set_data_type(bias_dtype);
         bn_folding_op->add_output(updated_conv_bias);
         updated_conv_bias->add_consumer(prv_op, 2);
         prv_op.connect_input(2, updated_conv_bias);
