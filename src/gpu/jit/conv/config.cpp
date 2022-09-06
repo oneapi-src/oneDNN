@@ -569,14 +569,16 @@ struct nc_block_t {
     // Ideally, this should only depend on data type, direction, mb, c, and g to
     // enable the same src/dst formats and avoid reorders between convolutions
     static nc_block_t get_default_blocking(type_t type, bool is_dw, int n,
-            int c, int g, bool is_input, bool is_small_ic,
-            int min_block_size = 0, bool nc_order = true) {
-        bool is_small_ic_input
-                = (type.size() <= 2 && is_input && !is_dw && is_small_ic);
+            int c, int g, bool is_input, bool is_small_c,
+            int min_block_size = 0, bool nc_order = true,
+            bool force_default_c_blk = false) {
+        bool is_small_c_input
+                = (type.size() <= 2 && is_input && !is_dw && is_small_c);
         auto default_c_blk = type.size() == 1 ? 32 : 16;
         auto c_block = [&]() {
+            if (force_default_c_blk) return default_c_blk;
             // Special case for small input channel shapes with dpas.
-            if (is_small_ic_input) {
+            if (is_small_c_input) {
                 int packed_dword_elems = 4 / type.size();
                 return std::max(packed_dword_elems, utils::rnd_up_pow2(c));
             }
@@ -593,7 +595,7 @@ struct nc_block_t {
         auto n_block = [&]() {
             if (c_block == 1)
                 return 1;
-            else if (is_small_ic_input)
+            else if (is_small_c_input)
                 return pick_block(n, 8, 16);
             else
                 return pick_block(n, 16, default_n_blk);
@@ -730,8 +732,11 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
     nc_block_t src_blk = nc_block_t::get_default_blocking(src_compute_type,
             is_dw, mb, ic, g, is_fwd || is_bwd_w, is_small_ic(), min_block_size,
             nc_order);
-    nc_block_t dst_blk = nc_block_t::get_default_blocking(
-            dst_compute_type, is_dw, mb, oc, g, is_bwd_d || is_bwd_w, false);
+    // TODO: Force use of default_c_blk for bwd_w with bias due to reduction
+    // limitation to register granularity
+    nc_block_t dst_blk = nc_block_t::get_default_blocking(dst_compute_type,
+            is_dw, mb, oc, g, is_bwd_d || is_bwd_w, is_small_oc(), 0, true,
+            is_bwd_w && with_bias);
 
     auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type, vec_size,
             fma_kind, is_bwd_d, is_small_ic(), g, oc, ic);
@@ -1019,9 +1024,7 @@ void conv_config_t::set_allow_grf_reorder() {
         }
     }
 
-    if (is_fwd && is_dp_fma() && is_small_ic() && !is_dw) {
-        allow_a_grf_reorder = true;
-    }
+    if (is_dp_fma() && !is_dw && a_is_small_c()) { allow_a_grf_reorder = true; }
 
     if (is_bwd_w && is_dp_fma()) {
         if (!can_use_a_2d_send) allow_a_grf_reorder = true;

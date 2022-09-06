@@ -573,6 +573,12 @@ public:
         return wei_layout;
     }
 
+    bool a_is_small_c() const {
+        if (is_fwd) return is_small_ic();
+        if (is_bwd_d) return is_small_oc();
+        return is_small_ic();
+    }
+
     const layout_t &compute_layout(const std::string &ab_tag) const {
         const char *tag = nullptr;
         if (ab_tag == "a") {
