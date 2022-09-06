@@ -537,12 +537,14 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
             if (current_zp.size() != 1) continue;
             // the equivalent transformation: mm(src_u8, wei_u8) -> mm(src_u8,
             // wei_u8 - 128 + 128) -> mm(src_u8, wei_s8 + 128), which wei_s8 =
-            // wei_u8 - 128
-            std::vector<int64_t> adjusted_zp {current_zp[0] + 128};
+            // wei_u8 - 128. since the weight zps is actually substracted in
+            // primitive side, so the wei_s8 + 128 should be then converted to
+            // wei_s8 - (-128)
+            std::vector<int64_t> adjusted_zp {current_zp[0] - 128};
             wei_zps_op->set_attr<std::vector<int64_t>>(
                     op_attr::zps, adjusted_zp);
         } else { // fuse a 128 zps
-            std::vector<int64_t> zp {128};
+            std::vector<int64_t> zp {-128};
             auto zps_op = std::make_shared<impl::op_t>(op_kind::dnnl_add_zps);
             zps_op->set_attr<std::string>(op_attr::qtype, "per_tensor");
             zps_op->set_attr<int64_t>(op_attr::axis, 0);

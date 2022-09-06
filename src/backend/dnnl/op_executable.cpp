@@ -1427,9 +1427,8 @@ reorder_executable_t::desc_t reorder_executable_t::create_desc(
         prm_attr.set_zero_points(DNNL_ARG_FROM, mask, {DNNL_RUNTIME_S32_VAL});
     } else if (op->has_attr(op_attr::src_zps)) {
         auto zps = op->get_attr<std::vector<int64_t>>(op_attr::src_zps);
-        std::vector<int32_t> neg_zps = dnnl_impl::utils::fmap(
-                zps, [](int64_t zp) { return static_cast<int32_t>(-zp); });
-        prm_attr.set_zero_points(DNNL_ARG_FROM, mask, neg_zps);
+        std::vector<int32_t> int32_zps = utils::cast_to_int32(zps);
+        prm_attr.set_zero_points(DNNL_ARG_FROM, mask, int32_zps);
     }
 
     if (op->has_attr(op_attr::with_runtime_scales)
@@ -1447,8 +1446,7 @@ reorder_executable_t::desc_t reorder_executable_t::create_desc(
         prm_attr.set_zero_points(DNNL_ARG_TO, mask, {DNNL_RUNTIME_S32_VAL});
     } else if (op->has_attr(op_attr::dst_zps)) {
         auto zps = op->get_attr<std::vector<int64_t>>(op_attr::dst_zps);
-        std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(
-                zps, [](int64_t zp) { return static_cast<int32_t>(zp); });
+        std::vector<int32_t> int32_zps = utils::cast_to_int32(zps);
         prm_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);

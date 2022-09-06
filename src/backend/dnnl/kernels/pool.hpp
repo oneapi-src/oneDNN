@@ -124,7 +124,8 @@ public:
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, remove_unnecessary_quant_dequant);
-            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+            BACKEND_DNNL_ADD_PASS(pipeline, split_static_quant);
+            BACKEND_DNNL_ADD_PASS(pipeline, split_static_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_pool);
             BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
             BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);
@@ -132,7 +133,8 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
             BACKEND_DNNL_ADD_PASS(
                     pipeline, replace_quant_data_with_binary_post_op);
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_scales_add_zps);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         }
 

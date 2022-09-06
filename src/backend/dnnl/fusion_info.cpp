@@ -66,11 +66,10 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             int mask = zps.size() == 1
                     ? 0
                     : 1 << in_zps_op->get_attr<int64_t>(op_attr::axis);
-            std::vector<int32_t> neg_int32_zps = dnnl_impl::utils::fmap(
-                    zps, [](int64_t zp) { return static_cast<int32_t>(-zp); });
+            std::vector<int32_t> int32_zps = utils::cast_to_int32(zps);
             attr.set_zero_points(
                     in_zps_indice == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS, mask,
-                    neg_int32_zps);
+                    int32_zps);
         }
     }
 
@@ -81,8 +80,7 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
         int mask = zps.size() == 1
                 ? 0
                 : 1 << out_zps_op->get_attr<int64_t>(op_attr::axis);
-        std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(
-                zps, [](int64_t zp) { return static_cast<int32_t>(zp); });
+        std::vector<int32_t> int32_zps = utils::cast_to_int32(zps);
         attr.set_zero_points(DNNL_ARG_DST, mask, int32_zps);
     }
 

@@ -162,7 +162,8 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     dnnl_impl::subgraph_validator_t validator;
     validator.run(subgraph); // validate and set default param
 
-    dnnl_impl::split_quant_dequant(subgraph);
+    dnnl_impl::split_static_quant(subgraph);
+    dnnl_impl::split_static_dequant(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 11);
     auto conv_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
@@ -290,7 +291,8 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     dnnl_impl::subgraph_validator_t validator;
     validator.run(subgraph); // validate and set default param
 
-    dnnl_impl::split_quant_dequant(subgraph);
+    dnnl_impl::split_static_quant(subgraph);
+    dnnl_impl::split_static_dequant(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 8);
     auto matmul_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
@@ -536,13 +538,15 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
-    dnnl_impl::split_quant_dequant(subgraph);
+    dnnl_impl::split_static_quant(subgraph);
+    dnnl_impl::split_static_dequant(subgraph);
     dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
     dnnl_impl::fold_mul_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
     dnnl_impl::fuse_zero_points(subgraph);
-    dnnl_impl::fuse_mul_scales_add_zps(subgraph);
+    dnnl_impl::fuse_static_mul_scales_add_zps(subgraph);
+    dnnl_impl::fuse_static_sub_zps_mul_scales(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 3);
     if (subgraph->get_ops()[0]->get_kind()
             == dnnl_impl::op_kind::dnnl_convolution) {
@@ -752,13 +756,15 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     dnnl_impl::subgraph_validator_t validator;
     validator.run(subgraph); // validate and set default param
 
-    dnnl_impl::split_quant_dequant(subgraph);
+    dnnl_impl::split_static_quant(subgraph);
+    dnnl_impl::split_static_dequant(subgraph);
     dnnl_impl::fuse_to_int8_matmul(subgraph);
     dnnl_impl::fold_mul_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
     dnnl_impl::fuse_zero_points(subgraph);
-    dnnl_impl::fuse_mul_scales_add_zps(subgraph);
+    dnnl_impl::fuse_static_mul_scales_add_zps(subgraph);
+    dnnl_impl::fuse_static_sub_zps_mul_scales(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 2);
 
     subgraph->infer_shape();

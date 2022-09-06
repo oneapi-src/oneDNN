@@ -150,83 +150,6 @@ impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t split_quant_dequant(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> q_dq_ops;
-    for (auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() == impl::op_kind::Quantize
-                || cur_op->get_kind() == impl::op_kind::Dequantize) {
-            q_dq_ops.emplace_back(cur_op);
-        }
-    }
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &cur_op : q_dq_ops) {
-        const auto &zps = cur_op->get_attr<std::vector<int64_t>>(op_attr::zps);
-        const auto &scales
-                = cur_op->get_attr<std::vector<float>>(op_attr::scales);
-        const auto &qtype = cur_op->get_attr<std::string>(op_attr::qtype);
-        const auto &axis = cur_op->get_attr<int64_t>(op_attr::axis);
-
-        auto in_vals = cur_op->get_input_values();
-        auto out_vals = cur_op->get_output_values();
-        assertm(in_vals.size() == 1 && out_vals.size() == 1,
-                "static quantize/dequantize should only have one input and "
-                "output");
-
-        op_ptr op1, op2;
-        if (cur_op->get_kind() == impl::op_kind::Dequantize) {
-            // f32 = scales * (int8 - zps)
-            op1 = std::make_shared<op_t>(op_kind::dnnl_add_zps);
-            op2 = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
-
-            std::vector<int64_t> neg_zps = dnnl_impl::utils::fmap(
-                    zps, [](int64_t zp) { return -zp; });
-            op1->set_attr<std::vector<int64_t>>(op_attr::zps, neg_zps);
-            op2->set_attr<std::vector<float>>(op_attr::scales, scales);
-        } else {
-            // int8 = f32 / scales + zps
-            op1 = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
-            op2 = std::make_shared<op_t>(op_kind::dnnl_add_zps);
-
-            assertm(std::all_of(scales.begin(), scales.end(),
-                            [](float i) { return i != 0.f; }),
-                    "scales can't be zero");
-
-            std::vector<float> inv_scales = dnnl_impl::utils::fmap(
-                    scales, [](float s) { return 1.f / s; });
-            op1->set_attr<std::vector<float>>(op_attr::scales, inv_scales);
-            op2->set_attr<std::vector<int64_t>>(op_attr::zps, zps);
-        }
-        op1->set_attr<int64_t>(op_attr::axis, axis);
-        op1->set_attr<std::string>(op_attr::qtype, qtype);
-        op2->set_attr<int64_t>(op_attr::axis, axis);
-        op2->set_attr<std::string>(op_attr::qtype, qtype);
-
-        // reconnect
-        in_vals[0]->remove_consumer(*cur_op, 0);
-        in_vals[0]->add_consumer(*op1, 0);
-        op1->add_input(in_vals[0]);
-
-        impl::logical_tensor_t new_lt
-                = impl::empty_logical_tensor_with_default_id();
-        auto new_val = std::make_shared<value_t>(*op1, 0, new_lt, true);
-        new_val->set_data_type(in_vals[0]->get_logical_tensor().data_type);
-
-        op1->add_output(new_val);
-
-        op2->add_input(new_val);
-        new_val->add_consumer(*op2, 0);
-        op2->add_output(out_vals[0]);
-
-        // add new ops and delete quantize or dequantize op
-        rewriter.to_insert(op1);
-        rewriter.to_insert(op2);
-        rewriter.to_remove(cur_op);
-    }
-    rewriter.run();
-    return infer_shape(sg);
-}
-
 impl::status_t replace_quant_dequant_with_mul_scales(
         std::shared_ptr<subgraph_t> &sg) {
     // replaces Quant/Dequant OPs with mul_scales, zps attribute is ignored.
@@ -340,6 +263,7 @@ impl::status_t replace_quant_data_with_binary_post_op(
             size_t offset = out_val->get_consumers()[0].get_offset();
             auto &next_op = out_val->get_consumers()[0].get_op();
             if (next_op.get_kind() == dnnl_impl::op_kind::dnnl_add_zps
+                    || next_op.get_kind() == dnnl_impl::op_kind::dnnl_sub_zps
                     || next_op.get_kind()
                             == dnnl_impl::op_kind::dnnl_mul_scales)
                 // cur_op's output must be mul_scales and add_zps ops' first
@@ -351,8 +275,9 @@ impl::status_t replace_quant_data_with_binary_post_op(
             return nullptr;
     };
 
-    const std::set<op_kind_t> accepted_kinds_in_chain = {op_kind::dnnl_binary,
-            op_kind::dnnl_mul_scales, op_kind::dnnl_add_zps};
+    const std::set<op_kind_t> accepted_kinds_in_chain
+            = {op_kind::dnnl_binary, op_kind::dnnl_mul_scales,
+                    op_kind::dnnl_add_zps, op_kind::dnnl_sub_zps};
 
     subgraph_rewriter_t rewriter(sg);
     std::set<op_t *> visited;
@@ -380,7 +305,9 @@ impl::status_t replace_quant_data_with_binary_post_op(
             op_t *quant_data_op = next_op;
             auto algo = (quant_data_op->get_kind() == op_kind::dnnl_mul_scales)
                     ? dnnl::algorithm::binary_mul
-                    : dnnl::algorithm::binary_add;
+                    : quant_data_op->get_kind() == op_kind::dnnl_add_zps
+                            ? dnnl::algorithm::binary_add
+                            : dnnl::algorithm::binary_sub;
             op_ptr bin_op = std::make_shared<op_t>(op_kind::dnnl_binary);
             bin_op->set_attr<int64_t>(
                     op_attr::alg_kind, static_cast<int64_t>(algo));
@@ -904,7 +831,7 @@ impl::status_t defer_src_zps_for_pool(std::shared_ptr<subgraph_t> &sg) {
                 && cur_op->get_input_value(0)->has_producer()
                 && !cur_op->get_output_value(0)->get_consumers().empty()
                 && cur_op->get_input_value(0)->get_producer().get_kind()
-                        == op_kind::dnnl_add_zps) {
+                        == op_kind::dnnl_sub_zps) {
             pool_ops.emplace_back(cur_op);
         }
     }
@@ -915,13 +842,13 @@ impl::status_t defer_src_zps_for_pool(std::shared_ptr<subgraph_t> &sg) {
         value_ptr pool_in_val = pool_op->get_input_value(0);
         value_ptr pool_out_val = pool_op->get_output_value(0);
 
-        op_t &zps_op = pool_in_val->get_producer();
+        op_t &sub_zps_op = pool_in_val->get_producer();
 
         auto csm = pool_out_val->get_consumers()[0];
         op_t &csm_op = csm.get_op();
         const size_t csm_offset = csm.get_offset();
 
-        value_ptr zps_in_val = zps_op.get_input_value(0);
+        value_ptr zps_in_val = sub_zps_op.get_input_value(0);
 
         // connect pooling with a zps input
         zps_in_val->remove_consumer(*pool_op, 0);
@@ -935,16 +862,16 @@ impl::status_t defer_src_zps_for_pool(std::shared_ptr<subgraph_t> &sg) {
         pool_to_zps_val->set_data_type(
                 zps_in_val->get_logical_tensor().data_type);
         pool_op->connect_output(0, pool_to_zps_val);
-        zps_op.connect_input(0, pool_to_zps_val);
+        sub_zps_op.connect_input(0, pool_to_zps_val);
 
         // connect zps with a binary using a fresh value
         impl::logical_tensor_t zps_to_bin_lt
                 = impl::empty_logical_tensor_with_default_id();
         auto zps_to_bin_val
-                = std::make_shared<value_t>(zps_op, 0, zps_to_bin_lt, true);
+                = std::make_shared<value_t>(sub_zps_op, 0, zps_to_bin_lt, true);
         zps_to_bin_val->set_data_type(
                 zps_in_val->get_logical_tensor().data_type);
-        zps_op.connect_output(0, zps_to_bin_val);
+        sub_zps_op.connect_output(0, zps_to_bin_val);
         csm_op.connect_input(csm_offset, zps_to_bin_val);
     }
 
@@ -1240,15 +1167,17 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
 
                     auto tmp = mul_scale_op.get_input_value(0);
                     int32_t zp = 0;
-                    if (tmp->has_producer()) {
-                        auto &add_zps_op = tmp->get_producer();
-                        auto zps = add_zps_op.get_attr<std::vector<int64_t>>(
+                    if (tmp->has_producer()
+                            && tmp->get_producer().get_kind()
+                                    == op_kind::dnnl_sub_zps) {
+                        auto &sub_zps_op = tmp->get_producer();
+                        auto zps = sub_zps_op.get_attr<std::vector<int64_t>>(
                                 op_attr::zps);
-                        zp = static_cast<int32_t>(-zps[0]);
+                        zp = static_cast<int32_t>(zps[0]);
                         assert(scales.size() == zps.size());
 
                         rewriter.fuse_op_to_successor(
-                                add_zps_op.shared_from_this());
+                                sub_zps_op.shared_from_this());
                     }
                     rewriter.fuse_op_to_successor(
                             mul_scale_op.shared_from_this());
@@ -1390,7 +1319,8 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
 
     std::set<op_t *> visited;
     for (auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_add_zps
+        if ((cur_op->get_kind() != op_kind::dnnl_add_zps
+                    && cur_op->get_kind() != op_kind::dnnl_sub_zps)
                 || visited.count(cur_op.get()) != 0)
             continue;
 
@@ -1402,19 +1332,12 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
     for (auto &zp_op : zp_ops) {
         assertm(zp_op->num_outputs() == 1,
                 "zp_op should have only one output value.");
-        auto in_val = zp_op->get_input_values()[0];
         auto out_val = zp_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
-        bool is_input_zps = consumers.size() == 1
-                && has_int8_support(consumers[0].get_op().get_kind())
-                && out_val->get_logical_tensor().id
-                        == std::numeric_limits<size_t>::max();
-        bool is_output_zps = in_val->has_producer()
-                && has_int8_support(in_val->get_producer().get_kind())
-                && in_val->get_logical_tensor().id
-                        == std::numeric_limits<size_t>::max();
 
-        if (is_input_zps) {
+        if (zp_op->get_kind() == op_kind::dnnl_sub_zps) {
+            if (!has_int8_support(consumers[0].get_op().get_kind())) continue;
+
             auto &next_op = consumers[0].get_op();
             auto offset = consumers[0].get_offset();
             if (offset == 0 || offset == 1) {
@@ -1429,11 +1352,7 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
                 fusion_info_t &fusion_info = mgr.get_mutable_info(key);
 
                 auto zps = zp_op->get_attr<std::vector<int64_t>>(op_attr::zps);
-                bool not_all_zero
-                        = std::find_if(zps.begin(), zps.end(),
-                                  [](const int64_t &zp) { return zp != 0; })
-                        != zps.end();
-                if (not_all_zero) {
+                if (!utils::all_zero(zps)) {
                     assertm(zps.size() == 1,
                             "zp attr only support scalar zp, need to use "
                             "runtime arg to support vector zp");
@@ -1443,9 +1362,11 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
             }
 
             rewriter.fuse_op_to_successor(zp_op->shared_from_this());
-        } else if (is_output_zps) {
+        } else {
             auto in_val = zp_op->get_input_values()[0];
             auto &prv_op = in_val->get_producer();
+
+            if (!has_int8_support(prv_op.get_kind())) continue;
 
             int64_t key = -1;
             if (prv_op.has_attr(op_attr::fusion_info_key)) {
@@ -1458,95 +1379,8 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
             fusion_info_t &fusion_info = mgr.get_mutable_info(key);
             fusion_info.set_zero_points(zp_op->shared_from_this(), false, 0);
             rewriter.fuse_op_to_predecessor(zp_op->shared_from_this());
-        } else {
-            // Nothing to do
         }
     }
-    return impl::status::success;
-}
-
-impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
-    std::set<op_t *> visited;
-    for (const auto &cur_op : sg->get_ops()) {
-        if ((cur_op->get_kind() != op_kind::dnnl_mul_scales
-                    && cur_op->get_kind() != op_kind::dnnl_add_zps)
-                || visited.count(cur_op.get()) != 0)
-            continue;
-
-        // This pass only handle static quantization
-        bool dync_quantization = (cur_op->has_attr(op_attr::with_runtime_scales)
-                                         && cur_op->get_attr<bool>(
-                                                 op_attr::with_runtime_scales))
-                || (cur_op->has_attr(op_attr::with_runtime_zps)
-                        && cur_op->get_attr<bool>(op_attr::with_runtime_zps));
-        if (dync_quantization) continue;
-
-        auto out_val = cur_op->get_output_values()[0];
-        auto consumers = out_val->get_consumers();
-        if (consumers.empty()) continue;
-
-        auto &consumer_op = consumers[0].get_op();
-        if ((consumer_op.get_kind() != op_kind::dnnl_mul_scales
-                    && consumer_op.get_kind() != op_kind::dnnl_add_zps))
-            continue;
-
-        fuse_groups.emplace_back(
-                std::pair<op_t *, op_t *> {cur_op.get(), &consumer_op});
-        visited.insert(cur_op.get());
-        visited.insert(&consumer_op);
-    }
-
-    if (fuse_groups.empty()) return impl::status::success;
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &fuse_ops : fuse_groups) {
-        op_t *op1 = fuse_ops.first;
-        op_t *op2 = fuse_ops.second;
-
-        bool add_zps_first = op1->get_kind() == op_kind::dnnl_add_zps
-                && op2->get_kind() == op_kind::dnnl_mul_scales;
-
-        const int64_t axis = op1->get_attr<int64_t>(op_attr::axis);
-        const std::string &qtype = op1->get_attr<std::string>(op_attr::qtype);
-        const std::vector<float> &scales = add_zps_first
-                ? op2->get_attr<std::vector<float>>(op_attr::scales)
-                : op1->get_attr<std::vector<float>>(op_attr::scales);
-        const std::vector<int64_t> &zps = add_zps_first
-                ? op1->get_attr<std::vector<int64_t>>(op_attr::zps)
-                : op2->get_attr<std::vector<int64_t>>(op_attr::zps);
-
-        op_ptr fused_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
-        fused_op->set_attr<bool>(op_attr::change_layout, false);
-        fused_op->set_attr<int64_t>(op_attr::axis, axis);
-        fused_op->set_attr<std::string>(op_attr::qtype, qtype);
-        fused_op->set_attr<std::vector<float>>(op_attr::scales, scales);
-        if (std::find_if(zps.begin(), zps.end(), [](const int64_t &zp) -> bool {
-                return zp != 0;
-            }) != zps.end()) { // not all zero
-            op_attr_t attr_name
-                    = add_zps_first ? op_attr::src_zps : op_attr::dst_zps;
-            fused_op->set_attr<std::vector<int64_t>>(attr_name, zps);
-        }
-
-        auto in_val = op1->get_input_value(0);
-        in_val->remove_consumer(*op1, 0);
-        fused_op->connect_input(0, in_val);
-
-        auto out_val = op2->get_output_value(0);
-        fused_op->add_output(out_val);
-        out_val->set_producer(*fused_op);
-
-        rewriter.to_insert(fused_op);
-
-        // add scratchpad output
-        insert_empty_scratchpad(fused_op);
-
-        rewriter.to_remove(op1->shared_from_this());
-        rewriter.to_remove(op2->shared_from_this());
-    }
-
-    rewriter.run();
     return impl::status::success;
 }
 
@@ -2654,7 +2488,7 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             }
 
             // fuse the scales and zps according to the the formula of reorder
-            // op: dst = scales*(src+src_zps)+dst_zps;
+            // op: dst = scales*(src-src_zps)+dst_zps;
             std::vector<float> fused_scales;
             std::vector<int64_t> fused_src_zps, fused_dst_zps;
             fused_src_zps = src_zps1;
@@ -2663,7 +2497,7 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             for (size_t i = 0; i < max_num; i++) {
                 fused_scales.emplace_back(scales1[i] * scales2[i]);
                 fused_dst_zps.emplace_back(
-                        scales2[i] * (dst_zps1[i] + src_zps2[i]) + dst_zps2[i]);
+                        scales2[i] * (dst_zps1[i] - src_zps2[i]) + dst_zps2[i]);
             }
 
             int64_t axis = -1;
@@ -2764,6 +2598,130 @@ impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     }
     rewriter.run();
     return impl::status::success;
+}
+
+impl::status_t split_static_quant(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> q_ops;
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() == impl::op_kind::Quantize) {
+            q_ops.emplace_back(cur_op);
+        }
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &op : q_ops) {
+        const auto &zps = op->get_attr<std::vector<int64_t>>(op_attr::zps);
+        const auto &scales = op->get_attr<std::vector<float>>(op_attr::scales);
+        const auto &qtype = op->get_attr<std::string>(op_attr::qtype);
+        const auto &axis = op->get_attr<int64_t>(op_attr::axis);
+
+        auto in_vals = op->get_input_values();
+        auto out_vals = op->get_output_values();
+        assertm(in_vals.size() == 1 && out_vals.size() == 1,
+                "static quantize/dequantize should only have one input and "
+                "output");
+
+        // int8 = f32 / scales + zps
+        op_ptr mul_scales_op = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
+        op_ptr add_zps_op = std::make_shared<op_t>(op_kind::dnnl_add_zps);
+
+        assertm(std::all_of(scales.begin(), scales.end(),
+                        [](float i) { return i != 0.f; }),
+                "scales can't be zero");
+
+        std::vector<float> inv_scales = dnnl_impl::utils::fmap(
+                scales, [](float s) { return 1.f / s; });
+        mul_scales_op->set_attr<std::vector<float>>(
+                op_attr::scales, inv_scales);
+        add_zps_op->set_attr<std::vector<int64_t>>(op_attr::zps, zps);
+
+        mul_scales_op->set_attr<int64_t>(op_attr::axis, axis);
+        mul_scales_op->set_attr<std::string>(op_attr::qtype, qtype);
+        add_zps_op->set_attr<int64_t>(op_attr::axis, axis);
+        add_zps_op->set_attr<std::string>(op_attr::qtype, qtype);
+
+        // reconnect
+        in_vals[0]->remove_consumer(*op, 0);
+        in_vals[0]->add_consumer(*mul_scales_op, 0);
+        mul_scales_op->add_input(in_vals[0]);
+
+        impl::logical_tensor_t new_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto new_val
+                = std::make_shared<value_t>(*mul_scales_op, 0, new_lt, true);
+        new_val->set_data_type(in_vals[0]->get_logical_tensor().data_type);
+
+        mul_scales_op->add_output(new_val);
+
+        add_zps_op->add_input(new_val);
+        new_val->add_consumer(*add_zps_op, 0);
+        add_zps_op->add_output(out_vals[0]);
+
+        // add new ops and delete quantize op
+        rewriter.to_insert(mul_scales_op);
+        rewriter.to_insert(add_zps_op);
+        rewriter.to_remove(op);
+    }
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+impl::status_t split_static_dequant(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> dq_ops;
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() == impl::op_kind::Dequantize) {
+            dq_ops.emplace_back(cur_op);
+        }
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &cur_op : dq_ops) {
+        const auto &zps = cur_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+        const auto &scales
+                = cur_op->get_attr<std::vector<float>>(op_attr::scales);
+        const auto &qtype = cur_op->get_attr<std::string>(op_attr::qtype);
+        const auto &axis = cur_op->get_attr<int64_t>(op_attr::axis);
+
+        auto in_vals = cur_op->get_input_values();
+        auto out_vals = cur_op->get_output_values();
+        assertm(in_vals.size() == 1 && out_vals.size() == 1,
+                "static dequantize should only have one input and output");
+
+        // f32 = scales * (int8 - zps)
+        op_ptr sub_zps_op = std::make_shared<op_t>(op_kind::dnnl_sub_zps);
+        op_ptr mul_scales_op = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
+
+        sub_zps_op->set_attr<std::vector<int64_t>>(op_attr::zps, zps);
+        mul_scales_op->set_attr<std::vector<float>>(op_attr::scales, scales);
+
+        sub_zps_op->set_attr<int64_t>(op_attr::axis, axis);
+        sub_zps_op->set_attr<std::string>(op_attr::qtype, qtype);
+        mul_scales_op->set_attr<int64_t>(op_attr::axis, axis);
+        mul_scales_op->set_attr<std::string>(op_attr::qtype, qtype);
+
+        // reconnect
+        in_vals[0]->remove_consumer(*cur_op, 0);
+        in_vals[0]->add_consumer(*sub_zps_op, 0);
+        sub_zps_op->add_input(in_vals[0]);
+
+        impl::logical_tensor_t new_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto new_val = std::make_shared<value_t>(*sub_zps_op, 0, new_lt, true);
+        new_val->set_data_type(in_vals[0]->get_logical_tensor().data_type);
+
+        sub_zps_op->add_output(new_val);
+
+        mul_scales_op->add_input(new_val);
+        new_val->add_consumer(*mul_scales_op, 0);
+        mul_scales_op->add_output(out_vals[0]);
+
+        // add new ops and delete dequantize op
+        rewriter.to_insert(sub_zps_op);
+        rewriter.to_insert(mul_scales_op);
+        rewriter.to_remove(cur_op);
+    }
+    rewriter.run();
+    return infer_shape(sg);
 }
 
 impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg) {
@@ -2892,6 +2850,135 @@ impl::status_t split_dynamic_dequant(std::shared_ptr<subgraph_t> &sg) {
 
     rewriter.run();
     return infer_shape(sg);
+}
+
+impl::status_t fuse_static_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
+    for (const auto &op : sg->get_ops()) {
+        // This pass only handle static quantization
+        if (op->get_kind() != op_kind::dnnl_mul_scales
+                || (op->has_attr(op_attr::with_runtime_scales)
+                        && op->get_attr<bool>(op_attr::with_runtime_scales)))
+            continue;
+
+        auto out_val = op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+        if (consumers.empty()) continue;
+
+        auto &consumer_op = consumers[0].get_op();
+        if (consumer_op.get_kind() != op_kind::dnnl_add_zps) continue;
+
+        fuse_groups.emplace_back(
+                std::pair<op_t *, op_t *> {op.get(), &consumer_op});
+    }
+
+    if (fuse_groups.empty()) return impl::status::success;
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &fuse_ops : fuse_groups) {
+        op_t *mul_scales_op = fuse_ops.first;
+        op_t *add_zps_op = fuse_ops.second;
+
+        const int64_t axis = mul_scales_op->get_attr<int64_t>(op_attr::axis);
+        const std::string &qtype
+                = mul_scales_op->get_attr<std::string>(op_attr::qtype);
+        const std::vector<float> &scales
+                = mul_scales_op->get_attr<std::vector<float>>(op_attr::scales);
+        const std::vector<int64_t> &zps
+                = add_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+
+        op_ptr fused_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
+        fused_op->set_attr<bool>(op_attr::change_layout, false);
+        fused_op->set_attr<int64_t>(op_attr::axis, axis);
+        fused_op->set_attr<std::string>(op_attr::qtype, qtype);
+        fused_op->set_attr<std::vector<float>>(op_attr::scales, scales);
+        if (!utils::all_zero(zps)) {
+            fused_op->set_attr<std::vector<int64_t>>(op_attr::dst_zps, zps);
+        }
+
+        auto in_val = mul_scales_op->get_input_value(0);
+        in_val->remove_consumer(*mul_scales_op, 0);
+        fused_op->connect_input(0, in_val);
+
+        auto out_val = add_zps_op->get_output_value(0);
+        fused_op->add_output(out_val);
+        out_val->set_producer(*fused_op);
+
+        rewriter.to_insert(fused_op);
+
+        // add scratchpad output
+        insert_empty_scratchpad(fused_op);
+
+        rewriter.to_remove(mul_scales_op->shared_from_this());
+        rewriter.to_remove(add_zps_op->shared_from_this());
+    }
+
+    rewriter.run();
+    return impl::status::success;
+}
+
+impl::status_t fuse_static_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
+    for (const auto &op : sg->get_ops()) {
+        // This pass only handle static quantization
+        if (op->get_kind() != op_kind::dnnl_sub_zps
+                || (op->has_attr(op_attr::with_runtime_zps)
+                        && op->get_attr<bool>(op_attr::with_runtime_zps)))
+            continue;
+
+        auto out_val = op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+        if (consumers.empty()) continue;
+
+        auto &consumer_op = consumers[0].get_op();
+        if (consumer_op.get_kind() != op_kind::dnnl_mul_scales) continue;
+
+        fuse_groups.emplace_back(
+                std::pair<op_t *, op_t *> {op.get(), &consumer_op});
+    }
+
+    if (fuse_groups.empty()) return impl::status::success;
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &fuse_ops : fuse_groups) {
+        op_t *sub_zps_op = fuse_ops.first;
+        op_t *mul_scales_op = fuse_ops.second;
+
+        const int64_t axis = sub_zps_op->get_attr<int64_t>(op_attr::axis);
+        const std::string &qtype
+                = sub_zps_op->get_attr<std::string>(op_attr::qtype);
+        const std::vector<float> &scales
+                = mul_scales_op->get_attr<std::vector<float>>(op_attr::scales);
+        const std::vector<int64_t> &zps
+                = sub_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+
+        op_ptr fused_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
+        fused_op->set_attr<bool>(op_attr::change_layout, false);
+        fused_op->set_attr<int64_t>(op_attr::axis, axis);
+        fused_op->set_attr<std::string>(op_attr::qtype, qtype);
+        fused_op->set_attr<std::vector<float>>(op_attr::scales, scales);
+        if (!utils::all_zero(zps)) {
+            fused_op->set_attr<std::vector<int64_t>>(op_attr::src_zps, zps);
+        }
+        auto in_val = sub_zps_op->get_input_value(0);
+        in_val->remove_consumer(*sub_zps_op, 0);
+        fused_op->connect_input(0, in_val);
+
+        auto out_val = mul_scales_op->get_output_value(0);
+        fused_op->add_output(out_val);
+        out_val->set_producer(*fused_op);
+
+        rewriter.to_insert(fused_op);
+
+        // add scratchpad output
+        insert_empty_scratchpad(fused_op);
+
+        rewriter.to_remove(sub_zps_op->shared_from_this());
+        rewriter.to_remove(mul_scales_op->shared_from_this());
+    }
+
+    rewriter.run();
+    return impl::status::success;
 }
 
 impl::status_t fuse_dynamic_mul_scales_add_zps(
@@ -3238,7 +3325,7 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == impl::op_kind::Reorder) {
             // TODO(qun) Need to lower Quantize and Dequantize to
             // dnnl_reorder? Or it's better to use the other passes like
-            // split_quant_dequant pass to perform the lowering?
+            // split_static_quant pass to perform the lowering?
             new_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
             new_op->set_attr<bool>(op_attr::change_layout, true);
         } else if (cur_op->get_kind() == impl::op_kind::TypeCast) {
@@ -3624,7 +3711,8 @@ impl::status_t remove_quant_data_with_no_effect(
     std::vector<op_ptr> quant_data_ops;
     for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == op_kind::dnnl_mul_scales
-                || cur_op->get_kind() == op_kind::dnnl_add_zps) {
+                || cur_op->get_kind() == op_kind::dnnl_add_zps
+                || cur_op->get_kind() == op_kind::dnnl_sub_zps) {
             quant_data_ops.emplace_back(cur_op);
         }
     }

@@ -150,6 +150,16 @@ inline bool compare_float(
     return diff <= rtol * bigger + atol;
 }
 
+inline std::vector<int32_t> cast_to_int32(const std::vector<int64_t> &vec) {
+    return fmap(vec, [](int64_t e) { return static_cast<int32_t>(e); });
+}
+
+inline bool all_zero(const std::vector<int64_t> &vec) {
+    auto no_zero_pos = std::find_if(
+            vec.begin(), vec.end(), [](const int64_t &e) { return e != 0; });
+    return no_zero_pos == vec.end();
+}
+
 } // namespace utils
 } // namespace dnnl_impl
 } // namespace impl

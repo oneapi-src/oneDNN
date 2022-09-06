@@ -277,7 +277,8 @@ public:
         if (!quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding);
         } else {
-            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+            BACKEND_DNNL_ADD_PASS(pipeline, split_static_quant);
+            BACKEND_DNNL_ADD_PASS(pipeline, split_static_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
             BACKEND_DNNL_ADD_PASS(
@@ -306,7 +307,8 @@ public:
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points);
             // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_scales_add_zps);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);

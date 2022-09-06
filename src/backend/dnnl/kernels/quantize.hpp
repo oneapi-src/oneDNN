@@ -71,11 +71,13 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+        BACKEND_DNNL_ADD_PASS(pipeline, split_static_quant);
+        BACKEND_DNNL_ADD_PASS(pipeline, split_static_dequant);
         BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_quant);
         BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_dequant);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_scales_add_zps);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, reorder_canonicalization);

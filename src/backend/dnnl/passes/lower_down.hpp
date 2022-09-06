@@ -35,8 +35,6 @@ impl::status_t check_with_bias(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t split_quant_dequant(std::shared_ptr<subgraph_t> &sg);
-
 impl::status_t replace_quant_dequant_with_mul_scales(
         std::shared_ptr<subgraph_t> &sg);
 
@@ -76,8 +74,6 @@ impl::status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg);
 impl::status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg);
-
-impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg);
 
@@ -170,9 +166,17 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t split_static_quant(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t split_static_dequant(std::shared_ptr<subgraph_t> &sg);
+
 impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t split_dynamic_dequant(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t fuse_static_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t fuse_static_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_dynamic_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
 
