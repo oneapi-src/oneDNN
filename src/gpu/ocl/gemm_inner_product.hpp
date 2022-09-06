@@ -224,15 +224,21 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                 init_2d_desc(&b_md, src_md());
                 init_2d_desc(&c_md, diff_weights_md());
             }
-
             bool gemm_ok = false;
+            auto reduce_bias = sum_ab::sum_none;
+            if (with_bias())
+                reduce_bias = wei_tr() ? sum_ab::sum_b_col : sum_ab::sum_a_row;
             gemm_ok = status::success
                     == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
-                            &glob_zero_md, desc()->accum_data_type, attr());
+                            &glob_zero_md, desc()->accum_data_type, attr(),
+                            true, reduce_bias);
 
-            if (!gemm_ok) return status::unimplemented;
-
-            if (with_bias()) {
+            //fused bias reduction not supported, apply in separate kernel
+            if (with_bias() && !gemm_ok) {
+                gemm_ok = status::success
+                        == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
+                                &glob_zero_md, desc()->accum_data_type, attr());
+                if (!gemm_ok) return status::unimplemented;
                 memory_desc_t reduction_dst_md, reduction_bias_md;
                 //Set ndims to 3 in order to explicitly specify blocked format
                 //so that it will go to optimized reduction implementation.
@@ -258,16 +264,19 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                         &reduction_bias_md, 0.0f, 0.0f));
                 primitive_attr_t reduction_attr;
                 int threads_per_eu;
-                CHECK(gemm_pd_->query(query::preferred_gpu_threads_per_eu, 0,
-                        &threads_per_eu));
-                reduction_attr.set_gpu_attr(
-                        gpu_primitive_attr_t(threads_per_eu));
+                auto status
+                        = gemm_pd_->query(query::preferred_gpu_threads_per_eu,
+                                0, &threads_per_eu);
+                if (status == status::success)
+                    reduction_attr.set_gpu_attr(
+                            gpu_primitive_attr_t(threads_per_eu));
                 dnnl_primitive_desc_iterator it(engine,
                         (op_desc_t *)&reduction_d, &reduction_attr, nullptr);
                 if (!it.is_initialized()) return status::out_of_memory;
                 reduction_pd_ = *(++it);
                 if (!reduction_pd_) return status::unimplemented;
             }
+            if (!gemm_ok) return status::unimplemented;
             init_scratchpad();
             return status::success;
         }
@@ -285,7 +294,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested_multiple,
                     gemm_pd_->scratchpad_registry());
-            if (with_bias())
+            if (with_bias() && reduction_pd_)
                 scratchpad.book(memory_tracking::names::key_nested_multiple + 1,
                         reduction_pd_->scratchpad_registry());
         }
@@ -293,7 +302,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(create_nested_primitive(gemm_, pd()->gemm_pd_, engine));
-        if (pd()->with_bias())
+        if (pd()->with_bias() && pd()->reduction_pd_)
             CHECK(create_nested_primitive(
                     reduction_, pd()->reduction_pd_, engine));
         return status::success;

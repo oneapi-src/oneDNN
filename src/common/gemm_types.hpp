@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,6 +39,13 @@ const offsetc_t column = dnnl_column;
 const offsetc_t row = dnnl_row;
 } // namespace offsetc
 
+enum sum_ab_t { dnnl_sum_a_row, dnnl_sum_b_col, dnnl_sum_none };
+namespace sum_ab {
+const sum_ab_t sum_a_row = dnnl_sum_a_row;
+const sum_ab_t sum_b_col = dnnl_sum_b_col;
+const sum_ab_t sum_none = dnnl_sum_none;
+} // namespace sum_ab
+
 /** A descriptor for a matrix multiplication (gemm) operation */
 struct dnnl_gemm_desc_t {
     /* To make the interface consistent, the descriptor represent the
@@ -53,6 +60,9 @@ struct dnnl_gemm_desc_t {
     dnnl_memory_desc_t bias_desc;
     /** Type for accumulating A*B. */
     dnnl_data_type_t acc_type;
+    /* Sum across k dimension in either A or B tensor
+      and output to sum_ab tensor  */
+    sum_ab_t sum_ab;
 
     // These accessors are to be used by the GEMM implementation
     // Because the GEMM implementation currently assumes column major
