@@ -1405,6 +1405,8 @@ void schedule_loop_body(
             break;
         auto inner_loop = get_inner_for_loop(cur_loop.get());
         if (inner_loop.defined() && !inner_loop->num_threads_
+                && (inner_loop->step_.isa<constant>()
+                        && get_expr_as_int(inner_loop->step_) == 1)
                 && !inner_loop->attr().get_or_else(
                         "temp.loop_no_fuse", false)) {
             std::unordered_map<expr, expr> cur_remap;
