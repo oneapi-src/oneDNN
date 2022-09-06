@@ -81,6 +81,18 @@ int doit(const prb_t *prb, res_t *res) {
     }
     BENCHDNN_PRINT(1, "Partition size %zd.\n", partitions.size());
 
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        if (partitions[i].is_supported()) {
+            std::vector<logical_tensor> in_out_lts
+                    = partitions[i].get_in_ports();
+            std::vector<logical_tensor> outputs = partitions[i].get_out_ports();
+            in_out_lts.insert(in_out_lts.end(), outputs.begin(), outputs.end());
+            skip_unimplemented_data_type(in_out_lts, res);
+        }
+    }
+
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
     engine e = benchdnnext::get_test_engine();
 
     /// mark the output logical tensors of partition as ANY layout enabled

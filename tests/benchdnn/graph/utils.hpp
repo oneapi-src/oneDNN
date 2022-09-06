@@ -93,6 +93,9 @@ struct sycl_deletor {
 
 dnnl::graph::op::kind opstr2kind(const std::string &kind);
 
+void skip_unimplemented_data_type(
+        const std::vector<dnnl::graph::logical_tensor> &in_out_lts, res_t *res);
+
 // fill the memory according to the given value
 //  src -> target memory buffer
 //  total_size -> total number of bytes of this buffer
