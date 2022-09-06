@@ -265,6 +265,44 @@ void init_isa_settings() {
     }
 }
 
+// This ctor is responsible to provide proper pointers to memory objects for
+// correspondent arguments. It is important for in-place cases when a single
+// object should be used as SRC and DST.
+// `mem_map` object is an owner of memory objects and can't use the same object
+// for SRC and DST while `args` is a proxy with pointers to memories and may
+// easily change what to pick for a specific arg.
+args_t::args_t(const dnn_mem_map_t &mem_map) {
+    for (const auto &map_entry : mem_map) {
+        const dnn_mem_t *mem_ptr = &map_entry.second;
+        for (int inplace_arg : {DNNL_ARG_DST, DNNL_ARG_DIFF_SRC}) {
+            if (map_entry.first != inplace_arg || map_entry.second) continue;
+
+            auto it = mem_map.begin();
+            switch (inplace_arg) {
+                case DNNL_ARG_DST:
+                    it = mem_map.find(DNNL_ARG_SRC);
+                    // May happen that source argument is different.
+                    if (it == mem_map.end())
+                        it = mem_map.find(DNNL_ARG_MULTIPLE_SRC);
+                    break;
+                case DNNL_ARG_DIFF_SRC:
+                    it = mem_map.find(DNNL_ARG_DIFF_DST);
+                    break;
+                default: assert(!"unsupported arg"); break;
+            }
+            if (it == mem_map.end()) {
+                BENCHDNN_PRINT(0, "%s\n", "Inplace substitution failed.");
+                SAFE_V(FAIL);
+            }
+
+            mem_ptr = &((*it).second); // Update reference with in-place memory.
+            break;
+        }
+
+        args_.emplace_back(map_entry.first, mem_ptr);
+    }
+}
+
 args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     args_.emplace_back(arg, &mem);
     return *this;

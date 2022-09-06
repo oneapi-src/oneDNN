@@ -20,7 +20,6 @@
 #include <functional>
 #include <stddef.h>
 #include <stdint.h>
-
 #include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -297,6 +296,9 @@ extern memory_kind_ext_t memory_kind;
 void init_isa_settings();
 
 struct args_t {
+    args_t() = default;
+    args_t(const dnn_mem_map_t &mem_map);
+
     args_t &set(int arg, const dnn_mem_t &mem);
     args_t &set(
             const std::vector<int> &args, const std::vector<dnn_mem_t> &mems);
