@@ -667,16 +667,18 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   std::vector<int> M_anchor_info = {M_ib_num, M_block_size, M_ib_block_size},
                    N_anchor_info = {N_ib_num, N_block_size, N_ib_block_size};
   for_loop mloop;
-  int M_num_block = utils::divide_and_ceil(M, iim_block_);
-  int N_num_block = utils::divide_and_ceil(N, iin_block_);
-  int K_num_block = utils::divide_and_ceil(K, iik_block_);
+  int M_real_split = std::min(
+    static_cast<int>(utils::divide_and_ceil(M, iim_block_)), M_split_num);
+  int N_real_split = std::min(
+    static_cast<int>(utils::divide_and_ceil(N, iin_block_)), N_split_num);
+  int K_real_split = std::min(
+    static_cast<int>(utils::divide_and_ceil(K, iik_block_)), K_split_num);
 
   if (K_split_num == 1) {
     expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size;
-    _named_for_(mloop, m_s, 0, std::min(M_num_block, M_split_num), 1,
-      for_type::PARALLEL, M_split_num) {
-      _for_(n_s, 0, std::min(N_num_block, N_split_num), 1, for_type::PARALLEL,
-        N_split_num) {
+    _named_for_(
+      mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
+      _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
         if (M_block_size == M_ib_block_size) {
           M_single_thr_size = M_block_size;
           m_idx = m_s * M_block_size;
@@ -869,7 +871,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   } else {
     // write into a temp buffer and then do reduce
     auto out_tmp_buf_shape = out_tensors_[0].get_blocking_dims();
-    out_tmp_buf_shape.insert(out_tmp_buf_shape.begin(), (sc_dim)K_split_num);
+    out_tmp_buf_shape.insert(out_tmp_buf_shape.begin(), K_real_split);
     std::vector<expr> out_tmp_buf_shape_expr;
     out_tmp_buf_shape_expr.reserve(out_tmp_buf_shape.size());
     for (auto dim : out_tmp_buf_shape) {
@@ -880,10 +882,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
       : datatypes::f32;
     expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size;
     _tensor_(out_tmp_buf, out_dtype, out_tmp_buf_shape_expr);
-    _named_for_(mloop, m_s, 0, std::min(M_num_block, M_split_num), 1,
-      for_type::PARALLEL, M_split_num) {
-      _for_(n_s, 0, std::min(N_num_block, N_split_num), 1, for_type::PARALLEL,
-        N_split_num) {
+    _named_for_(
+      mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
+      _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
         if (M_block_size == M_ib_block_size) {
           M_single_thr_size = M_block_size;
           m_idx = m_s * M_block_size;
@@ -946,7 +947,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           }
         }
 
-        _for_(k_s, 0, std::min(K_num_block, K_split_num), 1, for_type::PARALLEL,
+        _for_(k_s, 0, K_real_split, 1, for_type::PARALLEL,
           K_split_num) { //
           expr K_single_thr_size;
           if (K_block_size == K_ib_block_size) {
@@ -1009,7 +1010,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                 tensor_ptr(
                   C, {m_idx / iim_block_ + lm, n_idx / iin_block_ + ln, 0, 0}),
                 iim_block_ * iin_block_, out_dtype);
-              _for_(lks, 0, K_split_num, 1) {
+              _for_(lks, 0, K_real_split, 1) {
                 _for_(lmo, 0, iim_block_) {
                   _for_(lno, 0, iin_block_, lanes) {
                     C[span_t({m_idx / iim_block_ + lm, n_idx / iin_block_ + ln,
