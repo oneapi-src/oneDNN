@@ -223,7 +223,7 @@ template <>
 struct cpu_isa_traits<sse41> {
     typedef Xbyak::Xmm Vmm;
     static constexpr int vlen_shift = 4;
-    static constexpr int vlen = 16;
+    static constexpr int vlen = vreg_traits<Vmm>::vlen;
     static constexpr int n_vregs = 16;
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_sse41;
     static constexpr const char *user_option_env = "sse41";
@@ -233,7 +233,7 @@ template <>
 struct cpu_isa_traits<avx> {
     typedef Xbyak::Ymm Vmm;
     static constexpr int vlen_shift = 5;
-    static constexpr int vlen = 32;
+    static constexpr int vlen = vreg_traits<Vmm>::vlen;
     static constexpr int n_vregs = 16;
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx;
     static constexpr const char *user_option_env = "avx";
@@ -261,7 +261,7 @@ template <>
 struct cpu_isa_traits<avx512_core> {
     typedef Xbyak::Zmm Vmm;
     static constexpr int vlen_shift = 6;
-    static constexpr int vlen = 64;
+    static constexpr int vlen = vreg_traits<Vmm>::vlen;
     static constexpr int n_vregs = 32;
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx512_core;
     static constexpr const char *user_option_env = "avx512_core";
@@ -377,6 +377,32 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
 
 static inline bool isa_has_bf16(cpu_isa_t isa) {
     return is_superset(isa, avx512_core_bf16);
+}
+
+static inline bool isa_has_masks(cpu_isa_t isa) {
+    return is_superset(isa, avx512_core);
+}
+
+static inline int isa_max_vlen(cpu_isa_t isa) {
+    if (is_superset(isa, avx512_core))
+        return cpu_isa_traits<avx512_core>::vlen;
+    else if (is_superset(isa, avx2))
+        return cpu_isa_traits<avx2>::vlen;
+    else if (is_superset(isa, sse41))
+        return cpu_isa_traits<sse41>::vlen;
+    else
+        return 0;
+}
+
+static inline int isa_num_vregs(cpu_isa_t isa) {
+    if (is_superset(isa, avx512_core))
+        return cpu_isa_traits<avx512_core>::n_vregs;
+    else if (is_superset(isa, avx2))
+        return cpu_isa_traits<avx2>::n_vregs;
+    else if (is_superset(isa, sse41))
+        return cpu_isa_traits<sse41>::n_vregs;
+    else
+        return 0;
 }
 
 } // namespace
