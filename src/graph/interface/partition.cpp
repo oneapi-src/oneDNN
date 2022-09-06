@@ -464,9 +464,9 @@ status_t DNNL_API dnnl_graph_compiled_partition_get_inplace_ports(
     return status::success;
 }
 
-impl::status_t dnnl_graph_partition::infer_shape(
-        std::vector<const impl::logical_tensor_t *> &inputs,
-        std::vector<impl::logical_tensor_t *> &outputs) {
+status_t dnnl_graph_partition::infer_shape(
+        std::vector<const logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
     // check if shape is already known, if so, no need to do shape inference
     auto pos = std::find_if(outputs.begin(), outputs.end(),
             [&](const std::vector<logical_tensor_t *>::value_type &out)
@@ -541,8 +541,8 @@ bool dnnl_graph_partition::is_supported() const {
 }
 
 status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
-        std::vector<const impl::logical_tensor_t *> &inputs,
-        std::vector<const impl::logical_tensor_t *> &outputs,
+        std::vector<const logical_tensor_t *> &inputs,
+        std::vector<const logical_tensor_t *> &outputs,
         const engine_t *aengine) const {
     status_t ret;
 
@@ -574,12 +574,10 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
         agraph.set_user_inputs_outputs(tmp_inputs, tmp_outputs);
         agraph.infer_shape();
         // hash logical tensors to generate unique filename
-        impl::partition_hashing::key_t key(this, inputs, outputs);
+        partition_hashing::key_t key(this, inputs, outputs);
         size_t seed = 0;
-        seed = impl::partition_hashing::get_unordered_array_hash(
-                seed, key.ins_);
-        seed = impl::partition_hashing::get_unordered_array_hash(
-                seed, key.outs_);
+        seed = partition_hashing::get_unordered_array_hash(seed, key.ins_);
+        seed = partition_hashing::get_unordered_array_hash(seed, key.outs_);
         std::stringstream filename;
         filename << "graph-" << id() << "-" << seed << ".json";
         agraph.serialize(filename.str());
@@ -605,16 +603,16 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
     return status::success;
 }
 
-impl::status_t dnnl_graph_partition::compile(
-        std::pair<impl::compiled_partition_t *, bool> &compiled_partition,
-        std::vector<const impl::logical_tensor_t *> &inputs,
-        std::vector<const impl::logical_tensor_t *> &outputs,
-        const impl::engine_t *aengine) const {
-    namespace partition_hashing = impl::partition_hashing;
-    auto &global_compiled_partition_cache = impl::compiled_partition_cache();
+status_t dnnl_graph_partition::compile(
+        std::pair<compiled_partition_t *, bool> &compiled_partition,
+        std::vector<const logical_tensor_t *> &inputs,
+        std::vector<const logical_tensor_t *> &outputs,
+        const engine_t *aengine) const {
+    namespace partition_hashing = partition_hashing;
+    auto &global_compiled_partition_cache = compiled_partition_cache();
     partition_hashing::key_t key(this, inputs, outputs);
 
-    std::promise<impl::compiled_partition_cache_t::cache_value_t> cp_promise;
+    std::promise<compiled_partition_cache_t::cache_value_t> cp_promise;
     // Try to get the shared future from the cache, if it's missing then
     // a shared future with no shared state is returned and the passed
     // shared future is added, otherwise a valid shared future is returned
@@ -624,8 +622,8 @@ impl::status_t dnnl_graph_partition::compile(
 
     bool is_from_cache = cp_future.valid();
 
-    impl::status_t status = impl::status::success;
-    std::shared_ptr<impl::compiled_partition_t> cp;
+    status_t status = status::success;
+    std::shared_ptr<compiled_partition_t> cp;
 
     if (is_from_cache) {
         // The requested compiled partition is present in the cache or is being
@@ -639,7 +637,7 @@ impl::status_t dnnl_graph_partition::compile(
         // the creation is done.
         status = this->compile(
                 compiled_partition.first, inputs, outputs, aengine);
-        if (status != impl::status::success) {
+        if (status != status::success) {
             // Communicate an error
             cp_promise.set_value({nullptr, status});
             // Remove the shared future from the cache because it's
@@ -650,8 +648,8 @@ impl::status_t dnnl_graph_partition::compile(
         } else {
             // Store the created compiled partition in the shared future
             // and notify the waiting threads.
-            std::shared_ptr<impl::compiled_partition_t> new_cp(
-                    new impl::compiled_partition_t(*this));
+            std::shared_ptr<compiled_partition_t> new_cp(
+                    new compiled_partition_t(*this));
             new_cp->init(compiled_partition.first->pimpl_);
             assertm(new_cp->is_initialized(),
                     "Compiled partition is not initialized.");

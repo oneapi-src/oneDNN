@@ -225,7 +225,7 @@ status_t DNNL_API dnnl_graph_logical_tensor_init_with_dims(
             val.layout.strides[ndims - 1] = 1;
             for (int s = ndims - 2; s >= 0; --s) {
                 // replace 0 in shape to 1 when computing the strides
-                val.layout.strides[s] = std::max<impl::dim_t>(dims[s + 1], 1)
+                val.layout.strides[s] = std::max<dim_t>(dims[s + 1], 1)
                         * val.layout.strides[s + 1];
             }
         } else {

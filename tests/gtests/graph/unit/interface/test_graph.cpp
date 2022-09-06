@@ -50,8 +50,8 @@ TEST(Graph, AddOp) {
     op0.add_output(t1);
     op1.add_input(t1);
     op1.add_output(t2);
-    ASSERT_EQ(agraph.add_op(&op0), impl::status::invalid_graph_op);
-    ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op0), status::invalid_graph_op);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
 
     auto ret = agraph.get_ops()[0];
@@ -62,7 +62,7 @@ TEST(Graph, AddNullOp) {
     using namespace dnnl::impl::graph;
 
     graph_t agraph;
-    ASSERT_EQ(agraph.add_op(nullptr), impl::status::invalid_graph_op);
+    ASSERT_EQ(agraph.add_op(nullptr), status::invalid_graph_op);
     ASSERT_EQ(agraph.num_ops(), 0U);
     ASSERT_EQ(agraph.get_ops().size(), 0U);
 }
@@ -82,8 +82,8 @@ TEST(Graph, DeleteOp) {
     op0.add_output(t1);
     op1.add_input(t1);
     op1.add_output(t2);
-    ASSERT_EQ(agraph.add_op(&op0), impl::status::invalid_graph_op);
-    ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op0), status::invalid_graph_op);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
     ASSERT_EQ(agraph.get_ops().size(), 1U);
 
@@ -107,8 +107,8 @@ TEST(Graph, GetOutputOps) {
     op0.add_output(t1);
     op1.add_input(t1);
     op1.add_output(t2);
-    ASSERT_EQ(agraph.add_op(&op0), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.num_ops(), 2U);
     agraph.finalize();
     ASSERT_EQ(agraph.get_output_ops().size(), 1U);
@@ -134,9 +134,9 @@ TEST(Graph, GetOutputOps2) {
     op1.add_output(t2);
     op2.add_input(t2);
     op2.add_output(t3);
-    ASSERT_EQ(agraph.add_op(&op0), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&op2), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
+    ASSERT_EQ(agraph.add_op(&op2), status::success);
     ASSERT_EQ(agraph.num_ops(), 3U);
     agraph.finalize();
     ASSERT_EQ(agraph.get_ops()[1]
@@ -168,13 +168,13 @@ TEST(Graph, BuildGraph) {
     op0.add_output(t1);
     op1.add_input(t1);
     op1.add_output(t2);
-    ASSERT_EQ(agraph.add_op(&op0), impl::status::invalid_graph_op);
-    ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op0), status::invalid_graph_op);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
 
-    ASSERT_EQ(agraph.finalize(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
-    ASSERT_EQ(agraph.finalize(), impl::status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
 }
 
@@ -193,14 +193,14 @@ TEST(Graph, InvalidOp) {
     op0.add_output(t1);
     op1.add_input(t1);
     op1.add_output(t2);
-    ASSERT_EQ(agraph.add_op(&op0), impl::status::invalid_graph_op);
-    ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op0), status::invalid_graph_op);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
 
     /*
-    ASSERT_EQ(agraph.run_pass(partition_policy::fusion), impl::status::invalid_graph);
-    ASSERT_EQ(agraph.finalize(), impl::status::success);
-    ASSERT_EQ(agraph.run_pass(partition_policy::fusion), impl::status::success);
+    ASSERT_EQ(agraph.run_pass(partition_policy::fusion), status::invalid_graph);
+    ASSERT_EQ(agraph.finalize(), status::success);
+    ASSERT_EQ(agraph.run_pass(partition_policy::fusion), status::success);
     */
 }
 
@@ -215,7 +215,7 @@ TEST(Graph, Wildcard) {
     logical_tensor_t t1 = logical_tensor_init(1, data_type::f32);
     op.add_input(t0);
     op.add_output(t1);
-    ASSERT_EQ(agraph.add_op(&op), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op), status::success);
     ASSERT_EQ(agraph.num_ops(), 1U);
 }
 
@@ -241,13 +241,13 @@ TEST(Graph, GetInputOutputEdges) {
     op0.set_attr<int64_t>(op_attr::groups, 1);
 
     // prepare logical tensor
-    logical_tensor_t src = logical_tensor_init(0, impl::data_type::f32);
-    logical_tensor_t weight = logical_tensor_init(1, impl::data_type::f32);
-    logical_tensor_t bias = logical_tensor_init(2, impl::data_type::f32);
-    logical_tensor_t other = logical_tensor_init(3, impl::data_type::f32);
-    logical_tensor_t conv_dst = logical_tensor_init(4, impl::data_type::f32);
-    logical_tensor_t add_dst = logical_tensor_init(5, impl::data_type::f32);
-    logical_tensor_t dst = logical_tensor_init(6, impl::data_type::f32);
+    logical_tensor_t src = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t weight = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t bias = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t other = logical_tensor_init(3, data_type::f32);
+    logical_tensor_t conv_dst = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t add_dst = logical_tensor_init(5, data_type::f32);
+    logical_tensor_t dst = logical_tensor_init(6, data_type::f32);
 
     op0.add_input(src);
     op0.add_input(weight);
@@ -263,10 +263,10 @@ TEST(Graph, GetInputOutputEdges) {
 
     op3.add_input(conv_dst);
 
-    ASSERT_EQ(agraph.add_op(&op0), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&op2), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&op3), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
+    ASSERT_EQ(agraph.add_op(&op2), status::success);
+    ASSERT_EQ(agraph.add_op(&op3), status::success);
     ASSERT_EQ(agraph.num_ops(), 4U);
     agraph.finalize();
 
@@ -320,17 +320,14 @@ TEST(Graph, InferShape) {
     op0.set_attr<int64_t>(op_attr::groups, 1);
 
     // prepare logical tensor
-    logical_tensor_t src
-            = logical_tensor_init(0, src_shape, impl::data_type::f32);
+    logical_tensor_t src = logical_tensor_init(0, src_shape, data_type::f32);
     logical_tensor_t weight
-            = logical_tensor_init(1, weight_shape, impl::data_type::f32);
-    logical_tensor_t bias
-            = logical_tensor_init(2, bias_shape, impl::data_type::f32);
-    logical_tensor_t other
-            = logical_tensor_init(3, dst_shape, impl::data_type::f32);
-    logical_tensor_t conv_dst = logical_tensor_init(4, impl::data_type::f32);
-    logical_tensor_t add_dst = logical_tensor_init(5, impl::data_type::f32);
-    logical_tensor_t dst = logical_tensor_init(6, impl::data_type::f32);
+            = logical_tensor_init(1, weight_shape, data_type::f32);
+    logical_tensor_t bias = logical_tensor_init(2, bias_shape, data_type::f32);
+    logical_tensor_t other = logical_tensor_init(3, dst_shape, data_type::f32);
+    logical_tensor_t conv_dst = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t add_dst = logical_tensor_init(5, data_type::f32);
+    logical_tensor_t dst = logical_tensor_init(6, data_type::f32);
 
     op0.add_input(src);
     op0.add_input(weight);
@@ -344,9 +341,9 @@ TEST(Graph, InferShape) {
     op2.add_input(add_dst);
     op2.add_output(dst);
 
-    ASSERT_EQ(agraph.add_op(&op0), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&op1), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&op2), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
+    ASSERT_EQ(agraph.add_op(&op2), status::success);
     ASSERT_EQ(agraph.num_ops(), 3U);
     agraph.finalize();
 
@@ -357,7 +354,7 @@ TEST(Graph, InferShape) {
     ASSERT_EQ(ltw(in_vals[2]->get_logical_tensor()), ltw(bias));
     ASSERT_EQ(ltw(in_vals[3]->get_logical_tensor()), ltw(other));
 
-    ASSERT_EQ(agraph.infer_shape(), impl::status::success);
+    ASSERT_EQ(agraph.infer_shape(), status::success);
 
     auto out_vals = agraph.get_output_values();
     ASSERT_EQ(out_vals.size(), 1U);
@@ -384,33 +381,27 @@ TEST(Graph, Rewrite) {
     using namespace dnnl::impl::graph::op_kind;
     using namespace dnnl::graph::tests::unit::utils;
 
-    impl::op_t mm0(0, impl::op_kind::MatMul, "matmul_op");
-    impl::op_t relu1(1, impl::op_kind::ReLU, "relu_op");
-    impl::op_t mm2(2, impl::op_kind::MatMul, "matmul_op");
-    impl::op_t relu3(3, impl::op_kind::ReLU, "relu_op");
-    impl::op_t mm4(4, impl::op_kind::MatMul, "matmul_op");
+    op_t mm0(0, op_kind::MatMul, "matmul_op");
+    op_t relu1(1, op_kind::ReLU, "relu_op");
+    op_t mm2(2, op_kind::MatMul, "matmul_op");
+    op_t relu3(3, op_kind::ReLU, "relu_op");
+    op_t mm4(4, op_kind::MatMul, "matmul_op");
 
     // prepare logical tensor
-    impl::logical_tensor_t mm0_src
-            = logical_tensor_init(0, {1, 2}, impl::data_type::f32);
-    impl::logical_tensor_t mm0_weight
-            = logical_tensor_init(1, {2, 1}, impl::data_type::f32);
-    impl::logical_tensor_t mm0_dst
-            = logical_tensor_init(2, {1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t relu1_dst
-            = logical_tensor_init(3, {1, 1}, impl::data_type::f32);
+    logical_tensor_t mm0_src = logical_tensor_init(0, {1, 2}, data_type::f32);
+    logical_tensor_t mm0_weight
+            = logical_tensor_init(1, {2, 1}, data_type::f32);
+    logical_tensor_t mm0_dst = logical_tensor_init(2, {1, 1}, data_type::f32);
+    logical_tensor_t relu1_dst = logical_tensor_init(3, {1, 1}, data_type::f32);
 
-    impl::logical_tensor_t mm2_weight
-            = logical_tensor_init(4, {2, 1}, impl::data_type::f32);
-    impl::logical_tensor_t mm2_dst
-            = logical_tensor_init(5, {1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t relu3_dst
-            = logical_tensor_init(6, {1, 1}, impl::data_type::f32);
+    logical_tensor_t mm2_weight
+            = logical_tensor_init(4, {2, 1}, data_type::f32);
+    logical_tensor_t mm2_dst = logical_tensor_init(5, {1, 1}, data_type::f32);
+    logical_tensor_t relu3_dst = logical_tensor_init(6, {1, 1}, data_type::f32);
 
-    impl::logical_tensor_t mm4_weight
-            = logical_tensor_init(7, {2, 1}, impl::data_type::f32);
-    impl::logical_tensor_t mm4_dst
-            = logical_tensor_init(8, {1, 1}, impl::data_type::f32);
+    logical_tensor_t mm4_weight
+            = logical_tensor_init(7, {2, 1}, data_type::f32);
+    logical_tensor_t mm4_dst = logical_tensor_init(8, {1, 1}, data_type::f32);
 
     mm0.add_input(mm0_src);
     mm0.add_input(mm0_weight);
@@ -426,20 +417,20 @@ TEST(Graph, Rewrite) {
     mm4.add_input(mm4_weight);
     mm4.add_output(mm4_dst);
 
-    impl::graph_t g(impl::engine_kind::cpu);
-    ASSERT_EQ(g.add_op(&mm0), impl::status::success);
-    ASSERT_EQ(g.add_op(&relu1), impl::status::success);
-    ASSERT_EQ(g.add_op(&mm2), impl::status::success);
-    ASSERT_EQ(g.add_op(&relu3), impl::status::success);
-    ASSERT_EQ(g.add_op(&mm4), impl::status::success);
+    graph_t g(engine_kind::cpu);
+    ASSERT_EQ(g.add_op(&mm0), status::success);
+    ASSERT_EQ(g.add_op(&relu1), status::success);
+    ASSERT_EQ(g.add_op(&mm2), status::success);
+    ASSERT_EQ(g.add_op(&relu3), status::success);
+    ASSERT_EQ(g.add_op(&mm4), status::success);
 
     g.finalize();
     auto all_ops = g.get_ops();
 
-    std::vector<impl::op_t *> fusion_ops = {all_ops[0].get(), all_ops[1].get(),
+    std::vector<op_t *> fusion_ops = {all_ops[0].get(), all_ops[1].get(),
             all_ops[2].get(), all_ops[3].get()};
 
-    impl::rewrite(g, {fusion_ops});
+    rewrite(g, {fusion_ops});
     ASSERT_EQ(g.num_ops(), 2U);
 
     auto fused_op = g.get_ops()[1];

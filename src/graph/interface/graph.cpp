@@ -152,7 +152,7 @@ void rewrite(
 } // namespace impl
 } // namespace dnnl
 
-impl::status_t dnnl_graph_graph::get_ordered_partitions(
+status_t dnnl_graph_graph::get_ordered_partitions(
         std::vector<partition_t *> &partitions) {
     dnnl_graph_graph copied_graph(*this); // deep copy
 
@@ -174,7 +174,7 @@ impl::status_t dnnl_graph_graph::get_ordered_partitions(
         return status::success;
     });
 
-    if (ret != impl::status::success) return ret;
+    if (ret != status::success) return ret;
 
     // Fuse ops that belong to same partition
     rewrite(copied_graph, fusion_ops);

@@ -736,23 +736,23 @@ TEST(PatternMatcherV2, AlternationWithConsumer) {
          matmul
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmatmul = graphp->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto pmatmul = graphp->append_op(op_kind::MatMul, "pmatmul");
     auto alter1 = std::make_shared<pb_graph_t>("alter1");
-    auto psoftmax1 = alter1->append_op(impl::op_kind::SoftMax, "psoftmax1");
+    auto psoftmax1 = alter1->append_op(op_kind::SoftMax, "psoftmax1");
     auto prelu1 = alter1->append_op(
-            impl::op_kind::ReLU, {in_edge(0, psoftmax1, 0)}, "prelu1");
+            op_kind::ReLU, {in_edge(0, psoftmax1, 0)}, "prelu1");
     alter1->create_input_port(0, psoftmax1, 0);
     alter1->create_output_port(0, prelu1, 0);
     auto alter2 = std::make_shared<pb_graph_t>("alter2");
-    auto prelu2 = alter2->append_op(impl::op_kind::ReLU, "prelu2");
+    auto prelu2 = alter2->append_op(op_kind::ReLU, "prelu2");
     auto psoftmax2 = alter2->append_op(
-            impl::op_kind::SoftMax, {in_edge(0, prelu2, 0)}, "psoftmax2");
+            op_kind::SoftMax, {in_edge(0, prelu2, 0)}, "psoftmax2");
     alter2->create_input_port(0, prelu2, 0);
     alter2->create_output_port(0, psoftmax2, 0);
     auto palter = graphp->append_alternation(
             {alter1, alter2}, {in_edge(0, pmatmul, 0)}, "palter");
     auto pmatmul2 = graphp->append_op(
-            impl::op_kind::MatMul, {in_edge(0, palter, 0)}, "pmatmul2");
+            op_kind::MatMul, {in_edge(0, palter, 0)}, "pmatmul2");
     UNUSED(pmatmul2);
 
     graph_t agraph;
@@ -1202,15 +1202,15 @@ TEST(PatternMatcherV2, OptionalInput) {
     dq1.set_attr(op_attr::scales, scales);
     dq1.set_attr(op_attr::zps, zps);
 
-    auto lt0 = logical_tensor_init(0, impl::data_type::s8);
-    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
+    auto lt0 = logical_tensor_init(0, data_type::s8);
+    auto lt1 = logical_tensor_init(1, data_type::f32);
     dq0.add_input(lt0);
     dq0.add_output(lt1);
-    auto lt2 = logical_tensor_init(2, impl::data_type::s8);
-    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    auto lt2 = logical_tensor_init(2, data_type::s8);
+    auto lt3 = logical_tensor_init(3, data_type::f32);
     dq1.add_input(lt2);
     dq1.add_output(lt3);
-    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
+    auto lt4 = logical_tensor_init(4, data_type::f32);
     matmul.add_input(lt1);
     matmul.add_input(lt3);
     matmul.add_output(lt4);
@@ -1234,12 +1234,11 @@ TEST(PatternMatcherV2, OptionalInput) {
 TEST(PatternMatcherV2, NestedMatchingFailure) {
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
     auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
     auto optional_activation_subgraph
             = std::make_shared<pb_graph_t>("poptional_activation_subgraph");
     auto activation = optional_activation_subgraph->append_alternation(
-            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
-            "palternation");
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh}, "palternation");
     optional_activation_subgraph->create_input_port(0, activation, 0);
     optional_activation_subgraph->create_output_port(0, activation, 0);
     auto optional_activation
@@ -1249,7 +1248,7 @@ TEST(PatternMatcherV2, NestedMatchingFailure) {
     mlp_layer->create_output_port(0, optional_activation, 0);
     pgraph->append_repetition(mlp_layer, {0, 0}, 1, 2, "prepetition");
 
-    impl::graph_t agraph;
+    graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t relu {1, ReLU, "relu"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -1340,17 +1339,17 @@ TEST(PatternMatcherV2, MultipleConsumer) {
     op_t matmul1 {1, MatMul, "matmul1"};
     op_t matmul2 {2, MatMul, "matmul2"};
 
-    auto lt0 = logical_tensor_init(0, impl::data_type::f32);
-    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
+    auto lt0 = logical_tensor_init(0, data_type::f32);
+    auto lt1 = logical_tensor_init(1, data_type::f32);
     transpose.add_input(lt0);
     transpose.add_output(lt1);
-    auto lt2 = logical_tensor_init(2, impl::data_type::f32);
-    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    auto lt2 = logical_tensor_init(2, data_type::f32);
+    auto lt3 = logical_tensor_init(3, data_type::f32);
     matmul1.add_input(lt2);
     matmul1.add_input(lt1);
     matmul1.add_output(lt3);
-    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
-    auto lt5 = logical_tensor_init(5, impl::data_type::f32);
+    auto lt4 = logical_tensor_init(4, data_type::f32);
+    auto lt5 = logical_tensor_init(5, data_type::f32);
     matmul2.add_input(lt4);
     matmul2.add_input(lt1);
     matmul2.add_output(lt5);
@@ -1412,33 +1411,33 @@ TEST(PatternMatcherV2, MultipleConsumerDifferentPartition) {
     op_t mul {4, Multiply, "mul"};
     op_t softmaxbwd {5, SoftMaxBackprop, "softmaxbwd"};
 
-    auto lt0 = logical_tensor_init(0, impl::data_type::f32);
-    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
-    auto lt2 = logical_tensor_init(2, impl::data_type::f32);
+    auto lt0 = logical_tensor_init(0, data_type::f32);
+    auto lt1 = logical_tensor_init(1, data_type::f32);
+    auto lt2 = logical_tensor_init(2, data_type::f32);
     matmul.add_input(lt0);
     matmul.add_input(lt1);
     matmul.add_output(lt2);
-    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
-    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
+    auto lt3 = logical_tensor_init(3, data_type::f32);
+    auto lt4 = logical_tensor_init(4, data_type::f32);
     div.add_input(lt2);
     div.add_input(lt3);
     div.add_output(lt4);
-    auto lt5 = logical_tensor_init(5, impl::data_type::f32);
-    auto lt6 = logical_tensor_init(6, impl::data_type::f32);
+    auto lt5 = logical_tensor_init(5, data_type::f32);
+    auto lt6 = logical_tensor_init(6, data_type::f32);
     add.add_input(lt4);
     add.add_input(lt5);
     add.add_output(lt6);
-    auto lt7 = logical_tensor_init(7, impl::data_type::f32);
+    auto lt7 = logical_tensor_init(7, data_type::f32);
     softmax.add_input(lt6);
     softmax.add_output(lt7);
-    auto lt8 = logical_tensor_init(8, impl::data_type::f32);
-    auto lt9 = logical_tensor_init(9, impl::data_type::f32);
+    auto lt8 = logical_tensor_init(8, data_type::f32);
+    auto lt9 = logical_tensor_init(9, data_type::f32);
     mul.add_input(lt7);
     mul.add_input(lt8);
     mul.add_output(lt9);
 
-    auto lt10 = logical_tensor_init(10, impl::data_type::f32);
-    auto lt11 = logical_tensor_init(11, impl::data_type::f32);
+    auto lt10 = logical_tensor_init(10, data_type::f32);
+    auto lt11 = logical_tensor_init(11, data_type::f32);
     softmaxbwd.add_input(lt7);
     softmaxbwd.add_input(lt10);
     softmaxbwd.add_output(lt11);
@@ -1459,25 +1458,25 @@ TEST(PatternMatcherV2, MultipleConsumerDifferentPartition) {
 TEST(PatternMatcherV2, NestedRepetitionOptional) {
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
-    auto matmul = mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
+    auto matmul = mlp_layer->append_op(op_kind::MatMul, "matmul");
     auto optional_add_subgraph
             = std::make_shared<pb_graph_t>("optional_add_subgraph");
-    auto optional_add = optional_add_subgraph->append_op(
-            impl::op_kind::Add, "optional_add");
+    auto optional_add
+            = optional_add_subgraph->append_op(op_kind::Add, "optional_add");
     optional_add_subgraph->create_input_port(0, optional_add, 0);
     optional_add_subgraph->create_output_port(0, optional_add, 0);
     auto add = mlp_layer->append_optional(
             optional_add_subgraph, {in_edge(0, matmul, 0)}, "add");
 
     auto activation = mlp_layer->append_alternation(
-            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::GELU},
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::GELU},
             {in_edge(0, add, 0)}, "activation");
 
     mlp_layer->create_input_port(0, matmul, 0);
     mlp_layer->create_output_port(0, activation, 0);
     pgraph->append_repetition(mlp_layer, {0, 0}, 1, 10, "rep_unit");
 
-    impl::graph_t agraph;
+    graph_t agraph;
     op_t matmul_op {0, MatMul, "matmul"};
     op_t add_op {1, Add, "add"};
     op_t relu {2, ReLU, "relu"};
@@ -1521,10 +1520,10 @@ TEST(PatternMatcherV2, RepetitionExternalOutput) {
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
-    auto matmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
+    auto matmul = fwd_mlp_layer->append_op(op_kind::MatMul, "matmul");
     matmul->allow_external_output(0);
     auto activation = fwd_mlp_layer->append_alternation(
-            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh},
             {in_edge(0, matmul, 0)}, "activation");
     activation->allow_external_output(0);
     fwd_mlp_layer->create_input_port(0, matmul, 0);
@@ -1546,26 +1545,26 @@ TEST(PatternMatcherV2, RepetitionExternalOutput) {
     op_t ext2 {6, StaticTranspose, "ext2"};
     ext2.set_attr(op_attr::order, std::vector<int64_t> {0, 1});
 
-    auto lt0 = logical_tensor_init(0, impl::data_type::f32);
-    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
-    auto lt2 = logical_tensor_init(2, impl::data_type::f32);
+    auto lt0 = logical_tensor_init(0, data_type::f32);
+    auto lt1 = logical_tensor_init(1, data_type::f32);
+    auto lt2 = logical_tensor_init(2, data_type::f32);
     matmul0.add_input(lt0);
     matmul0.add_input(lt1);
     matmul0.add_output(lt2);
-    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    auto lt3 = logical_tensor_init(3, data_type::f32);
     relu0.add_input(lt2);
     relu0.add_output(lt3);
-    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
-    auto lt5 = logical_tensor_init(5, impl::data_type::f32);
+    auto lt4 = logical_tensor_init(4, data_type::f32);
+    auto lt5 = logical_tensor_init(5, data_type::f32);
     matmul1.add_input(lt3);
     matmul1.add_input(lt4);
     matmul1.add_output(lt5);
-    auto lt6 = logical_tensor_init(6, impl::data_type::f32);
+    auto lt6 = logical_tensor_init(6, data_type::f32);
     relu1.add_input(lt5);
     relu1.add_output(lt6);
-    auto lt7 = logical_tensor_init(7, impl::data_type::f32);
-    auto lt8 = logical_tensor_init(8, impl::data_type::f32);
-    auto lt9 = logical_tensor_init(9, impl::data_type::f32);
+    auto lt7 = logical_tensor_init(7, data_type::f32);
+    auto lt8 = logical_tensor_init(8, data_type::f32);
+    auto lt9 = logical_tensor_init(9, data_type::f32);
     ext0.add_input(lt2);
     ext0.add_output(lt7);
     ext1.add_input(lt3);
@@ -1606,10 +1605,10 @@ TEST(PatternMatcherV2, RepetitionExternalOutputSwapOrder) {
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
-    auto matmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
+    auto matmul = fwd_mlp_layer->append_op(op_kind::MatMul, "matmul");
     matmul->allow_external_output(0);
     auto activation = fwd_mlp_layer->append_alternation(
-            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh},
             {in_edge(0, matmul, 0)}, "activation");
     activation->allow_external_output(0);
     fwd_mlp_layer->create_input_port(0, matmul, 0);
@@ -1631,36 +1630,36 @@ TEST(PatternMatcherV2, RepetitionExternalOutputSwapOrder) {
     op_t ext2 {6, StaticTranspose, "ext2"};
     ext2.set_attr(op_attr::order, std::vector<int64_t> {0, 1});
 
-    auto lt0 = logical_tensor_init(0, impl::data_type::f32);
-    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
-    auto lt2 = logical_tensor_init(2, impl::data_type::f32);
+    auto lt0 = logical_tensor_init(0, data_type::f32);
+    auto lt1 = logical_tensor_init(1, data_type::f32);
+    auto lt2 = logical_tensor_init(2, data_type::f32);
     matmul0.add_input(lt0);
     matmul0.add_input(lt1);
     matmul0.add_output(lt2);
 
-    auto lt7 = logical_tensor_init(7, impl::data_type::f32);
+    auto lt7 = logical_tensor_init(7, data_type::f32);
     ext0.add_input(lt2);
     ext0.add_output(lt7);
 
-    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    auto lt3 = logical_tensor_init(3, data_type::f32);
     relu0.add_input(lt2);
     relu0.add_output(lt3);
 
-    auto lt8 = logical_tensor_init(8, impl::data_type::f32);
+    auto lt8 = logical_tensor_init(8, data_type::f32);
     ext1.add_input(lt3);
     ext1.add_output(lt8);
 
-    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
-    auto lt5 = logical_tensor_init(5, impl::data_type::f32);
+    auto lt4 = logical_tensor_init(4, data_type::f32);
+    auto lt5 = logical_tensor_init(5, data_type::f32);
     matmul1.add_input(lt3);
     matmul1.add_input(lt4);
     matmul1.add_output(lt5);
 
-    auto lt9 = logical_tensor_init(9, impl::data_type::f32);
+    auto lt9 = logical_tensor_init(9, data_type::f32);
     ext2.add_input(lt5);
     ext2.add_output(lt9);
 
-    auto lt6 = logical_tensor_init(6, impl::data_type::f32);
+    auto lt6 = logical_tensor_init(6, data_type::f32);
     relu1.add_input(lt5);
     relu1.add_output(lt6);
 
@@ -1697,12 +1696,11 @@ TEST(PatternMatcherV2, CyclicCheck) {
            add
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmatmul = graphp->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto pmatmul = graphp->append_op(op_kind::MatMul, "pmatmul");
     pmatmul->allow_external_output(0);
     auto prelu = graphp->append_op(
-            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
-    auto padd = graphp->append_op(
-            impl::op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+            op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    auto padd = graphp->append_op(op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
     UNUSED(padd);
 
     graph_t agraph;
@@ -1754,12 +1752,11 @@ TEST(PatternMatcherV2, UndirectCyclicCheck) {
            add
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmatmul = graphp->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto pmatmul = graphp->append_op(op_kind::MatMul, "pmatmul");
     pmatmul->allow_external_output(0);
     auto prelu = graphp->append_op(
-            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
-    auto padd = graphp->append_op(
-            impl::op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+            op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    auto padd = graphp->append_op(op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
     UNUSED(padd);
 
     graph_t agraph;
@@ -1824,12 +1821,12 @@ TEST(PatternMatcherV2, ComplexCyclicCheck) {
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
-    auto pmatmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto pmatmul = fwd_mlp_layer->append_op(op_kind::MatMul, "pmatmul");
     pmatmul->allow_external_output(0);
     auto prelu = fwd_mlp_layer->append_op(
-            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+            op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
     auto padd = fwd_mlp_layer->append_op(
-            impl::op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+            op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
     fwd_mlp_layer->create_input_port(0, pmatmul, 0);
     fwd_mlp_layer->create_output_port(0, padd, 0);
 
@@ -1906,12 +1903,12 @@ TEST(PatternMatcherV2, ComplexUndirectCyclicCheck) {
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
-    auto pmatmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto pmatmul = fwd_mlp_layer->append_op(op_kind::MatMul, "pmatmul");
     pmatmul->allow_external_output(0);
     auto prelu = fwd_mlp_layer->append_op(
-            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+            op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
     auto padd = fwd_mlp_layer->append_op(
-            impl::op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+            op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
     fwd_mlp_layer->create_input_port(0, pmatmul, 0);
     fwd_mlp_layer->create_output_port(0, padd, 0);
 
@@ -1981,12 +1978,11 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure) {
     */
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
     auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
     auto optional_activation_subgraph
             = std::make_shared<pb_graph_t>("poptional_activation_subgraph");
     auto activation = optional_activation_subgraph->append_alternation(
-            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
-            "palternation");
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh}, "palternation");
     optional_activation_subgraph->create_input_port(0, activation, 0);
     optional_activation_subgraph->create_output_port(0, activation, 0);
     auto optional_activation
@@ -1996,7 +1992,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure) {
     mlp_layer->create_output_port(0, optional_activation, 0);
     pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5, "prepetition");
 
-    impl::graph_t agraph;
+    graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t matmul2 {1, MatMul, "matmul2"};
     op_t matmul3 {2, MatMul, "matmul3"};
@@ -2032,13 +2028,13 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure2) {
     */
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
     auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
     auto relu_layer = mlp_layer->append_op(
-            impl::op_kind::ReLU, {in_edge(0, matmul_layer, 0)}, "prelu");
+            op_kind::ReLU, {in_edge(0, matmul_layer, 0)}, "prelu");
     auto optional_activation_subgraph
             = std::make_shared<pb_graph_t>("poptional_activation_subgraph");
     auto activation = optional_activation_subgraph->append_alternation(
-            {impl::op_kind::Sigmoid, impl::op_kind::Tanh}, "palternation");
+            {op_kind::Sigmoid, op_kind::Tanh}, "palternation");
     optional_activation_subgraph->create_input_port(0, activation, 0);
     optional_activation_subgraph->create_output_port(0, activation, 0);
     auto optional_activation
@@ -2049,7 +2045,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure2) {
     mlp_layer->create_output_port(1, optional_activation, 0);
     pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5, "prepetition");
 
-    impl::graph_t agraph;
+    graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t relu {1, ReLU, "relu"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -2079,13 +2075,13 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure3) {
     */
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
     auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
     auto relu_layer = mlp_layer->append_op(
-            impl::op_kind::ReLU, {in_edge(0, matmul_layer, 0)}, "prelu");
+            op_kind::ReLU, {in_edge(0, matmul_layer, 0)}, "prelu");
     auto optional_relu_subgraph
             = std::make_shared<pb_graph_t>("poptional_relu_subgraph");
     auto activation
-            = optional_relu_subgraph->append_op(impl::op_kind::ReLU, "prelu2");
+            = optional_relu_subgraph->append_op(op_kind::ReLU, "prelu2");
     optional_relu_subgraph->create_input_port(0, activation, 0);
     optional_relu_subgraph->create_output_port(0, activation, 0);
     auto optional_relu = mlp_layer->append_optional(optional_relu_subgraph,
@@ -2094,7 +2090,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure3) {
     mlp_layer->create_output_port(0, optional_relu, 0);
     pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5, "prepetition");
 
-    impl::graph_t agraph;
+    graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t relu {1, ReLU, "relu"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -2124,11 +2120,10 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure4) {
     */
     auto pgraph = std::make_shared<pb_graph_t>("pgraph");
     auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
     auto optional_add_subgraph
             = std::make_shared<pb_graph_t>("poptional_add_subgraph");
-    auto add = optional_add_subgraph->append_op(
-            impl::op_kind::Add, "palternation");
+    auto add = optional_add_subgraph->append_op(op_kind::Add, "palternation");
     optional_add_subgraph->create_input_port(0, add, 0);
     optional_add_subgraph->create_output_port(0, add, 0);
     auto optional_add = mlp_layer->append_optional(optional_add_subgraph,
@@ -2136,8 +2131,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure4) {
     auto optional_activation_subgraph
             = std::make_shared<pb_graph_t>("poptional_activation_subgraph");
     auto activation = optional_activation_subgraph->append_alternation(
-            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
-            "palternation");
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh}, "palternation");
     optional_activation_subgraph->create_input_port(0, activation, 0);
     optional_activation_subgraph->create_output_port(0, activation, 0);
     auto optional_activation
@@ -2147,7 +2141,7 @@ TEST(PatternMatcherV2, OptionalSubgraphFailure4) {
     mlp_layer->create_output_port(0, optional_activation, 0);
     pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5, "prepetition");
 
-    impl::graph_t agraph;
+    graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(3);
     matmul.add_input(lt_vec[0]);
@@ -2191,12 +2185,11 @@ TEST(PatternMatcherV2, ShouldNotMatchIdenticalResblock) {
                       pb_op_t *input) -> pb_op_t * {
         in_edges_t in_edges;
         if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
-        pb_op_t *conv = pgraph->append_op(impl::op_kind::Convolution, in_edges);
+        pb_op_t *conv = pgraph->append_op(op_kind::Convolution, in_edges);
 
         // Optional bias_add
         auto popt_bias_graph = std::make_shared<pb_graph_t>("poptional_bias");
-        pb_op_t *pbias
-                = popt_bias_graph->append_op(impl::op_kind::BiasAdd, "pbias");
+        pb_op_t *pbias = popt_bias_graph->append_op(op_kind::BiasAdd, "pbias");
         popt_bias_graph->create_input_port(0, pbias, 0);
         popt_bias_graph->create_output_port(0, pbias, 0);
         auto popt_bias = pgraph->append_optional(
@@ -2204,7 +2197,7 @@ TEST(PatternMatcherV2, ShouldNotMatchIdenticalResblock) {
 
         // Optional post relu
         auto popt_eltwise_graph = std::make_shared<pb_graph_t>("popt_eltwise");
-        pb_op_t *peltwise = popt_eltwise_graph->append_op(impl::op_kind::ReLU);
+        pb_op_t *peltwise = popt_eltwise_graph->append_op(op_kind::ReLU);
         popt_eltwise_graph->create_input_port(0, peltwise, 0);
         popt_eltwise_graph->create_output_port(0, peltwise, 0);
         auto popt_eltwise = pgraph->append_optional(popt_eltwise_graph,
@@ -2217,12 +2210,11 @@ TEST(PatternMatcherV2, ShouldNotMatchIdenticalResblock) {
                       pb_op_t *post_src) -> pb_op_t * {
         in_edges_t in_edges;
         if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
-        pb_op_t *conv = pgraph->append_op(impl::op_kind::Convolution, in_edges);
+        pb_op_t *conv = pgraph->append_op(op_kind::Convolution, in_edges);
 
         // Optional bias_add
         auto popt_bias_graph = std::make_shared<pb_graph_t>("poptional_bias");
-        pb_op_t *pbias
-                = popt_bias_graph->append_op(impl::op_kind::BiasAdd, "pbias");
+        pb_op_t *pbias = popt_bias_graph->append_op(op_kind::BiasAdd, "pbias");
         popt_bias_graph->create_input_port(0, pbias, 0);
         popt_bias_graph->create_output_port(0, pbias, 0);
         auto popt_bias = pgraph->append_optional(
@@ -2230,10 +2222,10 @@ TEST(PatternMatcherV2, ShouldNotMatchIdenticalResblock) {
 
         in_edges_t add_in_edges = in_edges_t {in_edge(0, popt_bias, 0)};
         if (post_src) { add_in_edges.emplace_back(in_edge(1, post_src, 0)); }
-        pb_op_t *add = pgraph->append_op(impl::op_kind::Add, add_in_edges);
+        pb_op_t *add = pgraph->append_op(op_kind::Add, add_in_edges);
 
         pb_op_t *relu = pgraph->append_op(
-                impl::op_kind::ReLU, in_edges_t {in_edge(0, add, 0)});
+                op_kind::ReLU, in_edges_t {in_edge(0, add, 0)});
         return relu;
     };
 
@@ -2268,15 +2260,14 @@ TEST(PatternMatcherV2, ShouldNotMatchIdenticalResblock) {
     //            relu
     //             |
 
-    impl::graph_t agraph;
+    graph_t agraph;
 
     id_generator id_gen;
 
     int64_t ic = 8, oc = 8, ks = 1;
     std::vector<int64_t> src_shape {1, ic, 12, 12};
 
-    auto src = logical_tensor_init(
-            id_gen.get_id(), src_shape, impl::data_type::f32);
+    auto src = logical_tensor_init(id_gen.get_id(), src_shape, data_type::f32);
 
     auto conv0 = create_convolution(id_gen, agraph, src, ic, ks, oc, 1, {1, 1},
             {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
@@ -2320,16 +2311,16 @@ TEST(PatternMatcherV2, RepetitionOportExternalOutput) {
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto grep = std::make_shared<pb_graph_t>("grep");
-    auto pmatmul = grep->append_op(impl::op_kind::MatMul, "pmatmul");
-    auto prelu = grep->append_op(
-            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    auto pmatmul = grep->append_op(op_kind::MatMul, "pmatmul");
+    auto prelu
+            = grep->append_op(op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
     prelu->allow_external_output(0);
     grep->create_input_port(0, pmatmul, 0);
     grep->create_output_port(0, prelu, 0);
     auto prep = graphp->append_repetition(grep, {0, 0}, 1, 10, "prep");
 
     auto psigmoid = graphp->append_op(
-            impl::op_kind::Sigmoid, {in_edge(0, prep, 0)}, "psigmoid");
+            op_kind::Sigmoid, {in_edge(0, prep, 0)}, "psigmoid");
 
     UNUSED(psigmoid);
 

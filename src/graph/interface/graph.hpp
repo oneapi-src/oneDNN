@@ -256,7 +256,7 @@ public:
      * \brief get list of partitions
      * \param list of partitions
      */
-    impl::status_t get_ordered_partitions(
+    graph::status_t get_ordered_partitions(
             std::vector<graph::partition_t *> &partitions);
 
     // Finalize the graph after finishing adding ops.

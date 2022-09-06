@@ -19,28 +19,26 @@
 #include "interface/allocator.hpp"
 #include "interface/c_types_map.hpp"
 
+#include "graph/test_allocator.hpp"
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
-#include "graph/test_allocator.hpp"
 
-namespace impl = dnnl::impl::graph;
+using namespace dnnl::impl::graph;
 
 TEST(TestAllocator, DefaultSyclAllocator) {
-    impl::engine_kind_t kind = get_test_engine_kind();
+    engine_kind_t kind = get_test_engine_kind();
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     SKIP_IF(kind == impl::engine_kind::cpu,
             "skip sycl api test for native cpu runtime.");
 #endif
-    namespace impl = dnnl::impl::graph;
-    impl::allocator_t &alloc = *impl::allocator_t::create();
-    sycl::queue q = kind == impl::engine_kind::gpu
+    allocator_t &alloc = *allocator_t::create();
+    sycl::queue q = kind == engine_kind::gpu
             ? sycl::queue {sycl::gpu_selector {},
                     sycl::property::queue::in_order {}}
             : sycl::queue {
                     sycl::cpu_selector {}, sycl::property::queue::in_order {}};
 
-    impl::allocator_t::mem_attr_t attr {
-            impl::allocator_t::mem_type_t::persistent, 4096};
+    allocator_t::mem_attr_t attr {allocator_t::mem_type_t::persistent, 4096};
     void *mem_ptr = alloc.allocate(
             static_cast<size_t>(16), q.get_device(), q.get_context(), attr);
     ASSERT_NE(mem_ptr, nullptr);
@@ -50,19 +48,19 @@ TEST(TestAllocator, DefaultSyclAllocator) {
 }
 
 TEST(TestAllocator, SyclAllocator) {
-    impl::engine_kind_t kind = get_test_engine_kind();
+    engine_kind_t kind = get_test_engine_kind();
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
-    SKIP_IF(kind == impl::engine_kind::cpu,
+    SKIP_IF(kind == engine_kind::cpu,
             "skip sycl api test for native cpu runtime.");
 #endif
-    impl::allocator_t::mem_attr_t alloc_attr {
-            impl::allocator_t::mem_type_t::persistent, 1024};
-    ASSERT_EQ(alloc_attr.type_, impl::allocator_t::mem_type_t::persistent);
+    allocator_t::mem_attr_t alloc_attr {
+            allocator_t::mem_type_t::persistent, 1024};
+    ASSERT_EQ(alloc_attr.type_, allocator_t::mem_type_t::persistent);
     ASSERT_EQ(alloc_attr.alignment_, 1024);
-    impl::allocator_t &sycl_alloc = *impl::allocator_t::create(
-            dnnl::graph::testing::sycl_malloc_wrapper,
-            dnnl::graph::testing::sycl_free_wrapper);
-    sycl::device sycl_dev = (kind == impl::engine_kind::gpu)
+    allocator_t &sycl_alloc
+            = *allocator_t::create(dnnl::graph::testing::sycl_malloc_wrapper,
+                    dnnl::graph::testing::sycl_free_wrapper);
+    sycl::device sycl_dev = (kind == engine_kind::gpu)
             ? sycl::device {sycl::gpu_selector()}
             : sycl::device {sycl::cpu_selector()};
     sycl::context sycl_ctx {sycl_dev};

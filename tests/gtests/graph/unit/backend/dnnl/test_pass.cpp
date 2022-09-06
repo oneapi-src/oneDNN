@@ -102,7 +102,7 @@ TEST(Pass, FuseConvBn) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 6U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
@@ -155,7 +155,7 @@ TEST(Pass, FuseConvBnWithSharedInputs) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     // For a partition with N inputs that have the same id
     // It is required that those inputs are input N times
@@ -275,7 +275,7 @@ TEST(Pass, FuseConvRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -526,7 +526,7 @@ TEST(Pass, FuseConvBiasaddBn) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -575,7 +575,7 @@ TEST(Pass, FuseConvBiasBnWithInputBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -623,7 +623,7 @@ TEST(Pass, FuseConvBiasaddRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -663,7 +663,7 @@ TEST(Pass, FuseConvBiasReluWithInputBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -709,7 +709,7 @@ TEST(Pass, FuseConvBiasaddRelu6) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -750,7 +750,7 @@ TEST(Pass, FuseConvBiasElu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -790,7 +790,7 @@ TEST(Pass, FuseConvBiasSigmoid) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -839,7 +839,7 @@ TEST(Pass, FuseConvBiasSwish) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -975,7 +975,7 @@ TEST(Pass, FuseConvBiasClamp) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1019,7 +1019,7 @@ TEST(Pass, FuseConvBiasSquare) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1063,7 +1063,7 @@ TEST(Pass, FuseConvBiasTanh) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1107,7 +1107,7 @@ TEST(Pass, FuseConvBiasAbs) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1151,7 +1151,7 @@ TEST(Pass, FuseConvBiasSqrt) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1196,7 +1196,7 @@ TEST(Pass, FuseConvBiasaddSum) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1238,7 +1238,7 @@ TEST(Pass, FuseConvBiasSum) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1290,7 +1290,7 @@ TEST(Pass, FuseConvBiasaddSumRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1350,9 +1350,9 @@ TEST(PassSystem, TestConvRelated) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 2U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
     ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1412,7 +1412,7 @@ TEST(Pass, FuseConvBiasaddSumElu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1466,7 +1466,7 @@ TEST(Pass, FuseConvBiasaddSumRelu6) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -1547,13 +1547,13 @@ TEST(PassSystem, FuseConvDepthwise) {
         if (engine_kind == engine_kind::cpu) {
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::convolution_post_ops);
+                    partition_kind::convolution_post_ops);
         } else {
             ASSERT_EQ(agraph.get_num_partitions(), 2U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::convolution_post_ops);
+                    partition_kind::convolution_post_ops);
             ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-                    impl::partition_kind::convolution_post_ops);
+                    partition_kind::convolution_post_ops);
         }
     }
 }
@@ -1568,9 +1568,9 @@ TEST(Pass, FuseBinarySum) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
-            {Multiply, impl::partition_kind::binary_post_ops},
-            {Maximum, impl::partition_kind::binary_post_ops},
-            {Minimum, impl::partition_kind::binary_post_ops}};
+            {Multiply, partition_kind::binary_post_ops},
+            {Maximum, partition_kind::binary_post_ops},
+            {Minimum, partition_kind::binary_post_ops}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1620,9 +1620,9 @@ TEST(PassSystem, TestConvSumAndBinary) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
-            {Multiply, impl::partition_kind::convolution_post_ops},
-            {Maximum, impl::partition_kind::convolution_post_ops},
-            {Minimum, impl::partition_kind::convolution_post_ops}};
+            {Multiply, partition_kind::convolution_post_ops},
+            {Maximum, partition_kind::convolution_post_ops},
+            {Minimum, partition_kind::convolution_post_ops}};
 
     for (const auto &p : opkind_pair) {
         graph_t agraph;
@@ -1668,9 +1668,9 @@ TEST(Pass, FuseBinarySumWithSupportBroadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
-            {Multiply, impl::partition_kind::binary_post_ops},
-            {Maximum, impl::partition_kind::binary_post_ops},
-            {Minimum, impl::partition_kind::binary_post_ops}};
+            {Multiply, partition_kind::binary_post_ops},
+            {Maximum, partition_kind::binary_post_ops},
+            {Minimum, partition_kind::binary_post_ops}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1710,9 +1710,9 @@ TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
-            {Multiply, impl::partition_kind::binary_post_ops},
-            {Maximum, impl::partition_kind::binary_post_ops},
-            {Minimum, impl::partition_kind::binary_post_ops}};
+            {Multiply, partition_kind::binary_post_ops},
+            {Maximum, partition_kind::binary_post_ops},
+            {Minimum, partition_kind::binary_post_ops}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1762,9 +1762,9 @@ TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
-            {Multiply, impl::partition_kind::binary_post_ops},
-            {Maximum, impl::partition_kind::binary_post_ops},
-            {Minimum, impl::partition_kind::binary_post_ops}};
+            {Multiply, partition_kind::binary_post_ops},
+            {Maximum, partition_kind::binary_post_ops},
+            {Minimum, partition_kind::binary_post_ops}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1833,7 +1833,7 @@ TEST(Pass, FuseBinaryAddMul) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::binary_post_ops);
+            partition_kind::binary_post_ops);
 }
 
 TEST(Pass, FuseBinaryEltwise) {
@@ -1846,16 +1846,14 @@ TEST(Pass, FuseBinaryEltwise) {
         eltwise
     */
     std::vector<std::pair<std::pair<op_kind_t, op_kind_t>, partition_kind_t>>
-            opkind_pair {
-                    {{Add, Sigmoid}, impl::partition_kind::binary_post_ops},
-                    {{Add, ReLU}, impl::partition_kind::binary_post_ops},
-                    {{Multiply, Sigmoid},
-                            impl::partition_kind::binary_post_ops},
-                    {{Multiply, ReLU}, impl::partition_kind::binary_post_ops},
-                    {{Maximum, Sigmoid}, impl::partition_kind::binary_post_ops},
-                    {{Maximum, ReLU}, impl::partition_kind::binary_post_ops},
-                    {{Minimum, Sigmoid}, impl::partition_kind::binary_post_ops},
-                    {{Minimum, ReLU}, impl::partition_kind::binary_post_ops}};
+            opkind_pair {{{Add, Sigmoid}, partition_kind::binary_post_ops},
+                    {{Add, ReLU}, partition_kind::binary_post_ops},
+                    {{Multiply, Sigmoid}, partition_kind::binary_post_ops},
+                    {{Multiply, ReLU}, partition_kind::binary_post_ops},
+                    {{Maximum, Sigmoid}, partition_kind::binary_post_ops},
+                    {{Maximum, ReLU}, partition_kind::binary_post_ops},
+                    {{Minimum, Sigmoid}, partition_kind::binary_post_ops},
+                    {{Minimum, ReLU}, partition_kind::binary_post_ops}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1930,7 +1928,7 @@ TEST(Pass, FuseEltwiseBinary3PostOps) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::unary_post_ops);
+            partition_kind::unary_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -2020,16 +2018,14 @@ TEST(PassSystem, TestBinaryEltwise) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<std::pair<op_kind_t, op_kind_t>, partition_kind_t>>
-            opkind_pair {
-                    {{Add, Sigmoid}, impl::partition_kind::binary_post_ops},
-                    {{Add, ReLU}, impl::partition_kind::binary_post_ops},
-                    {{Multiply, Sigmoid},
-                            impl::partition_kind::binary_post_ops},
-                    {{Multiply, ReLU}, impl::partition_kind::binary_post_ops},
-                    {{Maximum, Sigmoid}, impl::partition_kind::binary_post_ops},
-                    {{Maximum, ReLU}, impl::partition_kind::binary_post_ops},
-                    {{Minimum, Sigmoid}, impl::partition_kind::binary_post_ops},
-                    {{Minimum, ReLU}, impl::partition_kind::binary_post_ops}};
+            opkind_pair {{{Add, Sigmoid}, partition_kind::binary_post_ops},
+                    {{Add, ReLU}, partition_kind::binary_post_ops},
+                    {{Multiply, Sigmoid}, partition_kind::binary_post_ops},
+                    {{Multiply, ReLU}, partition_kind::binary_post_ops},
+                    {{Maximum, Sigmoid}, partition_kind::binary_post_ops},
+                    {{Maximum, ReLU}, partition_kind::binary_post_ops},
+                    {{Minimum, Sigmoid}, partition_kind::binary_post_ops},
+                    {{Minimum, ReLU}, partition_kind::binary_post_ops}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -2095,7 +2091,7 @@ TEST(Pass, FuseBnRelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::batch_norm_post_ops);
+            partition_kind::batch_norm_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 5U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2140,7 +2136,7 @@ TEST(PassSystem, TestBnRelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::batch_norm_post_ops);
+            partition_kind::batch_norm_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 5U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2236,7 +2232,7 @@ TEST(PassSystem, TestBnBwdReluBwd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::misc_post_ops);
+            partition_kind::misc_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 6U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2285,7 +2281,7 @@ TEST(Pass, FuseConvSumRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2330,7 +2326,7 @@ TEST(Pass, FuseConvSumElu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2376,7 +2372,7 @@ TEST(Pass, FuseConvSumRelu6) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2440,7 +2436,7 @@ TEST(Pass, FuseConvBiasaddSumSum) {
     ASSERT_EQ(agraph.get_num_partitions(), 2U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 5U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
@@ -2452,7 +2448,7 @@ TEST(Pass, FuseConvBiasaddSumSum) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 12U);
 
     ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 7U);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[1].id, 8U);
@@ -2500,7 +2496,7 @@ TEST(Pass, FuseConvBnSum) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2557,7 +2553,7 @@ TEST(Pass, FuseConvBnSumWithRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2655,7 +2651,7 @@ TEST(Pass, FuseConvBiasBnSum) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 8U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2708,7 +2704,7 @@ TEST(Pass, FuseConvBnRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 6U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2761,7 +2757,7 @@ TEST(PassSystem, TestConvBnRelu) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 6U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2819,7 +2815,7 @@ TEST(Pass, FuseConvBiasaddBnRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2874,7 +2870,7 @@ TEST(Pass, FuseConvBiasBnReluWithInputBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2936,7 +2932,7 @@ TEST(PassSystem, TestConvBiasBnRelu) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -2995,7 +2991,7 @@ TEST(Pass, FuseConvBnSumRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 7U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3057,7 +3053,7 @@ TEST(Pass, FuseConvBiasBnSumRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 8U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3075,35 +3071,35 @@ TEST(Pass, FuseConvBiasBnSumRelu) {
 
 TEST(Pass, FuseConvBiasPostOpsChain) {
     size_t max_num_post_ops = 3;
-    const std::vector<impl::op_kind_t> two_inputs_ops {
-            impl::op_kind::Multiply,
-            impl::op_kind::Add,
-            impl::op_kind::Maximum,
-            impl::op_kind::Minimum,
-            impl::op_kind::Divide,
-            impl::op_kind::Subtract,
+    const std::vector<op_kind_t> two_inputs_ops {
+            op_kind::Multiply,
+            op_kind::Add,
+            op_kind::Maximum,
+            op_kind::Minimum,
+            op_kind::Divide,
+            op_kind::Subtract,
     };
-    const std::vector<impl::op_kind_t> supported_ops {
-            impl::op_kind::Abs,
-            impl::op_kind::Clamp,
-            impl::op_kind::Elu,
-            impl::op_kind::Exp,
-            impl::op_kind::GELU,
-            impl::op_kind::HardSwish,
-            impl::op_kind::Log,
-            impl::op_kind::Sigmoid,
-            impl::op_kind::SoftPlus,
-            impl::op_kind::ReLU,
-            impl::op_kind::Round,
-            impl::op_kind::Sqrt,
-            impl::op_kind::Square,
-            impl::op_kind::Tanh,
-            impl::op_kind::Multiply,
-            impl::op_kind::Add,
-            impl::op_kind::Maximum,
-            impl::op_kind::Minimum,
-            impl::op_kind::Divide,
-            impl::op_kind::Subtract,
+    const std::vector<op_kind_t> supported_ops {
+            op_kind::Abs,
+            op_kind::Clamp,
+            op_kind::Elu,
+            op_kind::Exp,
+            op_kind::GELU,
+            op_kind::HardSwish,
+            op_kind::Log,
+            op_kind::Sigmoid,
+            op_kind::SoftPlus,
+            op_kind::ReLU,
+            op_kind::Round,
+            op_kind::Sqrt,
+            op_kind::Square,
+            op_kind::Tanh,
+            op_kind::Multiply,
+            op_kind::Add,
+            op_kind::Maximum,
+            op_kind::Minimum,
+            op_kind::Divide,
+            op_kind::Subtract,
     };
 
     for (size_t k = 0; k < supported_ops.size(); ++k) {
@@ -3158,9 +3154,9 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
                 } else {
                     // eltwise
                     op_t eltwise {op_id++, opkind, "eltwise"};
-                    if (opkind == impl::op_kind::Elu) {
+                    if (opkind == op_kind::Elu) {
                         eltwise.set_attr<float>(op_attr::alpha, 1.0f);
-                    } else if (opkind == impl::op_kind::Clamp) {
+                    } else if (opkind == op_kind::Clamp) {
                         eltwise.set_attr<float>(op_attr::min, 1.0f);
                         eltwise.set_attr<float>(op_attr::max, 3.0f);
                     }
@@ -3186,7 +3182,7 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
             ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(),
                     num_chain_ops + 1);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::convolution_post_ops);
+                    partition_kind::convolution_post_ops);
 
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                     3 + num_two_inputs_post_ops);
@@ -3199,35 +3195,35 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
 
 TEST(Pass, FuseConvPostOpsChain) {
     size_t max_num_post_ops = 3;
-    const std::vector<impl::op_kind_t> two_inputs_ops {
-            impl::op_kind::Multiply,
-            impl::op_kind::Add,
-            impl::op_kind::Maximum,
-            impl::op_kind::Minimum,
-            impl::op_kind::Divide,
-            impl::op_kind::Subtract,
+    const std::vector<op_kind_t> two_inputs_ops {
+            op_kind::Multiply,
+            op_kind::Add,
+            op_kind::Maximum,
+            op_kind::Minimum,
+            op_kind::Divide,
+            op_kind::Subtract,
     };
-    const std::vector<impl::op_kind_t> supported_ops {
-            impl::op_kind::Abs,
-            impl::op_kind::Clamp,
-            impl::op_kind::Elu,
-            impl::op_kind::Exp,
-            impl::op_kind::GELU,
-            impl::op_kind::HardSwish,
-            impl::op_kind::Log,
-            impl::op_kind::Sigmoid,
-            impl::op_kind::SoftPlus,
-            impl::op_kind::ReLU,
-            impl::op_kind::Round,
-            impl::op_kind::Sqrt,
-            impl::op_kind::Square,
-            impl::op_kind::Tanh,
-            impl::op_kind::Multiply,
-            impl::op_kind::Add,
-            impl::op_kind::Maximum,
-            impl::op_kind::Minimum,
-            impl::op_kind::Divide,
-            impl::op_kind::Subtract,
+    const std::vector<op_kind_t> supported_ops {
+            op_kind::Abs,
+            op_kind::Clamp,
+            op_kind::Elu,
+            op_kind::Exp,
+            op_kind::GELU,
+            op_kind::HardSwish,
+            op_kind::Log,
+            op_kind::Sigmoid,
+            op_kind::SoftPlus,
+            op_kind::ReLU,
+            op_kind::Round,
+            op_kind::Sqrt,
+            op_kind::Square,
+            op_kind::Tanh,
+            op_kind::Multiply,
+            op_kind::Add,
+            op_kind::Maximum,
+            op_kind::Minimum,
+            op_kind::Divide,
+            op_kind::Subtract,
     };
 
     for (size_t k = 0; k < supported_ops.size(); ++k) {
@@ -3279,9 +3275,9 @@ TEST(Pass, FuseConvPostOpsChain) {
                 } else {
                     // eltwise
                     op_t eltwise {op_id++, opkind, "eltwise"};
-                    if (opkind == impl::op_kind::Elu) {
+                    if (opkind == op_kind::Elu) {
                         eltwise.set_attr<float>(op_attr::alpha, 1.0f);
-                    } else if (opkind == impl::op_kind::Clamp) {
+                    } else if (opkind == op_kind::Clamp) {
                         eltwise.set_attr<float>(op_attr::min, 1.0f);
                         eltwise.set_attr<float>(op_attr::max, 3.0f);
                     }
@@ -3305,7 +3301,7 @@ TEST(Pass, FuseConvPostOpsChain) {
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::convolution_post_ops);
+                    partition_kind::convolution_post_ops);
 
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                     2 + num_two_inputs_post_ops);
@@ -3565,7 +3561,7 @@ TEST(Pass, FuseMatmulRelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3604,7 +3600,7 @@ TEST(Pass, FailToFuseMatmulRelu) {
     pass::pass_base_ptr apass2 = get_pass("matmul_bias_post_ops_chain_fusion");
     apass2->run(agraph);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3640,7 +3636,7 @@ TEST(Pass, FailToFuseReluMatmul) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 1U);
@@ -3674,7 +3670,7 @@ TEST(Pass, FuseMatmulElu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3710,7 +3706,7 @@ TEST(Pass, FuseMatmulSigmoid) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3748,7 +3744,7 @@ TEST(Pass, FuseMatmulClamp) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3784,7 +3780,7 @@ TEST(Pass, FuseMatmulGelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3824,7 +3820,7 @@ TEST(Pass, FuseMatmulSum) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3865,7 +3861,7 @@ TEST(Pass, FuseMatmulSumWithCommunicativeOrder) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3912,7 +3908,7 @@ TEST(Pass, FuseMatmulSumGelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -3959,7 +3955,7 @@ TEST(Pass, FuseMatmulSumRelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4000,7 +3996,7 @@ TEST(Pass, FuseMatmulDiv) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4042,7 +4038,7 @@ TEST(PassSystem, FuseMatmulDiv) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 }
 
 TEST(Pass, FuseMatmulDivAdd) {
@@ -4085,7 +4081,7 @@ TEST(Pass, FuseMatmulDivAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4138,7 +4134,7 @@ TEST(PassSystem, FuseMatmulDivAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 }
 
 TEST(PassSystem, TestMatmulDivAdd) {
@@ -4176,7 +4172,7 @@ TEST(PassSystem, TestMatmulDivAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4213,7 +4209,7 @@ TEST(Pass, FuseMatmulBiasadd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4247,7 +4243,7 @@ TEST(Pass, FuseMatmulBias) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4292,7 +4288,7 @@ TEST(Pass, FuseMatmulBiasSigmoid) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4337,7 +4333,7 @@ TEST(Pass, FuseMatmulBiasaddElu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4381,7 +4377,7 @@ TEST(Pass, FuseMatmulBiasaddRelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4428,7 +4424,7 @@ TEST(Pass, FuseMatmulBiasaddClamp) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4473,7 +4469,7 @@ TEST(Pass, FuseMatmulReluSum) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4526,7 +4522,7 @@ TEST(Pass, FuseMatmulBiasSumRelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4580,7 +4576,7 @@ TEST(PassSystem, TestMatmulBiasSumRelu) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4634,7 +4630,7 @@ TEST(Pass, FuseMatmulBiasaddSwish) {
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4687,7 +4683,7 @@ TEST(PassSystem, FuseMatmulBiasaddSwish) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4729,7 +4725,7 @@ TEST(Pass, FuseMatmulBiasaddRelu6) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            partition_kind::matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -4942,7 +4938,7 @@ TEST(Pass, ConvSingleOpReplacementWithBias) {
     ASSERT_NE(orig_op->get_partition(), nullptr);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -5284,7 +5280,7 @@ TEST(Pass, FuseTwoConvReluWithSharedWeight) {
     ASSERT_EQ(agraph.get_num_partitions(), 2U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
@@ -5293,7 +5289,7 @@ TEST(Pass, FuseTwoConvReluWithSharedWeight) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 
     ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-            impl::partition_kind::convolution_post_ops);
+            partition_kind::convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 3U);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[1].id, 1U);
@@ -5416,7 +5412,7 @@ TEST(PassSystem, FuseToInt8Conv) {
             ASSERT_EQ(agraph.get_num_partitions(), 2U);
         }
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::quantized_convolution_post_ops);
+                partition_kind::quantized_convolution_post_ops);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -5488,7 +5484,7 @@ TEST(Pass, FuseToInt8Fp32Conv) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -5557,7 +5553,7 @@ TEST(PassSystem, TestInt8) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -5687,7 +5683,7 @@ TEST(Pass, FuseToInt8ConvBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -5757,7 +5753,7 @@ TEST(PassSystem, TestInt8ConvBias) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -5832,7 +5828,7 @@ TEST(Pass, FuseToInt8ConvRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -5915,7 +5911,7 @@ TEST(Pass, FuseToInt8ConvSwish) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -5990,7 +5986,7 @@ TEST(PassSystem, TestInt8ConvRelu) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -6066,7 +6062,7 @@ TEST(Pass, FuseToInt8ConvBiasRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -6143,7 +6139,7 @@ TEST(PassSystem, TestInt8ConvBiasRelu) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -6232,7 +6228,7 @@ TEST(Pass, FuseToInt8ConvBiasAdd) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -6330,7 +6326,7 @@ TEST(Pass, FuseToInt8ConvBinary) {
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::quantized_convolution_post_ops);
+                    partition_kind::quantized_convolution_post_ops);
 
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                     with_bias ? 4U : 3U);
@@ -6539,7 +6535,7 @@ TEST(PassSystem, TestInt8ConvBiasAdd) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -6638,7 +6634,7 @@ TEST(Pass, FuseToInt8ConvBiasAddRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -6738,7 +6734,7 @@ TEST(Pass, FuseToInt8ConvBiasDivAdd) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 5U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -6840,7 +6836,7 @@ TEST(PassSystem, FuseToInt8ConvBiasDivAdd) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 5U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -6941,7 +6937,7 @@ TEST(PassSystem, TestInt8ConvBiasAddRelu) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -7042,7 +7038,7 @@ TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -7099,7 +7095,7 @@ TEST(Pass, FuseToX8s8f32Conv) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -7157,7 +7153,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasWithInputBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -7221,7 +7217,7 @@ TEST(Pass, FuseToX8s8f32ConvReluWithInputBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -7286,7 +7282,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -7374,7 +7370,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -7464,7 +7460,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddReluWithAsymmetricZp) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -7590,7 +7586,7 @@ TEST(Pass, TestQuantizedConv) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 2U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -7602,7 +7598,7 @@ TEST(Pass, TestQuantizedConv) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 
     ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 10U);
     ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[1].id, 12U);
@@ -7664,7 +7660,7 @@ TEST(Pass, FuseToInt8Matmul) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -7728,7 +7724,7 @@ TEST(PassSystem, TestInt8Matmul) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -7816,7 +7812,7 @@ TEST(Pass, OptionalQuantForInt8Matmul) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
@@ -7910,7 +7906,7 @@ TEST(Pass, FuseToInt8MatMulBinary) {
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::quantized_matmul_post_ops);
+                    partition_kind::quantized_matmul_post_ops);
 
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                     with_bias ? 4U : 3U);
@@ -8091,7 +8087,7 @@ TEST(PassSystem, FuseToInt8MatMulSwishReLU) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 7U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -8157,7 +8153,7 @@ TEST(Pass, FuseToInt8MatmulBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -8224,7 +8220,7 @@ TEST(PassSystem, TestInt8MatmulBias) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -8297,7 +8293,7 @@ TEST(Pass, FuseToInt8MatmulRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 5U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -8370,7 +8366,7 @@ TEST(PassSystem, FuseToInt8MatmulRelu) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 5U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -8445,7 +8441,7 @@ TEST(Pass, FuseToInt8MatmulBiasRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -8499,7 +8495,7 @@ TEST(Pass, FuseToX8s8f32Matmul) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -8555,7 +8551,7 @@ TEST(Pass, FuseToX8s8f32MatmulBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -8578,9 +8574,9 @@ TEST(Pass, FuseToX8s8f32MatmulEltwise) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
-            {ReLU, impl::partition_kind::quantized_matmul_post_ops},
-            {Sigmoid, impl::partition_kind::quantized_matmul_post_ops},
-            {GELU, impl::partition_kind::quantized_matmul_post_ops}};
+            {ReLU, partition_kind::quantized_matmul_post_ops},
+            {Sigmoid, partition_kind::quantized_matmul_post_ops},
+            {GELU, partition_kind::quantized_matmul_post_ops}};
     for (auto &p : opkind_pair) {
         graph_t agraph;
         std::vector<int64_t> zps = {0};
@@ -8648,9 +8644,9 @@ TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
-            {ReLU, impl::partition_kind::quantized_matmul_post_ops},
-            {Sigmoid, impl::partition_kind::quantized_matmul_post_ops},
-            {GELU, impl::partition_kind::quantized_matmul_post_ops}};
+            {ReLU, partition_kind::quantized_matmul_post_ops},
+            {Sigmoid, partition_kind::quantized_matmul_post_ops},
+            {GELU, partition_kind::quantized_matmul_post_ops}};
     for (auto &p : opkind_pair) {
         graph_t agraph;
         std::vector<int64_t> zps = {0};
@@ -8764,7 +8760,7 @@ TEST(Pass, FuseToInt8Maxpool) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_pooling_post_ops);
+            partition_kind::quantized_pooling_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -8829,7 +8825,7 @@ TEST(PassSystem, TestInt8Maxpool) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_pooling_post_ops);
+            partition_kind::quantized_pooling_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -8893,7 +8889,7 @@ TEST(Pass, FuseToInt8Avgpool) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_pooling_post_ops);
+            partition_kind::quantized_pooling_post_ops);
 }
 
 TEST(PassSystem, FuseToInt8PoolAdd) {
@@ -8996,15 +8992,15 @@ TEST(PassSystem, FuseToInt8PoolAdd) {
         if (engine_kind == engine_kind::cpu) {
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::quantized_pooling_post_ops);
+                    partition_kind::quantized_pooling_post_ops);
         } else {
             ASSERT_EQ(agraph.get_num_partitions(), 4U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::pooling_post_ops);
+                    partition_kind::pooling_post_ops);
             ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-                    impl::partition_kind::misc_post_ops);
+                    partition_kind::misc_post_ops);
             ASSERT_EQ((agraph.get_partitions()[2])->get_kind(),
-                    impl::partition_kind::misc_post_ops);
+                    partition_kind::misc_post_ops);
         }
     }
 }
@@ -9116,7 +9112,7 @@ TEST(Pass, FuseToInt8MatmulAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -9206,7 +9202,7 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -9232,9 +9228,8 @@ TEST(PassSystem, FuseToInt8MatmulBiasBinary) {
            quant
              | (u8/s8)
     */
-    std::vector<op_kind_t> binary_kinds
-            = {Add, Multiply, impl::op_kind::Maximum, impl::op_kind::Minimum,
-                    impl::op_kind::Divide, impl::op_kind::Subtract};
+    std::vector<op_kind_t> binary_kinds = {Add, Multiply, op_kind::Maximum,
+            op_kind::Minimum, op_kind::Divide, op_kind::Subtract};
     for (const auto &binary_kind : binary_kinds) {
         graph_t agraph;
         std::vector<int64_t> zps {0, 1};
@@ -9307,7 +9302,7 @@ TEST(PassSystem, FuseToInt8MatmulBiasBinary) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::quantized_matmul_post_ops);
+                partition_kind::quantized_matmul_post_ops);
         ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 6U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -9352,7 +9347,7 @@ TEST(PassSystem, FuseReluAdd) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::unary_post_ops);
+            partition_kind::unary_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -9432,7 +9427,7 @@ TEST(Pass, FuseToX8s8f32MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -9510,7 +9505,7 @@ TEST(Pass, FuseToX8x8f32MatmulAdd) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -9589,7 +9584,7 @@ TEST(Pass, FuseToX8x8f32MatmulBiasAdd) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -9664,7 +9659,7 @@ TEST(Pass, FuseToX8x8f32MatmulDivAdd) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
@@ -9740,7 +9735,7 @@ TEST(PassSystem, FuseToX8x8f32MatmulDivAdd) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(Pass, FuseToX8s8bf16Matmul) {
@@ -9802,7 +9797,7 @@ TEST(Pass, FuseToX8s8bf16Matmul) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
@@ -9870,7 +9865,7 @@ TEST(PassSystem, FuseToX8s8bf16Matmul) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(Pass, FuseToX8s8bf16MatmulDiv) {
@@ -9942,7 +9937,7 @@ TEST(Pass, FuseToX8s8bf16MatmulDiv) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
@@ -10021,7 +10016,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDiv) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(Pass, FailToAddMatmul) {
@@ -10121,7 +10116,7 @@ TEST(Pass, FuseToX8s8bf16MatmulDivAdd) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
@@ -10211,7 +10206,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDivAdd) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(Pass, FuseToX8s8bf16MatmulBias) {
@@ -10275,7 +10270,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
@@ -10346,7 +10341,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBias) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(Pass, FuseSingleTypecast) {
@@ -10465,7 +10460,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
@@ -10569,7 +10564,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
@@ -10649,7 +10644,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
@@ -10736,7 +10731,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAddBF16) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(PassSystem, FuseToX8s8bf16MatmulAdd) {
@@ -10830,7 +10825,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
@@ -11966,16 +11961,16 @@ TEST(Pass, FuseAddIntoSum) {
     logical_tensor_t input1 = empty_logical_tensor_with_default_id();
     logical_tensor_t output = empty_logical_tensor_with_default_id();
     for (size_t n = 0; n < rep_times; ++n) {
-        op_t add {n, impl::op_kind::Add, "add_" + std::to_string(n)};
+        op_t add {n, op_kind::Add, "add_" + std::to_string(n)};
         add.set_attr<std::string>(op_attr::auto_broadcast, "none");
         if (n == 0) {
-            input0 = logical_tensor_init(n, impl::data_type::f32);
+            input0 = logical_tensor_init(n, data_type::f32);
         } else {
             input0 = output;
         }
 
-        input1 = logical_tensor_init(n + 2 * rep_times, impl::data_type::f32);
-        output = logical_tensor_init(n + 1, impl::data_type::f32);
+        input1 = logical_tensor_init(n + 2 * rep_times, data_type::f32);
+        output = logical_tensor_init(n + 1, data_type::f32);
 
         add.add_input(input0);
         add.add_input(input1);
@@ -12270,7 +12265,7 @@ TEST(Pass, ShuffleFusion) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::misc_post_ops);
+                partition_kind::misc_post_ops);
     }
 }
 
@@ -12421,7 +12416,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulAdd) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(PassSystem, MixInt8AndBf16MatmulDiv) {
@@ -12512,7 +12507,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulDiv) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            partition_kind::quantized_matmul_post_ops);
 }
 
 TEST(Pass, FuseBnReLUWithSharedInputs) {
@@ -12545,7 +12540,7 @@ TEST(Pass, FuseBnReLUWithSharedInputs) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::batch_norm_post_ops);
+            partition_kind::batch_norm_post_ops);
 
     // For a partition with N inputs that have the same id
     // It is required that those inputs are input N times
@@ -12744,7 +12739,7 @@ TEST(PassSystem, FuseInt8Reorder) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::misc_quantized_post_ops);
+            partition_kind::misc_quantized_post_ops);
 }
 
 TEST(Pass, FuseInt8ReorderAdd) {
@@ -12887,7 +12882,7 @@ TEST(PassSystem, FuseInt8ReorderAdd) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::misc_quantized_post_ops);
+            partition_kind::misc_quantized_post_ops);
 }
 
 TEST(Pass, SingleInterpolatePass) {
@@ -12949,7 +12944,7 @@ TEST(Pass, FuseInterpolateRelu) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::interpolate_post_ops);
+            partition_kind::interpolate_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -12999,7 +12994,7 @@ TEST(Pass, FuseInterpolateSwish) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::interpolate_post_ops);
+            partition_kind::interpolate_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -13050,7 +13045,7 @@ TEST(PassSystem, FuseInterpolateSwish) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::interpolate_post_ops);
+            partition_kind::interpolate_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -13099,7 +13094,7 @@ TEST(Pass, FuseInterpolate3PostOps) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::interpolate_post_ops);
+            partition_kind::interpolate_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -13244,7 +13239,7 @@ TEST(Pass, FuseReduceAdd) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::reduction_post_ops);
+                partition_kind::reduction_post_ops);
     }
 }
 
@@ -13283,7 +13278,7 @@ TEST(Pass, FuseReduceRelu) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::reduction_post_ops);
+                partition_kind::reduction_post_ops);
     }
 }
 
@@ -13331,7 +13326,7 @@ TEST(PassSystem, FuseReduceSwish) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::reduction_post_ops);
+                partition_kind::reduction_post_ops);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
 
@@ -13389,7 +13384,7 @@ TEST(PassSystem, FuseReduceWith3PostOps) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::reduction_post_ops);
+            partition_kind::reduction_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 4U);
@@ -13471,7 +13466,7 @@ TEST(Pass, Int8Concat) {
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::misc_quantized_post_ops);
+                partition_kind::misc_quantized_post_ops);
 
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), cur_num_dq);
         for (size_t k = 0; k < cur_num_dq; ++k) {
@@ -13636,7 +13631,7 @@ TEST(Pass, FuseToInt8ConvTransposeAdd) {
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::quantized_convtranspose_post_ops);
+                partition_kind::quantized_convtranspose_post_ops);
 
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                 with_bias ? 4U : 3U);
@@ -13751,7 +13746,7 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
         if (engine_kind == engine_kind::cpu) {
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::quantized_convtranspose_post_ops);
+                    partition_kind::quantized_convtranspose_post_ops);
 
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                     with_bias ? 4U : 3U);
@@ -13770,9 +13765,9 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
         } else {
             ASSERT_EQ(agraph.get_num_partitions(), 2U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::quantized_convtranspose_post_ops);
+                    partition_kind::quantized_convtranspose_post_ops);
             ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-                    impl::partition_kind::misc_post_ops);
+                    partition_kind::misc_post_ops);
         }
     }
 }
@@ -13807,9 +13802,9 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
             op_t deconv {2, ConvTranspose, "deconv"};
             set_convtranspose_common_attr(deconv);
             op_t eltwise {3, eltwise_kind, "relu"};
-            if (eltwise_kind == impl::op_kind::Elu) {
+            if (eltwise_kind == op_kind::Elu) {
                 eltwise.set_attr<float>(op_attr::alpha, 1.f);
-            } else if (eltwise_kind == impl::op_kind::Clamp) {
+            } else if (eltwise_kind == op_kind::Clamp) {
                 eltwise.set_attr<float>(op_attr::min, -1.f);
                 eltwise.set_attr<float>(op_attr::max, 2.f);
             }
@@ -13866,7 +13861,7 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::quantized_convtranspose_post_ops);
+                    partition_kind::quantized_convtranspose_post_ops);
 
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                     with_bias ? 3U : 2U);
@@ -13913,9 +13908,9 @@ TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
             op_t deconv {2, ConvTranspose, "deconv"};
             set_convtranspose_common_attr(deconv);
             op_t eltwise {3, eltwise_kind, "relu"};
-            if (eltwise_kind == impl::op_kind::Elu) {
+            if (eltwise_kind == op_kind::Elu) {
                 eltwise.set_attr<float>(op_attr::alpha, 1.f);
-            } else if (eltwise_kind == impl::op_kind::Clamp) {
+            } else if (eltwise_kind == op_kind::Clamp) {
                 eltwise.set_attr<float>(op_attr::min, -1.f);
                 eltwise.set_attr<float>(op_attr::max, 2.f);
             }
@@ -13972,7 +13967,7 @@ TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
             pm.run_passes(agraph, "no_config");
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::quantized_convtranspose_post_ops);
+                    partition_kind::quantized_convtranspose_post_ops);
 
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                     with_bias ? 3U : 2U);
@@ -14075,7 +14070,7 @@ TEST(Pass, FuseToInt8ConvtransposeBinary) {
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                    impl::partition_kind::quantized_convtranspose_post_ops);
+                    partition_kind::quantized_convtranspose_post_ops);
 
             ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
                     with_bias ? 4U : 3U);
@@ -14214,7 +14209,7 @@ TEST(Pass, FuseConvBwdBiasaddBwd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convolution_backprop_post_ops);
+            partition_kind::convolution_backprop_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     std::unordered_set<size_t> input_ids;
@@ -14322,7 +14317,7 @@ TEST(Pass, BinaryPostops) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         auto partition = agraph.get_partitions()[0];
-        ASSERT_EQ(partition->get_kind(), impl::partition_kind::binary_post_ops);
+        ASSERT_EQ(partition->get_kind(), partition_kind::binary_post_ops);
 
         ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
         for (size_t k = 0; k < input_lts.size(); ++k)
@@ -14443,7 +14438,7 @@ TEST(Pass, Binary3Postops) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         auto partition = agraph.get_partitions()[0];
-        ASSERT_EQ(partition->get_kind(), impl::partition_kind::binary_post_ops);
+        ASSERT_EQ(partition->get_kind(), partition_kind::binary_post_ops);
 
         ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
         for (size_t k = 0; k < input_lts.size(); ++k)
@@ -14498,7 +14493,7 @@ TEST(PassSystem, FuseBinarySwish) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                impl::partition_kind::binary_post_ops);
+                partition_kind::binary_post_ops);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
@@ -14629,7 +14624,7 @@ TEST(Pass, ConvtransposePostops) {
 
                     auto partition = agraph.get_partitions()[0];
                     ASSERT_EQ(partition->get_kind(),
-                            impl::partition_kind::convtranspose_post_ops);
+                            partition_kind::convtranspose_post_ops);
 
                     ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
                     for (size_t k = 0; k < input_lts.size(); ++k)
@@ -14766,8 +14761,8 @@ TEST(Pass, Convtranspose3Postops) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         auto partition = agraph.get_partitions()[0];
-        ASSERT_EQ(partition->get_kind(),
-                impl::partition_kind::convtranspose_post_ops);
+        ASSERT_EQ(
+                partition->get_kind(), partition_kind::convtranspose_post_ops);
 
         ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
         for (size_t k = 0; k < input_lts.size(); ++k)
@@ -14814,7 +14809,7 @@ TEST(PassSystem, FuseConvTransposeSwish) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::convtranspose_post_ops);
+            partition_kind::convtranspose_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
@@ -14906,7 +14901,7 @@ TEST(PassSystem, FuseToInt8ConvTransposeSwishReLU) {
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 7U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convtranspose_post_ops);
+            partition_kind::quantized_convtranspose_post_ops);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
@@ -14985,8 +14980,7 @@ TEST(Pass, Pool3Postops) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         auto partition = agraph.get_partitions()[0];
-        ASSERT_EQ(
-                partition->get_kind(), impl::partition_kind::pooling_post_ops);
+        ASSERT_EQ(partition->get_kind(), partition_kind::pooling_post_ops);
 
         ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
         for (size_t k = 0; k < input_lts.size(); ++k)

@@ -37,8 +37,6 @@
 #include "graph/utils/utils.hpp"
 #include "graph/utils/verbose.hpp"
 
-namespace impl = dnnl::impl::graph;
-
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -47,10 +45,12 @@ class backend;
 } // namespace impl
 } // namespace dnnl
 
-struct dnnl_graph_partition : public impl::utils::id_t {
+namespace graph = dnnl::impl::graph;
+
+struct dnnl_graph_partition : public dnnl::impl::graph::utils::id_t {
 public:
     friend struct dnnl_graph_compiled_partition;
-    friend struct impl::utils::partition_info_t;
+    friend struct graph::utils::partition_info_t;
 
     dnnl_graph_partition() = default;
 
@@ -62,9 +62,9 @@ public:
 
     ~dnnl_graph_partition() = default;
 
-    void init(const std::shared_ptr<impl::partition_impl_t> &pimpl) {
+    void init(const std::shared_ptr<graph::partition_impl_t> &pimpl) {
         pimpl_ = pimpl;
-        const_cast<impl::partition_impl_t *>(pimpl_.get())->set_id(id());
+        const_cast<graph::partition_impl_t *>(pimpl_.get())->set_id(id());
     }
 
     bool is_initialized() const {
@@ -73,23 +73,23 @@ public:
 
     bool is_supported() const;
 
-    const impl::partition_impl_t *get_pimpl() const { return pimpl_.get(); }
+    const graph::partition_impl_t *get_pimpl() const { return pimpl_.get(); }
 
-    const impl::backend *get_assigned_backend() const {
+    const graph::backend *get_assigned_backend() const {
         return pimpl_->get_assigned_backend();
     }
 
-    impl::engine_kind_t get_engine_kind() const {
+    graph::engine_kind_t get_engine_kind() const {
         return pimpl_->get_engine_kind();
     }
 
-    impl::fpmath_mode_t get_fpmath_mode() const {
+    graph::fpmath_mode_t get_fpmath_mode() const {
         return pimpl_->get_fpmath_mode();
     }
 
-    impl::partition_kind_t get_kind() const { return pimpl_->get_kind(); }
+    graph::partition_kind_t get_kind() const { return pimpl_->get_kind(); }
 
-    const std::vector<std::shared_ptr<impl::op_t>> &get_ops() const {
+    const std::vector<std::shared_ptr<graph::op_t>> &get_ops() const {
         return pimpl_->get_ops();
     }
 
@@ -105,11 +105,11 @@ public:
         return ids;
     }
 
-    const std::vector<impl::logical_tensor_t> &get_inputs() const {
+    const std::vector<graph::logical_tensor_t> &get_inputs() const {
         return pimpl_->get_inputs();
     }
 
-    const std::vector<impl::logical_tensor_t> &get_outputs() const {
+    const std::vector<graph::logical_tensor_t> &get_outputs() const {
         return pimpl_->get_outputs();
     }
 
@@ -117,90 +117,90 @@ public:
 
     size_t get_outputs_num() const { return pimpl_->get_outputs().size(); }
 
-    impl::status_t compile(impl::compiled_partition_t *compiled_partition,
-            std::vector<const impl::logical_tensor_t *> &inputs,
-            std::vector<const impl::logical_tensor_t *> &outputs,
-            const impl::engine_t *e = nullptr) const;
+    graph::status_t compile(graph::compiled_partition_t *compiled_partition,
+            std::vector<const graph::logical_tensor_t *> &inputs,
+            std::vector<const graph::logical_tensor_t *> &outputs,
+            const graph::engine_t *e = nullptr) const;
 
-    impl::status_t compile(
-            std::pair<impl::compiled_partition_t *, bool> &compiled_partition,
-            std::vector<const impl::logical_tensor_t *> &inputs,
-            std::vector<const impl::logical_tensor_t *> &outputs,
-            const impl::engine_t *aengine) const;
+    graph::status_t compile(
+            std::pair<graph::compiled_partition_t *, bool> &compiled_partition,
+            std::vector<const graph::logical_tensor_t *> &inputs,
+            std::vector<const graph::logical_tensor_t *> &outputs,
+            const graph::engine_t *aengine) const;
 
-    impl::status_t infer_shape(
-            std::vector<const impl::logical_tensor_t *> &inputs,
-            std::vector<impl::logical_tensor_t *> &outputs);
+    graph::status_t infer_shape(
+            std::vector<const graph::logical_tensor_t *> &inputs,
+            std::vector<graph::logical_tensor_t *> &outputs);
 
 private:
-    std::shared_ptr<const impl::partition_impl_t> pimpl_;
+    std::shared_ptr<const graph::partition_impl_t> pimpl_;
 };
 
 ///
 /// \brief dnnl_graph_compiled_partition_t
 ///
-struct dnnl_graph_compiled_partition : public impl::utils::id_t {
+struct dnnl_graph_compiled_partition : public dnnl::impl::graph::utils::id_t {
 public:
     friend struct dnnl_graph_partition;
-    friend struct impl::utils::partition_info_t;
+    friend struct graph::utils::partition_info_t;
 
-    dnnl_graph_compiled_partition(const impl::partition_t &src_partition)
+    dnnl_graph_compiled_partition(const graph::partition_t &src_partition)
         : src_partition_ {src_partition} {}
 
     ~dnnl_graph_compiled_partition() = default;
 
-    const impl::partition_t &src_partition() const { return src_partition_; }
+    const graph::partition_t &src_partition() const { return src_partition_; }
 
-    void init(const std::shared_ptr<impl::compiled_partition_impl_t> &pimpl) {
+    void init(const std::shared_ptr<graph::compiled_partition_impl_t> &pimpl) {
         pimpl_ = pimpl;
     }
 
     bool is_initialized() const { return pimpl_ != nullptr; }
 
-    const impl::compiled_partition_impl_t *get_pimpl() const {
+    const graph::compiled_partition_impl_t *get_pimpl() const {
         return pimpl_.get();
     }
 
-    const std::vector<impl::inplace_pair_t> &get_inplace_pairs() const {
+    const std::vector<graph::inplace_pair_t> &get_inplace_pairs() const {
         return pimpl_->get_inplace_pairs();
     }
 
-    impl::status_t execute(const impl::stream_t *astream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) const;
+    graph::status_t execute(const graph::stream_t *astream,
+            const std::vector<graph::tensor_t> &inputs,
+            const std::vector<graph::tensor_t> &outputs) const;
 
 #ifdef DNNL_WITH_SYCL
-    impl::status_t execute_sycl(const impl::stream_t *astream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs,
+    graph::status_t execute_sycl(const graph::stream_t *astream,
+            const std::vector<graph::tensor_t> &inputs,
+            const std::vector<graph::tensor_t> &outputs,
             const std::vector<::sycl::event> &sycl_deps,
             ::sycl::event *sycl_event) const;
 #endif
 
-    impl::status_t query_logical_tensor(
-            size_t tid, impl::logical_tensor_t *lt) const {
+    graph::status_t query_logical_tensor(
+            size_t tid, graph::logical_tensor_t *lt) const {
         if (!pimpl_) {
-            *lt = impl::empty_logical_tensor_with_default_id();
-            return impl::status::success;
+            *lt = graph::empty_logical_tensor_with_default_id();
+            return graph::status::success;
         }
         return pimpl_->query_logical_tensor(tid, lt);
     }
 
-    const impl::engine_t *get_engine() const { return pimpl_->get_engine(); }
+    const graph::engine_t *get_engine() const { return pimpl_->get_engine(); }
 
-    std::vector<impl::logical_tensor_t> &get_mutable_inputs() {
+    std::vector<graph::logical_tensor_t> &get_mutable_inputs() {
         return pimpl_->get_mutable_inputs();
     }
 
-    std::vector<impl::logical_tensor_t> &get_mutable_outputs() {
+    std::vector<graph::logical_tensor_t> &get_mutable_outputs() {
         return pimpl_->get_mutable_outputs();
     }
 
-    const std::vector<impl::logical_tensor_t> &get_inputs() const {
+    const std::vector<graph::logical_tensor_t> &get_inputs() const {
         return pimpl_->get_inputs();
     }
 
-    const std::vector<impl::logical_tensor_t> &get_outputs() const {
+    const std::vector<graph::logical_tensor_t> &get_outputs() const {
         return pimpl_->get_outputs();
     }
 
@@ -211,12 +211,12 @@ public:
     }
 
 private:
-    std::shared_ptr<impl::compiled_partition_impl_t> pimpl_;
+    std::shared_ptr<graph::compiled_partition_impl_t> pimpl_;
 
-    const impl::partition_t src_partition_;
+    const graph::partition_t src_partition_;
 
     // Partition information
-    mutable impl::utils::partition_info_t info_;
+    mutable graph::utils::partition_info_t info_;
 };
 
 #endif
