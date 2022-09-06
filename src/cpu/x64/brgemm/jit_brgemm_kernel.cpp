@@ -1764,7 +1764,12 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                   }
               };
 
-    if (IMPLICATION(vpad == 0, brg.req_cal_comp_pads)) {
+    if (brg.req_cal_comp_pads
+            || (vpad != 0
+                    && (brg.req_s8s8_compensation
+                            || brg.zp_type_a != brgemm_broadcast_t::none))) {
+        // only used for int8 compensation related things.
+        assert(brg.is_int8);
         if (n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
             mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
             const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
@@ -1782,11 +1787,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
             auto vmm_store = load();
             if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
                 vmm_store = vmm_mask(vmm_store, is_tail, false, ld_tail_mask);
-                if (brg.is_f16) {
-                    vcvtph2psx(vmm_store, addr);
-                } else {
-                    uni_vmovups(vmm_store, addr);
-                }
+                uni_vmovups(vmm_store, addr);
             } else {
                 load_bytes_skip_zmm(this, brg.dt_b, load(), addr,
                         brg.ldb_tail * brg.ld_step);
