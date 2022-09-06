@@ -145,7 +145,8 @@ status_t fill(stream_t *stream, void *ptr, const void *pattern,
 }
 
 status_t memset(stream_t *stream, void *ptr, int value, size_t size) {
-    return fill(stream, ptr, &value, sizeof(value), size);
+    uint8_t pattern = (uint8_t)value;
+    return fill(stream, ptr, &pattern, sizeof(uint8_t), size);
 }
 
 ocl_usm_kind_t get_pointer_type(engine_t *engine, const void *ptr) {
