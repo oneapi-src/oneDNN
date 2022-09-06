@@ -16,7 +16,7 @@
 
 #include "utils/dims.hpp"
 
-static int64_t dims_nelems(const dims_t &dims, int ndims, int mask) {
+int64_t dims_nelems(const dims_t &dims, int ndims, int mask) {
     int64_t nelems = 1;
     for (int d = 0; d < ndims; d++) {
         nelems *= (mask & (1 << d)) ? dims[d] : 1;
