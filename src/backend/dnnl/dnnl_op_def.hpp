@@ -768,7 +768,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
-                .set_shape_inference_function(infer_bn_bwd_output_shape))
+                .set_shape_inference_function(
+                        infer_dnnl_batchnorm_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_resampling_bwd, 1,
         op_schema_t()

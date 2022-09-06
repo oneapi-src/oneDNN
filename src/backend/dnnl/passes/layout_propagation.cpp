@@ -625,9 +625,6 @@ static impl::status_t layout_propagation_for_batchnorm_bwd(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
     impl::status_t status = impl::status::success;
-    if (op->num_inputs() != 5 || op->num_outputs() != 4) {
-        assert(!"Currently, only support use_scale and use_shift mode!");
-    }
     const auto &pd_flag_pair
             = create_batchnorm_bwd_pd(op, p_engine, mgr, pd_cache);
     const auto &pd = pd_flag_pair.first;
