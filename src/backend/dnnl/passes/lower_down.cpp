@@ -1325,6 +1325,17 @@ impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
                 || in->get_producer().get_kind() != op_kind::dnnl_convolution)
             continue;
 
+        // (TODO) skip on gpu when inputs dtype are mixtured because dnnl binary
+        // primitive requires src0 and src1 has the same dtype. need support
+        // dtype promotion when using binary primitive
+        if (sg->get_engine_kind() == impl::engine_kind::gpu
+                && cur_op->get_input_value(0)->get_logical_tensor().data_type
+                        != cur_op->get_input_value(1)
+                                   ->get_logical_tensor()
+                                   .data_type) {
+            continue;
+        }
+
         bn_ops.emplace_back(cur_op.get());
         visited.insert(cur_op.get());
     }
