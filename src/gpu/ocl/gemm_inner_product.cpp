@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,7 +97,8 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC);
     }
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
-
+    if (!pd()->reduction_pd_)
+        gemm_args.sum_ab = &CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
     gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
 
     nested_scratchpad_t ns(ctx, key_nested_multiple, gemm_);
@@ -106,7 +107,7 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
     status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
-    if (pd()->with_bias()) {
+    if (pd()->with_bias() && pd()->reduction_pd_) {
         auto diff_dst = ctx.input(DNNL_ARG_DIFF_DST);
         auto diff_bia = ctx.output(DNNL_ARG_DIFF_BIAS);
         exec_args_t r_args;

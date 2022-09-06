@@ -146,6 +146,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
+                    && sum_ab() == sum_ab::sum_none
                     && IMPLICATION(with_bias(),
                             utils::one_of(bias_cmask(), 0, 1 << 0, 1 << 1)
                                     && (attr()->zero_points_.has_default_values(
@@ -323,6 +324,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             return desc()->bias_type() != data_type::undef;
         }
 
+        sum_ab_t sum_ab() const { return desc()->sum_ab; }
+
         int bias_cmask() const {
             unsigned char to_cmask[8] = {0, 4, 2, 6, 1, 5, 3, 7};
             assert(unsigned(desc()->bias_mask()) < 8);
@@ -422,11 +425,12 @@ private:
     status_t launch_nocopy(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &a,
             const memory_storage_t &b, const memory_storage_t &c,
-            const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
-            int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
-            int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0,
-            float alpha, float beta, int16_t ao, int16_t bo, int32_t cmask,
-            bool last_k_block, bool swapab, bool disable_hilbert) const;
+            const memory_storage_t &co, const memory_storage_t &sum_ab,
+            int64_t offset_a, int64_t offset_b, int64_t offset_c,
+            int32_t offset_co, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
+            int32_t n, int32_t k, int32_t k0, float alpha, float beta,
+            int16_t ao, int16_t bo, int32_t cmask, bool last_k_block,
+            bool swapab, bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {

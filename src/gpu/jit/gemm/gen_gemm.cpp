@@ -31,11 +31,12 @@ namespace jit {
 status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c,
-        const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
-        int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
-        int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
-        float beta, int16_t ao, int16_t bo, int32_t cmask, bool last_k_block,
-        bool swapab, bool disable_hilbert) const {
+        const memory_storage_t &co, const memory_storage_t &sum_ab,
+        int64_t offset_a, int64_t offset_b, int64_t offset_c, int32_t offset_co,
+        int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
+        int32_t k0, float alpha, float beta, int16_t ao, int16_t bo,
+        int32_t cmask, bool last_k_block, bool swapab,
+        bool disable_hilbert) const {
 
     uint32_t flags = 0;
     bool k_parallel
@@ -193,6 +194,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &c = GEMM_CTX_ARG_STORAGE(c);
     auto &c_zp = GEMM_CTX_ARG_STORAGE(c_zero_point);
     auto &bias = GEMM_CTX_ARG_STORAGE(bias);
+    auto &sum_ab = GEMM_CTX_ARG_STORAGE(sum_ab);
     auto *co = &c_zp;
 
     size_t off_a0
@@ -267,9 +269,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
         if (k_parallel_global && beta != 1.0f
                 && (k > k0 * nocopy_info()->wg[2])) {
-            status = launch_nocopy(ctx, compute_stream, a, b, c, *co, off_a0,
-                    off_b0, off_c0, int32_t(off_co0), lda, ldb, ldc, m, n, 0, 1,
-                    1.0f, beta, 0, 0, 0, false, swapab, true);
+            status = launch_nocopy(ctx, compute_stream, a, b, c, *co, sum_ab,
+                    off_a0, off_b0, off_c0, int32_t(off_co0), lda, ldb, ldc, m,
+                    n, 0, 1, 1.0f, beta, 0, 0, 0, false, swapab, true);
             beta = 1.0f;
         }
     }
@@ -300,9 +302,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
                 status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
-                        off_a_src, off_b_src, off_c, off_co, lda, ldb, ldc,
-                        size_m, size_n, size_k, k0, alpha, eff_beta, ao, bo,
-                        cmask, last_k_block, swapab, disable_hilbert);
+                        sum_ab, off_a_src, off_b_src, off_c, off_co, lda, ldb,
+                        ldc, size_m, size_n, size_k, k0, alpha, eff_beta, ao,
+                        bo, cmask, last_k_block, swapab, disable_hilbert);
 
                 if (status) return status;
             }
