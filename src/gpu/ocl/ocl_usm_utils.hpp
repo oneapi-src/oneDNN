@@ -42,7 +42,7 @@ status_t DNNL_API memcpy(
         stream_t *stream, void *dst, const void *src, size_t size);
 status_t fill(stream_t *stream, void *ptr, const void *pattern,
         size_t pattern_size, size_t size);
-status_t memset(stream_t *stream, void *ptr, int value, size_t size);
+status_t DNNL_API memset(stream_t *stream, void *ptr, int value, size_t size);
 ocl_usm_kind_t DNNL_API get_pointer_type(engine_t *engine, const void *ptr);
 
 } // namespace usm

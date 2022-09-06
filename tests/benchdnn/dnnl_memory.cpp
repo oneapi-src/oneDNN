@@ -240,6 +240,81 @@ void dnn_mem_t::unmap() const {
     mapped_ptr_ = nullptr;
 }
 
+void dnn_mem_t::memset(int value, size_t size) const {
+    bool is_opencl = is_opencl_engine(engine_);
+    bool is_sycl = is_sycl_engine(engine_);
+    auto mem = m_padded_ ? m_padded_ : m_;
+    void *mem_handle;
+    DNN_SAFE_V(dnnl_memory_get_data_handle(mem, &mem_handle));
+    if (is_opencl) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        stream_t stream(engine_);
+        switch (memory_kind) {
+            case memory_kind_ext_t::buffer: {
+                auto buf = static_cast<cl_mem>(mem_handle);
+                cl_command_queue queue;
+                DNN_SAFE_V(dnnl_ocl_interop_stream_get_command_queue(
+                        stream, &queue));
+                cl_int err = clEnqueueFillBuffer(queue, buf, &value,
+                        sizeof(uint8_t), 0, size, 0, nullptr, nullptr);
+                if (err != CL_SUCCESS) SAFE_V(FAIL);
+                DNN_SAFE_V(dnnl_stream_wait(stream));
+                return;
+            }
+            case memory_kind_ext_t::usm:
+            case memory_kind_ext_t::usm_device:
+            case memory_kind_ext_t::usm_shared: {
+                DNN_SAFE_V(dnnl::impl::gpu::ocl::usm::memset(
+                        stream, mem_handle, value, size));
+                DNN_SAFE_V(dnnl_stream_wait(stream));
+                return;
+            }
+        }
+#endif
+    } else if (is_sycl) {
+#ifdef DNNL_WITH_SYCL
+        stream_t stream(engine_);
+        void *queue_ptr;
+        DNN_SAFE_V(dnnl_sycl_interop_stream_get_queue(stream, &queue_ptr));
+        auto &queue = *static_cast<::sycl::queue *>(queue_ptr);
+        switch (memory_kind) {
+            case memory_kind_ext_t::buffer: {
+                auto &buf = *static_cast<::sycl::buffer<uint8_t, 1> *>(
+                        mem_handle);
+                queue.submit([&](::sycl::handler &cgh) {
+#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
+                    constexpr auto target_device
+                            = ::sycl::target::global_buffer;
+#else
+                    constexpr auto target_device = ::sycl::target::device;
+#endif
+                    ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write,
+                            target_device>
+                            acc(buf, cgh);
+                    cgh.fill(acc, static_cast<uint8_t>(value));
+                });
+                DNN_SAFE_V(dnnl_stream_wait(stream));
+                return;
+            }
+            case memory_kind_ext_t::usm:
+            case memory_kind_ext_t::usm_device:
+            case memory_kind_ext_t::usm_shared: {
+                queue.submit([&](::sycl::handler &cgh) {
+                    cgh.memset(mem_handle, value, size);
+                });
+                DNN_SAFE_V(dnnl_stream_wait(stream));
+                return;
+            }
+        }
+#endif
+    }
+    if (is_cpu(engine_)) {
+        ::memset(mem_handle, value, size);
+        return;
+    }
+    SAFE_V(FAIL);
+}
+
 dnn_mem_t dnn_mem_t::create_from_host_ptr(
         const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr) {
     return dnn_mem_t(md, engine, {true, host_ptr});
@@ -518,7 +593,7 @@ int dnn_mem_t::initialize(
         // Fill memory with a magic number (NAN for fp data types) to catch
         // possible uninitialized access.
         map();
-        memset(mapped_ptr_, dnnl_mem_default_value, sz);
+        ::memset(mapped_ptr_, dnnl_mem_default_value, sz);
         unmap();
     }
 
