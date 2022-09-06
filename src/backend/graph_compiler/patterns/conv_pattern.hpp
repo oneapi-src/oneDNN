@@ -734,6 +734,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_identical_bottleneck_backward_v1)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     identical_bottleneck_training_backward(
@@ -743,6 +744,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_convolutional_bottleneck_backward_v1)
         .set_priority(5.5f)
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     convolutional_bottleneck_training_backward(
@@ -752,6 +754,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_identical_bottleneck_backward_v2)
         .set_priority(4.0f) // set to lower priority as backup
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     identical_bottleneck_training_backward_v2(
@@ -761,6 +764,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_convolutional_bottleneck_backward_v2)
         .set_priority(4.5f) // set to lower priority as backup
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     convolutional_bottleneck_training_backward_v2(
@@ -857,6 +861,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_identical_bottleneck_backward_v1)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     identical_bottleneck_training_backward(
@@ -866,6 +871,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_convolutional_bottleneck_backward_v1)
         .set_priority(5.5f)
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     convolutional_bottleneck_training_backward(
@@ -875,6 +881,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_identical_bottleneck_backward_v2)
         .set_priority(4.0f) // set to lower priority as backup
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     identical_bottleneck_training_backward_v2(
@@ -884,6 +891,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_convolutional_bottleneck_backward_v2)
         .set_priority(4.5f)
+        .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     convolutional_bottleneck_training_backward_v2(
