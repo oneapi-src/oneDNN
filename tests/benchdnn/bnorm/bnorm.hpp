@@ -132,6 +132,13 @@ struct prb_t : public desc_t {
         return flags & (FUSE_NORM_RELU | FUSE_NORM_ADD_RELU);
     }
     bool fuse_add_relu() const { return flags & FUSE_NORM_ADD_RELU; }
+
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
+        assert(!"No runtime dimensions support for this driver!");
+        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

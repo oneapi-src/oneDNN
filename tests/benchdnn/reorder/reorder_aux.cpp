@@ -161,6 +161,25 @@ dt_conf_t prb_t::get_conf(data_kind_t kind) const {
     return dt2cfg(dnnl_f32);
 }
 
+benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_t::get_md(int arg) const {
+    if (runtime_dim_mask <= 0) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "ERROR: prb_t::get_md(int arg) interface requires runtime "
+                "dimensions to be specified.");
+        SAFE_V(FAIL);
+    }
+
+    switch (arg) {
+        case DNNL_ARG_SRC:
+            return dnn_mem_t::init_md(ndims, dims.data(), sdt, stag);
+        case DNNL_ARG_DST:
+            return dnn_mem_t::init_md(ndims, dims.data(), ddt, dtag);
+        default:
+            assert(!"unsupported arg");
+            return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
+}
+
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;

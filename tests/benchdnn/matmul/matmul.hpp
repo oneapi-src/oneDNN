@@ -172,6 +172,10 @@ struct prb_t : public prb_vdims_t {
     int32_t *generate_zero_points(
             int arg, const attr_t::zero_points_t &zero_points, int N) const;
 
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const;
+
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 
 private:

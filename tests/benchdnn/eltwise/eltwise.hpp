@@ -92,6 +92,13 @@ struct prb_t : public prb_dims_t {
                 || alg == alg_t::LOGISTIC_DST || alg == alg_t::EXP_DST
                 || alg == alg_t::CLIP_V2_DST;
     }
+
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
+        assert(!"No runtime dimensions support for this driver!");
+        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

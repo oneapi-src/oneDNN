@@ -127,6 +127,10 @@ struct prb_t : public prb_dims_t {
     float *generate_scales(int arg) const;
     dt_conf_t get_conf(data_kind_t kind) const;
 
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const;
+
 private:
     void get_compensation_parameters(
             dims_t &comp_dims, int &mask, flag_bit_t flag) const;

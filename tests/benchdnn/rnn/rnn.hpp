@@ -391,6 +391,13 @@ struct prb_t : public desc_t {
     bool is_lstm_projection() const { return with_projection; }
     bool is_augru() const { return alg == VANILLA_AUGRU || alg == LBR_AUGRU; }
 
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
+        assert(!"No runtime dimensions support for this driver!");
+        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
+
     const dt_conf_t &cfg;
     dnnl_prop_kind_t prop;
     dir_t dir; // Same as `prop`, for compatibility. TODO: remove me;
