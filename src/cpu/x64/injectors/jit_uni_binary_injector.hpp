@@ -51,6 +51,8 @@ bool binary_args_tail_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d, int vlen,
         const bcast_set_t &supported_strategy_set);
 
+bool any_binary_postop_rhs_non_scalar_broadcast(
+        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);
 bool any_binary_postop_rhs_per_oc_broadcast(
         const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);
 bool any_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
