@@ -1006,32 +1006,70 @@ private:
     stmt_t stmt_;
 };
 
+int get_post_op_mem_usage(const post_op_tensor_info_t &info, int c_elems,
+        int max_elems_per_dim = 64) {
+    int po_elems = 1;
+    for (int i = 0; i < info.view().nvdims(); i++) {
+        if ((info.mask() & (1 << i)) == 0) continue;
+        po_elems *= std::min(max_elems_per_dim, (int)info.view().vdims()[i]);
+    }
+    po_elems = std::min(po_elems, c_elems);
+    int type_size = info.view().type().size();
+    int load_size = po_elems * type_size;
+    int cvt_size = info.view().type().is_f32() ? 0 : po_elems * sizeof(float);
+    return load_size + cvt_size;
+}
+
+int find_tile_size(const hw_config_t &hw_cfg,
+        const post_op_context_t &post_op_ctx, const view_t &c_mem_view,
+        const layout_t &c_reg_layout, int preload_max_size, int post_op_blk) {
+    bool with_post_ops = !post_op_ctx.post_ops().empty();
+    for (int tile_size = 1024; tile_size >= 1; tile_size /= 2) {
+        int c_type_size = c_mem_view.type().size();
+        int elems = tile_size / (with_post_ops ? sizeof(float) : c_type_size);
+        int c_mul_size = elems * c_type_size;
+        int c_f32_size = with_post_ops && !c_mem_view.type().is_f32()
+                ? elems * sizeof(float)
+                : 0;
+        int c_size = c_mul_size + c_f32_size;
+        int po_size = 0;
+
+        auto &infos = post_op_ctx.post_op_tensor_infos();
+        int npost_ops = int(infos.size());
+        for (int i = 0; i < npost_ops; i += post_op_blk) {
+            int po_batch_size = 0;
+            for (int j = i; j < std::min(npost_ops, i + post_op_blk); j++) {
+                auto &t = infos[j];
+                if (!t.is_input() || !t.buf().type().is_ptr()) continue;
+                po_batch_size += get_post_op_mem_usage(t, elems);
+            }
+            po_size = std::max(po_size, po_batch_size);
+        }
+
+        int total_size = c_size + po_size;
+        int available_size
+                = hw_cfg.regs() * hw_cfg.grf_size() - (int)c_reg_layout.size();
+        if (total_size <= available_size * 0.75) return tile_size;
+    }
+    ir_error_not_expected();
+    return -1;
+}
+
 stmt_t create_epilogue_stmt(const conv_config_t &cfg, ir_context_t &ir_ctx,
         const gemm_schedule_t &gemm_schedule,
         const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
         const view_t &c_mem_view, const layout_t &c_reg_layout,
         const expr_t &c_mem_buf, const expr_t &c_reg_buf) {
-    // Tile size in bytes. All post-ops are applied to a single tile, then to
-    // the next tile, etc.
-    int tile_size = 512;
     // Max size of post-op tensor buffers to preload and reuse for all tiles.
     int preload_max_size = 512;
     // Block size to apply post-ops within tile. A post-op may have associated
     // loads/conversions, larger block size helps to have more latency hiding
     // across multiple post-ops.
     int post_op_blk = 8;
-
-    int bufs = 0;
-    for (auto &t : post_op_ctx.post_op_tensor_infos()) {
-        if (t.is_input() && t.buf().type().is_ptr()) bufs++;
-    }
-
-    // Reduce GRF usage when there are too many post-op buffers to load.
-    if (bufs > 8) {
-        tile_size = 128;
-    } else if (bufs > 4) {
-        tile_size = 256;
-    }
+    // Tile size in bytes. All post-ops are applied to a single tile, then to
+    // the next tile, etc.
+    int tile_size = find_tile_size(cfg.hw_cfg, post_op_ctx, c_mem_view,
+            c_reg_layout, preload_max_size, post_op_blk);
 
     ir_trace() << "Creating epilogue with parameters"
                << ": tile_size = " << tile_size
