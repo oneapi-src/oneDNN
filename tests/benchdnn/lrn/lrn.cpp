@@ -66,8 +66,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
 
-    dnnl_lrn_desc_t ld;
-
     dnnl_dims_t data_dims_0d = {prb->mb, prb->ic};
     dnnl_dims_t data_dims_1d = {prb->mb, prb->ic, prb->iw};
     dnnl_dims_t data_dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
@@ -81,23 +79,26 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto data_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, prb->tag);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
-    if (dir & FLAG_FWD) {
-        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                        : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_lrn_forward_desc_init(&ld, prop, alg, &data_d,
-                prb->ls, prb->alpha, prb->beta, prb->k));
-    } else {
-        auto diff_data_d
-                = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
-        DNN_SAFE_STATUS(dnnl_lrn_backward_desc_init(&ld, alg, &diff_data_d,
-                &data_d, prb->ls, prb->alpha, prb->beta, prb->k));
-    }
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &ld, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    if (dir & FLAG_FWD) {
+        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                        : dnnl_forward_training;
+        DNN_SAFE_STATUS(dnnl_lrn_forward_primitive_desc_create(&init_pd_args.pd,
+                init_pd_args.engine, prop, alg, &data_d, prb->ls, prb->alpha,
+                prb->beta, prb->k, dnnl_attr));
+    } else {
+        auto diff_data_d
+                = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
+        DNN_SAFE_STATUS(dnnl_lrn_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, alg, &diff_data_d,
+                &data_d, prb->ls, prb->alpha, prb->beta, prb->k,
+                init_pd_args.hint, dnnl_attr));
+    }
+
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

@@ -6484,12 +6484,15 @@ struct deconvolution_backward_weights : public primitive {
 
 /// Local response normalization (LRN) forward propagation primitive.
 struct lrn_forward : public primitive {
-    /// Descriptor for an LRN forward propagation primitive.
-    struct desc {
-        dnnl_lrn_desc_t data;
+    /// Primitive descriptor for an LRN forward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for a LRN forward propagation primitive.
+        /// Constructs a primitive descriptor for an LRN forward propagation
+        ///     primitive.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -6501,51 +6504,30 @@ struct lrn_forward : public primitive {
         /// @param alpha The alpha regularization parameter.
         /// @param beta The beta regularization parameter.
         /// @param k The k regularization parameter.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &data_desc, memory::dim local_size,
-                float alpha, float beta, float k = 1.f) {
-            error::wrap_c_api(dnnl_lrn_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      convert_to_c(aalgorithm), &data_desc.data,
-                                      local_size, alpha, beta, k),
-                    "could not create a descriptor for a lrn forward "
-                    "propagation primitive");
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &data_desc,
+                memory::dim local_size, float alpha, float beta, float k,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_lrn_forward_primitive_desc_create(&pd,
+                    aengine.get(), dnnl::convert_to_c(aprop_kind),
+                    convert_to_c(aalgorithm), &data_desc.data, local_size,
+                    alpha, beta, k, attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a lrn "
+                        "forward propagation primitive");
+            reset(pd);
         }
-    };
-
-    /// Primitive descriptor for an LRN forward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for an LRN forward propagation
-        /// primitive.
-        ///
-        /// @param adesc Descriptor for an LRN forward propagation primitive.
-        /// @param aengine Engine to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
-
-        /// Constructs a primitive descriptor for an LRN forward propagation
-        /// primitive.
-        ///
-        /// @param adesc Descriptor for an LRN forward propagation primitive.
-        /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an LRN forward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -6605,76 +6587,55 @@ struct lrn_forward : public primitive {
 
 /// Local response normalization (LRN) backward propagation primitive.
 struct lrn_backward : public primitive {
-    /// Descriptor for an LRN backward propagation primitive.
-    struct desc {
-        dnnl_lrn_desc_t data;
-
-        /// Constructs a descriptor for an LRN backward propagation primitive.
-        ///
-        /// @param aalgorithm LRN algorithm kind: either
-        ///     #dnnl::algorithm::lrn_across_channels, or
-        ///     #dnnl::algorithm::lrn_within_channel.
-        /// @param diff_data_desc Diff source and diff destination memory
-        ///     descriptor.
-        /// @param data_desc Source memory descriptor.
-        /// @param local_size Regularization local size.
-        /// @param alpha The alpha regularization parameter.
-        /// @param beta The beta regularization parameter.
-        /// @param k The k regularization parameter.
-        desc(algorithm aalgorithm, const memory::desc &data_desc,
-                const memory::desc &diff_data_desc, memory::dim local_size,
-                float alpha, float beta, float k = 1.f) {
-            error::wrap_c_api(
-                    dnnl_lrn_backward_desc_init(&data, convert_to_c(aalgorithm),
-                            &diff_data_desc.data, &data_desc.data, local_size,
-                            alpha, beta, k),
-                    "could not create a descriptor for a lrn backward "
-                    "propagation primitive");
-        }
-    };
-
     /// Primitive descriptor for an LRN backward propagation primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
         /// Constructs a primitive descriptor for an LRN backward propagation
-        /// primitive.
+        ///     primitive.
         ///
-        /// @param adesc Descriptor for an LRN backward propagation primitive.
         /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm LRN algorithm kind: either
+        ///     #dnnl::algorithm::lrn_across_channels, or
+        ///     #dnnl::algorithm::lrn_within_channel.
+        /// @param data_desc Source and destination memory descriptors.
+        /// @param local_size Regularization local size.
+        /// @param alpha The alpha regularization parameter.
+        /// @param beta The beta regularization parameter.
+        /// @param k The k regularization parameter.
         /// @param hint_fwd_pd Primitive descriptor for an LRN forward
         ///     propagation primitive. It is used as a hint for deciding which
         ///     memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &data_desc,
+                const memory::desc &diff_data_desc, memory::dim local_size,
+                float alpha, float beta, float k,
                 const lrn_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
 
-        /// Constructs a primitive descriptor for an LRN backward propagation
-        /// primitive.
-        ///
-        /// @param adesc Descriptor for an LRN backward propagation primitive.
-        /// @param attr Primitive attributes to use.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for an LRN forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
-                const lrn_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_lrn_backward_primitive_desc_create(&pd,
+                    aengine.get(), convert_to_c(aalgorithm),
+                    &diff_data_desc.data, &data_desc.data, local_size, alpha,
+                    beta, k, hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a lrn "
+                        "backward propagation primitive");
+            reset(pd);
+        }
 
         /// Constructs a primitive descriptor for an LRN backward propagation
         /// primitive from a C API primitive descriptor that must have a

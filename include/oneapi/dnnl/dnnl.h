@@ -2223,9 +2223,10 @@ dnnl_status_t DNNL_API dnnl_prelu_backward_desc_init(
 /// @addtogroup dnnl_api_lrn
 /// @{
 
-/// Initializes a descriptor for LRN forward propagation primitive.
+/// Creates a primitive descriptor for an LRN forward propagation primitive.
 ///
-/// @param lrn_desc Output descriptor for a LRN primitive.
+/// @param primitive_desc Output primitive_descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind LRN algorithm kind: either #dnnl_lrn_across_channels or
@@ -2235,16 +2236,19 @@ dnnl_status_t DNNL_API dnnl_prelu_backward_desc_init(
 /// @param alpha The alpha regularization parameter.
 /// @param beta The beta regularization parameter.
 /// @param k The k regularization parameter.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lrn_forward_desc_init(dnnl_lrn_desc_t *lrn_desc,
+dnnl_status_t DNNL_API dnnl_lrn_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
         const dnnl_memory_desc_t *data_desc, dnnl_dim_t local_size, float alpha,
-        float beta, float k);
+        float beta, float k, const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for LRN backward propagation primitive.
+/// Creates a primitive descriptor for an LRN backward propagation primitive.
 ///
-/// @param lrn_desc Output descriptor for a LRN primitive.
+/// @param primitive_desc Output primitive_descriptor.
+/// @param engine Engine to use.
 /// @param alg_kind LRN algorithm kind: either #dnnl_lrn_across_channels or
 ///     #dnnl_lrn_within_channel.
 /// @param diff_data_desc Diff source and diff destination memory descriptor.
@@ -2253,12 +2257,17 @@ dnnl_status_t DNNL_API dnnl_lrn_forward_desc_init(dnnl_lrn_desc_t *lrn_desc,
 /// @param alpha The alpha regularization parameter.
 /// @param beta The beta regularization parameter.
 /// @param k The k regularization parameter.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lrn_backward_desc_init(dnnl_lrn_desc_t *lrn_desc,
+dnnl_status_t DNNL_API dnnl_lrn_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_data_desc,
         const dnnl_memory_desc_t *data_desc, dnnl_dim_t local_size, float alpha,
-        float beta, float k);
+        float beta, float k, const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_lrn
 

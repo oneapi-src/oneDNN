@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
@@ -78,20 +80,33 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t dnnl_lrn_forward_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
-        alg_kind_t alg_kind, const memory_desc_t *data_desc, dim_t local_size,
-        float alpha, float beta, float k) {
+status_t dnnl_lrn_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        prop_kind_t prop_kind, alg_kind_t alg_kind,
+        const memory_desc_t *data_desc, dim_t local_size, float alpha,
+        float beta, float k, const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return lrn_desc_init(lrn_desc, prop_kind, alg_kind, data_desc, nullptr,
-            local_size, alpha, beta, k);
+
+    auto lrn_desc = lrn_desc_t();
+    CHECK(lrn_desc_init(&lrn_desc, prop_kind, alg_kind, data_desc, nullptr,
+            local_size, alpha, beta, k));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&lrn_desc, nullptr, attr);
 }
 
-status_t dnnl_lrn_backward_desc_init(lrn_desc_t *lrn_desc, alg_kind_t alg_kind,
-        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
-        dim_t local_size, float alpha, float beta, float k) {
-    return lrn_desc_init(lrn_desc, backward_data, alg_kind, data_desc,
-            diff_data_desc, local_size, alpha, beta, k);
+status_t dnnl_lrn_backward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const memory_desc_t *diff_data_desc,
+        const memory_desc_t *data_desc, dim_t local_size, float alpha,
+        float beta, float k, const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto lrn_desc = lrn_desc_t();
+    CHECK(lrn_desc_init(&lrn_desc, backward_data, alg_kind, data_desc,
+            diff_data_desc, local_size, alpha, beta, k));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&lrn_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

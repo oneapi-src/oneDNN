@@ -279,10 +279,9 @@ protected:
     }
 
     void Forward() {
-        auto lrn_desc = lrn_forward::desc(p.aprop_kind, p.aalgorithm, *src_desc,
-                p.test_ld.local_size, p.test_ld.alpha, p.test_ld.beta,
-                p.test_ld.k);
-        lrn_fwd_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
+        lrn_fwd_prim_desc = lrn_forward::primitive_desc(eng, p.aprop_kind,
+                p.aalgorithm, *src_desc, p.test_ld.local_size, p.test_ld.alpha,
+                p.test_ld.beta, p.test_ld.k);
 
         ASSERT_EQ(lrn_fwd_prim_desc.get_prop_kind(), p.aprop_kind);
         ASSERT_EQ(lrn_fwd_prim_desc.get_algorithm(), p.aalgorithm);
@@ -312,16 +311,15 @@ protected:
     }
 
     void Backward() {
-        auto lrn_desc = lrn_backward::desc(p.aalgorithm, *src_desc,
-                *diff_dst_desc, p.test_ld.local_size, p.test_ld.alpha,
-                p.test_ld.beta, p.test_ld.k);
-
         src = std::make_shared<test_memory>(*src_desc, eng);
         diff_src = std::make_shared<test_memory>(*diff_src_desc, eng);
         diff_dst = std::make_shared<test_memory>(*diff_dst_desc, eng);
 
-        auto lrn_prim_desc = lrn_backward::primitive_desc(
-                lrn_desc, eng, lrn_fwd_prim_desc);
+        auto lrn_prim_desc
+                = lrn_backward::primitive_desc(eng, p.aalgorithm, *src_desc,
+                        *diff_dst_desc, p.test_ld.local_size, p.test_ld.alpha,
+                        p.test_ld.beta, p.test_ld.k, lrn_fwd_prim_desc);
+
         // test construction from a C pd
         lrn_prim_desc = lrn_backward::primitive_desc(lrn_prim_desc.get());
 

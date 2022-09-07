@@ -321,12 +321,10 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     const dnnl_memory_desc_t *lrn_src_md = relu_dst_md;
 
     // create a lrn primitive descriptor
-    dnnl_lrn_desc_t lrn_desc;
-    CHECK(dnnl_lrn_forward_desc_init(&lrn_desc, dnnl_forward,
-            dnnl_lrn_across_channels, lrn_src_md, local_size, alpha, beta, k));
-
     dnnl_primitive_desc_t lrn_pd;
-    CHECK(dnnl_primitive_desc_create(&lrn_pd, &lrn_desc, NULL, engine, NULL));
+    CHECK(dnnl_lrn_forward_primitive_desc_create(&lrn_pd, engine, dnnl_forward,
+            dnnl_lrn_across_channels, lrn_src_md, local_size, alpha, beta, k,
+            NULL));
 
     // create primitives for lrn dst and workspace memory
     dnnl_memory_t lrn_dst_memory;

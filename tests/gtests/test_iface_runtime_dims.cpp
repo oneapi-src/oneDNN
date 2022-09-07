@@ -207,10 +207,20 @@ TEST_F(runtime_dim_test_t, TestLNorm) {
 TEST_F(runtime_dim_test_t, TestLRN) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 7, 7}, data_type::f32, tag::abcd};
-    CHECK_UNIMPL(lrn_forward::desc(prop_kind::forward,
-            algorithm::lrn_across_channels, md, 5, 1.f, 0.75f));
-    CHECK_UNIMPL(lrn_backward::desc(
-            algorithm::lrn_across_channels, md, md, 5, 1.f, 0.75f));
+
+    CHECK_UNIMPL(lrn_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::lrn_across_channels, md, 5, 1.f, 0.75f, 1.0f));
+
+    lrn_forward::primitive_desc fwd_hint;
+    {
+        auto valid_md = memory::desc({2, 16, 7, 7}, data_type::f32, tag::abcd);
+        CHECK_OK(fwd_hint = lrn_forward::primitive_desc(eng, prop_kind::forward,
+                         algorithm::lrn_across_channels, valid_md, 5, 1.f,
+                         0.75f, 1.0f));
+    }
+    CHECK_UNIMPL(
+            lrn_backward::primitive_desc(eng, algorithm::lrn_across_channels,
+                    md, md, 5, 1.f, 0.75f, 1.0f, fwd_hint));
 }
 
 CPU_TEST_F(runtime_dim_test_t, TestMatmul) {

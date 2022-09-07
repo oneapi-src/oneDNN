@@ -305,6 +305,32 @@ struct layer_normalization_desc_t {
     memory_desc_t diff_dst_desc;
 };
 
+// A descriptor of a Local Response Normalization (LRN) operation.
+struct lrn_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_lrn.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
+    prop_kind_t prop_kind;
+    // LRN algorithm. Possible values: #dnnl_lrn_within_channel and
+    // #dnnl_lrn_across_channels.
+    alg_kind_t alg_kind;
+    // Source and destination memory descriptor.
+    memory_desc_t data_desc;
+    // Source and destination gradient memory descriptor.
+    memory_desc_t diff_data_desc;
+    // The number of channels to sum over (for cross-channel LRN) or the side
+    // length of the square region to sum over (for within-channel LRN).
+    dim_t local_size;
+    // LRN alpha parameter.
+    float lrn_alpha;
+    // LRN beta parameter.
+    float lrn_beta;
+    // LRN k parameter.
+    float lrn_k;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

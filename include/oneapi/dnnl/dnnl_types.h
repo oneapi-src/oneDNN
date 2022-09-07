@@ -2002,36 +2002,6 @@ typedef struct {
 
 /// @} dnnl_api_prelu
 
-/// @addtogroup dnnl_api_lrn
-/// @{
-
-/// A descriptor of a Local Response Normalization (LRN) operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_lrn.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
-    dnnl_prop_kind_t prop_kind;
-    /// LRN algorithm. Possible values: #dnnl_lrn_within_channel and
-    /// #dnnl_lrn_across_channels.
-    dnnl_alg_kind_t alg_kind;
-    /// Source and destination memory descriptor.
-    dnnl_memory_desc_t data_desc;
-    /// Source and destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_data_desc;
-    /// The number of channels to sum over (for cross-channel LRN) or the side
-    /// length of the square region to sum over (for within-channel LRN).
-    dnnl_dim_t local_size;
-    /// LRN alpha parameter.
-    float lrn_alpha;
-    /// LRN beta parameter.
-    float lrn_beta;
-    /// LRN k parameter.
-    float lrn_k;
-} dnnl_lrn_desc_t;
-
-/// @} dnnl_api_lrn
 
 /// @addtogroup dnnl_api_rnn
 /// @{

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,11 +81,10 @@ void lrn_example(dnnl::engine::kind engine_kind) {
     const float alpha = 1.e-4f;
     const float beta = 0.75f;
     const float k = 1.f;
-    auto lrn_d = lrn_forward::desc(prop_kind::forward_training,
-            algorithm::lrn_across_channels, src_md, local_size, alpha, beta, k);
-
     // Create primitive descriptor.
-    auto lrn_pd = lrn_forward::primitive_desc(lrn_d, engine);
+    auto lrn_pd = lrn_forward::primitive_desc(engine,
+            prop_kind::forward_training, algorithm::lrn_across_channels, src_md,
+            local_size, alpha, beta, k);
 
     // Create workspace memory object using memory descriptors created by the
     // primitive descriptor.

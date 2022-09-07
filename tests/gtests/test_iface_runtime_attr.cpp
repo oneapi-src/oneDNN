@@ -283,19 +283,24 @@ TEST_F(runtime_attr_test_t, TestLNorm) {
 TEST_F(runtime_attr_test_t, TestLRN) {
     for (auto dt : {data_type::f32}) {
         memory::desc md {{1, 16, 3, 3}, dt, tag::abcd};
-        lrn_forward::desc op_d(prop_kind::forward_inference,
-                algorithm::lrn_across_channels, md, 5, 1.f, 0.75f);
-        CHECK_OK(lrn_forward::primitive_desc(op_d, eng));
-        CHECK_UNIMPL(lrn_forward::primitive_desc(
-                op_d, gen_attr_with_oscale(false), eng));
-        CHECK_UNIMPL(lrn_forward::primitive_desc(
-                op_d, gen_attr_with_oscale(true), eng));
+        CHECK_OK(lrn_forward::primitive_desc(eng, prop_kind::forward_inference,
+                algorithm::lrn_across_channels, md, 5, 1.f, 0.75f, 1.0f));
+        CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::lrn_across_channels,
+                md, 5, 1.f, 0.75f, 1.0f, gen_attr_with_oscale(false)));
+        CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::lrn_across_channels,
+                md, 5, 1.f, 0.75f, 1.0f, gen_attr_with_oscale(true)));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
-            CHECK_UNIMPL(lrn_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(false, arg), eng));
-            CHECK_UNIMPL(lrn_forward::primitive_desc(
-                    op_d, gen_attr_with_zp(true, arg), eng));
+            CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
+                    prop_kind::forward_inference,
+                    algorithm::lrn_across_channels, md, 5, 1.f, 0.75f, 1.0f,
+                    gen_attr_with_zp(false, arg)));
+            CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
+                    prop_kind::forward_inference,
+                    algorithm::lrn_across_channels, md, 5, 1.f, 0.75f, 1.0f,
+                    gen_attr_with_zp(true, arg)));
         }
     }
 }
