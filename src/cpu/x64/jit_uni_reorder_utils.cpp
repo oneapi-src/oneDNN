@@ -148,18 +148,18 @@ static bool is_with_groups(const memory_desc_t &dst_md) {
                     dst_d.extra().asymm_compensation_mask);
 }
 
+static inline int get_next_parent_node(node_t *nodes, int ndims, int cur_node) {
+    const int cur_id = nodes[cur_node].dim_id;
+    for (int d = cur_node + 1; d < ndims; ++d) {
+        if (nodes[d].dim_id == cur_id) return d;
+    }
+    return -1;
+}
+
 static void prb_set_compensation_strides(prb_t &p) {
 
-    auto get_next_parent_node = [&](int cur_node) -> int {
-        const int cur_id = p.nodes[cur_node].dim_id;
-        for (int d = cur_node + 1; d < p.ndims; ++d) {
-            if (p.nodes[d].dim_id == cur_id) return d;
-        }
-        return -1;
-    };
-
     auto require_n_stride = [&](int cur_node) -> bool {
-        const int parent = get_next_parent_node(cur_node);
+        const int parent = get_next_parent_node(p.nodes, p.ndims, cur_node);
         if (parent < 0) return false;
 
         const int p_n = p.nodes[parent].n;
