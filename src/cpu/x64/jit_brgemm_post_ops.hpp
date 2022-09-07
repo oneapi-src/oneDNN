@@ -288,8 +288,12 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
         , postops_injector_(nullptr)
         , with_binary_per_oc_bcast_(brg.with_binary
                   && binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                          brg.attr->post_ops_,
-                          memory_desc_wrapper(brg.dst_md))) {
+                          brg.attr->post_ops_, memory_desc_wrapper(brg.dst_md)))
+        , with_binary_non_scalar_bcast_(brg.with_binary
+                  && binary_injector::
+                          any_binary_postop_rhs_non_scalar_broadcast(
+                                  brg.attr->post_ops_,
+                                  memory_desc_wrapper(brg.dst_md))) {
 
         if ((jcp.with_sum && brg.beta != 0)
                 || ((jcp.with_binary || jcp.with_eltwise) && brg.alpha != 0)) {
@@ -354,6 +358,7 @@ private:
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     const bool with_binary_per_oc_bcast_;
+    const bool with_binary_non_scalar_bcast_;
 
     int inp_typesize_;
     int out_typesize_;
@@ -516,7 +521,7 @@ private:
 
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
 
-        if (with_binary_per_oc_bcast_) {
+        if (with_binary_non_scalar_bcast_) {
             for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
                 const auto zmm_idx = vector(m, n, n_block).getIdx();
