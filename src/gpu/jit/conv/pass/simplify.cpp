@@ -1488,6 +1488,37 @@ public:
     }
 };
 
+// Rewrites addition with mixed 64-bit/32-bit expressions to reduce 64-bit
+// arithmetic. Example:
+// Before: ((x.s64 + y.s32) + z.s32) [two 64-bit add]
+// After:  ((y.s32 + z.s32) + x.s64) [one 32-bit add and one 64-bit add]
+class _64_bit_add_optimizer_t : public nary_op_mutator_t {
+public:
+    object_t _mutate(const nary_op_t &obj) override {
+        auto new_obj = nary_op_mutator_t::_mutate(obj);
+        auto *nary_op = new_obj.as_ptr<nary_op_t>();
+        if (nary_op->op_kind != op_kind_t::_add || nary_op->args.size() <= 2)
+            return new_obj;
+
+        std::vector<expr_t> other_args;
+        std::vector<expr_t> x64_args;
+        for (auto &a : nary_op->args) {
+            if (a.type().is_x64()) {
+                x64_args.push_back(a);
+            } else {
+                other_args.push_back(a);
+            }
+        }
+
+        if (other_args.empty() || x64_args.empty()) return new_obj;
+
+        std::vector<expr_t> new_args = std::move(other_args);
+        new_args.insert(new_args.end(), x64_args.begin(), x64_args.end());
+
+        return nary_op_t::make(nary_op->op_kind, new_args);
+    }
+};
+
 // Simplifies using the N-ary form.
 expr_t simplify_with_nary(const expr_t &_e, const constraint_set_t &cset) {
     auto e = _e;
@@ -1500,6 +1531,7 @@ expr_t simplify_with_nary(const expr_t &_e, const constraint_set_t &cset) {
     e = int_div_mod_expander_t(cset).mutate(e);
     e = common_factor_simplifier_t().mutate(e);
     e = int_div_mod_range_simplifier_t(cset).mutate(e);
+    e = _64_bit_add_optimizer_t().mutate(e);
 
     e = nary_op_back_transform(e);
 
