@@ -268,7 +268,6 @@ struct brgemm_kernel_post_ops_t {
     void *ptr_bias;
     void *ptr_scales;
     const void *ptr_binary_post_ops_rhs;
-    size_t oc_l_offset;
     size_t apply_comp = 0;
     int32_t a_comp_val = 1;
     int32_t *a_zp_compensation;
@@ -286,9 +285,6 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
         , jcp(ajcp)
         , attr(aattr)
         , postops_injector_(nullptr)
-        , with_binary_per_oc_bcast_(brg.with_binary
-                  && binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                          brg.attr->post_ops_, memory_desc_wrapper(brg.dst_md)))
         , with_binary_non_scalar_bcast_(brg.with_binary
                   && binary_injector::
                           any_binary_postop_rhs_non_scalar_broadcast(
@@ -357,7 +353,6 @@ private:
             postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
-    const bool with_binary_per_oc_bcast_;
     const bool with_binary_non_scalar_bcast_;
 
     int inp_typesize_;
@@ -384,9 +379,6 @@ private:
     const reg64_t reg_ptr_sum_scale = rdx;
     const reg64_t reg_ptr_sum_zp = rsi;
 
-    const reg64_t reg_oc_l_offset_ = abi_not_param1;
-    const reg64_t aux_reg_oc_l_offset_ = rbx;
-
     const reg64_t reg_zp_c_values = rbx;
     const reg64_t aux_reg_zp_c_values = rbx;
     const reg64_t reg_zp_a_comp = rbx;
@@ -396,16 +388,15 @@ private:
     const reg64_t reg_zp_a_val = rbx;
     const reg64_t reg_apply_comp = rbx;
 
-    constexpr static int reg_aux_oc_l_offset_offs_ = 0;
-    constexpr static int reg_zp_c_values_offs_ = 8;
-    constexpr static int aux_reg_zp_c_values_offs_ = 16;
-    constexpr static int reg_zp_a_comp_offs_ = 24;
-    constexpr static int aux_reg_zp_a_comp_offs_ = 32;
-    constexpr static int reg_s8s8_comp_offs_ = 40;
-    constexpr static int aux_reg_s8s8_comp_offs_ = 48;
-    constexpr static int reg_zp_a_val_offs_ = 56;
-    constexpr static int reg_apply_comp_offs_ = 64;
-    constexpr static int stack_space_needed_ = 72;
+    constexpr static int reg_zp_c_values_offs_ = 0;
+    constexpr static int aux_reg_zp_c_values_offs_ = 8;
+    constexpr static int reg_zp_a_comp_offs_ = 16;
+    constexpr static int aux_reg_zp_a_comp_offs_ = 24;
+    constexpr static int reg_s8s8_comp_offs_ = 32;
+    constexpr static int aux_reg_s8s8_comp_offs_ = 40;
+    constexpr static int reg_zp_a_val_offs_ = 48;
+    constexpr static int reg_apply_comp_offs_ = 56;
+    constexpr static int stack_space_needed_ = 64;
 
     /* bf16 emulation */
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(27);
@@ -730,8 +721,6 @@ private:
         if (brg.alpha) {
             mov(aux_reg_in, reg_in);
             if (jcp.with_bias) mov(aux_reg_bias, reg_bias);
-            if (with_binary_per_oc_bcast_)
-                mov(aux_reg_oc_l_offset_, reg_oc_l_offset_);
             if (brg.zp_type_c != brgemm_broadcast_t::none) {
                 mov(aux_reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
                 mov(ptr[rsp + aux_reg_zp_c_values_offs_], aux_reg_zp_c_values);
@@ -776,13 +765,6 @@ private:
                     add(aux_reg_s8s8_comp, sizeof(int32_t) * oc_l_offset);
                     mov(ptr[rsp + aux_reg_s8s8_comp_offs_], aux_reg_s8s8_comp);
                 }
-                if (with_binary_per_oc_bcast_) {
-                    mov(aux_reg_oc_l_offset_,
-                            ptr[rsp + reg_aux_oc_l_offset_offs_]);
-                    add(aux_reg_oc_l_offset_, oc_l_offset);
-                    mov(ptr[rsp + reg_aux_oc_l_offset_offs_],
-                            aux_reg_oc_l_offset_);
-                }
 
                 add(aux_reg_scales, is_oc_scale_ * sizeof(float) * oc_l_offset);
             }
@@ -813,13 +795,6 @@ private:
                     add(aux_reg_s8s8_comp, sizeof(int32_t) * oc_l_offset);
                     mov(ptr[rsp + aux_reg_s8s8_comp_offs_], aux_reg_s8s8_comp);
                 }
-                if (with_binary_per_oc_bcast_) {
-                    mov(aux_reg_oc_l_offset_,
-                            ptr[rsp + reg_aux_oc_l_offset_offs_]);
-                    add(aux_reg_oc_l_offset_, oc_l_offset);
-                    mov(ptr[rsp + reg_aux_oc_l_offset_offs_],
-                            aux_reg_oc_l_offset_);
-                }
 
                 add(aux_reg_scales, is_oc_scale_ * sizeof(float) * oc_l_offset);
             }
@@ -846,13 +821,6 @@ private:
                     mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
                     add(aux_reg_s8s8_comp, sizeof(int32_t) * nb_tail);
                     mov(ptr[rsp + aux_reg_s8s8_comp_offs_], aux_reg_s8s8_comp);
-                }
-                if (with_binary_per_oc_bcast_) {
-                    mov(aux_reg_oc_l_offset_,
-                            ptr[rsp + reg_aux_oc_l_offset_offs_]);
-                    add(aux_reg_oc_l_offset_, nb_tail);
-                    mov(ptr[rsp + reg_aux_oc_l_offset_offs_],
-                            aux_reg_oc_l_offset_);
                 }
                 add(aux_reg_scales, is_oc_scale_ * bia_typesize_ * (nb_tail));
             }
@@ -910,8 +878,6 @@ private:
                 mov(reg_s8s8_comp, ptr[param1 + GET_OFF(s8s8_compensation)]);
                 mov(ptr[rsp + reg_s8s8_comp_offs_], reg_s8s8_comp);
             }
-            if (with_binary_per_oc_bcast_)
-                mov(reg_oc_l_offset_, ptr[param1 + GET_OFF(oc_l_offset)]);
         }
         mov(reg_out, ptr[param1 + GET_OFF(ptr_out)]);
 
