@@ -251,23 +251,25 @@ public:
         register_buffer(reg_buf_, reg_layout_.size());
     }
 
-    stmt_t build_load_stmt() {
+    stmt_t build_load_stmt(const view_t &c_view) {
         ir_assert(needs_load());
         ir_assert(reg_buf_.is_empty());
 
         reg_buf_ = make_tmp_reg_buffer();
         auto read = make_access_builder(*ir_ctx_, mem_view(), mem_buf(),
-                reg_buf_, send_op_t::load, send_address_t::a64);
+                reg_buf_, send_op_t::load, send_address_t::a64,
+                get_cache_hint(c_view));
         reg_layout_ = read.reg_layout();
         register_buffer(reg_buf_, read.reg_buf_size());
         return read.stmt();
     }
 
-    stmt_t build_prefetch_stmt() const {
+    stmt_t build_prefetch_stmt(const view_t &c_view) const {
         ir_assert(needs_load());
 
         auto prefetch = make_access_builder(*ir_ctx_, mem_view(), mem_buf(),
-                expr_t(), send_op_t::prefetch, send_address_t::a64);
+                expr_t(), send_op_t::prefetch, send_address_t::a64,
+                get_cache_hint(c_view));
         return prefetch.stmt();
     }
 
@@ -402,6 +404,19 @@ private:
             }
         }
         allocs_.push_back(alloc_t::make(buf, size, alloc_kind_t::grf));
+    }
+
+    send_cache_hint_t get_cache_hint(const view_t &c_view) const {
+        ir_assert(mem_view().nvdims() == c_view.nvdims());
+        bool per_tensor = true;
+        for (int i = 0; i < mem_view().nvdims(); i++) {
+            if ((mask() & (1 << i)) != 0) continue;
+            if (c_view.vdims()[i] == 1) continue;
+            per_tensor = false;
+            break;
+        }
+        if (per_tensor) return send_cache_hint_t::load_once;
+        return send_cache_hint_t::undef;
     }
 
     ir_context_t *ir_ctx_ = nullptr;
@@ -714,7 +729,7 @@ private:
         // Generate preload statements.
         for (auto &t : post_op_tensors_) {
             if (!t.do_preload()) continue;
-            stmt_ = stmt_.append(t.build_load_stmt());
+            stmt_ = stmt_.append(t.build_load_stmt(c_mem_view_));
         }
 
         // Generate prefetch statements.
@@ -722,7 +737,7 @@ private:
             for (auto &t : post_op_tensors_) {
                 if (!t.needs_load()) continue;
                 if (t.do_preload()) continue;
-                stmt_ = stmt_.append(t.build_prefetch_stmt());
+                stmt_ = stmt_.append(t.build_prefetch_stmt(c_mem_view_));
             }
         }
 
@@ -925,7 +940,7 @@ private:
             auto &t = *kv.second;
             if (!t.needs_load()) continue;
             if (t.do_preload()) continue;
-            load_stmt = load_stmt.append(t.build_load_stmt());
+            load_stmt = load_stmt.append(t.build_load_stmt(c_mem_view_));
             if (t.needs_f32_convert()) {
                 convert_stmt = convert_stmt.append(t.build_convert_stmt());
             }

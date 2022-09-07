@@ -126,7 +126,8 @@ bool send_t::is_supported() const {
 }
 
 std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
-        send_address_t address, const type_t &mem_type) {
+        send_address_t address, const type_t &mem_type,
+        send_cache_hint_t cache_hint) {
     std::vector<func_t> filtered;
     for (int slots : {1, 2, 4, 8, 16}) {
         for (int elems : {1, 2, 4, 8, 16}) {
@@ -137,8 +138,8 @@ std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
                         && type.size() != mem_type.size())
                     continue;
 
-                auto f = send_t::make(
-                        hw, op, address, type.with_elems(elems), slots);
+                auto f = send_t::make(hw, op, address, type.with_elems(elems),
+                        slots, cache_hint);
                 if (!f.as<send_t>().is_supported()) continue;
                 filtered.push_back(f);
             }
@@ -174,6 +175,42 @@ std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
         ret.push_back(filtered[i]);
     }
 
+    return ret;
+}
+
+ngen::CacheSettingsLSC get_cache_settings(const send_t &send) {
+    auto ret = ngen::CacheSettingsLSC::Default;
+    bool is_load = send.is_load() || send.is_load_2d();
+    bool is_store = send.is_store() || send.is_store_2d();
+    bool is_prefetch = send.is_prefetch() || send.is_prefetch_2d();
+    switch (send.cache_hint) {
+        case send_cache_hint_t::undef:
+            switch (send.hw) {
+                case ngen::HW::XeHPG:
+                    if (is_store) ret = ngen::CacheSettingsLSC::L1WB_L3WB;
+                    break;
+                case ngen::HW::XeHPC:
+                    if (is_store) {
+                        ret = ngen::CacheSettingsLSC::L1UC_L3WB;
+                    } else if (is_load || is_prefetch) {
+                        ret = ngen::CacheSettingsLSC::L1C_L3C;
+                    }
+                    break;
+                default: break;
+            }
+            break;
+        case send_cache_hint_t::load_once:
+            switch (send.hw) {
+                case ngen::HW::XeHPG:
+                    ret = ngen::CacheSettingsLSC::L1C_L3UC;
+                    break;
+                case ngen::HW::XeHPC:
+                    ret = ngen::CacheSettingsLSC::L1C_L3C;
+                    break;
+                default: break;
+            }
+            break;
+    }
     return ret;
 }
 
@@ -430,13 +467,15 @@ private:
 
 access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
         const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
-        send_address_t send_address, send_hint_t &send_hint)
+        send_address_t send_address, send_cache_hint_t send_cache_hint,
+        send_hint_t &send_hint)
     : ir_ctx_(&ir_ctx)
     , mem_view_(mem_view)
     , mem_buf_(mem_buf)
     , reg_buf_(reg_buf)
     , send_op_(send_op)
     , send_address_(send_address)
+    , send_cache_hint_(send_cache_hint)
     , send_hint_(send_hint)
     , mem_type_(mem_view.type())
     , mem_walker_(
@@ -485,6 +524,45 @@ static bool stride_dimension_ok(const view_t &view, int stride_tidx,
     }
     e = simplify(e);
     return is_zero(e);
+}
+
+static expr_t try_scalarize(const expr_t &e) {
+    if (e.type().is_scalar()) return e;
+
+    if (auto *shuffle = e.as_ptr<shuffle_t>()) {
+        if (shuffle->is_broadcast()) return try_scalarize(shuffle->vec[0]);
+        return expr_t();
+    }
+
+    if (auto *binary = e.as_ptr<binary_op_t>()) {
+        auto a = try_scalarize(binary->a);
+        auto b = try_scalarize(binary->b);
+        if (a.is_empty() || b.is_empty()) return expr_t();
+        return binary_op_t::make(binary->op_kind, a, b);
+    }
+
+    ir_error_not_expected() << e;
+    return expr_t();
+}
+
+static stmt_t try_promote_to_lsc(const stmt_t &_call) {
+    if (_call.is_empty()) return _call;
+    auto &call = _call.as<func_call_t>();
+    auto &send = call.func.as<send_t>();
+    if (send.is_lsc || send.is_2d()) return call;
+    if (send.hw < ngen::HW::XeHPG) return call;
+    if (send.is_slm() || send.is_bts()) return call;
+    if (!send.is_block()) return call;
+
+    auto mask = try_scalarize(send_t::arg_mask(call));
+    if (mask.is_empty()) return call;
+
+    auto new_args = call.args;
+    send_t::arg_mask(new_args) = mask;
+
+    auto lsc_send = send_t::make(send.hw, send.op, send.address, send.type,
+            send.slots, /*is_lsc=*/true, send.cache_hint);
+    return lsc_send.call(new_args);
 }
 
 bool access_builder_t::try_build_2d() {
@@ -630,7 +708,7 @@ bool access_builder_t::try_build_2d() {
     hint.height = h;
     auto _send = send_t::make_2d(ir_ctx_->hw_cfg().hw(),
             send_hint_.convert(send_op_), send_type, W, H, P, w, h, c, vnni,
-            transpose);
+            transpose, send_cache_hint_);
     auto &send = _send.as<send_t>();
 
     stmt_ = stmt_t();
@@ -810,8 +888,8 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
     int reg_stride
             = (try_layout_blocks.empty() ? 0
                                          : (int)try_layout_blocks[0].stride);
-    auto send_list = send_t::get_all(
-            ir_ctx_->hw_cfg().hw(), send_op_, send_address_, mem_type_);
+    auto send_list = send_t::get_all(ir_ctx_->hw_cfg().hw(), send_op_,
+            send_address_, mem_type_, send_cache_hint_);
     reg_layout_walker_
             = utils::make_unique<layout_walker_t>(try_layout, grf_size());
     stmt_ = stmt_t();
@@ -869,6 +947,7 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
 
         auto &send = _send.as<send_t>();
         auto send_stmt = create_send_stmt(send);
+        send_stmt = try_promote_to_lsc(send_stmt);
         stmt_ = stmt_.append(send_stmt);
 
         reg_layout_walker_->advance(send.access_size() / mem_type_.size());
