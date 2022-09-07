@@ -141,7 +141,13 @@ struct prb_t : public prb_vdims_t {
 
     const dims_t &src_dims() const { return vdims[0]; }
     const dims_t &weights_dims() const { return vdims[1]; }
-    // const dims_t &prb_vdims_t::dst_dims() const;
+    dims_t bia_dims() const {
+        dims_t dims(ndims, 1);
+        for (int d = 0; d < ndims; ++d)
+            if (bia_mask & (1 << d)) dims[d] = dst_dims[d];
+        return dims;
+    }
+    // dims_t prb_vdims_t::dst_dims; // A member in `prb_vdims_t`.
 
     const dims_mask_t &src_runtime_dim_mask() const { return rt_dims_masks[0]; }
     const dims_mask_t &weights_runtime_dim_mask() const {
