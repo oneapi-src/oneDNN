@@ -101,15 +101,11 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(src_data.data(), src_mem);
     write_to_dnnl_memory(scale_shift_data.data(), scale_shift_mem);
 
-    // Create operation descriptor.
+    // Create primitive descriptor.
     const float epsilon = 1.e-10f;
-    auto lnorm_desc = layer_normalization_forward::desc(
+    auto lnorm_pd = layer_normalization_forward::primitive_desc(engine,
             prop_kind::forward_training, src_md, dst_md, epsilon,
             normalization_flags::use_scale_shift);
-
-    // Create primitive descriptor.
-    auto lnorm_pd
-            = layer_normalization_forward::primitive_desc(lnorm_desc, engine);
 
     // Use the memory descriptors from the primitive to create memory objects
     // required for the primitive: mean, variance, scale/shift.

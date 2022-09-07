@@ -2033,47 +2033,6 @@ typedef struct {
 
 /// @} dnnl_api_lrn
 
-/// @addtogroup dnnl_api_layer_normalization
-/// @{
-
-/// A descriptor of a Layer Normalization operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_layer_normalization.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
-    dnnl_prop_kind_t prop_kind;
-    /// Source memory descriptor.
-    dnnl_memory_desc_t src_desc;
-    /// Source gradient memory descriptor.
-    dnnl_memory_desc_t diff_src_desc;
-    /// Scale and shift data and gradient memory descriptors.
-    ///
-    /// Scaleshift memory descriptor uses 2D #dnnl_ab
-    /// format[2, normalized_dim] where 1-st dimension contains gamma parameter,
-    /// 2-nd dimension contains beta parameter. Normalized_dim is equal to the
-    /// last logical dimension of the data tensor across which normalization is
-    /// performed.
-    dnnl_memory_desc_t data_scaleshift_desc;
-    dnnl_memory_desc_t diff_data_scaleshift_desc;
-    /// Mean and variance data memory descriptors.
-    ///
-    /// Statistics (mean and variance) memory descriptor is the k-dimensional tensor
-    /// where k is equal to data_tensor_ndims - 1 and may have any plain
-    /// (stride[last_dim] == 1) user-provided format.
-    dnnl_memory_desc_t stat_desc;
-    /// Layer normalization epsilon parameter.
-    float layer_norm_epsilon;
-    unsigned flags;
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-    /// Destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_dst_desc;
-} dnnl_layer_normalization_desc_t;
-
-/// @} dnnl_api_layer_normalization
-
 /// @addtogroup dnnl_api_rnn
 /// @{
 

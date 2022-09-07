@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
@@ -124,24 +126,35 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
 }
 } // namespace
 
-status_t dnnl_layer_normalization_forward_desc_init(
-        layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
-        const memory_desc_t *stat_desc, float epsilon, unsigned flags) {
+status_t dnnl_layer_normalization_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        prop_kind_t prop_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, const memory_desc_t *stat_desc,
+        float epsilon, unsigned flags, const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return lnorm_desc_init(lnorm_desc, prop_kind, src_desc, dst_desc, stat_desc,
-            nullptr, nullptr, epsilon, flags);
+
+    auto lnorm_desc = layer_normalization_desc_t();
+    CHECK(lnorm_desc_init(&lnorm_desc, prop_kind, src_desc, dst_desc, stat_desc,
+            nullptr, nullptr, epsilon, flags));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&lnorm_desc, nullptr, attr);
 }
 
-status_t dnnl_layer_normalization_backward_desc_init(
-        layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *diff_src_desc, const memory_desc_t *diff_dst_desc,
-        const memory_desc_t *src_desc, const memory_desc_t *stat_desc,
-        float epsilon, unsigned flags) {
+status_t dnnl_layer_normalization_backward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        prop_kind_t prop_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, const memory_desc_t *src_desc,
+        const memory_desc_t *stat_desc, float epsilon, unsigned flags,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
     if (!one_of(prop_kind, backward, backward_data)) return invalid_arguments;
-    return lnorm_desc_init(lnorm_desc, prop_kind, src_desc, nullptr, stat_desc,
-            diff_src_desc, diff_dst_desc, epsilon, flags);
+
+    auto lnorm_desc = layer_normalization_desc_t();
+    CHECK(lnorm_desc_init(&lnorm_desc, prop_kind, src_desc, nullptr, stat_desc,
+            diff_src_desc, diff_dst_desc, epsilon, flags));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&lnorm_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

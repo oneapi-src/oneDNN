@@ -188,10 +188,20 @@ TEST_F(runtime_dim_test_t, TestLNorm) {
     memory::desc md {{DNNL_RUNTIME_DIM_VAL, 16, 16}, data_type::f32, tag::abc};
     memory::desc stat_md {{DNNL_RUNTIME_DIM_VAL, 16}, data_type::f32, tag::ab};
     normalization_flags flags {};
-    CHECK_UNIMPL(layer_normalization_forward::desc(
-            prop_kind::forward, md, stat_md, 0.1f, flags));
-    CHECK_UNIMPL(layer_normalization_backward::desc(
-            prop_kind::backward_data, md, md, stat_md, 0.1f, flags));
+    CHECK_UNIMPL(layer_normalization_forward::primitive_desc(
+            eng, prop_kind::forward, md, md, stat_md, 0.1f, flags));
+
+    layer_normalization_forward::primitive_desc fwd_hint;
+    {
+        auto valid_md = memory::desc({2, 16, 16}, data_type::f32, tag::abc);
+        auto valid_stat_md = memory::desc({2, 16}, data_type::f32, tag::ab);
+        CHECK_OK(fwd_hint = layer_normalization_forward::primitive_desc(eng,
+                         prop_kind::forward, valid_md, valid_md, valid_stat_md,
+                         0.1f, flags));
+    }
+    CHECK_UNIMPL(layer_normalization_backward::primitive_desc(eng,
+            prop_kind::backward_data, md, md, md, stat_md, 0.1f, flags,
+            fwd_hint));
 }
 
 TEST_F(runtime_dim_test_t, TestLRN) {

@@ -242,11 +242,8 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_layer_normalization_desc_t ld;
-
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
-
     dnnl_memory_desc_t stat_d {};
     const dnnl_memory_desc_t *stat_d_ptr = nullptr;
     if (prb->stat_tag != tag::undef) {
@@ -255,31 +252,33 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         stat_d_ptr = &stat_d;
     }
 
+    attr_args_t attr_args;
+    attr_args.prepare_output_scales(prb->attr, prb->scales, 1);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
+
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (prb->dir & FLAG_FWD) {
         auto dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_layer_normalization_forward_desc_init(
-                &ld, prop, &src_d, &dst_d, stat_d_ptr, prb->eps, flags));
+        DNN_SAFE_STATUS(dnnl_layer_normalization_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop, &src_d, &dst_d,
+                stat_d_ptr, prb->eps, flags, dnnl_attr));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
         auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
-        DNN_SAFE_STATUS(dnnl_layer_normalization_backward_desc_init(&ld, prop,
-                &diff_src_d, &diff_dst_d, &src_d, stat_d_ptr, prb->eps, flags));
+        DNN_SAFE_STATUS(dnnl_layer_normalization_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop, &diff_src_d,
+                &diff_dst_d, &src_d, stat_d_ptr, prb->eps, flags,
+                init_pd_args.hint, dnnl_attr));
     }
 
-    attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, 1);
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args));
-
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &ld, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

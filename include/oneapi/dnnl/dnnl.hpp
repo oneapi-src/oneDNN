@@ -7604,57 +7604,6 @@ struct batch_normalization_backward : public primitive {
 
 /// Layer normalization forward propagation primitive.
 struct layer_normalization_forward : public primitive {
-    /// Descriptor for a layer normalization forward propagation primitive.
-    struct desc {
-        dnnl_layer_normalization_desc_t data;
-
-        /// Constructs a descriptor for layer normalization forward
-        /// propagation primitive.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param src_desc Source memory descriptor.
-        /// @param dst_desc Destination memory descriptor.
-        /// @param stat_desc Statistics memory descriptors.
-        /// @param epsilon Layer normalization epsilon parameter.
-        /// @param flags Layer normalization flags (@ref
-        ///     dnnl::normalization_flags).
-        desc(prop_kind aprop_kind, const memory::desc &src_desc,
-                const memory::desc &dst_desc, const memory::desc &stat_desc,
-                float epsilon, normalization_flags flags) {
-            error::wrap_c_api(
-                    dnnl_layer_normalization_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind), &src_desc.data,
-                            &dst_desc.data, &stat_desc.data, epsilon,
-                            convert_to_c(flags)),
-                    "could not create a descriptor for a layer normalization "
-                    "forward propagation primitive");
-        }
-
-        /// Constructs a descriptor for layer normalization forward
-        /// propagation primitive.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param src_desc Source memory descriptor.
-        /// @param dst_desc Destination memory descriptor.
-        /// @param epsilon Layer normalization epsilon parameter.
-        /// @param flags Layer normalization flags (@ref
-        ///     dnnl::normalization_flags).
-        desc(prop_kind aprop_kind, const memory::desc &src_desc,
-                const memory::desc &dst_desc, float epsilon,
-                normalization_flags flags) {
-            error::wrap_c_api(dnnl_layer_normalization_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      &src_desc.data, &dst_desc.data, nullptr,
-                                      epsilon, convert_to_c(flags)),
-                    "could not create a descriptor for a layer normalization "
-                    "forward propagation primitive");
-        }
-    };
-
     /// Primitive descriptor for a layer normalization forward propagation
     /// primitive.
     struct primitive_desc : public dnnl::primitive_desc {
@@ -7664,33 +7613,56 @@ struct layer_normalization_forward : public primitive {
         /// Constructs a primitive descriptor for a layer normalization forward
         /// propagation primitive.
         ///
-        /// @param adesc Descriptor for a layer normalization forward propagation
-        ///     primitive.
         /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param stat_desc Statistics memory descriptors.
+        /// @param epsilon Layer normalization epsilon parameter.
+        /// @param flags Layer normalization flags (@ref
+        ///     dnnl::normalization_flags).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                const memory::desc &stat_desc, float epsilon,
+                normalization_flags flags,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+            : primitive_desc(aengine, aprop_kind, src_desc, dst_desc,
+                    &stat_desc, epsilon, flags, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization forward
         /// propagation primitive.
         ///
-        /// @param adesc Descriptor for a layer normalization forward propagation
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
         /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param epsilon Layer normalization epsilon parameter.
+        /// @param flags Layer normalization flags (@ref
+        ///     dnnl::normalization_flags).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                float epsilon, normalization_flags flags,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, src_desc, dst_desc, nullptr,
+                    epsilon, flags, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization
         /// forward propagation primitive from a C API primitive descriptor
@@ -7746,6 +7718,27 @@ struct layer_normalization_forward : public primitive {
             return query_md(
                     use_global_stats ? query::src_md : query::dst_md, kind);
         }
+
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                const memory::desc *stat_desc, float epsilon,
+                normalization_flags flags, const primitive_attr &attr,
+                bool allow_empty) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_layer_normalization_forward_primitive_desc_create(
+                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            &src_desc.data, &dst_desc.data,
+                            optional_arg(stat_desc), epsilon,
+                            convert_to_c(flags), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a layer "
+                        "normalization forward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -7768,13 +7761,16 @@ struct layer_normalization_forward : public primitive {
 
 /// Layer normalization backward propagation primitive.
 struct layer_normalization_backward : public primitive {
-    /// Descriptor for a layer normalization backward propagation primitive.
-    struct desc {
-        dnnl_layer_normalization_desc_t data;
+    /// Primitive descriptor for a layer normalization backward propagation
+    /// primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for layer normalization backward
+        /// Constructs a primitive descriptor for a layer normalization backward
         /// propagation primitive.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
         ///     (diffs for all parameters are computed in this case).
@@ -7785,22 +7781,31 @@ struct layer_normalization_backward : public primitive {
         /// @param epsilon Layer normalization epsilon parameter.
         /// @param flags Layer normalization flags (@ref
         ///     dnnl::normalization_flags).
-        desc(prop_kind aprop_kind, const memory::desc &diff_src_desc,
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param hint_fwd_pd Primitive descriptor for a layer normalization
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc, const memory::desc &src_desc,
                 const memory::desc &stat_desc, float epsilon,
-                normalization_flags flags) {
-            error::wrap_c_api(
-                    dnnl_layer_normalization_backward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind), &diff_src_desc.data,
-                            &diff_dst_desc.data, &src_desc.data,
-                            &stat_desc.data, epsilon, convert_to_c(flags)),
-                    "could not create a descriptor for a batch normalization "
-                    "backward propagation primitive");
-        }
+                normalization_flags flags,
+                const layer_normalization_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, diff_src_desc, diff_dst_desc,
+                    src_desc, &stat_desc, epsilon, flags, hint_fwd_pd, attr,
+                    allow_empty) {}
 
-        /// Constructs a descriptor for layer normalization backward
+        /// Constructs a primitive descriptor for a layer normalization backward
         /// propagation primitive.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
         ///     (diffs for all parameters are computed in this case).
@@ -7810,64 +7815,25 @@ struct layer_normalization_backward : public primitive {
         /// @param epsilon Layer normalization epsilon parameter.
         /// @param flags Layer normalization flags (@ref
         ///     dnnl::normalization_flags).
-        desc(prop_kind aprop_kind, const memory::desc &diff_src_desc,
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param hint_fwd_pd Primitive descriptor for a layer normalization
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc, const memory::desc &src_desc,
-                float epsilon, normalization_flags flags) {
-            error::wrap_c_api(
-                    dnnl_layer_normalization_backward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind), &diff_src_desc.data,
-                            &diff_dst_desc.data, &src_desc.data, nullptr,
-                            epsilon, convert_to_c(flags)),
-                    "could not create a descriptor for a batch normalization "
-                    "backward propagation primitive");
-        }
-    };
-
-    /// Primitive descriptor for a layer normalization backward propagation
-    /// primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a layer normalization backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a layer normalization backward
-        ///     propagation primitive.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a layer normalization
-        ///     forward propagation primitive. It is used as a hint for
-        ///     deciding which memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+                float epsilon, normalization_flags flags,
                 const layer_normalization_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
-
-        /// Constructs a primitive descriptor for a layer normalization backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a layer normalization backward
-        ///     propagation primitive.
-        /// @param attr Primitive attributes to use.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a layer normalization
-        ///     forward propagation primitive. It is used as a hint for
-        ///     deciding which memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
-                const layer_normalization_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aprop_kind, diff_src_desc, diff_dst_desc,
+                    src_desc, nullptr, epsilon, flags, hint_fwd_pd, attr,
+                    allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization
         /// backward propagation primitive from a C API primitive descriptor
@@ -7922,6 +7888,30 @@ struct layer_normalization_backward : public primitive {
         /// @return Normalization flags.
         normalization_flags get_flags() const {
             return base::get_flags<normalization_flags>();
+        }
+
+    private:
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc, const memory::desc &src_desc,
+                const memory::desc *stat_desc, float epsilon,
+                normalization_flags flags,
+                const layer_normalization_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr, bool allow_empty) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_layer_normalization_backward_primitive_desc_create(
+                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            &diff_src_desc.data, &diff_dst_desc.data,
+                            &src_desc.data, optional_arg(stat_desc), epsilon,
+                            convert_to_c(flags), hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a layer "
+                        "normalization backward propagation primitive");
+            reset(pd);
         }
     };
 

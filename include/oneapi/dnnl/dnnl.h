@@ -2320,14 +2320,15 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_backward_primitive_desc_create(
 /// @addtogroup dnnl_api_layer_normalization
 /// @{
 
-/// Initializes a descriptor for layer normalization forward propagation
-/// primitive.
+/// Creates a primitive descriptor for a layer normalization forward propagation
+///     primitive.
 ///
 /// @note
 ///     In-place operation is supported: the dst can refer to the same memory
 ///     as the src.
 ///
-/// @param lnrm_desc Output descriptor for layer normalization primitive.
+/// @param primitive_desc Output primitive_descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param src_desc Source memory descriptor.
@@ -2339,21 +2340,24 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_backward_primitive_desc_create(
 ///     dimension.
 /// @param epsilon Layer normalization epsilon parameter.
 /// @param flags Layer normalization flags (@ref dnnl_normalization_flags_t).
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_layer_normalization_forward_desc_init(
-        dnnl_layer_normalization_desc_t *lnrm_desc, dnnl_prop_kind_t prop_kind,
-        const dnnl_memory_desc_t *src_desc, const dnnl_memory_desc_t *dst_desc,
-        const dnnl_memory_desc_t *stat_desc, float epsilon, unsigned flags);
+dnnl_status_t DNNL_API dnnl_layer_normalization_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *dst_desc, const dnnl_memory_desc_t *stat_desc,
+        float epsilon, unsigned flags, const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for a layer normalization backward propagation
-/// primitive.
+/// Creates a primitive descriptor for a layer normalization backward
+///     propagation primitive.
 ///
 /// @note
 ///     In-place operation is supported: the diff_dst can refer to the same
 ///     memory as the diff_src.
 ///
-/// @param lnrm_desc Output descriptor for layer normalization primitive.
+/// @param primitive_desc Output primitive_descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_backward_data and #dnnl_backward (diffs for all parameters are
 ///     computed in this case).
@@ -2367,14 +2371,18 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_forward_desc_init(
 ///     dimension.
 /// @param epsilon Layer normalization epsilon parameter.
 /// @param flags Layer normalization flags (@ref dnnl_normalization_flags_t).
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_layer_normalization_backward_desc_init(
-        dnnl_layer_normalization_desc_t *lnrm_desc, dnnl_prop_kind_t prop_kind,
-        const dnnl_memory_desc_t *diff_src_desc,
+dnnl_status_t DNNL_API dnnl_layer_normalization_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *diff_src_desc,
         const dnnl_memory_desc_t *diff_dst_desc,
         const dnnl_memory_desc_t *src_desc, const dnnl_memory_desc_t *stat_desc,
-        float epsilon, unsigned flags);
+        float epsilon, unsigned flags, const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_layer_normalization
 

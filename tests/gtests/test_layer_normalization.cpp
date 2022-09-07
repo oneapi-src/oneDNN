@@ -131,11 +131,8 @@ protected:
                 = (bool)(flags & normalization_flags::use_global_stats);
         bool isTraining = pk == prop_kind::forward_training;
 
-        auto lnorm_fwd_d = layer_normalization_forward::desc(
-                pk, *src_md, *dst_md, *stat_d, epsilon, flags);
-
-        lnorm_fwd_pd
-                = layer_normalization_forward::primitive_desc(lnorm_fwd_d, eng);
+        lnorm_fwd_pd = layer_normalization_forward::primitive_desc(
+                eng, pk, *src_md, *dst_md, *stat_d, epsilon, flags);
         lnorm_fwd_pd = layer_normalization_forward::primitive_desc(
                 lnorm_fwd_pd.get()); // test construction from a C pd
 
@@ -192,16 +189,13 @@ protected:
         bool useScale = (bool)(flags & normalization_flags::use_scale);
         bool useShift = (bool)(flags & normalization_flags::use_shift);
 
-        auto lnorm_fwd_d
-                = layer_normalization_forward::desc(prop_kind::forward_training,
-                        *src_md, *dst_md, *stat_d, epsilon, flags);
-        lnorm_fwd_pd
-                = layer_normalization_forward::primitive_desc(lnorm_fwd_d, eng);
+        lnorm_fwd_pd = layer_normalization_forward::primitive_desc(eng,
+                prop_kind::forward_training, *src_md, *dst_md, *stat_d, epsilon,
+                flags);
 
-        auto lnorm_bwd_d = layer_normalization_backward::desc(
-                pk, *diff_src_md, *dst_md, *src_md, *stat_d, epsilon, flags);
-        lnorm_bwd_pd = layer_normalization_backward::primitive_desc(
-                lnorm_bwd_d, eng, lnorm_fwd_pd);
+        lnorm_bwd_pd = layer_normalization_backward::primitive_desc(eng, pk,
+                *diff_src_md, *dst_md, *src_md, *stat_d, epsilon, flags,
+                lnorm_fwd_pd);
         lnorm_bwd_pd = layer_normalization_backward::primitive_desc(
                 lnorm_bwd_pd.get()); // test construction from a C pd
 
@@ -329,7 +323,7 @@ protected:
         // no stat_md provided at all
         {
             layer_normalization_forward::primitive_desc fwd_pd(
-                    {pk, *src_md, *dst_md, epsilon, flags}, eng);
+                    eng, pk, *src_md, *dst_md, epsilon, flags);
 
             EXPECT_EQ(fwd_pd.mean_desc(), expect_stat_md);
             EXPECT_EQ(fwd_pd.variance_desc(), expect_stat_md);
@@ -340,7 +334,7 @@ protected:
             memory::desc any_stat_md(
                     stat_dims, memory::data_type::f32, tag::any);
             layer_normalization_forward::primitive_desc fwd_pd(
-                    {pk, *src_md, *dst_md, any_stat_md, epsilon, flags}, eng);
+                    eng, pk, *src_md, *dst_md, any_stat_md, epsilon, flags);
 
             EXPECT_EQ(fwd_pd.mean_desc(), expect_stat_md);
             EXPECT_EQ(fwd_pd.variance_desc(), expect_stat_md);
@@ -357,18 +351,16 @@ protected:
         memory::desc expect_stat_md(
                 stat_dims, memory::data_type::f32, expect_stat_tag);
 
-        layer_normalization_forward::primitive_desc fwd_pd(
-                {prop_kind::forward_training, *src_md, *dst_md, epsilon, flags},
-                eng);
+        layer_normalization_forward::primitive_desc fwd_pd(eng,
+                prop_kind::forward_training, *src_md, *dst_md, epsilon, flags);
 
         // stat_md with format_tag::any
         {
             memory::desc any_stat_md(
                     stat_dims, memory::data_type::f32, tag::any);
-            layer_normalization_backward::primitive_desc bwd_pd(
-                    {pk, *diff_src_md, *dst_md, *src_md, any_stat_md, epsilon,
-                            flags},
-                    eng, fwd_pd);
+            layer_normalization_backward::primitive_desc bwd_pd(eng, pk,
+                    *diff_src_md, *dst_md, *src_md, any_stat_md, epsilon, flags,
+                    fwd_pd);
 
             EXPECT_EQ(bwd_pd.mean_desc(), expect_stat_md);
             EXPECT_EQ(bwd_pd.variance_desc(), expect_stat_md);
