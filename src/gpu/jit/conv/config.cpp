@@ -1032,7 +1032,7 @@ status_t conv_config_t::fixup_inference_consistency() {
     ir_assert(slm_bufs <= max_slm_bufs)
             << "Unsupported number of SLM buffers: " << slm_bufs;
 
-    if (slm_size() > hw_cfg.max_slm_size()) {
+    if (check_slm_size && slm_size() > hw_cfg.max_slm_size()) {
         not_enough_slm = true;
         return status::runtime_error;
     }

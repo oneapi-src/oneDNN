@@ -350,6 +350,7 @@ public:
         reuse_headers = hw() <= ngen::HW::XeLP;
         a_sub_tiles = 1;
         b_sub_tiles = 1;
+        check_slm_size = true;
 
         init_zero_points_default_config();
 
@@ -686,6 +687,7 @@ public:
     bool use_2d_send_nhwc; // Whether to use the optimal NHWC setup relying on 2D block messages.
     bool can_use_a_2d_send; // Whether 2D block messages can be used for A.
     bool can_use_b_2d_send; // Whether 2D block messages can be used for B
+    bool check_slm_size; // Whether to check SLM size to ensure full EU utilization.
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 
