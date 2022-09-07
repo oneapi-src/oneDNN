@@ -2354,14 +2354,14 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_backward_desc_init(
 /// @addtogroup dnnl_api_inner_product
 /// @{
 
-/// Initializes descriptor for inner product forward propagation.
+/// Creates a primitive descriptor for an inner product forward propagation
+///     primitive.
 ///
 /// @note
 ///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param primitive_desc Creates a primitive descriptor for an inner product
-///     forward propagation primitive.
+/// @param primitive_desc Output primitive_descriptor.
 /// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
@@ -2381,14 +2381,14 @@ dnnl_status_t DNNL_API dnnl_inner_product_forward_primitive_desc_create(
         const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
         const_dnnl_primitive_attr_t attr);
 
-/// Initializes descriptor for inner product backward propagation.
+/// Creates a primitive descriptor for an inner product backward propagation
+///     primitive.
 ///
 /// @note
 ///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param primitive_desc Creates a primitive descriptor for an inner product
-///     backward propagation primitive.
+/// @param primitive_desc Output primitive_descriptor.
 /// @param engine Engine to use.
 /// @param diff_src_desc Diff source memory descriptor.
 /// @param weights_desc Weights memory descriptor.
@@ -2406,14 +2406,14 @@ dnnl_status_t DNNL_API dnnl_inner_product_backward_data_primitive_desc_create(
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
-/// Initializes descriptor for inner product weights gradient primitive.
+/// Creates a primitive descriptor for an inner product  weights gradient
+///     primitive.
 ///
 /// @note
 ///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param primitive_desc Creates a primitive descriptor for an inner product
-///     weights update primitive.
+/// @param primitive_desc Output primitive_descriptor.
 /// @param engine Engine to use.
 /// @param src_desc Source memory descriptor.
 /// @param diff_weights_desc Diff weights memory descriptor.
