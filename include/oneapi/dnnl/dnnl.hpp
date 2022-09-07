@@ -4450,6 +4450,14 @@ protected:
         return attr;
     }
 
+    const dnnl_memory_desc_t *optional_arg(const memory::desc *md) {
+        return md ? &md->data : nullptr;
+    }
+
+    const dnnl_dim_t *optional_arg(const memory::dims *dims) {
+        return dims ? dims->data() : nullptr;
+    }
+
     using base = primitive_desc_base;
 };
 
@@ -5146,11 +5154,9 @@ struct convolution_forward : public primitive {
                     = dnnl_dilated_convolution_forward_primitive_desc_create(
                             &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
                             convert_to_c(aalgorithm), &src_desc.data,
-                            &weights_desc.data,
-                            bias_desc ? &bias_desc->data : nullptr,
-                            &dst_desc.data, &strides[0],
-                            dilates ? dilates->data() : nullptr, &padding_l[0],
-                            &padding_r[0], attr.get());
+                            &weights_desc.data, optional_arg(bias_desc),
+                            &dst_desc.data, &strides[0], optional_arg(dilates),
+                            &padding_l[0], &padding_r[0], attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not create a primitive descriptor for a "
@@ -5342,8 +5348,8 @@ struct convolution_backward_data : public primitive {
                             &pd, aengine.get(), convert_to_c(aalgorithm),
                             &diff_src_desc.data, &weights_desc.data,
                             &diff_dst_desc.data, &strides[0],
-                            dilates ? dilates->data() : nullptr, &padding_l[0],
-                            &padding_r[0], hint_fwd_pd.get(), attr.get());
+                            optional_arg(dilates), &padding_l[0], &padding_r[0],
+                            hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not create a primitive descriptor for a "
@@ -5647,9 +5653,8 @@ struct convolution_backward_weights : public primitive {
                     = dnnl_dilated_convolution_backward_weights_primitive_desc_create(
                             &pd, aengine.get(), convert_to_c(aalgorithm),
                             &src_desc.data, &diff_weights_desc.data,
-                            diff_bias_desc ? &diff_bias_desc->data : nullptr,
-                            &diff_dst_desc.data, &strides[0],
-                            dilates ? dilates->data() : nullptr, &padding_l[0],
+                            optional_arg(diff_bias_desc), &diff_dst_desc.data,
+                            &strides[0], optional_arg(dilates), &padding_l[0],
                             &padding_r[0], hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -5944,11 +5949,9 @@ struct deconvolution_forward : public primitive {
                     = dnnl_dilated_deconvolution_forward_primitive_desc_create(
                             &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
                             convert_to_c(aalgorithm), &src_desc.data,
-                            &weights_desc.data,
-                            bias_desc ? &bias_desc->data : nullptr,
-                            &dst_desc.data, &strides[0],
-                            dilates ? dilates->data() : nullptr, &padding_l[0],
-                            &padding_r[0], attr.get());
+                            &weights_desc.data, optional_arg(bias_desc),
+                            &dst_desc.data, &strides[0], optional_arg(dilates),
+                            &padding_l[0], &padding_r[0], attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not create a primitive descriptor for a "
@@ -6137,8 +6140,8 @@ struct deconvolution_backward_data : public primitive {
                             &pd, aengine.get(), convert_to_c(aalgorithm),
                             &diff_src_desc.data, &weights_desc.data,
                             &diff_dst_desc.data, &strides[0],
-                            dilates ? dilates->data() : nullptr, &padding_l[0],
-                            &padding_r[0], hint_fwd_pd.get(), attr.get());
+                            optional_arg(dilates), &padding_l[0], &padding_r[0],
+                            hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not create a primitive descriptor for a "
@@ -6435,9 +6438,8 @@ struct deconvolution_backward_weights : public primitive {
                     = dnnl_dilated_deconvolution_backward_weights_primitive_desc_create(
                             &pd, aengine.get(), convert_to_c(aalgorithm),
                             &src_desc.data, &diff_weights_desc.data,
-                            diff_bias_desc ? &diff_bias_desc->data : nullptr,
-                            &diff_dst_desc.data, &strides[0],
-                            dilates ? dilates->data() : nullptr, &padding_l[0],
+                            optional_arg(diff_bias_desc), &diff_dst_desc.data,
+                            &strides[0], optional_arg(dilates), &padding_l[0],
                             &padding_r[0], hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -8021,8 +8023,8 @@ struct inner_product_forward : public primitive {
                     = dnnl_inner_product_forward_primitive_desc_create(&pd,
                             aengine.get(), dnnl::convert_to_c(aprop_kind),
                             &src_desc.data, &weights_desc.data,
-                            bias_desc ? &bias_desc->data : nullptr,
-                            &dst_desc.data, attr.get());
+                            optional_arg(bias_desc), &dst_desc.data,
+                            attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -8249,8 +8251,8 @@ struct inner_product_backward_weights : public primitive {
                     = dnnl_inner_product_backward_weights_primitive_desc_create(
                             &pd, aengine.get(), &src_desc.data,
                             &diff_weights_desc.data,
-                            diff_bias_desc ? &diff_bias_desc->data : nullptr,
-                            &diff_dst_desc.data, hint_fwd_pd.get(), attr.get());
+                            optional_arg(diff_bias_desc), &diff_dst_desc.data,
+                            hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
