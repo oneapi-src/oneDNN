@@ -13,6 +13,7 @@
 | Simple CNN Training                  | CPU      | FP32      | @ref cpu_cnn_training_f32_cpp                         |
 | Compile unknown output shape         | CPU      | FP32      | @ref cpu_compile_unknown_output_shape_cpp             |
 | Scalar (0-D tensor)                  | CPU      | FP32      | @ref cpu_scalar_input_cpp                             |
+| Inplace ports                        | CPU      | FP32      | @ref cpu_inplace_ports_cpp                            |
 
 ## C API examples
 
