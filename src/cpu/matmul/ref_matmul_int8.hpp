@@ -70,8 +70,9 @@ struct ref_matmul_int8_t : public primitive_t {
             attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
             attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
 
-            return (mask_src == 0 || mask_src == 1 << 1) && (mask_wei == 0)
-                    && (mask_dst == 0 || mask_dst == 1 << 1);
+            return (mask_src == 0 || (ndims() == 2 && mask_src == 1 << 1))
+                    && (mask_wei == 0)
+                    && (mask_dst == 0 || (ndims() == 2 && mask_dst == 1 << 1));
         }
     };
 
