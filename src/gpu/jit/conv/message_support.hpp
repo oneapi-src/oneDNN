@@ -51,6 +51,25 @@ enum class send_address_t {
     slm,
 };
 
+enum class send_cache_hint_t {
+    undef,
+    load_once,
+};
+
+inline std::string to_string(send_cache_hint_t hint) {
+    switch (hint) {
+        case send_cache_hint_t::undef: return "cache:undef";
+        case send_cache_hint_t::load_once: return "cache:load_once";
+        default: return "cache:error";
+    }
+}
+
+inline std::ostream &operator<<(
+        std::ostream &out, const send_cache_hint_t hint) {
+    out << to_string(hint);
+    return out;
+}
+
 struct block_2d_info_t {
     bool is_empty() const { return surface_width == 0; }
 
@@ -102,13 +121,23 @@ public:
     IR_DECL_DERIVED_TYPE_ID(send_t, func_impl_t)
 
     static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
-            const type_t &type, int slots) {
-        return func_t(new send_t(hw, op, address, type, slots));
+            const type_t &type, int slots,
+            send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
+        return make(hw, op, address, type, slots, hw >= ngen::HW::XeHPC,
+                cache_hint);
+    }
+
+    static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
+            const type_t &type, int slots, bool is_lsc,
+            send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
+        return func_t(
+                new send_t(hw, op, address, type, slots, is_lsc, cache_hint));
     }
 
     static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
             int surface_width, int surface_height, int surface_pitch, int width,
-            int height, int count, bool vnni, bool transpose) {
+            int height, int count, bool vnni, bool transpose,
+            send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
         block_2d_info_t info;
         info.surface_width = surface_width;
         info.surface_height = surface_height;
@@ -118,7 +147,7 @@ public:
         info.count = count;
         info.vnni = vnni;
         info.transpose = transpose;
-        return func_t(new send_t(hw, op, type, info));
+        return func_t(new send_t(hw, op, type, info, cache_hint));
     }
 
     bool is_equal(const object_impl_t &obj) const override {
@@ -143,6 +172,7 @@ public:
         if (is_scattered()) oss << slots << "x";
         oss << type.str();
         if (is_2d()) oss << "." << block_2d_info.str();
+        if (cache_hint != send_cache_hint_t::undef) oss << "." << cache_hint;
         return oss.str();
     }
 
@@ -222,9 +252,8 @@ public:
     int mask_size() const {
         if (is_2d()) return access_size();
         if (is_block()) {
-            // Block messages use SIMT1 execution mask (one mask per message)
-            // on XeHPC+.
-            if (is_xe_hpc_plus()) return type.size();
+            // LSC messages use SIMT1 execution mask (one mask per message).
+            if (is_lsc) return type.size();
             return 4;
         }
 
@@ -267,7 +296,8 @@ public:
     bool is_supported() const;
 
     static std::vector<func_t> get_all(ngen::HW hw, send_op_t op,
-            send_address_t address, const type_t &mem_type);
+            send_address_t address, const type_t &mem_type,
+            send_cache_hint_t cache_hint);
 
     ngen::HW hw;
     send_op_t op;
@@ -277,6 +307,7 @@ public:
     bool is_lsc;
 
     block_2d_info_t block_2d_info;
+    send_cache_hint_t cache_hint;
 
 private:
     int grf_size() const { return ngen::GRF::bytes(hw); }
@@ -286,17 +317,19 @@ private:
     bool is_xe_hpc_plus() const { return hw >= ngen::HW::XeHPC; }
 
     send_t(ngen::HW hw, send_op_t op, send_address_t address,
-            const type_t &type, int slots)
+            const type_t &type, int slots, bool is_lsc,
+            send_cache_hint_t cache_hint)
         : func_impl_t(_type_info())
         , hw(hw)
         , op(op)
         , address(address)
         , type(type)
         , slots(slots)
-        , is_lsc(hw >= ngen::HW::XeHPC) {}
+        , is_lsc(is_lsc)
+        , cache_hint(cache_hint) {}
 
     send_t(ngen::HW hw, send_op_t op, const type_t &type,
-            const block_2d_info_t &block_2d_info)
+            const block_2d_info_t &block_2d_info, send_cache_hint_t cache_hint)
         : func_impl_t(_type_info())
         , hw(hw)
         , op(op)
@@ -304,7 +337,8 @@ private:
         , type(type)
         , slots(1)
         , is_lsc(true)
-        , block_2d_info(block_2d_info) {
+        , block_2d_info(block_2d_info)
+        , cache_hint(cache_hint) {
         ir_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d,
                 send_op_t::prefetch_2d));
         if (is_store_2d()) {
@@ -313,6 +347,8 @@ private:
         }
     }
 };
+
+ngen::CacheSettingsLSC get_cache_settings(const send_t &send);
 
 class memory_walker_t;
 class layout_walker_t;
@@ -347,7 +383,8 @@ class access_builder_t {
 public:
     access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
             const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
-            send_address_t send_address, send_hint_t &send_hint);
+            send_address_t send_address, send_cache_hint_t send_cache_hint,
+            send_hint_t &send_hint);
     access_builder_t(access_builder_t &&);
     ~access_builder_t();
 
@@ -389,6 +426,7 @@ private:
     expr_t reg_buf_;
     send_op_t send_op_;
     send_address_t send_address_;
+    send_cache_hint_t send_cache_hint_;
     send_hint_t &send_hint_;
 
     type_t mem_type_;
@@ -405,15 +443,16 @@ inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         send_op_t send_op, send_address_t send_address,
         send_hint_t &send_hint) {
     return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf, send_op,
-            send_address, send_hint);
+            send_address, send_cache_hint_t::undef, send_hint);
 }
 
 inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
-        send_op_t send_op, send_address_t send_address) {
+        send_op_t send_op, send_address_t send_address,
+        send_cache_hint_t send_cache_hint = send_cache_hint_t::undef) {
     send_hint_t send_hint;
     return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf, send_op,
-            send_address, send_hint);
+            send_address, send_cache_hint, send_hint);
 }
 
 send_hint_t get_send_hint(const hw_config_t &hw_cfg, send_op_t send_op,

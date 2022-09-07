@@ -2055,14 +2055,12 @@ private:
                 ir_error_not_expected();
             }
         } else if (send_.is_a64()) {
+            *lsc_spec |= get_cache_settings(send_);
             if (send_.is_load() || send_.is_prefetch()) {
-                *lsc_spec |= ngen::CacheSettingsLSC::L1C_L3C;
                 host->load.ugm(mod, data, *lsc_spec, host->A64, header);
             } else if (send_.is_store()) {
-                *lsc_spec |= ngen::CacheSettingsLSC::L1WB_L3WB;
                 host->store.ugm(mod, *lsc_spec, host->A64, header, data);
             } else if (send_.is_atomic()) {
-                *lsc_spec |= ngen::CacheSettingsLSC::L1UC_L3WB;
                 host->atomic.ugm(ngen::AtomicOp::fadd, mod, *lsc_spec,
                         to_address_base(send_.address, surf_bti), header, data);
             }
@@ -2086,8 +2084,8 @@ private:
         if (info.vnni) data_spec |= host->vnni;
         if (info.transpose) data_spec |= host->transpose;
         ngen::block_2d spec(data_spec, info.width, info.height, info.count);
+        spec |= get_cache_settings(send_);
         if (send_.is_load_2d() || send_.is_prefetch_2d()) {
-            spec |= ngen::CacheSettingsLSC::L1C_L3C;
             host->load(mod, data, spec, host->A64, header);
         } else if (send_.is_store_2d()) {
             host->store(mod, spec, host->A64, header, data);
