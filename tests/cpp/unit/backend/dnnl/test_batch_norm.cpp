@@ -14,7 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <memory>
+
+#include "gtest/gtest.h"
+
 #include "cpp/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "cpp/unit/unit_test_common.hpp"
+#include "cpp/unit/utils.hpp"
+
+namespace impl = dnnl::graph::impl;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 static inline void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic,
         impl::dim_t ih, impl::dim_t iw, impl::tensor_t *src,

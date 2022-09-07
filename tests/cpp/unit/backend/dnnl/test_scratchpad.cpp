@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@
 #include "cpp/unit/unit_test_common.hpp"
 
 #include <dnnl.hpp>
+
+namespace impl = dnnl::graph::impl;
 
 TEST(Scratchpad, TemporaryScratchpad) {
     using dnnl::graph::impl::allocator_t;

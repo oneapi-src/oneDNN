@@ -14,8 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <functional>
+#include <random>
+
+#include "interface/c_types_map.hpp"
+
+#include "gtest/gtest.h"
+
 #include "cpp/unit/backend/dnnl/dnnl_test_common.hpp"
 #include "cpp/unit/backend/dnnl/ref_func.hpp"
+#include "cpp/unit/unit_test_common.hpp"
+#include "cpp/unit/utils.hpp"
+
+namespace impl = dnnl::graph::impl;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 template <typename attr_data_t = float>
 static inline void test_eltwise_common(test::vector<float> &src,

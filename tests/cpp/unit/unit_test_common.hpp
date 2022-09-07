@@ -37,20 +37,19 @@
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
 #include "test_thread.hpp"
 #endif
-namespace impl = dnnl::graph::impl;
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 ::sycl::device &get_device();
 ::sycl::context &get_context();
 #endif // DNNL_GRAPH_WITH_SYCL
 
-impl::engine_t &get_engine();
+dnnl::graph::impl::engine_t &get_engine();
 
-impl::stream_t &get_stream();
+dnnl::graph::impl::stream_t &get_stream();
 
-impl::engine_kind_t get_test_engine_kind();
+dnnl::graph::impl::engine_kind_t get_test_engine_kind();
 
-void set_test_engine_kind(impl::engine_kind_t kind);
+void set_test_engine_kind(dnnl::graph::impl::engine_kind_t kind);
 
 namespace test {
 
@@ -64,6 +63,7 @@ public:
     typedef T value_type;
 
     T *allocate(size_t num_elements) {
+        namespace impl = dnnl::graph::impl;
         if (get_test_engine_kind() == impl::engine_kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
             dev_ = get_device();
@@ -90,6 +90,7 @@ public:
     }
 
     void deallocate(T *ptr, size_t) {
+        namespace impl = dnnl::graph::impl;
         if (!ptr) return;
 
         if (get_test_engine_kind() == impl::engine_kind::cpu) {

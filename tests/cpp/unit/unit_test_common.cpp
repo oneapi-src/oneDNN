@@ -21,6 +21,8 @@
 #include "test_allocator.hpp"
 #include "unit_test_common.hpp"
 
+namespace impl = dnnl::graph::impl;
+
 #ifdef DNNL_GRAPH_WITH_SYCL
 ::sycl::device &get_device() {
     static ::sycl::device dev = get_test_engine_kind() == impl::engine_kind::cpu

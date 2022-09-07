@@ -17,33 +17,19 @@
 #ifndef BACKEND_DNNL_DNNL_TEST_COMMON_HPP
 #define BACKEND_DNNL_DNNL_TEST_COMMON_HPP
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
-#include <limits>
 #include <memory>
-#include <random>
 #include <string>
-#include <tuple>
 #include <vector>
 #include <unordered_map>
 
-#include <gtest/gtest.h>
-
-#include "interface/backend.hpp"
-
-#include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"
-#include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 #include "cpp/unit/unit_test_common.hpp"
-
-// #include "dnnl.h"
 #include "cpp/unit/utils.hpp"
-
-namespace impl = dnnl::graph::impl;
-namespace dnnl_impl = impl::dnnl_impl;
-namespace utils = dnnl::graph::tests::unit::utils;
 
 static inline dnnl::graph::impl::pass::pass_base_ptr get_pass(
         const std::string &pass_name) {
@@ -59,15 +45,15 @@ static inline dnnl::graph::impl::pass::pass_base_ptr get_pass(
     return *find;
 }
 
-static inline void run_all_passes(impl::graph_t &agraph) {
+static inline void run_all_passes(dnnl::graph::impl::graph_t &agraph) {
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
     auto pm = dnnl::graph::impl::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
-    pm.run_passes(agraph, "", impl::partition_policy::fusion);
+    pm.run_passes(agraph, "", dnnl::graph::impl::partition_policy::fusion);
 }
 
-static inline void run_all_single_passes(impl::graph_t &agraph) {
+static inline void run_all_single_passes(dnnl::graph::impl::graph_t &agraph) {
     auto &backend_ptr
             = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
     auto pm = dnnl::graph::impl::pass::pass_manager_t(
@@ -85,10 +71,13 @@ static inline void run_all_single_passes(impl::graph_t &agraph) {
 // graph should also be strided so that we can read and check the results. The
 // given graph will be deep copied first so that all the changes inside the
 // function are not visible outside.
-static inline impl::status_t run_graph(impl::graph_t &agraph,
-        const std::vector<impl::tensor_t> &g_in_ts,
-        const std::vector<impl::tensor_t> &g_out_ts, impl::engine_t &eng,
-        impl::stream_t &strm) {
+static inline dnnl::graph::impl::status_t run_graph(
+        dnnl::graph::impl::graph_t &agraph,
+        const std::vector<dnnl::graph::impl::tensor_t> &g_in_ts,
+        const std::vector<dnnl::graph::impl::tensor_t> &g_out_ts,
+        dnnl::graph::impl::engine_t &eng, impl::stream_t &strm) {
+    namespace impl = dnnl::graph::impl;
+    namespace dnnl_impl = impl::dnnl_impl;
     using ltw = impl::logical_tensor_wrapper_t;
     impl::status_t ret;
     impl::graph_t copied(agraph);
@@ -245,32 +234,41 @@ static inline size_t product(std::vector<int64_t> &in) {
 
 #define for_ for
 #define SET_Q_DQ_DATA_ATTR(q_dq_data) \
-    q_dq_data.set_attr<std::string>(impl::op_attr::qtype, "per_tensor"); \
-    q_dq_data.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src}); \
+    q_dq_data.set_attr<std::string>( \
+            dnnl::graph::impl::op_attr::qtype, "per_tensor"); \
+    q_dq_data.set_attr<std::vector<int64_t>>( \
+            dnnl::graph::impl::op_attr::zps, {zp_src}); \
     q_dq_data.set_attr<std::vector<float>>( \
-            impl::op_attr::scales, {scale_src}); \
-    q_dq_data.set_attr<int64_t>(impl::op_attr::axis, 0);
+            dnnl::graph::impl::op_attr::scales, {scale_src}); \
+    q_dq_data.set_attr<int64_t>(dnnl::graph::impl::op_attr::axis, 0);
 
 #define SET_Q_DQ_WEIGHT_ATTR(q_dq_weight) \
-    q_dq_weight.set_attr<std::string>(impl::op_attr::qtype, wei_qtype); \
-    q_dq_weight.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei); \
+    q_dq_weight.set_attr<std::string>( \
+            dnnl::graph::impl::op_attr::qtype, wei_qtype); \
+    q_dq_weight.set_attr<std::vector<int64_t>>( \
+            dnnl::graph::impl::op_attr::zps, zp_wei); \
     q_dq_weight.set_attr<std::vector<float>>( \
-            impl::op_attr::scales, scale_wei); \
-    q_dq_weight.set_attr<int64_t>(impl::op_attr::axis, 0);
+            dnnl::graph::impl::op_attr::scales, scale_wei); \
+    q_dq_weight.set_attr<int64_t>(dnnl::graph::impl::op_attr::axis, 0);
 
 #define SET_CONV_ATTR(conv, nd) \
-    conv.set_attr<dims>(impl::op_attr::strides, dims(nd, 1)); \
-    conv.set_attr<dims>(impl::op_attr::dilations, dims(nd, 1)); \
-    conv.set_attr<dims>(impl::op_attr::pads_begin, dims(nd, 0)); \
-    conv.set_attr<dims>(impl::op_attr::pads_end, dims(nd, 0)); \
-    conv.set_attr<int64_t>(impl::op_attr::groups, g); \
-    conv.set_attr<std::string>(impl::op_attr::data_format, "NCX"); \
-    conv.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    conv.set_attr<dims>(dnnl::graph::impl::op_attr::strides, dims(nd, 1)); \
+    conv.set_attr<dims>(dnnl::graph::impl::op_attr::dilations, dims(nd, 1)); \
+    conv.set_attr<dims>(dnnl::graph::impl::op_attr::pads_begin, dims(nd, 0)); \
+    conv.set_attr<dims>(dnnl::graph::impl::op_attr::pads_end, dims(nd, 0)); \
+    conv.set_attr<int64_t>(dnnl::graph::impl::op_attr::groups, g); \
+    conv.set_attr<std::string>( \
+            dnnl::graph::impl::op_attr::data_format, "NCX"); \
+    conv.set_attr<std::string>( \
+            dnnl::graph::impl::op_attr::filter_format, "OIX");
 
 #define SET_Q_DQ_OUT_ATTR(q_dq_out) \
-    q_dq_out.set_attr<std::string>(impl::op_attr::qtype, "per_tensor"); \
-    q_dq_out.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out}); \
-    q_dq_out.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out}); \
-    q_dq_out.set_attr<int64_t>(impl::op_attr::axis, 0);
+    q_dq_out.set_attr<std::string>( \
+            dnnl::graph::impl::op_attr::qtype, "per_tensor"); \
+    q_dq_out.set_attr<std::vector<int64_t>>( \
+            dnnl::graph::impl::op_attr::zps, {zp_out}); \
+    q_dq_out.set_attr<std::vector<float>>( \
+            dnnl::graph::impl::op_attr::scales, {scale_out}); \
+    q_dq_out.set_attr<int64_t>(dnnl::graph::impl::op_attr::axis, 0);
 
 #endif

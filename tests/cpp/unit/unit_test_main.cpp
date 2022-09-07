@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "unit_test_common.hpp"
 
 using namespace testing;
+namespace impl = dnnl::graph::impl;
 
 static std::string find_cmd_option(
         char **argv_beg, char **argv_end, const std::string &option) {

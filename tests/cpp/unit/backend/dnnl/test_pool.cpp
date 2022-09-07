@@ -14,7 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <functional>
+#include <random>
+#include <tuple>
+
+#include "interface/c_types_map.hpp"
+
+#include "gtest/gtest.h"
+
 #include "cpp/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "cpp/unit/unit_test_common.hpp"
+#include "cpp/unit/utils.hpp"
+
+namespace impl = dnnl::graph::impl;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(ExecuteSubgraphInt8, PoolAdd) {
     using dims = impl::dnnl_impl::dims;
