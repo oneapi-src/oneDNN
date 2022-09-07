@@ -297,7 +297,7 @@ void brgemm_matmul_t<isa>::compute_kernel(
     const auto &post_ops_binary_rhs_arg_vec
             = brgmm_ctx.get_post_ops_binary_rhs_arg_vec();
     const bool post_ops_applicable = bgmmc.post_ops_applicable
-            && (bgmmc.nthr_k <= 1 || bgmmc.K_chunks == 1);
+            && (brgmm_ctx.get_num_threads_for_k() <= 1 || bgmmc.K_chunks == 1);
 
     if (gemm_batch > 0 && brg_ker_idx >= 0) {
         const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
