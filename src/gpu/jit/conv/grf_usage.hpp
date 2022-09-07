@@ -91,6 +91,12 @@ public:
         buf_sizes_.emplace(buf, size);
     }
 
+    void remove(const expr_t &buf) {
+        bufs_.erase(buf);
+        buf_labels_.erase(buf);
+        buf_sizes_.erase(buf);
+    }
+
     int total_regs(grf_usage_label_t label) const {
         int ret = 0;
         for (auto &kv : buf_labels_) {

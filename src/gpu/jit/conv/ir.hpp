@@ -469,7 +469,7 @@ struct mem_usage_guard_t {
         size = other.size;
         other.usage = nullptr;
         other.peak_usage = nullptr;
-        size = 0;
+        other.size = 0;
         return *this;
     }
 

@@ -519,6 +519,17 @@ public:
 
     void analyze(const stmt_t &stmt, bool allow_errors = false) {
         visit(stmt);
+        if (!is_invalid_) {
+            if (peak_headers_ <= 1) {
+                std::vector<expr_t> header_bufs;
+                for (auto &buf : buf_usage_.bufs()) {
+                    if (is_header(buf)) header_bufs.push_back(buf);
+                }
+                for (auto &buf : header_bufs) {
+                    buf_usage_.remove(buf);
+                }
+            }
+        }
         if (!verify(allow_errors)) is_invalid_ = true;
     }
 
