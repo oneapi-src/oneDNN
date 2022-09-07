@@ -159,32 +159,7 @@ public:
         }
     }
 
-    std::string desc_str() const {
-        std::ostringstream oss;
-        oss << "mb" << mb;
-        oss << "g" << g;
-        oss << "ic" << ic;
-        oss << "id" << id;
-        oss << "ih" << ih;
-        oss << "iw" << iw;
-        oss << "oc" << oc;
-        oss << "od" << od;
-        oss << "oh" << oh;
-        oss << "ow" << ow;
-        oss << "kd" << kd;
-        oss << "kh" << kh;
-        oss << "kw" << kw;
-        if (sd != 1) oss << "sd" << sd;
-        if (sh != 1) oss << "sh" << sh;
-        if (sw != 1) oss << "sw" << sw;
-        if (dd != 0) oss << "dd" << dd;
-        if (dh != 0) oss << "dh" << dh;
-        if (dw != 0) oss << "dw" << dw;
-        oss << "pd" << pd;
-        oss << "ph" << ph;
-        oss << "pw" << pw;
-        return oss.str();
-    }
+    std::string desc_str() const;
 
     tensor_config_t tensor_config;
 
@@ -343,8 +318,6 @@ public:
         if (!post_ops_ok(conv_pd)) return status::unimplemented;
 
         CHECK(init_extra_tensor_layouts(conv_pd));
-
-        ir_trace() << "=== TRY config:\n" << *this << std::endl;
 
         return status::success;
     }

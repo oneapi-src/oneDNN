@@ -29,6 +29,46 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+std::string conv_problem_t::desc_str() const {
+    std::ostringstream oss;
+    oss << "mb" << mb;
+    if (g > 1) oss << "g" << g;
+    oss << "ic" << ic;
+
+    std::vector<int> xd = {id, od, kd, sd, dd, pd};
+    std::vector<int> xh = {ih, oh, kh, sh, dh, ph};
+    std::vector<int> xw = {iw, ow, kw, sw, dw, pw};
+    std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
+    bool has_d = !ir_utils::is_equal(xd, xdef);
+    bool has_h = !ir_utils::is_equal(xh, xdef);
+    bool is_square = ir_utils::is_equal(xh, xw);
+    bool is_cubic = is_square && ir_utils::is_equal(xd, xh);
+    bool print_d = has_d;
+    bool print_h = has_h && !is_cubic;
+    bool print_w = !is_cubic && !is_square;
+
+    if (print_d) oss << "id" << id;
+    if (print_h) oss << "ih" << ih;
+    if (print_w) oss << "iw" << iw;
+    oss << "oc" << oc;
+    if (print_d) oss << "od" << od;
+    if (print_h) oss << "oh" << oh;
+    if (print_w) oss << "ow" << ow;
+    if (print_d) oss << "kd" << kd;
+    if (print_h) oss << "kh" << kh;
+    if (print_w) oss << "kw" << kw;
+    if (print_d && sd != 1) oss << "sd" << sd;
+    if (print_h && sh != 1) oss << "sh" << sh;
+    if (print_w && sw != 1) oss << "sw" << sw;
+    if (print_d && dd != 0) oss << "dd" << dd;
+    if (print_h && dh != 0) oss << "dh" << dh;
+    if (print_w && dw != 0) oss << "dw" << dw;
+    if (print_d) oss << "pd" << pd;
+    if (print_h) oss << "ph" << ph;
+    if (print_w) oss << "pw" << pw;
+    return oss.str();
+}
+
 status_t conv_config_t::init_common_blocking() {
     if (is_fwd && is_small_ic()) hw_cfg.set_max_tg_size(16);
 
