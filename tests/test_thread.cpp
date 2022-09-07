@@ -13,6 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include <tuple>
 
 #include "tests/test_thread.hpp"
 
@@ -336,9 +337,14 @@ dnnl::threadpool_interop::threadpool_iface *get_threadpool(
     static std::unordered_map<int, dnnl::testing::threadpool_t> tp_map;
     auto ret_val = tp_map.find(ctx.max_concurrency);
     if (ret_val != tp_map.end()) return &(ret_val->second);
-    auto new_val = tp_map.emplace(ctx.max_concurrency, ctx.max_concurrency);
-    if (!new_val.second) printf("get_threadpool is behaving weirdly\n");
-    return &(new_val.first->second);
+    auto res = tp_map.emplace(std::piecewise_construct,
+            std::forward_as_tuple(ctx.max_concurrency),
+            std::forward_as_tuple(ctx.max_concurrency));
+    if (!res.second) {
+        fprintf(stderr, "get_threadpool failed to create a threadpool\n");
+        exit(1);
+    }
+    return &(res.first->second);
 }
 
 } // namespace testing
