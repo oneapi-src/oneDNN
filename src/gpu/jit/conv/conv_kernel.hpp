@@ -2968,11 +2968,71 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
         const ngen::InstructionModifier &mod, const reg_buf_data_t &dst,
         reg_buf_data_t &src);
 
+template <typename GeneratorT>
+bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
+        ngen_register_scope_t &scope, int width, const reg_buf_data_t &_src,
+        int src_stride, const reg_buf_data_t &_dst, int dst_stride) {
+    auto src = _src;
+    auto dst = _dst;
+    ngen::DataType src_type = src.type();
+    ngen::DataType dst_type = dst.type();
+    int src_type_size = ngen::getBytes(src_type);
+    int dst_type_size = ngen::getBytes(dst_type);
+    auto large_type = (src_type_size > dst_type_size) ? src_type : dst_type;
+    auto small_type = (src_type_size < dst_type_size) ? src_type : dst_type;
+
+    if (!utils::one_of(large_type, ngen::DataType::f, ngen::DataType::d))
+        return false;
+    if (!utils::one_of(small_type, ngen::DataType::b, ngen::DataType::ub))
+        return false;
+    if (src_stride != 1) return false;
+    if (dst_stride != 1) return false;
+
+    int batch = 128;
+    int max_step = 8;
+
+    const int grf_size = ngen::GRF::bytes(hw);
+    auto tmp = scope.alloc_reg_buf_data(
+            utils::div_up(int(batch * sizeof(uint32_t)), grf_size));
+
+    for (int i = 0; i < width; i += batch) {
+        int i_beg = i;
+        int i_end = std::min(width, i + batch);
+
+        for (int ii = i_beg; ii < i_end;) {
+            int esize = std::min(max_step, i_end - ii);
+            esize = utils::rnd_down_pow2(esize);
+
+            auto s = src.subregister(ii, esize, src_type_size);
+            auto t = tmp.subregister((ii - i_beg) * 4, small_type)(4);
+            ngen::InstructionModifier mod = esize;
+            if (dst_type == small_type) mod |= host->sat;
+            host->emov(mod, t, s(1));
+            ii += esize;
+        }
+        for (int ii = i_beg; ii < i_end;) {
+            int esize = std::min(max_step, i_end - ii);
+            esize = utils::rnd_down_pow2(esize);
+
+            auto d = dst.subregister(ii, esize, dst_type_size);
+            auto t = tmp.subregister((ii - i_beg) * 4, small_type)(4);
+            host->emov(esize, d(1), t);
+            ii += esize;
+        }
+    }
+    return true;
+}
+
 // Performs 1D reorder, possibly with strides and type conversion.
 template <typename GeneratorT>
 void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         ngen_register_scope_t &scope, int width, const reg_buf_data_t &_src,
         int src_stride, const reg_buf_data_t &_dst, int dst_stride) {
+
+    if (try_emit_batched_reorder_1d_tile(
+                hw, host, scope, width, _src, src_stride, _dst, dst_stride))
+        return;
+
     auto src = _src;
     auto dst = _dst;
     ngen::DataType src_type = src.type();
