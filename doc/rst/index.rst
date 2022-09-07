@@ -7,6 +7,7 @@ oneDNN Documentation
    build_and_link
    programming_model
    supported_primitives
+   supported_operations
    dev_guide_examples
    performance_profiling_and_inspection
    advanced_topics
