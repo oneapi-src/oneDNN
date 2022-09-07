@@ -162,11 +162,11 @@ static void prb_set_compensation_strides(prb_t &p) {
         const int parent = get_next_parent_node(p.nodes, p.ndims, cur_node);
         if (parent < 0) return false;
 
-        const int p_n = p.nodes[parent].n;
+        const size_t p_n = p.nodes[parent].n;
 
         // if 'parent_node.n' is larger than 1, then cur_node stride
         // is 'cur_node.n'
-        return p_n > 1;
+        return p_n > size_t(1);
     };
 
     const auto compensation_needed = p.req_s8s8_comp || p.req_asymmetric_comp;
