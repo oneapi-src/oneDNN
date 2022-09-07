@@ -34,9 +34,9 @@
 
 namespace bnorm {
 
-static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
-        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc,
-        dnn_mem_t &sh) {
+static int prepare_fwd_with_stats(const prb_t *prb, const dnn_mem_t &src,
+        const dnn_mem_t &src_add, const dnn_mem_t &mean, const dnn_mem_t &var,
+        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fill_src_add = prb->fuse_add_relu();
@@ -71,9 +71,9 @@ static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
     return OK;
 }
 
-static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
-        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc,
-        dnn_mem_t &sh) {
+static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
+        const dnn_mem_t &src_add, const dnn_mem_t &mean, const dnn_mem_t &var,
+        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
      *
@@ -107,7 +107,10 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
             : MIN2(prb->dt == dnnl_bf16 ? 7 : exact_bits,
                     (exact_bits - logL) / 2 - 1);
 
-    if (flex_bits < min_flex_bits) return FAIL;
+    if (flex_bits < min_flex_bits) {
+        res->state = UNTESTED;
+        return FAIL;
+    }
 
     const int64_t flex_mask = (1 << flex_bits) - 1;
 
@@ -183,12 +186,27 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
     return OK;
 }
 
-static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &src_add,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc, dnn_mem_t &sh) {
+static int prepare_fwd(const prb_t *prb, dnn_mem_t &src_dt,
+        dnn_mem_t &src_add_dt, dnn_mem_t &mean_dt, dnn_mem_t &var_dt,
+        dnn_mem_t &sc_dt, dnn_mem_t &sh_dt, const dnn_mem_t &src,
+        const dnn_mem_t &src_add, const dnn_mem_t &mean, const dnn_mem_t &var,
+        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
     if (prb->flags & GLOB_STATS)
-        return prepare_fwd_with_stats(prb, src, src_add, mean, var, sc, sh);
+        SAFE(prepare_fwd_with_stats(prb, src, src_add, mean, var, sc, sh, res),
+                WARN);
     else
-        return prepare_fwd_no_stats(prb, src, src_add, mean, var, sc, sh);
+        SAFE(prepare_fwd_no_stats(prb, src, src_add, mean, var, sc, sh, res),
+                WARN);
+
+    SAFE(src_dt.reorder(src), WARN);
+    if (prb->fuse_add_relu()) SAFE(src_add_dt.reorder(src_add), WARN);
+    if (prb->flags & GLOB_STATS) {
+        SAFE(mean_dt.reorder(mean), WARN);
+        SAFE(var_dt.reorder(var), WARN);
+    }
+    if (prb->use_sc()) { SAFE(sc_dt.reorder(sc), WARN); }
+    if (prb->use_sh()) { SAFE(sh_dt.reorder(sh), WARN); }
+    return OK;
 }
 
 static int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
@@ -489,19 +507,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
-    if (prepare_fwd(prb, src_fp, src_add_fp, mean_fp, var_fp, sc_fp, sh_fp)
-            != OK) {
-        return res->state = MISTRUSTED, OK;
-    }
-
-    SAFE(src_dt.reorder(src_fp), WARN);
-    if (fuse_add_relu) SAFE(src_add_dt.reorder(src_add_fp), WARN);
-    if (prb->flags & GLOB_STATS) {
-        SAFE(mean_dt.reorder(mean_fp), WARN);
-        SAFE(var_dt.reorder(var_fp), WARN);
-    }
-    if (use_sc) { SAFE(sc_dt.reorder(sc_fp), WARN); }
-    if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
+    SAFE(prepare_fwd(prb, src_dt, src_add_dt, mean_dt, var_dt, sc_dt, sh_dt,
+                 src_fp, src_add_fp, mean_fp, var_fp, sc_fp, sh_fp, res),
+            WARN);
 
     args_t args, ref_args;
 
