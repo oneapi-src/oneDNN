@@ -367,13 +367,8 @@ void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst(int unroll, bool tail) {
 
         if (is_tail_kernel_ && padding_tail_size_) {
             // apply zero-padding
-            Label end;
             auto off_base = 0;
             auto zero_pad_left = padding_tail_size_;
-
-            // inplace data is assumed to be zero-padded
-            cmp(reg_src0_, reg_dst_);
-            je(end, T_NEAR);
 
             if (zero_pad_left >= simd_w_ - tail_size_) {
                 vxorps(vreg_zero_, vreg_zero_, vreg_zero_);
@@ -408,7 +403,6 @@ void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst(int unroll, bool tail) {
                 stosb();
                 pop(abi_param1);
             }
-            L(end);
         } else
             io_.at(conf_.dst_type)
                     ->store(vreg_tmp_src0, dst_ptr(offt * dt_size), tail);
