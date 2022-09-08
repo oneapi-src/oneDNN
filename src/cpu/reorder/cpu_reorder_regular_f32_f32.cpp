@@ -28,6 +28,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
         {{f32, f32, 0}, {
             REG_FAST_DIRECT_COPY_F32_F32
 
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::brgemm_matmul_matrix_B_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
@@ -39,6 +40,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
         {{f32, f32, 3}, {
             REG_FAST_DIRECT_COPY_F32_F32
 
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::brgemm_matmul_matrix_B_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 

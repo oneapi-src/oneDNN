@@ -26,6 +26,7 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         // s8 -> s8
         {{s8, s8, 2}, {
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::brgemm_matmul_matrix_B_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(s8, oi, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(s8, io, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
@@ -46,6 +47,7 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
         }},
         // s8 -> s8
         {{s8, s8, 3}, {
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::brgemm_matmul_matrix_B_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(s8, any, s8, wio, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(s8, iwo, s8, OIw4i16o4i, fmt_order::keep, spec::conv_req_comp))

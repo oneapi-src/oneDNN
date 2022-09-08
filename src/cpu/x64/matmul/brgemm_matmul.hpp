@@ -95,7 +95,6 @@ struct brgemm_matmul_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_body(ctx);
-        return status::success;
     }
 
 private:

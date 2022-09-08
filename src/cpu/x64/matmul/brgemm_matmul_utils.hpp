@@ -300,6 +300,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const brgemm_matmul_conf_t &bgmmc);
 
+int get_default_n_block(format_tag_t matrix_b_tag);
+
 } // namespace matmul
 } // namespace x64
 } // namespace cpu
