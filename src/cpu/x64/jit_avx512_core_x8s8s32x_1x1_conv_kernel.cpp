@@ -877,15 +877,10 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
     jcp.signed_input = (src_d.data_type() == data_type::s8);
 
-    dim_t output_spatial = jcp.od * jcp.oh * jcp.ow;
-    dim_t input_spatial = jcp.id * jcp.ih * jcp.iw;
+    jcp.os = static_cast<dim_t>(jcp.od) * jcp.oh * jcp.ow;
+    jcp.is = static_cast<dim_t>(jcp.id) * jcp.ih * jcp.iw;
 
-    // FIXME: jcp.os and jcp.is fields have data type of int
-    if (output_spatial > INT_MAX || input_spatial > INT_MAX)
-        return status::unimplemented;
-
-    jcp.os = output_spatial;
-    jcp.is = input_spatial;
+    if (jcp.os > INT_MAX || jcp.is > INT_MAX) return status::unimplemented;
 
     const auto &post_ops = attr.post_ops_;
     const int dw_conv_ind = post_ops.find(primitive_kind::convolution);
@@ -1039,7 +1034,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
             && (jcp.oh <= size_treshold && jcp.ow <= size_treshold)) {
         if (jcp.os <= SMALL_SPATIAL && jcp.oc * jcp.ic < L2_size)
             max_regs = min_regs; // mobilenet_v2 performance improvement
-        jcp.ur = nstl::min(max_regs, jcp.os);
+        jcp.ur = nstl::min<dim_t>(max_regs, jcp.os);
     } else {
         const int spatial = jcp.od * jcp.oh;
         jcp.ur = 1;
@@ -1051,7 +1046,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
             }
         }
         if (jcp.ur == 1) {
-            jcp.ur = nstl::min(max_regs, jcp.os);
+            jcp.ur = nstl::min<dim_t>(max_regs, jcp.os);
             int os_tail = jcp.os % max_regs;
             for (int i = max_regs; i >= min_regs; i--) {
                 int i_tail = jcp.os % i;
@@ -1125,7 +1120,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
                              div_up(jcp.nthr, jcp.load_grp_count))
             * jcp.bcast_block;
-    bcast_blocking = nstl::min(jcp.bcast_dim, bcast_blocking);
+    bcast_blocking = nstl::min<dim_t>(jcp.bcast_dim, bcast_blocking);
     bcast_blocking = rnd_up(bcast_blocking, jcp.bcast_block);
 
     int space_for_bcast = (L2_capacity - /* kernel_size - */
