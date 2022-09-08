@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1227,8 +1227,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             : data_type::undef;
     jcp.typesize_bia = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
 
-    jcp.os = jcp.od * jcp.oh * jcp.ow;
-    jcp.is = jcp.id * jcp.ih * jcp.iw;
+    jcp.os = static_cast<dim_t>(jcp.od) * jcp.oh * jcp.ow;
+    jcp.is = static_cast<dim_t>(jcp.id) * jcp.ih * jcp.iw;
 
     const auto &post_ops = attr.post_ops_;
     const int dw_conv_ind = post_ops.find(primitive_kind::convolution);
@@ -1419,7 +1419,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             }
         }
         if (jcp.ur == 1) {
-            jcp.ur = nstl::min(max_regs, jcp.os);
+            jcp.ur = nstl::min<dim_t>(max_regs, jcp.os);
             int os_tail = jcp.os % max_regs;
             for (int i = max_regs; i >= min_regs; i -= ur_step) {
                 int i_tail = jcp.os % i;
@@ -1459,11 +1459,11 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             if (jcp.expl_bcast) {
                 if (jcp.load_dim <= BIG_LOAD_DIM && spatial > SMALL_SPATIAL
                         && spatial < BIG_SPATIAL)
-                    reduce_blocking = nstl::min(jcp.reduce_dim, 160);
+                    reduce_blocking = nstl::min<dim_t>(jcp.reduce_dim, 160);
                 else if (spatial > SMALL_SPATIAL)
-                    reduce_blocking = nstl::min(jcp.reduce_dim, 1024);
+                    reduce_blocking = nstl::min<dim_t>(jcp.reduce_dim, 1024);
                 else
-                    reduce_blocking = nstl::min(jcp.reduce_dim, 512);
+                    reduce_blocking = nstl::min<dim_t>(jcp.reduce_dim, 512);
             } else {
                 reduce_blocking = nb_reduce;
                 if (spatial <= SMALL_SPATIAL
@@ -1564,7 +1564,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
                                  div_up(jcp.nthr, jcp.load_grp_count))
                 * jcp.bcast_block;
-        bcast_blocking = nstl::min(jcp.bcast_dim, bcast_blocking);
+        bcast_blocking = nstl::min<dim_t>(jcp.bcast_dim, bcast_blocking);
         bcast_blocking = rnd_up(bcast_blocking, jcp.bcast_block);
 
         int space_for_bcast = (L2_capacity - /* kernel_size - */
@@ -1594,7 +1594,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                 && IMPLICATION(ndims == 5, jcp.oc <= 64);
 
         if (jcp.uses_permw_transposition) {
-            int rdim = nstl::min(256, jcp.reduce_dim);
+            int rdim = nstl::min<dim_t>(256, jcp.reduce_dim);
             jcp.reduce_block = best_divider(jcp.reduce_dim, 7, rdim, true, 2);
         } else
             jcp.reduce_block = best_divider(jcp.reduce_dim, 8, 16, true, 2);
@@ -1667,7 +1667,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
 
         // for reduction balance
         int max_reduce_blocking
-                = nstl::min(L1_capacity / jcp.ur, jcp.reduce_dim);
+                = nstl::min<dim_t>(L1_capacity / jcp.ur, jcp.reduce_dim);
         int min_reduce_blocking
                 = nstl::min(L1_capacity / jcp.ur, nstl::max(jcp.iw, jcp.ih));
         reduce_blocking = best_divider(
