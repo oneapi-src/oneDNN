@@ -1410,7 +1410,7 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 /// @addtogroup dnnl_api_binary
 /// @{
 
-/// Initializes a descriptor for a binary primitive.
+/// Creates a primitive descriptor for a binary primitive.
 ///
 /// @note
 ///     Memory descriptors @p src1_desc and @p dst_desc are alloweded to be
@@ -1422,7 +1422,8 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 ///     Element broadcasting is supported for memory descriptor @p src1_desc
 ///     and are applied to @ src1_desc dimensions that have size equal to 1.
 ///
-/// @param binary_desc Output descriptor for a binary primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param alg_kind Algorithm kind. Valid values are #dnnl_binary_add,
 ///     #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min, #dnnl_binary_div,
 ///     #dnnl_binary_sub, #dnnl_binary_ge, #dnnl_binary_gt, #dnnl_binary_le,
@@ -1430,12 +1431,14 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 /// @param src0_desc Source 0 memory descriptor.
 /// @param src1_desc Source 1 memory descriptor.
 /// @param dst_desc Destination memory descriptor.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_binary_desc_init(dnnl_binary_desc_t *binary_desc,
+dnnl_status_t DNNL_API dnnl_binary_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src0_desc,
-        const dnnl_memory_desc_t *src1_desc,
-        const dnnl_memory_desc_t *dst_desc);
+        const dnnl_memory_desc_t *src1_desc, const dnnl_memory_desc_t *dst_desc,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_binary
 

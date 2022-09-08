@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,10 +90,6 @@ void binary_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(src_0_data.data(), src_0_mem);
     write_to_dnnl_memory(src_1_data.data(), src_1_mem);
 
-    // Create operation descriptor.
-    auto binary_d
-            = binary::desc(algorithm::binary_mul, src_0_md, src_1_md, dst_md);
-
     // Create primitive post-ops (ReLU).
     const float scale = 1.0f;
     const float alpha = 0.f;
@@ -104,7 +100,8 @@ void binary_example(dnnl::engine::kind engine_kind) {
     binary_attr.set_post_ops(binary_ops);
 
     // Create primitive descriptor.
-    auto binary_pd = binary::primitive_desc(binary_d, binary_attr, engine);
+    auto binary_pd = binary::primitive_desc(engine, algorithm::binary_mul,
+            src_0_md, src_1_md, dst_md, binary_attr);
 
     // Create the primitive.
     auto binary_prim = binary(binary_pd);

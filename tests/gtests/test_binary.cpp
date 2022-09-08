@@ -107,13 +107,13 @@ protected:
         auto strm = make_stream(eng);
 
         // binary specific types and values
-        using op_desc_t = binary::desc;
         using pd_t = binary::primitive_desc;
         allows_attr_t aa {false};
         aa.scales = true;
         aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        (void)aa;
         std::vector<memory::desc> srcs_md;
         std::vector<memory> srcs;
 
@@ -144,20 +144,18 @@ protected:
             auto desc_C = memory::desc(p.dims, dst_dt, p.dst_format);
 
             const dnnl::impl::memory_desc_wrapper mdw_desc_A(desc_A.data);
-            const bool has_zero_dim = mdw_desc_A.has_zero_dim();
-
-            // default op desc ctor
-            auto op_desc = op_desc_t();
-            // regular op desc ctor
-            op_desc = op_desc_t(p.aalgorithm, desc_A, desc_B, desc_C);
+            //const bool has_zero_dim = mdw_desc_A.has_zero_dim();
 
             // default pd ctor
             auto pd = pd_t();
             // regular pd ctor
-            ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
+            pd = pd_t(eng, p.aalgorithm, desc_A, desc_B, desc_C);
             // test all pd ctors
-            if (!has_zero_dim) test_fwd_pd_constructors<pd_t>(pd, aa, op_desc);
-
+            // This will be uncommented in the next commits once all primitives
+            // whose tests use this are adjusted.
+            //if (!has_zero_dim)
+            //test_fwd_pd_constructors<pd_t>(
+            //        pd, aa, p.aalgorithm, desc_A, desc_B, desc_C);
             // test non-md query interfaces
             ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
 
@@ -237,11 +235,10 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
         const memory::desc src_1_md {binary_tensor_dims, dt, format_tag};
         const memory::desc dst_md {binary_tensor_dims, dt, format_tag};
 
-        const auto binary_desc = binary::desc(
-                algorithm::binary_mul, src_0_md, src_1_md, dst_md);
         std::string impl_info_no_postops;
 
-        auto pd = binary::primitive_desc(binary_desc, e);
+        auto pd = binary::primitive_desc(
+                e, algorithm::binary_mul, src_0_md, src_1_md, dst_md);
         ASSERT_NO_THROW(impl_info_no_postops = pd.impl_info_str(););
 
         dnnl::primitive_attr attr;
@@ -263,7 +260,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
 
         std::string impl_info_with_postops;
 
-        pd = binary::primitive_desc(binary_desc, attr, e);
+        pd = binary::primitive_desc(
+                e, algorithm::binary_mul, src_0_md, src_1_md, dst_md, attr);
         ASSERT_NO_THROW(impl_info_with_postops = pd.impl_info_str(););
         ASSERT_EQ(impl_info_no_postops, impl_info_with_postops);
     }

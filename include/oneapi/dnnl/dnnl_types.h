@@ -2081,27 +2081,6 @@ typedef struct {
 
 /// @} dnnl_api_rnn
 
-/// @addtogroup dnnl_api_binary
-/// @{
-
-/// A descriptor of a binary operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_binary.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of the binary algorithm. Possible values:
-    /// #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min,
-    /// #dnnl_binary_div and #dnnl_binary_sub.
-    dnnl_alg_kind_t alg_kind;
-    /// Source memory descriptors.
-    dnnl_memory_desc_t src_desc[2];
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-} dnnl_binary_desc_t;
-
-/// @} dnnl_api_binary
-
-
 /// @} dnnl_api_primitives
 
 /// @addtogroup dnnl_api_engine

@@ -74,7 +74,8 @@ TEST_F(runtime_dim_test_t, TestBNorm) {
 TEST_F(runtime_dim_test_t, TestBinary) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
-    CHECK_UNIMPL(binary::desc(algorithm::binary_add, md, md, md));
+    CHECK_UNIMPL(
+            binary::primitive_desc(eng, algorithm::binary_add, md, md, md));
 }
 
 TEST_F(runtime_dim_test_t, TestConcat) {

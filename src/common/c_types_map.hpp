@@ -1349,7 +1349,6 @@ using memory_extra_desc_t = dnnl_memory_extra_desc_t;
 using memory_desc_t = dnnl_memory_desc_t;
 using pooling_desc_t = dnnl_pooling_desc_t;
 using prelu_desc_t = dnnl_prelu_desc_t;
-using binary_desc_t = dnnl_binary_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 using rnn_desc_t = dnnl_rnn_desc_t;

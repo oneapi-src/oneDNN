@@ -11597,31 +11597,6 @@ struct shuffle_backward : public primitive {
 
 /// Elementwise binary operator primitive.
 struct binary : public primitive {
-    /// Descriptor for an elementwise binary operator primitive.
-    struct desc {
-        /// Underlying C operation descriptor.
-        dnnl_binary_desc_t data;
-
-        /// Default constructor. Produces an empty object.
-        desc() = default;
-
-        /// Constructs a descriptor for an elementwise binary operator
-        /// primitive.
-        ///
-        /// @param aalgorithm Elementwise binary algorithm.
-        /// @param src0 Memory descriptor for source tensor #0.
-        /// @param src1 Memory descriptor for source tensor #1.
-        /// @param dst Memory descriptor for destination tensor.
-        desc(algorithm aalgorithm, const memory::desc &src0,
-                const memory::desc &src1, const memory::desc &dst) {
-            error::wrap_c_api(
-                    dnnl_binary_desc_init(&data, dnnl::convert_to_c(aalgorithm),
-                            &src0.data, &src1.data, &dst.data),
-                    "could not create a descriptor for a binary operation "
-                    "primitive");
-        }
-    };
-
     /// Primitive descriptor for an elementwise binary operator primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
@@ -11630,31 +11605,34 @@ struct binary : public primitive {
         /// Constructs a primitive descriptor for an elementwise binary operator
         /// primitive.
         ///
-        /// @param adesc Descriptor for an elementwise binary operator primitive.
         /// @param aengine Engine to use.
+        /// @param aalgorithm Elementwise binary algorithm.
+        /// @param src0 Memory descriptor for source tensor #0.
+        /// @param src1 Memory descriptor for source tensor #1.
+        /// @param dst Memory descriptor for destination tensor.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src0, const memory::desc &src1,
+                const memory::desc &dst,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
 
-        /// Constructs a primitive descriptor for an elementwise binary operator
-        /// primitive.
-        ///
-        /// @param adesc Descriptor for an elementwise binary operator primitive.
-        /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_binary_primitive_desc_create(&pd,
+                    aengine.get(), dnnl::convert_to_c(aalgorithm), &src0.data,
+                    &src1.data, &dst.data, attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a binary "
+                        "operation primitive");
+            reset(pd);
+        }
 
         /// Constructs a primitive descriptor for a binary primitive from a C
         /// API primitive descriptor that must have a matching kind.

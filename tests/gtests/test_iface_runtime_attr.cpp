@@ -93,17 +93,17 @@ TEST_F(runtime_attr_test_t, TestBNorm) {
 
 TEST_F(runtime_attr_test_t, TestBinary) {
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
-    binary::desc op_d(algorithm::binary_add, md, md, md);
-    CHECK_OK(binary::primitive_desc(op_d, eng));
-    CHECK_UNIMPL(
-            binary::primitive_desc(op_d, gen_attr_with_oscale(false), eng));
-    CHECK_UNIMPL(binary::primitive_desc(op_d, gen_attr_with_oscale(true), eng));
+    CHECK_OK(binary::primitive_desc(eng, algorithm::binary_add, md, md, md));
+    CHECK_UNIMPL(binary::primitive_desc(eng, algorithm::binary_add, md, md, md,
+            gen_attr_with_oscale(false)));
+    CHECK_UNIMPL(binary::primitive_desc(eng, algorithm::binary_add, md, md, md,
+            gen_attr_with_oscale(true)));
 
     for (auto arg : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(binary::primitive_desc(
-                op_d, gen_attr_with_zp(false, arg), eng));
-        CHECK_UNIMPL(
-                binary::primitive_desc(op_d, gen_attr_with_zp(true, arg), eng));
+        CHECK_UNIMPL(binary::primitive_desc(eng, algorithm::binary_add, md, md,
+                md, gen_attr_with_zp(false, arg)));
+        CHECK_UNIMPL(binary::primitive_desc(eng, algorithm::binary_add, md, md,
+                md, gen_attr_with_zp(true, arg)));
     }
 }
 

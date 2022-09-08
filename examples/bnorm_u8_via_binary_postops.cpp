@@ -125,11 +125,6 @@ void bnorm_u8_via_binary_postops(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(shift_data.data(), shift_mem);
     write_to_dnnl_memory(oscale_data.data(), oscale_mem);
 
-    // Create operation descriptor.
-    // dst_tmp = src - mean
-    auto binary_d
-            = binary::desc(algorithm::binary_sub, src_md, mean_md, src_md);
-
     // Bnorm operation with scale and shift
     post_ops binary_ops;
     // dst_tmp = dst_tmp / variance
@@ -144,7 +139,9 @@ void bnorm_u8_via_binary_postops(dnnl::engine::kind engine_kind) {
     binary_attr.set_post_ops(binary_ops);
 
     // Create primitive descriptor.
-    auto binary_pd = binary::primitive_desc(binary_d, binary_attr, engine);
+    // dst_tmp = src - mean
+    auto binary_pd = binary::primitive_desc(engine, algorithm::binary_sub,
+            src_md, mean_md, src_md, binary_attr);
 
     // Create the primitive.
     auto binary_prim = binary(binary_pd);

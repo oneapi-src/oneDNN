@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -28,10 +30,12 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
-status_t dnnl_binary_desc_init(binary_desc_t *binary_desc, alg_kind_t alg_kind,
-        const memory_desc_t *src0_md, const memory_desc_t *src1_md,
-        const memory_desc_t *dst_md) {
-    bool args_ok = !any_null(binary_desc, src0_md, src1_md, dst_md)
+status_t dnnl_binary_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const memory_desc_t *src0_md,
+        const memory_desc_t *src1_md, const memory_desc_t *dst_md,
+        const primitive_attr_t *attr) {
+    bool args_ok = !any_null(src0_md, src1_md, dst_md)
             && one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min,
                     binary_div, binary_sub, binary_ge, binary_gt, binary_le,
                     binary_lt, binary_eq, binary_ne)
@@ -67,6 +71,6 @@ status_t dnnl_binary_desc_init(binary_desc_t *binary_desc, alg_kind_t alg_kind,
         if (!ok) return invalid_arguments;
     }
 
-    *binary_desc = bod;
-    return success;
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&bod, nullptr, attr);
 }

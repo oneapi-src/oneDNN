@@ -599,8 +599,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
 
     memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};
     memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::nchw};
-    auto bin_desc = binary::desc(algorithm::binary_add, wht_md, wht_md, wht_md);
-    auto bin_pd = binary::primitive_desc(bin_desc, attr_s, eng);
+    auto bin_pd = binary::primitive_desc(
+            eng, algorithm::binary_add, wht_md, wht_md, wht_md, attr_s);
 
     auto cd_pd_os = convolution_forward::primitive_desc(eng,
             prop_kind::forward_inference, algorithm::convolution_auto, dat_md,
@@ -636,8 +636,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetCppObjects) {
     attr.set_post_ops(ops);
 
     memory::desc md {{512, 512, 3, 3}, data_type::f32, tag::abcd};
-    auto bin_desc = binary::desc(algorithm::binary_add, md, md, md);
-    auto bin_pd = binary::primitive_desc(bin_desc, attr, eng);
+    auto bin_pd = binary::primitive_desc(
+            eng, algorithm::binary_add, md, md, md, attr);
 
     const auto q_po = bin_pd.get_primitive_attr().get_post_ops();
     ASSERT_EQ(q_po.len(), 1);

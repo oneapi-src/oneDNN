@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 * Copyright 2021 Alanna Tempest
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,9 +43,8 @@ TEST(TestsbinaryStride, StrideZero) {
     const auto src1_mem = memory(src1_md, eng, rhs.data());
     const auto dst_mem = memory(dst_md, eng, res.data());
 
-    const auto binary_add_desc
-            = binary::desc(algorithm::binary_add, src0_md, src1_md, dst_md);
-    const auto pd = binary::primitive_desc(binary_add_desc, eng);
+    const auto pd = binary::primitive_desc(
+            eng, algorithm::binary_add, src0_md, src1_md, dst_md);
 
     const auto prim = binary(pd);
     prim.execute(strm,

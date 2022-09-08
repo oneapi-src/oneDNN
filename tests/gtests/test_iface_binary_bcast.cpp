@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,18 +74,15 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
     auto src1_md = memory::desc(default_dims, defualt_dt, default_format, true);
     auto dst_md = memory::desc(default_dims, defualt_dt, default_format, true);
 
-    auto binary_d
-            = binary::desc(algorithm::binary_add, src0_md, src1_md, dst_md);
-
-    auto binary_pd = binary::primitive_desc(binary_d, e);
+    auto binary_pd = binary::primitive_desc(
+            e, algorithm::binary_add, src0_md, src1_md, dst_md);
     ASSERT_NO_THROW(impl_info_no_bcast = binary_pd.impl_info_str(););
 
     memory::desc src1_bcast_md(
             src1_bcast_dims, defualt_dt, default_format, true);
 
-    binary_d = binary::desc(
-            algorithm::binary_add, src0_md, src1_bcast_md, dst_md);
-    binary_pd = binary::primitive_desc(binary_d, e);
+    binary_pd = binary::primitive_desc(
+            e, algorithm::binary_add, src0_md, src1_bcast_md, dst_md);
 
     ASSERT_NO_THROW(impl_info_bcast = binary_pd.impl_info_str(););
 
