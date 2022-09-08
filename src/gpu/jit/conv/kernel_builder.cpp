@@ -5553,6 +5553,8 @@ private:
 
         if (zp_buf_size_ > 0)
             register_buffer(zp_buf_, zp_buf_size_, alloc_kind_t::grf);
+        if (zp_mask_size_ > 0)
+            register_buffer(zp_mask_, zp_mask_size_, alloc_kind_t::grf);
 
         // Handle temporary buffer in case of GRF reorders.
         int tmp_buf_size = 0;
@@ -5665,12 +5667,13 @@ private:
         src_zp_mask_info_t() = delete;
         src_zp_mask_info_t(load_multiply_builder_t &lmb, int m_blk, int k_blk,
                 int desc_m, int desc_n, int channels, int a_stride, bool is_mad,
-                const view_t &a_view)
+                const view_t &a_view, expr_t &zp_mask, int &zp_mask_size)
             : lmb_(lmb)
             , is_const_(true)
             , is_simd_(true)
             , is_scalar_(false)
-            , is_wide_(m_blk < 16) {
+            , is_wide_(m_blk < 16)
+            , zp_mask_(zp_mask) {
             const auto tile
                     = lmb_.gemm_schedule_.a_thr_tile(/*is_relative=*/false);
             const auto a_thr_view
@@ -5714,7 +5717,7 @@ private:
                         std::vector<dim_t> a_st(a_thr_view.nvdims(), 0);
                         for (int idx = 0; idx < (int)start.size(); idx++) {
                             auto tdim_to_vdims = [&](int idx) {
-                                auto tdim = a_view.tdim(idx);
+                                const auto &tdim = a_view.tdim(idx);
                                 auto vidx0 = tdim.vidx(0);
                                 auto vidx1 = -1;
                                 int vdim1 = 0;
@@ -5801,9 +5804,7 @@ private:
             }
             is_scalar_ = is_scalar;
 
-            // 6. The masks need to be created; allocate the buffers
-            zp_mask_ = lmb_.ir_ctx_.create_tmp_var(
-                    type_t::byte_ptr(), "zp_mask");
+            // 6. zp_mask_ gets created by the caller; allocate var_mask_
             var_mask_ = lmb_.ir_ctx_.create_tmp_var(
                     (!is_bool()) ? type_t::s16() : type_t::_bool(16));
 
@@ -5860,8 +5861,7 @@ private:
 
                 const auto real_size = std::max(
                         size_ * ((is_wide_) ? 8 : 1), int(exprs.size()) * blk);
-                lmb_.register_buffer(
-                        zp_mask_, real_size * w_stride(), alloc_kind_t::grf);
+                zp_mask_size = std::max(zp_mask_size, real_size * w_stride());
                 for (int i = 0; i < int(exprs.size()); i++) {
                     auto expr = cast_t::make(w_type(blk), exprs[i]);
                     stmt_ = stmt_.append(
@@ -5900,8 +5900,7 @@ private:
                 for (auto &v : vars)
                     stmt_ = let_t::make(v.second, v.first, stmt_);
             } else { // is_scalar == true
-                lmb_.register_buffer(
-                        zp_mask_, type_t::s16().size(), alloc_kind_t::grf);
+                zp_mask_size = std::max(zp_mask_size, type_t::s16().size());
                 auto expr = cast_t::make(type_t::s16(), masks.mask(0));
                 if (is_simd_) expr = cast(-expr, type_t::s16());
                 stmt_ = stmt_.append(store_t::make(zp_mask_, 0, expr));
@@ -6042,7 +6041,7 @@ private:
         int size_;
         expr_t ic_start_;
         expr_t var_mask_;
-        expr_t zp_mask_;
+        const expr_t &zp_mask_;
         stmt_t stmt_;
     };
 
@@ -6090,8 +6089,10 @@ private:
             desc_n = a_view.tlayout().size() / m_blk / a_stride;
             desc_m = m_blk;
         }
+        if (zp_mask_.is_empty())
+            zp_mask_ = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "zp_mask");
         src_zp_mask_info_t masks(*this, m_blk, k_blk, desc_m, desc_n, channels,
-                a_stride, is_mad, a_view);
+                a_stride, is_mad, a_view, zp_mask_, zp_mask_size_);
         stmt_t data = masks.stmt();
 
         const int simd_per_ic = utils::div_up(
@@ -6364,6 +6365,9 @@ private:
 
     expr_t zp_buf_;
     int zp_buf_size_ = 0;
+
+    expr_t zp_mask_;
+    int zp_mask_size_ = 0;
 
     layout_t c_reg_layout_;
 
