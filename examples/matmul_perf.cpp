@@ -129,11 +129,8 @@ double run_case(engine::kind engine_kind, dt type, gemm_dims_t dims,
     write_to_dnnl_memory(a_data.data(), a_in_mem);
     write_to_dnnl_memory(b_data.data(), b_in_mem);
 
-    // Create operation descriptor
-    auto matmul_d = matmul::desc(a_md, b_md, c_md);
-
     // Create primitive descriptor.
-    auto matmul_pd = matmul::primitive_desc(matmul_d, engine);
+    auto matmul_pd = matmul::primitive_desc(engine, a_md, b_md, c_md);
 
     // Repack and convert input data.
     auto a_mem = memory(matmul_pd.src_desc(), engine);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -278,8 +278,7 @@ void f32_matmul_compute(int64_t M, int64_t N, int64_t K,
     memory C_f32_m(c_md, eng, (void *)C_f32.data());
 
     // Create a MatMul primitive
-    matmul::desc matmul_d(a_md, b_md, c_md);
-    matmul::primitive_desc matmul_pd(matmul_d, eng);
+    matmul::primitive_desc matmul_pd(eng, a_md, b_md, c_md);
     matmul matmul_p(matmul_pd);
 
     stream s(eng);
@@ -346,8 +345,8 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
         matmul_attr.set_zero_points(
                 DNNL_ARG_SRC, /* mask */ 0, {DNNL_RUNTIME_S32_VAL});
 
-        matmul::desc matmul_d(a_u8_md, b_s8_md, c_f32_md);
-        matmul::primitive_desc matmul_pd(matmul_d, matmul_attr, eng);
+        matmul::primitive_desc matmul_pd(
+                eng, a_u8_md, b_s8_md, c_f32_md, matmul_attr);
         matmul matmul_p(matmul_pd);
 
         // Pretend the values come at run-time
@@ -414,8 +413,8 @@ void static_q10n_matmul(int64_t M, int64_t N, int64_t K,
         matmul_attr.set_zero_points(DNNL_ARG_SRC, /* mask */ 0, {zp_A});
         matmul_attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0, {zp_C});
 
-        matmul::desc matmul_d(a_u8_md, b_s8_md, c_u8_md);
-        matmul::primitive_desc matmul_pd(matmul_d, matmul_attr, eng);
+        matmul::primitive_desc matmul_pd(
+                eng, a_u8_md, b_s8_md, c_u8_md, matmul_attr);
         matmul matmul_p(matmul_pd);
 
         matmul_p.execute(s,

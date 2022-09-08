@@ -276,15 +276,14 @@ protected:
                     init_md({bia_dims, p.base.bia_dt, bia_tag}), eng);
         }
 
-        auto matmul_d = matmul::desc(src_md, weights_md, bia_md, dst_md);
-
         primitive_attr attr;
         memory scales_m, zero_points_src_m, zero_points_weights_m,
                 zero_points_dst_m;
         create_attr(p, attr, scales_m, zero_points_src_m, zero_points_weights_m,
                 zero_points_dst_m, eng);
 
-        auto matmul_pd = matmul::primitive_desc(matmul_d, attr, eng);
+        auto matmul_pd = matmul::primitive_desc(
+                eng, src_md, weights_md, bia_md, dst_md, attr);
 
         ASSERT_TRUE(matmul_pd.query_md(query::exec_arg_md, DNNL_ARG_SRC)
                 == matmul_pd.src_desc());
@@ -370,10 +369,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
     auto dst_md = memory::desc(tensor_dims, dst_dt, format_tag);
     auto bia_md = memory::desc();
 
-    auto matmul_d = matmul::desc(src_md, weights_md, bia_md, dst_md);
-
     std::string impl_info_no_postops;
-    auto matmul_pd = matmul::primitive_desc(matmul_d, e);
+    auto matmul_pd
+            = matmul::primitive_desc(e, src_md, weights_md, bia_md, dst_md);
     ASSERT_NO_THROW(impl_info_no_postops = matmul_pd.impl_info_str(););
 
     dnnl::primitive_attr attr;
@@ -400,7 +398,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
 
     std::string impl_info_with_postops;
 
-    matmul_pd = matmul::primitive_desc(matmul_d, attr, e);
+    matmul_pd = matmul::primitive_desc(
+            e, src_md, weights_md, bia_md, dst_md, attr);
     ASSERT_NO_THROW(impl_info_with_postops = matmul_pd.impl_info_str(););
     ASSERT_EQ(impl_info_no_postops, impl_info_with_postops);
 }

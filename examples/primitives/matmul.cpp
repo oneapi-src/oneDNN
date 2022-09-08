@@ -99,9 +99,6 @@ void matmul_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(weights_data.data(), weights_mem);
     write_to_dnnl_memory(bias_data.data(), bias_mem);
 
-    // Create operation descriptor
-    auto matmul_d = matmul::desc(src_md, weights_md, bias_md, dst_md);
-
     // Create primitive post-ops (ReLU).
     const float scale = 1.0f;
     const float alpha = 0.f;
@@ -112,7 +109,8 @@ void matmul_example(dnnl::engine::kind engine_kind) {
     matmul_attr.set_post_ops(matmul_ops);
 
     // Create primitive descriptor.
-    auto matmul_pd = matmul::primitive_desc(matmul_d, matmul_attr, engine);
+    auto matmul_pd = matmul::primitive_desc(
+            engine, src_md, weights_md, bias_md, dst_md, matmul_attr);
 
     // Create the primitive.
     auto matmul_prim = matmul(matmul_pd);

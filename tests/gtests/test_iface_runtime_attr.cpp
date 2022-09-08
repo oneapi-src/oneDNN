@@ -297,25 +297,25 @@ CPU_TEST_F(runtime_attr_test_t, TestMatmul) {
         memory::desc b_md {{3, 20}, b_dt, tag::ba};
         memory::desc c_md {{10, 20}, data_type::f32, tag::ab};
 
-        matmul::desc op_d(a_md, b_md, c_md);
-        CHECK_OK(matmul::primitive_desc(op_d, eng));
-        CHECK_OK(
-                matmul::primitive_desc(op_d, gen_attr_with_oscale(false), eng));
-        CHECK_OK(matmul::primitive_desc(op_d, gen_attr_with_oscale(true), eng));
+        CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md));
+        CHECK_OK(matmul::primitive_desc(
+                eng, a_md, b_md, c_md, gen_attr_with_oscale(false)));
+        CHECK_OK(matmul::primitive_desc(
+                eng, a_md, b_md, c_md, gen_attr_with_oscale(true)));
 
         for (auto arg :
                 {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
             if ((a_dt != data_type::u8 && a_dt != data_type::s8)
                     || arg == DNNL_ARG_BIAS) {
                 CHECK_UNIMPL(matmul::primitive_desc(
-                        op_d, gen_attr_with_zp(false, arg), eng));
+                        eng, a_md, b_md, c_md, gen_attr_with_zp(false, arg)));
                 CHECK_UNIMPL(matmul::primitive_desc(
-                        op_d, gen_attr_with_zp(true, arg), eng));
+                        eng, a_md, b_md, c_md, gen_attr_with_zp(true, arg)));
             } else {
                 CHECK_OK(matmul::primitive_desc(
-                        op_d, gen_attr_with_zp(false, arg), eng));
+                        eng, a_md, b_md, c_md, gen_attr_with_zp(false, arg)));
                 CHECK_OK(matmul::primitive_desc(
-                        op_d, gen_attr_with_zp(true, arg), eng));
+                        eng, a_md, b_md, c_md, gen_attr_with_zp(true, arg)));
             }
         }
     }

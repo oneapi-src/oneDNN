@@ -161,6 +161,29 @@ struct resampling_desc_t {
     float factors[DNNL_MAX_NDIMS];
 };
 
+// A descriptor of a matrix multiplication operation.
+//
+// 2D case:
+//     dst[m, n] = src[m, k] * weights[k, n] + bias[m, n]
+//
+// 3D case:
+//     dst[mb, m, n] = src[mb, m, k] * weights[mb, k, n] + bias[mb, m, n]
+struct matmul_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_matmul.
+    primitive_kind_t primitive_kind;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Weights memory descriptor.
+    memory_desc_t weights_desc;
+    // Bias memory descriptor.
+    memory_desc_t bias_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // The accumulator data type. Initialized automatically.
+    data_type_t accum_data_type;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

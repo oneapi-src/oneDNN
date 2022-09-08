@@ -192,7 +192,7 @@ CPU_TEST_F(runtime_dim_test_t, TestMatmul) {
     memory::desc b_md {{3, DNNL_RUNTIME_DIM_VAL}, data_type::f32, tag::ba};
     memory::desc c_md {{DNNL_RUNTIME_DIM_VAL, DNNL_RUNTIME_DIM_VAL},
             data_type::f32, tag::ab};
-    CHECK_OK(matmul::desc(a_md, b_md, c_md));
+    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md));
 }
 
 TEST_F(runtime_dim_test_t, TestPool) {

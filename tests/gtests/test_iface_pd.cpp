@@ -77,7 +77,7 @@ TEST_F(pd_test_t, TestOptionalQueries) {
     memory::desc c_md {
             {10, 10}, memory::data_type::f32, memory::format_tag::ab};
 
-    auto pd = matmul::primitive_desc({a_md, b_md, c_md}, e);
+    auto pd = matmul::primitive_desc(e, a_md, b_md, c_md);
 
     ASSERT_TRUE(pd.get_strides().empty());
     ASSERT_TRUE(pd.get_dilations().empty());

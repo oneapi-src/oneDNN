@@ -2295,33 +2295,6 @@ typedef struct {
 
 /// @} dnnl_api_binary
 
-/// @addtogroup dnnl_api_matmul
-/// @{
-
-/// A descriptor of a matrix multiplication operation.
-///
-/// 2D case:
-///     dst[m, n] = src[m, k] * weights[k, n] + bias[m, n]
-///
-/// 3D case:
-///     dst[mb, m, n] = src[mb, m, k] * weights[mb, k, n] + bias[mb, m, n]
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_matmul.
-    dnnl_primitive_kind_t primitive_kind;
-    /// Source memory descriptor.
-    dnnl_memory_desc_t src_desc;
-    /// Weights memory descriptor.
-    dnnl_memory_desc_t weights_desc;
-    /// Bias memory descriptor.
-    dnnl_memory_desc_t bias_desc;
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-    /// The accumulator data type. Initialized automatically.
-    dnnl_data_type_t accum_data_type;
-} dnnl_matmul_desc_t;
-
-/// @} dnnl_api_matmul
 
 /// @addtogroup dnnl_api_reduction
 /// @{

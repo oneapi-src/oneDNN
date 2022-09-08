@@ -11785,69 +11785,51 @@ struct binary : public primitive {
 
 /// Matrix multiplication (matmul) primitive.
 struct matmul : public primitive {
-    /// Descriptor for a matmul primitive.
-    struct desc {
-        dnnl_matmul_desc_t data;
-
-        /// Constructs a descriptor for a matmul primitive.
-        ///
-        /// @param src_desc Memory descriptor for source (matrix A).
-        /// @param weights_desc Memory descriptor for weights (matrix B).
-        /// @param dst_desc Memory descriptor for destination (matrix C).
-        desc(const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &dst_desc) {
-            error::wrap_c_api(
-                    dnnl_matmul_desc_init(&data, &src_desc.data,
-                            &weights_desc.data, nullptr, &dst_desc.data),
-                    "could not create a descriptor for a matmul primitive");
-        }
-
-        /// Constructs a descriptor for a matmul primitive.
-        ///
-        /// @param src_desc Memory descriptor for source (matrix A).
-        /// @param weights_desc Memory descriptor for weights (matrix B).
-        /// @param dst_desc Memory descriptor for destination (matrix C).
-        /// @param bias_desc Memory descriptor for bias.
-        desc(const memory::desc &src_desc, const memory::desc &weights_desc,
-                const memory::desc &bias_desc, const memory::desc &dst_desc) {
-            error::wrap_c_api(dnnl_matmul_desc_init(&data, &src_desc.data,
-                                      &weights_desc.data, &bias_desc.data,
-                                      &dst_desc.data),
-                    "could not create a descriptor for a matmul primitive");
-        }
-    };
-
     /// Primitive descriptor for a matmul primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
-        /// Constructs a primitive descriptor for a matmul primitive.
+        /// Constructs a primitive descriptor for a matmul primitive
+        ///     without bias.
         ///
-        /// @param adesc Descriptor for a matmul primitive.
         /// @param aengine Engine to use.
+        /// @param src_desc Memory descriptor for source (matrix A).
+        /// @param weights_desc Memory descriptor for weights (matrix B).
+        /// @param dst_desc Memory descriptor for destination (matrix C).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &dst_desc,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+            : primitive_desc(aengine, src_desc, weights_desc, nullptr, dst_desc,
+                    attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a matmul primitive.
+        /// Constructs a primitive descriptor for a matmul primitive with bias.
         ///
-        /// @param adesc Descriptor for a matmul primitive.
-        /// @param attr Primitive attributes to use.
         /// @param aengine Engine to use.
+        /// @param src_desc Memory descriptor for source (matrix A).
+        /// @param weights_desc Memory descriptor for weights (matrix B).
+        /// @param dst_desc Memory descriptor for destination (matrix C).
+        /// @param bias_desc Memory descriptor for bias.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+        primitive_desc(const engine &aengine, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc &bias_desc,
+                const memory::desc &dst_desc,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, src_desc, weights_desc, &bias_desc,
+                    dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a matmul primitive from a C
         /// API primitive descriptor that must have a matching kind.
@@ -11871,6 +11853,24 @@ struct matmul : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+
+    private:
+        primitive_desc(const engine &aengine, const memory::desc &src_desc,
+                const memory::desc &weights_desc, const memory::desc *bias_desc,
+                const memory::desc &dst_desc, const primitive_attr &attr,
+                bool allow_empty) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_matmul_primitive_desc_create(&pd,
+                    aengine.get(), &src_desc.data, &weights_desc.data,
+                    optional_arg(bias_desc), &dst_desc.data, attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a matmul "
+                        "primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.

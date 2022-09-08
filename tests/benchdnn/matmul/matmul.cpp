@@ -74,10 +74,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 prb->dst_runtime_dim_mask() != 0 ? tag::abx : tag::any);
     }
 
-    dnnl_matmul_desc_t op_d;
-    DNN_SAFE_STATUS(
-            dnnl_matmul_desc_init(&op_d, &src_d, &wei_d, &bia_d, &dst_d));
-
     // Overload PER_OC mask definition for batched case
     int mask = 0;
     if (prb->attr.oscale.policy == policy_t::PER_OC)
@@ -89,8 +85,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &op_d, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    DNN_SAFE_STATUS(dnnl_matmul_primitive_desc_create(&init_pd_args.pd,
+            init_pd_args.engine, &src_d, &wei_d, &bia_d, &dst_d, dnnl_attr));
+
+    return dnnl_success;
 }
 
 int init_prim_ref(

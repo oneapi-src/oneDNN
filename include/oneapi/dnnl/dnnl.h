@@ -3608,22 +3608,25 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_backward_desc_init(
 /// @addtogroup dnnl_api_matmul
 /// @{
 
-/// Initializes a matrix multiplication descriptor.
+/// Creates a primitive descriptor for a matrix multiplication primitive.
 ///
-/// @param matmul_desc Output descriptor for matmul primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param src_desc Source memory descriptor (matrix A)
 /// @param weights_desc Weights memory descriptor (matrix B)
 /// @param bias_desc Bias memory descriptor. Passing NULL, a zero memory
 ///     descriptor, or a memory descriptor with format_kind set to
 ///     #dnnl_format_kind_undef disables the bias term.
 /// @param dst_desc Destination memory descriptor (matrix C).
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_matmul_desc_init(dnnl_matmul_desc_t *matmul_desc,
+dnnl_status_t DNNL_API dnnl_matmul_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         const dnnl_memory_desc_t *src_desc,
         const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_desc);
+        const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_matmul
 

@@ -15,6 +15,8 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -26,10 +28,12 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::types;
 
-status_t dnnl_matmul_desc_init(matmul_desc_t *matmul_desc,
+status_t dnnl_matmul_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         const memory_desc_t *src_md, const memory_desc_t *weights_md,
-        const memory_desc_t *bias_md, const memory_desc_t *dst_md) {
-    bool args_ok = !any_null(matmul_desc, src_md, weights_md, dst_md);
+        const memory_desc_t *bias_md, const memory_desc_t *dst_md,
+        const primitive_attr_t *attr) {
+    bool args_ok = !any_null(src_md, weights_md, dst_md);
     if (!args_ok) return status::invalid_arguments;
 
     auto op_d = matmul_desc_t();
@@ -90,6 +94,6 @@ status_t dnnl_matmul_desc_init(matmul_desc_t *matmul_desc,
     if (op_d.accum_data_type == data_type::undef)
         return status::invalid_arguments;
 
-    *matmul_desc = op_d;
-    return status::success;
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&op_d, nullptr, attr);
 }

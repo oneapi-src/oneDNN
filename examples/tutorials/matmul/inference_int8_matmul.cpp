@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,8 +121,7 @@ matmul::primitive_desc matmul_pd_create(
     attr.set_post_ops(po);
 
     // Create a MatMul primitive descriptor
-    matmul::desc matmul_d(a_md, b_md, c_md);
-    return matmul::primitive_desc(matmul_d, attr, eng);
+    return matmul::primitive_desc(eng, a_md, b_md, c_md, attr);
 }
 
 void prepare_input(memory &A_u8_mem, memory &scale_f32_mem, memory &zp_A_mem,

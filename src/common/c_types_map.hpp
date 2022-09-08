@@ -1354,7 +1354,6 @@ using lrn_desc_t = dnnl_lrn_desc_t;
 using batch_normalization_desc_t = dnnl_batch_normalization_desc_t;
 using layer_normalization_desc_t = dnnl_layer_normalization_desc_t;
 using binary_desc_t = dnnl_binary_desc_t;
-using matmul_desc_t = dnnl_matmul_desc_t;
 using reduction_desc_t = dnnl_reduction_desc_t;
 using softmax_desc_t = dnnl_softmax_desc_t;
 using layer_normalization_desc_t = dnnl_layer_normalization_desc_t;
