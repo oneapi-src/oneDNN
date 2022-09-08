@@ -127,7 +127,7 @@ int doit(const prb_t *prb, res_t *res) {
 
             // Creating tensors and allocating memory buffer
             std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(
-                    inputs, c_partitions[i], e, 1);
+                    inputs, c_partitions[i], e, 128);
             std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(
                     outputs, c_partitions[i], e, 0);
             tensors_in.emplace_back(input_ts);
