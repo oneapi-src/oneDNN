@@ -216,11 +216,12 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->bdb = brg->bcast_dim / brg->bd_block;
         brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
-        const int size_per_element_at_vnni
-                = brg->is_f16 && brg->isa_impl == avx512_core_fp16
-                ? 4
-                : brg->typesize_A;
-        brg->rd_block = 16 / size_per_element_at_vnni;
+        const int rd_unroll = 4;
+        const int vnni_granularity
+                = (brg->is_f16 && brg->isa_impl == avx512_core_fp16)
+                ? 1
+                : data_type_vnni_granularity(brg->dt_a);
+        brg->rd_block = rd_unroll * vnni_granularity;
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
