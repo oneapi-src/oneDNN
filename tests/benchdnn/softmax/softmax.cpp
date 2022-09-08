@@ -35,13 +35,16 @@ namespace softmax {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_softmax_desc_t sd;
-
     auto dst_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
 
     dnnl_alg_kind_t alg_kind = dnnl_softmax_accurate;
     if (prb->alg == LOGSOFTMAX) alg_kind = dnnl_softmax_log;
+
+    attr_args_t attr_args;
+    attr_args.prepare_output_scales(prb->attr, prb->scales, 1);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
 
     if (prb->dir & FLAG_FWD) {
         auto src_d = dnn_mem_t::init_md(
@@ -50,8 +53,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
 
-        DNN_SAFE_STATUS(dnnl_softmax_forward_desc_init(
-                &sd, prop, alg_kind, &src_d, &dst_d, prb->axis));
+        DNN_SAFE_STATUS(dnnl_softmax_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop, alg_kind, &src_d,
+                &dst_d, prb->axis, dnnl_attr));
     } else {
         // Re-create dst_md with source tag if dst was not specified, immitating
         // default value.
@@ -65,17 +69,12 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->ddt, tag::any);
 
-        DNN_SAFE_STATUS(dnnl_softmax_backward_desc_init(
-                &sd, alg_kind, &diff_src_d, &diff_dst_d, &dst_d, prb->axis));
+        DNN_SAFE_STATUS(dnnl_softmax_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, alg_kind, &diff_src_d,
+                &diff_dst_d, &dst_d, prb->axis, init_pd_args.hint, dnnl_attr));
     }
 
-    attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, 1);
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args));
-
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &sd, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    return dnnl_success;
 }
 
 int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {

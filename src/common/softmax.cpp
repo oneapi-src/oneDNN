@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "memory_desc_wrapper.hpp"
@@ -74,22 +76,33 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t dnnl_softmax_forward_desc_init(softmax_desc_t *softmax_desc,
+status_t dnnl_softmax_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
-        int softmax_axis) {
+        const memory_desc_t *src_desc, const memory_desc_t *dst_desc, int axis,
+        const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_inference, forward_training))
         return invalid_arguments;
-    return softmax_desc_init(softmax_desc, prop_kind, alg_kind, src_desc,
-            dst_desc, nullptr, nullptr, softmax_axis);
+
+    auto softmax_desc = softmax_desc_t();
+    CHECK(softmax_desc_init(&softmax_desc, prop_kind, alg_kind, src_desc,
+            dst_desc, nullptr, nullptr, axis));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&softmax_desc, nullptr, attr);
 }
 
-status_t dnnl_softmax_backward_desc_init(softmax_desc_t *softmax_desc,
+status_t dnnl_softmax_backward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, const memory_desc_t *dst_desc,
-        int softmax_axis) {
-    return softmax_desc_init(softmax_desc, prop_kind::backward_data, alg_kind,
-            nullptr, dst_desc, diff_src_desc, diff_dst_desc, softmax_axis);
+        int axis, const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto softmax_desc = softmax_desc_t();
+    CHECK(softmax_desc_init(&softmax_desc, prop_kind::backward_data, alg_kind,
+            nullptr, dst_desc, diff_src_desc, diff_dst_desc, axis));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&softmax_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

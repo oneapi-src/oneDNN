@@ -71,11 +71,11 @@ TEST_F(attr_test_t, TestScratchpadModeEx) {
             {N, C, W}, memory::data_type::f32, memory::format_tag::ncw);
 
     dnnl::primitive_attr attr;
-    auto softmax_d = softmax_forward::desc(prop_kind::forward_inference,
-            algorithm::softmax_accurate, data_md, data_md, 1);
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
-        auto softmax_pd = softmax_forward::primitive_desc(softmax_d, attr, eng);
+        auto softmax_pd = softmax_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::softmax_accurate,
+                data_md, data_md, 1, attr);
         auto scratchpad_size = (long)softmax_pd.scratchpad_desc().get_size();
         auto mem_consumption
                 = (long)softmax_pd.query_s64(query::memory_consumption_s64);
@@ -97,11 +97,11 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScratchpadArg) {
             {N, C, W}, memory::data_type::f32, memory::format_tag::ncw);
 
     dnnl::primitive_attr attr;
-    auto softmax_d = softmax_forward::desc(prop_kind::forward_inference,
-            algorithm::softmax_accurate, data_md, data_md, 1);
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
-        auto softmax_pd = softmax_forward::primitive_desc(softmax_d, attr, eng);
+        auto softmax_pd = softmax_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::softmax_accurate,
+                data_md, data_md, 1, attr);
 
         auto src = test::make_memory(softmax_pd.src_desc(), eng);
         auto dst = test::make_memory(softmax_pd.dst_desc(), eng);

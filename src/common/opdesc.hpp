@@ -360,6 +360,29 @@ struct reduction_desc_t {
     float p, eps;
 };
 
+/// A descriptor of a Softmax operation.
+struct softmax_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_softmax.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, and #dnnl_backward_data.
+    prop_kind_t prop_kind;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // The axis along which to perform the softmax.
+    int softmax_axis;
+    // Softmax algorithm. Possible values: #dnnl_softmax_accurate and
+    // #dnnl_softmax_log.
+    alg_kind_t alg_kind;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

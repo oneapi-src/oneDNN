@@ -1912,34 +1912,6 @@ typedef const void *const_dnnl_op_desc_t;
 /// @addtogroup dnnl_api_primitives
 /// @{
 
-/// @addtogroup dnnl_api_softmax
-/// @{
-
-/// A descriptor of a Softmax operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_softmax.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, and #dnnl_backward_data.
-    dnnl_prop_kind_t prop_kind;
-    /// Source memory descriptor.
-    dnnl_memory_desc_t src_desc;
-    /// Source gradient memory descriptor.
-    dnnl_memory_desc_t diff_src_desc;
-    /// The axis along which to perform the softmax.
-    int softmax_axis;
-    /// Softmax algorithm. Possible values: #dnnl_softmax_accurate and
-    /// #dnnl_softmax_log.
-    dnnl_alg_kind_t alg_kind;
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-    /// Destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_dst_desc;
-} dnnl_softmax_desc_t;
-
-/// @} dnnl_api_softmax
-
 /// @addtogroup dnnl_api_pooling
 /// @{
 

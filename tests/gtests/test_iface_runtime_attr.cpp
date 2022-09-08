@@ -467,19 +467,23 @@ TEST_F(runtime_attr_test_t, TestShuffle) {
 
 TEST_F(runtime_attr_test_t, TestSoftmax) {
     memory::desc md {{2, 16}, data_type::u8, tag::ab};
-    softmax_forward::desc op_d(
-            prop_kind::forward, algorithm::softmax_accurate, md, md, 1);
-    CHECK_OK(softmax_forward::primitive_desc(op_d, eng));
+
     CHECK_OK(softmax_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(false), eng));
-    CHECK_OK(softmax_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(true), eng));
+            eng, prop_kind::forward, algorithm::softmax_accurate, md, md, 1));
+    CHECK_OK(softmax_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::softmax_accurate, md, md, 1,
+            gen_attr_with_oscale(false)));
+    CHECK_OK(softmax_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::softmax_accurate, md, md, 1,
+            gen_attr_with_oscale(true)));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(softmax_forward::primitive_desc(
-                op_d, gen_attr_with_zp(false, arg), eng));
-        CHECK_UNIMPL(softmax_forward::primitive_desc(
-                op_d, gen_attr_with_zp(true, arg), eng));
+        CHECK_UNIMPL(softmax_forward::primitive_desc(eng, prop_kind::forward,
+                algorithm::softmax_accurate, md, md, 1,
+                gen_attr_with_zp(false, arg)));
+        CHECK_UNIMPL(softmax_forward::primitive_desc(eng, prop_kind::forward,
+                algorithm::softmax_accurate, md, md, 1,
+                gen_attr_with_zp(true, arg)));
     }
 }
 

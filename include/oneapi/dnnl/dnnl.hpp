@@ -7035,16 +7035,15 @@ struct eltwise_backward : public primitive {
 
 /// Softmax forward propagation primitive.
 struct softmax_forward : public primitive {
-    /// Descriptor for a softmax forward propagation primitive.
-    struct desc {
-        dnnl_softmax_desc_t data;
-
+    /// Primitive descriptor for a softmax forward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
-        desc() = default;
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for a softmax forward propagation
+        /// Constructs a primitive descriptor for a softmax forward propagation
         /// primitive.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -7053,55 +7052,31 @@ struct softmax_forward : public primitive {
         ///     or #dnnl::algorithm::softmax_log.
         /// @param src_desc Source memory descriptor.
         /// @param dst_desc Destination memory descriptor.
-        /// @param softmax_axis Axis over which softmax is computed.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &dst_desc,
-                int softmax_axis) {
-            error::wrap_c_api(
-                    dnnl_softmax_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind),
-                            dnnl::convert_to_c(aalgorithm), &src_desc.data,
-                            &dst_desc.data, softmax_axis),
-                    "could not create a descriptor for a softmax forward "
-                    "propagation primitive");
+        /// @param axis Axis over which softmax is computed.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &dst_desc, int axis,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_softmax_forward_primitive_desc_create(
+                    &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                    dnnl::convert_to_c(aalgorithm), &src_desc.data,
+                    &dst_desc.data, axis, attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a softmax "
+                        "forward propagation primitive");
+            reset(pd);
         }
-    };
-
-    /// Primitive descriptor for a softmax forward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a softmax forward
-        /// propagation primitive.
-        ///
-        /// @param adesc descriptor for a softmax forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
-
-        /// Constructs a primitive descriptor for a softmax forward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a softmax forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a softmax forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -7149,79 +7124,50 @@ struct softmax_forward : public primitive {
 
 /// Softmax backward propagation primitive.
 struct softmax_backward : public primitive {
-    /// Descriptor for a softmax backward propagation primitive.
-    struct desc {
-        dnnl_softmax_desc_t data;
-
+    /// Primitive descriptor for a softmax backward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
-        desc() = default;
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for a softmax backward propagation
+        /// Constructs a primitive descriptor for a softmax backward propagation
         /// primitive.
         ///
+        /// @param aengine Engine to use.
         /// @param aalgorithm Softmax algorithm kind: either
         ///     #dnnl::algorithm::softmax_accurate,
         ///     or #dnnl::algorithm::softmax_log.
         /// @param diff_src_desc Diff source memory descriptor.
         /// @param diff_dst_desc Diff destination memory descriptor.
         /// @param dst_desc Destination memory descriptor.
-        /// @param softmax_axis Axis over which softmax is computed.
-        desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
+        /// @param axis Axis over which softmax is computed.
+        /// @param hint_fwd_pd Primitive descriptor for a softmax
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc, const memory::desc &dst_desc,
-                int softmax_axis) {
-            error::wrap_c_api(
-                    dnnl_softmax_backward_desc_init(&data,
-                            dnnl::convert_to_c(aalgorithm), &diff_src_desc.data,
-                            &diff_dst_desc.data, &dst_desc.data, softmax_axis),
-                    "could not create a descriptor for a softmax backward "
-                    "propagation primitive");
+                int axis, const softmax_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_softmax_backward_primitive_desc_create(
+                    &pd, aengine.get(), dnnl::convert_to_c(aalgorithm),
+                    &diff_src_desc.data, &diff_dst_desc.data, &dst_desc.data,
+                    axis, hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a softmax "
+                        "backward propagation primitive");
+            reset(pd);
         }
-    };
-
-    /// Primitive descriptor for a softmax backward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a softmax backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a softmax backward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a softmax forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                const softmax_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
-
-        /// Constructs a primitive descriptor for a softmax backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a softmax backward propagation
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a softmax forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
-                const softmax_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
 
         /// Constructs a primitive descriptor for a softmax backward
         /// propagation primitive from a C API primitive descriptor that must
