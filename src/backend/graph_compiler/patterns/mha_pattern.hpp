@@ -400,22 +400,58 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto key_transpose = pgraph->append_op(
                             impl::op_kind::StaticTranspose,
                             {in_edge(0, key_reshape, 0)}, "key_transpose");
+
+                    auto optional_mul_subgraph = std::make_shared<pb_graph_t>(
+                            "optional_mul_subgraph");
+                    auto optional_mul = optional_mul_subgraph->append_op(
+                            impl::op_kind::Multiply, "optional_mul");
+                    optional_mul_subgraph->create_input_port(
+                            0, optional_mul, 0);
+                    optional_mul_subgraph->create_output_port(
+                            0, optional_mul, 0);
+                    auto mul = pgraph->append_optional(optional_mul_subgraph,
+                            {in_edge(0, key_transpose, 0)}, "mul");
+
                     auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
-                                    in_edge(1, key_transpose, 0)},
+                                    in_edge(1, mul, 0)},
                             "matmul_qk");
 
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, matmul_qk, 0)}, "fscore_add");
 
-                    auto pre_softmax_reshape = pgraph->append_op(
-                            impl::op_kind::StaticReshape,
-                            {in_edge(0, fscore_add, 0)}, "pre_softmax_reshape");
+                    auto optional_pre_reshape_subgraph
+                            = std::make_shared<pb_graph_t>(
+                                    "optional_pre_reshape_subgraph");
+                    auto optional_pre_reshape
+                            = optional_pre_reshape_subgraph->append_op(
+                                    impl::op_kind::StaticReshape,
+                                    "optional_pre_reshape");
+                    optional_pre_reshape_subgraph->create_input_port(
+                            0, optional_pre_reshape, 0);
+                    optional_pre_reshape_subgraph->create_output_port(
+                            0, optional_pre_reshape, 0);
+                    auto pre_reshape = pgraph->append_optional(
+                            optional_pre_reshape_subgraph,
+                            {in_edge(0, fscore_add, 0)}, "pre_reshape");
+
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
-                            {in_edge(0, pre_softmax_reshape, 0)}, "softmax");
-                    auto post_softmax_reshape = pgraph->append_op(
-                            impl::op_kind::StaticReshape,
-                            {in_edge(0, softmax, 0)}, "post_softmax_reshape");
+                            {in_edge(0, pre_reshape, 0)}, "softmax");
+
+                    auto optional_post_reshape_subgraph
+                            = std::make_shared<pb_graph_t>(
+                                    "optional_post_reshape_subgraph");
+                    auto optional_post_reshape
+                            = optional_post_reshape_subgraph->append_op(
+                                    impl::op_kind::StaticReshape,
+                                    "optional_post_reshape");
+                    optional_post_reshape_subgraph->create_input_port(
+                            0, optional_post_reshape, 0);
+                    optional_post_reshape_subgraph->create_output_port(
+                            0, optional_post_reshape, 0);
+                    auto post_reshape = pgraph->append_optional(
+                            optional_post_reshape_subgraph,
+                            {in_edge(0, softmax, 0)}, "post_reshape");
 
                     auto value_reshape = pgraph->append_op(
                             impl::op_kind::StaticReshape, "value_reshape");
@@ -424,7 +460,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, value_reshape, 0)}, "value_transpose");
 
                     auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
-                            {in_edge(0, post_softmax_reshape, 0),
+                            {in_edge(0, post_reshape, 0),
                                     in_edge(1, value_transpose, 0)},
                             "matmul_v");
 
