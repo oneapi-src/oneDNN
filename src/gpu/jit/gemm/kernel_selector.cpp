@@ -134,6 +134,7 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
         EvaluateAuxOutput &aux) {
     double bestScore = std::numeric_limits<double>::infinity();
     const kcatalog::Entry *bestEntry = nullptr;
+    int bestIPattern = -1;
 
     bool verbose = (get_verbose() >= 5);
 
@@ -145,6 +146,7 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
             if (score < bestScore) {
                 bestEntry = &*it;
                 bestScore = score;
+                bestIPattern = ipattern;
                 aux = thisAux;
             }
             if (verbose) {
@@ -156,6 +158,13 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
             }
         }
     }
+
+    // Late tag checking. If late tags do not match, we abandon the kernel and
+    //  force the calling code to take another path.
+    if (bestEntry
+            && !tagMatch(bestEntry->restrictions.tags,
+                    patterns[bestIPattern].lateTags))
+        return nullptr;
 
     return bestEntry;
 }
@@ -233,6 +242,13 @@ MatchParams::MatchParams(ngen::HW hw, const GEMMProblem &problem) {
     alignment[2] = problem.C.alignment;
 
     char *tagPtr = &temp[12];
+    lateTags = tagPtr;
+
+    // Late-only tags. Don't choose lower-performing kernels
+    //  just to fuse reductions. Instead do reductions in a separate kernel.
+    if (problem.sumA) *tagPtr++ = ReqSumA;
+    if (problem.sumB) *tagPtr++ = ReqSumB;
+
     tags = tagPtr;
 
     if (problem.batch != BatchMode::None) {
@@ -241,8 +257,6 @@ MatchParams::MatchParams(ngen::HW hw, const GEMMProblem &problem) {
     }
 
     if (problem.abOffset != ABOffset::None) *tagPtr++ = ReqABOffset;
-
-    if (problem.sumA || problem.sumB) *tagPtr++ = ReqSumAB;
 }
 
 } // namespace jit

@@ -129,15 +129,33 @@ static inline constexpr int elementsPerGRF(HW hw, DataType dt) {
     return GRF::bytes(hw) / getBytes(dt);
 }
 
+static inline bool canSwizzle(HW hw, DataType dt) {
+    if (hw < HW::XeHP) return true;
+
+    switch (dt) {
+        case DataType::b:
+        case DataType::ub:
+        case DataType::w:
+        case DataType::uw:
+        case DataType::d:
+        case DataType::ud: return true;
+        case DataType::q:
+        case DataType::uq: return (hw >= HW::XeHPC);
+        default: return false;
+    }
+}
+
 static inline bool canSwizzle(HW hw, Type T) {
-    return (hw < HW::XeHP) || T.isInteger();
+    return canSwizzle(hw, T.ngen());
 }
 
 static inline bool hasNativeAtomicAdd(HW hw, Type T,
         const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
-    bool floatAtomics
-            = (astrategy.base.getModel() == ModelA64 || astrategy.newDP);
+    bool floatAtomics = (astrategy.base.getModel() == ModelA64);
+    if (astrategy.newDP)
+        floatAtomics |= (astrategy.base.getModel() != ModelSLM);
+
     if (T.isInteger())
         return true;
     else if (T == Type::f32)
@@ -1642,7 +1660,8 @@ static bool needsPseudoblock(HW hw, Type T, int r, int c,
 
 static bool pseudoblockUseSurface(const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy, const RegisterBlock &block) {
-    return (astrategy.base.getModel() == ModelSLM) && (block.ebytes == 4);
+    return (astrategy.base.getModel() == ModelSLM) && (block.ebytes == 4)
+            && !astrategy.atomic;
 }
 
 // Get effective access type to use when setting up addresses.
@@ -2220,15 +2239,21 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 maxElements = maxCount * block.ebytes / T;
                 maskGranularity = 4; // Block accesses mask by dwords
             } else {
+                bool nativeAtomic = astrategy.atomic
+                        && hasNativeAtomicAdd(hw, T.real(), atype, astrategy);
                 canQW = ((atype.alignment | (consecutive * T)) % 8 == 0);
                 if (!astrategy.newDP) canQW &= !byte && a64;
+                if (slm
+                        && astrategy
+                                   .atomic) // QW SLM atomics are implemented in XeHPC, but seeing functionality issues.
+                    canQW = false;
                 if (remainderR || remainderC) canQW &= (T.size() % 8 == 0);
-                if (astrategy.atomic
-                        && hasNativeAtomicAdd(hw, T.real(), atype, astrategy))
-                    canQW = mustQW = (T.real().size() >= 8);
+                if (nativeAtomic) canQW = mustQW = (T.real().size() >= 8);
                 auto stride = canQW ? 8 : 4;
                 auto maxNPack = byte1PerSlot ? 1 : std::max<int>(1, stride / T);
-                maxElements = maxSIMD * maxNPack;
+                int simdCap = maxSIMD;
+                if (astrategy.atomic && !nativeAtomic) simdCap = 16;
+                maxElements = simdCap * maxNPack;
                 if (T.size() > stride) maxElements = maxElements * stride / T;
             }
 
@@ -4268,11 +4293,12 @@ void gemm_kernel_generator_t<hw>::atomicAddMatrixBlock(Type T, const GRF &src,
                     } else
                         stub();
 
-                    strategy.fused ? simtDoWhileLoop(
-                            16 | flagToDo | any16h, labelCmpXchgLoop)
-                                   : (hw == HW::XeHPC)
-                                    ? jmpi(1 | flagToDo | any, labelCmpXchgLoop)
-                                    : (eoff == 0 && simd == 8)
+                    (hw == HW::XeHPC)
+                            ? simtDoWhileLoop(
+                                    16 | flagToDo | any, labelCmpXchgLoop)
+                            : strategy.fused ? simtDoWhileLoop(
+                                      16 | flagToDo | any16h, labelCmpXchgLoop)
+                                             : (eoff == 0 && simd == 8)
                                             ? jmpi(1 | flagToDo | any8h,
                                                     labelCmpXchgLoop)
                                             : jmpi(1 | flagToDo | any16h,
@@ -8413,6 +8439,7 @@ void gemm_kernel_generator_t<hw>::makeSumLayout(bool column, Type Tsrc,
     } else {
         if (canDP4A && hasFullCrosspack(srcLayout, 4)) needAll1s |= (rdim >= 4);
         rdim = 1;
+        cp = 1;
     }
 
     bool partials = canSwizzle(hw, Tdst);
@@ -8461,6 +8488,8 @@ void gemm_kernel_generator_t<hw>::accumulateSum(bool column, Type Tsrc,
     int reduce = (canDP4A && hReduce) ? 4 : 1;
     if (x0 % reduce || x1 % reduce) stub();
 
+    GRFRange temp;
+
     for (int y = y0; y < y1; y += yinc) {
         for (int x = x0; x < x1;) {
             int isrc, jsrc, idst, jdst, nsrc, ndst;
@@ -8481,11 +8510,45 @@ void gemm_kernel_generator_t<hw>::accumulateSum(bool column, Type Tsrc,
             Subregister dstBase = findBlockReg(
                     Tdst, dstLayout, idst, jdst, dstRegs, ndst, blockDst);
             nsrc = std::min(nsrc, x1 - x);
-            auto ne = std::min(
-                    {nsrc / reduce, ndst, elementsPerGRF(hw, Tdst) * 2});
+            int neMax = elementsPerGRF(hw, Tdst) * 2;
+            if (Tdst == Type::f32 && Tsrc.size() < 4) neMax /= 2;
+            auto ne = std::min({nsrc / reduce, ndst, neMax});
 
             auto src = srcBase(blockSrc->crosspack);
             auto dst = dstBase(blockDst->crosspack);
+
+            bool hsMatch = (src.getHS() * Tsrc == dst.getHS() * Tdst);
+            if (Tsrc == Type::bf16 && Tdst == Type::f32)
+                hsMatch = (src.getHS() == 1) && (dst.getHS() == 1);
+
+            if (!canSwizzle(hw, Tsrc) && ne > 1
+                    && (srcBase.getOffset() != dstBase.getOffset()
+                            || !hsMatch)) {
+                if (temp.isInvalid()) temp = state.ra.alloc_range(2);
+                auto srcI = src;
+                int tmpHS
+                        = std::max<int>(1, (blockDst->crosspack * Tdst) / Tsrc);
+                if (Tsrc == Type::bf16 && Tdst == Type::f32)
+                    tmpHS = blockDst->crosspack;
+                auto tmpBase = temp[0].sub(
+                        dst.getByteOffset() / Tsrc.real(), src.getType());
+                auto tmp = tmpBase(tmpHS);
+                auto tmpI = tmp;
+                moveToIntPipe(ne, srcI);
+                moveToIntPipe(ne, tmpI);
+                mov(ne, tmpI, srcI);
+                src = tmp;
+                srcBase = tmpBase;
+            }
+
+            if (Tsrc == Type::f16 && Tdst == Type::f32 && hw >= HW::Gen12LP) {
+                if (temp.isInvalid()) temp = state.ra.alloc_range(2);
+                if (src.getHS() < 2) stub();
+                auto tmpF = temp[0].sub(src.getByteOffset() / Type::f32,
+                        DataType::f)(src.getHS() / 2);
+                mov(ne, tmpF, src);
+                src = tmpF;
+            }
 
             if (canDP4A) {
                 auto srcDP4A
@@ -8514,6 +8577,8 @@ void gemm_kernel_generator_t<hw>::accumulateSum(bool column, Type Tsrc,
             x += ne * reduce;
         }
     }
+
+    state.ra.safeRelease(temp);
 }
 
 template <HW hw>
@@ -8619,8 +8684,8 @@ bool gemm_kernel_generator_t<hw>::gemmFinalizeSums(const GEMMProblem &problem,
         const GEMMStrategy &strategy, GEMMState &state) {
     bool doA = problem.needsASums();
     bool doB = problem.needsBSums();
-    bool doASLM = state.slmASums;
-    bool doBSLM = state.slmBSums;
+    bool doASLM = state.slmASums && (strategy.wg[LoopN] > 1);
+    bool doBSLM = state.slmBSums && (strategy.wg[LoopM] > 1);
 
     if (!doA && !doB) return true;
 
@@ -8698,20 +8763,30 @@ bool gemm_kernel_generator_t<hw>::gemmFinalizeSums(const GEMMProblem &problem,
                 ? AccessType::Block
                 : AccessType::PseudoBlock;
         ABs_strategySLMAtomic[isB].atomic = !AB_coopSplitMN[isB];
+        ABs_strategySLMAtomic[isB].newDP = (hw >= HW::XeHPG);
         ABs_strategySLM[isB] = ABs_strategySLMAtomic[isB];
         ABs_strategySLM[isB].atomic = false;
 
         ok = ok
                 && getRegLayout(Tc, ABs_layoutSLM[isB], r, c, false, false,
-                        true, true, 0, 0, ABs_SLM[isB], ABs_strategySLM[isB])
+                        true, true, 0, 0, ABs_SLM[isB],
+                        ABs_strategySLMAtomic[isB])
                 && matchLayouts(Tc, ABs_layoutSLM[isB], *ABs_layout[isB]);
 
         Subregister adjBase = ABs_base[isB] = state.ra.alloc_sub<uint32_t>();
-        uint16_t slmOffset
+        uint32_t slmOffset
                 = (isB && doASLM) ? (unrollM * strategy.wg[LoopM] * Tc) : 0;
 
         !isB ? mulConstant(1, ABs_base[isB], state.lidM, unrollM * Tc)
              : mulConstant(1, ABs_base[isB], state.lidN, unrollN * Tc);
+
+        if (strategy.kParallelLocal) {
+            slmOffset *= strategy.wg[LoopK];
+            int perK = !isB ? strategy.wg[LoopM] * unrollM * Tc
+                            : strategy.wg[LoopN] * unrollN * Tc;
+            emad(1, ABs_base[isB], ABs_base[isB], state.lidK, perK, strategy,
+                    state);
+        }
 
         if (slmOffset != 0) add(1, ABs_base[isB], ABs_base[isB], slmOffset);
 
@@ -8723,10 +8798,10 @@ bool gemm_kernel_generator_t<hw>::gemmFinalizeSums(const GEMMProblem &problem,
         }
 
         allocAddrRegs(ABs_addrs[isB], ABs_layoutSLM[isB], ABs_SLM[isB],
-                ABs_strategySLM[isB], state);
+                ABs_strategySLMAtomic[isB], state);
         setupAddr(Tc, ABs_addrs[isB], adjBase, ABs_layoutSLM[isB],
-                Subregister(), ABs_SLM[isB], ABs_strategySLM[isB], strategy,
-                state);
+                Subregister(), ABs_SLM[isB], ABs_strategySLMAtomic[isB],
+                strategy, state);
 
         if (AB_coopSplitMN[isB]) state.ra.safeRelease(adjBase);
 
@@ -9202,7 +9277,7 @@ void gemm_kernel_generator_t<hw>::gemmApplyABOffset(const GEMMProblem &problem,
 
 // Store A/B sum data into CO.
 template <HW hw>
-void gemm_kernel_generator_t<hw>::gemmStoreSums(const GEMMProblem &problem,
+void gemm_kernel_generator_t<hw>::gemmUpdateSums(const GEMMProblem &problem,
         const GEMMStrategy &strategy, GEMMState &state) {
     bool sumA = problem.sumA, sumB = problem.sumB;
 
@@ -9214,6 +9289,7 @@ void gemm_kernel_generator_t<hw>::gemmStoreSums(const GEMMProblem &problem,
     auto cor = sumA ? strategy.unroll[LoopM] : 1;
     auto coc = sumB ? strategy.unroll[LoopN] : 1;
     bool atomic = strategy.CO.atomic;
+    bool checkBeta0 = problem.checkBeta0 && !problem.beta_real.fixed();
     bool checkBeta1 = atomic && !problem.beta1();
 
     auto CO = problem.CO;
@@ -9223,9 +9299,13 @@ void gemm_kernel_generator_t<hw>::gemmStoreSums(const GEMMProblem &problem,
     std::vector<MaskAssignment> masks;
     GRFMultirange CO_regs;
     CO_strategy.accessType = AccessType::Block;
+    FlagRegister flagBeta0;
 
     auto &Xs_regs = sumA ? state.As_regs : state.Bs_regs;
     auto &Xs_layout = sumA ? state.As_layout : state.Bs_layout;
+
+    int Xs_nregs = getRegCount(Xs_layout);
+    auto Xs_usedRegs = Xs_regs.subrange(0, Xs_nregs);
 
     CO.layout = sumA ? MatrixLayout::N : MatrixLayout::T;
 
@@ -9242,16 +9322,13 @@ void gemm_kernel_generator_t<hw>::gemmStoreSums(const GEMMProblem &problem,
     and_(16 | ne | state.flagAP, null.ud(), state.inputs.flags, FlagStoreSums);
     if_(16 | state.flagAP, skipStore);
 
+    if (checkBeta0) {
+        flagBeta0 = state.raVFlag.alloc();
+        cmp0(1 | eq | flagBeta0, problem.beta_real.getReg(0));
+    }
     if (checkBeta1)
         cmp(1 | eq | state.flagAP, problem.beta_real.getReg(0),
                 cast(problem.Ts, 1.0));
-
-    if (!share) {
-        CO_regs = state.ra.alloc_range(getRegCount(CO_layout));
-        copyRegisters(Tc, Tco, Xs_layout, CO_layout, Xs_regs, CO_regs, 0, 0,
-                false, strategy, state);
-        safeReleaseRanges(Xs_regs, state); /* free up registers for CO_addrs */
-    }
 
     allocAddrRegs(CO_addrs, CO_layout, CO, CO_strategy, state);
     setupAddr(Tco, CO_addrs, state.effCO, CO_layout, Subregister(), CO,
@@ -9264,6 +9341,62 @@ void gemm_kernel_generator_t<hw>::gemmStoreSums(const GEMMProblem &problem,
     }
 
     loadMasks(masks, state.remainders, strategy, state);
+
+    if (!problem.alpha1())
+        map(hw, Tc, Xs_usedRegs, Xs_usedRegs, strategy,
+                [&](int esize, GRF acc, GRF _) {
+                    auto &alphar = problem.alpha_real;
+                    alphar.fixed()
+                            ? mul(esize, acc, acc, cast(Tc.real(), alphar))
+                            : mul(esize, acc, acc,
+                                    alphar.getRegAvoiding(hw, acc));
+                });
+
+    if (!problem.beta0() && !(problem.beta1() && atomic)) {
+        Label lSkipUpdate;
+        auto CO_regsLoad = state.ra.alloc_range(getRegCount(CO_layout));
+        auto CO_regsLoadConv = CO_regsLoad;
+
+        if (checkBeta0) jmpi(1 | flagBeta0, lSkipUpdate);
+        if (checkBeta1) jmpi(1 | state.flagAP, lSkipUpdate);
+
+        loadMatrix(CO_regsLoad, CO_layout, CO, CO_strategy, CO_addrs, strategy,
+                state);
+
+        if (!share) {
+            CO_regsLoadConv = state.ra.alloc_range(Xs_nregs);
+            copyRegisters(Tco, Tc, CO_layout, Xs_layout, CO_regsLoad,
+                    CO_regsLoadConv, 0, 0, false, strategy, state);
+        }
+
+        auto &betar = problem.beta_real;
+
+        map(hw, Tc, Xs_usedRegs, CO_regsLoadConv, strategy,
+                [&](int esize, GRF acc, GRF loaded) {
+                    if (betar == 1)
+                        add(esize, acc, acc, loaded);
+                    else if (betar.fixed())
+                        mad(esize, acc, acc, loaded, cast(Tc.real(), betar));
+                    else
+                        mad(esize, acc, acc, loaded,
+                                betar.getRegAvoiding(hw, acc));
+                });
+
+        state.ra.safeRelease(CO_regsLoad);
+        if (!share) state.ra.safeRelease(CO_regsLoadConv);
+
+        if (checkBeta0 || checkBeta1) {
+            state.wipeActiveVFlags();
+            mark(lSkipUpdate);
+        }
+    }
+
+    if (!share) {
+        CO_regs = state.ra.alloc_range(getRegCount(CO_layout));
+        copyRegisters(Tc, Tco, Xs_layout, CO_layout, Xs_regs, CO_regs, 0, 0,
+                false, strategy, state);
+        safeReleaseRanges(Xs_regs, state);
+    }
 
     auto &effCO_regs = share ? Xs_regs : CO_regs;
     if (atomic) {
@@ -9279,6 +9412,7 @@ void gemm_kernel_generator_t<hw>::gemmStoreSums(const GEMMProblem &problem,
                 problem, strategy, state);
         freeEAtomicAddRegs(state, state.flagAP);
         if (checkBeta1) {
+            state.wipeActiveVFlags();
             jmpi(1, lDone);
             mark(lStore);
             storeMatrix(effCO_regs, CO_layout, CO, CO_strategy, CO_addrs,
@@ -9294,8 +9428,10 @@ void gemm_kernel_generator_t<hw>::gemmStoreSums(const GEMMProblem &problem,
 
     safeReleaseMaskAssignments(masks, state);
 
+    if (!share) safeReleaseRanges(CO_regs, state);
     safeReleaseRanges(state.As_regs, state);
     safeReleaseRanges(state.Bs_regs, state);
+    state.raVFlag.safeRelease(flagBeta0);
     state.As_layout.clear();
     state.Bs_layout.clear();
 }
@@ -9331,6 +9467,7 @@ void gemm_kernel_generator_t<hw>::gemmKReduce(const GEMMProblem &problem,
             / (maxMNThreads * GRF::bytes(hw)));
     if (sliceRegs <= 0)
         throw std::runtime_error("Not enough SLM for k reduction");
+    sliceRegs = std::min<int>(sliceRegs, C_regs.getLen());
 
     // Temporaries.
     auto kt = state.ra.alloc_sub<int32_t>();
@@ -13190,7 +13327,7 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
                        : ejmpi(cond, labelLateExit);
     }
 
-    gemmStoreSums(problem, strategy, state);
+    gemmUpdateSums(problem, strategy, state);
 
     // Update C. If configured, choose between regular beta and beta = 0 or beta = 1 updates now.
     bool checkBeta0 = problem.checkBeta0 && !problem.beta_real.fixed();
@@ -20477,176 +20614,194 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
     int srcM, srcN;
     getLayoutDims(layoutSrc, srcM, srcN);
     bool vectorCopy = (srcM == 1 || srcN == 1);
+    int periodY = 1;
+
+    if (GRF::bytes(hw) == 64 && Td.size() == 1 && layoutDst[0].crosspack > 1)
+        periodY = 2;
 
     for (int phase = -1; phase < nphases; phase++) {
-        for (auto &sblock : layoutSrc) {
-            auto RegisterBlock::*nx
-                    = sblock.colMajor ? &RegisterBlock::nr : &RegisterBlock::nc;
-            auto RegisterBlock::*ny
-                    = sblock.colMajor ? &RegisterBlock::nc : &RegisterBlock::nr;
+        for (int phaseY = 0; phaseY < periodY; phaseY++) {
+            for (auto &sblock : layoutSrc) {
+                auto RegisterBlock::*nx = sblock.colMajor ? &RegisterBlock::nr
+                                                          : &RegisterBlock::nc;
+                auto RegisterBlock::*ny = sblock.colMajor ? &RegisterBlock::nc
+                                                          : &RegisterBlock::nr;
+                auto RegisterBlock::*offsetY = sblock.colMajor
+                        ? &RegisterBlock::offsetC
+                        : &RegisterBlock::offsetR;
 
-            for (int eoffY = 0; eoffY < sblock.*ny; eoffY++) {
-                for (int eoffX = 0; eoffX < sblock.*nx;) {
-                    auto eoffR = sblock.colMajor ? eoffX : eoffY;
-                    auto eoffC = sblock.colMajor ? eoffY : eoffX;
+                for (int eoffY = 0; eoffY < sblock.*ny; eoffY++) {
+                    if (((eoffY + sblock.*offsetY) & (periodY - 1)) != phaseY)
+                        continue;
+                    for (int eoffX = 0; eoffX < sblock.*nx;) {
+                        auto eoffR = sblock.colMajor ? eoffX : eoffY;
+                        auto eoffC = sblock.colMajor ? eoffY : eoffX;
 
-                    int selems, delems;
-                    const RegisterBlock *sblockPtr, *dblockPtr;
+                        int selems, delems;
+                        const RegisterBlock *sblockPtr, *dblockPtr;
 
-                    // Locate source and destination register.
-                    auto sreg = findBlockReg(Ts, layoutSrc,
-                            sblock.offsetR + eoffR, sblock.offsetC + eoffC, src,
-                            selems, sblockPtr);
-                    auto dreg = findBlockReg(Td, layoutDst,
-                            sblock.offsetR + eoffR + dOffR,
-                            sblock.offsetC + eoffC + dOffC, dst, delems,
-                            dblockPtr);
+                        // Locate source and destination register.
+                        auto sreg = findBlockReg(Ts, layoutSrc,
+                                sblock.offsetR + eoffR, sblock.offsetC + eoffC,
+                                src, selems, sblockPtr);
+                        auto dreg = findBlockReg(Td, layoutDst,
+                                sblock.offsetR + eoffR + dOffR,
+                                sblock.offsetC + eoffC + dOffC, dst, delems,
+                                dblockPtr);
 
-                    auto scrosspack = sblock.crosspack;
-                    auto dcrosspack = dblockPtr->crosspack;
+                        auto scrosspack = sblock.crosspack;
+                        auto dcrosspack = dblockPtr->crosspack;
 
-                    if (sblock.colMajor != dblockPtr->colMajor) {
-                        bool sLargeCP = isLargeCrosspack(Ts, scrosspack);
-                        bool dLargeCP = isLargeCrosspack(Td, dcrosspack);
-                        bool sEffCM = sblock.colMajor ^ sLargeCP;
-                        bool dEffCM = dblockPtr->colMajor ^ dLargeCP;
-                        if (sEffCM == dEffCM) {
-                            if (sLargeCP)
-                                selems = std::min<int>(selems, scrosspack);
-                            if (dLargeCP)
-                                delems = std::min<int>(delems, dcrosspack);
-                        } else {
-                            if (!vectorCopy)
-                                stub(); // No in-register matrix transposes.
-                            selems = delems = 1;
-                        }
-                    }
-
-                    // Find out how many consecutive elements we can copy.
-                    auto nGRFs = (strategy.dualGRF ? 2 : 1);
-                    auto nGRFs_d = (dreg.getOffset() >= dcrosspack)
-                            ? 1
-                            : nGRFs; // Don't cross destination GRF boundaries for efficiency.
-                    auto selems_real = selems * Ts.components();
-                    auto delems_real = delems * Td.components();
-                    auto selems_limit
-                            = div_up(nGRFs * elementsPerGRF(hw, Ts.real())
-                                            - sreg.getOffset(),
-                                    scrosspack);
-                    auto delems_limit
-                            = div_up(nGRFs_d * elementsPerGRF(hw, Td.real())
-                                            - dreg.getOffset(),
-                                    dcrosspack);
-                    selems_real = std::min({selems_real, selems_limit});
-                    delems_real = std::min({delems_real, delems_limit});
-                    auto nelems_real = std::min(selems_real, delems_real);
-                    nelems_real = rounddown_pow2(nelems_real);
-
-                    if (Ts == Type::f32 && Td != Type::f32 && dcrosspack == 1)
-                        nelems_real = std::min(nelems_real,
-                                elementsPerGRF(hw,
-                                        Ts)); // Special case: mixed mode packed downconversion limited to SIMD8.
-
-                    // Check if separate conversions are needed due to size changes.
-                    auto sconvertCP = (Ts.size() / Td.size());
-                    bool sconvert = (Td.size() == 1 && Ts.size() > 1
-                                            && dcrosspack != sconvertCP)
-                            || (Td.size() == 2 && Td.isFP() && !Ts.isFP()
-                                    && dcrosspack != sconvertCP
-                                    && hw > HW::Gen9);
-                    if (sconvert && preserveSrc) stub();
-                    auto sregConverted = sconvert
-                            ? sreg.reinterpret(0, Td.real().ngen())(sconvertCP)
-                            : sreg(scrosspack);
-
-                    auto dconvertCP = (Td.size() / Ts.size());
-                    bool dconvert = (Ts.size() == 1 && Td.size() > 1
-                            && scrosspack != dconvertCP);
-                    auto dregConverted = dconvert
-                            ? dreg.reinterpret(0, Ts.real().ngen())(dconvertCP)
-                            : dreg(dcrosspack);
-
-                    InstructionModifier modMov, mmodMov;
-                    if (Ts != Td && Td.isInteger() && Td.size() <= Ts.size()) {
-                        modMov = modMov | sat;
-                        if (!sconvert && !dconvert) mmodMov = mmodMov | sat;
-                    }
-
-                    // Finally, copy, with any necessary conjugation and scaling. If doing a raw copy, use another pipe.
-                    switch (phase) {
-                        case -1:
-                            if (hw == HW::Gen9 && Ts == Type::f32
-                                    && !Td.isFP()) {
-                                // Gen9: round to nearest before downconvert (not done by mov).
-                                rnde(nelems_real, sreg(scrosspack),
-                                        sreg(scrosspack));
-                            }
-                            if (sconvert)
-                                mov(nelems_real | modMov, sregConverted,
-                                        sreg(scrosspack));
-                            break;
-                        case 0:
-                            if (alpha_real == 1 || alpha_real == -1) {
-                                if (Ts.real() == Td.real()) {
-                                    movePipes(sreg, scrosspack == 1);
-                                    movePipes(dreg, scrosspack == 1);
-                                    if (!sconvert)
-                                        sregConverted = sreg(scrosspack);
-                                    if (!dconvert)
-                                        dregConverted = dreg(dcrosspack);
-                                }
-                                int telems = nelems_real * Ts.real()
-                                        / sreg.getBytes();
-                                if (alpha_real == -1) {
-                                    auto wd = elementsPerGRF(
-                                            hw, sreg.getType());
-                                    auto base = state.signChange.sub(
-                                            0, dreg.getType());
-                                    xor_(telems, dreg(1), sreg(1),
-                                            (wd >= telems) ? base(1)
-                                                           : base(0, wd, 1));
-                                } else
-                                    emov(telems | mmodMov, dregConverted,
-                                            sregConverted, strategy, state);
+                        if (sblock.colMajor != dblockPtr->colMajor) {
+                            bool sLargeCP = isLargeCrosspack(Ts, scrosspack);
+                            bool dLargeCP = isLargeCrosspack(Td, dcrosspack);
+                            bool sEffCM = sblock.colMajor ^ sLargeCP;
+                            bool dEffCM = dblockPtr->colMajor ^ dLargeCP;
+                            if (sEffCM == dEffCM) {
+                                if (sLargeCP)
+                                    selems = std::min<int>(selems, scrosspack);
+                                if (dLargeCP)
+                                    delems = std::min<int>(delems, dcrosspack);
                             } else {
-                                auto realDst = dreg(dcrosspack);
-                                auto effDst = realDst;
-                                if (preswizzle && (Ts.isFP() || Td.isFP())) {
-                                    allocTemp();
-                                    if ((sreg.getOffset() != dreg.getOffset())
-                                            || (scrosspack != dcrosspack))
-                                        effDst = copyTemp[0].sub(
-                                                sreg.getOffset(),
-                                                sreg.getType())(scrosspack);
-                                }
-
-                                if (alpha_real.fixed())
-                                    mul(nelems_real, effDst, sregConverted,
-                                            cast(Ts.real(), alpha_real));
-                                else
-                                    mul(nelems_real, effDst, sregConverted,
-                                            alpha_real.getRegAvoiding(
-                                                    hw, sreg));
-
-                                if (effDst != realDst) {
-                                    moveToIntPipe(nelems_real, realDst);
-                                    moveToIntPipe(nelems_real, effDst);
-                                    int nelems_real_int = nelems_real * Td
-                                            / getBytes(effDst.getType());
-                                    emov(nelems_real_int, realDst, effDst,
-                                            strategy, state);
-                                    dconvert = false;
-                                }
+                                if (!vectorCopy)
+                                    stub(); // No in-register matrix transposes.
+                                selems = delems = 1;
                             }
-                            break;
-                        case 1:
-                            if (dconvert)
-                                mov(nelems_real | modMov, dreg(dcrosspack),
-                                        dregConverted);
-                            break;
-                    }
+                        }
 
-                    eoffX += nelems_real / Ts.components();
+                        // Find out how many consecutive elements we can copy.
+                        auto nGRFs = (strategy.dualGRF ? 2 : 1);
+                        auto nGRFs_d = (dreg.getOffset() >= dcrosspack)
+                                ? 1
+                                : nGRFs; // Don't cross destination GRF boundaries for efficiency.
+                        auto selems_real = selems * Ts.components();
+                        auto delems_real = delems * Td.components();
+                        auto selems_limit
+                                = div_up(nGRFs * elementsPerGRF(hw, Ts.real())
+                                                - sreg.getOffset(),
+                                        scrosspack);
+                        auto delems_limit
+                                = div_up(nGRFs_d * elementsPerGRF(hw, Td.real())
+                                                - dreg.getOffset(),
+                                        dcrosspack);
+                        selems_real = std::min({selems_real, selems_limit});
+                        delems_real = std::min({delems_real, delems_limit});
+                        auto nelems_real = std::min(selems_real, delems_real);
+                        nelems_real = rounddown_pow2(nelems_real);
+
+                        if (Ts == Type::f32 && Td != Type::f32
+                                && dcrosspack == 1)
+                            nelems_real = std::min(nelems_real,
+                                    elementsPerGRF(hw,
+                                            Ts)); // Special case: mixed mode packed downconversion limited to SIMD8.
+
+                        // Check if separate conversions are needed due to size changes.
+                        auto sconvertCP = (Ts.size() / Td.size());
+                        bool sconvert = (Td.size() == 1 && Ts.size() > 1
+                                                && dcrosspack != sconvertCP)
+                                || (Td.size() == 2 && Td.isFP() && !Ts.isFP()
+                                        && dcrosspack != sconvertCP
+                                        && hw > HW::Gen9);
+                        if (sconvert && preserveSrc) stub();
+                        auto sregConverted = sconvert
+                                ? sreg.reinterpret(0, Td.real().ngen())(
+                                        sconvertCP)
+                                : sreg(scrosspack);
+
+                        auto dconvertCP = (Td.size() / Ts.size());
+                        bool dconvert = (Ts.size() == 1 && Td.size() > 1
+                                && scrosspack != dconvertCP);
+                        auto dregConverted = dconvert
+                                ? dreg.reinterpret(0, Ts.real().ngen())(
+                                        dconvertCP)
+                                : dreg(dcrosspack);
+
+                        InstructionModifier modMov, mmodMov;
+                        if (Ts != Td && Td.isInteger()
+                                && Td.size() <= Ts.size()) {
+                            modMov = modMov | sat;
+                            if (!sconvert && !dconvert) mmodMov = mmodMov | sat;
+                        }
+
+                        // Finally, copy, with any necessary conjugation and scaling. If doing a raw copy, use another pipe.
+                        switch (phase) {
+                            case -1:
+                                if (hw == HW::Gen9 && Ts == Type::f32
+                                        && !Td.isFP()) {
+                                    // Gen9: round to nearest before downconvert (not done by mov).
+                                    rnde(nelems_real, sreg(scrosspack),
+                                            sreg(scrosspack));
+                                }
+                                if (sconvert)
+                                    mov(nelems_real | modMov, sregConverted,
+                                            sreg(scrosspack));
+                                break;
+                            case 0:
+                                if (alpha_real == 1 || alpha_real == -1) {
+                                    if (Ts.real() == Td.real()) {
+                                        movePipes(sreg, scrosspack == 1);
+                                        movePipes(dreg, scrosspack == 1);
+                                        if (!sconvert)
+                                            sregConverted = sreg(scrosspack);
+                                        if (!dconvert)
+                                            dregConverted = dreg(dcrosspack);
+                                    }
+                                    int telems = nelems_real * Ts.real()
+                                            / sreg.getBytes();
+                                    if (alpha_real == -1) {
+                                        auto wd = elementsPerGRF(
+                                                hw, sreg.getType());
+                                        auto base = state.signChange.sub(
+                                                0, dreg.getType());
+                                        xor_(telems, dreg(1), sreg(1),
+                                                (wd >= telems)
+                                                        ? base(1)
+                                                        : base(0, wd, 1));
+                                    } else
+                                        emov(telems | mmodMov, dregConverted,
+                                                sregConverted, strategy, state);
+                                } else {
+                                    auto realDst = dreg(dcrosspack);
+                                    auto effDst = realDst;
+                                    if (preswizzle
+                                            && (Ts.isFP() || Td.isFP())) {
+                                        allocTemp();
+                                        if ((sreg.getOffset()
+                                                    != dreg.getOffset())
+                                                || (scrosspack != dcrosspack))
+                                            effDst = copyTemp[0].sub(
+                                                    sreg.getOffset(),
+                                                    sreg.getType())(scrosspack);
+                                    }
+
+                                    if (alpha_real.fixed())
+                                        mul(nelems_real, effDst, sregConverted,
+                                                cast(Ts.real(), alpha_real));
+                                    else
+                                        mul(nelems_real, effDst, sregConverted,
+                                                alpha_real.getRegAvoiding(
+                                                        hw, sreg));
+
+                                    if (effDst != realDst) {
+                                        moveToIntPipe(nelems_real, realDst);
+                                        moveToIntPipe(nelems_real, effDst);
+                                        int nelems_real_int = nelems_real * Td
+                                                / getBytes(effDst.getType());
+                                        emov(nelems_real_int, realDst, effDst,
+                                                strategy, state);
+                                        dconvert = false;
+                                    }
+                                }
+                                break;
+                            case 1:
+                                if (dconvert)
+                                    mov(nelems_real | modMov, dreg(dcrosspack),
+                                            dregConverted);
+                                break;
+                        }
+
+                        eoffX += nelems_real / Ts.components();
+                    }
                 }
             }
         }
