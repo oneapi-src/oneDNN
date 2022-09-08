@@ -148,7 +148,6 @@ protected:
         auto aa = (is_nvidia_gpu(eng) || is_amd_gpu(eng))
                 ? allows_attr_t {false}
                 : allows_attr_t {true};
-        (void)aa;
 
         // To validate backward on valid tag::any settings reuse dst tag.
         const bool src_bwd_any = !is_fwd(p.aprop_kind) && p.src_tag == tag::any;
@@ -161,11 +160,9 @@ protected:
         auto pd = pd_t();
         // regular pd ctor
         pd = pd_t(eng, pk, p.aalgorithm, src_md, dst_md, p.axis);
-        // This will be uncommented in the next commits once all primitives
-        // whose tests use this are adjusted.
         // test all pd ctors
-        //test_fwd_pd_constructors<pd_t>(
-        //        pd, aa, pk, p.aalgorithm, src_md, dst_md, p.axis);
+        test_fwd_pd_constructors<pd_t>(
+                pd, aa, pk, p.aalgorithm, src_md, dst_md, p.axis);
         pd_fwd_hint = std::make_shared<pd_t>(pd);
 
         EXPECT_ANY_THROW(softmax_forward(pd, {}));
@@ -224,9 +221,8 @@ protected:
     void Backward() {
         // softmax specific types and values
         using pd_t = softmax_backward::primitive_desc;
-        //using hint_pd_t = softmax_forward::primitive_desc;
+        using hint_pd_t = softmax_forward::primitive_desc;
         allows_attr_t aa {false}; // doesn't support anything
-        (void)aa;
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -240,10 +236,8 @@ protected:
         pd = pd_t(eng, p.aalgorithm, diff_src_md, diff_dst_md, dst_md, p.axis,
                 *pd_fwd_hint);
         // test all pd ctors
-        // This will be uncommented in the next commits once all primitives
-        // whose tests use this are adjusted.
-        //test_bwd_pd_constructors<pd_t, hint_pd_t>(pd, *pd_fwd_hint, aa,
-        //        p.aalgorithm, diff_src_md, diff_dst_md, dst_md, p.axis);
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(pd, *pd_fwd_hint, aa,
+                p.aalgorithm, diff_src_md, diff_dst_md, dst_md, p.axis);
 
         EXPECT_ANY_THROW(softmax_backward(pd, {}));
         // default primitive ctor

@@ -810,7 +810,7 @@ using engine = dnnl::engine;
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr(const engine &eng, const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr;
-    EXPECT_NO_THROW(pd_t pd(prim_params..., attr, eng));
+    EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -819,9 +819,9 @@ void test_fwd_pd_attr_oscale(const engine &eng, bool supports_oscale,
     dnnl::primitive_attr attr_oscale;
     attr_oscale.set_output_scales(0, {2.f});
     if (supports_oscale)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_oscale, eng));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_oscale));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_oscale, eng));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_oscale));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -832,9 +832,9 @@ void test_fwd_pd_attr_po_sum(const engine &eng, bool supports_po_sum,
     dnnl::primitive_attr attr_po_sum;
     attr_po_sum.set_post_ops(ops_sum);
     if (supports_po_sum)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_po_sum, eng));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_po_sum));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_po_sum, eng));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_po_sum));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -845,9 +845,9 @@ void test_fwd_pd_attr_po_eltwise(const engine &eng, bool supports_po_eltwise,
     dnnl::primitive_attr attr_po_eltwise;
     attr_po_eltwise.set_post_ops(ops_eltwise);
     if (supports_po_eltwise)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_po_eltwise, eng));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_po_eltwise));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_po_eltwise, eng));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_po_eltwise));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -860,9 +860,9 @@ void test_fwd_pd_attr_po_binary(const engine &eng, bool supports_po_binary,
     dnnl::primitive_attr attr_po_binary;
     attr_po_binary.set_post_ops(ops_binary);
     if (supports_po_binary)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_po_binary, eng));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_po_binary));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_po_binary, eng));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_po_binary));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -871,9 +871,9 @@ void test_fwd_pd_attr_zp(const engine &eng, bool supports_zero_point,
     dnnl::primitive_attr attr_zp;
     attr_zp.set_zero_points(DNNL_ARG_SRC, 0, {1});
     if (supports_zero_point)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_zp, eng));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_zp));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_zp, eng));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_zp));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -883,7 +883,7 @@ void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
     attr_scales.set_scales(DNNL_ARG_SRC, 0, {2.f});
 
     if (supports_scales) { // Currently only used with binary ops
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_scales, eng));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_scales));
 
         // Check oscale and scales don't work together
         dnnl::primitive_attr attr_oscale_scales;
@@ -894,7 +894,7 @@ void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
         attr_scales_oscale.set_scales(DNNL_ARG_SRC, 0, {2.f});
         EXPECT_ANY_THROW(attr_scales_oscale.set_output_scales(0, {2.f}));
     } else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_scales, eng));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_scales));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -906,8 +906,8 @@ void test_fwd_pd_allow_empty(
     // Assumption is that mask "10" is a legit mask for scales
     // from API perspective.
     unsupported_attr.set_scales(DNNL_ARG_SRC, 10, {0});
-    ASSERT_NO_THROW(new_pd = pd_t(prim_params..., unsupported_attr,
-                            pd.get_engine(), allow_empty));
+    ASSERT_NO_THROW(new_pd = pd_t(pd.get_engine(), prim_params...,
+                            unsupported_attr, allow_empty));
     ASSERT_FALSE(new_pd);
 }
 
@@ -937,7 +937,7 @@ template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr(const engine &eng, const hint_pd_t &hint,
         const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr;
-    EXPECT_NO_THROW(pd_t pd(prim_params..., attr, eng, hint));
+    EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
@@ -946,9 +946,9 @@ void test_bwd_pd_attr_oscale(const engine &eng, const hint_pd_t &hint,
     dnnl::primitive_attr attr_oscale;
     attr_oscale.set_output_scales(0, {2.f});
     if (supports_oscale)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_oscale, eng, hint));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr_oscale));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_oscale, eng, hint));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., hint, attr_oscale));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
@@ -959,9 +959,9 @@ void test_bwd_pd_attr_po_sum(const engine &eng, const hint_pd_t &hint,
     dnnl::primitive_attr attr_po_sum;
     attr_po_sum.set_post_ops(ops_sum);
     if (supports_po_sum)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_po_sum, eng, hint));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr_po_sum));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_po_sum, eng, hint));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., hint, attr_po_sum));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
@@ -972,9 +972,9 @@ void test_bwd_pd_attr_po_eltwise(const engine &eng, const hint_pd_t &hint,
     dnnl::primitive_attr attr_po_eltwise;
     attr_po_eltwise.set_post_ops(ops_eltwise);
     if (supports_po_eltwise)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_po_eltwise, eng, hint));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr_po_eltwise));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_po_eltwise, eng, hint));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., hint, attr_po_eltwise));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
@@ -987,9 +987,9 @@ void test_bwd_pd_attr_po_binary(const engine &eng, const hint_pd_t &hint,
     dnnl::primitive_attr attr_po_binary;
     attr_po_binary.set_post_ops(ops_binary);
     if (supports_po_binary)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_po_binary, eng, hint));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr_po_binary));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_po_binary, eng, hint));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., hint, attr_po_binary));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
@@ -998,9 +998,9 @@ void test_bwd_pd_attr_zp(const engine &eng, const hint_pd_t &hint,
     dnnl::primitive_attr attr_zp;
     attr_zp.set_zero_points(DNNL_ARG_SRC, 0, {1});
     if (supports_zero_point)
-        EXPECT_NO_THROW(pd_t pd(prim_params..., attr_zp, eng, hint));
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr_zp));
     else
-        EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_zp, eng, hint));
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., hint, attr_zp));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
@@ -1008,7 +1008,7 @@ void test_bwd_pd_attr_scales(const engine &eng, const hint_pd_t &hint,
         bool supports_scales, const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr_scales;
     attr_scales.set_scales(DNNL_ARG_SRC, 0, {2.f});
-    EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_scales, eng, hint));
+    EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., hint, attr_scales));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
@@ -1020,8 +1020,8 @@ void test_bwd_pd_allow_empty(const pd_t &pd, const hint_pd_t &hint,
     // Assumption is that mask "10" is a legit mask for scales
     // from API perspective.
     unsupported_attr.set_scales(DNNL_ARG_SRC, 10, {0});
-    ASSERT_NO_THROW(new_pd = pd_t(prim_params..., unsupported_attr,
-                            pd.get_engine(), hint, allow_empty));
+    ASSERT_NO_THROW(new_pd = pd_t(pd.get_engine(), prim_params..., hint,
+                            unsupported_attr, allow_empty));
     ASSERT_FALSE(new_pd);
 }
 

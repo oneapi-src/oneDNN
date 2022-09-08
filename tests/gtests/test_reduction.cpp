@@ -73,7 +73,6 @@ protected:
         allowed_attributes.po_sum = true;
         allowed_attributes.po_eltwise = true;
         allowed_attributes.po_binary = true;
-        (void)allowed_attributes;
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -85,11 +84,9 @@ protected:
         auto pd = pd_t();
         // regular pd ctor
         pd = pd_t(eng, p.aalgorithm, desc_src, desc_dst, p.p, p.eps);
-        // This will be uncommented in the next commits once all primitives
-        // whose tests use this are adjusted.
         // test all pd ctors
-        //test_fwd_pd_constructors<pd_t>(pd, allowed_attributes, p.aalgorithm,
-        //        desc_src, desc_dst, p.p, p.eps);
+        test_fwd_pd_constructors<pd_t>(pd, allowed_attributes, p.aalgorithm,
+                desc_src, desc_dst, p.p, p.eps);
 
         EXPECT_ANY_THROW(reduction(pd, {}));
         // default primitive ctor

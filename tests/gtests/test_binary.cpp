@@ -113,7 +113,6 @@ protected:
         aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
-        (void)aa;
         std::vector<memory::desc> srcs_md;
         std::vector<memory> srcs;
 
@@ -144,18 +143,16 @@ protected:
             auto desc_C = memory::desc(p.dims, dst_dt, p.dst_format);
 
             const dnnl::impl::memory_desc_wrapper mdw_desc_A(desc_A.data);
-            //const bool has_zero_dim = mdw_desc_A.has_zero_dim();
+            const bool has_zero_dim = mdw_desc_A.has_zero_dim();
 
             // default pd ctor
             auto pd = pd_t();
             // regular pd ctor
             pd = pd_t(eng, p.aalgorithm, desc_A, desc_B, desc_C);
             // test all pd ctors
-            // This will be uncommented in the next commits once all primitives
-            // whose tests use this are adjusted.
-            //if (!has_zero_dim)
-            //test_fwd_pd_constructors<pd_t>(
-            //        pd, aa, p.aalgorithm, desc_A, desc_B, desc_C);
+            if (!has_zero_dim)
+                test_fwd_pd_constructors<pd_t>(
+                        pd, aa, p.aalgorithm, desc_A, desc_B, desc_C);
             // test non-md query interfaces
             ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
 
