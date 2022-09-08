@@ -2323,34 +2323,6 @@ typedef struct {
 
 /// @} dnnl_api_matmul
 
-/// @addtogroup dnnl_api_resampling
-/// @{
-
-/// A descriptor of resampling operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_resampling.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward_data,
-    dnnl_prop_kind_t prop_kind;
-    /// The kind of the resampling algorithm. Possible values:
-    /// #dnnl_resampling_nearest, #dnnl_resampling_linear.
-    dnnl_alg_kind_t alg_kind;
-    /// Source memory descriptor.
-    dnnl_memory_desc_t src_desc;
-    /// Source gradient memory descriptor.
-    dnnl_memory_desc_t diff_src_desc;
-    /// Destination memory descriptor.
-    dnnl_memory_desc_t dst_desc;
-    /// Destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_dst_desc;
-    /// Resampling factor in each spatial dimension.
-    float factors[DNNL_MAX_NDIMS];
-} dnnl_resampling_desc_t;
-
-/// @} dnnl_api_resampling
-
 /// @addtogroup dnnl_api_reduction
 /// @{
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
@@ -92,20 +94,32 @@ status_t resampling_desc_init(resampling_desc_t *resampling_desc,
 }
 } // namespace
 
-status_t dnnl_resampling_forward_desc_init(resampling_desc_t *resampling_desc,
+status_t dnnl_resampling_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind, const float *factors,
-        const memory_desc_t *src_desc, const memory_desc_t *dst_desc) {
+        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
+        const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return resampling_desc_init(
-            resampling_desc, prop_kind, alg_kind, factors, src_desc, dst_desc);
+
+    auto resampling_desc = resampling_desc_t();
+    CHECK(resampling_desc_init(&resampling_desc, prop_kind, alg_kind, factors,
+            src_desc, dst_desc));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&resampling_desc, nullptr, attr);
 }
 
-status_t dnnl_resampling_backward_desc_init(resampling_desc_t *resampling_desc,
+status_t dnnl_resampling_backward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const float *factors,
-        const memory_desc_t *diff_src_desc,
-        const memory_desc_t *diff_dst_desc) {
-    return resampling_desc_init(resampling_desc, backward_data, alg_kind,
-            factors, diff_src_desc, diff_dst_desc);
+        const memory_desc_t *diff_src_desc, const memory_desc_t *diff_dst_desc,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto resampling_desc = resampling_desc_t();
+    CHECK(resampling_desc_init(&resampling_desc, backward_data, alg_kind,
+            factors, diff_src_desc, diff_dst_desc));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&resampling_desc, hint_fwd_pd, attr);
 }
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

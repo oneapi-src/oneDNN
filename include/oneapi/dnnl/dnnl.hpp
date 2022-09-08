@@ -4458,6 +4458,10 @@ protected:
         return dims ? dims->data() : nullptr;
     }
 
+    const float *optional_arg(const std::vector<float> *arg) {
+        return arg ? arg->data() : nullptr;
+    }
+
     using base = primitive_desc_base;
 };
 
@@ -11897,120 +11901,99 @@ struct matmul : public primitive {
 
 /// Resampling forward propagation.
 struct resampling_forward : public primitive {
-    /// Descriptor for resampling forward propagation.
-    struct desc {
-        dnnl_resampling_desc_t data;
-
-        /// Constructs a descriptor for a resampling forward propagation
-        /// primitive using source and destination memory descriptors.
-        ///
-        /// @note
-        ///     Destination memory descriptor may be initialized with
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
-        /// @param src_desc Source memory descriptor.
-        /// @param dst_desc Destination memory descriptor.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &dst_desc) {
-            error::wrap_c_api(dnnl_resampling_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      convert_to_c(aalgorithm), nullptr,
-                                      &src_desc.data, &dst_desc.data),
-                    "could not create a resampling forward descriptor");
-        }
-
-        /// Constructs a descriptor for a resampling forward propagation
-        /// primitive using source memory descriptor and factors.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
-        /// @param factors Vector of scaling factors for spatial dimension.
-        /// @param src_desc Source memory descriptor.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const std::vector<float> &factors,
-                const memory::desc &src_desc) {
-            memory::validate_dims(factors, src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_resampling_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      convert_to_c(aalgorithm), &factors[0],
-                                      &src_desc.data, nullptr),
-                    "could not create a resampling forward descriptor");
-        }
-
-        /// Constructs a descriptor for a resampling forward propagation
-        /// primitive.
-        ///
-        /// @note
-        ///     The destination memory descriptor may be initialized with
-        ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
-        /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
-        /// @param factors Vector of scaling factors for spatial dimension.
-        /// @param src_desc Source memory descriptor.
-        /// @param dst_desc Destination memory descriptor.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const std::vector<float> &factors, const memory::desc &src_desc,
-                const memory::desc &dst_desc) {
-            if (!factors.empty())
-                memory::validate_dims(factors, src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_resampling_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      convert_to_c(aalgorithm), factors.data(),
-                                      &src_desc.data, &dst_desc.data),
-                    "could not create a resampling forward descriptor");
-        }
-    };
-
     /// Primitive descriptor for a resampling forward propagation primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
         /// Constructs a primitive descriptor for a resampling forward
-        /// propagation primitive.
+        ///     propagation primitive using source and destination memory
+        ///     descriptors.
         ///
-        /// @param adesc Descriptor for a resampling forward propagation
-        /// primitive.
+        /// @note
+        ///     Destination memory descriptor may be initialized with
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
         /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm resampling algorithm kind: either
+        ///     #dnnl::algorithm::resampling_nearest, or
+        ///     #dnnl::algorithm::resampling_linear
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &dst_desc,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+            : primitive_desc(aengine, aprop_kind, aalgorithm, nullptr, src_desc,
+                    &dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a resampling forward
-        /// propagation primitive.
+        ///     propagation primitive using source memory descriptor and
+        ///     factors.
         ///
-        /// @param adesc Descriptor for a resampling forward propagation
-        ///     primitive.
         /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm resampling algorithm kind: either
+        ///     #dnnl::algorithm::resampling_nearest, or
+        ///     #dnnl::algorithm::resampling_linear
+        /// @param factors Vector of scaling factors for spatial dimension.
+        /// @param src_desc Source memory descriptor.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const std::vector<float> &factors,
+                const memory::desc &src_desc,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, &factors,
+                    src_desc, nullptr, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a resampling forward
+        ///     propagation primitive.
+        ///
+        /// @note
+        ///     The destination memory descriptor may be initialized with
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm resampling algorithm kind: either
+        ///     #dnnl::algorithm::resampling_nearest, or
+        ///     #dnnl::algorithm::resampling_linear
+        /// @param factors Vector of scaling factors for spatial dimension.
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const std::vector<float> &factors,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, &factors,
+                    src_desc, &dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a resampling forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -12028,6 +12011,29 @@ struct resampling_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }
+
+    private:
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const std::vector<float> *factors,
+                const memory::desc &src_desc, const memory::desc *dst_desc,
+                const primitive_attr &attr, bool allow_empty) {
+
+            if (factors)
+                memory::validate_dims(*factors, src_desc.data.ndims - 2);
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_resampling_forward_primitive_desc_create(&pd,
+                            aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            convert_to_c(aalgorithm), optional_arg(factors),
+                            &src_desc.data, optional_arg(dst_desc), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "resampling forward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -12050,91 +12056,67 @@ struct resampling_forward : public primitive {
 
 /// Resampling backward propagation primitive.
 struct resampling_backward : public primitive {
-    /// Descriptor for a resampling backward propagation primitive.
-    struct desc {
-        dnnl_resampling_desc_t data;
-
-        /// Constructs a descriptor for a resampling backward propagation
-        /// primitive using source and destination memory descriptors.
-        ///
-        /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
-        /// @param diff_src_desc Diff source memory descriptor.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
-                const memory::desc &diff_dst_desc) {
-            error::wrap_c_api(dnnl_resampling_backward_desc_init(&data,
-                                      convert_to_c(aalgorithm), nullptr,
-                                      &diff_src_desc.data, &diff_dst_desc.data),
-                    "could not create a resampling backward data descriptor");
-        }
-
-        /// Constructs a descriptor for resampling backward propagation
-        /// primitive.
-        ///
-        /// @param aalgorithm resampling algorithm kind: either
-        ///     #dnnl::algorithm::resampling_nearest, or
-        ///     #dnnl::algorithm::resampling_linear
-        /// @param factors Vector of scaling factors for spatial dimension.
-        /// @param diff_src_desc Diff source memory descriptor.
-        /// @param diff_dst_desc Diff destination memory descriptor.
-        desc(algorithm aalgorithm, const std::vector<float> &factors,
-                const memory::desc &diff_src_desc,
-                const memory::desc &diff_dst_desc) {
-            if (!factors.empty())
-                memory::validate_dims(factors, diff_src_desc.data.ndims - 2);
-            error::wrap_c_api(dnnl_resampling_backward_desc_init(&data,
-                                      convert_to_c(aalgorithm), factors.data(),
-                                      &diff_src_desc.data, &diff_dst_desc.data),
-                    "could not create a resampling backward data descriptor");
-        }
-    };
-
     /// Primitive descriptor for resampling backward propagation primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
         /// Constructs a primitive descriptor for a resampling backward
-        /// propagation primitive.
+        ///     propagation primitive using source and destination memory
+        ///     descriptors.
         ///
-        /// @param adesc Descriptor for a resampling backward propagation
-        ///     primitive.
         /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a resampling forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
+        /// @param aalgorithm resampling algorithm kind: either
+        ///     #dnnl::algorithm::resampling_nearest, or
+        ///     #dnnl::algorithm::resampling_linear
+        /// @param diff_src_desc Diff source memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param hint_fwd_pd Primitive descriptor for a resampling
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc,
                 const resampling_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aalgorithm, nullptr, diff_src_desc,
+                    diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a resampling backward
-        /// propagation primitive.
+        /// Constructs a primitive descriptor for resampling backward
+        ///     propagation primitive.
         ///
-        /// @param adesc Descriptor for a resampling backward propagation
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
         /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a resampling forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
+        /// @param aalgorithm resampling algorithm kind: either
+        ///     #dnnl::algorithm::resampling_nearest, or
+        ///     #dnnl::algorithm::resampling_linear
+        /// @param factors Vector of scaling factors for spatial dimension.
+        /// @param diff_src_desc Diff source memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param hint_fwd_pd Primitive descriptor for a resampling
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const std::vector<float> &factors,
+                const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc,
                 const resampling_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aalgorithm, &factors, diff_src_desc,
+                    diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a resampling backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -12151,6 +12133,31 @@ struct resampling_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
         memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+    private:
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const std::vector<float> *factors,
+                const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc,
+                const resampling_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr, bool allow_empty) {
+
+            if (factors)
+                memory::validate_dims(*factors, diff_src_desc.data.ndims - 2);
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_resampling_backward_primitive_desc_create(&pd,
+                            aengine.get(), convert_to_c(aalgorithm),
+                            optional_arg(factors), &diff_src_desc.data,
+                            &diff_dst_desc.data, hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a "
+                        "resampling backward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,13 +82,10 @@ void resampling_example(dnnl::engine::kind engine_kind) {
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), src_mem);
 
-    // Create operation descriptor.
-    auto resampling_d = resampling_forward::desc(prop_kind::forward_training,
-            algorithm::resampling_linear, src_md, dst_md);
-
     // Create primitive descriptor.
-    auto resampling_pd
-            = resampling_forward::primitive_desc(resampling_d, engine);
+    auto resampling_pd = resampling_forward::primitive_desc(engine,
+            prop_kind::forward_training, algorithm::resampling_linear, src_md,
+            dst_md);
 
     // Create the primitive.
     auto resampling_prim = resampling_forward(resampling_pd);

@@ -280,19 +280,18 @@ protected:
     }
 
     void Forward() {
-        auto resampling_desc = resampling_forward::desc(
-                p.aprop_kind, p.aalgorithm, *src_desc, *dst_desc);
-
-        resampling_pd
-                = resampling_forward::primitive_desc(resampling_desc, eng);
+        resampling_pd = resampling_forward::primitive_desc(
+                eng, p.aprop_kind, p.aalgorithm, *src_desc, *dst_desc);
         resampling_pd = resampling_forward::primitive_desc(
                 resampling_pd.get()); // test construction from a C pd
 
         {
-            auto resampling_desc_no_dst = resampling_forward::desc(p.aprop_kind,
-                    p.aalgorithm, factors, resampling_pd.src_desc());
-            auto resampling_pd_no_dst = resampling_forward::primitive_desc(
-                    resampling_desc_no_dst, eng);
+            auto resampling_desc_no_dst
+                    = resampling_forward::primitive_desc(eng, p.aprop_kind,
+                            p.aalgorithm, factors, resampling_pd.src_desc());
+            auto resampling_pd_no_dst
+                    = resampling_forward::primitive_desc(eng, p.aprop_kind,
+                            p.aalgorithm, factors, resampling_pd.src_desc());
             ASSERT_EQ(
                     resampling_pd.dst_desc(), resampling_pd_no_dst.dst_desc());
             ASSERT_EQ(resampling_pd_no_dst.get_factors(), expected_factors);
@@ -322,11 +321,8 @@ protected:
     }
 
     void Backward() {
-        auto resampling_bwd_desc = resampling_backward::desc(
-                p.aalgorithm, factors, *src_desc, *dst_desc);
-
-        auto resampling_bwd_pd = resampling_backward::primitive_desc(
-                resampling_bwd_desc, eng, resampling_pd);
+        auto resampling_bwd_pd = resampling_backward::primitive_desc(eng,
+                p.aalgorithm, factors, *src_desc, *dst_desc, resampling_pd);
 
         auto diff_src
                 = test::make_memory(resampling_bwd_pd.diff_src_desc(), eng);

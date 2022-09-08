@@ -138,6 +138,29 @@ struct shuffle_desc_t {
     dim_t group_size;
 };
 
+// A descriptor of resampling operation.
+struct resampling_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_resampling.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, #dnnl_backward_data,
+    prop_kind_t prop_kind;
+    // The kind of the resampling algorithm. Possible values:
+    // #dnnl_resampling_nearest, #dnnl_resampling_linear.
+    alg_kind_t alg_kind;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
+    // Resampling factor in each spatial dimension.
+    float factors[DNNL_MAX_NDIMS];
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

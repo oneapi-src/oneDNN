@@ -74,17 +74,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             prb->ndims, prb->dst_dims().data(), prb->ddt, dst_tag);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
-    dnnl_resampling_desc_t rd;
-
-    if (prb->dir & FLAG_FWD) {
-        auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                             : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_resampling_forward_desc_init(
-                &rd, prop_kind, alg, nullptr, &src_d, &dst_d));
-    } else {
-        DNN_SAFE_STATUS(dnnl_resampling_backward_desc_init(
-                &rd, alg, nullptr, &src_d, &dst_d));
-    }
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(
@@ -92,8 +81,18 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &rd, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    if (prb->dir & FLAG_FWD) {
+        auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                             : dnnl_forward_training;
+        DNN_SAFE_STATUS(dnnl_resampling_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop_kind, alg, nullptr,
+                &src_d, &dst_d, dnnl_attr));
+    } else {
+        DNN_SAFE_STATUS(dnnl_resampling_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, alg, nullptr, &src_d,
+                &dst_d, init_pd_args.hint, dnnl_attr));
+    }
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

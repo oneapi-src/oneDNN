@@ -3630,14 +3630,15 @@ dnnl_status_t DNNL_API dnnl_matmul_desc_init(dnnl_matmul_desc_t *matmul_desc,
 /// @addtogroup dnnl_api_resampling Resampling
 /// @{
 
-/// Initializes a descriptor for a resampling forward propagation primitive.
+/// Creates a primitive descriptor for a resampling forward propagation
+///     primitive.
 ///
 /// @note
 ///     Destination memory descriptor is allowed to be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-///
-/// @param resampling_desc Output descriptor for a resampling primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind resampling algorithm kind: either #dnnl_resampling_nearest,
@@ -3645,28 +3646,38 @@ dnnl_status_t DNNL_API dnnl_matmul_desc_init(dnnl_matmul_desc_t *matmul_desc,
 /// @param factors Array of scaling factors for spatial dimension.
 /// @param src_desc Source memory descriptor.
 /// @param dst_desc Destination memory descriptor.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_resampling_forward_desc_init(
-        dnnl_resampling_desc_t *resampling_desc, dnnl_prop_kind_t prop_kind,
-        dnnl_alg_kind_t alg_kind, const float *factors,
-        const dnnl_memory_desc_t *src_desc, const dnnl_memory_desc_t *dst_desc);
+dnnl_status_t DNNL_API dnnl_resampling_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
+        const float *factors, const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *dst_desc, const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for resampling backward propagation primitive.
+/// Creates a primitive descriptor for a resampling backward propagation
+///     primitive.
 ///
-/// @param resampling_desc Output descriptor for a resampling primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param alg_kind resamplinging algorithm kind: either
 ///     #dnnl_resampling_nearest, or #dnnl_resampling_linear.
 /// @param diff_src_desc Diff source memory descriptor.
 /// @param diff_dst_desc Diff destination memory descriptor.
 /// @param factors Array of scaling factors for spatial dimension.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 ///
-dnnl_status_t DNNL_API dnnl_resampling_backward_desc_init(
-        dnnl_resampling_desc_t *resampling_desc, dnnl_alg_kind_t alg_kind,
-        const float *factors, const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *diff_dst_desc);
+dnnl_status_t DNNL_API dnnl_resampling_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_alg_kind_t alg_kind, const float *factors,
+        const dnnl_memory_desc_t *diff_src_desc,
+        const dnnl_memory_desc_t *diff_dst_desc,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_resampling
 
