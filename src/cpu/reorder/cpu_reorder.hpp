@@ -31,6 +31,7 @@
 
 #if DNNL_X64
 #include "cpu/x64/jit_uni_reorder.hpp"
+#include "cpu/x64/matmul/brgemm_matmul_reorders.hpp"
 #include "cpu/x64/wino_reorder.hpp"
 #elif DNNL_AARCH64
 #include "cpu/aarch64/jit_uni_reorder.hpp"
