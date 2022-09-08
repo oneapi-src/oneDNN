@@ -1349,7 +1349,6 @@ using memory_extra_desc_t = dnnl_memory_extra_desc_t;
 using memory_desc_t = dnnl_memory_desc_t;
 using pooling_desc_t = dnnl_pooling_desc_t;
 using prelu_desc_t = dnnl_prelu_desc_t;
-using eltwise_desc_t = dnnl_eltwise_desc_t;
 using lrn_desc_t = dnnl_lrn_desc_t;
 using batch_normalization_desc_t = dnnl_batch_normalization_desc_t;
 using layer_normalization_desc_t = dnnl_layer_normalization_desc_t;

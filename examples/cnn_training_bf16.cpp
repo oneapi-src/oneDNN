@@ -170,9 +170,8 @@ void simple_net(engine::kind engine_kind) {
     // create relu primitive desc
     // keep memory format tag of source same as the format tag of convolution
     // output in order to avoid reorder
-    auto relu_desc = eltwise_forward::desc(prop_kind::forward,
+    auto relu_pd = eltwise_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::eltwise_relu, conv_pd.dst_desc(), negative_slope);
-    auto relu_pd = eltwise_forward::primitive_desc(relu_desc, eng);
 
     // create relu dst memory
     auto relu_dst_memory = memory(relu_pd.dst_desc(), eng);
@@ -341,10 +340,9 @@ void simple_net(engine::kind engine_kind) {
     auto relu_src_md = conv_pd.dst_desc();
 
     // create backward relu primitive_descriptor
-    auto relu_bwd_desc = eltwise_backward::desc(algorithm::eltwise_relu,
-            relu_diff_dst_md, relu_src_md, negative_slope);
     auto relu_bwd_pd
-            = eltwise_backward::primitive_desc(relu_bwd_desc, eng, relu_pd);
+            = eltwise_backward::primitive_desc(eng, algorithm::eltwise_relu,
+                    relu_diff_dst_md, relu_src_md, negative_slope, relu_pd);
 
     // create reorder primitive between lrn diff src and relu diff dst
     // if required

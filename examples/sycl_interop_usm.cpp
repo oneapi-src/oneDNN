@@ -62,9 +62,8 @@ void sycl_usm_tutorial(engine::kind engine_kind) {
         });
     });
 
-    auto relu_d = eltwise_forward::desc(
-            prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
-    auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
+    auto relu_pd = eltwise_forward::primitive_desc(
+            eng, prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
     auto relu = eltwise_forward(relu_pd);
 
     auto relu_e = sycl_interop::execute(

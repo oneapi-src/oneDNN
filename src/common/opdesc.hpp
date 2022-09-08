@@ -184,6 +184,63 @@ struct matmul_desc_t {
     data_type_t accum_data_type;
 };
 
+// A descriptor of a element-wise operation.
+struct eltwise_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_eltwise.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
+    prop_kind_t prop_kind;
+    // The kind of eltwise algorithm. Possible values: #dnnl_eltwise_relu,
+    // #dnnl_eltwise_tanh, #dnnl_eltwise_elu, #dnnl_eltwise_square,
+    // #dnnl_eltwise_abs, #dnnl_eltwise_sqrt, #dnnl_eltwise_linear,
+    // #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu,
+    // #dnnl_eltwise_soft_relu_v2, #dnnl_eltwise_logistic, #dnnl_eltwise_exp,
+    // #dnnl_eltwise_gelu_tanh, #dnnl_eltwise_swish, #dnnl_eltwise_log,
+    // #dnnl_eltwise_clip, #dnnl_eltwise_clip_v2, #dnnl_eltwise_pow,
+    // #dnnl_eltwise_gelu_erf, #dnnl_eltwise_round, #dnnl_eltwise_logsigmoid,
+    // #dnnl_eltwise_mish, #dnnl_eltwise_hardswish, #dnnl_eltwise_hardsigmoid.
+    // Possible values for passing destination memory on backward:
+    // #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
+    // #dnnl_eltwise_elu_use_dst_for_bwd, #dnnl_eltwise_sqrt_use_dst_for_bwd,
+    // #dnnl_eltwise_logistic_use_dst_for_bwd,
+    // #dnnl_eltwise_exp_use_dst_for_bwd,
+    // #dnnl_eltwise_clip_v2_use_dst_for_bwd.
+    alg_kind_t alg_kind;
+    // Source and destination memory descriptor.
+    memory_desc_t data_desc;
+    // Source and destination gradient memory descriptor.
+    memory_desc_t diff_data_desc;
+    // Algorithm specific parameter.
+    // Accordance table:
+    //  - #dnnl_eltwise_relu: @p alpha -- negative slope, @p beta ignored
+    //  - #dnnl_eltwise_tanh: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_elu: @p alpha -- negative slope, @p beta ignored
+    //  - #dnnl_eltwise_square: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_abs: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_sqrt: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_linear: @p alpha -- scale, @p beta -- shift
+    //  - #dnnl_eltwise_bounded_relu: @p alpha -- upper bound, @p beta ignored
+    //  - #dnnl_eltwise_soft_relu: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_soft_relu_v2: @p alpha -- soft_relu_v2 arg scaling, @p beta ignored
+    //  - #dnnl_eltwise_logistic: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_exp: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_gelu_tanh: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_swish: @p alpha -- sigmoid arg scaling, @p beta ignored
+    //  - #dnnl_eltwise_log: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_clip: @p alpha -- lower bound, @p beta -- upper bound
+    //  - #dnnl_eltwise_clip_v2: @p alpha -- lower bound, @p beta -- upper bound
+    //  - #dnnl_eltwise_pow: @p alpha -- scale, @p beta -- exponent
+    //  - #dnnl_eltwise_gelu_erf: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_round: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_logsigmoid: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_mish: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_hardswish: @p alpha and @p beta ignored
+    //  - #dnnl_eltwise_hardsigmoid: @p alpha -- scale, @p beta -- shift
+    float alpha, beta;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

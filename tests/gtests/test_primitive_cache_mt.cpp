@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,10 +34,9 @@ TEST(primitive_cache_mt_test, TestGeneralCase) {
     memory::dim n_primitives = 12;
 
     dnnl::impl::parallel_nd(n_primitives, [&](memory::dim np) {
-        auto relu_d = eltwise_forward::desc(prop_kind::forward_inference,
-                algorithm::eltwise_relu, {{np, 1, 1, 1}, dt::f32, tag::nchw},
-                0.f, 0.f);
-        auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
+        auto relu_pd = eltwise_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::eltwise_relu,
+                {{np, 1, 1, 1}, dt::f32, tag::nchw}, 0.f);
         auto relu = eltwise_forward(relu_pd);
     });
 
@@ -82,10 +81,9 @@ TEST(primitive_cache_mt_test, TestMTCacheHit) {
     int n_primitives = 10;
 
     auto create_eltwise_primitive = [&](int np) {
-        auto relu_d = eltwise_forward::desc(prop_kind::forward_inference,
-                algorithm::eltwise_relu, {{np, 1, 1, 1}, dt::f32, tag::nchw},
-                0.f, 0.f);
-        auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
+        auto relu_pd = eltwise_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::eltwise_relu,
+                {{np, 1, 1, 1}, dt::f32, tag::nchw}, 0.f);
         auto relu = eltwise_forward(relu_pd);
     };
 

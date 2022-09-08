@@ -278,12 +278,10 @@ void simple_net() {
     const dnnl_memory_desc_t *relu_src_md = conv_dst_md;
 
     // create a relu primitive descriptor
-    dnnl_eltwise_desc_t relu_desc;
-    CHECK(dnnl_eltwise_forward_desc_init(&relu_desc, dnnl_forward,
-            dnnl_eltwise_relu, relu_src_md, negative_slope, 0));
-
     dnnl_primitive_desc_t relu_pd;
-    CHECK(dnnl_primitive_desc_create(&relu_pd, &relu_desc, NULL, engine, NULL));
+    CHECK(dnnl_eltwise_forward_primitive_desc_create(&relu_pd, engine,
+            dnnl_forward, dnnl_eltwise_relu, relu_src_md, negative_slope, 0,
+            NULL));
 
     // create relu dst memory
     dnnl_memory_t relu_dst_memory;
@@ -524,13 +522,10 @@ void simple_net() {
     const dnnl_memory_desc_t *relu_diff_dst_md = lrn_diff_src_md;
 
     // create backward relu descriptor
-    dnnl_eltwise_desc_t relu_bwd_desc;
-    CHECK(dnnl_eltwise_backward_desc_init(&relu_bwd_desc, dnnl_eltwise_relu,
-            relu_diff_dst_md, relu_src_md, negative_slope, 0));
-
     dnnl_primitive_desc_t relu_bwd_pd;
-    CHECK(dnnl_primitive_desc_create(
-            &relu_bwd_pd, &relu_bwd_desc, NULL, engine, relu_pd));
+    CHECK(dnnl_eltwise_backward_primitive_desc_create(&relu_bwd_pd, engine,
+            dnnl_eltwise_relu, relu_diff_dst_md, relu_src_md, negative_slope, 0,
+            relu_pd, NULL));
 
     // create memory for relu diff src
     dnnl_memory_t relu_diff_src_memory;

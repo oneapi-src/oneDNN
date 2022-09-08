@@ -35,34 +35,33 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
 
-    dnnl_eltwise_desc_t ed;
-
     auto data_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt, prb->tag);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
-
-    if (dir & FLAG_FWD) {
-        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                        : dnnl_forward_training;
-
-        DNN_SAFE_STATUS(dnnl_eltwise_forward_desc_init(
-                &ed, prop, alg, &data_d, prb->alpha, prb->beta));
-    } else {
-        auto diff_data_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt, tag::any);
-
-        DNN_SAFE_STATUS(dnnl_eltwise_backward_desc_init(
-                &ed, alg, &diff_data_d, &data_d, prb->alpha, prb->beta));
-    }
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &ed, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    if (dir & FLAG_FWD) {
+        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                        : dnnl_forward_training;
+
+        DNN_SAFE_STATUS(dnnl_eltwise_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop, alg, &data_d,
+                prb->alpha, prb->beta, dnnl_attr));
+    } else {
+        auto diff_data_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, tag::any);
+
+        DNN_SAFE_STATUS(dnnl_eltwise_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, alg, &diff_data_d,
+                &data_d, prb->alpha, prb->beta, init_pd_args.hint, dnnl_attr));
+    }
+
+    return dnnl_success;
 }
 
 static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {

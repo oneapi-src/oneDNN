@@ -432,9 +432,9 @@ protected:
         data_desc = std::make_shared<memory::desc>(
                 p.dims, data_type, p.data_format);
 
-        auto eltwise_desc = eltwise_forward::desc(prop_kind::forward_training,
-                p.alg_kind, *data_desc, p.alpha, p.beta);
-        eltwise_prim_desc = eltwise_forward::primitive_desc(eltwise_desc, eng);
+        eltwise_prim_desc = eltwise_forward::primitive_desc(eng,
+                prop_kind::forward_training, p.alg_kind, *data_desc, p.alpha,
+                p.beta);
         eltwise_prim_desc = eltwise_forward::primitive_desc(
                 eltwise_prim_desc.get()); // test construction from a C pd
 
@@ -505,10 +505,9 @@ protected:
                 n_elems(diff_data_desc), diff_dst, data_median, data_deviation);
         check_zero_tail<data_t>(1, diff_dst);
 
-        auto eltwise_bwd_desc = eltwise_backward::desc(
-                p.alg_kind, diff_data_desc, *data_desc, p.alpha, p.beta);
-        auto eltwise_bwd_prim_desc = eltwise_backward::primitive_desc(
-                eltwise_bwd_desc, eng, eltwise_prim_desc);
+        auto eltwise_bwd_prim_desc = eltwise_backward::primitive_desc(eng,
+                p.alg_kind, diff_data_desc, *data_desc, p.alpha, p.beta,
+                eltwise_prim_desc);
         eltwise_bwd_prim_desc
                 = eltwise_backward::primitive_desc(eltwise_bwd_prim_desc.get());
 

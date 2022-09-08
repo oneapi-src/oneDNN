@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -209,9 +209,8 @@ void gpu_opencl_interop_tutorial() {
     /// "heavier".
     /// @snippet gpu_opencl_interop.cpp relu creation
     //  [relu creation]
-    auto relu_d = eltwise_forward::desc(
-            prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
-    auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
+    auto relu_pd = eltwise_forward::primitive_desc(
+            eng, prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
     auto relu = eltwise_forward(relu_pd);
     //  [relu creation]
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,12 +82,10 @@ void eltwise_example(dnnl::engine::kind engine_kind) {
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), src_mem);
 
-    // Create operation descriptor.
-    auto eltwise_d = eltwise_forward::desc(prop_kind::forward_training,
-            algorithm::eltwise_relu, src_md, 0.f, 0.f);
-
     // Create primitive descriptor.
-    auto eltwise_pd = eltwise_forward::primitive_desc(eltwise_d, engine);
+    auto eltwise_pd = eltwise_forward::primitive_desc(engine,
+            prop_kind::forward_training, algorithm::eltwise_relu, src_md, 0.f,
+            0.f);
 
     // Create the primitive.
     auto eltwise_prim = eltwise_forward(eltwise_pd);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,10 +29,9 @@ void fill_primitive_cache(int n) {
     engine eng(get_test_engine_kind(), 0);
     for (int i = 0; i < n; i++) {
         // fill primitive cache with n primitives
-        auto relu_d = eltwise_forward::desc(prop_kind::forward_inference,
-                algorithm::eltwise_relu, {{i, 1, 1, 1}, dt::f32, tag::nchw},
-                0.f, 0.f);
-        auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
+        auto relu_pd = eltwise_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::eltwise_relu,
+                {{i, 1, 1, 1}, dt::f32, tag::nchw}, 0.f, 0.f);
         auto relu = eltwise_forward(relu_pd);
     }
 }

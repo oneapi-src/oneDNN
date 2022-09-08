@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,14 +152,12 @@ void cross_engine_reorder_tutorial() {
     /// The code:
     /// @snippet cross_engine_reorder.cpp Create a ReLU primitive
     // [Create a ReLU primitive]
-    //  ReLU op descriptor (uses a GPU memory as source memory.
-    //  no engine- or implementation-specific information)
-    auto relu_d = eltwise_forward::desc(prop_kind::forward,
-            algorithm::eltwise_relu, m_gpu.get_desc(), 0.0f);
     // ReLU primitive descriptor, which corresponds to a particular
     // implementation in the library. Specify engine type for the ReLU
     // primitive. Use a GPU engine here.
-    auto relu_pd = eltwise_forward::primitive_desc(relu_d, gpu_engine);
+    auto relu_pd
+            = eltwise_forward::primitive_desc(gpu_engine, prop_kind::forward,
+                    algorithm::eltwise_relu, m_gpu.get_desc(), 0.0f);
     // ReLU primitive
     auto relu = eltwise_forward(relu_pd);
     // [Create a ReLU primitive]

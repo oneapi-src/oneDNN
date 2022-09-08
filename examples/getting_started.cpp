@@ -332,20 +332,15 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// The code:
     /// @snippet getting_started.cpp Create a ReLU primitive
     // [Create a ReLU primitive]
-    //  ReLU op descriptor (no engine- or implementation-specific information)
-    auto relu_d = eltwise_forward::desc(
+    // ReLU primitive descriptor, which corresponds to a particular
+    // implementation in the library
+    auto relu_pd = eltwise_forward::primitive_desc(
+            eng, // an engine the primitive will be created for
             prop_kind::forward_inference, algorithm::eltwise_relu,
             src_md, // the memory descriptor for an operation to work on
             0.f, // alpha parameter means negative slope in case of ReLU
             0.f // beta parameter is ignored in case of ReLU
     );
-
-    // ReLU primitive descriptor, which corresponds to a particular
-    // implementation in the library
-    auto relu_pd
-            = eltwise_forward::primitive_desc(relu_d, // an operation descriptor
-                    eng // an engine the primitive will be created for
-            );
 
     // ReLU primitive
     auto relu = eltwise_forward(relu_pd); // !!! this can take quite some time

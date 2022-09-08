@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "math_utils.hpp"
@@ -76,20 +78,33 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t dnnl_eltwise_forward_desc_init(eltwise_desc_t *eltwise_desc,
+status_t dnnl_eltwise_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *data_desc, float alpha, float beta) {
+        const memory_desc_t *data_desc, float alpha, float beta,
+        const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return eltwise_desc_init(
-            eltwise_desc, prop_kind, alg_kind, data_desc, nullptr, alpha, beta);
+
+    auto eltwise_desc = eltwise_desc_t();
+    CHECK(eltwise_desc_init(&eltwise_desc, prop_kind, alg_kind, data_desc,
+            nullptr, alpha, beta));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&eltwise_desc, nullptr, attr);
 }
 
-status_t dnnl_eltwise_backward_desc_init(eltwise_desc_t *eltwise_desc,
+status_t dnnl_eltwise_backward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const memory_desc_t *diff_data_desc,
-        const memory_desc_t *data_desc, float alpha, float beta) {
-    return eltwise_desc_init(eltwise_desc, backward_data, alg_kind, data_desc,
-            diff_data_desc, alpha, beta);
+        const memory_desc_t *data_desc, float alpha, float beta,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto eltwise_desc = eltwise_desc_t();
+    CHECK(eltwise_desc_init(&eltwise_desc, backward_data, alg_kind, data_desc,
+            diff_data_desc, alpha, beta));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&eltwise_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

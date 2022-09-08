@@ -2018,9 +2018,10 @@ dnnl_status_t DNNL_API dnnl_shuffle_backward_primitive_desc_create(
 /// @addtogroup dnnl_api_eltwise
 /// @{
 
-/// Initializes a descriptor for eltwise forward propagation primitive.
+/// Creates a primitive descriptor for an eltwise forward propagation primitive.
 ///
-/// @param eltwise_desc Output descriptor for an eltwise primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind Elementwise algorithm kind.
@@ -2029,16 +2030,20 @@ dnnl_status_t DNNL_API dnnl_shuffle_backward_primitive_desc_create(
 ///     meaning depends on the algorithm.
 /// @param beta The beta parameter for the elementwise operation. Specific
 ///     meaning depends on the algorithm.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_eltwise_forward_desc_init(
-        dnnl_eltwise_desc_t *eltwise_desc, dnnl_prop_kind_t prop_kind,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *data_desc,
-        float alpha, float beta);
+dnnl_status_t DNNL_API dnnl_eltwise_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
+        const dnnl_memory_desc_t *data_desc, float alpha, float beta,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for eltwise backward propagation primitive.
+/// Creates a primitive descriptor for an eltwise backward propagation
+///     primitive.
 ///
-/// @param eltwise_desc Output descriptor for an eltwise primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param alg_kind Elementwise algorithm kind.
 /// @param diff_data_desc Diff source and diff destination memory descriptors.
 /// @param data_desc Source and destination memory descriptor.
@@ -2046,12 +2051,17 @@ dnnl_status_t DNNL_API dnnl_eltwise_forward_desc_init(
 ///     meaning depends on the algorithm.
 /// @param beta The beta parameter for the elementwise operation. Specific
 ///     meaning depends on the algorithm.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_eltwise_backward_desc_init(
-        dnnl_eltwise_desc_t *eltwise_desc, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *diff_data_desc,
-        const dnnl_memory_desc_t *data_desc, float alpha, float beta);
+dnnl_status_t DNNL_API dnnl_eltwise_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_data_desc,
+        const dnnl_memory_desc_t *data_desc, float alpha, float beta,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_eltwise
 

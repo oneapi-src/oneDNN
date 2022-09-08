@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,13 +96,9 @@ void cross_engine_reorder() {
     CHECK(dnnl_primitive_create(&r1, r1_pd));
 
     /* relu gpu */
-    dnnl_eltwise_desc_t relu_d;
-    CHECK(dnnl_eltwise_forward_desc_init(
-            &relu_d, dnnl_forward, dnnl_eltwise_relu, &m_gpu_md, 0.0f, 0.0f));
-
     dnnl_primitive_desc_t relu_pd;
-    CHECK(dnnl_primitive_desc_create(
-            &relu_pd, &relu_d, NULL, engine_gpu, NULL));
+    CHECK(dnnl_eltwise_forward_primitive_desc_create(&relu_pd, engine_gpu,
+            dnnl_forward, dnnl_eltwise_relu, &m_gpu_md, 0.0f, 0.0f, NULL));
 
     dnnl_primitive_t relu;
     CHECK(dnnl_primitive_create(&relu, relu_pd));

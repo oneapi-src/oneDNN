@@ -6756,13 +6756,61 @@ struct lrn_backward : public primitive {
 
 /// Elementwise unary operation forward propagation primitive.
 struct eltwise_forward : public primitive {
-    /// Descriptor for an elementwise forward propagation primitive.
-    struct desc {
-        dnnl_eltwise_desc_t data;
+    /// Primitive descriptor for an elementwise forward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for an elementwise forward propagation
-        /// primitive.
+        /// Constructs a primitive descriptor for an elementwise forward
+        ///     propagation primitive.
         ///
+        /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm Elementwise algorithm kind.
+        /// @param data_desc Source and destination memory descriptors.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &data_desc,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, data_desc,
+                    nullptr, nullptr, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for an elementwise forward
+        ///     propagation primitive with an alpha parameter.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm Elementwise algorithm kind.
+        /// @param data_desc Source and destination memory descriptors.
+        /// @param alpha The alpha parameter for the elementwise operation.
+        ///     Specific meaning depends on the algorithm.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &data_desc,
+                float alpha, const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aprop_kind, aalgorithm, data_desc, &alpha,
+                    nullptr, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for an elementwise forward
+        ///     propagation primitive with an alpha and beta parameters.
+        ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -6772,53 +6820,19 @@ struct eltwise_forward : public primitive {
         ///     Specific meaning depends on the algorithm.
         /// @param beta The beta parameter for the elementwise operation.
         ///     Specific meaning depends on the algorithm.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &data_desc, float alpha = 0,
-                float beta = 0) {
-            error::wrap_c_api(dnnl_eltwise_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      dnnl::convert_to_c(aalgorithm),
-                                      &data_desc.data, alpha, beta),
-                    "could not create a descriptor for an eltwise forward "
-                    "propagation primitive");
-        }
-    };
-
-    /// Primitive descriptor for an elementwise forward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for an elementwise forward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for an elementwise forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &data_desc,
+                float alpha, float beta,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
-
-        /// Constructs a primitive descriptor for an elementwise forward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for an elementwise forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+            : primitive_desc(aengine, aprop_kind, aalgorithm, data_desc, &alpha,
+                    &beta, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an eltwise forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -6848,6 +6862,25 @@ struct eltwise_forward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::get_beta()const
         float get_beta() const { return base::get_beta(); }
+
+    private:
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &data_desc,
+                const float *alpha, const float *beta,
+                const primitive_attr &attr, bool allow_empty) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_eltwise_forward_primitive_desc_create(
+                    &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                    dnnl::convert_to_c(aalgorithm), &data_desc.data,
+                    alpha ? *alpha : 0.0f, beta ? *beta : 0.0f, attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for an "
+                        "eltwise forward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.
@@ -6869,13 +6902,69 @@ struct eltwise_forward : public primitive {
 
 /// Elementwise unary operation backward propagation primitive.
 struct eltwise_backward : public primitive {
-    /// Descriptor for an elementwise backward propagation primitive.
-    struct desc {
-        dnnl_eltwise_desc_t data;
+    /// Primitive descriptor for eltwise backward propagation.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for an elementwise backward propagation
-        /// primitive.
+        /// Constructs a primitive descriptor for an elementwise backward
+        ///     propagation primitive with an alpha parameter.
         ///
+        /// @param aengine Engine to use.
+        /// @param aalgorithm Elementwise algorithm kind.
+        /// @param diff_data_desc Diff source and destination memory
+        ///     descriptors.
+        /// @param data_desc Source memory descriptor.
+        /// @param hint_fwd_pd Primitive descriptor for an elementwise
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_data_desc,
+                const memory::desc &data_desc,
+                const eltwise_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, diff_data_desc, data_desc,
+                    nullptr, nullptr, hint_fwd_pd, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for an elementwise backward
+        ///     propagation primitive with an alpha parameter.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aalgorithm Elementwise algorithm kind.
+        /// @param diff_data_desc Diff source and destination memory
+        ///     descriptors.
+        /// @param data_desc Source memory descriptor.
+        /// @param alpha The alpha parameter for the elementwise operation.
+        ///     Specific meaning depends on the algorithm.
+        /// @param hint_fwd_pd Primitive descriptor for an elementwise
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_data_desc,
+                const memory::desc &data_desc, float alpha,
+                const eltwise_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
+            : primitive_desc(aengine, aalgorithm, diff_data_desc, data_desc,
+                    &alpha, nullptr, hint_fwd_pd, attr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for an elementwise backward
+        ///     propagation primitive with an alpha and beta parameters.
+        ///
+        /// @param aengine Engine to use.
         /// @param aalgorithm Elementwise algorithm kind.
         /// @param diff_data_desc Diff source and destination memory
         ///     descriptors.
@@ -6884,62 +6973,23 @@ struct eltwise_backward : public primitive {
         ///     Specific meaning depends on the algorithm.
         /// @param beta The beta parameter for the elementwise operation.
         ///     Specific meaning depends on the algorithm.
-        desc(algorithm aalgorithm, const memory::desc &diff_data_desc,
-                const memory::desc &data_desc, float alpha = 0,
-                float beta = 0) {
-            error::wrap_c_api(
-                    dnnl_eltwise_backward_desc_init(&data,
-                            dnnl::convert_to_c(aalgorithm),
-                            &diff_data_desc.data, &data_desc.data, alpha, beta),
-                    "could not create a descriptor for an eltwise backward "
-                    "propagation primitive");
-        }
-    };
-
-    /// Primitive descriptor for eltwise backward propagation.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for an elementwise backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for an elementwise backward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for an elementwise forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
+        /// @param hint_fwd_pd Primitive descriptor for an elementwise
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_data_desc,
+                const memory::desc &data_desc, float alpha, float beta,
                 const eltwise_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
-
-        /// Constructs a primitive descriptor for an elementwise backward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for an elementwise backward propagation
-        ///     primitive.
-        /// @param attr Primitive attributes to use.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for an elementwise forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
-                const eltwise_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+            : primitive_desc(aengine, aalgorithm, diff_data_desc, data_desc,
+                    &alpha, &beta, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an eltwise backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -6971,6 +7021,28 @@ struct eltwise_backward : public primitive {
 
         /// @copydoc dnnl::primitive_desc_base::get_beta()const
         float get_beta() const { return base::get_beta(); }
+
+    private:
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_data_desc,
+                const memory::desc &data_desc, const float *alpha,
+                const float *beta,
+                const eltwise_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr, bool allow_empty) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_eltwise_backward_primitive_desc_create(
+                    &pd, aengine.get(), dnnl::convert_to_c(aalgorithm),
+                    &diff_data_desc.data, &data_desc.data,
+                    alpha ? *alpha : 0.0f, beta ? *beta : 0.0f,
+                    hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for an "
+                        "eltwise backward propagation primitive");
+            reset(pd);
+        }
     };
 
     /// Default constructor. Produces an empty object.

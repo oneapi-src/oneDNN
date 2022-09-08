@@ -118,9 +118,9 @@ void create_and_execute_relu(memory &data, engine &eng, stream &s) {
     // relu operates on whatever data format is given to it
 
     // create a primitive
-    auto relu_d = eltwise_forward::desc(prop_kind::forward_inference,
-            algorithm::eltwise_relu, data.get_desc(), 0.f, 0.f);
-    auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
+    auto relu_pd
+            = eltwise_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::eltwise_relu, data.get_desc(), 0.f, 0.f);
     auto relu = eltwise_forward(relu_pd);
 
     // execute it (in-place)
