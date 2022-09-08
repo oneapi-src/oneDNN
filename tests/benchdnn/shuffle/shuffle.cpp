@@ -58,29 +58,26 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_shuffle_desc_t sd;
-
-    auto data_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dims.data(), prb->dt, prb->tag);
-
-    if (prb->dir & FLAG_FWD) {
-        auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                             : dnnl_forward_training;
-
-        DNN_SAFE_STATUS(dnnl_shuffle_forward_desc_init(
-                &sd, prop_kind, &data_d, prb->axis, prb->group));
-    } else {
-        auto diff_data_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt, tag::any);
-        DNN_SAFE_STATUS(dnnl_shuffle_backward_desc_init(
-                &sd, &diff_data_d, prb->axis, prb->group));
-    }
-
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &sd, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    if (prb->dir & FLAG_FWD) {
+        auto data_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, prb->tag);
+
+        auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                             : dnnl_forward_training;
+        DNN_SAFE_STATUS(dnnl_shuffle_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop_kind, &data_d,
+                prb->axis, prb->group, dnnl_attr));
+    } else {
+        auto diff_data_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, tag::any);
+        DNN_SAFE_STATUS(dnnl_shuffle_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, &diff_data_d, prb->axis,
+                prb->group, init_pd_args.hint, dnnl_attr));
+    }
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

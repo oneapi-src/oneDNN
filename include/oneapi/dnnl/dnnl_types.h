@@ -1912,28 +1912,6 @@ typedef const void *const_dnnl_op_desc_t;
 /// @addtogroup dnnl_api_primitives
 /// @{
 
-/// @addtogroup dnnl_api_shuffle
-/// @{
-
-/// A descriptor of a shuffle operation.
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_shuffle.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, and #dnnl_backward_data.
-    dnnl_prop_kind_t prop_kind;
-    /// Source and destination memory descriptor,
-    /// and source and destination gradient memory descriptor.
-    dnnl_memory_desc_t data_desc;
-    /// Axis for shuffling.
-    int axis;
-    /// Number of groups.
-    dnnl_dim_t group_size;
-} dnnl_shuffle_desc_t;
-
-/// @} dnnl_api_shuffle
-
 /// @addtogroup dnnl_api_eltwise
 /// @{
 

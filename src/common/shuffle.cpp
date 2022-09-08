@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -57,19 +59,31 @@ status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t dnnl_shuffle_forward_desc_init(shuffle_desc_t *shuffle_desc,
+dnnl_status_t dnnl_shuffle_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, const memory_desc_t *data_desc, int axis,
-        dim_t group_size) {
+        dim_t group_size, const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return shuffle_desc_init(
-            shuffle_desc, prop_kind, data_desc, axis, group_size);
+
+    auto shuffle_desc = shuffle_desc_t();
+    CHECK(shuffle_desc_init(
+            &shuffle_desc, prop_kind, data_desc, axis, group_size));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&shuffle_desc, nullptr, attr);
 }
 
-status_t dnnl_shuffle_backward_desc_init(shuffle_desc_t *shuffle_desc,
-        const memory_desc_t *diff_data_desc, int axis, dim_t group_size) {
-    return shuffle_desc_init(
-            shuffle_desc, backward_data, diff_data_desc, axis, group_size);
+dnnl_status_t dnnl_shuffle_backward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        const memory_desc_t *diff_data_desc, int axis, dim_t group_size,
+        const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto shuffle_desc = shuffle_desc_t();
+    CHECK(shuffle_desc_init(
+            &shuffle_desc, backward_data, diff_data_desc, axis, group_size));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&shuffle_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=5 sw=4 cindent cino+=l0,\:4,N-s

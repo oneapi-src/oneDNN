@@ -432,18 +432,19 @@ TEST_F(runtime_attr_test_t, TestRNN) {
 TEST_F(runtime_attr_test_t, TestShuffle) {
     SKIP_IF_CUDA(true, "Shuffle primitive not supported for CUDA");
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
-    shuffle_forward::desc op_d(prop_kind::forward, md, 1, 4);
-    CHECK_OK(shuffle_forward::primitive_desc(op_d, eng));
-    CHECK_UNIMPL(shuffle_forward::primitive_desc(
-            op_d, eng, gen_attr_with_oscale(false)));
-    CHECK_UNIMPL(shuffle_forward::primitive_desc(
-            op_d, eng, gen_attr_with_oscale(true)));
+
+    CHECK_OK(shuffle_forward::primitive_desc pd(
+            eng, prop_kind::forward, md, 1, 4));
+    CHECK_UNIMPL(shuffle_forward::primitive_desc pd(
+            eng, prop_kind::forward, md, 1, 4, gen_attr_with_oscale(false)));
+    CHECK_UNIMPL(shuffle_forward::primitive_desc pd(
+            eng, prop_kind::forward, md, 1, 4, gen_attr_with_oscale(true)));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(shuffle_forward::primitive_desc(
-                op_d, eng, gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(shuffle_forward::primitive_desc(
-                op_d, eng, gen_attr_with_zp(true, arg)));
+        CHECK_UNIMPL(shuffle_forward::primitive_desc pd(eng, prop_kind::forward,
+                md, 1, 4, gen_attr_with_zp(false, arg)));
+        CHECK_UNIMPL(shuffle_forward::primitive_desc pd(eng, prop_kind::forward,
+                md, 1, 4, gen_attr_with_zp(true, arg)));
     }
 }
 

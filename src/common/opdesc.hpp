@@ -121,6 +121,23 @@ struct convolution_desc_t {
 // A descriptor of a deconvolution operation.
 using deconvolution_desc_t = convolution_desc_t;
 
+// A descriptor of a shuffle operation.
+struct shuffle_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_shuffle.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, and #dnnl_backward_data.
+    prop_kind_t prop_kind;
+    // Source and destination memory descriptor,
+    // and source and destination gradient memory descriptor.
+    memory_desc_t data_desc;
+    // Axis for shuffling.
+    int axis;
+    // Number of groups.
+    dim_t group_size;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

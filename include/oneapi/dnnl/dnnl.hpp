@@ -11490,50 +11490,43 @@ struct lbr_augru_backward : public primitive {
 
 /// Shuffle forward propagation primitive.
 struct shuffle_forward : public primitive {
-    /// Descriptor for a shuffle forward propagation primitive.
-    struct desc {
-        dnnl_shuffle_desc_t data;
+    /// Primitive descriptor for a shuffle forward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for a shuffle forward propagation
+        /// Constructs a primitive descriptor for a shuffle forward propagation
         /// primitive.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
         /// @param data_desc Source and destination memory descriptor.
         /// @param axis The axis along which the data is shuffled.
         /// @param group_size Shuffle group size.
-        desc(prop_kind aprop_kind, const memory::desc &data_desc, int axis,
-                int group_size) {
-            error::wrap_c_api(dnnl_shuffle_forward_desc_init(&data,
-                                      dnnl::convert_to_c(aprop_kind),
-                                      &data_desc.data, axis, group_size),
-                    "could not create a descriptor for a shuffle forward "
-                    "propagation primitive");
-        }
-    };
-
-    /// Primitive descriptor for a shuffle forward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a shuffle forward
-        /// propagation primitive.
-        ///
-        /// @param adesc Descriptor for a shuffle forward propagation
-        ///     primitive.
-        /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                const primitive_attr &attr = primitive_attr(),
-                bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &data_desc, int axis, int group_size,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_shuffle_forward_primitive_desc_create(
+                    &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                    &data_desc.data, axis, group_size, attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a shuffle "
+                        "forward propagation primitive");
+            reset(pd);
+        }
 
         /// Constructs a primitive descriptor for a shuffle forward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -11581,51 +11574,45 @@ struct shuffle_forward : public primitive {
 
 /// Shuffle backward propagation primitive.
 struct shuffle_backward : public primitive {
-    /// Descriptor for a shuffle primitive backward propagation
-    /// primitive.
-    struct desc {
-        dnnl_shuffle_desc_t data;
-
-        /// Constructs a descriptor for a shuffle backward propagation
-        /// primitive.
-        ///
-        /// @param diff_data_desc Diff source and diff destination memory
-        ///     descriptor.
-        /// @param axis The axis along which the data is shuffled.
-        /// @param group_size Shuffle group size.
-        desc(const memory::desc &diff_data_desc, int axis, int group_size) {
-            error::wrap_c_api(dnnl_shuffle_backward_desc_init(&data,
-                                      &diff_data_desc.data, axis, group_size),
-                    "could not create a descriptor for a shuffle backward "
-                    "propagation primitive");
-        }
-    };
-
     /// Primitive descriptor for a shuffle backward propagation primitive.
     struct primitive_desc : public dnnl::primitive_desc {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
 
-        /// Constructs a primitive descriptor for a shuffle backward
-        /// propagation primitive.
+        /// Constructs a primitive descriptor for a shuffle backward propagation
+        /// primitive.
         ///
-        /// @param adesc Descriptor for a shuffle backward propagation
-        ///     primitive.
         /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
-        /// @param hint_fwd_pd Primitive descriptor for a shuffle
-        ///     forward propagation primitive. It is used as a hint for
-        ///     deciding which memory format to use.
+        /// @param diff_data_desc Diff source and diff destination memory
+        ///     descriptor.
+        /// @param axis The axis along which the data is shuffled.
+        /// @param group_size Shuffle group size.
+        /// @param hint_fwd_pd Primitive descriptor for a shuffle forward
+        ///     propagation primitive. It is used as a hint for deciding which
+        ///     memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
+        primitive_desc(const engine &aengine,
+                const memory::desc &diff_data_desc, int axis, int group_size,
                 const shuffle_forward::primitive_desc &hint_fwd_pd,
-                const primitive_attr &attr = primitive_attr(),
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_shuffle_backward_primitive_desc_create(
+                    &pd, aengine.get(), &diff_data_desc.data, axis, group_size,
+                    hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a shuffle "
+                        "backward propagation primitive");
+            reset(pd);
+        }
 
         /// Constructs a primitive descriptor for a shuffle backward
         /// propagation primitive from a C API primitive descriptor that must

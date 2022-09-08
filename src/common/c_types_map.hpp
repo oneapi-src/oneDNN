@@ -1347,7 +1347,6 @@ using rnn_packed_desc_t = dnnl_rnn_packed_desc_t;
 using wino_desc_t = dnnl_wino_desc_t;
 using memory_extra_desc_t = dnnl_memory_extra_desc_t;
 using memory_desc_t = dnnl_memory_desc_t;
-using shuffle_desc_t = dnnl_shuffle_desc_t;
 using pooling_desc_t = dnnl_pooling_desc_t;
 using prelu_desc_t = dnnl_prelu_desc_t;
 using eltwise_desc_t = dnnl_eltwise_desc_t;

@@ -1978,32 +1978,40 @@ dnnl_dilated_deconvolution_backward_weights_primitive_desc_create(
 /// @addtogroup dnnl_api_shuffle
 /// @{
 
-/// Initializes a descriptor for shuffle forward propagation primitive.
+/// Creates a primitive descriptor for a shuffle forward propagation primitive
 ///
-/// @param shuffle_desc Output descriptor for a shuffle primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param data_desc Source and destination memory descriptor.
 /// @param axis The axis along which the data is shuffled.
 /// @param group_size Shuffle group size.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_shuffle_forward_desc_init(
-        dnnl_shuffle_desc_t *shuffle_desc, dnnl_prop_kind_t prop_kind,
-        const dnnl_memory_desc_t *data_desc, int axis, dnnl_dim_t group_size);
+dnnl_status_t DNNL_API dnnl_shuffle_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *data_desc,
+        int axis, dnnl_dim_t group_size, const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for shuffle backward propagation primitive.
+/// Creates a primitive descriptor for a shuffle backward propagation primitive
 ///
-/// @param shuffle_desc Output descriptor for a shuffle primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param diff_data_desc Diff source and diff destination memory descriptor.
 /// @param axis The axis along which the data is shuffled.
 /// @param group_size Shuffle group size.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_shuffle_backward_desc_init(
-        dnnl_shuffle_desc_t *shuffle_desc,
+dnnl_status_t DNNL_API dnnl_shuffle_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         const dnnl_memory_desc_t *diff_data_desc, int axis,
-        dnnl_dim_t group_size);
+        dnnl_dim_t group_size, const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_shuffle
 

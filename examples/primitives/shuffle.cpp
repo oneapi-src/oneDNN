@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,12 +84,9 @@ void shuffle_example(dnnl::engine::kind engine_kind) {
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), src_mem);
 
-    // Create operation descriptor.
-    auto shuffle_d = shuffle_forward::desc(
-            prop_kind::forward_training, src_md, shuffle_axis, group_size);
-
     // Create primitive descriptor.
-    auto shuffle_pd = shuffle_forward::primitive_desc(shuffle_d, engine);
+    auto shuffle_pd = shuffle_forward::primitive_desc(engine,
+            prop_kind::forward_training, src_md, shuffle_axis, group_size);
 
     // Create the primitive.
     auto shuffle_prim = shuffle_forward(shuffle_pd);
