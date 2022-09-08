@@ -376,13 +376,11 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
             &pool_user_dst_memory);
 
     // create a pooling
-    dnnl_pooling_desc_t pool_desc;
-    CHECK(dnnl_pooling_forward_desc_init(&pool_desc, dnnl_forward,
-            dnnl_pooling_max, pool_src_md, &pool_dst_any_md, pool_strides,
-            pool_kernel, pool_dilation, pool_padding, pool_padding));
-
     dnnl_primitive_desc_t pool_pd;
-    CHECK(dnnl_primitive_desc_create(&pool_pd, &pool_desc, NULL, engine, NULL));
+    CHECK(dnnl_pooling_forward_primitive_desc_create(&pool_pd, engine,
+            dnnl_forward, dnnl_pooling_max, pool_src_md, &pool_dst_any_md,
+            pool_strides, pool_kernel, pool_dilation, pool_padding,
+            pool_padding, NULL));
 
     // create memory for workspace
     dnnl_memory_t pool_ws_memory;

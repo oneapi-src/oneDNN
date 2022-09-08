@@ -195,11 +195,10 @@ void simple_net(engine::kind engine_kind) {
     auto pool_dst_md = memory::desc({pool_dst_tz}, dt::f32, tag::any);
 
     // create a pooling primitive descriptor
-    auto pool_desc
-            = pooling_forward::desc(prop_kind::forward, algorithm::pooling_max,
-                    lrn_dst_memory.get_desc(), pool_dst_md, pool_strides,
-                    pool_kernel, pool_dilation, pool_padding, pool_padding);
-    auto pool_pd = pooling_forward::primitive_desc(pool_desc, eng);
+    auto pool_pd = pooling_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::pooling_max, lrn_dst_memory.get_desc(), pool_dst_md,
+            pool_strides, pool_kernel, pool_dilation, pool_padding,
+            pool_padding);
 
     // create pooling workspace memory if training
     auto pool_workspace_memory = memory(pool_pd.workspace_desc(), eng);
@@ -241,13 +240,11 @@ void simple_net(engine::kind engine_kind) {
     auto pool_diff_src_md = memory::desc({lrn_data_tz}, dt::f32, tag::any);
     auto pool_diff_dst_md = memory::desc({pool_dst_tz}, dt::f32, tag::any);
 
-    // create backward pooling descriptor
-    auto pool_bwd_desc = pooling_backward::desc(algorithm::pooling_max,
-            pool_diff_src_md, pool_diff_dst_md, pool_strides, pool_kernel,
-            pool_dilation, pool_padding, pool_padding);
     // backward primitive descriptor needs to hint forward descriptor
-    auto pool_bwd_pd
-            = pooling_backward::primitive_desc(pool_bwd_desc, eng, pool_pd);
+    auto pool_bwd_pd = pooling_backward::primitive_desc(eng,
+            algorithm::pooling_max, pool_diff_src_md, pool_diff_dst_md,
+            pool_strides, pool_kernel, pool_dilation, pool_padding,
+            pool_padding, pool_pd);
 
     // create reorder primitive between user diff dst and pool diff dst
     // if required

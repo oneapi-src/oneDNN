@@ -232,8 +232,9 @@ protected:
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
-    template <typename prim_desc>
-    void check_prim_desc(prim_desc pool_prim_desc) {
+    void check_prim_desc(
+            const pooling_forward::primitive_desc &pool_prim_desc) {
+
         ASSERT_TRUE(pool_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
                 == pool_prim_desc.src_desc());
         ASSERT_TRUE(pool_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
@@ -306,13 +307,13 @@ protected:
         }
 
         memory p_src, p_dst;
-        auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm,
-                p_src_desc, p_dst_desc, strides, ker, dilation, pad_l, pad_r);
-        auto pool_prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
+        auto pool_prim_desc = pooling_forward::primitive_desc(eng, p.aprop_kind,
+                p.aalgorithm, p_src_desc, p_dst_desc, strides, ker, dilation,
+                pad_l, pad_r);
         // test construction from a C pd
         pool_prim_desc = pooling_forward::primitive_desc(pool_prim_desc.get());
+        check_prim_desc(pool_prim_desc);
 
-        check_prim_desc<pooling_forward::primitive_desc>(pool_prim_desc);
         if (p.src_format != memory::format_tag::any) {
             ASSERT_TRUE(p_src_desc == pool_prim_desc.src_desc());
         }

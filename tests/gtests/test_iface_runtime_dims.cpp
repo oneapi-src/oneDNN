@@ -237,11 +237,24 @@ TEST_F(runtime_dim_test_t, TestPool) {
             {DNNL_RUNTIME_DIM_VAL, 16, 8, 8}, data_type::f32, tag::abcd};
     memory::desc dst_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 4, 4}, data_type::f32, tag::abcd};
-    CHECK_UNIMPL(
-            pooling_forward::desc(prop_kind::forward, algorithm::pooling_max,
-                    src_md, dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}));
-    CHECK_UNIMPL(pooling_backward::desc(algorithm::pooling_max, src_md, dst_md,
-            {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}));
+    CHECK_UNIMPL(pooling_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::pooling_max, src_md, dst_md, {2, 2}, {2, 2}, {0, 0},
+            {0, 0}, {0, 0}));
+
+    pooling_forward::primitive_desc fwd_hint;
+    {
+        auto valid_src_md
+                = memory::desc({2, 16, 8, 8}, data_type::f32, tag::abcd);
+        auto valid_dst_md
+                = memory::desc({2, 16, 4, 4}, data_type::f32, tag::abcd);
+        CHECK_OK(fwd_hint
+                = pooling_forward::primitive_desc(eng, prop_kind::forward,
+                        algorithm::pooling_max, valid_src_md, valid_dst_md,
+                        {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}));
+    }
+
+    CHECK_UNIMPL(pooling_backward::primitive_desc(eng, algorithm::pooling_max,
+            src_md, dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}, fwd_hint));
 }
 
 TEST_F(runtime_dim_test_t, TestPReLU) {

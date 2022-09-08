@@ -101,13 +101,11 @@ void pooling_example(dnnl::engine::kind engine_kind) {
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), src_mem);
 
-    // Create operation descriptor.
-    auto pooling_d = pooling_forward::desc(prop_kind::forward_training,
-            algorithm::pooling_max, src_md, dst_md, strides_dims, kernel_dims,
-            dilation, padding_dims_l, padding_dims_r);
-
     // Create primitive descriptor.
-    auto pooling_pd = pooling_forward::primitive_desc(pooling_d, engine);
+    auto pooling_pd = pooling_forward::primitive_desc(engine,
+            prop_kind::forward_training, algorithm::pooling_max, src_md, dst_md,
+            strides_dims, kernel_dims, dilation, padding_dims_l,
+            padding_dims_r);
 
     // Create workspace memory objects using memory descriptor created by the
     // primitive descriptor.

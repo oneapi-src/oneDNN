@@ -12092,11 +12092,13 @@ struct resampling_backward : public primitive {
 
 /// Pooling forward propagation primitive.
 struct pooling_forward : public primitive {
-    /// Descriptor for a pooling forward propagation primitive.
-    struct desc {
-        dnnl_pooling_desc_t data;
+    /// Primitive descriptor for a pooling forward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for pooling forward propagation primitive.
+        /// Constructs a primitive descriptor for pooling forward propagation
+        ///     primitive.
         ///
         /// Arrays @p strides, @p kernel, @p dilation, @p padding_l
         /// and @p padding_r contain values for spatial dimensions only and
@@ -12104,6 +12106,7 @@ struct pooling_forward : public primitive {
         /// dimensions. The order of values is the same as in the tensor:
         /// depth (for 3D tensors), height (for 3D and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -12121,60 +12124,39 @@ struct pooling_forward : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, const memory::desc &dst_desc,
-                const memory::dims &strides, const memory::dims &kernel,
-                const memory::dims &dilation, const memory::dims &padding_l,
-                const memory::dims &padding_r) {
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &dst_desc, const memory::dims &strides,
+                const memory::dims &kernel, const memory::dims &dilation,
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
             memory::validate_dims(strides, src_desc.data.ndims - 2);
             memory::validate_dims(kernel, src_desc.data.ndims - 2);
             memory::validate_dims(padding_l, src_desc.data.ndims - 2);
             memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             memory::validate_dims(dilation, src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_pooling_forward_desc_init(&data,
-                            dnnl::convert_to_c(aprop_kind),
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &dst_desc.data, &strides[0], &kernel[0],
-                            &dilation[0], &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a pooling forward "
-                    "propagation primitive");
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_pooling_forward_primitive_desc_create(
+                    &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                    convert_to_c(aalgorithm), &src_desc.data, &dst_desc.data,
+                    &strides[0], &kernel[0], &dilation[0], &padding_l[0],
+                    &padding_r[0], attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a descriptor for a pooling forward "
+                        "propagation primitive");
+            reset(pd);
         }
-    };
-
-    /// Primitive descriptor for a pooling forward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a pooling forward propagation
-        /// primitive.
-        ///
-        /// @param adesc Descriptor for a pooling forward propagation primitive.
-        /// @param aengine Engine to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
-
-        /// Constructs a primitive descriptor for a pooling forward propagation
-        /// primitive.
-        ///
-        /// @param adesc Descriptor for a pooling forward propagation primitive.
-        /// @param aengine Engine to use.
-        /// @param attr Primitive attributes to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine, bool allow_empty = false)
-            : dnnl::primitive_desc(
-                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a pooling forward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -12239,11 +12221,13 @@ struct pooling_forward : public primitive {
 
 /// Pooling backward propagation primitive.
 struct pooling_backward : public primitive {
-    /// Descriptor for a pooling backward propagation primitive.
-    struct desc {
-        dnnl_pooling_desc_t data;
+    /// Primitive descriptor for a pooling backward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
 
-        /// Constructs a descriptor for pooling backward propagation primitive.
+        /// Constructs a primitive descriptor for a pooling backward propagation
+        ///     primitive.
         ///
         /// Arrays @p strides, @p kernel, @p dilation, @p padding_l
         /// and @p padding_r contain values for spatial dimensions only and
@@ -12251,6 +12235,7 @@ struct pooling_backward : public primitive {
         /// dimensions. The order of values is the same as in the tensor:
         /// depth (for 3D tensors), height (for 3D and 2D tensors), and width.
         ///
+        /// @param aengine Engine to use.
         /// @param aalgorithm Pooling algorithm kind: either
         ///     #dnnl::algorithm::pooling_max,
         ///     #dnnl::algorithm::pooling_avg_include_padding,
@@ -12265,67 +12250,42 @@ struct pooling_backward : public primitive {
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
         ///     each spatial dimension `([[back,] bottom,] right)`.
-        desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
+        /// @param hint_fwd_pd Primitive descriptor for a pooling
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &kernel, const memory::dims &dilation,
-                const memory::dims &padding_l, const memory::dims &padding_r) {
+                const memory::dims &padding_l, const memory::dims &padding_r,
+                const pooling_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
             memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
             memory::validate_dims(kernel, diff_src_desc.data.ndims - 2);
             memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
             memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
             memory::validate_dims(dilation, diff_src_desc.data.ndims - 2);
-            error::wrap_c_api(
-                    dnnl_pooling_backward_desc_init(&data,
-                            convert_to_c(aalgorithm), &diff_src_desc.data,
-                            &diff_dst_desc.data, &strides[0], &kernel[0],
-                            &dilation[0], &padding_l[0], &padding_r[0]),
-                    "could not create a descriptor for a pooling backward "
-                    "propagation primitive");
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_pooling_backward_primitive_desc_create(
+                    &pd, aengine.get(), convert_to_c(aalgorithm),
+                    &diff_src_desc.data, &diff_dst_desc.data, &strides[0],
+                    &kernel[0], &dilation[0], &padding_l[0], &padding_r[0],
+                    hint_fwd_pd.get(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a descriptor for a pooling backward "
+                        "propagation primitive");
+            reset(pd);
         }
-    };
-
-    /// Primitive descriptor for a pooling backward propagation primitive.
-    struct primitive_desc : public dnnl::primitive_desc {
-        /// Default constructor. Produces an empty object.
-        primitive_desc() = default;
-
-        /// Constructs a primitive descriptor for a pooling backward propagation
-        /// primitive.
-        ///
-        /// @param adesc Descriptor for a pooling backward propagation primitive.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a pooling forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const engine &aengine,
-                const pooling_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
-
-        /// Constructs a primitive descriptor for a pooling backward propagation
-        /// primitive.
-        ///
-        /// @param adesc Descriptor for a pooling backward propagation primitive.
-        /// @param attr Primitive attributes to use.
-        /// @param aengine Engine to use.
-        /// @param hint_fwd_pd Primitive descriptor for a pooling forward
-        ///     propagation primitive. It is used as a hint for deciding which
-        ///     memory format to use.
-        /// @param allow_empty A flag signifying whether construction is
-        ///     allowed to fail without throwing an exception. In this case an
-        ///     empty object will be produced. This flag is optional and
-        ///     defaults to false.
-        primitive_desc(const desc &adesc, const primitive_attr &attr,
-                const engine &aengine,
-                const pooling_forward::primitive_desc &hint_fwd_pd,
-                bool allow_empty = false)
-            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
-                    hint_fwd_pd.get(), allow_empty) {}
 
         /// Constructs a primitive descriptor for a pooling backward propagation
         /// primitive from a C API primitive descriptor that must have a

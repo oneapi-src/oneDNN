@@ -18,6 +18,8 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
+#include "opdesc.hpp"
+#include "primitive_desc_iface.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -115,25 +117,38 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t dnnl_pooling_forward_desc_init(pooling_desc_t *pool_desc,
+dnnl_status_t dnnl_pooling_forward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t kernel, const dims_t dilation,
-        const dims_t padding_l, const dims_t padding_r) {
+        const dims_t padding_l, const dims_t padding_r,
+        const primitive_attr_t *attr) {
+
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return pooling_desc_init(pool_desc, prop_kind, alg_kind, src_desc, dst_desc,
-            strides, kernel, dilation, padding_l, padding_r);
+
+    auto pool_desc = pooling_desc_t();
+    CHECK(pooling_desc_init(&pool_desc, prop_kind, alg_kind, src_desc, dst_desc,
+            strides, kernel, dilation, padding_l, padding_r));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&pool_desc, nullptr, attr);
 }
 
-status_t dnnl_pooling_backward_desc_init(pooling_desc_t *pool_desc,
+dnnl_status_t dnnl_pooling_backward_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, const dims_t strides,
         const dims_t kernel, const dims_t dilation, const dims_t padding_l,
-        const dims_t padding_r) {
-    return pooling_desc_init(pool_desc, prop_kind::backward_data, alg_kind,
+        const dims_t padding_r, const primitive_desc_iface_t *hint_fwd_pd,
+        const primitive_attr_t *attr) {
+
+    auto pool_desc = pooling_desc_t();
+    CHECK(pooling_desc_init(&pool_desc, prop_kind::backward_data, alg_kind,
             diff_src_desc, diff_dst_desc, strides, kernel, dilation, padding_l,
-            padding_r);
+            padding_r));
+    return primitive_desc_create(primitive_desc_iface, engine,
+            (const op_desc_t *)&pool_desc, hint_fwd_pd, attr);
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

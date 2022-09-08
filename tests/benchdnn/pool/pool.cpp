@@ -101,31 +101,30 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dst_d = dnn_mem_t::init_md(
             prb->ndims, prb->dst_dims().data(), prb->cfg[DST].dt, tag::any);
 
-    dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
-    dnnl_pooling_desc_t pd;
-
-    if (dir & FLAG_FWD) {
-        auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                             : dnnl_forward_training;
-        DNN_SAFE_STATUS(dnnl_pooling_forward_desc_init(&pd, prop_kind, alg,
-                &src_d, &dst_d, prb->strides().data(), prb->kernel().data(),
-                prb->dilations().data(), prb->padding().data(),
-                prb->padding_r().data()));
-    } else {
-        DNN_SAFE_STATUS(dnnl_pooling_backward_desc_init(&pd, alg, &src_d,
-                &dst_d, prb->strides().data(), prb->kernel().data(),
-                prb->dilations().data(), prb->padding().data(),
-                prb->padding_r().data()));
-    }
-
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(
             prb->attr, prb->ndims, prb->dst_dims().data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &pd, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
+
+    if (dir & FLAG_FWD) {
+        auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                             : dnnl_forward_training;
+        DNN_SAFE_STATUS(dnnl_pooling_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop_kind, alg, &src_d,
+                &dst_d, prb->strides().data(), prb->kernel().data(),
+                prb->dilations().data(), prb->padding().data(),
+                prb->padding_r().data(), dnnl_attr));
+    } else {
+        DNN_SAFE_STATUS(dnnl_pooling_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, alg, &src_d, &dst_d,
+                prb->strides().data(), prb->kernel().data(),
+                prb->dilations().data(), prb->padding().data(),
+                prb->padding_r().data(), init_pd_args.hint, dnnl_attr));
+    }
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

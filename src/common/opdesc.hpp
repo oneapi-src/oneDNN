@@ -417,6 +417,41 @@ struct prelu_desc_t {
     memory_desc_t diff_weights_desc;
 };
 
+// A descriptor of a pooling operation.
+struct pooling_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_pooling.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
+    prop_kind_t prop_kind;
+    // The kind of pooling algorithm.
+    // Possible values: #dnnl_pooling_max,
+    // #dnnl_pooling_avg_include_padding, and
+    // #dnnl_pooling_avg_exclude_padding.
+    alg_kind_t alg_kind;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
+    // Pooling kernel strides for spatial dimensions.
+    dims_t strides;
+    // Pooling kernel spatial dimensions.
+    dims_t kernel;
+    // Padding in each spatial dimension. padding[0] is a padding in the
+    // beginning (@p padding_l), padding[1] is a padding in the end (@p
+    // padding_r).
+    dims_t padding[2];
+    // The accumulator data type. Initialized automatically.
+    data_type_t accum_data_type;
+    // Pooling dilations for spatial dimensions.
+    dims_t dilation;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

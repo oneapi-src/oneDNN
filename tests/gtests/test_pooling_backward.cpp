@@ -387,10 +387,9 @@ protected:
         check_zero_tail<data_t>(1, src);
         check_zero_tail<data_t>(1, dst);
 
-        auto pool_desc = pooling_forward::desc(prop_kind::forward_training,
-                p.aalgorithm, *src_desc, *dst_desc, strides, ker, dilation,
-                pad_l, pad_r);
-        pool_prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
+        pool_prim_desc = pooling_forward::primitive_desc(eng,
+                prop_kind::forward_training, p.aalgorithm, *src_desc, *dst_desc,
+                strides, ker, dilation, pad_l, pad_r);
 
         auto p_workspace_desc = pool_prim_desc.workspace_desc();
         workspace = test::make_memory(p_workspace_desc, eng);
@@ -418,13 +417,11 @@ protected:
         check_zero_tail<data_t>(1, diff_dst);
         check_zero_tail<data_t>(1, diff_src);
 
-        auto pool_bwd_desc = pooling_backward::desc(p.aalgorithm, *src_desc,
-                *dst_desc, strides, ker, dilation, pad_l, pad_r);
-        auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
-                pool_bwd_desc, eng, pool_prim_desc);
+        auto pool_bwd_prim_desc = pooling_backward::primitive_desc(eng,
+                p.aalgorithm, *src_desc, *dst_desc, strides, ker, dilation,
+                pad_l, pad_r, pool_prim_desc);
         pool_bwd_prim_desc = pooling_backward::primitive_desc(
                 pool_bwd_prim_desc.get()); // test construction from a C pd
-
         check_prim_desc(pool_bwd_prim_desc);
 
         pooling_backward(pool_bwd_prim_desc)

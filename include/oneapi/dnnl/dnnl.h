@@ -2119,7 +2119,8 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_primitive_desc_create(
 /// @addtogroup dnnl_api_pooling
 /// @{
 
-/// Initializes a descriptor for pooling forward propagation primitive.
+/// Creates a primitive descriptor for a pooling forward propagation
+///     primitive.
 ///
 /// Arrays @p strides, @p kernel, @p dilation, @p padding_l and @p padding_r
 /// contain values for spatial dimensions only and hence must have the same
@@ -2127,7 +2128,8 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_primitive_desc_create(
 /// is the same as in the tensor: depth (for 3D tensors),
 /// height (for 3D and 2D tensors), and width.
 ///
-/// @param pool_desc Output descriptor for a pooling primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind Pooling algorithm kind: either #dnnl_pooling_max,
@@ -2143,16 +2145,19 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_primitive_desc_create(
 /// @param padding_r Array of padding values for high indices for each spatial
 ///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
 ///     padding is considered to be symmetrical.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_pooling_forward_desc_init(
-        dnnl_pooling_desc_t *pool_desc, dnnl_prop_kind_t prop_kind,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *dst_desc, const dnnl_dims_t strides,
-        const dnnl_dims_t kernel, const dnnl_dims_t dilation,
-        const dnnl_dims_t padding_l, const dnnl_dims_t padding_r);
+dnnl_status_t DNNL_API dnnl_pooling_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
+        const dnnl_memory_desc_t *src_desc, const dnnl_memory_desc_t *dst_desc,
+        const dnnl_dims_t strides, const dnnl_dims_t kernel,
+        const dnnl_dims_t dilation, const dnnl_dims_t padding_l,
+        const dnnl_dims_t padding_r, const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for pooling backward propagation primitive.
+/// Creates a primitive descriptor for a pooling backward propagation
+///     primitive.
 ///
 /// Arrays @p strides, @p kernel, @p dilation, @p padding_l and @p padding_r
 /// contain values for spatial dimensions only and hence must have the same
@@ -2160,7 +2165,8 @@ dnnl_status_t DNNL_API dnnl_pooling_forward_desc_init(
 /// is the same as in the tensor: depth (for 3D tensors),
 /// height (for 3D and 2D tensors), and width.
 ///
-/// @param pool_desc Output descriptor for a pooling primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param alg_kind Pooling algorithm kind: either #dnnl_pooling_max,
 ///     #dnnl_pooling_avg_include_padding, or #dnnl_pooling_avg (same as
 ///     #dnnl_pooling_avg_exclude_padding).
@@ -2174,14 +2180,19 @@ dnnl_status_t DNNL_API dnnl_pooling_forward_desc_init(
 /// @param padding_r Array of padding values for high indices for each spatial
 ///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
 ///     padding is considered to be symmetrical.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_pooling_backward_desc_init(
-        dnnl_pooling_desc_t *pool_desc, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *diff_src_desc,
+dnnl_status_t DNNL_API dnnl_pooling_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
         const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t kernel, const dnnl_dims_t dilation,
-        const dnnl_dims_t padding_l, const dnnl_dims_t padding_r);
+        const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
+        const_dnnl_primitive_desc_t hint_forward_primitive_desc,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_pooling
 

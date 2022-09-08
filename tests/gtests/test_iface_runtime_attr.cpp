@@ -341,20 +341,28 @@ CPU_TEST_F(runtime_attr_test_t, TestMatmul) {
 TEST_F(runtime_attr_test_t, TestPool) {
     memory::desc src_md {{1, 16, 8, 8}, data_type::s8, tag::abcd};
     memory::desc dst_md {{1, 16, 4, 4}, data_type::s8, tag::abcd};
-    pooling_forward::desc op_d(prop_kind::forward_inference,
+
+    CHECK_OK(pooling_forward::primitive_desc(eng, prop_kind::forward_inference,
             algorithm::pooling_max, src_md, dst_md, {2, 2}, {2, 2}, {0, 0},
-            {0, 0}, {0, 0});
-    CHECK_OK(pooling_forward::primitive_desc(op_d, eng));
-    CHECK_UNIMPL(pooling_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(false), eng));
-    CHECK_UNIMPL(pooling_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(true), eng));
+            {0, 0}, {0, 0}));
+    CHECK_UNIMPL(
+            pooling_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::pooling_max, src_md, dst_md, {2, 2}, {2, 2},
+                    {0, 0}, {0, 0}, {0, 0}, gen_attr_with_oscale(false)));
+    CHECK_UNIMPL(
+            pooling_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::pooling_max, src_md, dst_md, {2, 2}, {2, 2},
+                    {0, 0}, {0, 0}, {0, 0}, gen_attr_with_oscale(true)));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(pooling_forward::primitive_desc(
-                op_d, gen_attr_with_zp(false, arg), eng));
-        CHECK_UNIMPL(pooling_forward::primitive_desc(
-                op_d, gen_attr_with_zp(true, arg), eng));
+        CHECK_UNIMPL(pooling_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::pooling_max, src_md,
+                dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0},
+                gen_attr_with_zp(false, arg)));
+        CHECK_UNIMPL(pooling_forward::primitive_desc(eng,
+                prop_kind::forward_inference, algorithm::pooling_max, src_md,
+                dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0},
+                gen_attr_with_zp(true, arg)));
     }
 }
 

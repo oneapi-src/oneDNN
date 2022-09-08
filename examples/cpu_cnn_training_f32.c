@@ -377,13 +377,10 @@ void simple_net() {
         CHECK(dnnl_memory_desc_init_by_tag(&pool_dst_md, 4, pool_dst_sizes,
                 dnnl_f32, dnnl_format_tag_any));
 
-        dnnl_pooling_desc_t pool_desc;
-        CHECK(dnnl_pooling_forward_desc_init(&pool_desc, dnnl_forward,
-                dnnl_pooling_max, pool_src_md, &pool_dst_md, pool_strides,
-                pool_kernel, pool_dilation, pool_padding, pool_padding));
-
-        CHECK(dnnl_primitive_desc_create(
-                &pool_pd, &pool_desc, NULL, engine, NULL));
+        CHECK(dnnl_pooling_forward_primitive_desc_create(&pool_pd, engine,
+                dnnl_forward, dnnl_pooling_max, pool_src_md, &pool_dst_md,
+                pool_strides, pool_kernel, pool_dilation, pool_padding,
+                pool_padding, NULL));
     }
 
     // create memory for workspace
@@ -444,16 +441,12 @@ void simple_net() {
     // pooling diff dst memory descriptor
     const dnnl_memory_desc_t *pool_diff_dst_md = pool_dst_md;
 
-    // create backward pooling descriptor
-    dnnl_pooling_desc_t pool_bwd_desc;
-    CHECK(dnnl_pooling_backward_desc_init(&pool_bwd_desc, dnnl_pooling_max,
-            pool_diff_src_md, pool_diff_dst_md, pool_strides, pool_kernel,
-            pool_dilation, pool_padding, pool_padding));
-
     // backward primitive descriptor needs to hint forward descriptor
     dnnl_primitive_desc_t pool_bwd_pd;
-    CHECK(dnnl_primitive_desc_create(
-            &pool_bwd_pd, &pool_bwd_desc, NULL, engine, pool_pd));
+    CHECK(dnnl_pooling_backward_primitive_desc_create(&pool_bwd_pd, engine,
+            dnnl_pooling_max, pool_diff_src_md, pool_diff_dst_md, pool_strides,
+            pool_kernel, pool_dilation, pool_padding, pool_padding, pool_pd,
+            NULL));
 
     // create reorder primitive between user diff dst and pool diff dst
     // if required
