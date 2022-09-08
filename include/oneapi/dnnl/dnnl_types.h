@@ -1952,29 +1952,6 @@ typedef struct {
 
 /// @} dnnl_api_pooling
 
-/// @addtogroup dnnl_api_prelu
-/// @{
-typedef struct {
-    /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_prelu.
-    dnnl_primitive_kind_t primitive_kind;
-    /// The kind of propagation. Possible values: #dnnl_forward_training,
-    /// #dnnl_forward_inference, #dnnl_backward
-    dnnl_prop_kind_t prop_kind;
-    /// Source and destination memory descriptor.
-    dnnl_memory_desc_t data_desc;
-    /// Learnable parameter alpha memory descriptor.
-    /// Alpha describes negative slope.
-    dnnl_memory_desc_t weights_desc;
-    /// Source and destination gradient memory descriptor.
-    dnnl_memory_desc_t diff_data_desc;
-    /// Learnable parameter alpha gradient memory descriptor.
-    dnnl_memory_desc_t diff_weights_desc;
-} dnnl_prelu_desc_t;
-
-/// @} dnnl_api_prelu
-
-
 /// @addtogroup dnnl_api_rnn
 /// @{
 

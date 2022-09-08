@@ -398,6 +398,25 @@ struct binary_desc_t {
     memory_desc_t dst_desc;
 };
 
+/// A descriptor of a PReLU operation.
+struct prelu_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_prelu.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, #dnnl_backward
+    prop_kind_t prop_kind;
+    // Source and destination memory descriptor.
+    memory_desc_t data_desc;
+    // Learnable parameter alpha memory descriptor.
+    // Alpha describes negative slope.
+    memory_desc_t weights_desc;
+    // Source and destination gradient memory descriptor.
+    memory_desc_t diff_data_desc;
+    // Learnable parameter alpha gradient memory descriptor.
+    memory_desc_t diff_weights_desc;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

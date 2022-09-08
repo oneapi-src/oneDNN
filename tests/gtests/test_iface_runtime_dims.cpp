@@ -250,15 +250,23 @@ TEST_F(runtime_dim_test_t, TestPReLU) {
     memory::desc weights_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
 
-    CHECK_UNIMPL(prelu_forward::desc(prop_kind::forward, data_md, weights_md));
+    CHECK_UNIMPL(prelu_forward::primitive_desc(
+            eng, prop_kind::forward, data_md, weights_md));
+
+    prelu_forward::primitive_desc fwd_hint;
+    {
+        auto valid_md = memory::desc({2, 16, 3, 3}, data_type::f32, tag::abcd);
+        CHECK_OK(fwd_hint = prelu_forward::primitive_desc(
+                         eng, prop_kind::forward, valid_md, valid_md));
+    }
 
     memory::desc diff_data_desc {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     memory::desc diff_weights_desc {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
 
-    CHECK_UNIMPL(prelu_backward::desc(
-            data_md, weights_md, diff_data_desc, diff_weights_desc));
+    CHECK_UNIMPL(prelu_backward::primitive_desc(eng, data_md, weights_md,
+            diff_data_desc, diff_weights_desc, fwd_hint));
 }
 
 CPU_TEST_F(runtime_dim_test_t, TestReorder) {

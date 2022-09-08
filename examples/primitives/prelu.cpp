@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,12 +94,9 @@ void prelu_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(src_data.data(), user_src_mem);
     write_to_dnnl_memory(weights_data.data(), user_weights_mem);
 
-    // Create operation descriptor.
-    auto prelu_d = prelu_forward::desc(
-            prop_kind::forward_training, src_md, weights_md);
-
     // Create primitive descriptor.
-    auto prelu_pd = prelu_forward::primitive_desc(prelu_d, engine);
+    auto prelu_pd = prelu_forward::primitive_desc(
+            engine, prop_kind::forward_training, src_md, weights_md);
 
     // For now, assume that the weights memory layout generated
     // by the primitive and the one provided by the user are identical.

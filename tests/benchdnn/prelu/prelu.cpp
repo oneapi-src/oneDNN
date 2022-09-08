@@ -119,8 +119,6 @@ int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_prelu_desc_t pd;
-
     const auto &src_dims = prb->vdims[0];
     const auto &weight_dims = prb->vdims[1];
 
@@ -129,26 +127,27 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto weights_d = dnn_mem_t::init_md(
             prb->ndims, weight_dims.data(), prb->sdt[1], prb->stag[1]);
 
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args_t()));
+
     if (prb->dir & FLAG_FWD) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
-        DNN_SAFE_STATUS(
-                dnnl_prelu_forward_desc_init(&pd, prop, &data_d, &weights_d));
+        DNN_SAFE_STATUS(dnnl_prelu_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop, &data_d,
+                &weights_d, dnnl_attr));
     } else {
         auto diff_data_d = dnn_mem_t::init_md(
                 prb->ndims, src_dims.data(), prb->sdt[0], prb->stag[0]);
         auto diff_weights_d = dnn_mem_t::init_md(
                 prb->ndims, weight_dims.data(), prb->sdt[1], prb->stag[1]);
 
-        DNN_SAFE_STATUS(dnnl_prelu_backward_desc_init(
-                &pd, &data_d, &weights_d, &diff_data_d, &diff_weights_d));
+        DNN_SAFE_STATUS(dnnl_prelu_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, &data_d, &weights_d,
+                &diff_data_d, &diff_weights_d, init_pd_args.hint, dnnl_attr));
     }
 
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args_t()));
-
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &pd, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
