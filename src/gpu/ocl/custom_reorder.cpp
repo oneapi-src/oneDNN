@@ -533,10 +533,11 @@ status_t custom_reorder_t::pd_t::init_conf(engine_t *engine) {
     const auto &padded_dims = dst_mdw.padded_dims();
     const auto &oscales = attr()->output_scales_;
     const auto &zp = attr()->zero_points_;
-    conf.with_sum_ab = ((oscales.defined() && alpha() != 1.f) || beta() != 0.f);
-    conf.scale_quant = !oscales.has_default_values() && !oscales.defined();
     conf.scale_mask = oscales.mask_;
     conf.scales_num = get_attr_oscales_count(oscales.mask_, dst_mdw);
+    const bool has_alpha = oscales.defined() && conf.scales_num == 1;
+    conf.scale_quant = !oscales.has_default_values() && !has_alpha;
+    conf.with_sum_ab = ((has_alpha && alpha() != 1.f) || beta() != 0.f);
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
     conf.with_src_zp = !zp.has_default_values(DNNL_ARG_SRC);
