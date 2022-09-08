@@ -438,7 +438,7 @@ struct flex_rewrite {
                     if (aop.attrs_.find("scales") != aop.attrs_.end()) {
                         for (size_t i = 0; i < x.size(); i++) {
                             x[i] = x[i]
-                                    * aop.attrs_["scale"].get_f32_vector()[i];
+                                    * aop.attrs_["scales"].get_f32_vector()[i];
                         }
                     } else if (aop.attrs_.find("sizes") != aop.attrs_.end()) {
                         for (size_t i = 0; i < x.size(); i++) {
