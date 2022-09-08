@@ -146,9 +146,12 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
-                    && sum_ab() == sum_ab::sum_none
                     && IMPLICATION(with_bias(),
                             utils::one_of(bias_cmask(), 0, 1 << 0, 1 << 1)
+                                    && (attr()->zero_points_.has_default_values(
+                                            DNNL_ARG_DST)))
+                    && IMPLICATION(with_sum_ab(),
+                            !with_bias()
                                     && (attr()->zero_points_.has_default_values(
                                             DNNL_ARG_DST)));
 
@@ -163,14 +166,28 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (!ok) return status::unimplemented;
 
+            // check GPU architecture
             ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp,
                     arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc);
 
             if (!ok) return status::unimplemented;
 
+            // size checks for fused reduction kernels
+            if (with_sum_ab()) {
+                auto mnk = d->m() * d->n() * d->k();
+                if (arch_ == arch_t::xe_hpc && d->a_type() == f32)
+                    ok &= (mnk <= 256 * 1024 * 1024);
+
+                if (!ok) return status::unimplemented;
+            }
+
+            // choose kernel
             auto co_type = with_bias()
                     ? d->bias_type()
-                    : (utils::one_of(eff_a_type(), s8, u8) ? s32 : d->c_type());
+                    : with_sum_ab() ? d->sum_ab_type
+                                    : (utils::one_of(eff_a_type(), s8, u8)
+                                                    ? s32
+                                                    : d->c_type());
             auto acc_type = utils::one_of(d->c_type(), s8, u8, f16, bf16, f32)
                     ? (utils::one_of(eff_a_type(), s8, u8) ? s32 : d->c_type())
                     : d->c_type();
@@ -196,7 +213,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), mode, batch_dims(), eff_transa(),
                     eff_transb(), with_ab_zero_points(), with_c_zero_points(),
-                    with_bias(), alpha(), beta(), attr()->post_ops_,
+                    with_bias(), sum_ab(), alpha(), beta(), attr()->post_ops_,
                     eff_a_type(), eff_b_type(), desc()->c_type(), co_type,
                     acc_type, eff_align_a(), eff_align_b(), align_c(), eff_m(),
                     eff_n(), d->k(), eff_lda(), eff_ldb(), d->ldc(),
@@ -324,12 +341,23 @@ struct gen_gemm_t : public gpu_gemm_t {
             return desc()->bias_type() != data_type::undef;
         }
 
-        sum_ab_t sum_ab() const { return desc()->sum_ab; }
-
         int bias_cmask() const {
             unsigned char to_cmask[8] = {0, 4, 2, 6, 1, 5, 3, 7};
             assert(unsigned(desc()->bias_mask()) < 8);
             return with_bias() ? to_cmask[desc()->bias_mask() & 7] : -1;
+        }
+
+        sum_ab_t sum_ab() const { return desc()->sum_ab; }
+
+        bool with_sum_ab() const { return sum_ab() != sum_ab::sum_none; }
+
+        int sum_ab_cmask() const {
+            switch (sum_ab()) {
+                default:
+                case sum_ab::sum_none: return 0;
+                case sum_ab::sum_a_row: return 1;
+                case sum_ab::sum_b_col: return 2;
+            }
         }
 
         bool with_ab_zero_points() const { return ab_zp_; }
@@ -425,12 +453,11 @@ private:
     status_t launch_nocopy(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &a,
             const memory_storage_t &b, const memory_storage_t &c,
-            const memory_storage_t &co, const memory_storage_t &sum_ab,
-            int64_t offset_a, int64_t offset_b, int64_t offset_c,
-            int32_t offset_co, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-            int32_t n, int32_t k, int32_t k0, float alpha, float beta,
-            int16_t ao, int16_t bo, int32_t cmask, bool last_k_block,
-            bool swapab, bool disable_hilbert) const;
+            const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
+            int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
+            int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0,
+            float alpha, float beta, int16_t ao, int16_t bo, int32_t cmask,
+            bool last_k_block, bool swapab, bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {

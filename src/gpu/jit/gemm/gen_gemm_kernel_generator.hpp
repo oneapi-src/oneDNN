@@ -1971,8 +1971,8 @@ protected:
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmApplyABOffset(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
-    void gemmStoreSums(const GEMMProblem &problem, const GEMMStrategy &strategy,
-            GEMMState &state);
+    void gemmUpdateSums(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
     bool gemmApplyCOffset(bool row, bool column, const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     bool gemmApplyCOffsetDispatch(const GEMMProblem &problem,

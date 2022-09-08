@@ -37,7 +37,7 @@ struct MatchParams {
     bool ignoreSizes = false;
     int stepping = 0;
     int alignment[3] = {0, 0, 0};
-    kcatalog::string tags;
+    kcatalog::string tags, lateTags;
     int unroll[2] = {0, 0};
 
     MatchParams() {}

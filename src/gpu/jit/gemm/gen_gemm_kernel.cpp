@@ -115,10 +115,11 @@ void gen_gemm_kernel_desc_t::update_driver_info() {
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         int stepping, int eu_count, compute_mode mode, int batch_dims,
         bool trans_a, bool trans_b, bool ab_offset, bool c_offset, bool bias,
-        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
-        data_type_t b_type, data_type_t c_type, data_type_t co_type,
-        data_type_t acc_type, int align_a, int align_b, int align_c, dim_t m,
-        dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
+        sum_ab_t reduce_ab, float alpha, float beta, const post_ops_t &post_ops,
+        data_type_t a_type, data_type_t b_type, data_type_t c_type,
+        data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
+        int align_c, dim_t m, dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc,
+        dim_t batch) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -164,12 +165,16 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         problem_.post_ops = post_ops;
         if (a_type == data_type::f16) problem_.Ts = Type::f32;
     }
-    if (c_offset || bias) {
+    if (c_offset || bias || reduce_ab != sum_ab::sum_none) {
         assert(!(c_offset && bias));
-        problem_.cOffset = bias ? COffset::Pre : COffset::Post;
+        if (bias) problem_.cOffset = COffset::Pre;
+        if (c_offset) problem_.cOffset = COffset::Post;
         problem_.CO.crosspack = 1;
         problem_.CO.alignment = problem_.C.alignment;
     }
+
+    problem_.sumA = (reduce_ab == sum_ab::sum_b_col);
+    problem_.sumB = (reduce_ab == sum_ab::sum_a_row);
 
     // Select a kernel from the catalog.
     MatchParams match_params[3];
@@ -183,11 +188,10 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     match_params[0].sizes.batch = batch;
     match_params[0].stepping = stepping;
 
-    std::string tags(match_params[0].tags);
-    if (lda * problem_.Ta >= 64) tags += kcatalog::ReqBlock2DA;
-    if (ldb * problem_.Tb >= 64) tags += kcatalog::ReqBlock2DB;
-    if (ldc * problem_.Tc >= 64) tags += kcatalog::ReqBlock2DC;
-    match_params[0].tags = tags.c_str();
+    auto tags = const_cast<char *>(match_params[0].tags);
+    if (lda * problem_.Ta >= 64) *tags++ = kcatalog::ReqBlock2DA;
+    if (ldb * problem_.Tb >= 64) *tags++ = kcatalog::ReqBlock2DB;
+    if (ldc * problem_.Tc >= 64) *tags++ = kcatalog::ReqBlock2DC;
 
     if ((mode & mode_tf32)
             && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
@@ -403,7 +407,7 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.newArgument("beta_real", s_type_ngen);
     if (problem.abOffset != ABOffset::None)
         interface_.newArgument("abo", DataType::ud);
-    if (problem.cOffset != COffset::None) {
+    if (problem.cOffset != COffset::None || problem.sumA || problem.sumB) {
         interface_.newArgument("CO", ExternalArgumentType::GlobalPtr);
         interface_.newArgument("offset_CO", DataType::d);
     }
