@@ -309,14 +309,16 @@ private:
     dim_value_t rem_prb_dim_ = 0;
 };
 
-void block_helper_t::compute() {
-    is_frozen_ = true;
-
+void block_helper_t::init_blocks() {
     ir_assert(vectorize_by_b() || vectorize_by_n());
 
     init_bmnk_dims();
     init_bmnk_blocks();
     init_prb_blocks();
+}
+
+void block_helper_t::finalize() {
+    is_frozen_ = true;
 
 #ifdef GEN_CONV_DEBUG
     for (auto &kv : dims_) {

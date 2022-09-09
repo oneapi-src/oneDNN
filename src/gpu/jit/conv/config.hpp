@@ -54,6 +54,7 @@ public:
         is_bwd_w = conv_pd->is_bwd_w();
         with_bias = conv_pd->with_bias();
         with_groups = conv_pd->with_groups();
+        with_sum = with_sum_post_op(conv_pd);
 
         src_data_type = conv_pd->invariant_src_md()->data_type;
         wei_data_type = conv_pd->invariant_wei_md()->data_type;
@@ -159,7 +160,12 @@ public:
         }
     }
 
-    std::string desc_str() const;
+    std::string desc_str(bool print_mb = true) const;
+
+    static bool with_sum_post_op(const convolution_pd_t *pd) {
+        auto &post_ops = pd->attr()->post_ops_;
+        return post_ops.find(primitive_kind::sum) != -1;
+    }
 
     tensor_config_t tensor_config;
 
@@ -173,6 +179,7 @@ public:
     bool is_bwd_w;
     bool with_bias;
     bool with_groups;
+    bool with_sum;
     bool is_dw;
 
     int ndims;
@@ -310,6 +317,8 @@ public:
         CHECK(fixup_inference_consistency());
         if (!try_reduce_grf_usage()) return status::unimplemented;
 
+        maybe_override_from_lookup_table();
+
         estimated_peak_grf_usage = estimate_register_count(*this);
 
         CHECK(attr->set_default_formats(output_md));
@@ -325,6 +334,8 @@ public:
     status_t init_fwd(convolution_pd_t *conv_pd);
     status_t init_bwd_d(convolution_pd_t *conv_pd);
     status_t init_bwd_w(convolution_pd_t *conv_pd);
+
+    void maybe_override_from_lookup_table();
 
     status_t init_common_config() {
         using namespace ir_utils;
@@ -1214,11 +1225,6 @@ private:
     static layout_t make_layout(const type_t &type,
             const std::vector<dim_t> &dims, const std::string &tag) {
         return layout_t(type, 0, tag, dims, /*do_normalize=*/false);
-    }
-
-    static bool with_sum_post_op(const convolution_pd_t *pd) {
-        auto &post_ops = pd->attr()->post_ops_;
-        return post_ops.find(primitive_kind::sum) != -1;
     }
 
     static bool matches_tag(const memory_desc_t &md, const std::string &tag) {

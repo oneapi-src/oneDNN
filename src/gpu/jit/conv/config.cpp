@@ -22,6 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/jit/conv/block_2d_utils.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
+#include "gpu/jit/conv/config_lookup_table.hpp"
 #include "gpu/jit/conv/grf_usage.hpp"
 
 namespace dnnl {
@@ -29,9 +30,9 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-std::string conv_problem_t::desc_str() const {
+std::string conv_problem_t::desc_str(bool print_mb) const {
     std::ostringstream oss;
-    oss << "mb" << mb;
+    if (print_mb) oss << "mb" << mb;
     if (g > 1) oss << "g" << g;
     oss << "ic" << ic;
 
@@ -245,7 +246,9 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         bh->set_reduce_m_block_hint(false);
     }
 
-    bh->compute();
+    bh->init_blocks();
+    maybe_override_from_lookup_table();
+    bh->finalize();
 
     g_tg_blk = bh->tg_blk("g");
     g_thr_blk = bh->thr_blk("g");
@@ -342,7 +345,9 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
         bh->set_reduce_m_block_hint(false);
     }
 
-    bh->compute();
+    bh->init_blocks();
+    maybe_override_from_lookup_table();
+    bh->finalize();
 
     // Try to enable special optimization for strided BWD_D convolution.
     init_bwd_d_optimize_strided(bh->thr_blk("iw"));
@@ -461,7 +466,9 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
 
     if (use_2d_send_nhwc) bh->set_reduce_m_block_hint(false);
 
-    bh->compute();
+    bh->init_blocks();
+    maybe_override_from_lookup_table();
+    bh->finalize();
 
     g_tg_blk = bh->tg_blk("g");
     g_thr_blk = bh->thr_blk("g");
@@ -520,12 +527,27 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
     do_pipeline_unroll = (is_ge_xe_hpc() && is_dp_fma() && mb_blk > 1);
     do_atomic_update = true;
 
-    if (!with_sum_post_op(conv_pd)) {
+    if (!with_sum) {
         tensor_config.require_zero_out("wei");
         if (with_bias) tensor_config.require_zero_out("bia");
     }
 
     return status::success;
+}
+
+void conv_config_t::maybe_override_from_lookup_table() {
+    static conv_config_lookup_table_t table;
+#ifdef GEN_CONV_DEBUG
+    auto env_cfg = ir_utils::getenv_str("cfg", "");
+    if (!env_cfg.empty()) {
+        conv_config_params_t params(env_cfg);
+        params.apply(*this);
+        return;
+    }
+#endif
+    auto params = table.find(*this, hw_cfg);
+    if (params.is_empty()) return;
+    params.apply(*this);
 }
 
 static std::string build_tag(const std::vector<int> &inner_blocks,

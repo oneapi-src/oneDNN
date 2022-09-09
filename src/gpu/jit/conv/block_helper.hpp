@@ -319,6 +319,8 @@ private:
 //   group
 class block_helper_t {
 public:
+    bool is_frozen() const { return is_frozen_; }
+
     dim_info_t &dim(const std::string &name) {
         ir_assert(dims_.count(name) != 0) << "Dimension not found: " << name;
         return dims_.at(name);
@@ -478,7 +480,8 @@ public:
             dim(name).set_order_key(key++);
     }
 
-    void compute();
+    void init_blocks();
+    void finalize();
 
     bool has_dim(const std::string &name) const {
         return dims_.count(name) != 0;
