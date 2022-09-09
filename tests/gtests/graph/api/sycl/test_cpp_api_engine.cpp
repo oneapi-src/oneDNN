@@ -42,6 +42,11 @@ public:
 
         auto platform_list = platform::get_platforms();
         for (const auto &plt : platform_list) {
+            std::string plat_name
+                    = plt.get_info<::sycl::info::platform::name>();
+            bool valid_plat = plat_name.find("OpenCL") != std::string::npos
+                    || plat_name.find("Level-Zero") != std::string::npos;
+            if (!valid_plat) continue;
             auto device_list = plt.get_devices();
             for (const auto &dev : device_list) {
                 if ((kind == dnnl::engine::kind::gpu && dev.is_gpu())
