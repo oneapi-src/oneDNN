@@ -643,7 +643,6 @@ private:
             auto &bmnk_d = bmnk_dim(d.bmnk());
             if (d.pref_tg_block()) bmnk_d.set_pref_tg_block();
             bmnk_d.set_size(bmnk_d.size() * d.size());
-            bmnk_d.incr_inner_dims();
             bmnk_d.set_base_iter_block(
                     bmnk_d.base_iter_block() * d.base_iter_block());
             if (d.is_blocked() && d.size() != 1) bmnk_d.incr_inner_dims();
