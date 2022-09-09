@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         float max_value = lowest_dt(prb->cfg[DST].dt);
         float avg_value = 0.;
         int ws_off = INT_MAX;
-        int num_summands = 0;
 
         for (int64_t kd = 0; kd < KD; ++kd) {
             const int64_t id = od * SD - PD + kd * (DD + 1);
@@ -54,7 +53,6 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
                         ws_off = ker_off_f(prb, kd, kh, kw);
                     }
                     avg_value += s;
-                    num_summands++;
                 }
             }
         }
