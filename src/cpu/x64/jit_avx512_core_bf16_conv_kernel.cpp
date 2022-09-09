@@ -1698,12 +1698,6 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
                                                   reserved */
     int l_overflow = nstl::max(
             0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
-    int r_overflow1 = nstl::max(0,
-            ((jcp.kw - 1) * (jcp.dilate_w + 1)
-                    - nstl::max(0, jcp.r_pad + jcp.iw % jcp.ur_w))
-                    / jcp.stride_w);
-    int n_oi = jcp.iw / jcp.ur_w;
-    if (r_overflow1 > 0) n_oi--;
 
     jcp.typesize_in = types::data_type_size(diff_dst_d.data_type());
     jcp.typesize_out = types::data_type_size(diff_src_d.data_type());
