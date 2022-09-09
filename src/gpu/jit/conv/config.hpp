@@ -351,6 +351,7 @@ public:
         a_sub_tiles = 1;
         b_sub_tiles = 1;
         check_slm_size = true;
+        slm_sync_version = -1;
 
         init_zero_points_default_config();
 
@@ -688,6 +689,7 @@ public:
     bool can_use_a_2d_send; // Whether 2D block messages can be used for A.
     bool can_use_b_2d_send; // Whether 2D block messages can be used for B
     bool check_slm_size; // Whether to check SLM size to ensure full EU utilization.
+    int slm_sync_version; // Refer to slm_sync_manager_t::version_t for values.
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 

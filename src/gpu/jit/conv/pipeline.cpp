@@ -1107,6 +1107,17 @@ public:
             case 3: ver_ = version_t::x3_v3; break;
             default: ver_ = version_t::undef;
         }
+        if (cfg.slm_sync_version != -1) {
+            ver_ = (version_t)cfg.slm_sync_version;
+        }
+        switch (slm_bufs_) {
+            case 2: ir_assert(ver_ == version_t::x2); break;
+            case 3:
+                ir_assert(utils::one_of(ver_, version_t::x3_v1,
+                        version_t::x3_v2, version_t::x3_v3));
+                break;
+            default: ir_assert(ver_ == version_t::undef);
+        }
     }
 
     stmt_t before_loop_prepend(const stmt_t &_s) const {
