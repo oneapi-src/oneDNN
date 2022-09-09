@@ -25,6 +25,5 @@ void analysis_quantized(sc_graph_t &graph, const context_ptr &ctx) {
             break;
         }
     }
-    graph.attrs_[sc_graph_t::attr_key_t::gflop] = graph.get_gflop();
 }
 } // namespace sc

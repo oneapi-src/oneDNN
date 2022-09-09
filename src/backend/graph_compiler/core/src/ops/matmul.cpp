@@ -37,15 +37,18 @@ matmul_op::matmul_op(const std::vector<graph_tensor_ptr> &ins,
     auto &B_dims = info_.inputs_[1]->details_.get_plain_dims();
     bool trans_a = attrs.get_or_else("transpose_a", false);
     bool trans_b = attrs.get_or_else("transpose_b", false);
+    bool is_int8 = utils::is_one_of(
+            ins[0]->details_.dtype_, datatypes::u8, datatypes::s8);
+    bool is_bf16 = ins[0]->details_.dtype_ == datatypes::bf16;
     sc_dims expected_out_shape
             = {merge_vec(matmul_core_op_t::get_batch_dims_impl(A_dims, B_dims),
                     {A_dims[A_dims.size() - (trans_a ? 1 : 2)],
                             B_dims[B_dims.size() - (trans_b ? 2 : 1)]})};
     if (outs.empty()) {
-        assert(is_dynamic());
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
                 sc_data_format_t(), expected_out_shape,
-                matmul_core_op_t::infer_out_dtype(ins)));
+                is_int8 ? datatypes::s32
+                        : (is_bf16 ? datatypes::bf16 : datatypes::f32)));
     } else {
         info_.outputs_ = outs;
         if (!is_dynamic()) {
@@ -119,8 +122,6 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             trans0, trans1);
 
     bool is_bf16 = false;
-    bool is_int8 = utils::is_one_of(
-            inputs[0]->details_.dtype_, datatypes::u8, datatypes::s8);
     if (inputs[0]->details_.dtype_ == datatypes::bf16
             || inputs[1]->details_.dtype_ == datatypes::bf16
             || outputs[0]->details_.dtype_ == datatypes::bf16) {
@@ -168,11 +169,18 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                             - 2];
     int K = trans0->details_.get_plain_dims().back();
     int N = trans1->details_.get_plain_dims().back();
+    bool use_mmm = attrs_.get_or_else("use_mmm", true);
+
     if (is_dynamic() || trans0->details_.get_plain_dims().size() > 2
             || trans1->details_.get_plain_dims().size() > 2) {
         matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
     } else {
-        matmul = graph->make("managed_matmul_core", {trans0, trans1}, {}, {});
+        if (use_mmm) {
+            matmul = graph->make(
+                    "managed_matmul_core", {trans0, trans1}, {}, {});
+        } else {
+            matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
+        }
     }
 
     if (is_bf16) {
