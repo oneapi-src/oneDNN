@@ -311,3 +311,8 @@ ic32ih13oc13oh13kh1ph0n"sum_injector_with_out_of_scope_references"
 --reset
 --cfg=bf16bf16f32
 g1ic64ih31iw1oc64oh32ow1kh3kw3ph0pw0n"brgemm_conv_generate_kernels"
+
+# compensation for padding area when bdb_tail < bottom_vpad
+--reset
+--cfg=s8s8f32
+mb1ic8iw9973oc256ow9973kw9pw2n"brgconv_compensation_bdb_tail"
