@@ -3581,7 +3581,7 @@ private:
         }
 
         if (it.is_first_mul() && fuse_zero_out_with_fma_) {
-            mul = sub_fma_acc_with_zero(mul);
+            mul = sub_fma_acc_with_zero(mul, cfg_.fma_kind == fma_kind_t::mad);
         }
 
         if (it.is_last_g2s_store())
@@ -3691,9 +3691,10 @@ private:
     }
 
     static std::vector<stmt_t> sub_fma_acc_with_zero(
-            const std::vector<stmt_t> &stmt) {
-        auto is_from_block = [](const stmt_t &curr,
+            const std::vector<stmt_t> &stmt, const bool is_mad) {
+        auto is_from_block = [is_mad](const stmt_t &curr,
                                      const std::vector<stmt_t> &vec, int bgn) {
+            if (is_mad) return false;
             if (is_func_call<mad_t>(curr)) {
                 return (mad_t::arg_dst(curr).is_equal(mad_t::arg_src0(curr)))
                         && (!bgn || is_func_call<mad_t>(vec[bgn - 1]));
@@ -3714,9 +3715,12 @@ private:
             }
             return false;
         };
-        auto process_block = [](stmt_t &root, object_eq_set_t<expr_t> &seen,
+        auto process_block = [is_mad](stmt_t &root,
+                                     object_eq_set_t<expr_t> &seen,
                                      std::vector<stmt_t> &vec, int bgn,
                                      int end) {
+            bgn += is_mad;
+            end += is_mad;
             bool never_seen = (bgn > 0);
             for (int i = bgn - 1; never_seen && (i < end); i++) {
                 if (is_func_call<mad_t>(vec[i])) {
@@ -3728,14 +3732,22 @@ private:
             for (int i = bgn - 1; never_seen && (i < end); i++) {
                 if (is_func_call<mad_t>(vec[i])) {
                     auto &call = vec[i].as<func_call_t>();
+                    auto &mad = call.func.as<mad_t>();
                     auto *m = call.attr.as_ptr<instruction_modifier_attr_t>();
-                    ir_assert(m && !m->mod.is_atomic && m->mod.sbid.is_empty());
-                    auto &dst = mad_t::arg_dst(vec[i]);
-                    auto mul = binary_op_t::make(op_kind_t::_mul,
-                            mad_t::arg_src1(vec[i]), mad_t::arg_src2(vec[i]),
-                            dst.type());
-                    root = substitute(
-                            root, vec[i], store_t::make(dst, 0, mul), 1);
+                    ir_assert(!m
+                            || (!m->mod.is_atomic && m->mod.sbid.is_empty()));
+                    ir_assert(mad.src1_stride == 0);
+                    auto a_load = load_t::make(
+                            mad.src1_type.kind(), mad_t::arg_src1(vec[i]), 0);
+                    auto a = shuffle_t::make_broadcast(a_load, mad.exec_size);
+                    auto b_stride = mad.src2_stride * mad.src2_type.size();
+                    auto b = load_t::make(
+                            type_t(mad.src2_type.kind(), mad.exec_size),
+                            mad_t::arg_src2(vec[i]), 0, b_stride);
+                    auto mul = binary_op_t::make(op_kind_t::_mul, a, b,
+                            type_t(mad.dst_type.kind(), mad.exec_size));
+                    auto store = store_t::make(mad_t::arg_dst(vec[i]), 0, mul);
+                    root = substitute(root, vec[i], store, 1);
                 } else if (const auto *s = vec[i].as_ptr<store_t>()) {
                     if (const auto *t = s->value.as_ptr<ternary_op_t>()) {
                         ir_assert(s->mask.is_empty());
@@ -3754,7 +3766,7 @@ private:
                     ir_error_not_expected();
                 }
             }
-            return 0;
+            return (is_mad) ? end : 0;
         };
         std::vector<stmt_t> retn;
 
@@ -3786,7 +3798,8 @@ private:
                                 1);
                 }
             }
-            process_block(body, seen_dst, stmt_vec, bgn, (int)stmt_vec.size());
+            process_block(
+                    body, seen_dst, stmt_vec, bgn, stmt_vec.size() - is_mad);
             retn.emplace_back(stmt_group_t::make(group.label, body));
         }
         return retn;
