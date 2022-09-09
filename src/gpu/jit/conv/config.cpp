@@ -1256,6 +1256,7 @@ void conv_config_t::init_hoist_masks_from_compute_loop() {
         return;
     }
     if (!fuse_spatial) return;
+    if (hw() < ngen::HW::XeHPC) return;
 
     // Both nhwc layouts and mask hoisting require extra GRF memory so avoid
     // enabling both.
