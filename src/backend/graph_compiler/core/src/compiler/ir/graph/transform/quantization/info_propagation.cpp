@@ -232,6 +232,9 @@ void change_dyn_zp_to_s32(sc_graph_t &mgr, const context_ptr &ctx) {
 
 // Currenly we change u8 to s8 for weight
 void change_weight_u8_to_s8(sc_graph_t &mgr, const context_ptr &ctx) {
+    auto is_amx = ctx->machine_.cpu_flags_.fAVX512AMXTILE
+            && ctx->flags_.brgemm_use_amx_;
+    if (is_amx) { return; }
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
     vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
         if (node->isa<dequantize_op_t>()
