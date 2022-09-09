@@ -1350,9 +1350,6 @@ using memory_desc_t = dnnl_memory_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 
-/* Internal type, declared in gemm_types.hpp */
-using gemm_desc_t = dnnl_gemm_desc_t;
-
 using engine_t = dnnl_engine;
 using primitive_attr_t = dnnl_primitive_attr;
 using post_ops_t = dnnl_post_ops;

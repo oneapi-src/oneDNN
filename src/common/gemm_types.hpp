@@ -49,7 +49,7 @@ const sum_ab_t sum_none = dnnl_sum_none;
 // A descriptor for a matrix multiplication (gemm) operation. To make the
 // interface consistent, the descriptor represent the GEMM operation in row
 // major.
-struct dnnl_gemm_desc_t {
+struct gemm_desc_t {
     // The kind of primitive. Used for self identifying the primitive
     // descriptor. Must be #dnnl_gemm.
     dnnl_primitive_kind_t primitive_kind;
