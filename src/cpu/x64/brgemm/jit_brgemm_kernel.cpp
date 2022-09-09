@@ -2003,13 +2003,23 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                         if (!check_top_vpad && vpad > 0) continue;
                         if (!check_bottom_vpad && vpad < 0) continue;
                         auto real_vpad = vpad;
-                        if (check_bottom_vpad && !is_bdb_tail && brg.bdb_tail) {
-                            // for last full block before
-                            // bdb_tail && -vpad greater than bdb_tail
-                            if (brg.bdb_tail < -vpad)
-                                real_vpad += brg.bdb_tail;
-                            else
-                                continue;
+                        if (check_bottom_vpad && brg.bdb_tail) {
+                            if (!is_bdb_tail) {
+                                // for last full block before
+                                // bdb_tail && -vpad greater than bdb_tail
+                                if (brg.bdb_tail < -vpad)
+                                    real_vpad += brg.bdb_tail;
+                                else
+                                    continue;
+                            } else {
+                                // for block with tail, call ldb_loop()
+                                // to only calculate compensation for
+                                // padding area when bdb_tail < -vpad for
+                                // the cases using pre-cal compensation
+                                if (brg.bdb_tail < -vpad && need_comp_pads
+                                        && !brg.req_cal_comp_pads)
+                                    real_vpad = -brg.bdb_tail;
+                            }
                         }
                         cmp(reg_aux_A_vpad, vpad);
                         jne(Vpad_loop_iter_label[label_vpad + 1], T_NEAR);
