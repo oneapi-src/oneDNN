@@ -515,7 +515,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t &prb = *init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
 
-    dnnl_rnn_desc_t rd;
     dnnl_prop_kind_t fwd_prop = dnnl_prop_kind_undef;
     switch (prb.prop) {
         case dnnl_forward_training: fwd_prop = dnnl_forward_training; break;
@@ -612,14 +611,17 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 = dst_iter_c_d.format_desc.blocking.strides[d + 1]
                 * dst_iter_c_d.dims[d + 1];
 
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(create_dnnl_rnn_attr(prb));
+
     // Initializing the forward pass
     // When inference, we use forward_inference
     // When training, we use forward_training
     if (dir & FLAG_FWD) {
-        DNN_SAFE_STATUS(init_rnn_fwd_desc(&rd, prb, fwd_prop, &src_layer_d,
-                &src_iter_d, &src_iter_c_d, &attention_d, &weights_layer_d,
-                &weights_iter_d, &weights_peephole_d, &weights_projection_d,
-                &bias_d, &dst_layer_d, &dst_iter_d, &dst_iter_c_d));
+        DNN_SAFE_STATUS(init_rnn_fwd_pd(&init_pd_args.pd, init_pd_args.engine,
+                prb, fwd_prop, &src_layer_d, &src_iter_d, &src_iter_c_d,
+                &attention_d, &weights_layer_d, &weights_iter_d,
+                &weights_peephole_d, &weights_projection_d, &bias_d,
+                &dst_layer_d, &dst_iter_d, &dst_iter_c_d, dnnl_attr));
     } else {
         // TODO: add stride support for diff_* tensors
         auto diff_src_layer_d = dnn_mem_t::init_md(
@@ -659,20 +661,19 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto diff_dst_iter_c_d = dnn_mem_t::init_md(
                 4, dst_iter_c_dims, prb.cfg[DIFF_DST_ITER_C].dt, tag::any);
 
-        DNN_SAFE_STATUS(init_rnn_bwd_desc(&rd, prb, prb.prop, &src_layer_d,
-                &src_iter_d, &src_iter_c_d, &attention_d, &weights_layer_d,
-                &weights_iter_d, &weights_peephole_d, &weights_projection_d,
-                &bias_d, &dst_layer_d, &dst_iter_d, &dst_iter_c_d,
-                &diff_src_layer_d, &diff_src_iter_d, &diff_src_iter_c_d,
-                &diff_attention_d, &diff_weights_layer_d, &diff_weights_iter_d,
+        DNN_SAFE_STATUS(init_rnn_bwd_pd(&init_pd_args.pd, init_pd_args.engine,
+                prb, prb.prop, &src_layer_d, &src_iter_d, &src_iter_c_d,
+                &attention_d, &weights_layer_d, &weights_iter_d,
+                &weights_peephole_d, &weights_projection_d, &bias_d,
+                &dst_layer_d, &dst_iter_d, &dst_iter_c_d, &diff_src_layer_d,
+                &diff_src_iter_d, &diff_src_iter_c_d, &diff_attention_d,
+                &diff_weights_layer_d, &diff_weights_iter_d,
                 &diff_weights_peephole_d, &diff_weights_projection_d,
                 &diff_bias_d, &diff_dst_layer_d, &diff_dst_iter_d,
-                &diff_dst_iter_c_d));
+                &diff_dst_iter_c_d, init_pd_args.hint, dnnl_attr));
     }
 
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(create_dnnl_rnn_attr(prb));
-    return dnnl_primitive_desc_create(&init_pd_args.pd, &rd, dnnl_attr,
-            init_pd_args.engine, init_pd_args.hint);
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -273,14 +273,12 @@ void simple_net() {
     ///
     //[create rnn]
 
-    lstm_forward::desc bi_layer_desc(prop_kind::forward_inference,
-            rnn_direction::bidirectional_concat, user_enc_bidir_src_layer_md,
-            memory::desc(), memory::desc(), enc_bidir_wei_layer_md,
-            enc_bidir_wei_iter_md, user_enc_bidir_bias_md,
-            enc_bidir_dst_layer_md, memory::desc(), memory::desc());
-
-    auto enc_bidir_prim_desc
-            = dnnl::lstm_forward::primitive_desc(bi_layer_desc, cpu_engine);
+    auto enc_bidir_prim_desc = lstm_forward::primitive_desc(cpu_engine,
+            prop_kind::forward_inference, rnn_direction::bidirectional_concat,
+            user_enc_bidir_src_layer_md, memory::desc(), memory::desc(),
+            enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
+            user_enc_bidir_bias_md, enc_bidir_dst_layer_md, memory::desc(),
+            memory::desc());
     //[create rnn]
 
     ///
@@ -384,14 +382,12 @@ void simple_net() {
     /// @snippet cpu_rnn_inference_f32.cpp create uni first
     ///
     //[create uni first]
-    lstm_forward::desc enc_uni_first_layer_desc(prop_kind::forward_inference,
+    auto enc_uni_first_prim_desc = lstm_forward::primitive_desc(cpu_engine,
+            prop_kind::forward_inference,
             rnn_direction::unidirectional_left2right, enc_bidir_dst_layer_md,
             memory::desc(), memory::desc(), enc_uni_first_wei_layer_md,
             enc_uni_first_wei_iter_md, user_enc_uni_first_bias_md,
             enc_uni_first_dst_layer_md, memory::desc(), memory::desc());
-
-    auto enc_uni_first_prim_desc = dnnl::lstm_forward::primitive_desc(
-            enc_uni_first_layer_desc, cpu_engine);
 
     //[create uni first]
     auto enc_uni_first_wei_layer_memory
@@ -481,13 +477,12 @@ void simple_net() {
     /// @snippet cpu_rnn_inference_f32.cpp create uni rnn
     ///
     //[create uni rnn]
-    lstm_forward::desc enc_uni_layer_desc(prop_kind::forward_inference,
+    auto enc_uni_prim_desc = lstm_forward::primitive_desc(cpu_engine,
+            prop_kind::forward_inference,
             rnn_direction::unidirectional_left2right,
             enc_uni_first_dst_layer_md, memory::desc(), memory::desc(),
             enc_uni_wei_layer_md, enc_uni_wei_iter_md, user_enc_uni_bias_md,
             enc_dst_layer_md, memory::desc(), memory::desc());
-    auto enc_uni_prim_desc = dnnl::lstm_forward::primitive_desc(
-            enc_uni_layer_desc, cpu_engine);
     //[create uni rnn]
 
     auto enc_uni_wei_layer_memory
@@ -638,13 +633,12 @@ void simple_net() {
     /// @snippet cpu_rnn_inference_f32.cpp create dec rnn
     ///
     //[create dec rnn]
-    lstm_forward::desc dec_ctx_desc(prop_kind::forward_inference,
+    auto dec_ctx_prim_desc = lstm_forward::primitive_desc(cpu_engine,
+            prop_kind::forward_inference,
             rnn_direction::unidirectional_left2right, dec_src_layer_md,
             dec_dst_iter_md, dec_dst_iter_c_md, dec_wei_layer_md,
             dec_wei_iter_md, user_dec_bias_md, dec_dst_layer_md,
             dec_dst_iter_noctx_md, dec_dst_iter_c_md);
-    auto dec_ctx_prim_desc
-            = dnnl::lstm_forward::primitive_desc(dec_ctx_desc, cpu_engine);
     //[create dec rnn]
 
     ///

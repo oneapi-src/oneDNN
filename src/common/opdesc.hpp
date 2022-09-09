@@ -452,6 +452,82 @@ struct pooling_desc_t {
     dims_t dilation;
 };
 
+// A descriptor for an RNN operation.
+struct rnn_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_rnn.
+    dnnl_primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, and #dnnl_backward.
+    prop_kind_t prop_kind;
+    // RNN cell kind. Must be one of #dnnl_vanilla_rnn,
+    // #dnnl_vanilla_lstm, #dnnl_vanilla_gru, or #dnnl_lbr_gru.
+    alg_kind_t cell_kind;
+    // The direction of RNN primitive execution.
+    rnn_direction_t direction;
+    // Source layer memory descriptor.
+    memory_desc_t src_layer_desc;
+    // Source iteration memory descriptor for hidden state.
+    memory_desc_t src_iter_desc;
+    // Source iteration memory descriptor for cell state.
+    memory_desc_t src_iter_c_desc;
+    // Weights layer memory descriptor.
+    memory_desc_t weights_layer_desc;
+    // Weights iteration memory descriptor.
+    memory_desc_t weights_iter_desc;
+    // Bias memory descriptor.
+    memory_desc_t bias_desc;
+    // Destination layer memory descriptor.
+    memory_desc_t dst_layer_desc;
+    // Destination iter memory descriptor for hidden state.
+    memory_desc_t dst_iter_desc;
+    // Destination iter memory descriptor for cell state.
+    memory_desc_t dst_iter_c_desc;
+    // Weights peephole memory descriptor.
+    // This memory descriptor is equal to zero memory descriptor in case of
+    // non-peephole LSTMs and other non-LSTM RNNs.
+    memory_desc_t weights_peephole_desc;
+    // Weights projection memory descriptor.
+    // This memory descriptor is equal to zero memory descriptor in case of
+    // non-projection LSTMs and other non-LSTM RNNs.
+    memory_desc_t weights_projection_desc;
+
+    // Source gradient layer memory descriptor.
+    memory_desc_t diff_src_layer_desc;
+    // Source gradient iter memory descriptor for hidden state.
+    memory_desc_t diff_src_iter_desc;
+    // Source gradient iter memory descriptor for cell state.
+    memory_desc_t diff_src_iter_c_desc;
+    // Weights gradient layer memory descriptor.
+    memory_desc_t diff_weights_layer_desc;
+    // Weights gradient iter memory descriptor.
+    memory_desc_t diff_weights_iter_desc;
+    // Bias gradient memory descriptor.
+    memory_desc_t diff_bias_desc;
+    // Destination gradient layer memory descriptor.
+    memory_desc_t diff_dst_layer_desc;
+    // Destination gradient iteration memory descriptor for hidden state.
+    memory_desc_t diff_dst_iter_desc;
+    // Destination gradient iteration memory descriptor for cell state.
+    memory_desc_t diff_dst_iter_c_desc;
+    // Weights gradient peephole memory descriptor.
+    // This memory descriptor is equal to zero memory descriptor in case of
+    // non-peephole LSTMs and other non-LSTM RNNs.
+    memory_desc_t diff_weights_peephole_desc;
+    // Weights gradient projection memory descriptor.
+    // This memory descriptor is equal to zero memory descriptor in case of
+    // non-projection LSTMs and other non-LSTM RNNs.
+    memory_desc_t diff_weights_projection_desc;
+
+    // RNN cell flags
+    unsigned int flags;
+    // Activation function used for vanilla_rnn cell kind.
+    // Must be either #dnnl_eltwise_relu or #dnnl_eltwise_tanh.
+    alg_kind_t activation_kind;
+    float alpha;
+    float beta;
+};
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
 using const_c_op_desc_t = const_dnnl_op_desc_t;

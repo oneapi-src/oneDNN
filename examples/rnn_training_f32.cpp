@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -255,7 +255,8 @@ void simple_net(engine::kind engine_kind) {
     // Describe layer, forward pass, leftmost primitive.
     // There are no primitives to the left from here,
     // so src_iter_desc needs to be zero memory desc
-    lstm_forward::desc leftmost_layer_desc(fwd_inf_train, // aprop_kind
+    auto leftmost_prim_desc = lstm_forward::primitive_desc(eng, // engine
+            fwd_inf_train, // aprop_kind
             rnn_direction::unidirectional_left2right, // direction
             user_leftmost_src_layer_md, // src_layer_desc
             memory::desc(), // src_iter_desc
@@ -267,9 +268,6 @@ void simple_net(engine::kind engine_kind) {
             generic_md(leftmost_dst_iter_dims), // dst_iter_desc
             generic_md(leftmost_dst_iter_c_dims) // dst_iter_c_desc
     );
-    // Describe primitive
-    auto leftmost_prim_desc
-            = dnnl::lstm_forward::primitive_desc(leftmost_layer_desc, eng);
 
     //
     // Need to connect leftmost and rightmost via "iter" parameters.
@@ -296,7 +294,8 @@ void simple_net(engine::kind engine_kind) {
     // Now rightmost primitive
     // There are no primitives to the right from here,
     // so dst_iter_desc is explicit zero memory desc
-    lstm_forward::desc rightmost_layer_desc(fwd_inf_train, // aprop_kind
+    auto rightmost_prim_desc = lstm_forward::primitive_desc(eng, // engine
+            fwd_inf_train, // aprop_kind
             rnn_direction::unidirectional_left2right, // direction
             user_rightmost_src_layer_md, // src_layer_desc
             rightmost_src_iter_md, // src_iter_desc
@@ -308,8 +307,6 @@ void simple_net(engine::kind engine_kind) {
             memory::desc(), // dst_iter_desc
             memory::desc() // dst_iter_c_desc
     );
-    auto rightmost_prim_desc
-            = lstm_forward::primitive_desc(rightmost_layer_desc, eng);
 
     //
     // Weights and biases, layer memory
@@ -467,7 +464,7 @@ void simple_net(engine::kind engine_kind) {
     auto rightmost_diff_dst_layer_memory = net_diff_dst_memory;
 
     // Backward leftmost primitive descriptor
-    lstm_backward::desc leftmost_layer_bwd_desc(
+    auto leftmost_bwd_prim_desc = lstm_backward::primitive_desc(eng, // engine
             prop_kind::backward, // aprop_kind
             rnn_direction::unidirectional_left2right, // direction
             user_leftmost_src_layer_md, // src_layer_desc
@@ -487,10 +484,9 @@ void simple_net(engine::kind engine_kind) {
             generic_md(common_bias_dims), // diff_bias_desc
             user_leftmost_diff_dst_layer_md, // diff_dst_layer_desc
             generic_md(leftmost_dst_iter_dims), // diff_dst_iter_desc
-            generic_md(leftmost_dst_iter_c_dims) // diff_dst_iter_c_desc
+            generic_md(leftmost_dst_iter_c_dims), // diff_dst_iter_c_desc
+            leftmost_prim_desc // hint from forward pass
     );
-    auto leftmost_bwd_prim_desc = lstm_backward::primitive_desc(
-            leftmost_layer_bwd_desc, eng, leftmost_prim_desc);
 
     // As the batch dimensions are different between leftmost and rightmost
     // we need to use a sub-memory. rightmost needs less memory, so it will
@@ -513,7 +509,7 @@ void simple_net(engine::kind engine_kind) {
     auto rightmost_diff_src_iter_c_memory = leftmost_diff_dst_iter_c_memory;
 
     // Backward rightmost primitive descriptor
-    lstm_backward::desc rightmost_layer_bwd_desc(
+    auto rightmost_bwd_prim_desc = lstm_backward::primitive_desc(eng, // engine
             prop_kind::backward, // aprop_kind
             rnn_direction::unidirectional_left2right, // direction
             user_rightmost_src_layer_md, // src_layer_desc
@@ -533,10 +529,9 @@ void simple_net(engine::kind engine_kind) {
             generic_md(common_bias_dims), // diff_bias_desc
             user_rightmost_diff_dst_layer_md, // diff_dst_layer_desc
             memory::desc(), // diff_dst_iter_desc
-            memory::desc() // diff_dst_iter_c_desc
+            memory::desc(), // diff_dst_iter_c_desc
+            rightmost_prim_desc // hint from forward pass
     );
-    auto rightmost_bwd_prim_desc = lstm_backward::primitive_desc(
-            rightmost_layer_bwd_desc, eng, rightmost_prim_desc);
 
     //
     // Memory for backward pass

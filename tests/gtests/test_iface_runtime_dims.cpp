@@ -303,7 +303,7 @@ TEST_F(runtime_dim_test_t, TestRNN) {
             data_type::f32, tag::tnc};
     memory::desc dst_iter_md {
             {l, d, DNNL_RUNTIME_DIM_VAL, c}, data_type::f32, tag::ldnc};
-    CHECK_UNIMPL(vanilla_rnn_forward::desc(prop_kind::forward,
+    CHECK_UNIMPL(vanilla_rnn_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::eltwise_relu, rnn_direction::unidirectional_left2right,
             src_layer_md, src_iter_md, wei_layer_md, wei_iter_md, bia_md,
             dst_layer_md, dst_iter_md));

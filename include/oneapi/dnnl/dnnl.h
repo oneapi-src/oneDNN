@@ -2545,7 +2545,7 @@ dnnl_inner_product_backward_weights_primitive_desc_create(
 ///     dnnl_primitive_attr_set_rnn_data_qparams(rnn_attr, scale, shift);
 ///
 ///     // Create and configure rnn op_desc
-///     dnnl_rnn_desc_t rnn_d;
+///     dnnl_primitive_desc_t rnn_d;
 ///     dnnl_primitive_desc_t rnn_pd;
 ///     dnnl_primitive_desc_create(&rnn_pd, &rnn_d, attr, engine, NULL);
 /// @endcode
@@ -2678,7 +2678,8 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_rnn_weights_projection_qparams(
 /// @addtogroup dnnl_api_rnn
 /// @{
 
-/// Initializes a descriptor for vanilla RNN forward propagation primitive.
+/// Creates a primitive descriptor for vanilla RNN forward propagation
+///     primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -2693,7 +2694,8 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_rnn_weights_projection_qparams(
 ///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for vanilla RNN primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param activation Activation kind. Possible values are #dnnl_eltwise_relu,
@@ -2714,11 +2716,13 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_rnn_weights_projection_qparams(
 /// @param flags Unused.
 /// @param alpha Negative slope if activation is #dnnl_eltwise_relu.
 /// @param beta Unused.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_vanilla_rnn_forward_desc_init(
-        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
-        const dnnl_alg_kind_t activation, const dnnl_rnn_direction_t direction,
+dnnl_status_t DNNL_API dnnl_vanilla_rnn_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, const dnnl_alg_kind_t activation,
+        const dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
         const dnnl_memory_desc_t *weights_layer_desc,
@@ -2726,9 +2730,10 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_forward_desc_init(
         const dnnl_memory_desc_t *bias_desc,
         const dnnl_memory_desc_t *dst_layer_desc,
         const dnnl_memory_desc_t *dst_iter_desc, unsigned flags, float alpha,
-        float beta);
+        float beta, const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for vanilla RNN backward propagation primitive.
+/// Creates a primitive descriptor for vanilla RNN backward propagation
+///     primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -2743,7 +2748,8 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_forward_desc_init(
 ///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for vanilla RNN primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Must be #dnnl_backward.
 /// @param activation Activation kind. Possible values are #dnnl_eltwise_relu,
 ///     #dnnl_eltwise_tanh or #dnnl_eltwise_logistic.
@@ -2775,11 +2781,15 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_forward_desc_init(
 /// @param flags Unused.
 /// @param alpha Negative slope if activation is #dnnl_eltwise_relu.
 /// @param beta Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_desc_init(
-        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
-        const dnnl_alg_kind_t activation, const dnnl_rnn_direction_t direction,
+dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, const dnnl_alg_kind_t activation,
+        const dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
         const dnnl_memory_desc_t *weights_layer_desc,
@@ -2794,9 +2804,10 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_desc_init(
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
         const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
-        float alpha, float beta);
+        float alpha, float beta, const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for LSTM forward propagation primitive.
+/// Creates a primitive descriptor for LSTM forward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -2816,7 +2827,8 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_desc_init(
 /// @sa dnnl_lstm_forward_desc_init_v3 to initialize forward LSTM with and
 ///     without peephole / recurrent projection layer
 ///
-/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
@@ -2837,9 +2849,11 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_desc_init(
 /// @param dst_iter_c_desc Memory descriptor for the output recurrent cell
 ///     state vector.
 /// @param flags Unused.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -2849,10 +2863,11 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *bias_desc,
         const dnnl_memory_desc_t *dst_layer_desc,
         const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags);
+        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for an LSTM (with or without peephole) forward
-/// propagation primitive.
+/// Creates a primitive descriptor for an LSTM (with or without peephole)
+///     forward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -2871,7 +2886,8 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @sa dnnl_lstm_forward_desc_init_v3 to initialize forward LSTM with and
 ///     without peephole / recurrent projection layer
 ///
-/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
@@ -2894,9 +2910,11 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param dst_iter_c_desc Memory descriptor for the output recurrent cell
 ///     state vector.
 /// @param flags Unused.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v2(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v2(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -2907,10 +2925,12 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v2(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *bias_desc,
         const dnnl_memory_desc_t *dst_layer_desc,
         const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags);
+        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for an LSTM (with or without peephole and with
-/// or without recurrent projection layer) forward propagation primitive.
+/// Creates a primitive descriptor for an LSTM (with or without peephole and
+///     with or without recurrent projection layer) forward propagation
+///     primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -2930,7 +2950,8 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v2(dnnl_rnn_desc_t *rnn_desc,
 ///     All memory descriptors can be initialized with #dnnl_format_tag_any or
 ///     with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
@@ -2956,9 +2977,13 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v2(dnnl_rnn_desc_t *rnn_desc,
 /// @param dst_iter_c_desc Memory descriptor for the output recurrent cell
 ///     state vector.
 /// @param flags Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v3(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v3(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -2970,9 +2995,10 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v3(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *bias_desc,
         const dnnl_memory_desc_t *dst_layer_desc,
         const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags);
+        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for an LSTM backward propagation primitive.
+/// Creates a primitive descriptor for an LSTM backward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -2994,7 +3020,8 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v3(dnnl_rnn_desc_t *rnn_desc,
 /// @sa dnnl_lstm_backward_desc_init_v3 to initialize backward LSTM with and
 ///     without peephole / recurrent projection layer
 ///
-/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Must be #dnnl_backward.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
 ///     info.
@@ -3030,9 +3057,13 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v3(dnnl_rnn_desc_t *rnn_desc,
 /// @param diff_dst_iter_c_desc Memory descriptor for the diff of output
 ///     recurrent cell state vector.
 /// @param flags Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -3051,10 +3082,12 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
         const dnnl_memory_desc_t *diff_dst_iter_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags);
+        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for an LSTM (with or without peephole) backward
-/// propagation primitive.
+/// Creates a primitive descriptor for an LSTM (with or without peephole)
+///     backward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3075,7 +3108,8 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @sa dnnl_lstm_backward_desc_init_v3 to initialize backward LSTM with and
 ///     without peephole / recurrent projection layer
 ///
-/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Must be #dnnl_backward.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
 ///     info.
@@ -3115,11 +3149,14 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param diff_dst_iter_c_desc Memory descriptor for the diff of output
 ///     recurrent cell state vector.
 /// @param flags Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v2(
-        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
-        dnnl_rnn_direction_t direction,
+dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create_v2(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
         const dnnl_memory_desc_t *src_iter_c_desc,
@@ -3139,10 +3176,13 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v2(
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
         const dnnl_memory_desc_t *diff_dst_iter_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags);
+        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for an LSTM (with or without peephole and with or
-/// with out recurrent projection layer) backward propagation primitive.
+/// Creates a primitive descriptor for an LSTM (with or without peephole and
+///     with or with out recurrent projection layer) backward propagation
+///     primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3165,7 +3205,8 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v2(
 ///     All memory descriptors can be initialized with #dnnl_format_tag_any or
 ///     with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Must be #dnnl_backward.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
 ///     info.
@@ -3211,11 +3252,14 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v2(
 /// @param diff_dst_iter_c_desc Memory descriptor for the diff of output
 ///     recurrent cell state vector.
 /// @param flags Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v3(
-        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
-        dnnl_rnn_direction_t direction,
+dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create_v3(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
         const dnnl_memory_desc_t *src_iter_c_desc,
@@ -3237,9 +3281,11 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v3(
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
         const dnnl_memory_desc_t *diff_dst_iter_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags);
+        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for GRU forward propagation primitive.
+/// Creates a primitive descriptor for GRU forward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3254,7 +3300,8 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v3(
 ///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for GRU primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
@@ -3271,9 +3318,11 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v3(
 /// @param dst_iter_desc Memory descriptor for the output recurrent hidden
 ///     state vector.
 /// @param flags Unused.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_gru_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -3281,9 +3330,10 @@ dnnl_status_t DNNL_API dnnl_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *weights_iter_desc,
         const dnnl_memory_desc_t *bias_desc,
         const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags);
+        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for GRU backward propagation primitive.
+/// Creates a primitive descriptor for GRU backward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3298,7 +3348,8 @@ dnnl_status_t DNNL_API dnnl_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 ///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for GRU primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Must be #dnnl_backward.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
 ///     info.
@@ -3326,9 +3377,13 @@ dnnl_status_t DNNL_API dnnl_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param diff_dst_iter_desc Memory descriptor for the diff of output
 ///     recurrent hidden state vector.
 /// @param flags Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_gru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_gru_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -3343,9 +3398,11 @@ dnnl_status_t DNNL_API dnnl_gru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *diff_weights_iter_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags);
+        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for LBR GRU forward propagation primitive.
+/// Creates a descriptor for LBR GRU forward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3356,7 +3413,8 @@ dnnl_status_t DNNL_API dnnl_gru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// This would then indicate that the LBR GRU forward propagation primitive
 /// should not use them and should default to zero values instead.
 ///
-/// @param rnn_desc Output descriptor for LBR GRU primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
@@ -3373,9 +3431,11 @@ dnnl_status_t DNNL_API dnnl_gru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param dst_iter_desc Memory descriptor for the output recurrent hidden
 ///     state vector.
 /// @param flags Unused.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lbr_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_lbr_gru_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -3383,9 +3443,10 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *weights_iter_desc,
         const dnnl_memory_desc_t *bias_desc,
         const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags);
+        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for LBR GRU backward propagation primitive.
+/// Creates a primitive descriptor for LBR GRU backward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3400,7 +3461,8 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 ///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for LBR GRU primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Must be #dnnl_backward.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
 ///     info.
@@ -3428,11 +3490,14 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param diff_dst_iter_desc Memory descriptor for the diff of output
 ///     recurrent hidden state vector.
 /// @param flags Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lbr_gru_backward_desc_init(
-        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
-        dnnl_rnn_direction_t direction,
+dnnl_status_t DNNL_API dnnl_lbr_gru_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
         const dnnl_memory_desc_t *weights_layer_desc,
@@ -3446,9 +3511,11 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_backward_desc_init(
         const dnnl_memory_desc_t *diff_weights_iter_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags);
+        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for AUGRU forward propagation primitive.
+/// Creates a primitive descriptor for AUGRU forward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3463,7 +3530,8 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_backward_desc_init(
 ///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for AUGRU primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
@@ -3481,9 +3549,11 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_backward_desc_init(
 /// @param dst_iter_desc Memory descriptor for the output recurrent hidden
 ///     state vector.
 /// @param flags Unused.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_augru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_augru_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -3492,9 +3562,10 @@ dnnl_status_t DNNL_API dnnl_augru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *weights_iter_desc,
         const dnnl_memory_desc_t *bias_desc,
         const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags);
+        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for AUGRU backward propagation primitive.
+/// Creates a primitive descriptor for AUGRU backward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3509,7 +3580,8 @@ dnnl_status_t DNNL_API dnnl_augru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 ///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for AUGRU primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Must be #dnnl_backward.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
 ///     info.
@@ -3539,9 +3611,13 @@ dnnl_status_t DNNL_API dnnl_augru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param diff_dst_iter_desc Memory descriptor for the diff of output
 ///     recurrent hidden state vector.
 /// @param flags Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_augru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+dnnl_status_t DNNL_API dnnl_augru_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
@@ -3558,9 +3634,11 @@ dnnl_status_t DNNL_API dnnl_augru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *diff_weights_iter_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags);
+        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for LBR AUGRU forward propagation primitive.
+/// Creates a primitive descriptor for LBR AUGRU forward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3571,7 +3649,8 @@ dnnl_status_t DNNL_API dnnl_augru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// This would then indicate that the LBR AUGRU forward propagation primitive
 /// should not use them and should default to zero values instead.
 ///
-/// @param rnn_desc Output descriptor for LBR AUGRU primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
@@ -3589,11 +3668,12 @@ dnnl_status_t DNNL_API dnnl_augru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// @param dst_iter_desc Memory descriptor for the output recurrent hidden
 ///     state vector.
 /// @param flags Unused.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lbr_augru_forward_desc_init(
-        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
-        dnnl_rnn_direction_t direction,
+dnnl_status_t DNNL_API dnnl_lbr_augru_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
         const dnnl_memory_desc_t *attention_desc,
@@ -3601,9 +3681,10 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_forward_desc_init(
         const dnnl_memory_desc_t *weights_iter_desc,
         const dnnl_memory_desc_t *bias_desc,
         const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags);
+        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags,
+        const_dnnl_primitive_attr_t attr);
 
-/// Initializes a descriptor for LBR AUGRU backward propagation primitive.
+/// Creates a primitive descriptor for LBR AUGRU backward propagation primitive.
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
@@ -3618,7 +3699,8 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_forward_desc_init(
 ///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
-/// @param rnn_desc Output descriptor for LBR AUGRU primitive.
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Must be #dnnl_backward.
 /// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
 ///     info.
@@ -3648,11 +3730,14 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_forward_desc_init(
 /// @param diff_dst_iter_desc Memory descriptor for the diff of output
 ///     recurrent hidden state vector.
 /// @param flags Unused.
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lbr_augru_backward_desc_init(
-        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
-        dnnl_rnn_direction_t direction,
+dnnl_status_t DNNL_API dnnl_lbr_augru_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const dnnl_memory_desc_t *src_layer_desc,
         const dnnl_memory_desc_t *src_iter_desc,
         const dnnl_memory_desc_t *attention_desc,
@@ -3668,7 +3753,9 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_backward_desc_init(
         const dnnl_memory_desc_t *diff_weights_iter_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags);
+        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_rnn
 

@@ -425,10 +425,6 @@ TEST_F(runtime_attr_test_t, TestRNN) {
     memory::desc dst_layer_md {{t, n, c}, data_type::u8, tag::tnc};
     memory::desc dst_iter_md {{l, d, n, c}, data_type::u8, tag::ldnc};
     memory::desc dst_iter_c_md {{l, d, n, c}, data_type::f32, tag::ldnc};
-    lstm_forward::desc op_d(prop_kind::forward_inference,
-            rnn_direction::unidirectional_left2right, src_layer_md, src_iter_md,
-            src_iter_c_md, wei_layer_md, wei_iter_md, bia_md, dst_layer_md,
-            dst_iter_md, dst_iter_c_md);
 
     for_(auto is_runtime_data_scale : {true, false})
     for_(auto is_runtime_data_shift : {true, false})
@@ -443,16 +439,29 @@ TEST_F(runtime_attr_test_t, TestRNN) {
         bool rt = is_runtime_data_scale || is_runtime_data_shift
                 || is_runtime_weights_scale;
         CHECK_STATUS(rt ? dnnl_unimplemented : dnnl_success,
-                lstm_forward::primitive_desc(op_d, attr, eng));
+                lstm_forward::primitive_desc(eng, prop_kind::forward_inference,
+                        rnn_direction::unidirectional_left2right, src_layer_md,
+                        src_iter_md, src_iter_c_md, wei_layer_md, wei_iter_md,
+                        bia_md, dst_layer_md, dst_iter_md, dst_iter_c_md,
+                        attr));
     }
 
     for (auto arg : {DNNL_ARG_SRC_LAYER, DNNL_ARG_SRC_ITER, DNNL_ARG_SRC_ITER_C,
                  DNNL_ARG_WEIGHTS_LAYER, DNNL_ARG_WEIGHTS_ITER, DNNL_ARG_BIAS,
                  DNNL_ARG_DST_LAYER, DNNL_ARG_DST_ITER, DNNL_ARG_DST_ITER_C}) {
-        CHECK_UNIMPL(lstm_forward::primitive_desc(
-                op_d, gen_attr_with_zp(false, arg), eng));
-        CHECK_UNIMPL(lstm_forward::primitive_desc(
-                op_d, gen_attr_with_zp(true, arg), eng));
+        CHECK_UNIMPL(
+                lstm_forward::primitive_desc(eng, prop_kind::forward_inference,
+                        rnn_direction::unidirectional_left2right, src_layer_md,
+                        src_iter_md, src_iter_c_md, wei_layer_md, wei_iter_md,
+                        bia_md, dst_layer_md, dst_iter_md, dst_iter_c_md,
+                        gen_attr_with_zp(false, arg)));
+
+        CHECK_UNIMPL(
+                lstm_forward::primitive_desc(eng, prop_kind::forward_inference,
+                        rnn_direction::unidirectional_left2right, src_layer_md,
+                        src_iter_md, src_iter_c_md, wei_layer_md, wei_iter_md,
+                        bia_md, dst_layer_md, dst_iter_md, dst_iter_c_md,
+                        gen_attr_with_zp(true, arg)));
     }
 }
 

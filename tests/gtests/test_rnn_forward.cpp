@@ -44,9 +44,7 @@ struct test_rnn_formats_t {
 
 struct test_rnn_extra_t {
     dnnl::algorithm activation;
-    rnn_flags flags;
     float alpha;
-    float beta;
 };
 
 struct test_rnn_params_t {
@@ -66,7 +64,7 @@ class rnn_forward_test_t : public ::testing::TestWithParam<test_rnn_params_t> {
 private:
     memory::dim getNGates();
 
-    typename T::desc setDesc(prop_kind aprop, algorithm activation,
+    typename T::primitive_desc get_pd(prop_kind aprop, algorithm activation,
             rnn_direction direction, const memory::desc &src_layer_md,
             const memory::desc &src_iter_md, const memory::desc &src_iter_c_md,
             const memory::desc &attention_md,
@@ -76,8 +74,7 @@ private:
             const memory::desc &weights_projection_md,
             const memory::desc &bias_md, const memory::desc &dst_layer_md,
             const memory::desc &dst_iter_md, const memory::desc &dst_iter_c_md,
-            rnn_flags flags = rnn_flags::undef, float alpha = 0.0f,
-            float beta = 0.0f);
+            float alpha = 0.0f);
 
     bool skipTest(bool src_layer_match, bool augru_attention_match,
             bool src_iter_match, bool src_iter_c_match,
@@ -152,7 +149,6 @@ private:
 
         if (is_vanilla_rnn) {
             ASSERT_EQ(pd.get_alpha(), p.extra.alpha);
-            ASSERT_EQ(pd.get_beta(), p.extra.beta);
             ASSERT_EQ(pd.get_activation_kind(), p.extra.activation);
         } else {
             ASSERT_EQ(pd.get_alpha(), 0.0f);
@@ -282,13 +278,12 @@ protected:
                 {weights_projection_dims}, prec, memory::format_tag::ldio);
 
         // Create the reference primitive descriptor
-        auto ref_d = setDesc(p.aprop, p.extra.activation, p.direction,
+        auto ref_pd = get_pd(p.aprop, p.extra.activation, p.direction,
                 src_layer_md_any, src_iter_md_any, src_iter_c_md_any,
                 attention_md_any, weights_layer_md_any, weights_iter_md_any,
                 weights_peephole_md_any, weights_projection_md_any, bias_md_any,
                 dst_layer_md_any, dst_iter_md_any, dst_iter_c_md_any,
-                p.extra.flags, p.extra.alpha, p.extra.beta);
-        typename T::primitive_desc ref_pd(ref_d, eng);
+                p.extra.alpha);
         // test construction from a C pd
         ref_pd = typename T::primitive_desc(ref_pd.get());
         testExecArgQueries(ref_pd);
@@ -435,13 +430,12 @@ protected:
         strm.wait();
 
         // run the packed version
-        auto tgt_d = setDesc(p.aprop, p.extra.activation, p.direction,
+        auto tgt_pd = get_pd(p.aprop, p.extra.activation, p.direction,
                 src_layer_md_tgt, src_iter_md_tgt, src_iter_c_md_tgt,
                 attention_md_tgt, weights_layer_md_tgt, weights_iter_md_tgt,
                 weights_peephole_md_tgt, weights_projection_md_tgt, bias_md_tgt,
                 dst_layer_md_tgt, dst_iter_md_tgt, dst_iter_c_md_tgt,
-                p.extra.flags, p.extra.alpha, p.extra.beta);
-        typename T::primitive_desc tgt_pd(tgt_d, eng);
+                p.extra.alpha);
         testExecArgQueries(tgt_pd);
         test_primitive_param_queries(tgt_pd);
 
@@ -478,8 +472,8 @@ memory::dim rnn_forward_test_t<vanilla_rnn_forward, float>::getNGates() {
 }
 
 template <>
-vanilla_rnn_forward::desc
-rnn_forward_test_t<vanilla_rnn_forward, float>::setDesc(prop_kind aprop,
+vanilla_rnn_forward::primitive_desc
+rnn_forward_test_t<vanilla_rnn_forward, float>::get_pd(prop_kind aprop,
         algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &attention_md,
@@ -487,12 +481,10 @@ rnn_forward_test_t<vanilla_rnn_forward, float>::setDesc(prop_kind aprop,
         const memory::desc &weights_iter_md, const memory::desc &,
         const memory::desc &, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
-        const memory::desc &dst_iter_c_md, rnn_flags flags, float alpha,
-        float beta) {
-    vanilla_rnn_forward::desc rnn_d(aprop, activation, direction, src_layer_md,
-            src_iter_md, weights_layer_md, weights_iter_md, bias_md,
-            dst_layer_md, dst_iter_md, flags, alpha, beta);
-    return rnn_d;
+        const memory::desc &dst_iter_c_md, float alpha) {
+    return vanilla_rnn_forward::primitive_desc(get_test_engine(), aprop,
+            activation, direction, src_layer_md, src_iter_md, weights_layer_md,
+            weights_iter_md, bias_md, dst_layer_md, dst_iter_md, alpha);
 }
 
 /* LSTM specializations */
@@ -502,7 +494,7 @@ memory::dim rnn_forward_test_t<lstm_forward, float>::getNGates() {
 }
 
 template <>
-lstm_forward::desc rnn_forward_test_t<lstm_forward, float>::setDesc(
+lstm_forward::primitive_desc rnn_forward_test_t<lstm_forward, float>::get_pd(
         prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &attention_md,
@@ -511,13 +503,11 @@ lstm_forward::desc rnn_forward_test_t<lstm_forward, float>::setDesc(
         const memory::desc &weights_peephole_md,
         const memory::desc &weights_projection_md, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
-        const memory::desc &dst_iter_c_md, rnn_flags flags, float alpha,
-        float beta) {
-    lstm_forward::desc lstm_d(aprop, direction, src_layer_md, src_iter_md,
-            src_iter_c_md, weights_layer_md, weights_iter_md,
-            weights_peephole_md, weights_projection_md, bias_md, dst_layer_md,
-            dst_iter_md, dst_iter_c_md, flags);
-    return lstm_d;
+        const memory::desc &dst_iter_c_md, float alpha) {
+    return lstm_forward::primitive_desc(get_test_engine(), aprop, direction,
+            src_layer_md, src_iter_md, src_iter_c_md, weights_layer_md,
+            weights_iter_md, weights_peephole_md, weights_projection_md,
+            bias_md, dst_layer_md, dst_iter_md, dst_iter_c_md);
 }
 
 template <>
@@ -584,7 +574,7 @@ memory::dim rnn_forward_test_t<gru_forward, float>::getNGates() {
 }
 
 template <>
-gru_forward::desc rnn_forward_test_t<gru_forward, float>::setDesc(
+gru_forward::primitive_desc rnn_forward_test_t<gru_forward, float>::get_pd(
         prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &attention_md,
@@ -592,12 +582,10 @@ gru_forward::desc rnn_forward_test_t<gru_forward, float>::setDesc(
         const memory::desc &weights_iter_md, const memory::desc &,
         const memory::desc &, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
-        const memory::desc &dst_iter_c_md, rnn_flags flags, float alpha,
-        float beta) {
-    gru_forward::desc gru_d(aprop, direction, src_layer_md, src_iter_md,
-            weights_layer_md, weights_iter_md, bias_md, dst_layer_md,
-            dst_iter_md, flags);
-    return gru_d;
+        const memory::desc &dst_iter_c_md, float alpha) {
+    return gru_forward::primitive_desc(get_test_engine(), aprop, direction,
+            src_layer_md, src_iter_md, weights_layer_md, weights_iter_md,
+            bias_md, dst_layer_md, dst_iter_md);
 }
 
 /* LBR GRU specializations */
@@ -607,20 +595,19 @@ memory::dim rnn_forward_test_t<lbr_gru_forward, float>::getNGates() {
 }
 
 template <>
-lbr_gru_forward::desc rnn_forward_test_t<lbr_gru_forward, float>::setDesc(
-        prop_kind aprop, algorithm activation, rnn_direction direction,
+lbr_gru_forward::primitive_desc
+rnn_forward_test_t<lbr_gru_forward, float>::get_pd(prop_kind aprop,
+        algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &attention_md,
         const memory::desc &weights_layer_md,
         const memory::desc &weights_iter_md, const memory::desc &,
         const memory::desc &, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
-        const memory::desc &dst_iter_c_md, rnn_flags flags, float alpha,
-        float beta) {
-    lbr_gru_forward::desc lbr_gru_d(aprop, direction, src_layer_md, src_iter_md,
-            weights_layer_md, weights_iter_md, bias_md, dst_layer_md,
-            dst_iter_md, flags);
-    return lbr_gru_d;
+        const memory::desc &dst_iter_c_md, float alpha) {
+    return lbr_gru_forward::primitive_desc(get_test_engine(), aprop, direction,
+            src_layer_md, src_iter_md, weights_layer_md, weights_iter_md,
+            bias_md, dst_layer_md, dst_iter_md);
 }
 
 /* AUGRU specializations */
@@ -630,7 +617,7 @@ memory::dim rnn_forward_test_t<augru_forward, float>::getNGates() {
 }
 
 template <>
-augru_forward::desc rnn_forward_test_t<augru_forward, float>::setDesc(
+augru_forward::primitive_desc rnn_forward_test_t<augru_forward, float>::get_pd(
         prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &attention_md,
@@ -638,12 +625,10 @@ augru_forward::desc rnn_forward_test_t<augru_forward, float>::setDesc(
         const memory::desc &weights_iter_md, const memory::desc &,
         const memory::desc &, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
-        const memory::desc &dst_iter_c_md, rnn_flags flags, float alpha,
-        float beta) {
-    augru_forward::desc augru_d(aprop, direction, src_layer_md, src_iter_md,
-            attention_md, weights_layer_md, weights_iter_md, bias_md,
-            dst_layer_md, dst_iter_md, flags);
-    return augru_d;
+        const memory::desc &dst_iter_c_md, float alpha) {
+    return augru_forward::primitive_desc(get_test_engine(), aprop, direction,
+            src_layer_md, src_iter_md, attention_md, weights_layer_md,
+            weights_iter_md, bias_md, dst_layer_md, dst_iter_md);
 }
 
 /* LBR AUGRU specializations */
@@ -653,20 +638,20 @@ memory::dim rnn_forward_test_t<lbr_augru_forward, float>::getNGates() {
 }
 
 template <>
-lbr_augru_forward::desc rnn_forward_test_t<lbr_augru_forward, float>::setDesc(
-        prop_kind aprop, algorithm activation, rnn_direction direction,
+lbr_augru_forward::primitive_desc
+rnn_forward_test_t<lbr_augru_forward, float>::get_pd(prop_kind aprop,
+        algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &attention_md,
         const memory::desc &weights_layer_md,
         const memory::desc &weights_iter_md, const memory::desc &,
         const memory::desc &, const memory::desc &bias_md,
         const memory::desc &dst_layer_md, const memory::desc &dst_iter_md,
-        const memory::desc &dst_iter_c_md, rnn_flags flags, float alpha,
-        float beta) {
-    lbr_augru_forward::desc lbr_augru_d(aprop, direction, src_layer_md,
-            src_iter_md, attention_md, weights_layer_md, weights_iter_md,
-            bias_md, dst_layer_md, dst_iter_md, flags);
-    return lbr_augru_d;
+        const memory::desc &dst_iter_c_md, float alpha) {
+    return lbr_augru_forward::primitive_desc(get_test_engine(), aprop,
+            direction, src_layer_md, src_iter_md, attention_md,
+            weights_layer_md, weights_iter_md, bias_md, dst_layer_md,
+            dst_iter_md);
 }
 
 using eng = engine::kind;
@@ -683,9 +668,9 @@ using lbr_augru_forward_test_f32 = rnn_forward_test_t<lbr_augru_forward, float>;
 using cfg_f32 = test_rnn_params_t;
 
 #define PLAIN_RNN(a) \
-    { a, rnn_flags::undef, 0.0f, 0.0f }
+    { a, 0.0f }
 #define NOT_RNN \
-    { alg::undef, rnn_flags::undef, 0.0f, 0.0f }
+    { alg::undef, 0.0f }
 
 TEST_P(rnn_forward_test_f32, TestsRnn) {}
 CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
@@ -725,6 +710,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
                         true, dnnl_invalid_arguments},
                 /* Check if passing {src,dst}_iter impacts results */
                 cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+
                         prop_kind::forward_inference,
                         dir::unidirectional_left2right,
                         {fmt::tnc, fmt::undef, fmt::ldigo, fmt::ldigo,
