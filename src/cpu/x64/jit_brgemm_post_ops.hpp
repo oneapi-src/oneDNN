@@ -449,9 +449,11 @@ private:
                 : ymm_in;
     }
 
+    // maybe_req_comp == true -> convert integral values to s32, not f32
+    // (compensation should be applied in s32 to avoid accuracy issues)
     void cvt2ps(data_type_t type_in, const Xbyak::Zmm zmm_in,
             const Xbyak::Operand &op, bool mask_flag, bool store,
-            Xbyak::Opmask ktail_mask) {
+            Xbyak::Opmask ktail_mask, bool maybe_req_comp = false) {
         const Xbyak::Zmm zmm = zmm_mask(zmm_in, mask_flag, store, ktail_mask);
         switch (type_in) {
             case data_type::f32:
@@ -464,7 +466,7 @@ private:
                 break;
             default: assert(!"unsupported data type");
         }
-        if (!utils::one_of(type_in, data_type::f32, data_type::bf16))
+        if (!maybe_req_comp && types::is_integral_dt(type_in))
             vcvtdq2ps(zmm_in, zmm_in);
     }
 
@@ -610,14 +612,8 @@ private:
             } else {
                 auto inp_addr = ptr[aux_reg_in
                         + inp_typesize_ * (m * brg.LDC + n * brg.ld_block)];
-                if (maybe_req_comp) {
-                    const Xbyak::Zmm zmm
-                            = zmm_mask(vector(m, n), true, false, k_mask);
-                    vmovups(zmm, inp_addr);
-                } else {
-                    cvt2ps(inp_dt_, vector(m, n), inp_addr, true, false,
-                            k_mask);
-                }
+                cvt2ps(inp_dt_, vector(m, n), inp_addr, true, false, k_mask,
+                        maybe_req_comp);
             }
         }
 
