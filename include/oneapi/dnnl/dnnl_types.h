@@ -1898,19 +1898,6 @@ typedef const struct dnnl_memory *const_dnnl_memory_t;
 
 /// @addtogroup dnnl_api_primitives
 /// @{
-/// @addtogroup dnnl_api_primitives_common
-/// @{
-
-/// A pointer to any of the operation descriptors.
-typedef void *dnnl_op_desc_t;
-/// A pointer to any of the operation descriptors (constant variant).
-typedef const void *const_dnnl_op_desc_t;
-
-/// @} dnnl_api_primitives_common
-/// @} dnnl_api_primitives
-
-/// @addtogroup dnnl_api_primitives
-/// @{
 
 /// @addtogroup dnnl_api_rnn
 /// @{
@@ -2324,7 +2311,6 @@ typedef struct {
 /// dnnl_query_*_f32                | float *
 /// dnnl_query_*_f64                | double *
 /// dnnl_query_*_str                | const char **
-/// #dnnl_query_op_d                | #const_dnnl_op_desc_t *
 /// dnnl_query_*_md                 | const #dnnl_memory_desc_t **
 /// dnnl_query_*_\<op\>_d           | const dnnl_\<op\>_desc_t **
 /// dnnl_query_*_pd                 | #const_dnnl_primitive_desc_t *

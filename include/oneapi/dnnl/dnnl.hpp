@@ -3733,9 +3733,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     // Set scale and shift for int8 quantization of activation
     ///     attr.set_rnn_data_qparams(scale, shift);
     ///
-    ///     // Create and configure rnn op_desc
-    ///     vanilla_rnn_forward::desc rnn_d(/* arguments */);
-    ///     vanilla_rnn_forward::primitive_desc rnn_d(rnn_d, attr, engine);
+    ///     // Create an RNN primitive descriptor.
+    ///     vanilla_rnn_forward::primitive_desc rnn_d(
+    ///             engine, /* arguments */, attr);
     /// @endcode
     ///
     /// @note
@@ -4828,47 +4828,12 @@ struct sum : public primitive {
 /// @addtogroup dnnl_api_primitives_common
 /// @{
 
-/// A base class for descriptors of all primitives that have an operation
-/// descriptor and that support iteration over multiple implementations.
+/// A base class for descriptors of all primitives that support iteration
+///     over multiple implementations.
 struct primitive_desc : public primitive_desc_base {
     using primitive_desc_base::primitive_desc_base;
 
     primitive_desc() = default;
-
-    /// Constructs a primitive descriptor.
-    ///
-    /// @note
-    ///     If @p allow_empty is true, the constructor does not throw if a
-    ///     primitive descriptor cannot be created. But calling next_impl() in
-    ///     this case will throw.
-    ///
-    /// @note
-    ///     This is a low-level implementation detail that is typically not
-    ///     needed in application code.
-    ///
-    /// @param desc Constant C API operation descriptor.
-    /// @param attr Pointer to primitive attributes. It is safe to pass
-    ///     nullptr to indicate absence of attributes.
-    /// @param aengine Engine to use.
-    /// @param hint_fwd_pd C API primitive descriptor for a forward
-    ///     propagation primitive. It is used as a hint for deciding which
-    ///     memory format to use for backward propagation or weights gradient.
-    /// @param allow_empty A flag signifying whether construction is allowed
-    ///     to fail without throwing an exception. In this case an empty
-    ///     object will be produced. This flag is optional and defaults to
-    ///     false.
-    primitive_desc(const_dnnl_op_desc_t desc, const primitive_attr *attr,
-            const engine &aengine, const_dnnl_primitive_desc_t hint_fwd_pd,
-            bool allow_empty = false) {
-
-        dnnl_primitive_desc_t pd = nullptr;
-        dnnl_status_t status = dnnl_primitive_desc_create(&pd, desc,
-                attr ? attr->get() : nullptr, aengine.get(), hint_fwd_pd);
-        if (!allow_empty)
-            error::wrap_c_api(
-                    status, "could not create a primitive descriptor");
-        reset(pd);
-    }
 
     /// Changes the primitive descriptor to point to the next available
     /// implementation.

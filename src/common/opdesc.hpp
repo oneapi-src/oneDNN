@@ -528,10 +528,6 @@ struct rnn_desc_t {
     float beta;
 };
 
-/* C op_desc_t, which eventually are just (void*) */
-using c_op_desc_t = dnnl_op_desc_t;
-using const_c_op_desc_t = const_dnnl_op_desc_t;
-
 struct op_desc_t {
     union {
         primitive_kind_t kind;

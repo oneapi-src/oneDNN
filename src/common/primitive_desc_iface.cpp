@@ -174,30 +174,6 @@ status_t dnnl_primitive_desc_clone(
                     existing_primitive_desc_iface->engine()));
 }
 
-status_t dnnl_primitive_desc_create(
-        primitive_desc_iface_t **primitive_desc_iface,
-        const_c_op_desc_t c_op_desc, const primitive_attr_t *attr,
-        engine_t *engine, const primitive_desc_iface_t *hint_fwd_pd) {
-    using namespace primitive_kind;
-
-    auto *op_desc = (const op_desc_t *)c_op_desc;
-
-    const bool known_primitive_kind = utils::one_of(op_desc->kind,
-            batch_normalization, binary, convolution, deconvolution, eltwise,
-            gemm, inner_product, layer_normalization, lrn, matmul, pooling,
-            prelu, reduction, resampling, rnn, shuffle, softmax);
-    if (!known_primitive_kind) return invalid_arguments;
-
-    auto pd_iface = utils::make_unique<primitive_desc_iface_t>(engine, op_desc,
-            attr, hint_fwd_pd ? hint_fwd_pd->impl().get() : nullptr);
-    if (pd_iface == nullptr) return out_of_memory;
-    CHECK(pd_iface->init());
-
-    *primitive_desc_iface = pd_iface.release();
-
-    return success;
-}
-
 status_t dnnl_primitive_desc_destroy(
         primitive_desc_iface_t *primitive_desc_iface) {
     delete primitive_desc_iface;

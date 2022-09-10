@@ -48,23 +48,6 @@ extern "C" {
 dnnl_status_t DNNL_API dnnl_primitive_desc_next_impl(
         dnnl_primitive_desc_t primitive_desc);
 
-/// Creates a primitive descriptor that points to the first available
-/// implementation.
-///
-/// @param primitive_desc Output primitive descriptor.
-/// @param op_desc Operation descriptor.
-/// @param attr Primitive attributes (can be NULL).
-/// @param engine Engine to use.
-/// @param hint_forward_primitive_desc For backward propagation: primitive
-///     descriptor for a respective forward propagation primitive. Pass NULL
-///     for forward propagation.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_desc_create(
-        dnnl_primitive_desc_t *primitive_desc, const_dnnl_op_desc_t op_desc,
-        const_dnnl_primitive_attr_t attr, dnnl_engine_t engine,
-        const_dnnl_primitive_desc_t hint_forward_primitive_desc);
-
 /// Clones a primitive descriptor. The resulting primitive descriptor must be
 /// destroyed separately.
 ///
@@ -2544,10 +2527,10 @@ dnnl_inner_product_backward_weights_primitive_desc_create(
 ///     // Set scale and shift for int8 quantization of activation
 ///     dnnl_primitive_attr_set_rnn_data_qparams(rnn_attr, scale, shift);
 ///
-///     // Create and configure rnn op_desc
-///     dnnl_primitive_desc_t rnn_d;
+///     // Create an RNN primitive descriptor.
 ///     dnnl_primitive_desc_t rnn_pd;
-///     dnnl_primitive_desc_create(&rnn_pd, &rnn_d, attr, engine, NULL);
+///     dnnl_vanilla_rnn_forward_primitive_desc_create(&rnn_pd,
+///             engine, /* arguments */, attr);
 /// @endcode
 ///
 /// @param attr Primitive attributes.
