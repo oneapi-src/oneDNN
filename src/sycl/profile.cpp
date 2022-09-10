@@ -24,7 +24,6 @@
 #include "common/utils.hpp"
 #include "gpu/profile.hpp"
 
-using namespace dnnl::impl;
 using namespace dnnl::impl::sycl;
 
 namespace dnnl {
