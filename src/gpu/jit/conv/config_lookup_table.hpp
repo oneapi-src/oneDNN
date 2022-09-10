@@ -22,8 +22,8 @@
 #include <unordered_map>
 
 #include "common/c_types_map.hpp"
-#include "gpu/jit/conv/hw_config.hpp"
-#include "gpu/jit/conv/ir_core.hpp"
+#include "gpu/jit/ir/core.hpp"
+#include "gpu/jit/ir/hw_config.hpp"
 #include "gpu/jit/ngen/ngen_core.hpp"
 
 namespace dnnl {

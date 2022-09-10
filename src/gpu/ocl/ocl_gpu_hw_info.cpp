@@ -16,7 +16,7 @@
 
 #include "gpu/ocl/ocl_gpu_hw_info.hpp"
 #include "gpu/jit/jit_generator.hpp"
-#include "gpu/jit/ngen_type_bridge.hpp"
+#include "gpu/jit/utils/ngen_type_bridge.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -18,9 +18,9 @@
 
 #include <sstream>
 
-#include "gpu/jit/conv/message_support.hpp"
-#include "gpu/jit/conv/register_allocator.hpp"
-#include "gpu/jit/conv/reorder_support.hpp"
+#include "gpu/jit/codegen/register_allocator.hpp"
+#include "gpu/jit/ir/message.hpp"
+#include "gpu/jit/ir/reorder.hpp"
 
 namespace dnnl {
 namespace impl {

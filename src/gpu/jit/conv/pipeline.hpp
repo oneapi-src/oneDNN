@@ -17,8 +17,8 @@
 #ifndef GPU_JIT_CONV_PIPELINE_HPP
 #define GPU_JIT_CONV_PIPELINE_HPP
 
-#include "gpu/jit/conv/builder_utils.hpp"
 #include "gpu/jit/conv/config.hpp"
+#include "gpu/jit/utils/trace.hpp"
 
 namespace dnnl {
 namespace impl {

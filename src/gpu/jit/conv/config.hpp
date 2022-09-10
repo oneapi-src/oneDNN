@@ -29,12 +29,12 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
-#include "gpu/jit/conv/fma_support.hpp"
-#include "gpu/jit/conv/hw_config.hpp"
-#include "gpu/jit/conv/tensor.hpp"
 #include "gpu/jit/conv/tensor_config.hpp"
-#include "gpu/jit/conv/utils.hpp"
+#include "gpu/jit/ir/fma.hpp"
+#include "gpu/jit/ir/hw_config.hpp"
+#include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/jit_eltwise_injector.hpp"
+#include "gpu/jit/utils/utils.hpp"
 
 namespace dnnl {
 namespace impl {

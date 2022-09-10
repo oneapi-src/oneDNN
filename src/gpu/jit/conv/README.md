@@ -436,7 +436,7 @@ kernel ABI.
 
 This and further steps are performed during primitive initialization.
 
-`kernel_builder_t` class is responsible for the whole kernel IR generation.
+`conv_ir_builder_t` class is responsible for the whole kernel IR generation.
 There are other builder classes which are responsible for more specialized
 functionality, for example:
 

@@ -20,10 +20,11 @@
 #include <cstring>
 
 #include "common/type_helpers.hpp"
-#include "gpu/jit/conv/block_2d_utils.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
 #include "gpu/jit/conv/config_lookup_table.hpp"
 #include "gpu/jit/conv/grf_usage.hpp"
+#include "gpu/jit/conv/normalization.hpp"
+#include "gpu/jit/ir/block_2d_utils.hpp"
 
 namespace dnnl {
 namespace impl {

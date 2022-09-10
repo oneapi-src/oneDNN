@@ -30,11 +30,11 @@
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
-#include "gpu/jit/conv/fma_support.hpp"
-#include "gpu/jit/conv/hw_config.hpp"
-#include "gpu/jit/conv/ir_core.hpp"
-#include "gpu/jit/conv/utils.hpp"
+#include "gpu/jit/ir/core.hpp"
+#include "gpu/jit/ir/fma.hpp"
+#include "gpu/jit/ir/hw_config.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
+#include "gpu/jit/utils/utils.hpp"
 
 namespace dnnl {
 namespace impl {

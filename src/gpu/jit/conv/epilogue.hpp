@@ -18,10 +18,10 @@
 #define GPU_JIT_CONV_EPILOGUE_HPP
 
 #include "gpu/jit/conv/config.hpp"
-#include "gpu/jit/conv/gemm_schedule.hpp"
-#include "gpu/jit/conv/ir.hpp"
-#include "gpu/jit/conv/post_op_support.hpp"
+#include "gpu/jit/conv/post_ops.hpp"
 #include "gpu/jit/conv/slm_reduce_builder.hpp"
+#include "gpu/jit/ir/gemm_schedule.hpp"
+#include "gpu/jit/ir/ir.hpp"
 
 namespace dnnl {
 namespace impl {

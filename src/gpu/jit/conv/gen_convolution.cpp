@@ -22,101 +22,25 @@
 #include "common/impl_registration.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
+#include "gpu/jit/ir/kernel_info.hpp"
+#include "gpu/jit/reorder/reorder_kernel.hpp"
+#include "gpu/jit/utils/utils.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
+
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/conv_kernel.hpp"
-#include "gpu/jit/conv/kernel_info.hpp"
-#include "gpu/jit/conv/utils.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/jit/conv/zero_out.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
 
-using namespace compute;
-
-static size_t icache_size(ngen::HW arch) {
-    switch (arch) {
-        case gpu_gen9: return 48 * 1024;
-        case gpu_gen11: return 48 * 1024;
-        case gpu_xe_lp: return 48 * 1024;
-        case gpu_xe_hp: return 48 * 1024;
-        case gpu_xe_hpg: return 96 * 1024;
-        case gpu_xe_hpc: return 80 * 1024;
-        default: return 0;
-    }
-}
-
-template <template <ngen::HW> class KernelT, ngen::HW arch, typename... ArgsT>
-std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&... args) {
-
-    auto raw_kernel = new KernelT<arch>(std::forward<ArgsT>(args)...);
-    if (raw_kernel->getRootStreamLength() > icache_size(arch)) {
-        ir_warning() << raw_kernel->kernel_name()
-                     << " larger than icache, kernel: "
-                     << raw_kernel->getRootStreamLength()
-                     << " bytes, icache: " << icache_size(arch) << " bytes\n";
-    }
-    return std::unique_ptr<jit::jit_generator_base>(raw_kernel);
-}
-
-template <template <ngen::HW> class KernelT, typename... ArgsT>
-compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
-        gpu_gen_t arch, ArgsT &&... args) {
-    compute::kernel_t kernel;
-
-    if (primitive->cache_blob()) {
-        status_t status = primitive->create_kernel(engine, &kernel, nullptr);
-        if (status != status::success) return compute::kernel_t();
-        return kernel;
-    }
-
-    std::unique_ptr<jit::jit_generator_base> jit_kernel;
-#define CASE(gpu_arch) \
-    case gpu_arch: \
-        jit_kernel = make_generator<KernelT, gpu_arch>( \
-                std::forward<ArgsT>(args)...); \
-        break;
-    switch (arch) {
-        REG_GEN9_ISA(CASE(gpu_gen9));
-        REG_GEN11_ISA(CASE(gpu_gen11));
-        REG_XELP_ISA(CASE(gpu_xe_lp));
-        REG_XEHP_ISA(CASE(gpu_xe_hp));
-        REG_XEHPG_ISA(CASE(gpu_xe_hpg));
-        REG_XEHPC_ISA(CASE(gpu_xe_hpc));
-        default: break;
-    }
-#undef CASE
-
-#ifdef GEN_CONV_DEBUG
-    auto compute_engine = utils::downcast<compute_engine_t *>(engine);
-    auto device_info = compute_engine->device_info();
-    gpu_gen_t actual_arch = ngen::HW::Unknown;
-    switch (device_info->gpu_arch()) {
-        case gpu_arch_t::gen9: actual_arch = gpu_gen9; break;
-        case gpu_arch_t::gen11: actual_arch = gpu_gen11; break;
-        case gpu_arch_t::xe_lp: actual_arch = gpu_xe_lp; break;
-        case gpu_arch_t::xe_hp: actual_arch = gpu_xe_hp; break;
-        case gpu_arch_t::xe_hpg: actual_arch = gpu_xe_hpg; break;
-        case gpu_arch_t::xe_hpc: actual_arch = gpu_xe_hpc; break;
-        case gpu_arch_t::unknown: actual_arch = ngen::HW::Unknown; break;
-    }
-    ir_assert(actual_arch == arch)
-            << "Cannot emulate executing gpu_arch environment";
-#endif
-
-    if (!jit_kernel) return compute::kernel_t();
-
-    status_t status
-            = primitive->create_kernel(engine, &kernel, jit_kernel.get());
-    if (status != status::success) return compute::kernel_t();
-    return kernel;
-}
-
 class gen_convolution_t {
 public:
     template <typename T>
     static status_t init_pd(T *pd, engine_t *engine) {
+        using compute::compute_engine_t;
         auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
 
         if (!compute_engine->mayiuse_ngen_kernels())
@@ -250,7 +174,7 @@ public:
                 std::vector<memory_storage_wrapper_t> storage_list;
                 info.init_memory_storage_list(storage_list, ctx, primitive);
 
-                kernel_arg_list_t arg_list;
+                compute::kernel_arg_list_t arg_list;
                 info.set_args(arg_list, storage_list);
 
                 CHECK(primitive->parallel_for(
@@ -383,7 +307,7 @@ private:
         return status::success;
     }
 
-    std::vector<kernel_t> kernels_;
+    std::vector<compute::kernel_t> kernels_;
 };
 
 status_t gen_convolution_fwd_t::pd_t::init(engine_t *engine) {

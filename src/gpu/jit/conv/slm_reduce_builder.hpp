@@ -17,9 +17,9 @@
 #ifndef GPU_JIT_CONV_SLM_REDUCE_BUILDER_HPP
 #define GPU_JIT_CONV_SLM_REDUCE_BUILDER_HPP
 
-#include "gpu/jit/conv/hw_config.hpp"
-#include "gpu/jit/conv/ir.hpp"
-#include "gpu/jit/conv/tensor.hpp"
+#include "gpu/jit/ir/hw_config.hpp"
+#include "gpu/jit/ir/ir.hpp"
+#include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
 
 #include <vector>

@@ -26,7 +26,7 @@
 #include "gpu/jit/gemm/kernel_catalog.hpp"
 #include "gpu/jit/gemm/kernel_evaluator.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
-#include "gpu/jit/ngen_type_bridge.hpp"
+#include "gpu/jit/utils/ngen_type_bridge.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {

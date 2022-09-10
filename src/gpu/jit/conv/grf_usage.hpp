@@ -20,8 +20,8 @@
 #include <unordered_map>
 
 #include "gpu/jit/conv/config.hpp"
-#include "gpu/jit/conv/ir.hpp"
-#include "gpu/jit/conv/utils.hpp"
+#include "gpu/jit/ir/ir.hpp"
+#include "gpu/jit/utils/utils.hpp"
 
 namespace dnnl {
 namespace impl {

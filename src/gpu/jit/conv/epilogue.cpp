@@ -16,10 +16,11 @@
 
 #include "gpu/jit/conv/epilogue.hpp"
 
-#include "gpu/jit/conv/builder_utils.hpp"
-#include "gpu/jit/conv/message_support.hpp"
-#include "gpu/jit/conv/reduce_support.hpp"
-#include "gpu/jit/conv/reorder_support.hpp"
+#include "gpu/jit/ir/message.hpp"
+#include "gpu/jit/ir/mul_add.hpp"
+#include "gpu/jit/ir/reduce.hpp"
+#include "gpu/jit/ir/reorder.hpp"
+#include "gpu/jit/utils/trace.hpp"
 
 namespace dnnl {
 namespace impl {

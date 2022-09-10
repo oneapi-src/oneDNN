@@ -22,7 +22,7 @@
 #include "common/impl_registration.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/jit/gemm/gemm_walk_orders.hpp"
-#include "gpu/jit/ngen_type_bridge.hpp"
+#include "gpu/jit/utils/ngen_type_bridge.hpp"
 #include "gpu/ocl/gemm/xe_systolic_gemm_copy_kernel.hpp"
 
 namespace dnnl {
