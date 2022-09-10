@@ -29,8 +29,6 @@
 #include "sycl/profile.hpp"
 #endif
 
-using namespace dnnl::impl;
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -45,12 +43,16 @@ bool is_profiling_enabled() {
 } // namespace impl
 } // namespace dnnl
 
+using dnnl::impl::status_t;
+
 extern "C" status_t DNNL_API dnnl_impl_gpu_set_profiling(int flag) {
+    using namespace dnnl::impl;
     dnnl::impl::gpu::profile.set((bool)flag);
     return status::success;
 }
 
 extern "C" status_t DNNL_API dnnl_impl_gpu_reset_profiling() {
+    using namespace dnnl::impl;
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     return dnnl::impl::gpu::ocl::reset_profiling();
 #endif
@@ -61,6 +63,7 @@ extern "C" status_t DNNL_API dnnl_impl_gpu_reset_profiling() {
 }
 
 extern "C" status_t DNNL_API dnnl_impl_gpu_get_profiling_time(uint64_t *nsec) {
+    using namespace dnnl::impl;
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     return dnnl::impl::gpu::ocl::get_profiling_time(nsec);
 #endif

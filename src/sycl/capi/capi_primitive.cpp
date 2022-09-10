@@ -25,11 +25,13 @@
 #include "sycl/sycl_engine.hpp"
 #include "sycl/sycl_stream.hpp"
 
-using namespace dnnl::impl;
+using dnnl::impl::status_t;
+using dnnl::impl::stream_t;
 
 status_t dnnl_sycl_interop_primitive_execute(
         const primitive_iface_t *primitive_iface, stream_t *stream, int nargs,
         const dnnl_exec_arg_t *args, const void *deps_, void *return_event_) {
+    using namespace dnnl::impl;
     bool ok = !utils::any_null(primitive_iface, stream)
             && primitive_iface->engine() == stream->engine()
             && primitive_iface->engine()->runtime_kind() == runtime_kind::sycl

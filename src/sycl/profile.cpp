@@ -22,7 +22,6 @@
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 
-using namespace dnnl::impl;
 using namespace dnnl::impl::sycl;
 
 namespace dnnl {

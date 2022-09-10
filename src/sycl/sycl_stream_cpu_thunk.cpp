@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,10 +24,10 @@
 
 #include <assert.h>
 
-using namespace dnnl::impl;
 using namespace dnnl::impl::sycl;
 
 void dnnl_impl_sycl_cpu_thunk(const thunk_params_t *params) {
+    using namespace dnnl::impl;
 
     auto *submit_ctx = params->submit_ctx_ptr;
     auto *prim_iface = submit_ctx->prim_iface;

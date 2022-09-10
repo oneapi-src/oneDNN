@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,17 +66,22 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
 } // namespace impl
 } // namespace dnnl
 
-using namespace dnnl::impl;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 
+using dnnl::impl::engine_kind_t;
+using dnnl::impl::engine_t;
+using dnnl::impl::status_t;
+
 size_t dnnl_engine_get_count(engine_kind_t kind) {
+    using namespace dnnl::impl;
     auto ef = get_engine_factory(kind, get_default_runtime(kind));
     return ef != nullptr ? ef->count() : 0;
 }
 
 status_t dnnl_engine_create(
         engine_t **engine, engine_kind_t kind, size_t index) {
+    using namespace dnnl::impl;
     if (engine == nullptr) return invalid_arguments;
 
     auto ef = get_engine_factory(kind, get_default_runtime(kind));
@@ -86,6 +91,7 @@ status_t dnnl_engine_create(
 }
 
 status_t dnnl_engine_get_kind(engine_t *engine, engine_kind_t *kind) {
+    using namespace dnnl::impl;
     if (engine == nullptr) return invalid_arguments;
     *kind = engine->kind();
     return success;
