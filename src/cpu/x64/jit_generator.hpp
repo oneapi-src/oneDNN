@@ -196,9 +196,12 @@ public:
         }
         for (size_t i = 0; i < num_abi_save_gpr_regs; ++i)
             push(Xbyak::Reg64(abi_save_gpr_regs[i]));
+#ifndef DNNL_ENABLE_MEM_DEBUG
+        // do not use RBP in mem debug mode to enable backtracing from jit code
         if (is_valid_isa(avx512_core)) {
             mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
         }
+#endif
 
 #ifdef DNNL_ENABLE_MEM_DEBUG
         // This section poisons vector registers with NaNs to catch situations
@@ -277,6 +280,8 @@ public:
 
         int scale = 0;
 
+#ifndef DNNL_ENABLE_MEM_DEBUG
+        // do not use RBP in mem debug mode to enable backtracing from jit code
         if (EVEX_max_8b_offt <= offt && offt < 3 * EVEX_max_8b_offt) {
             offt = offt - 2 * EVEX_max_8b_offt;
             scale = 1;
@@ -285,6 +290,7 @@ public:
             offt = offt - 4 * EVEX_max_8b_offt;
             scale = 2;
         }
+#endif
 
         auto re = RegExp() + base + offt;
         if (scale) re = re + reg_EVEX_max_8b_offt * scale;
