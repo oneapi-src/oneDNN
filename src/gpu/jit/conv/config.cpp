@@ -981,7 +981,8 @@ status_t init_fma_kind(conv_config_t &cfg) {
     auto fma_kind = fma_kind::get_supported_kind(
             cfg.hw(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
     // Force mad for some cases.
-    if (prb.is_dw) fma_kind = fma_kind_t::mad;
+    if (prb.is_dw || (prb.g > 1 && prb.ic < 4 && prb.oc < 4 && prb.mb < 8))
+        fma_kind = fma_kind_t::mad;
     if (fma_kind == fma_kind_t::unknown) return status::unimplemented;
     cfg.set_fma_kind(fma_kind);
     return status::success;
@@ -1255,6 +1256,11 @@ void init_common_blocking(conv_config_t &cfg, block_helper_t &bh) {
         int src_ic_blk = src_layout.inner_block(2);
         int wei_ic_blk = wei_layout.inner_block(2);
         bh.set_base_iter_block("ic", src_ic_blk, wei_ic_blk);
+        if (cfg.is_g_mad()) {
+            bh.set_base_iter_block(
+                    "oc", dst_layout.inner_block(2), wei_layout.inner_block(1));
+            bh.dim("oc").set_iter_dim(bh.dim("oc").base_iter_block());
+        }
     } else if (prb.is_bwd_d) {
         bh.set_base_iter_block("mb", dst_layout.inner_block(0));
         int dst_g_blk = dst_layout.inner_block(1);
@@ -1297,11 +1303,18 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     const char *osp_name = cfg.fuse_spatial() ? "osp" : "ow";
 
     if (cfg.ow_kw_grf_cache()) {
+        bh.set_base_iter_block("mb", 1);
+        bh.dim("mb").set_iter_dim(1);
         bh.set_max_iter_dim("mb", 1);
         bh.set_max_m_tg_dim(2);
         bh.set_max_n_tg_dim(2);
     }
-
+    if (cfg.is_g_mad()) {
+        bh.set_base_iter_block("mb", 1);
+        bh.dim("mb").set_iter_dim(1);
+        bh.set_max_iter_dim("mb", 1);
+        bh.set_max_iter_dim(osp_name, 4);
+    }
     bh.set_loop_dim("kd", prb.kd);
     bh.set_loop_dim("kh", prb.kh);
     if (is_small_ic(prb) && !is_dw_large_mb(prb)) {
@@ -1316,7 +1329,7 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     }
 
     bh.set_block_dims({"g", "oc", "ic", "mb", osp_name});
-    bh.set_vector_dim(prb.is_dw ? "g" : "oc");
+    bh.set_vector_dim(prb.is_dw || cfg.is_g_mad() ? "g" : "oc");
     bh.allow_fuse({"ic", "kw"});
     bh.allow_split({"oc", "ic", "kw"});
 
@@ -1335,6 +1348,8 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     } else if (cfg.src_layout().compute().inner_block(0) == 1) {
         use_sp_blocking = true;
     } else if (prb.is_dw && !is_dw_large_mb(prb)) {
+        use_sp_blocking = true;
+    } else if (cfg.is_g_mad() || cfg.ow_kw_grf_cache()) {
         use_sp_blocking = true;
     }
 
