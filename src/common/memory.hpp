@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     }
 
     /** sets data handle */
-    dnnl::impl::status_t set_data_handle(void *handle, dnnl_stream *stream);
+    dnnl::impl::status_t set_data_handle(void *handle);
 
     /** zeros padding */
     dnnl::impl::status_t zero_pad(const dnnl::impl::exec_ctx_t &ctx) const;

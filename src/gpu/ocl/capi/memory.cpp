@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ status_t dnnl_ocl_interop_memory_set_mem_object(
     bool args_ok = (memory->engine()->runtime_kind() == runtime_kind::ocl);
     if (!args_ok) return status::invalid_arguments;
 
-    return memory->set_data_handle(static_cast<void *>(mem_object), nullptr);
+    return memory->set_data_handle(static_cast<void *>(mem_object));
 }
 
 status_t dnnl_ocl_interop_memory_get_memory_kind(

@@ -2786,51 +2786,12 @@ struct memory : public handle<dnnl_memory_t> {
 
     /// Sets the underlying memory buffer.
     ///
-    /// This function may write zero values to the memory specified by the @p
-    /// handle if the memory object has a zero padding area. This may be time
-    /// consuming and happens each time this function is called. The
-    /// operation is always blocking and the stream parameter is a hint.
-    ///
-    /// @note
-    ///     The zero padding is required by memory objects created with
-    ///     blocked memory format tags like #dnnl_aBcd8b when any of the
-    ///     dimensions is not a multiple of the corresponding block size. For
-    ///     "plain" formats like #dnnl::memory::format_tag::nchw or
-    ///     #dnnl::memory::format_tag::nhwc zero padding area needs to be set
-    ///     up explicitly when creating the corresponding memory descriptors.
-    ///     See @ref dev_guide_understanding_memory_formats for more details.
-    ///
-    /// @note
-    ///     Even when the memory object is used to hold values that stay
-    ///     constant during the execution of the program (pre-packed weights
-    ///     during inference, for example), the function will still write
-    ///     zeroes to the padding area if it exists. Hence, the @p handle
-    ///     parameter cannot and does not have a const qualifier.
-    ///
     /// @param handle Memory buffer to use. On the CPU engine or when USM is
     ///     used, the memory buffer is a pointer to the actual data. For OpenCL
     ///     it is a cl_mem. It must have at least
     ///     #dnnl::memory::desc::get_size() bytes allocated.
-    /// @param astream Stream to use to execute padding in.
-    void set_data_handle(void *handle, const stream &astream) const {
-        error::wrap_c_api(dnnl_memory_set_data_handle_v2(
-                                  get(), handle, astream.get(true)),
-                "could not set native handle of a memory object");
-    }
-
-    /// Sets the underlying memory buffer.
-    ///
-    /// See documentation for
-    /// #dnnl::memory::set_data_handle(void *, const stream &) const
-    /// for more information.
-    ///
-    /// @param handle Memory buffer to use. For the CPU engine, the memory
-    ///     buffer is a pointer to the actual data. For OpenCL it is a cl_mem.
-    ///     It must have at least #dnnl::memory::desc::get_size() bytes
-    ///     allocated.
     void set_data_handle(void *handle) const {
-        error::wrap_c_api(
-                dnnl_memory_set_data_handle_v2(get(), handle, nullptr),
+        error::wrap_c_api(dnnl_memory_set_data_handle(get(), handle),
                 "could not set native handle of a memory object");
     }
 

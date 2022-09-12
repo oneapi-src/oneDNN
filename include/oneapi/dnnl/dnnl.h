@@ -1286,26 +1286,14 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
 
 /// Sets the underlying memory buffer.
 ///
-/// See the description of dnnl_memory_set_data_handle_v2() for more details.
-///
 /// @param memory Memory object.
-/// @param handle Data handle. For the CPU engine, the data handle is a
-///     pointer to the actual data. For OpenCL it is a `cl_mem`.
+/// @param handle Data handle. For the CPU engine or when USM is used, the
+///     memory buffer is a pointer to the actual data. For OpenCL it is a
+///     `cl_mem`.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
         dnnl_memory_t memory, void *handle);
-
-/// Sets the underlying memory buffer.
-///
-/// @param memory Memory object.
-/// @param handle Data handle. For the CPU engine, the data handle is a
-///     pointer to the actual data. For OpenCL it is a `cl_mem`.
-/// @param stream Stream to use to execute padding in.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_set_data_handle_v2(
-        dnnl_memory_t memory, void *handle, dnnl_stream_t stream);
 
 /// Destroys a memory object.
 ///

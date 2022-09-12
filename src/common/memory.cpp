@@ -89,7 +89,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     this->reset_memory_storage(std::move(memory_storage));
 }
 
-status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
+status_t dnnl_memory::set_data_handle(void *handle) {
     using namespace dnnl::impl;
 
     void *old_handle;
@@ -554,16 +554,9 @@ status_t dnnl_memory_get_data_handle(const memory_t *memory, void **handle) {
 }
 
 status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
-    return dnnl_memory_set_data_handle_v2(memory, handle, nullptr);
-}
-
-status_t dnnl_memory_set_data_handle_v2(
-        memory_t *memory, void *handle, stream_t *stream) {
     if (any_null(memory)) return invalid_arguments;
-    if (stream) stream->before_exec_hook();
-    status_t status = memory->set_data_handle(handle, stream);
-    if (stream) stream->after_exec_hook();
-    return status;
+    CHECK(memory->set_data_handle(handle));
+    return status::success;
 }
 
 status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {

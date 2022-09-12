@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,11 +110,10 @@ dnnl_status_t DNNL_API dnnl_sycl_interop_memory_get_memory_kind(
 ///
 /// @param memory Memory object.
 /// @param buffer SYCL buffer to be set in the memory object.
-/// @param stream Stream to use to execute padding in.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_sycl_interop_memory_set_buffer(
-        dnnl_memory_t memory, void *buffer, dnnl_stream_t stream);
+        dnnl_memory_t memory, void *buffer);
 
 /// Creates an execution stream for a given engine associated with a SYCL
 /// queue.

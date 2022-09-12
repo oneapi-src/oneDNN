@@ -31,7 +31,6 @@ using dnnl::impl::engine_t;
 using dnnl::impl::memory_desc_t;
 using dnnl::impl::memory_t;
 using dnnl::impl::status_t;
-using dnnl::impl::stream_t;
 
 status_t dnnl_sycl_interop_memory_create(memory_t **memory,
         const memory_desc_t *md, engine_t *engine, memory_kind_t memory_kind,
@@ -67,8 +66,7 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
             *memory, new memory_t(engine, md, std::move(mem_storage)));
 }
 
-status_t dnnl_sycl_interop_memory_set_buffer(
-        memory_t *memory, void *buffer, stream_t *stream) {
+status_t dnnl_sycl_interop_memory_set_buffer(memory_t *memory, void *buffer) {
     using namespace dnnl::impl;
 
     bool ok = !utils::any_null(memory, buffer)
@@ -81,12 +79,9 @@ status_t dnnl_sycl_interop_memory_set_buffer(
 
     size_t size = memory_desc_wrapper(memory->md()).size();
     CHECK(mem_storage->init(memory_flags_t::use_runtime_ptr, size, buffer));
+    CHECK(memory->reset_memory_storage(std::move(mem_storage)));
 
-    if (stream) stream->before_exec_hook();
-    status_t status = memory->reset_memory_storage(std::move(mem_storage));
-    if (stream) stream->after_exec_hook();
-
-    return status;
+    return status::success;
 }
 
 status_t dnnl_sycl_interop_memory_get_memory_kind(
