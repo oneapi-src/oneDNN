@@ -34,15 +34,15 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
         const memory::desc &weights_d, const memory::desc &bias_d,
         const memory::desc &dst_d, const memory &src, const memory &weights,
         const memory &bias, const memory &dst) {
-    const bool w_bias = bias_d.data.ndims != 0;
+    const bool w_bias = bias_d.get_ndims() != 0;
     auto src_data = map_memory<data_t_src>(src);
     auto weights_data = map_memory<data_t_wei>(weights);
 
     auto bias_data = w_bias ? map_memory<data_t_dst>(bias) : nullptr;
     auto dst_data = map_memory<data_t_dst>(dst);
 
-    auto padded_ic = src_d.data.padded_dims[1];
-    auto padded_oc = dst_d.data.padded_dims[1];
+    auto padded_ic = src_d.get_padded_dims()[1];
+    auto padded_oc = dst_d.get_padded_dims()[1];
 
     const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
     const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());

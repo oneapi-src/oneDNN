@@ -45,7 +45,7 @@ void compute_ref_inner_product_bwd_data(int ndims,
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
-    auto padded_ic = diff_src_d.data.padded_dims[1];
+    auto padded_ic = diff_src_d.get_padded_dims()[1];
 
     dnnl::impl::parallel_nd(ipd.mb, ipd.ic, [&](memory::dim n, memory::dim ic) {
         if (has_spatial) {

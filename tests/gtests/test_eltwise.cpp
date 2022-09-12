@@ -185,8 +185,8 @@ struct eltwise_test_params_t {
 
 memory::dim n_elems(const memory::desc &md) {
     memory::dim p = 1;
-    const auto *pdims = md.data.padded_dims;
-    for (int i = 0; i < md.data.ndims; ++i)
+    const auto pdims = md.get_padded_dims();
+    for (int i = 0; i < md.get_ndims(); ++i)
         p *= pdims[i];
     return p;
 }

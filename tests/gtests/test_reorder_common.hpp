@@ -35,10 +35,9 @@ inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
     auto src_data = map_memory<data_i_t>(src);
     auto dst_data = map_memory<data_o_t>(dst);
 
-    const auto ndims = md_i.data.ndims;
-    const auto *dims = md_i.data.dims;
+    const auto dims = md_i.get_dims();
     const size_t nelems = std::accumulate(
-            dims, dims + ndims, size_t(1), std::multiplies<size_t>());
+            dims.begin(), dims.end(), size_t(1), std::multiplies<size_t>());
 
     const dnnl::impl::memory_desc_wrapper mdw_i(md_i.get());
     const dnnl::impl::memory_desc_wrapper mdw_o(md_o.get());

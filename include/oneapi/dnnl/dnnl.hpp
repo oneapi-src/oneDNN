@@ -2487,9 +2487,9 @@ struct memory : public handle<dnnl_memory_t> {
     /// A memory descriptor.
     struct desc {
         friend struct memory;
-        /// The underlying C API data structure.
-        dnnl_memory_desc_t data;
 
+        // This function mimics `handle::get()` and will be removed once
+        // `desc` is inherited from `handle`.
         const dnnl_memory_desc_t *get() const { return &data; }
 
         /// Constructs a zero (empty) memory descriptor. Such a memory
@@ -2571,8 +2571,8 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns A memory descriptor for the region.
         desc submemory_desc(const dims &adims, const dims &offsets,
                 bool allow_empty = false) const {
-            validate_dims(adims, data.ndims);
-            validate_dims(offsets, data.ndims);
+            validate_dims(adims, get_ndims());
+            validate_dims(offsets, get_ndims());
             dnnl_memory_desc_t sub_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_init_submemory(
                     &sub_md, &data, adims.data(), offsets.data());
@@ -2626,7 +2626,7 @@ struct memory : public handle<dnnl_memory_t> {
         ///     and defaults to false.
         /// @returns A new memory descriptor with new dimensions.
         desc reshape(const dims &adims, bool allow_empty = false) const {
-            if (data.ndims) validate_dims(adims, 1);
+            if (get_ndims()) validate_dims(adims, 1);
             dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_reshape(
                     &out_md, &data, (int)adims.size(), adims.data());
@@ -2651,7 +2651,7 @@ struct memory : public handle<dnnl_memory_t> {
         ///
         /// The logical axes will be permuted in the following manner:
         /// @code
-        /// for (i = 0; i < ndims(); i++)
+        /// for (i = 0; i < get_ndims(); i++)
         ///     new_desc.dims()[permutation[i]] = dims()[i];
         /// @endcode
         ///
@@ -2675,7 +2675,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns A new memory descriptor with new dimensions.
         desc permute_axes(const std::vector<int> &permutation,
                 bool allow_empty = false) const {
-            validate_dims(permutation, data.ndims);
+            validate_dims(permutation, get_ndims());
             dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_permute_axes(
                     &out_md, &data, permutation.data());
@@ -2685,19 +2685,112 @@ struct memory : public handle<dnnl_memory_t> {
             return desc(out_md);
         }
 
+        /// Returns a number of dimensions of the memory descriptor.
+        ///
+        /// @returns A number of dimensions.
+        int get_ndims() const { return query_s32(query::ndims_s32); }
+
+        /// Returns padded dimensions of the memory descriptor.
+        ///
+        /// @returns A copy of the padded dimensions vector.
+        memory::dims get_padded_dims() const {
+            return query_dims(query::padded_dims);
+        }
+
+        /// Returns padded offsets of the memory descriptor.
+        ///
+        /// @returns A copy of the padded offsets vector.
+        memory::dims get_padded_offsets() const {
+            return query_dims(query::padded_offsets);
+        }
+
+        /// Returns a submemory offset of the memory descriptor.
+        ///
+        /// @returns A submemory offset.
+        memory::dim get_submemory_offset() const {
+            dnnl_dim_t submemory_offset;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                    get(), dnnl_query_submemory_offset_s64, &submemory_offset);
+            return status == dnnl_success ? submemory_offset : 0;
+        }
+
+        /// Returns strides of the memory descriptor.
+        ///
+        /// @note
+        ///     This API is only applicable to memory descriptors with format
+        ///     kind #dnnl_blocked.
+        ///
+        /// @returns A copy of the strides vector.
+        /// @returns An empty #dnnl::memory::dims if the memory descriptor
+        ///     does not have strides.
+        memory::dims get_strides() const { return query_dims(query::strides); }
+
+        /// Returns a number of inner blocks of the memory descriptor.
+        ///
+        /// @note
+        ///     This API is only applicable to memory descriptors with format
+        ///     kind #dnnl_blocked.
+        ///
+        /// @returns A number of inner blocks.
+        int get_inner_nblks() const {
+            return query_s32(query::inner_nblks_s32);
+        }
+
+        /// Returns inner blocks of the memory descriptor.
+        ///
+        /// @note
+        ///     This API is only applicable to memory descriptors with format
+        ///     kind #dnnl_blocked.
+        ///
+        /// @returns A copy of the inner blocks vector.
+        /// @returns An empty #dnnl::memory::dims if the memory descriptor
+        ///     does not have inner blocks.
+        memory::dims get_inner_blks() const {
+            return query_dims(query::inner_blks);
+        }
+
+        /// Returns inner indices of the memory descriptor.
+        ///
+        /// @note
+        ///     This API is only applicable to memory descriptors with format
+        ///     kind #dnnl_blocked.
+        ///
+        /// @returns A copy of the inner indices vector.
+        /// @returns An empty #dnnl::memory::dims if the memory descriptor
+        ///     does not have inner indices.
+        memory::dims get_inner_idxs() const {
+            return query_dims(query::inner_idxs);
+        }
+
+        /// Returns the format kind of the memory descriptor.
+        ///
+        /// @returns the format kind.
+        memory::format_kind get_format_kind() const {
+            dnnl_format_kind_t format_kind;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                    get(), dnnl_query_format_kind, &format_kind);
+            return status == dnnl_success
+                    ? static_cast<dnnl::memory::format_kind>(format_kind)
+                    : dnnl::memory::format_kind::undef;
+        }
+
         /// Returns the data type of the memory descriptor.
+        ///
         /// @returns The data type.
-        memory::data_type data_type() const {
-            return static_cast<memory::data_type>(data.data_type);
+        memory::data_type get_data_type() const {
+            dnnl_data_type_t data_type;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                    get(), dnnl_query_data_type, &data_type);
+            return status == dnnl_success
+                    ? static_cast<dnnl::memory::data_type>(data_type)
+                    : dnnl::memory::data_type::undef;
         }
 
         /// Returns dimensions of the memory descriptor.
         ///
         /// Potentially expensive due to the data copy involved.
         /// @returns A copy of the dimensions vector.
-        memory::dims dims() const {
-            return memory::dims(data.dims, data.dims + data.ndims);
-        }
+        memory::dims get_dims() const { return query_dims(query::dims); }
 
         /// Returns size of the memory descriptor in bytes.
         /// @returns The number of bytes required to allocate a memory buffer
@@ -2708,7 +2801,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// Checks whether the memory descriptor is zero (empty).
         /// @returns @c true if the memory descriptor describes an empty
         ///     memory and @c false otherwise.
-        bool is_zero() const { return data.ndims == 0; }
+        bool is_zero() const { return get_ndims() == 0; }
 
         /// An equality operator.
         /// @param other Another memory descriptor.
@@ -2727,7 +2820,27 @@ struct memory : public handle<dnnl_memory_t> {
         /// Checks whether the object is not empty.
         ///
         /// @returns Whether the object is not empty.
-        explicit operator bool() const { return data.ndims != 0; }
+        explicit operator bool() const { return get_ndims() != 0; }
+
+    private:
+        memory::dim query_s32(query what) const {
+            memory::dim res;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                    get(), dnnl::convert_to_c(what), &res);
+            return status == dnnl_success ? res : 0;
+        }
+
+        memory::dims query_dims(query what) const {
+            dnnl_dims_t *c_dims;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                    get(), dnnl::convert_to_c(what), &c_dims);
+            return status == dnnl_success
+                    ? memory::dims(*c_dims, *c_dims + get_ndims())
+                    : memory::dims {};
+        }
+
+        /// The underlying C API data structure.
+        dnnl_memory_desc_t data;
     };
 
     /// Default constructor.
@@ -3187,7 +3300,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
                 dnnl_post_ops_get_params_binary(get(), index, &c_alg, &data),
                 "could not get parameters of a binary post-op");
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
-        src1_desc.data = *data;
+        src1_desc = memory::desc(*data);
     }
 
     /// Appends a prelu forward post-op.
@@ -4932,12 +5045,12 @@ struct convolution_forward : public primitive {
                 const memory::dims &padding_r, const primitive_attr &attr,
                 bool allow_empty) {
 
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+            memory::validate_dims(strides, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_l, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_r, src_desc.get_ndims() - 2);
 
             if (dilates)
-                memory::validate_dims(*dilates, src_desc.data.ndims - 2);
+                memory::validate_dims(*dilates, src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
@@ -5124,12 +5237,12 @@ struct convolution_backward_data : public primitive {
                 const convolution_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr, bool allow_empty) {
 
-            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(strides, diff_src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_l, diff_src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_r, diff_src_desc.get_ndims() - 2);
 
             if (dilates)
-                memory::validate_dims(*dilates, diff_src_desc.data.ndims - 2);
+                memory::validate_dims(*dilates, diff_src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
@@ -5430,12 +5543,12 @@ struct convolution_backward_weights : public primitive {
                 const convolution_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr, bool allow_empty) {
 
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+            memory::validate_dims(strides, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_l, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_r, src_desc.get_ndims() - 2);
 
             if (dilates)
-                memory::validate_dims(*dilates, src_desc.data.ndims - 2);
+                memory::validate_dims(*dilates, src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
@@ -5726,12 +5839,12 @@ struct deconvolution_forward : public primitive {
                 const memory::dims &padding_r, const primitive_attr &attr,
                 bool allow_empty) {
 
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+            memory::validate_dims(strides, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_l, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_r, src_desc.get_ndims() - 2);
 
             if (dilates)
-                memory::validate_dims(*dilates, src_desc.data.ndims - 2);
+                memory::validate_dims(*dilates, src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
@@ -5916,12 +6029,12 @@ struct deconvolution_backward_data : public primitive {
                 const deconvolution_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr, bool allow_empty) {
 
-            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(strides, diff_src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_l, diff_src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_r, diff_src_desc.get_ndims() - 2);
 
             if (dilates)
-                memory::validate_dims(*dilates, diff_src_desc.data.ndims - 2);
+                memory::validate_dims(*dilates, diff_src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
@@ -6215,12 +6328,12 @@ struct deconvolution_backward_weights : public primitive {
                 const deconvolution_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr, bool allow_empty) {
 
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+            memory::validate_dims(strides, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_l, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_r, src_desc.get_ndims() - 2);
 
             if (dilates)
-                memory::validate_dims(*dilates, src_desc.data.ndims - 2);
+                memory::validate_dims(*dilates, src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
@@ -11697,7 +11810,7 @@ struct resampling_forward : public primitive {
                 const primitive_attr &attr, bool allow_empty) {
 
             if (factors)
-                memory::validate_dims(*factors, src_desc.data.ndims - 2);
+                memory::validate_dims(*factors, src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
@@ -11821,7 +11934,7 @@ struct resampling_backward : public primitive {
                 const primitive_attr &attr, bool allow_empty) {
 
             if (factors)
-                memory::validate_dims(*factors, diff_src_desc.data.ndims - 2);
+                memory::validate_dims(*factors, diff_src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
@@ -11914,11 +12027,11 @@ struct pooling_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
 
-            memory::validate_dims(strides, src_desc.data.ndims - 2);
-            memory::validate_dims(kernel, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
-            memory::validate_dims(dilation, src_desc.data.ndims - 2);
+            memory::validate_dims(strides, src_desc.get_ndims() - 2);
+            memory::validate_dims(kernel, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_l, src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_r, src_desc.get_ndims() - 2);
+            memory::validate_dims(dilation, src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_pooling_forward_primitive_desc_create(
@@ -12044,11 +12157,11 @@ struct pooling_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
 
-            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(kernel, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
-            memory::validate_dims(dilation, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(strides, diff_src_desc.get_ndims() - 2);
+            memory::validate_dims(kernel, diff_src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_l, diff_src_desc.get_ndims() - 2);
+            memory::validate_dims(padding_r, diff_src_desc.get_ndims() - 2);
+            memory::validate_dims(dilation, diff_src_desc.get_ndims() - 2);
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_pooling_backward_primitive_desc_create(

@@ -308,9 +308,9 @@ void check_zero_tail(int set_zero_flag, const memory &src) {
     auto src_data = map_memory<data_t>(src);
 
     const memory::desc src_d = src.get_desc();
-    const int ndims = src_d.data.ndims;
-    const auto *dims = src_d.data.dims;
-    const auto *pdims = src_d.data.padded_dims;
+    const int ndims = src_d.get_ndims();
+    const auto dims = src_d.get_dims();
+    const auto pdims = src_d.get_padded_dims();
     const dnnl::impl::memory_desc_wrapper mdw(src_d.get());
 
     memory::dim idx[DNNL_MAX_NDIMS] = {}, str[DNNL_MAX_NDIMS] = {};
@@ -464,15 +464,15 @@ static void compare_data(
     const dnnl::impl::memory_desc_wrapper mdw_ref(ref_desc.get());
     const dnnl::impl::memory_desc_wrapper mdw_dst(dst_desc.get());
 
-    ASSERT_TRUE(ref_desc.data.ndims == dst_desc.data.ndims);
+    ASSERT_TRUE(ref_desc.get_ndims() == dst_desc.get_ndims());
 
-    auto ndims = ref_desc.data.ndims;
+    auto ndims = ref_desc.get_ndims();
 
     for (auto d = 0; d < ndims; ++d) {
-        ASSERT_TRUE(ref_desc.data.dims[d] == dst_desc.data.dims[d]);
+        ASSERT_TRUE(ref_desc.get_dims()[d] == dst_desc.get_dims()[d]);
     }
 
-    auto dims = ref_desc.data.dims;
+    auto dims = ref_desc.get_dims();
 
     memory::dim num = 1;
     for (auto d = 0; d < ndims; ++d) {

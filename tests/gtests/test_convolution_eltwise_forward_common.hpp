@@ -38,8 +38,8 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
     const memory::desc weights_d = weights.get_desc();
     const memory::desc dst_d = dst.get_desc();
 
-    auto padded_ic = src_d.data.padded_dims[1];
-    auto padded_oc = dst_d.data.padded_dims[1];
+    auto padded_ic = src_d.get_padded_dims()[1];
+    auto padded_oc = dst_d.get_padded_dims()[1];
 
     const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
     const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.get());

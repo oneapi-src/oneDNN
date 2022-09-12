@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,34 +31,31 @@ namespace memory_desc_ops {
 namespace debug {
 #if DEBUG_TEST_MEMORY_DESC_OPS_CPP
 template <typename T>
-void print_vec(const char *str, const T *vec, int size) {
+void print_vec(const char *str, const T &vec) {
     printf("%s", str);
-    for (int d = 0; d < size; ++d)
+    for (int d = 0; d < (int)vec.size(); ++d)
         printf("%d ", (int)vec[d]);
     printf("\n");
 }
-void print_md(const char *str, const dnnl_memory_desc_t &md) {
+void print_md(const char *str, const memory::desc &md) {
     const auto &o_bd = md.format_desc.blocking;
 
     printf("%s\n", str);
 
-    print_vec("\tdims : ", md.dims, md.ndims);
-    print_vec("\tpdims: ", md.padded_dims, md.ndims);
-    print_vec("\toffs : ", md.padded_offsets, md.ndims);
-    print_vec("\tstrs : ", o_bd.strides, md.ndims);
+    print_vec("\tdims : ", md.get_dims());
+    print_vec("\tpdims: ", md.get_padded_dims());
+    print_vec("\toffs : ", md.get_padded_offsets());
+    print_vec("\tstrs : ", o_bd.get_strides());
 
-    printf("\t\tnblks : %d\n", o_bd.inner_nblks);
-    print_vec("\t\tidxs  : ", o_bd.inner_idxs, o_bd.inner_nblks);
-    print_vec("\t\tblks  : ", o_bd.inner_blks, o_bd.inner_nblks);
+    printf("\t\tnblks : %d\n", o_bd.get_inner_nblks());
+    print_vec("\t\tidxs  : ", o_bd.get_get_inner_idxs());
+    print_vec("\t\tblks  : ", o_bd.get_inner_blks());
 }
 #else // DEBUG_TEST_MEMORY_DESC_OPS_CPP
 template <typename T>
-void print_vec(const char *, const T *, int) {}
-void print_md(const char *, const dnnl_memory_desc_t &) {}
+void print_vec(const char *, const T &) {}
+void print_md(const char *, const memory::desc &) {}
 #endif // DEBUG_TEST_MEMORY_DESC_OPS_CPP
-void print_md(const char *str, const memory::desc &md) {
-    print_md(str, md.data);
-}
 } // namespace debug
 
 // A proxy to memory::desc with fixed data type (f32)
@@ -75,12 +72,9 @@ struct memory_desc_proxy_t {
     memory_desc_proxy_t(const memory::dims &dims, const memory::dims &strides,
             const memory::dims &padded_dims)
         : md(dims, memory::data_type::f32, strides) {
-        for (int d = 0; d < md.data.ndims; ++d)
-            md.data.padded_dims[d] = padded_dims[d];
-    }
-    memory_desc_proxy_t(const memory::dims &dims, memory::format_kind fmt_kind)
-        : md(dims, memory::data_type::f32, memory::format_tag::any) {
-        md.data.format_kind = static_cast<dnnl_format_kind_t>(fmt_kind);
+        for (int d = 0; d < md.get_ndims(); ++d)
+            const_cast<dnnl_memory_desc_t *>(md.get())->padded_dims[d]
+                    = padded_dims[d];
     }
 };
 
@@ -118,7 +112,7 @@ struct params_t {
 class reshape_test_t : public ::testing::TestWithParam<params_t> {
 protected:
     void Test(const memory::desc &in_md, const memory::desc &out_md) {
-        memory::desc get_out_md = in_md.reshape(out_md.dims());
+        memory::desc get_out_md = in_md.reshape(out_md.get_dims());
 
         debug::print_md("in_md", in_md);
         debug::print_md("out_md", get_out_md);
@@ -162,10 +156,6 @@ auto cases_expect_to_fail = ::testing::Values(
         params_t {{{2, 8, 3, 4}, fmt::aBcd8b}, {{2, 8 * 3 * 4}, fmt::ab}, UNI_DIRECTION, dnnl_invalid_arguments},
         // nothing can be done with zero memory desc
         params_t {{}, {}, UNI_DIRECTION, dnnl_invalid_arguments},
-        // invalid format kind
-        params_t {{{2, 2, 1, 1}, memory::format_kind::wino}, {{2, 2}, fmt::any}, UNI_DIRECTION, dnnl_invalid_arguments},
-        // invalid format kind
-        params_t {{{2, 2, 1, 1}, memory::format_kind::undef}, {{2, 2}, fmt::any}, UNI_DIRECTION, dnnl_invalid_arguments},
         // run-time dims are not supported
         params_t {{{DNNL_RUNTIME_DIM_VAL}, {1}}, {{DNNL_RUNTIME_DIM_VAL}, {1}}, UNI_DIRECTION, dnnl_invalid_arguments}
         );
@@ -227,7 +217,7 @@ protected:
         memory::desc get_out_md = in_md.permute_axes(perm);
 
         debug::print_md("in_md", in_md);
-        debug::print_vec("perm : ", perm.data(), (int)perm.size());
+        debug::print_vec("perm : ", perm);
         debug::print_md("out_md", get_out_md);
         debug::print_md("expect_out_md", out_md);
 
@@ -259,10 +249,6 @@ auto cases_expect_to_fail = ::testing::Values(
         params_t {{{2, 2, 1, 1}, fmt::abcd}, {{2, 2, 1, 1}, fmt::abcd}, {0, 1, 2, -1}, UNI_DIRECTION, dnnl_invalid_arguments},
         // nothing can be done with zero memory desc
         params_t {{}, {}, {}, UNI_DIRECTION, dnnl_invalid_arguments},
-        // invalid format kind
-        params_t {{{2, 2, 1, 1}, memory::format_kind::wino}, {{2, 2, 1, 1}, fmt::any}, {1, 2, 3, 4}, UNI_DIRECTION, dnnl_invalid_arguments},
-        // invalid format kind
-        params_t {{{2, 2, 1, 1}, memory::format_kind::undef}, {{2, 2, 1, 1}, fmt::any}, {1, 2, 3, 4}, UNI_DIRECTION, dnnl_invalid_arguments},
         // run-time dims are not supported
         params_t {{{DNNL_RUNTIME_DIM_VAL}, {1}}, {{DNNL_RUNTIME_DIM_VAL}, {1}}, {0}, UNI_DIRECTION, dnnl_invalid_arguments}
         );

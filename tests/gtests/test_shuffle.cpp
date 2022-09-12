@@ -42,8 +42,8 @@ void check_shuffle(const shuffle_test_params_t &p, const memory &input,
     const memory::desc in_d = input.get_desc();
     const memory::desc out_d = output.get_desc();
 
-    auto dims = in_d.data.dims;
-    auto ndims = in_d.data.ndims;
+    auto dims = in_d.get_dims();
+    auto ndims = in_d.get_ndims();
 
     const dnnl::impl::memory_desc_wrapper input_mdw(in_d.get());
     const dnnl::impl::memory_desc_wrapper output_mdw(out_d.get());
@@ -51,7 +51,7 @@ void check_shuffle(const shuffle_test_params_t &p, const memory &input,
     const int axis = p.axis;
     memory::dim inner_size = 1, outer_size = 1;
     const memory::dim axis_size = dims[axis];
-    const memory::dim padded_axis = in_d.data.padded_dims[axis];
+    const memory::dim padded_axis = in_d.get_padded_dims()[axis];
 
     auto rev_transpose = [=](memory::dim a) {
         memory::dim COL = axis_size / ROW;
@@ -189,7 +189,7 @@ protected:
                                 {DNNL_ARG_DIFF_SRC, diff_src.get()}});
         strm.wait();
 
-        const int axis_size = diff_dst_desc.data.dims[p.axis];
+        const int axis_size = diff_dst_desc.get_dims()[p.axis];
         check_shuffle<data_t>(
                 p, diff_dst.get(), diff_src.get(), axis_size / p.group_size);
     }

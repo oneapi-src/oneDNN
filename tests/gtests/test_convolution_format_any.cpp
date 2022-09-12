@@ -79,26 +79,25 @@ protected:
                 c_dst_desc, {cd.strh, cd.strw}, {cd.padh, cd.padw},
                 {cd.padh, cd.padw});
 
-        auto check_fmt = [&](const dnnl_memory_desc_t &md,
-                                 data_fmt_t expected) {
+        auto check_fmt = [&](const memory::desc &md, data_fmt_t expected) {
             bool ok = false;
             if (expected == FLT) {
-                ok = true && md.format_kind == dnnl_blocked
-                        && md.format_desc.blocking.inner_nblks == 0;
+                ok = true
+                        && md.get_format_kind() == memory::format_kind::blocked
+                        && md.get_inner_nblks() == 0;
             } else if (expected == BLK) {
-                ok = true && md.format_kind == dnnl_blocked
-                        && md.format_desc.blocking.inner_nblks == 1
-                        && md.format_desc.blocking.inner_idxs[0] == 1
-                        && (false || md.format_desc.blocking.inner_blks[0] == 8
-                                || md.format_desc.blocking.inner_blks[0] == 16);
+                ok = true
+                        && md.get_format_kind() == memory::format_kind::blocked
+                        && md.get_inner_nblks() == 1
+                        && md.get_inner_idxs()[0] == 1
+                        && (false || md.get_inner_blks()[0] == 8
+                                || md.get_inner_blks()[0] == 16);
             }
             return ok;
         };
 
-        ASSERT_TRUE(
-                check_fmt(conv_prim_desc.src_desc().data, p.expected_src_fmt));
-        ASSERT_TRUE(
-                check_fmt(conv_prim_desc.dst_desc().data, p.expected_dst_fmt));
+        ASSERT_TRUE(check_fmt(conv_prim_desc.src_desc(), p.expected_src_fmt));
+        ASSERT_TRUE(check_fmt(conv_prim_desc.dst_desc(), p.expected_dst_fmt));
     }
 };
 

@@ -64,7 +64,7 @@ void compute_ref_inner_product_bwd_weights(int ndims,
             diff_weights_d.get());
     const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.get());
 
-    auto padded_ic = src_d.data.padded_dims[1];
+    auto padded_ic = src_d.get_padded_dims()[1];
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;

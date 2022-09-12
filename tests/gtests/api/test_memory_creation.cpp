@@ -251,9 +251,9 @@ TEST(memory_test_cpp, TestSetDataHandleCPU) {
 
     ASSERT_TRUE(N == 1);
     ASSERT_TRUE(C < 16);
-    ASSERT_TRUE(data_md.data.format_kind == dnnl_blocked);
-    ASSERT_TRUE(data_md.data.format_desc.blocking.inner_nblks == 1);
-    ASSERT_TRUE(data_md.data.format_desc.blocking.inner_blks[0] == 16);
+    ASSERT_TRUE(data_md.get_format_kind() == memory::format_kind::blocked);
+    ASSERT_TRUE(data_md.get_inner_nblks() == 1);
+    ASSERT_TRUE(data_md.get_inner_blks()[0] == 16);
 
     free(p);
 }

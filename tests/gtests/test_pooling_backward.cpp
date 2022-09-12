@@ -73,7 +73,7 @@ void check_pool_fwd(
     const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
     auto pd = p.test_pd;
-    auto padded_c = src_d.data.padded_dims[1];
+    auto padded_c = src_d.get_padded_dims()[1];
 
     dnnl::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
             [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,
@@ -153,7 +153,7 @@ void check_pool_bwd(const pool_bwd_test_params_t &p, const memory &diff_src,
     auto ws_data = [&](size_t idx) -> int {
         auto w = (const unsigned char *)ws_data_ptr;
         if (w == nullptr) return -1;
-        if (ws.get_desc().data.data_type == dnnl_u8)
+        if (ws.get_desc().get_data_type() == dnnl_u8)
             return (int)w[idx];
         else
             return ((const int *)w)[idx];
@@ -373,7 +373,7 @@ protected:
 
         if (p.test_pd.dd == 0 && p.test_pd.dh == 0 && p.test_pd.dw == 0)
             ASSERT_EQ(pool_prim_desc.get_dilations(),
-                    memory::dims(pool_prim_desc.src_desc().data.ndims - 2));
+                    memory::dims(pool_prim_desc.src_desc().get_ndims() - 2));
         else
             ASSERT_EQ(pool_prim_desc.get_dilations(), dilation);
     }

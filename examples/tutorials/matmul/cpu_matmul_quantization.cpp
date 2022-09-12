@@ -231,7 +231,7 @@ void quantize(q10n_scheme_t q10n_scheme, const std::vector<float> &X_f32,
     stream s(eng);
 
     memory::desc x_int_md = X_int_m.get_desc();
-    const auto &dims = x_int_md.data.dims;
+    const auto &dims = x_int_md.get_dims();
 
     memory::desc x_f32_md({dims[0], dims[1]}, dt::f32, {dims[1], 1});
     memory X_f32_m(x_f32_md, eng, (void *)X_f32.data());

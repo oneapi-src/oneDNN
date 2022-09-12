@@ -353,10 +353,9 @@ protected:
         // Assumption: b is a plain layout
         auto init_tensor = [&](memory a, memory b, int scale = 1) {
             auto desc = a.get_desc();
-            auto b_dims = desc.data.dims;
-            auto b_ndims = desc.data.ndims;
-            auto n_elems = std::accumulate(b_dims, b_dims + b_ndims, size_t(1),
-                    std::multiplies<dnnl_dim_t>());
+            auto b_dims = desc.get_dims();
+            auto n_elems = std::accumulate(b_dims.begin(), b_dims.end(),
+                    size_t(1), std::multiplies<dnnl_dim_t>());
             const dnnl::impl::memory_desc_wrapper mdw(desc.get());
             {
                 auto b_ptr = map_memory<float>(b);
@@ -368,7 +367,7 @@ protected:
         };
         auto init_zero_tensor = [&](const memory &a, memory::format_tag fmt) {
             auto desc = a.get_desc();
-            memory::desc tmp_md(desc.dims(), desc.data_type(), fmt);
+            memory::desc tmp_md(desc.get_dims(), desc.get_data_type(), fmt);
             auto tmp = test::make_memory(tmp_md, eng);
             // Zero fill the tmp tensor
             init_tensor(a, tmp, 0);

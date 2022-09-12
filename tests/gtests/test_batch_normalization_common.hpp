@@ -442,7 +442,7 @@ protected:
 
         float eps = static_cast<float>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
-        auto padded_c = src_d.data.padded_dims[1];
+        auto padded_c = src_d.get_padded_dims()[1];
 
         dnnl::impl::parallel_nd(bp.c, [&](memory::dim c) {
             if (is_current_test_failed()) return;
@@ -557,7 +557,7 @@ protected:
         const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.get());
         const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.get());
         const dnnl::impl::memory_desc_wrapper diff_weights_mdw(
-                diff_weights_d.data);
+                diff_weights_d.get());
         const dnnl::impl::memory_desc_wrapper diff_bias_mdw(diff_bias_d.get());
 
         const size_t diff_bias_off
@@ -607,7 +607,7 @@ protected:
         const float eps
                 = static_cast<float>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
-        auto padded_c = src_d.data.padded_dims[1];
+        auto padded_c = src_d.get_padded_dims()[1];
 
         dnnl::impl::parallel_nd(bp.c, [&](memory::dim c) {
             if (is_current_test_failed()) return;

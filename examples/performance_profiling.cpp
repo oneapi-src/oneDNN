@@ -244,15 +244,14 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Create mem_desc with tag=any
     // [Create mem_desc with tag=any]
-    // copy the dimensions and format from user's memory
-    auto conv_src_md = memory::desc(user_src.get_desc());
-    auto conv_wei_md = memory::desc(user_wei.get_desc());
-    auto conv_dst_md = memory::desc(user_dst.get_desc());
-
-    // reset format to "any" to allow convolution to pick the best implementation
-    conv_src_md.data.format_kind = dnnl_format_kind_any;
-    conv_wei_md.data.format_kind = dnnl_format_kind_any;
-    conv_dst_md.data.format_kind = dnnl_format_kind_any;
+    // copy the dimensions and data type from user's memory and set format tag
+    // to "any" to allow convolution to pick the best implementation
+    auto conv_src_md = memory::desc(user_src.get_desc().get_dims(),
+            user_src.get_desc().get_data_type(), memory::format_tag::any);
+    auto conv_wei_md = memory::desc(user_wei.get_desc().get_dims(),
+            user_wei.get_desc().get_data_type(), memory::format_tag::any);
+    auto conv_dst_md = memory::desc(user_dst.get_desc().get_dims(),
+            user_dst.get_desc().get_data_type(), memory::format_tag::any);
     // [Create mem_desc with tag=any]
 
     /// Next the program creates a convolution primitive descriptor conv_pd and
@@ -371,15 +370,14 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     ///
     /// First the memory descriptors and convolution descriptor are created as
     /// in *naive implementation*.
-    // copy the dimensions and format from user's memory
-    auto conv_src_md = memory::desc(user_src.get_desc());
-    auto conv_wei_md = memory::desc(user_wei.get_desc());
-    auto conv_dst_md = memory::desc(user_dst.get_desc());
-
-    // reset format to any to allow convolution to pick the best implementation
-    conv_src_md.data.format_kind = dnnl_format_kind_any;
-    conv_wei_md.data.format_kind = dnnl_format_kind_any;
-    conv_dst_md.data.format_kind = dnnl_format_kind_any;
+    // copy the dimensions data type from user's memory and set format tag
+    // to any to allow convolution to pick the best implementation
+    auto conv_src_md = memory::desc(user_src.get_desc().get_dims(),
+            user_src.get_desc().get_data_type(), memory::format_tag::any);
+    auto conv_wei_md = memory::desc(user_wei.get_desc().get_dims(),
+            user_wei.get_desc().get_data_type(), memory::format_tag::any);
+    auto conv_dst_md = memory::desc(user_dst.get_desc().get_dims(),
+            user_dst.get_desc().get_data_type(), memory::format_tag::any);
 
     /// Then in preparation for the convolution prim desctiptor, a ReLU post-op
     /// is built and added to the primitive attribute `attr`:

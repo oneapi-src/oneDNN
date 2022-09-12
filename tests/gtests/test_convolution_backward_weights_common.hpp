@@ -36,7 +36,7 @@ void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
     const dnnl::impl::memory_desc_wrapper diff_bias_mdw(bias_d.get());
     const dnnl::impl::memory_desc_wrapper diff_dst_mdw(dst_d.get());
 
-    auto padded_oc = dst_d.data.padded_dims[1];
+    auto padded_oc = dst_d.get_padded_dims()[1];
 
     dnnl::impl::parallel_nd(
             c.ng, c.oc / c.ng, [&](memory::dim g, memory::dim oc) {
@@ -72,8 +72,8 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
     const dnnl::impl::memory_desc_wrapper diff_weights_mdw(weights_d.get());
     const dnnl::impl::memory_desc_wrapper diff_dst_mdw(dst_d.get());
 
-    auto padded_ic = src_d.data.padded_dims[1];
-    auto padded_oc = dst_d.data.padded_dims[1];
+    auto padded_ic = src_d.get_padded_dims()[1];
+    auto padded_oc = dst_d.get_padded_dims()[1];
 
     dnnl::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
             [&](memory::dim g, memory::dim oc, memory::dim ic, memory::dim kh,

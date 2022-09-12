@@ -57,7 +57,7 @@ TEST_F(iface_sum_test_t, SumTestDstDataTypeCompliance) {
         }
 
         dt expect_dst_dt = dst_dt == dt::undef ? src_dt : dst_dt;
-        ASSERT_EQ(sum_pd.dst_desc().data.data_type, expect_dst_dt);
+        ASSERT_EQ(sum_pd.dst_desc().get_data_type(), expect_dst_dt);
     }
 }
 
@@ -83,7 +83,7 @@ private:
             const std::vector<float> &scale, const memory &dst) {
         auto dst_data = map_memory<const dst_data_t>(dst);
         const auto &dst_d = dst.get_desc();
-        const auto dst_dims = dst_d.data.dims;
+        const auto dst_dims = dst_d.get_dims();
         const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
         std::vector<mapped_ptr_t<const src_data_t>> mapped_srcs;
@@ -101,9 +101,9 @@ private:
                     for (size_t num = 0; num < srcs.size(); num++) {
                         auto &src_data = mapped_srcs[num];
                         const auto &src_d = srcs[num].get_desc();
-                        const auto src_dims = src_d.data.dims;
+                        const auto src_dims = src_d.get_dims();
                         const dnnl::impl::memory_desc_wrapper src_mdw(
-                                src_d.data);
+                                src_d.get());
 
                         auto src_idx = w + src_dims[3] * h
                                 + src_dims[2] * src_dims[3] * c
@@ -190,7 +190,7 @@ protected:
             auto dst_desc = memory::desc(p.dims, dst_data_type, p.dst_format);
             sum_pd = sum::primitive_desc(eng, dst_desc, p.scale, srcs_md);
 
-            ASSERT_EQ(sum_pd.dst_desc().data.ndims, dst_desc.data.ndims);
+            ASSERT_EQ(sum_pd.dst_desc().get_ndims(), dst_desc.get_ndims());
         }
         dst = test::make_memory(sum_pd.dst_desc(), eng);
         // test construction from a C pd

@@ -126,9 +126,9 @@ matmul::primitive_desc matmul_pd_create(
 
 void prepare_input(memory &A_u8_mem, memory &scale_f32_mem, memory &zp_A_mem,
         memory &zp_C_mem) {
-    int64_t M = A_u8_mem.get_desc().dims()[0];
-    int64_t N = scale_f32_mem.get_desc().dims()[0];
-    int64_t K = A_u8_mem.get_desc().dims()[1];
+    int64_t M = A_u8_mem.get_desc().get_dims()[0];
+    int64_t N = scale_f32_mem.get_desc().get_dims()[0];
+    int64_t K = A_u8_mem.get_desc().get_dims()[1];
 
     std::vector<uint8_t> A_u8(M * K);
     init_vector(A_u8);
@@ -145,8 +145,8 @@ void prepare_input(memory &A_u8_mem, memory &scale_f32_mem, memory &zp_A_mem,
 }
 
 void sanity_check(memory &C_u8_mem, memory &zp_C_mem) {
-    int64_t M = C_u8_mem.get_desc().dims()[0];
-    int64_t N = C_u8_mem.get_desc().dims()[1];
+    int64_t M = C_u8_mem.get_desc().get_dims()[0];
+    int64_t N = C_u8_mem.get_desc().get_dims()[1];
     int32_t zp_C = 0;
     std::vector<uint8_t> C_u8(M * N);
 

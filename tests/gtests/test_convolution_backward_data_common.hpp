@@ -36,8 +36,8 @@ void compute_ref_conv_bwd_data(const test_convolution_sizes_t &c,
     const memory::desc weights_d = weights.get_desc();
     const memory::desc diff_dst_d = diff_dst.get_desc();
 
-    auto padded_ic = diff_src_d.data.padded_dims[1];
-    auto padded_oc = diff_dst_d.data.padded_dims[1];
+    auto padded_ic = diff_src_d.get_padded_dims()[1];
+    auto padded_oc = diff_dst_d.get_padded_dims()[1];
 
     const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.get());
     const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.get());

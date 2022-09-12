@@ -37,18 +37,18 @@ class concat_test_t : public ::testing::TestWithParam<concat_test_params_t> {
             int concat_dim) {
         auto dst_data = map_memory<const data_t>(dst);
         const auto &dst_d = dst.get_desc();
-        const auto dst_dims = dst_d.data.dims;
-        const auto dst_pdims = dst_d.data.padded_dims;
+        const auto dst_dims = dst_d.get_dims();
+        const auto dst_pdims = dst_d.get_padded_dims();
         const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
         memory::dim acc_concat_dim = 0;
-        const auto ndims = dst_d.data.ndims;
+        const auto ndims = dst_d.get_ndims();
 
         for (size_t num = 0; num < srcs.size(); num++) {
             const auto src_data = map_memory<data_t>(srcs[num]);
             const auto &src_d = srcs[num].get_desc();
-            const auto src_dims = src_d.data.dims;
-            const auto src_pdims = src_d.data.padded_dims;
+            const auto src_dims = src_d.get_dims();
+            const auto src_pdims = src_d.get_padded_dims();
             const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
 
             auto N = src_dims[0];
@@ -165,7 +165,7 @@ protected:
         fill_data<data_t>(dst.get_desc().get_size() / sizeof(data_t), dst);
         check_zero_tail<data_t>(1, dst);
 
-        ASSERT_EQ(concat_pd.dst_desc().data.ndims, dst_desc.data.ndims);
+        ASSERT_EQ(concat_pd.dst_desc().get_ndims(), dst_desc.get_ndims());
 
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
             auto md = concat_pd.src_desc((int)i);

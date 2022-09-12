@@ -31,7 +31,7 @@ struct test_inner_product_descr_t {
 template <typename data_t>
 void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
         memory &weights, memory &bias, memory &dst) {
-    const bool w_bias = bias.get_desc().data.ndims != 0;
+    const bool w_bias = bias.get_desc().get_ndims() != 0;
     auto src_data = map_memory<data_t>(src);
     auto weights_data = map_memory<data_t>(weights);
     auto bias_data = w_bias ? map_memory<data_t>(bias) : nullptr;

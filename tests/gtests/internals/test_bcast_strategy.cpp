@@ -62,7 +62,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(bcast_strategy_test_t, TestBroadcastStrategy) {
     auto dst_md = memory::desc(dst_dims, defualt_dt, default_format, true);
     auto dst_mdw = impl::memory_desc_wrapper(dst_md.get());
     const auto bcast_type
-            = impl::get_rhs_arg_broadcasting_strategy(rhs_md.data, dst_mdw);
+            = impl::get_rhs_arg_broadcasting_strategy(*rhs_md.get(), dst_mdw);
     const auto expected_bcast_type = std::get<2>(GetParam());
     ASSERT_EQ(bcast_type, expected_bcast_type);
 }

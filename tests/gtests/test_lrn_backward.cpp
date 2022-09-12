@@ -60,7 +60,7 @@ void check_lrn_bwd(const lrn_test_params_t &p, const memory &src,
     const memory::dim C = p.test_ld.c;
     const memory::dim H = p.test_ld.h;
     const memory::dim W = p.test_ld.w;
-    const auto padded_c = src.get_desc().data.padded_dims[1];
+    const auto padded_c = src.get_desc().get_padded_dims()[1];
 
     const float alpha = p.test_ld.alpha;
     const float beta = p.test_ld.beta;

@@ -57,7 +57,7 @@ void check_lrn_fwd(const lrn_params_t &p, const memory::desc &src_d,
     const memory::dim summands = p.aalgorithm == algorithm::lrn_across_channels
             ? size
             : size * size;
-    const auto padded_c = src.get_desc().data.padded_dims[1];
+    const auto padded_c = src.get_desc().get_padded_dims()[1];
 
     const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
     const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());

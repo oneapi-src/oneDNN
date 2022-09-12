@@ -143,8 +143,8 @@ TEST_F(runtime_attr_test_t, TestConv) {
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
-        if ((src_md.data_type() == data_type::s8
-                    || src_md.data_type() == data_type::u8)
+        if ((src_md.get_data_type() == data_type::s8
+                    || src_md.get_data_type() == data_type::u8)
                 && (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST)) {
             CHECK_OK(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_direct, src_md,
