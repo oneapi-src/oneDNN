@@ -641,15 +641,15 @@ private:
         auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
         const auto &p = attr.post_ops_;
         const int sum_idx = p.find(primitive_kind::sum);
-        const auto maybe_req_comp = brg.is_int8 && brg.alpha != 0
+        const auto req_comp = brg.is_int8 && brg.alpha != 0
                 && (brg.req_s8s8_compensation
                         || brg.zp_type_a != brgemm_broadcast_t::none);
 
         // brg.alpha == 0 means no read from input, no bias, no eltwise - just
         // initialize registers by zero at the beginning of kernel
         // brg.beta == 0 means no sum - just registers write to output
-        // maybe_req_comp == true -> convert accumulated values to f32 after apply
-        // compensation to avoid the lost of accuracy when converting s32 to f32
+        // req_comp == true -> convert accumulated values to f32 after applying
+        // compensation to avoid the loss of accuracy when converting s32 to f32
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
             if (brg.alpha == 0) {
@@ -671,7 +671,7 @@ private:
             }
         }
 
-        if (maybe_req_comp) maybe_apply_comp(m_block, n_block, tail);
+        if (req_comp) maybe_apply_comp(m_block, n_block, tail);
 
         if (brg.alpha != 0 && jcp.with_bias) {
             for_(int m = 0; m < m_block; m++)
