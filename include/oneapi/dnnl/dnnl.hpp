@@ -1108,7 +1108,8 @@ struct stream : public handle<dnnl_stream_t> {
     ///
     /// @param aengine Engine to create the stream on.
     /// @param aflags Flags controlling stream behavior.
-    stream(const engine &aengine, flags aflags = flags::default_flags) {
+    explicit stream(
+            const engine &aengine, flags aflags = flags::default_flags) {
         dnnl_stream_t stream;
         error::wrap_c_api(dnnl_stream_create(&stream, aengine.get(),
                                   static_cast<dnnl_stream_flags_t>(aflags)),
