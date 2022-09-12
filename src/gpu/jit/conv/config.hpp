@@ -1105,6 +1105,11 @@ public:
 
     int vec_size() const { return exec_cfg().vec_size(); }
 
+    bool is_g_mad() const {
+        return fma_kind() == fma_kind_t::mad && prb().g > 1 && prb().ic < 4
+                && prb().oc < 4 && prb().mb < 8 && !prb().is_dw;
+    }
+
     bool is_dp_fma() const {
         return utils::one_of(fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw,
                 fma_kind_t::dp4a);
