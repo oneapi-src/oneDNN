@@ -531,6 +531,10 @@ public:
         return utils::one_of(a_data_type, dnnl_f16, dnnl_f32)
                 && utils::one_of(c_data_type, dnnl_u8, dnnl_s8);
     }
+    bool is_g_mad() const {
+        return fma_kind == fma_kind_t::mad && g > 1 && ic < 4 && oc < 4
+                && mb < 8 && !is_dw;
+    }
     bool is_dp_fma() const {
         return utils::one_of(fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw,
                 fma_kind_t::dp4a);
@@ -845,7 +849,8 @@ private:
                 hw(), a_data_type, b_data_type, acc_data_type);
 
         // Force mad for some cases.
-        if (is_dw) fma_kind = fma_kind_t::mad;
+        if (is_dw || (g > 1 && ic < 4 && oc < 4 && mb < 8))
+            fma_kind = fma_kind_t::mad;
 
 #ifdef GEN_CONV_DEBUG
         fma_kind = fma_kind::from_string(ir_utils::getenv_str(

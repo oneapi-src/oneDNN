@@ -101,6 +101,11 @@ status_t conv_config_t::init_common_blocking() {
         int src_ic_blk = src_layout.inner_block(2);
         int wei_ic_blk = wei_layout.inner_block(2);
         bh->set_base_iter_block("ic", src_ic_blk, wei_ic_blk);
+        if (is_g_mad()) {
+            bh->set_base_iter_block(
+                    "oc", dst_layout.inner_block(2), wei_layout.inner_block(1));
+            bh->dim("oc").set_iter_dim(bh->dim("oc").base_iter_block());
+        }
     } else if (is_bwd_d) {
         bh->set_base_iter_block("mb", dst_layout.inner_block(0));
         int dst_g_blk = dst_layout.inner_block(1);
@@ -133,11 +138,18 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     const char *osp_name = fuse_spatial ? "osp" : "ow";
 
     if (use_ow_kw_grf_cache) {
+        bh->set_base_iter_block("mb", 1);
+        bh->dim("mb").set_iter_dim(1);
         bh->set_max_iter_dim("mb", 1);
         bh->set_max_m_tg_dim(2);
         bh->set_max_n_tg_dim(2);
     }
-
+    if (is_g_mad()) {
+        bh->set_base_iter_block("mb", 1);
+        bh->dim("mb").set_iter_dim(1);
+        bh->set_max_iter_dim("mb", 1);
+        bh->set_max_iter_dim(osp_name, 4);
+    }
     bh->set_thr_dim("kd", kd);
     bh->set_thr_dim("kh", kh);
     if (is_small_ic() && !is_dw_large_mb()) {
@@ -152,7 +164,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     }
 
     bh->set_block_dims({"g", "oc", "ic", "mb", osp_name});
-    bh->set_vector_dim(is_dw ? "g" : "oc");
+    bh->set_vector_dim(is_dw || is_g_mad() ? "g" : "oc");
     bh->allow_fuse({"ic", "kw"});
     bh->allow_split({"oc", "ic", "kw"});
 
@@ -170,6 +182,8 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     } else if (src_layout.inner_block(0) == 1) {
         use_sp_blocking = true;
     } else if (is_dw && !is_dw_large_mb()) {
+        use_sp_blocking = true;
+    } else if (is_g_mad() || use_ow_kw_grf_cache) {
         use_sp_blocking = true;
     }
 
@@ -1251,9 +1265,7 @@ void conv_config_t::init_bwd_d_optimize_strided(int iw_thr_blk) {
 
 void conv_config_t::init_use_ow_kw_grf_cache() {
     use_ow_kw_grf_cache = false;
-    if (!is_fwd || !is_small_ic() || (is_small_ic() && !is_dw && g > 1)
-            || kw < 3 || is_dw_large_mb())
-        return;
+    if (!is_fwd || !is_small_ic() || kw < 3 || is_dw_large_mb()) return;
     if (is_dp_fma()) return;
     if (fuse_spatial) return;
 
