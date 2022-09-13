@@ -23,6 +23,11 @@
 --attr-post-ops=add:s8
 --batch=set_all_small
 
+# Regression
+--reset
+--skip-impl=ref
+--cfg=f32 --dir=FWD_I --tag=axb mb1ic16_ih4oh1kh8sh128dh0ph2_iw1ow1kw8sw1dw0pw3n"regression_test_limit_l_pad_for_small_ow"
+
 # bf16
 --batch=test_pool_bfloat16
 
