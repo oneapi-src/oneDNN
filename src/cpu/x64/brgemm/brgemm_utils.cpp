@@ -511,7 +511,7 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
             : data_type_vnni_granularity(brg->dt_b);
 }
 
-void init_brdgmm_conf(brgemm_t *brg, brgemm_batch_kind_t type,
+void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
         impl::data_type_t dt_a, impl::data_type_t dt_b, brgemm_layout_t layout,
         float alpha, float beta, dim_t LDA, dim_t LDC, dim_t M, dim_t N,
         const brgemm_strides_t *strides) {
@@ -532,6 +532,8 @@ void init_brdgmm_conf(brgemm_t *brg, brgemm_batch_kind_t type,
     brg->typesize_B = types::data_type_size(brg->dt_b);
     brg->typesize_C = types::data_type_size(brg->dt_c);
     brg->typesize_D = types::data_type_size(brg->dt_d);
+
+    brg->isa_user = isa;
 
     brg->is_bf16_tmm = brg->is_bf16 && mayiuse(avx512_core_amx);
     brg->is_dgmm = true;

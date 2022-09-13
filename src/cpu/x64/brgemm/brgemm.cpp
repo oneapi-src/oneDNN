@@ -192,8 +192,8 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     if (transA || layout != brgemm_row_major || alpha != 1.0f || beta != 0.f)
         return status::unimplemented;
 
-    brgemm_utils::init_brdgmm_conf(brg, type, dt_a, dt_b, layout, alpha, beta,
-            LDA, LDC, M, N, strides);
+    brgemm_utils::init_brdgmm_conf(brg, isa, type, dt_a, dt_b, layout, alpha,
+            beta, LDA, LDC, M, N, strides);
 
     const bool ldx_check = (LDA < N || LDC < N);
     if (ldx_check) return status::invalid_arguments;
