@@ -100,6 +100,10 @@ public:
 
     stmt_c visit(stmts_c v) override {
         if (TRANSFORMED_CALL(v)) {
+            if (v->size() == 0) {
+                GET_STMT_DATA(v).optimized_out_ = true;
+                return v;
+            }
             stmt_index_t beg = GET_STMT_INIT_INDEX(v);
             stmt_index_t end = GET_STMT_INDEX(v);
             call_scopes_.emplace_back(live_range_t(beg, end));
@@ -129,12 +133,15 @@ public:
             GET_STMT_DATA(v).optimized_out_ = true;
             return v;
         }
-        if (v->value_.isa<call>()
-                && call_scopes_.back().encompasses(live_range)) {
-            auto call_v = v->value_.static_as<call_c>();
-            auto &callee_iface = *cached_call_abi_interface(call_v);
-            GET_PHYSICAL_REG(v->var_)
-                    = callee_iface.return_val_loc_.get_register();
+        if (v->value_.isa<call>()) {
+            if (call_scopes_.back().encompasses(live_range)) {
+                auto call_v = v->value_.static_as<call_c>();
+                auto &callee_iface = *cached_call_abi_interface(call_v);
+                GET_PHYSICAL_REG(v->var_)
+                        = callee_iface.return_val_loc_.get_register();
+            }
+            // TODO(xxx): better way to check liveness cross call
+            call_scopes_.back().end_ = GET_STMT_INDEX(v);
         }
         return xbyak_visitor_t::visit(std::move(v));
     }

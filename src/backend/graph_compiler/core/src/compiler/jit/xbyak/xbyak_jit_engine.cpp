@@ -51,6 +51,8 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
         const context_ptr &ctx, const x86_64::target_profile_t &profile) {
     std::vector<module_pass_ptr> ret;
 
+    // TODO(xxx): better constant_propagation
+    ret.emplace_back(module_function_pass_t::make<constant_propagation_t>());
     ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<module_var_resolver_t>());
     ret.emplace_back(module_function_pass_t::make<low_level_legalizer_t>());
@@ -62,6 +64,7 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
     ret.emplace_back(
             module_function_pass_t::make<loop_invariant_code_motion_t>());
     ret.emplace_back(module_function_pass_t::make<dessa_transform_t>());
+    ret.emplace_back(utils::make_unique<constant_folder_t>());
 
     ret.emplace_back(module_function_pass_t::make<constant_propagation_t>());
     ret.emplace_back(module_function_pass_t::make<x86_intrinsics_lowering_t>(

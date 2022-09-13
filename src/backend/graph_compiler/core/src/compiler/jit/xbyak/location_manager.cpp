@@ -874,6 +874,10 @@ size_t location_manager::get_tensor_static_num_elements(const tensor_c &v) {
     return get_const_as_int(dim0_node);
 }
 
+size_t location_manager::get_conserved_stack_size() const {
+    return conserved_stack_.size();
+}
+
 const Xbyak::AddressFrame *location_manager::get_address_frame(
         const cpu_data_type cpu_dtype) {
     switch (cpu_dtype) {
@@ -948,7 +952,7 @@ location_manager::encode_simd_constant() {
         switch (type_code) {
             case sc_data_etype::BF16: {
                 encode_simd_to_buffer(
-                        (uint16_t *)buffer, lanes, v->value_, select_bf16);
+                        (uint16_t *)buffer, lanes, v->value_, select_u16);
             } break;
             case sc_data_etype::U8: {
                 encode_simd_to_buffer(

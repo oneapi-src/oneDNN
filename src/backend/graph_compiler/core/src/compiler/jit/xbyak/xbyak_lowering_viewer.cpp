@@ -1125,6 +1125,21 @@ void xbyak_lowering_viewer::handle_x86_set(const operand &op_dst,
             // Unsigned condition set
             switch (code) {
                 case xbyak_condition::eq: gen_->sete(op); break;
+                case xbyak_condition::lt: gen_->setnae(op); break;
+                case xbyak_condition::le: gen_->setna(op); break;
+                case xbyak_condition::ne: gen_->setne(op); break;
+                case xbyak_condition::ge: gen_->setnb(op); break;
+                case xbyak_condition::gt: gen_->setnbe(op); break;
+                default:
+                    COMPILE_ASSERT(false,
+                            FUNC_INFO << "Invalid condition: " << cpu_dtype);
+            }
+        } break;
+        case cpu_data_type::sint_8:
+        case cpu_data_type::sint_32: {
+            // Signed condition set
+            switch (code) {
+                case xbyak_condition::eq: gen_->sete(op); break;
                 case xbyak_condition::lt: gen_->setl(op); break;
                 case xbyak_condition::le: gen_->setle(op); break;
                 case xbyak_condition::ne: gen_->setne(op); break;
@@ -1773,13 +1788,6 @@ void xbyak_lowering_viewer::handle_pre_call(const stmts_c &v) {
     location_manager_->align_call_stack(*callee_iface);
 }
 
-void xbyak_lowering_viewer::handle_post_call() {
-    // STEP 1: Restore any caller-saved registers
-    location_manager_->pop_caller_saved();
-    // STEP 2: Exit local scope
-    location_manager_->conclude_local_scope();
-}
-
 void xbyak_lowering_viewer::handle_call(const expr_c &lhs, const call_c &v) {
     COMPILE_ASSERT(v->para_attr_.empty(), "Xbyak JIT not support.");
 
@@ -1837,6 +1845,11 @@ void xbyak_lowering_viewer::handle_call(const expr_c &lhs, const call_c &v) {
             handle_x86_mov(op_ret, operand(reg_ret));
         }
     }
+
+    // STEP 5: Restore any caller-saved registers
+    location_manager_->pop_caller_saved();
+    // STEP 6: Exit local scope
+    location_manager_->conclude_local_scope();
 }
 
 //==============================================================================
@@ -1845,10 +1858,13 @@ void xbyak_lowering_viewer::handle_call(const expr_c &lhs, const call_c &v) {
 
 void xbyak_lowering_viewer::view(stmts_c v) {
     if (TRANSFORMED_CALL(v)) {
+        auto conserved = location_manager_->get_conserved_stack_size();
         ASM_COMMENT("call-scope");
         handle_pre_call(v);
         ir_viewer_t::view(v);
-        handle_post_call();
+        COMPILE_ASSERT(
+                conserved == location_manager_->get_conserved_stack_size(),
+                "Stack frame has been corrupted after call-scope.")
     } else {
         ir_viewer_t::view(v);
     }

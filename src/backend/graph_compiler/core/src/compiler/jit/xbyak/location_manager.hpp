@@ -132,6 +132,7 @@ public:
             x86_64::cpu_data_type data_type, const size_t &num_elem);
 
     size_t get_tensor_static_num_elements(const tensor_c &v);
+    size_t get_conserved_stack_size() const;
 
     /// Assuming our usual mapping of sc_data_type_t to CPU-native data types, /
     /// return a data frame of the appropriate width. E.g., \c gen_->dword or
