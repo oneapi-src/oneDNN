@@ -11,6 +11,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_BUILD_EXAMPLES           | **ON**, OFF                                | Controls building the examples
 | ONEDNN_BUILD_TESTS              | **ON**, OFF                                | Controls building the tests
 | ONEDNN_BUILD_GRAPH              | **ON**, OFF                                | Controls building graph component
+| ONEDNN_ENABLE_GRAPH_DUMP        | ON, **OFF**                                | Controls dumping (@ref dev_guide_graph_dump) graph artifacts
 | ONEDNN_ARCH_OPT_FLAGS           | *compiler flags*                           | Specifies compiler optimization flags (see warning note below)
 | ONEDNN_ENABLE_CONCURRENT_EXEC   | ON, **OFF**                                | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
 | ONEDNN_ENABLE_JIT_PROFILING     | **ON**, OFF                                | Enables [integration with performance profilers](@ref dev_guide_profilers)
@@ -276,3 +277,16 @@ explicitly specify the path to the SDK using `-DOPENCLROOT` CMake option.
 ~~~sh
 $ cmake -DONEDNN_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
 ~~~
+
+## Graph API limitations
+
+Currently, oneDNN Graph API implementation doesn't support all combinations of
+the above build options, specifically the following option values are not yet
+supported:
+
+CMake Option | Value
+--|--|
+ONEDNN_GPU_RUNTIME | OCL
+ONEDNN_GPU_VENDOR  | NVIDIA
+ONEDNN_ENABLE_PRIMITIVE | PRIMITIVE_NAME
+ONEDNN_ENABLE_WORKLOAD | INFERENCE

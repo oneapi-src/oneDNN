@@ -5,6 +5,7 @@ Performance Profiling and Inspection
    :maxdepth: 1
 
    dev_guide_verbose
+   dev_guide_graph_dump
    dev_guide_performance_settings
    dev_guide_benchdnn
    dev_guide_profilers

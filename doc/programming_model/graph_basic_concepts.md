@@ -37,8 +37,8 @@ multiple operations (@ref dnnl::graph::graph::add_op) and their input logical
 tensors and output logical tensors to a graph. After finished adding operations,
 users need call finalization API (@ref dnnl::graph::graph::finalize) to indicate
 that the graph is ready for partitioning. By calling partitioning API
-(@ref dnnl::graph::get_partitions), users will get filtered partitions from the
-graph.
+(@ref dnnl::graph::graph::get_partitions), users will get filtered partitions
+from the graph.
 
 ## Partition
 
@@ -81,8 +81,8 @@ tensors.
 Users can query output logical tensor
 (@ref dnnl::graph::compiled_partition::query_logical_tensor) from a compiled
 partition to know the output layout and memory size
-(@ref dnnl::graph::logical_tensor::get_size) when they specify output logical
-tensor with `any` layout type during compilation.
+(@ref dnnl::graph::logical_tensor::get_mem_size) when they specify output
+logical tensor with `any` layout type during compilation.
 
 ## Tensor
 
