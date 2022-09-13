@@ -118,7 +118,9 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // inputs[0](the left matrix) and inputs[1](the right matrix).
     graph_tensor_ptr trans0 = ins->get_outputs()[0],
                      trans1 = ins->get_outputs()[1];
-    transed_matmul(graph, attrs_, ins->get_outputs()[0], ins->get_outputs()[1],
+    // don't change attrs_ directly
+    auto attrs = attrs_;
+    transed_matmul(graph, attrs, ins->get_outputs()[0], ins->get_outputs()[1],
             trans0, trans1);
 
     bool is_bf16 = false;

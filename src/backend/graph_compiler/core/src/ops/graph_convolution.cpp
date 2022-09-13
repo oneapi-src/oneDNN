@@ -160,6 +160,7 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     COMPILE_ASSERT(dim == 4 || dim == 5, "Only support conv2D and conv3D.");
     auto is_3D = (dim == 5);
 
+    auto attrs = attrs_; // avoid attributes overwriting
     // insert transpose to make NXC --> NCX and XIO --> OIX
     if (data_format == "NXC") {
         auto permute_input = graph->make("transpose", {input}, {},
@@ -176,7 +177,7 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         filter = permute_weight->get_outputs()[0];
     }
 
-    conv = graph->make("conv_fwd_core", {input, filter}, {}, attrs_);
+    conv = graph->make("conv_fwd_core", {input, filter}, {}, attrs);
     if (is_bf16) {
         conv = graph->make(
                 "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
@@ -279,6 +280,7 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                       && attrs_.get<std::string>("auto_pad") == "SAME_UPPER")
             || padding_all_1;
 
+    auto attrs = attrs_; // avoid attributes overwriting
     // insert transpose to make NXC --> NCX and XIO --> OIX
     if (data_format == "NXC") {
         auto permute_output_delta = graph->make("transpose", {output_delta}, {},
@@ -290,7 +292,7 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         // change output_shape attributes
         auto output_shape = attrs_.get<sc_dims>("output_shape");
         permute_shape_NXC2NCX(output_shape);
-        attrs_.set<sc_dims>("output_shape", output_shape);
+        attrs.set<sc_dims>("output_shape", output_shape);
     }
     if (filter_format == "XIO") {
         auto permute_weight = graph->make("transpose", {filter}, {},
@@ -311,11 +313,11 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                         is_3D ? std::vector<int> {1, 0, 2, 3, 4}
                               : std::vector<int> {1, 0, 2, 3}}});
         filter = permute_channel->get_outputs()[0];
-        attrs_.set("inverse_filter", true);
-        conv = graph->make("conv_fwd_core", {output_delta, filter}, {}, attrs_);
+        attrs.set("inverse_filter", true);
+        conv = graph->make("conv_fwd_core", {output_delta, filter}, {}, attrs);
     } else {
         conv = graph->make(
-                "conv_bwd_data_core", {output_delta, filter}, {}, attrs_);
+                "conv_bwd_data_core", {output_delta, filter}, {}, attrs);
     }
 
     if (is_bf16) {
@@ -383,6 +385,7 @@ void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     COMPILE_ASSERT(dim == 4 || dim == 5, "Only support conv2D and conv3D.");
     auto is_3D = (dim == 5);
 
+    auto attrs = attrs_; // avoid attributes overwriting
     // insert transpose to make NXC --> NCX and XIO --> OIX
     if (data_format == "NXC") {
         auto permute_input = graph->make("transpose", {input}, {},
@@ -402,11 +405,11 @@ void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         // change filter_shape attributes
         auto filter_shape = attrs_.get<sc_dims>("filter_shape");
         permute_shape_XIO2OIX(filter_shape);
-        attrs_.set<sc_dims>("filter_shape", filter_shape);
+        attrs.set<sc_dims>("filter_shape", filter_shape);
     }
 
     conv = graph->make(
-            "conv_bwd_weight_core", {input, output_delta}, {}, attrs_);
+            "conv_bwd_weight_core", {input, output_delta}, {}, attrs);
 
     if (is_bf16) {
         conv = graph->make(

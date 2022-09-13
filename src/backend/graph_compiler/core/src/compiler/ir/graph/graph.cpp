@@ -604,10 +604,8 @@ std::vector<expr_c> sc_graph_t::dims_to_expr_c(const sc_dims &dim) {
 float sc_graph_t::get_gflop() const {
     float gflop = 0.f;
     for (auto &op : ops_) {
-        if (auto tune_op = op->dyn_cast<tunable_op_t>()) {
-            if (op->is_removed_) continue;
-            gflop += tune_op->get_gflop();
-        }
+        if (op->is_removed_) continue;
+        gflop += op->get_gflop();
     }
     return gflop;
 }

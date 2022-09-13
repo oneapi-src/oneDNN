@@ -57,6 +57,8 @@ public:
 
     static std::vector<graph_tensor_ptr> remake_logical_tensors(
             const std::vector<graph_tensor_ptr> &flts);
+
+    float get_gflop() override { return get_graph()->get_gflop(); }
 };
 
 class configurable_graph_op_t : public graph_op_t,
