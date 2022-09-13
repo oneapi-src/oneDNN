@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -437,3 +437,25 @@ CPU_INST_TEST_CASE(Simple_Depthwise_BRDGMM_Blocked16,
                 16, 16, 32, 16, 16, 18, 16, 3, 3, 2, 1, 2, 1),
         PARAMS(FMT_DATA_BLOCKED16, hwioG16g, FMT_BIAS, FMT_DATA_BLOCKED16, 1,
                 16, 16, 500, 500, 16, 698, 698, 3, 3, 100, 100, 1, 1));
+
+CPU_INST_TEST_CASE(Simple_Depthwise_BRDGMM_Blocked8,
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 2, 16, 16, 16, 16,
+                16, 16, 16, 3, 3, 0, 0, 1, 1),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 2, 32, 32, 9, 9, 32,
+                2, 2, 5, 5, 0, 0, 3, 3),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 2, 64, 64, 26, 26,
+                64, 13, 13, 4, 4, 1, 1, 2, 2),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 2, 32, 32, 111, 111,
+                32, 112, 112, 1, 1, 0, 0, 1, 1),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 2, 64, 64, 1, 2, 64,
+                1, 1, 3, 3, 1, 1, 1, 2),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 1, 32, 32, 16, 32,
+                32, 14, 16, 3, 3, 0, 1, 1, 2),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 1, 16, 16, 16, 32,
+                16, 16, 18, 3, 3, 1, 2, 1, 2),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 1, 32, 32, 32, 16,
+                32, 16, 14, 3, 3, 1, 0, 2, 1),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 1, 16, 16, 32, 16,
+                16, 18, 16, 3, 3, 2, 1, 2, 1),
+        PARAMS(nhwc, hwioG8g, FMT_BIAS, FMT_DATA_BLOCKED16, 1, 16, 16, 500, 500,
+                16, 698, 698, 3, 3, 100, 100, 1, 1));

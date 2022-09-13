@@ -683,6 +683,7 @@ const format_tag_t aBdefC16c48b4c = dnnl_aBdefC16c48b4c;
 const format_tag_t aBdefC16c64b2c = dnnl_aBdefC16c64b2c;
 const format_tag_t aBdefC16c64b4c = dnnl_aBdefC16c64b4c;
 const format_tag_t decbA16a = dnnl_decbA16a;
+const format_tag_t decbA8a = dnnl_decbA8a;
 const format_tag_t aCB16c2b = dnnl_aCB16c2b;
 const format_tag_t aCB16c4b = dnnl_aCB16c4b;
 const format_tag_t BA16b2a = dnnl_BA16b2a;
@@ -1201,6 +1202,7 @@ const format_tag_t gOdhwI16i48o4i = dnnl_gOdhwI16i48o4i;
 const format_tag_t gOdhwI16i64o2i = dnnl_gOdhwI16i64o2i;
 const format_tag_t gOdhwI16i64o4i = dnnl_gOdhwI16i64o4i;
 const format_tag_t hwioG16g = dnnl_hwioG16g;
+const format_tag_t hwioG8g = dnnl_hwioG8g;
 } // namespace format_tag
 
 using normalization_flags_t = dnnl_normalization_flags_t;
