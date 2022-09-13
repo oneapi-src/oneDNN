@@ -622,62 +622,6 @@ status_t dnnl_post_ops_get_params_dw(const post_ops_t *post_ops, int index,
     return success;
 }
 
-status_t dnnl_post_ops_append_dw_k3s1p1(post_ops_t *post_ops,
-        data_type_t wei_dt, data_type_t bias_dt, data_type_t dst_dt,
-        dim_t count, int mask, const float *scales) {
-    if (post_ops == nullptr) return invalid_arguments;
-
-    return post_ops->append_dw(
-            wei_dt, bias_dt, dst_dt, 3, 1, 1, count, mask, scales);
-}
-
-status_t dnnl_post_ops_get_params_dw_k3s1p1(const post_ops_t *post_ops,
-        int index, data_type_t *wei_dt, data_type_t *bias_dt,
-        data_type_t *dst_dt, dim_t *count, int *mask, const float **scales) {
-
-    if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
-        return invalid_arguments;
-
-    const auto &d = post_ops->entry_[index].depthwise_conv;
-    if (d.stride != 1) return invalid_arguments;
-    if (wei_dt) *wei_dt = d.wei_dt;
-    if (bias_dt) *bias_dt = d.bias_dt;
-    if (dst_dt) *dst_dt = d.dst_dt;
-    if (count) *count = d.count;
-    if (mask) *mask = d.mask;
-    if (scales) *scales = d.scales;
-
-    return success;
-}
-
-status_t dnnl_post_ops_append_dw_k3s2p1(post_ops_t *post_ops,
-        data_type_t wei_dt, data_type_t bias_dt, data_type_t dst_dt,
-        dim_t count, int mask, const float *scales) {
-    if (post_ops == nullptr) return invalid_arguments;
-
-    return post_ops->append_dw(
-            wei_dt, bias_dt, dst_dt, 3, 2, 1, count, mask, scales);
-}
-
-status_t dnnl_post_ops_get_params_dw_k3s2p1(const post_ops_t *post_ops,
-        int index, data_type_t *wei_dt, data_type_t *bias_dt,
-        data_type_t *dst_dt, dim_t *count, int *mask, const float **scales) {
-
-    if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
-        return invalid_arguments;
-
-    const auto &d = post_ops->entry_[index].depthwise_conv;
-    if (d.stride != 2) return invalid_arguments;
-    if (wei_dt) *wei_dt = d.wei_dt;
-    if (bias_dt) *bias_dt = d.bias_dt;
-    if (dst_dt) *dst_dt = d.dst_dt;
-    if (count) *count = d.count;
-    if (mask) *mask = d.mask;
-    if (scales) *scales = d.scales;
-
-    return success;
-}
-
 status_t dnnl_post_ops_append_binary(post_ops_t *post_ops, alg_kind_t alg_kind,
         const memory_desc_t *user_src1_desc) {
     if (post_ops == nullptr) return invalid_arguments;

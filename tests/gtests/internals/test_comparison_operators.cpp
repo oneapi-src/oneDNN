@@ -110,13 +110,13 @@ HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestDepthwisePostOp) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
-    ops.append_dw_k3s1p1(memory::data_type::s8, memory::data_type::f32,
-            memory::data_type::u8, 0, {NAN});
+    ops.append_dw(memory::data_type::s8, memory::data_type::f32,
+            memory::data_type::u8, 3, 1, 1, 0, {NAN});
     attr.set_post_ops(ops);
     TEST_SELF_COMPARISON(attr);
 
-    ops.append_dw_k3s2p1(memory::data_type::u8, memory::data_type::s32,
-            memory::data_type::f32, 1 << 1, {1.5f, NAN, 3.5f});
+    ops.append_dw(memory::data_type::u8, memory::data_type::s32,
+            memory::data_type::f32, 3, 2, 1, 1 << 1, {1.5f, NAN, 3.5f});
     attr.set_post_ops(ops);
     TEST_SELF_COMPARISON(attr);
 }

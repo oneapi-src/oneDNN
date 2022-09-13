@@ -222,7 +222,7 @@ post-ops are supported:
 | forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                                                                        |
 | forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                                                        |
 | forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions                                    |
-| forward     | post-op   | [Depthwise](@ref dnnl::post_ops::append_dw_k3s1p1)           | Applies a @ref dnnl_api_convolution operation to the result                   | See [a separate section](@ref dev_guide_attributes_post_ops_depthwise) |
+| forward     | post-op   | [Depthwise](@ref dnnl::post_ops::append_dw)                  | Applies a @ref dnnl_api_convolution operation to the result                   | See [a separate section](@ref dev_guide_attributes_post_ops_depthwise) |
 
 To facilitate dynamic quantization, the primitive supports run-time output
 scales. That means a user could configure attributes with output scales set to

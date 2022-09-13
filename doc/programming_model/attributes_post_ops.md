@@ -170,8 +170,8 @@ Three variants of depthwise post-op are supported:
 * `dw` for a general case.
 
 API:
-- C: @ref dnnl_post_ops_append_dw , @ref dnnl_post_ops_append_dw_k3s1p1 , @ref dnnl_post_ops_append_dw_k3s2p1
-- C++: @ref dnnl::post_ops::append_dw , @ref dnnl::post_ops::append_dw_k3s1p1 , @ref dnnl::post_ops::append_dw_k3s2p1
+- C: @ref dnnl_post_ops_append_dw
+- C++: @ref dnnl::post_ops::append_dw
 
 For better readability, below we assume a 2D convolution and use the following
 notations:
@@ -434,10 +434,13 @@ po.append_eltwise(
         /* neg slope = */ 0.f,
         /* unused for relu */ 0.f);
 
-po.append_dw_k3s1p1( /* or po.append_dw_k3s2p1 for depthwise with stride=2*/
+po.append_dw(
         /* depthwise weights data type = */ dnnl::memory::data_type::s8,
         /* depthwise bias data type (undef implies no bias) = */ dnnl::memory::data_type::undef,
         /* depthwise destination data type = */ dnnl::memory::data_type::u8,
+        /* kernel size of fused depthwise convolution = */ kernel,
+        /* stride size of fused depthwise convolution = */ stride,
+        /* padding size of fused depthwise convolution = */ padding,
         /* mask for output scales of depthwise output = */ mask,
         /* output scales for depthwise output = */ scales_depthwise)
 
