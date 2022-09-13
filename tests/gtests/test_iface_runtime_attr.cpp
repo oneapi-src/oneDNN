@@ -109,18 +109,18 @@ TEST_F(runtime_attr_test_t, TestBinary) {
 
 TEST_F(runtime_attr_test_t, TestConcat) {
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
-    CHECK_OK(concat::primitive_desc(1, {md, md}, eng));
+    CHECK_OK(concat::primitive_desc(eng, 1, {md, md}));
     CHECK_UNIMPL(concat::primitive_desc(
-            1, {md, md}, eng, gen_attr_with_oscale(false)));
+            eng, 1, {md, md}, gen_attr_with_oscale(false)));
     CHECK_UNIMPL(concat::primitive_desc(
-            1, {md, md}, eng, gen_attr_with_oscale(true)));
+            eng, 1, {md, md}, gen_attr_with_oscale(true)));
 
     for (auto arg :
             {DNNL_ARG_MULTIPLE_SRC, DNNL_ARG_MULTIPLE_SRC + 1, DNNL_ARG_DST}) {
         CHECK_UNIMPL(concat::primitive_desc(
-                1, {md, md}, eng, gen_attr_with_zp(false, arg)));
+                eng, 1, {md, md}, gen_attr_with_zp(false, arg)));
         CHECK_UNIMPL(concat::primitive_desc(
-                1, {md, md}, eng, gen_attr_with_zp(true, arg)));
+                eng, 1, {md, md}, gen_attr_with_zp(true, arg)));
     }
 }
 
@@ -508,17 +508,17 @@ TEST_F(runtime_attr_test_t, TestSoftmax) {
 
 TEST_F(runtime_attr_test_t, TestSum) {
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
-    CHECK_OK(sum::primitive_desc({1.f, 1.f}, {md, md}, eng));
+    CHECK_OK(sum::primitive_desc(eng, {1.f, 1.f}, {md, md}));
     CHECK_UNIMPL(sum::primitive_desc(
-            {1.f, 1.f}, {md, md}, eng, gen_attr_with_oscale(false)));
+            eng, {1.f, 1.f}, {md, md}, gen_attr_with_oscale(false)));
     CHECK_UNIMPL(sum::primitive_desc(
-            {1.f, 1.f}, {md, md}, eng, gen_attr_with_oscale(true)));
+            eng, {1.f, 1.f}, {md, md}, gen_attr_with_oscale(true)));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(sum::primitive_desc(
-                {1.f, 1.f}, {md, md}, eng, gen_attr_with_zp(false, arg)));
+                eng, {1.f, 1.f}, {md, md}, gen_attr_with_zp(false, arg)));
         CHECK_UNIMPL(sum::primitive_desc(
-                {1.f, 1.f}, {md, md}, eng, gen_attr_with_zp(true, arg)));
+                eng, {1.f, 1.f}, {md, md}, gen_attr_with_zp(true, arg)));
     }
 }
 

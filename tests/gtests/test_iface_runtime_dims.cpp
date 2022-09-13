@@ -81,7 +81,7 @@ TEST_F(runtime_dim_test_t, TestBinary) {
 TEST_F(runtime_dim_test_t, TestConcat) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
-    CHECK_UNIMPL(concat::primitive_desc(1, {md, md}, eng));
+    CHECK_UNIMPL(concat::primitive_desc(eng, 1, {md, md}));
 }
 
 TEST_F(runtime_dim_test_t, TestConv) {
@@ -345,7 +345,7 @@ TEST_F(runtime_dim_test_t, TestSoftmax) {
 TEST_F(runtime_dim_test_t, TestSum) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
-    CHECK_UNIMPL(sum::primitive_desc({1.f, 1.f}, {md, md}, eng));
+    CHECK_UNIMPL(sum::primitive_desc(eng, {1.f, 1.f}, {md, md}));
 }
 
 } // namespace dnnl

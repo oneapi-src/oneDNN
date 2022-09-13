@@ -1348,10 +1348,9 @@ dnnl_status_t DNNL_API dnnl_reorder_primitive_desc_create(
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_concat_primitive_desc_create(
-        dnnl_primitive_desc_t *concat_primitive_desc,
+        dnnl_primitive_desc_t *concat_primitive_desc, dnnl_engine_t engine,
         const dnnl_memory_desc_t *dst_desc, int n, int concat_dimension,
-        const dnnl_memory_desc_t *src_descs, const_dnnl_primitive_attr_t attr,
-        dnnl_engine_t engine);
+        const dnnl_memory_desc_t *src_descs, const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_concat
 
@@ -1371,10 +1370,9 @@ dnnl_status_t DNNL_API dnnl_concat_primitive_desc_create(
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
-        dnnl_primitive_desc_t *sum_primitive_desc,
+        dnnl_primitive_desc_t *sum_primitive_desc, dnnl_engine_t engine,
         const dnnl_memory_desc_t *dst_desc, int n, const float *scales,
-        const dnnl_memory_desc_t *src_descs, const_dnnl_primitive_attr_t attr,
-        dnnl_engine_t engine);
+        const dnnl_memory_desc_t *src_descs, const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_sum
 

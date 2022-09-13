@@ -63,7 +63,7 @@ TEST(primitive_cache_mt_test, TestNestedCase) {
         for (memory::dim ns = 0; ns < n_srcs; ++ns) {
             src_mds[ns] = memory::desc({{128, 128}, dt::f32, tag::nc});
         }
-        auto sum_pd = sum::primitive_desc(scales, src_mds, eng);
+        auto sum_pd = sum::primitive_desc(eng, scales, src_mds);
         auto sum_prim = sum(sum_pd);
     });
 }

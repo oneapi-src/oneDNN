@@ -51,9 +51,9 @@ TEST_F(iface_sum_test_t, SumTestDstDataTypeCompliance) {
         if (dst_dt != dt::undef) {
             memory::desc dst_md(shape, dst_dt, dst_tag);
             sum_pd = sum::primitive_desc(
-                    dst_md, {2., 2.}, {src_md, src_md}, eng);
+                    eng, dst_md, {2., 2.}, {src_md, src_md});
         } else {
-            sum_pd = sum::primitive_desc({2., 2.}, {src_md, src_md}, eng);
+            sum_pd = sum::primitive_desc(eng, {2., 2.}, {src_md, src_md});
         }
 
         dt expect_dst_dt = dst_dt == dt::undef ? src_dt : dst_dt;
@@ -185,10 +185,10 @@ protected:
 
         if (p.is_output_omitted) {
             ASSERT_NO_THROW(
-                    sum_pd = sum::primitive_desc(p.scale, srcs_md, eng));
+                    sum_pd = sum::primitive_desc(eng, p.scale, srcs_md));
         } else {
             auto dst_desc = memory::desc(p.dims, dst_data_type, p.dst_format);
-            sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_md, eng);
+            sum_pd = sum::primitive_desc(eng, dst_desc, p.scale, srcs_md);
 
             ASSERT_EQ(sum_pd.dst_desc().data.ndims, dst_desc.data.ndims);
         }

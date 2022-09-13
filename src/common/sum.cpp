@@ -104,9 +104,9 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
 } // namespace dnnl
 
 status_t dnnl_sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
-        const memory_desc_t *dst_md, int n, const float *scales,
-        const memory_desc_t *src_mds, const primitive_attr_t *attr,
-        engine_t *engine) {
+        engine_t *engine, const memory_desc_t *dst_md, int n,
+        const float *scales, const memory_desc_t *src_mds,
+        const primitive_attr_t *attr) {
     return sum_primitive_desc_create(
             sum_pd_iface, dst_md, n, scales, src_mds, attr, engine);
 }

@@ -106,9 +106,9 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
 } // namespace dnnl
 
 status_t dnnl_concat_primitive_desc_create(
-        primitive_desc_iface_t **concat_pd_iface, const memory_desc_t *dst_md,
-        int n, int concat_dim, const memory_desc_t *src_mds,
-        const primitive_attr_t *attr, engine_t *engine) {
+        primitive_desc_iface_t **concat_pd_iface, engine_t *engine,
+        const memory_desc_t *dst_md, int n, int concat_dim,
+        const memory_desc_t *src_mds, const primitive_attr_t *attr) {
     if (any_null(concat_pd_iface)) return invalid_arguments;
 
     std::shared_ptr<primitive_desc_t> pd;

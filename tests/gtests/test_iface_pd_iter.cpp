@@ -84,10 +84,10 @@ TEST_F(pd_iter_test_t, UnsupportedPrimitives) {
                       &reorder_pd, &mds[0], engine, &mds[1], engine, nullptr),
             ok);
     ASSERT_EQ(dnnl_concat_primitive_desc_create(
-                      &concat_pd, nullptr, 2, 0, mds, nullptr, engine),
+                      &concat_pd, engine, nullptr, 2, 0, mds, nullptr),
             ok);
     ASSERT_EQ(dnnl_sum_primitive_desc_create(
-                      &sum_pd, &mds[0], 2, scales, mds, nullptr, engine),
+                      &sum_pd, engine, &mds[0], 2, scales, mds, nullptr),
             ok);
 
     ASSERT_EQ(

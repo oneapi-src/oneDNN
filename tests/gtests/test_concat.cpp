@@ -148,7 +148,7 @@ protected:
 
         auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
         auto concat_pd = concat::primitive_desc(
-                dst_desc, static_cast<int>(p.concat_dimension), srcs_md, eng);
+                eng, dst_desc, static_cast<int>(p.concat_dimension), srcs_md);
         // test construction from a C pd
         concat_pd = concat::primitive_desc(concat_pd.get());
 

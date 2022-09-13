@@ -51,10 +51,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args_t()));
 
     init_pd_args.is_iterator_supported = false;
-    return dnnl_sum_primitive_desc_create(&init_pd_args.pd,
+    return dnnl_sum_primitive_desc_create(&init_pd_args.pd, init_pd_args.engine,
             prb->dtag != tag::undef ? &dst_d : nullptr, prb->n_inputs(),
-            prb->input_scales.data(), src_d.data(), dnnl_attr,
-            init_pd_args.engine);
+            prb->input_scales.data(), src_d.data(), dnnl_attr);
 }
 
 int fill_src(

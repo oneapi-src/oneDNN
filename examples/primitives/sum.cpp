@@ -95,7 +95,7 @@ void sum_example(dnnl::engine::kind engine_kind) {
     }
 
     // Create primitive descriptor.
-    auto sum_pd = sum::primitive_desc(scales, src_md, engine);
+    auto sum_pd = sum::primitive_desc(engine, scales, src_md);
 
     // Create the primitive.
     auto sum_prim = sum(sum_pd);

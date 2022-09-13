@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ void concat_example(dnnl::engine::kind engine_kind) {
     }
 
     // Create primitive descriptor.
-    auto concat_pd = concat::primitive_desc(axis, src_mds, engine);
+    auto concat_pd = concat::primitive_desc(engine, axis, src_mds);
 
     // Create destination (dst) memory object using the memory descriptor
     // created by the primitive.

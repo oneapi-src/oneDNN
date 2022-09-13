@@ -4604,23 +4604,23 @@ struct concat : public primitive {
         /// Constructs a primitive descriptor for an out-of-place concatenation
         /// primitive.
         ///
+        /// @param aengine Engine to perform the operation on.
         /// @param dst Destination memory descriptor.
         /// @param concat_dimension Source tensors will be concatenated over
         ///     dimension with this index. Note that order of dimensions does
         ///     not depend on memory format.
         /// @param srcs Vector of source memory descriptors.
-        /// @param aengine Engine to perform the operation on.
         /// @param attr Primitive attributes to use (optional).
-        primitive_desc(const memory::desc &dst, int concat_dimension,
-                const std::vector<memory::desc> &srcs, const engine &aengine,
+        primitive_desc(const engine &aengine, const memory::desc &dst,
+                int concat_dimension, const std::vector<memory::desc> &srcs,
                 const primitive_attr &attr = primitive_attr()) {
             auto c_srcs = convert_to_c(srcs);
 
             dnnl_primitive_desc_t result;
             error::wrap_c_api(
-                    dnnl_concat_primitive_desc_create(&result, &dst.data,
-                            (int)c_srcs.size(), concat_dimension, c_srcs.data(),
-                            attr.get(), aengine.get()),
+                    dnnl_concat_primitive_desc_create(&result, aengine.get(),
+                            &dst.data, (int)c_srcs.size(), concat_dimension,
+                            c_srcs.data(), attr.get()),
                     "could not create a primitive descriptor for a concat "
                     "primitive");
             reset(result);
@@ -4632,22 +4632,22 @@ struct concat : public primitive {
         /// This version derives the destination memory descriptor
         /// automatically.
         ///
+        /// @param aengine Engine to perform the operation on.
         /// @param concat_dimension Source tensors will be concatenated over
         ///     dimension with this index. Note that order of dimensions does
         ///     not depend on memory format.
         /// @param srcs Vector of source memory descriptors.
-        /// @param aengine Engine to perform the operation on.
         /// @param attr Primitive attributes to use (optional).
-        primitive_desc(int concat_dimension,
-                const std::vector<memory::desc> &srcs, const engine &aengine,
+        primitive_desc(const engine &aengine, int concat_dimension,
+                const std::vector<memory::desc> &srcs,
                 const primitive_attr &attr = primitive_attr()) {
             auto c_api_srcs = convert_to_c(srcs);
 
             dnnl_primitive_desc_t result;
             error::wrap_c_api(
-                    dnnl_concat_primitive_desc_create(&result, nullptr,
-                            (int)c_api_srcs.size(), concat_dimension,
-                            c_api_srcs.data(), attr.get(), aengine.get()),
+                    dnnl_concat_primitive_desc_create(&result, aengine.get(),
+                            nullptr, (int)c_api_srcs.size(), concat_dimension,
+                            c_api_srcs.data(), attr.get()),
                     "could not create a primitive descriptor for a concat "
                     "primitive");
             reset(result);
@@ -4702,15 +4702,15 @@ struct sum : public primitive {
 
         /// Constructs a primitive descriptor for a sum primitive.
         ///
+        /// @param aengine Engine to perform the operation on.
         /// @param dst Destination memory descriptor.
         /// @param scales Vector of scales to multiply data in each source
         ///     memory by.
         /// @param srcs Vector of source memory descriptors.
-        /// @param aengine Engine to perform the operation on.
         /// @param attr Primitive attributes to use (optional).
-        primitive_desc(const memory::desc &dst,
+        primitive_desc(const engine &aengine, const memory::desc &dst,
                 const std::vector<float> &scales,
-                const std::vector<memory::desc> &srcs, const engine &aengine,
+                const std::vector<memory::desc> &srcs,
                 const primitive_attr &attr = primitive_attr()) {
             validate_container_size(scales,
                     "counts of scales and sources are not equal",
@@ -4720,9 +4720,9 @@ struct sum : public primitive {
 
             dnnl_primitive_desc_t result;
             error::wrap_c_api(
-                    dnnl_sum_primitive_desc_create(&result, &dst.data,
-                            (int)c_api_srcs.size(), scales.data(),
-                            c_api_srcs.data(), attr.get(), aengine.get()),
+                    dnnl_sum_primitive_desc_create(&result, aengine.get(),
+                            &dst.data, (int)c_api_srcs.size(), scales.data(),
+                            c_api_srcs.data(), attr.get()),
                     "could not create a primitive descriptor for a sum "
                     "primitive");
             reset(result);
@@ -4733,13 +4733,13 @@ struct sum : public primitive {
         /// This version derives the destination memory descriptor
         /// automatically.
         ///
+        /// @param aengine Engine on which to perform the operation.
         /// @param scales Vector of scales by which to multiply data in each
         ///     source memory object.
         /// @param srcs Vector of source memory descriptors.
-        /// @param aengine Engine on which to perform the operation.
         /// @param attr Primitive attributes to use (optional).
-        primitive_desc(const std::vector<float> &scales,
-                const std::vector<memory::desc> &srcs, const engine &aengine,
+        primitive_desc(const engine &aengine, const std::vector<float> &scales,
+                const std::vector<memory::desc> &srcs,
                 const primitive_attr &attr = primitive_attr()) {
             validate_container_size(scales,
                     "counts of scales and sources are not equal",
@@ -4748,9 +4748,9 @@ struct sum : public primitive {
             auto c_api_srcs = convert_to_c(srcs);
             dnnl_primitive_desc_t result;
             error::wrap_c_api(
-                    dnnl_sum_primitive_desc_create(&result, nullptr,
-                            (int)c_api_srcs.size(), scales.data(),
-                            c_api_srcs.data(), attr.get(), aengine.get()),
+                    dnnl_sum_primitive_desc_create(&result, aengine.get(),
+                            nullptr, (int)c_api_srcs.size(), scales.data(),
+                            c_api_srcs.data(), attr.get()),
                     "could not create a primitive descriptor for a sum "
                     "primitive");
             reset(result);
