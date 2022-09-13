@@ -62,7 +62,6 @@ public:
             case alg_kind::eltwise_bounded_relu: return "bounded_relu";
             case alg_kind::eltwise_soft_relu: return "soft_relu";
             case alg_kind::eltwise_logistic: return "logistic";
-            case alg_kind::eltwise_logsigmoid: return "logsigmoid";
             case alg_kind::eltwise_mish: return "mish";
             case alg_kind::eltwise_exp: return "exp";
             case alg_kind::eltwise_log: return "log";

@@ -1145,7 +1145,6 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_pow) return "eltwise_pow";
     if (v == dnnl_eltwise_gelu_erf) return "eltwise_gelu_erf";
     if (v == dnnl_eltwise_round) return "eltwise_round";
-    if (v == dnnl_eltwise_logsigmoid) return "eltwise_logsigmoid";
     if (v == dnnl_eltwise_mish) return "eltwise_mish";
     if (v == dnnl_eltwise_hardswish) return "eltwise_hardswish";
     if (v == dnnl_eltwise_relu_use_dst_for_bwd) return "eltwise_relu_use_dst_for_bwd";
@@ -1203,6 +1202,7 @@ const char *dnnl_rnn_flags2str(dnnl_rnn_flags_t v) {
 }
 
 const char *dnnl_rnn_direction2str(dnnl_rnn_direction_t v) {
+    if (v == dnnl_rnn_direction_undef) return "undef";
     if (v == dnnl_unidirectional_left2right) return "unidirectional_left2right";
     if (v == dnnl_unidirectional_right2left) return "unidirectional_right2left";
     if (v == dnnl_bidirectional_concat) return "bidirectional_concat";

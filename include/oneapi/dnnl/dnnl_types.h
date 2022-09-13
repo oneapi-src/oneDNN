@@ -1487,8 +1487,6 @@ typedef enum {
     dnnl_eltwise_gelu_erf = 0x30,
     /// Eltwise: round
     dnnl_eltwise_round = 0x40,
-    /// Eltwise: logsigmoid
-    dnnl_eltwise_logsigmoid = 0x50,
     /// Eltwise: mish
     dnnl_eltwise_mish = 0x60,
     /// Eltwise: hardswish

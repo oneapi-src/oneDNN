@@ -33,8 +33,8 @@ inline bool jit_eltwise_injector_f32_is_supported(alg_kind_t alg) {
     return utils::one_of(alg, eltwise_elu, eltwise_elu_use_dst_for_bwd,
             eltwise_exp, eltwise_exp_use_dst_for_bwd, eltwise_gelu_tanh,
             eltwise_gelu_erf, eltwise_hardsigmoid, eltwise_hardswish,
-            eltwise_log, eltwise_logsigmoid, eltwise_mish, eltwise_pow,
-            eltwise_relu, eltwise_relu_use_dst_for_bwd, eltwise_bounded_relu,
+            eltwise_log, eltwise_mish, eltwise_pow, eltwise_relu,
+            eltwise_relu_use_dst_for_bwd, eltwise_bounded_relu,
             eltwise_soft_relu, eltwise_sqrt, eltwise_sqrt_use_dst_for_bwd,
             eltwise_square, eltwise_swish, eltwise_tanh,
             eltwise_tanh_use_dst_for_bwd, eltwise_abs, eltwise_round,
@@ -111,8 +111,6 @@ private:
     void hardswish_compute_fwd(
             int simd, const ngen::GRF &r, int phase, int off);
     void log_compute_fwd(int simd, const ngen::GRF &r, int phase);
-    void logsigmoid_compute_fwd(
-            int simd, const ngen::GRF &r, int phase, int off);
     void mish_compute_fwd(
             int simd, const ngen::GRF &r, int phase, int off, int batch);
     void pow_compute_fwd(int simd, const ngen::GRF &r, int phase, int off);

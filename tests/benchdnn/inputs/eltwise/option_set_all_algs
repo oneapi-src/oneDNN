@@ -1,12 +1,17 @@
 # Algorithm coverage based on alpha and beta validity
 --alpha=0 --beta=0
 --alg=abs,exp,exp_dst,gelu_erf,gelu_tanh,hardswish,log,logistic, \
-      logistic_dst,logsigmoid,mish,round,sqrt,sqrt_dst,square,soft_relu,tanh, \
+      logistic_dst,mish,round,sqrt,sqrt_dst,square,soft_relu,tanh, \
       tanh_dst
 --batch=shapes_eltwise
 
 --alpha=0,0.25,-0.25 --beta=0
 --alg=bounded_relu,elu,elu_dst,relu,relu_dst,soft_relu_v2,swish
+--batch=shapes_eltwise
+
+### logsigmoid
+--alpha=-1 --beta=0
+--alg=soft_relu_v2
 --batch=shapes_eltwise
 
 --alpha=0,0.25,-0.25 --beta=0,0.25,-0.25

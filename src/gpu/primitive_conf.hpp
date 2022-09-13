@@ -1039,7 +1039,6 @@ inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
     kernel_ctx.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
     kernel_ctx.define_int("SOFT_RELU_V2", alg_kind::eltwise_soft_relu_v2);
-    kernel_ctx.define_int("LOGSIGMOID", alg_kind::eltwise_logsigmoid);
     kernel_ctx.define_int("MISH", alg_kind::eltwise_mish);
     kernel_ctx.define_int("LOGISTIC", alg_kind::eltwise_logistic);
     kernel_ctx.define_int("TANH", alg_kind::eltwise_tanh);

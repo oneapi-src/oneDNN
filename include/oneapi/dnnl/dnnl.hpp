@@ -549,8 +549,6 @@ enum class algorithm {
     eltwise_soft_relu = dnnl_eltwise_soft_relu,
     /// Elementwise: soft_relu version 2
     eltwise_soft_relu_v2 = dnnl_eltwise_soft_relu_v2,
-    /// Elementwise: logsigmoid
-    eltwise_logsigmoid = dnnl_eltwise_logsigmoid,
     /// Elementwise: mish
     eltwise_mish = dnnl_eltwise_mish,
     /// Elementwise: logistic

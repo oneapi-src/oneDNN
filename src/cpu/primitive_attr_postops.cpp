@@ -68,7 +68,6 @@ float compute_eltwise_scalar_fwd(
         case eltwise_pow: d = pow_fwd(s, alpha, beta); break;
         case eltwise_gelu_erf: d = gelu_erf_fwd(s); break;
         case eltwise_round: d = round_fwd(s); break;
-        case eltwise_logsigmoid: d = logsigmoid_fwd(s); break;
         case eltwise_mish: d = mish_fwd(s); break;
         case eltwise_hardsigmoid: d = hardsigmoid_fwd(s, alpha, beta); break;
         case eltwise_hardswish: d = hardswish_fwd(s); break;
@@ -110,7 +109,6 @@ float compute_eltwise_scalar_bwd(
         case eltwise_clip_v2: ds = clip_v2_bwd(dd, s, alpha, beta); break;
         case eltwise_pow: ds = pow_bwd(dd, s, alpha, beta); break;
         case eltwise_gelu_erf: ds = gelu_erf_bwd(dd, s); break;
-        case eltwise_logsigmoid: ds = logsigmoid_bwd(dd, s); break;
         case eltwise_mish: ds = mish_bwd(dd, s); break;
         case eltwise_hardsigmoid:
             ds = hardsigmoid_bwd(dd, s, alpha, beta);
@@ -159,14 +157,13 @@ ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
     assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
             eltwise_bounded_relu, eltwise_soft_relu, eltwise_soft_relu_v2,
-            eltwise_logsigmoid, eltwise_mish, eltwise_logistic, eltwise_exp,
-            eltwise_gelu_tanh, eltwise_swish, eltwise_log, eltwise_clip,
-            eltwise_clip_v2, eltwise_pow, eltwise_gelu_erf, eltwise_round,
-            eltwise_hardsigmoid, eltwise_hardswish,
-            eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
-            eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
-            eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd,
-            eltwise_clip_v2_use_dst_for_bwd));
+            eltwise_mish, eltwise_logistic, eltwise_exp, eltwise_gelu_tanh,
+            eltwise_swish, eltwise_log, eltwise_clip, eltwise_clip_v2,
+            eltwise_pow, eltwise_gelu_erf, eltwise_round, eltwise_hardsigmoid,
+            eltwise_hardswish, eltwise_relu_use_dst_for_bwd,
+            eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+            eltwise_sqrt_use_dst_for_bwd, eltwise_logistic_use_dst_for_bwd,
+            eltwise_exp_use_dst_for_bwd, eltwise_clip_v2_use_dst_for_bwd));
 }
 
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(

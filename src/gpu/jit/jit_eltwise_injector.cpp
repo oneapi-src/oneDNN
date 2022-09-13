@@ -39,7 +39,6 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_hardsigmoid: return 0;
             case eltwise_hardswish: return 1;
             case eltwise_log: return 0;
-            case eltwise_logsigmoid: return 1;
             case eltwise_mish: return 4;
             case eltwise_pow: return 1;
             case eltwise_relu:
@@ -121,7 +120,6 @@ int jit_eltwise_injector_f32<hw>::max_batch_size() {
             case eltwise_elu:
             case eltwise_elu_use_dst_for_bwd:
             case eltwise_hardswish:
-            case eltwise_logsigmoid:
             case eltwise_pow:
             case eltwise_soft_relu:
             case eltwise_swish: return ss;
@@ -155,8 +153,6 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
             case eltwise_hardsigmoid: return 4;
             case eltwise_hardswish: return 3;
             case eltwise_log: return 2;
-            case eltwise_logsigmoid:
-                return phase_count(alg_kind::eltwise_soft_relu) + 2;
             case eltwise_mish:
                 return phase_count(alg_kind::eltwise_soft_relu)
                         + phase_count(alg_kind::eltwise_tanh) + 1;
@@ -612,17 +608,6 @@ void jit_eltwise_injector_f32<hw>::log_compute_fwd(
 }
 
 template <gpu_gen_t hw>
-void jit_eltwise_injector_f32<hw>::logsigmoid_compute_fwd(
-        int simd, const ngen::GRF &r, int phase, int off) {
-    const int srelu_phases = phase_count(alg_kind::eltwise_soft_relu);
-    if (phase == 0) h->mov(simd, r, -r);
-    if (phase > 0 && phase < srelu_phases + 1)
-        soft_relu_compute_fwd(simd, r, phase - 1, off);
-    if (phase == srelu_phases + 1) h->mov(simd, r, -r);
-    if (phase > srelu_phases + 1) assert(!"invalid phase");
-}
-
-template <gpu_gen_t hw>
 void jit_eltwise_injector_f32<hw>::mish_compute_fwd(
         int simd, const ngen::GRF &r, int phase, int off, int batch) {
     auto temp = scratch_[off + batch].f();
@@ -704,9 +689,6 @@ void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
                             break;
                         case eltwise_log:
                             log_compute_fwd(simd, base, phase);
-                            break;
-                        case eltwise_logsigmoid:
-                            logsigmoid_compute_fwd(simd, base, phase, ii);
                             break;
                         case eltwise_mish:
                             mish_compute_fwd(simd, base, phase, ii, batch);

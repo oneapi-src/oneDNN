@@ -199,7 +199,7 @@ struct eltwise_desc_t {
     // #dnnl_eltwise_soft_relu_v2, #dnnl_eltwise_logistic, #dnnl_eltwise_exp,
     // #dnnl_eltwise_gelu_tanh, #dnnl_eltwise_swish, #dnnl_eltwise_log,
     // #dnnl_eltwise_clip, #dnnl_eltwise_clip_v2, #dnnl_eltwise_pow,
-    // #dnnl_eltwise_gelu_erf, #dnnl_eltwise_round, #dnnl_eltwise_logsigmoid,
+    // #dnnl_eltwise_gelu_erf, #dnnl_eltwise_round,
     // #dnnl_eltwise_mish, #dnnl_eltwise_hardswish, #dnnl_eltwise_hardsigmoid.
     // Possible values for passing destination memory on backward:
     // #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
@@ -234,7 +234,6 @@ struct eltwise_desc_t {
     //  - #dnnl_eltwise_pow: @p alpha -- scale, @p beta -- exponent
     //  - #dnnl_eltwise_gelu_erf: @p alpha and @p beta ignored
     //  - #dnnl_eltwise_round: @p alpha and @p beta ignored
-    //  - #dnnl_eltwise_logsigmoid: @p alpha and @p beta ignored
     //  - #dnnl_eltwise_mish: @p alpha and @p beta ignored
     //  - #dnnl_eltwise_hardswish: @p alpha and @p beta ignored
     //  - #dnnl_eltwise_hardsigmoid: @p alpha -- scale, @p beta -- shift
