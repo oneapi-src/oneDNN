@@ -23,7 +23,6 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
-#include "cpu/x64/brgemm/jit_brdgmm_kernel.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
@@ -202,19 +201,7 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
                 false, brg->is_int8, brg->is_bf16, brg->is_f32, brg->is_f16))
         return status::unimplemented;
 
-    brg->isa_impl = utils::map(true, isa_undef, brg->is_f32, avx512_core,
-            brg->is_int8, avx512_core_vnni, brg->is_bf16, avx512_core_bf16,
-            brg->is_f16, avx512_core_fp16);
-    if (brg->isa_impl == isa_undef
-            || !(is_superset(isa, brg->isa_impl) && mayiuse(brg->isa_impl)))
-        return status::unimplemented;
-
-    const int requires_permute_dst_zmm = brg->isa_impl == avx512_core_vnni
-            && jit_brdgmm_kernel_base_t<avx512_core_vnni,
-                    Xbyak::Zmm>::is_fast_vnni_int8(*brg);
-    const int max_acc_zmms = 32 - 2 /*zmma, zmmb, post-ops, saturation*/
-            - requires_permute_dst_zmm;
-    CHECK(brdgmm_blocking(brg, max_acc_zmms));
+    CHECK(brdgmm_blocking(brg));
 
     return status::success;
 }
@@ -277,15 +264,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         brg->is_bf16_emu = !mayiuse(avx512_core_bf16);
 
     // Rerun blocking heuristic due to reduced zmm register count
-    if (brg->is_bf16_emu && brg->is_dgmm) {
-        constexpr int bf16_emu_zmm_count = 4;
-        const int requires_permute_dst_zmm = brg->isa_impl == avx512_core_vnni
-                && jit_brdgmm_kernel_base_t<avx512_core_vnni,
-                        Xbyak::Zmm>::is_fast_vnni_int8(*brg);
-        const int max_acc_zmms
-                = 32 - bf16_emu_zmm_count - requires_permute_dst_zmm;
-        CHECK(brdgmm_blocking(brg, max_acc_zmms));
-    }
+    if (brg->is_bf16_emu && brg->is_dgmm) CHECK(brdgmm_blocking(brg));
 
     if (!brg->attr) return status::success;
 

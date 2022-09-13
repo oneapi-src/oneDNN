@@ -36,7 +36,7 @@ void maybe_try_bf32(brgemm_t *brg);
 
 status_t brgemm_blocking(brgemm_t *brg);
 
-status_t brdgmm_blocking(brgemm_t *brg, const int max_zmm_accum);
+status_t brdgmm_blocking(brgemm_t *brg);
 
 /* The purpose of this function is to enable initialization of brgemm values
  * and then call additional functions like blocking heuristics without

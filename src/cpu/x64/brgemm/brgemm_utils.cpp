@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/x64/brgemm/brgemm_utils.hpp"
+#include "cpu/x64/brgemm/jit_brdgmm_kernel.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
 
@@ -407,9 +408,19 @@ status_t brgemm_blocking(brgemm_t *brg) {
     return status::success;
 }
 
-status_t brdgmm_blocking(brgemm_t *brg, const int max_zmm_accum) {
+status_t brdgmm_blocking(brgemm_t *brg) {
 
-    constexpr int simd_w = 16;
+    if (brg->isa_impl == isa_undef) return status::unimplemented;
+
+    const int requires_permute_dst_vmm = brg->isa_impl == avx512_core_vnni
+            && jit_brdgmm_kernel_base_t<avx512_core_vnni,
+                    Xbyak::Zmm>::is_fast_vnni_int8(*brg);
+    const int max_vregs = 32;
+    const int aux_vregs
+            = nstl::max(brg->is_bf16_emu * 4, 2) + requires_permute_dst_vmm;
+    const int max_acc_vmms = max_vregs - aux_vregs;
+    const int simd_w = 16;
+
     auto &M = brg->bcast_dim;
     auto &N = brg->load_dim;
 
@@ -439,7 +450,7 @@ status_t brdgmm_blocking(brgemm_t *brg, const int max_zmm_accum) {
     m_vlen_blk = 1;
     nb_m_vlen_blk = M / m_vlen_blk;
     m_vlen_tail = M % m_vlen_blk;
-    m_blocking = nstl::min(nb_m_vlen_blk, max_zmm_accum / n_blocking);
+    m_blocking = nstl::min(nb_m_vlen_blk, max_acc_vmms / n_blocking);
     nb_m_blocking = div_up(nb_m_vlen_blk, m_blocking);
     m_blocking_tail = nb_m_vlen_blk % m_blocking;
 
@@ -534,6 +545,23 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
     brg->isa_user = isa;
+    auto is_isa_ok = [&](cpu_isa_t isa) {
+        return mayiuse(isa) && one_of(brg->isa_user, isa_undef, isa);
+    };
+
+    if (brg->is_f32) {
+        brg->isa_impl = utils::map(
+                true, isa_undef, is_isa_ok(avx512_core), avx512_core);
+    } else if (brg->is_bf16) {
+        brg->isa_impl = utils::map(
+                true, isa_undef, is_isa_ok(avx512_core_bf16), avx512_core_bf16);
+    } else if (brg->is_f16) {
+        brg->isa_impl = utils::map(
+                true, isa_undef, is_isa_ok(avx512_core_fp16), avx512_core_fp16);
+    } else if (brg->is_int8) {
+        brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_vnni),
+                avx512_core_vnni, is_isa_ok(avx2_vnni), avx2_vnni);
+    }
 
     brg->is_bf16_tmm = brg->is_bf16 && mayiuse(avx512_core_amx);
     brg->is_dgmm = true;
