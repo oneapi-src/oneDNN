@@ -2687,15 +2687,19 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     if (one_of(jcp.harness, harness_2d_reduction, harness_3d_reduction)) {
         jcp.K = jcp.tr_ow;
     }
-    // for convolutions with big spatial: transpose only chunk
-    // (oc_block * nb_oc_blocking) of diff_dst on each iteration by oc blocks
-    // for better cache utilization
-    jcp.tr_ocb_chunk = (jcp.oh * jcp.ow > 38 * 38);
-    jcp.tr_icb_chunk = false;
 
     jcp.K_tail = 0;
 
     balance_bwd_w(jcp);
+
+    // for convolutions with big spatial: transpose only chunk
+    // (oc_block * nb_oc_blocking) of diff_dst on each iteration by oc blocks
+    // for better cache utilization
+    // the equal number of channel blocks per thread is required to use this
+    // approach to avoid hangs
+    bool tr_ocb_chunk_allowed = (jcp.nb_oc % jcp.nthr_oc_b == 0);
+    jcp.tr_ocb_chunk = tr_ocb_chunk_allowed && (jcp.oh * jcp.ow > 38 * 38);
+    jcp.tr_icb_chunk = false;
 
     const int irow_size = jcp.src_dsz * jcp.tr_iw * jcp.ic_block
             * div_up(jcp.nb_ic, jcp.nthr_ic_b)
