@@ -587,6 +587,8 @@ bool match_graph(const binding_t &bind_arg, match_context_t *ctx,
         case BIND_IN: {
             auto consumers
                     = ctx->get_graph()->get_inner_consumer(bind_arg.bind_port);
+            if (consumers == nullptr) return true;
+
             // TODO(Yixin) Currently support more than 1 consumer for in_ports
             // But will only traverse from the first consumer
             local_bind.bind_node = (*consumers)[0]->first;
@@ -756,15 +758,22 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
                     "repetition is restricted to have only 1 output with "
                     "only 1 consumer");
             auto cons = bind_arg.bind_node->get_consumers(pmap.first);
-            binding_t con_bind = bind_arg;
-            con_bind.bind_node = (*cons)[0]->first;
-            if (!match_graph_helper(con_bind, parent_ctx, temp_op_map))
-                return false;
+            if (cons) {
+                binding_t con_bind = bind_arg;
+                con_bind.bind_node = (*cons)[0]->first;
+                if (!match_graph_helper(con_bind, parent_ctx, temp_op_map))
+                    return false;
+            }
         } else {
             if (bind_arg.bind_node->get_inputs().empty()) return false;
             binding_t b = bind_arg;
-            b.bind_node = b.bind_node->get_producer(pmap.second)->first;
-            if (!match_graph_helper(b, parent_ctx, temp_op_map)) return false;
+
+            auto prod = b.bind_node->get_producer(pmap.second);
+            if (prod) {
+                b.bind_node = prod->first;
+                if (!match_graph_helper(b, parent_ctx, temp_op_map))
+                    return false;
+            }
         }
     } else { // num_rep > 0
         fill_parent_io_map(&speculative_ctx, bind_arg);
