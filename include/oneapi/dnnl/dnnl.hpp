@@ -927,6 +927,27 @@ enum class query {
     scratchpad_md = dnnl_query_scratchpad_md,
     /// memory desc of an execute argument
     exec_arg_md = dnnl_query_exec_arg_md,
+
+    /// number of dimensions
+    ndims_s32 = dnnl_query_ndims_s32,
+    /// vector of dimensions
+    dims = dnnl_query_dims,
+    /// data type
+    data_type = dnnl_query_data_type,
+    /// submemory offset
+    submemory_offset_s64 = dnnl_query_submemory_offset_s64,
+    /// vector of padded dimensions
+    padded_dims = dnnl_query_padded_dims,
+    /// vector of padded offsets
+    padded_offsets = dnnl_query_padded_offsets,
+    /// format kind
+    format_kind = dnnl_query_format_kind,
+    ///  number of innermost blocks
+    inner_nblks_s32 = dnnl_query_inner_nblks_s32,
+    /// vector of sizes of the innermost blocks
+    inner_blks = dnnl_query_inner_blks,
+    /// vector of logical indices of the blocks
+    inner_idxs = dnnl_query_inner_idxs,
 };
 
 /// Converts query enum value from C++ API to C API type.

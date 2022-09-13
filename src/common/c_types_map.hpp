@@ -1332,6 +1332,17 @@ const query_t exec_arg_md = dnnl_query_exec_arg_md;
 const query_t workspace_md = dnnl_query_workspace_md;
 const query_t scratchpad_md = dnnl_query_scratchpad_md;
 
+const query_t ndims_s32 = dnnl_query_ndims_s32;
+const query_t dims = dnnl_query_dims;
+const query_t data_type = dnnl_query_data_type;
+const query_t submemory_offset_s64 = dnnl_query_submemory_offset_s64;
+const query_t padded_dims = dnnl_query_padded_dims;
+const query_t padded_offsets = dnnl_query_padded_offsets;
+const query_t format_kind = dnnl_query_format_kind;
+const query_t inner_nblks_s32 = dnnl_query_inner_nblks_s32;
+const query_t inner_blks = dnnl_query_inner_blks;
+const query_t inner_idxs = dnnl_query_inner_idxs;
+
 // Internal only query kinds.
 const query_t internal_only_start = (query_t)(1 << 12);
 const query_t zero_pad_d = internal_only_start;

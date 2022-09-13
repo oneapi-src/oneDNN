@@ -2318,6 +2318,13 @@ typedef struct {
 /// dnnl_query_direction            | #dnnl_rnn_direction_t *
 /// dnnl_query_activation_kind      | #dnnl_alg_kind_t *
 /// dnnl_query_kernel               | const #dnnl_dims_t **
+/// dnnl_query_dims                 | const #dnnl_dims_t **
+/// dnnl_query_data_type            | #dnnl_data_type_t *
+/// dnnl_query_padded_dims          | const #dnnl_dims_t **
+/// dnnl_query_padded_offsets       | const #dnnl_dims_t **
+/// dnnl_query_format_kind          | #dnnl_format_kind_t *
+/// dnnl_query_inner_blks           | const #dnnl_dims_t **
+/// dnnl_query_inner_idxs           | const #dnnl_dims_t **
 ///
 /// @note
 ///     Rule of thumb: all opaque types and structures are returned by
@@ -2388,6 +2395,17 @@ typedef enum {
     dnnl_query_workspace_md, ///< workspace memory desc
     dnnl_query_scratchpad_md, ///< scratchpad memory desc
     dnnl_query_exec_arg_md = 255, ///< memory desc of an execute argument
+
+    dnnl_query_ndims_s32, ///< number of dimensions
+    dnnl_query_dims, ///< vector of dimensions
+    dnnl_query_data_type, ///< data type
+    dnnl_query_submemory_offset_s64, ///< submemory offset
+    dnnl_query_padded_dims, ///< vector of padded dimensions
+    dnnl_query_padded_offsets, ///< vector of padded offsets
+    dnnl_query_format_kind, ///< format kind
+    dnnl_query_inner_nblks_s32, ///< number of innermost blocks
+    dnnl_query_inner_blks, ///< vector of sizes of the innermost blocks
+    dnnl_query_inner_idxs, ///< vector of logical indices of the blocks
 
     // Max value to prevent UB for internal use only dnnl_query_t
     dnnl_query_max = 0x7fff,
