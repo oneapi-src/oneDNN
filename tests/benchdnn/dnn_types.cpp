@@ -963,7 +963,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
             if (e.is_sum_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_sum_v3(
+                DNN_SAFE_V(dnnl_post_ops_append_sum(
                         ops, e.sum.scale, e.sum.zero_point, e.sum.dt));
             } else if (e.is_convolution_kind()) {
                 const auto wei_dt = attr_args.get_dw_arg(DNNL_ARG_WEIGHTS);

@@ -539,7 +539,7 @@ primitive_kind_t dnnl_post_ops_get_kind(const post_ops_t *post_ops, int index) {
     return post_ops->entry_[index].kind;
 }
 
-status_t dnnl_post_ops_append_sum_v3(
+status_t dnnl_post_ops_append_sum(
         post_ops_t *post_ops, float scale, int32_t zero_point, data_type_t dt) {
     if (post_ops == nullptr) return invalid_arguments;
 
@@ -555,7 +555,7 @@ bool simple_get_params_check(
 }
 } // namespace
 
-status_t dnnl_post_ops_get_params_sum_v3(const post_ops_t *post_ops, int index,
+status_t dnnl_post_ops_get_params_sum(const post_ops_t *post_ops, int index,
         float *scale, int32_t *zero_point, data_type_t *dt) {
     bool ok = true
             && simple_get_params_check(post_ops, index, primitive_kind::sum);

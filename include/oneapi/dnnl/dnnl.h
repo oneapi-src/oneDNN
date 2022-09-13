@@ -607,7 +607,7 @@ dnnl_primitive_kind_t DNNL_API dnnl_post_ops_get_kind(
 /// @param data_type Accumulation data_type.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_post_ops_append_sum_v3(dnnl_post_ops_t post_ops,
+dnnl_status_t DNNL_API dnnl_post_ops_append_sum(dnnl_post_ops_t post_ops,
         float scale, int32_t zero_point, dnnl_data_type_t data_type);
 
 /// Returns the parameters of an accumulation (sum) post-op with
@@ -620,7 +620,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_sum_v3(dnnl_post_ops_t post_ops,
 /// @param data_type Data type for accumulation.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum_v3(
+dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum(
         const_dnnl_post_ops_t post_ops, int index, float *scale,
         int32_t *zero_point, dnnl_data_type_t *data_type);
 

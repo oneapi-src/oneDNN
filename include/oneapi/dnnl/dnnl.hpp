@@ -2961,7 +2961,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// @param data_type Data type.
     void append_sum(float scale = 1.f, int32_t zero_point = 0,
             memory::data_type data_type = memory::data_type::undef) {
-        error::wrap_c_api(dnnl_post_ops_append_sum_v3(get(), scale, zero_point,
+        error::wrap_c_api(dnnl_post_ops_append_sum(get(), scale, zero_point,
                                   memory::convert_to_c(data_type)),
                 "could not append a sum post-op");
     }
@@ -2971,7 +2971,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// @param index Index of the sum post-op.
     /// @param scale Scaling factor of the sum post-op.
     void get_params_sum(int index, float &scale) const {
-        error::wrap_c_api(dnnl_post_ops_get_params_sum_v3(
+        error::wrap_c_api(dnnl_post_ops_get_params_sum(
                                   get(), index, &scale, nullptr, nullptr),
                 "could not get parameters of a sum post-op");
     }
@@ -2984,7 +2984,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void get_params_sum(
             int index, float &scale, memory::data_type &data_type) const {
         dnnl_data_type_t c_data_type;
-        error::wrap_c_api(dnnl_post_ops_get_params_sum_v3(
+        error::wrap_c_api(dnnl_post_ops_get_params_sum(
                                   get(), index, &scale, nullptr, &c_data_type),
                 "could not get parameters of a sum post-op");
         data_type = static_cast<memory::data_type>(c_data_type);
@@ -2999,7 +2999,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void get_params_sum(int index, float &scale, int32_t &zero_point,
             memory::data_type &data_type) const {
         dnnl_data_type_t c_data_type;
-        error::wrap_c_api(dnnl_post_ops_get_params_sum_v3(get(), index, &scale,
+        error::wrap_c_api(dnnl_post_ops_get_params_sum(get(), index, &scale,
                                   &zero_point, &c_data_type),
                 "could not get parameters of a sum post-op");
         data_type = static_cast<memory::data_type>(c_data_type);
