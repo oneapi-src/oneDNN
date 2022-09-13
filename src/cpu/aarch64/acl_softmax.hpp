@@ -96,7 +96,8 @@ struct acl_softmax_fwd_t : public primitive_t {
             bool ok = is_fwd()
                     // ACL only supports matching src/dst data types
                     && src_md()->data_type == dst_md()->data_type
-                    && utils::one_of(src_md()->data_type, data_type::f32)
+                    && utils::one_of(
+                            src_md()->data_type, data_type::f32, data_type::f16)
                     && attr()->has_default_values()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;

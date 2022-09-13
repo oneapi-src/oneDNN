@@ -35,27 +35,25 @@ status_t acl_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                                     ->get<acl_ip_resource_t>(this)
                                     ->get_acl_obj();
 
-    auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    acl_obj.src_tensor.allocator()->import_memory(
-            const_cast<data_t *>(src_base));
+    auto src_base = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    acl_obj.src_tensor.allocator()->import_memory(const_cast<void *>(src_base));
 
-    auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
-    acl_obj.wei_tensor.allocator()->import_memory(
-            const_cast<data_t *>(wei_base));
+    auto wei_base = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
+    acl_obj.wei_tensor.allocator()->import_memory(const_cast<void *>(wei_base));
 
     if (use_dst_acc) {
         // Put the result in a new tensor, it will be accumalated to the dst
         // during the post ops
         acl_obj.dst_tensor.allocator()->allocate();
     } else {
-        auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+        auto dst_base = CTX_OUT_MEM(void *, DNNL_ARG_DST);
         acl_obj.dst_tensor.allocator()->import_memory(dst_base);
     }
 
     if (with_bias) {
-        auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
+        auto bia_base = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
         acl_obj.bia_tensor.allocator()->import_memory(
-                const_cast<data_t *>(bia_base));
+                const_cast<void *>(bia_base));
     }
 
     acl_obj.fc.run();

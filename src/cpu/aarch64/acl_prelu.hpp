@@ -79,9 +79,10 @@ struct acl_prelu_fwd_t : public primitive_t {
             // Forward only
             if (!prelu_pd_t::is_fwd()) return status::unimplemented;
 
-            // Only support f32 for now
+            // Only support f32 and f16 for now
             data_type_t ddt = dst_md(0)->data_type;
-            if (ddt != data_type::f32) return status::unimplemented;
+            if (!utils::one_of(ddt, data_type::f32, data_type::f16))
+                return status::unimplemented;
 
             if (!set_default_formats()) return status::unimplemented;
 

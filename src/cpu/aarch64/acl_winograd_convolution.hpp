@@ -77,15 +77,18 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
                 "wino:acl", acl_wino_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
+            using namespace data_type;
+            const bool is_fp16_ok = expect_data_types(f16, f16, f16, f16, undef)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, f16);
+            const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, f32);
             bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
                             alg_kind::convolution_winograd)
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::f32, data_type::f32, data_type::f32)
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
-                            data_type::f32)
+                    && utils::one_of(true, is_fp16_ok, is_fp32_ok)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 

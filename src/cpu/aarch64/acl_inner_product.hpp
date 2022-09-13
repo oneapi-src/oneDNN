@@ -89,12 +89,15 @@ struct acl_inner_product_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("acl", acl_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {
-            const bool ok = is_fwd() && !has_zero_dim_memory()
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::f32, data_type::f32, data_type::f32)
+            using namespace data_type;
+            const bool is_fp16_ok = expect_data_types(f16, f16, f16, f16, undef)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
-                            data_type::f32)
+                            primitive_attr_t::skip_mask_t::post_ops, f16);
+            const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, f32);
+            const bool ok = is_fwd() && !has_zero_dim_memory()
+                    && utils::one_of(true, is_fp16_ok, is_fp32_ok)
                     && set_default_params() == status::success;
 
             if (!ok) return status::unimplemented;
@@ -177,21 +180,29 @@ struct acl_inner_product_fwd_t : public primitive_t {
                     ? arm_compute::DataLayout::NHWC
                     : arm_compute::DataLayout::NCHW;
 
+            auto acl_src_data_t
+                    = acl_utils::get_acl_data_t(src_md()->data_type);
             aip.src_info = arm_compute::TensorInfo(
-                    src_shape, 1, arm_compute::DataType::F32, src_layout);
+                    src_shape, 1, acl_src_data_t, src_layout);
+            auto acl_wei_data_t
+                    = acl_utils::get_acl_data_t(weights_md(0)->data_type);
 
             aip.wei_info = arm_compute::TensorInfo(
-                    wei_shape, 1, arm_compute::DataType::F32, wei_layout);
+                    wei_shape, 1, acl_wei_data_t, wei_layout);
 
-            aip.dst_info
-                    = arm_compute::TensorInfo(arm_compute::TensorShape(oc, n),
-                            1, arm_compute::DataType::F32);
+            auto acl_dst_data_t
+                    = acl_utils::get_acl_data_t(dst_md()->data_type);
+            aip.dst_info = arm_compute::TensorInfo(
+                    arm_compute::TensorShape(oc, n), 1, acl_dst_data_t);
 
             aip.with_bias = desc()->bias_desc.format_kind != format_kind::undef;
+            auto acl_bia_data_t = aip.with_bias
+                    ? acl_utils::get_acl_data_t(weights_md(1)->data_type)
+                    : acl_dst_data_t;
             aip.bia_info = arm_compute::TensorInfo(aip.with_bias
                             ? arm_compute::TensorShape(oc)
                             : arm_compute::TensorShape(),
-                    1, arm_compute::DataType::F32);
+                    1, acl_bia_data_t);
 
             aip.fc_info.weights_trained_layout = wei_layout;
             if (is_2d && wei_tag != src_tag) {
@@ -244,8 +255,6 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
         return status::success;
     }
-
-    using data_t = typename prec_traits<data_type::f32>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);

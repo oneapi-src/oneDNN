@@ -74,8 +74,10 @@ struct acl_pooling_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             bool ok = set_default_params() == status::success
                     && is_fwd() // ACL supports forward propagation only
-                    && utils::everyone_is(data_type::f32, src_md()->data_type,
-                            dst_md()->data_type)
+                    && utils::everyone_is(
+                            src_md()->data_type, dst_md()->data_type)
+                    && utils::one_of(
+                            src_md()->data_type, data_type::f32, data_type::f16)
                     && attr()->has_default_values()
                     && attr_.set_default_formats(dst_md(0)) == status::success
                     && !is_dilated() && !has_zero_dim_memory();

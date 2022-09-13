@@ -127,9 +127,10 @@ struct acl_binary_t : public primitive_t {
 
             using namespace acl_utils;
 
-            // Only support f32 and s32 for now
+            // Only support f16/f32/s32 for now
             data_type_t ddt = dst_md(0)->data_type;
-            if (ddt != data_type::f32 && ddt != data_type::s32)
+            if (!utils::one_of(
+                        ddt, data_type::f16, data_type::f32, data_type::s32))
                 return status::unimplemented;
 
             // Only support src and dst all matching for now
