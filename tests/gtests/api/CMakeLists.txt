@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2021 Intel Corporation
+# Copyright 2019-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ if(DNNL_USE_CLANG_SANITIZER)
     # `allocation-size-too-big`, remove them.
     list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_memory.cpp)
 endif()
+
+register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
 
 # Create DPC++ buffer target.
 if(DNNL_WITH_SYCL)
