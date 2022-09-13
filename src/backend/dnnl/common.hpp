@@ -85,13 +85,15 @@ dnnl::memory make_dnnl_memory(const dnnl::memory::desc &md,
 
 memory::desc expand(const memory::desc &adesc, int tgt_ndims);
 
-memory::desc permute_last_two_dims(const memory::desc &adesc);
+std::vector<int64_t> get_nxc2ncx_permutation(int ndims);
 
-memory::desc permute_NXC2NCX(const memory::desc &adesc);
+std::vector<int64_t> get_ncx2nxc_permutation(int ndims);
 
-memory::desc permute_NCX2NXC(const memory::desc &adesc);
+std::vector<int64_t> get_xio2oix_permutation(int ndims);
 
-memory::desc permute_XIO2OIX(const memory::desc &adesc);
+std::vector<int64_t> get_oix2xio_permutation(int ndims);
+
+std::vector<int64_t> get_last_two_dims_permutation(int ndims);
 
 memory::desc transpose(const memory::desc &adesc, dim dim0, dim dim1);
 
@@ -100,10 +102,6 @@ memory::desc to_grouped(const memory::desc &adesc, dim groups);
 memory::desc from_grouped(const memory::desc &adesc);
 
 memory::desc to_format_any(const memory::desc &adesc);
-
-memory::desc permute_NCX2NXC(const memory::desc &adesc);
-
-memory::desc permute_OIX2XIO(const memory::desc &adesc);
 
 dims get_ncx_strides(const dims &shape);
 

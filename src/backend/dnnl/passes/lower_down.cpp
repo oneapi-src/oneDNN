@@ -1423,20 +1423,25 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute_0) {
             // input permute
+            auto in_ndims
+                    = cur_op->get_input_value(0)->get_logical_tensor().ndims;
+            auto in_perm = get_nxc2ncx_permutation(in_ndims);
+
             op_ptr in_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            in_perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
-            in_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-            in_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
+            in_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, in_perm);
             rewriter.insert_op_before(in_perm_op, cur_op, 0);
 
             // output permute
+            auto out_ndims
+                    = cur_op->get_output_value(0)->get_logical_tensor().ndims;
+            auto out_perm = get_ncx2nxc_permutation(out_ndims);
+
             op_ptr out_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            out_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
-            out_perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
+            out_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, out_perm);
             rewriter.insert_op_after(out_perm_op, cur_op, 0);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
@@ -1450,11 +1455,14 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         }
 
         if (need_permute_1) {
+            auto wei_ndims
+                    = cur_op->get_input_value(1)->get_logical_tensor().ndims;
+            auto wei_perm = get_xio2oix_permutation(wei_ndims);
+
             op_ptr perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
-            perm_op->set_attr<std::string>(op_attr::from_format, "XIO");
-            perm_op->set_attr<std::string>(op_attr::to_format, "OIX");
+            perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, wei_perm);
             rewriter.insert_op_before(perm_op, cur_op, 1);
             cur_op->set_attr<std::string>(op_attr::filter_format, "OIX");
         }
@@ -1507,32 +1515,38 @@ impl::status_t conv_bwd_weights_canonicalization(
 
         if (need_permute_0) {
             // input permute
+            auto in0_ndims
+                    = cur_op->get_input_value(0)->get_logical_tensor().ndims;
+            auto in0_perm = get_nxc2ncx_permutation(in0_ndims);
+
             op_ptr in0_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            in0_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            in0_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-            in0_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
+            in0_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, in0_perm);
             rewriter.insert_op_before(in0_perm_op, cur_op, 0);
+
+            auto in1_ndims
+                    = cur_op->get_input_value(1)->get_logical_tensor().ndims;
+            auto in1_perm = get_nxc2ncx_permutation(in1_ndims);
 
             op_ptr in1_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            in1_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            in1_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-            in1_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
+            in1_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, in1_perm);
             rewriter.insert_op_before(in1_perm_op, cur_op, 1);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
         }
         // output permute
         if (need_permute_1) {
+            auto out_ndims
+                    = cur_op->get_output_value(0)->get_logical_tensor().ndims;
+            auto out_perm = get_oix2xio_permutation(out_ndims);
+
             op_ptr out_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            out_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            out_perm_op->set_attr<std::string>(op_attr::from_format, "OIX");
-            out_perm_op->set_attr<std::string>(op_attr::to_format, "XIO");
+            out_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, out_perm);
             rewriter.insert_op_after(out_perm_op, cur_op, 0);
 
             const auto filter_shape_attr
@@ -1577,21 +1591,25 @@ impl::status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute) {
             // src permute
+            auto in0_ndims
+                    = cur_op->get_input_value(0)->get_logical_tensor().ndims;
+            auto in0_perm = get_nxc2ncx_permutation(in0_ndims);
+
             op_ptr in0_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            in0_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            in0_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-            in0_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
+            in0_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, in0_perm);
             rewriter.insert_op_before(in0_perm_op, cur_op, 0);
 
             // dst permute
+            auto out0_ndims
+                    = cur_op->get_output_value(0)->get_logical_tensor().ndims;
+            auto out0_perm = get_ncx2nxc_permutation(out0_ndims);
+
             op_ptr out0_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            out0_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            out0_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
-            out0_perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
+            out0_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, out0_perm);
             rewriter.insert_op_after(out0_perm_op, cur_op, 0);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
@@ -1615,32 +1633,39 @@ impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute) {
             // diff_dst permute
-            op_ptr in1_perm_op
+            auto in0_ndims
+                    = cur_op->get_input_value(0)->get_logical_tensor().ndims;
+            auto in0_perm = get_nxc2ncx_permutation(in0_ndims);
+
+            op_ptr in0_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            in1_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            in1_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-            in1_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            rewriter.insert_op_before(in1_perm_op, cur_op, 0);
+            in0_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, in0_perm);
+            rewriter.insert_op_before(in0_perm_op, cur_op, 0);
 
             // src permute
             if (cur_op->get_attr<std::string>(op_attr::kind) == "maxpool") {
+                auto src_ndims = cur_op->get_input_value(2)
+                                         ->get_logical_tensor()
+                                         .ndims;
+                auto src_perm = get_nxc2ncx_permutation(src_ndims);
+
                 op_ptr src_perm_op
                         = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-                src_perm_op->set_attr<std::string>(
-                        op_attr::permute_kind, "permute");
-                src_perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-                src_perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
+                src_perm_op->set_attr<std::vector<int64_t>>(
+                        op_attr::permutation, src_perm);
                 rewriter.insert_op_before(src_perm_op, cur_op, 2);
             }
 
             // diff_src permute
+            auto out0_ndims
+                    = cur_op->get_output_value(0)->get_logical_tensor().ndims;
+            auto out0_perm = get_ncx2nxc_permutation(out0_ndims);
+
             op_ptr out_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            out_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
-            out_perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
+            out_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, out0_perm);
             rewriter.insert_op_after(out_perm_op, cur_op, 0);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");
@@ -2045,30 +2070,36 @@ impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
         if (need_permute) {
             // input0 permute
+            auto in0_ndims
+                    = cur_op->get_input_value(0)->get_logical_tensor().ndims;
+            auto in0_perm = get_nxc2ncx_permutation(in0_ndims);
+
             op_ptr in_perm_op_0
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            in_perm_op_0->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            in_perm_op_0->set_attr<std::string>(op_attr::from_format, "NXC");
-            in_perm_op_0->set_attr<std::string>(op_attr::to_format, "NCX");
+            in_perm_op_0->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, in0_perm);
             rewriter.insert_op_before(in_perm_op_0, cur_op, 0);
 
             // input1 permute
+            auto in1_ndims
+                    = cur_op->get_input_value(1)->get_logical_tensor().ndims;
+            auto in1_perm = get_nxc2ncx_permutation(in1_ndims);
+
             op_ptr in_perm_op_1
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            in_perm_op_1->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            in_perm_op_1->set_attr<std::string>(op_attr::from_format, "NXC");
-            in_perm_op_1->set_attr<std::string>(op_attr::to_format, "NCX");
+            in_perm_op_1->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, in1_perm);
             rewriter.insert_op_before(in_perm_op_1, cur_op, 1);
 
             // output permute
+            auto out_ndims
+                    = cur_op->get_output_value(0)->get_logical_tensor().ndims;
+            auto out_perm = get_ncx2nxc_permutation(out_ndims);
+
             op_ptr out_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            out_perm_op->set_attr<std::string>(
-                    op_attr::permute_kind, "permute");
-            out_perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
-            out_perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
+            out_perm_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, out_perm);
             rewriter.insert_op_after(out_perm_op, cur_op, 0);
 
             cur_op->set_attr<std::string>(op_attr::data_format, "NCX");

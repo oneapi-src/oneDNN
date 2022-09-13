@@ -215,22 +215,25 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant_zps, 1,
                 .SET_EXECUTABLE_CREATOR(executable_creator<const_zps_filler>)
                 .SET_ARG_INDICES_GETTER(const_zps_filler))
 
+// The logical axes will be permuted in the following manner:
+// for (i = 0; i < ndims(); i++)
+//     new_desc.dims()[permutation[i]] = dims()[i];
+//
+// Note: the permutation attr in dnnl_permute is quite different from the order
+// attr in dnnl_transpose. The later one is inherited from StaticTranspose op
+// and are used in the following manner:
+// for (i = 0; i < ndims(); i++)
+//     new_desc.dims()[i] = dims()[order[i]];
 DNNL_GRAPH_OP_SCHEMA(dnnl_permute, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
                 .set_output(0, "y", "output tensor")
-                .set_attr(op_attr::from_format,
-                        "the format of input, the options are NCX and NXC",
-                        false, attribute_kind::s, "NXC")
-                .set_attr(op_attr::to_format,
-                        "the format of output, the options are NCX and NXC",
-                        false, attribute_kind::s, "NCX")
-                .set_attr(op_attr::permute_kind,
-                        "if set to transpose then [from/to]_format will be "
-                        "ignored",
-                        false, attribute_kind::s, "none")
+                .set_attr(op_attr::permutation,
+                        "the permutation to apply to the axes of the input "
+                        "shape",
+                        false, attribute_kind::is)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_permute_output_shape)
                 .SET_LAYOUT_PROPAGATOR(layout_propagator_for_permute)

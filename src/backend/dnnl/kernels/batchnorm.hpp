@@ -86,8 +86,8 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
-
+        BACKEND_DNNL_ADD_PASS(
+                pipeline, insert_permute_for_op_only_require_data_format);
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 

@@ -1518,16 +1518,20 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
     // meet the requirement of NXC format. But for NCX format, we
     // need permute c channel to the second dimension
     if (desc.filter_format_ == "NCX") { // matmul case
-        desc.new_scale_desc_ = permute_NXC2NCX(desc.new_scale_desc_);
-        desc.new_variance_desc_ = permute_NXC2NCX(desc.new_variance_desc_);
+        auto perm = dnnl_impl::utils::cast_to_int32(
+                get_nxc2ncx_permutation(desc.new_scale_desc_.data.ndims));
+        desc.new_scale_desc_ = desc.new_scale_desc_.permute_axes(perm);
+        desc.new_variance_desc_ = desc.new_variance_desc_.permute_axes(perm);
     }
 
     // after expand, the c channel is on the last dimension, which
     // meet the requirement of XIO format. But for OIX format, we
     // need permute c channel to the first dimension
     if (desc.filter_format_ == "OIX") { // conv case
-        desc.new_scale_desc_ = permute_XIO2OIX(desc.new_scale_desc_);
-        desc.new_variance_desc_ = permute_XIO2OIX(desc.new_variance_desc_);
+        auto perm = dnnl_impl::utils::cast_to_int32(
+                get_xio2oix_permutation(desc.new_scale_desc_.data.ndims));
+        desc.new_scale_desc_ = desc.new_scale_desc_.permute_axes(perm);
+        desc.new_variance_desc_ = desc.new_variance_desc_.permute_axes(perm);
     }
 
     // temp = weights * scale

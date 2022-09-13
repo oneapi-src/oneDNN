@@ -564,7 +564,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     }
 
     // insert preprocess and reorder ops
-    dnnl_impl::insert_permute(subgraph);
+    dnnl_impl::insert_permute_for_conv_or_deconv(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 7);
 
     dnnl_impl::insert_to_group_for_conv_or_deconv(subgraph);
@@ -768,7 +768,7 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     ASSERT_EQ(subgraph->get_ops().size(), 2);
 
     subgraph->infer_shape();
-    dnnl_impl::insert_transpose_for_matmul(subgraph);
+    dnnl_impl::insert_permute_for_matmul(subgraph);
     subgraph->infer_shape();
     dnnl_impl::insert_unsqueeze_and_squeeze_for_matmul(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), params.subgraph_size_after_insertion);
@@ -874,7 +874,7 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
 
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
     subgraph->infer_shape();
-    dnnl_impl::insert_transpose_for_matmul(subgraph);
+    dnnl_impl::insert_permute_for_matmul(subgraph);
     subgraph->infer_shape();
     dnnl_impl::insert_reshape_for_ndx2d_matmul(subgraph);
     subgraph->infer_shape();
@@ -1519,7 +1519,8 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
             impl::status::success);
     ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::insert_permute(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::insert_permute_for_conv_or_deconv(subgraph),
+            impl::status::success);
     ASSERT_EQ(dnnl_impl::insert_to_group_for_conv_or_deconv(subgraph),
             impl::status::success);
     ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);

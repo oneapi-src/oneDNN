@@ -801,91 +801,31 @@ impl::status_t layout_propagator_for_permute(op_ptr &op,
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
 
+    auto perm = op->get_attr<std::vector<int64_t>>(op_attr::permutation);
     if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
-        dnnl::memory::desc out_md;
-
-        auto permute_kind = op->get_attr<std::string>(op_attr::permute_kind);
-        if (permute_kind == "transpose") {
-            // transpose the right-most two dims
-            out_md = permute_last_two_dims(in_md);
-        } else {
-            auto from_format = op->get_attr<std::string>(op_attr::from_format);
-            auto to_format = op->get_attr<std::string>(op_attr::to_format);
-            if (from_format == "NCX" && to_format == "NXC") {
-                out_md = permute_NCX2NXC(in_md);
-            } else if (from_format == "NXC" && to_format == "NCX") {
-                out_md = permute_NXC2NCX(in_md);
-            } else if (from_format == "XIO" && to_format == "OIX") {
-                out_md = permute_XIO2OIX(in_md);
-            } else if (from_format == "OIX" && to_format == "XIO") {
-                out_md = permute_OIX2XIO(in_md);
-            } else {
-                assertm(false, "not a supported permutation");
-            }
-        }
-
+        auto int32_perm = dnnl_impl::utils::cast_to_int32(perm);
+        dnnl::memory::desc out_md = in_md.permute_axes(int32_perm);
         status = fill_layout_info(dst, out_md);
     } else if (!ltw(out_lt).is_any() && ltw(in_lt).is_any()) {
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
-        dnnl::memory::desc in_md;
-
-        auto permute_kind = op->get_attr<std::string>(op_attr::permute_kind);
-        if (permute_kind == "transpose") {
-            // transpose the right-most two dims
-            in_md = permute_last_two_dims(out_md);
-        } else {
-            auto from_format = op->get_attr<std::string>(op_attr::from_format);
-            auto to_format = op->get_attr<std::string>(op_attr::to_format);
-            if (from_format == "NCX" && to_format == "NXC") {
-                in_md = permute_NXC2NCX(out_md);
-            } else if (from_format == "NXC" && to_format == "NCX") {
-                in_md = permute_NCX2NXC(out_md);
-            } else if (from_format == "XIO" && to_format == "OIX") {
-                // for the case like conv's weight is set to ANY layout, need
-                // propagate output layout to input
-                in_md = permute_OIX2XIO(out_md);
-            } else if (from_format == "OIX" && to_format == "XIO") {
-                in_md = permute_XIO2OIX(out_md);
-            } else {
-                assertm(false, "not a supported permutation");
-            }
+        std::vector<int32_t> inverse_perm(perm.size(), -1);
+        for (size_t i = 0; i < perm.size(); i++) {
+            inverse_perm[static_cast<size_t>(perm[i])]
+                    = static_cast<int32_t>(i);
         }
-
+        dnnl::memory::desc in_md = out_md.permute_axes(inverse_perm);
         status = fill_layout_info(src, in_md);
     } else if (!ltw(in_lt).is_any() && !ltw(out_lt).is_any()) {
         // case `conv (opaque) -> permute -> output (strided)` or
         // case `input (strided) -> permute -> conv (opaque)`
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
-        dnnl::memory::desc tmp_in_md;
-
-        auto permute_kind = op->get_attr<std::string>(op_attr::permute_kind);
-        if (permute_kind == "transpose") {
-            // transpose the right-most two dims
-            tmp_in_md = permute_last_two_dims(out_md);
-        } else {
-            auto from_format = op->get_attr<std::string>(op_attr::from_format);
-            auto to_format = op->get_attr<std::string>(op_attr::to_format);
-            if (from_format == "NCX" && to_format == "NXC") {
-                tmp_in_md = permute_NXC2NCX(out_md);
-            } else if (from_format == "NXC" && to_format == "NCX") {
-                tmp_in_md = permute_NCX2NXC(out_md);
-            } else if (from_format == "XIO" && to_format == "OIX") {
-                // This is required when layout propagation is done more than
-                // once. At the first time, permute's input layout is strided
-                // while output layout is set to opaque. At the second time,
-                // we need infer the input layout to avoid inserting the reorder
-                tmp_in_md = permute_OIX2XIO(out_md);
-            } else if (from_format == "OIX" && to_format == "XIO") {
-                // This is required when layout propagation is done more than
-                // once. At the first time, permute's input layout is strided
-                // while output layout is set to opaque. At the second time,
-                // we need infer the input layout to avoid inserting the reorder
-                tmp_in_md = permute_XIO2OIX(out_md);
-            } else {
-                assertm(false, "not a supported permutation");
-            }
+        std::vector<int32_t> inverse_perm(perm.size(), -1);
+        for (size_t i = 0; i < perm.size(); i++) {
+            inverse_perm[static_cast<size_t>(perm[i])]
+                    = static_cast<int32_t>(i);
         }
+        dnnl::memory::desc tmp_in_md = out_md.permute_axes(inverse_perm);
 
         // if the input md derived from output md is different from the real
         // input mem desc, just insert a reorder before the op

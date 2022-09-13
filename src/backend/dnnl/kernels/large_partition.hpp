@@ -147,7 +147,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
 
         BACKEND_DNNL_ADD_PASS(pipeline, insert_u8_to_s8_for_matmul);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_transpose_for_matmul);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_reshape_for_ndx2d_matmul);
         BACKEND_DNNL_ADD_PASS(
                 pipeline, insert_unsqueeze_and_squeeze_for_matmul);
@@ -156,7 +156,9 @@ public:
                 pipeline, insert_unsqueeze_and_squeeze_for_prelu_bwd);
         BACKEND_DNNL_ADD_PASS(
                 pipeline, insert_unsqueeze_and_squeeze_for_reduction);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_conv_or_deconv);
+        BACKEND_DNNL_ADD_PASS(
+                pipeline, insert_permute_for_op_only_require_data_format);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_data_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_weights_canonicalization);

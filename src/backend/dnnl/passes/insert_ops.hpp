@@ -28,7 +28,11 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg);
+impl::status_t insert_permute_for_conv_or_deconv(
+        std::shared_ptr<subgraph_t> &sg);
+
+impl::status_t insert_permute_for_op_only_require_data_format(
+        std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg);
 
@@ -37,12 +41,12 @@ impl::status_t insert_to_group_for_conv_or_deconv(
 
 impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg);
 
-/// Insert a transpose op for matmul's input tensors
+/// Insert a permute op to transpose matmul's input tensors
 ///
 /// Only valid for below scenarios:
 /// (1) src or weight's ndims is greater than 1
 /// (2) either `transpose_a` or `transpose_b` is true
-impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg);
+impl::status_t insert_permute_for_matmul(std::shared_ptr<subgraph_t> &sg);
 
 /// Insert reshape pair for ndx2d matmul for better performance
 ///

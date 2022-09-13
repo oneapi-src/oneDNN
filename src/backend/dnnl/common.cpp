@@ -272,18 +272,17 @@ memory::desc expand(const memory::desc &adesc, int tgt_ndims) {
     return adesc.reshape(expanded_dims);
 }
 
-// transpose the right-most two dimensions
-memory::desc permute_last_two_dims(const memory::desc &adesc) {
-    assert(adesc.data.ndims > 1);
-    int count = 0;
-    std::vector<int> axes(adesc.data.ndims);
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    const auto last_dim = static_cast<dims::size_type>(adesc.data.ndims - 1);
+// used to permute the right-most two dimensions
+std::vector<int64_t> get_last_two_dims_permutation(int ndims) {
+    assert(ndims > 1);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
+    const auto last_dim = static_cast<dims::size_type>(ndims - 1);
     std::swap(axes[last_dim], axes[last_dim - 1]);
-    return adesc.permute_axes(axes);
+    return axes;
 }
 
-// permute the NXC format adesc to NCX format
+// used to permute the nxc format to ncx format
 /// \note
 /// The logical axes will be permuted in the following manner:
 /// for (i = 0; i < ndims(); i++)
@@ -293,29 +292,35 @@ memory::desc permute_last_two_dims(const memory::desc &adesc) {
 ///     permutation[1] = 2
 ///     permutation[2] = 3
 ///     permutation[3] = 1
-memory::desc permute_NXC2NCX(const memory::desc &adesc) {
-    assert(adesc.data.ndims > 2);
-    int count = 0;
-    std::vector<int> axes(adesc.data.ndims);
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+std::vector<int64_t> get_nxc2ncx_permutation(int ndims) {
+    assert(ndims > 2);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
     axes.push_back(axes[1]);
     axes.erase(axes.begin() + 1);
-    memory::desc ret = adesc.permute_axes(axes);
-    return ret;
+    return axes;
 }
 
-memory::desc permute_NCX2NXC(const memory::desc &adesc) {
-    assert(adesc.data.ndims > 2);
-    int count = 0;
-    std::vector<int> axes(adesc.data.ndims);
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+// used to permute the ncx format to nxc format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute nhwc to nchw, we need:
+///     permutation[0] = 0
+///     permutation[1] = 3
+///     permutation[2] = 1
+///     permutation[3] = 2
+std::vector<int64_t> get_ncx2nxc_permutation(int ndims) {
+    assert(ndims > 2);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
     axes.insert(axes.begin() + 1, axes.back());
     axes.pop_back();
-    memory::desc ret = adesc.permute_axes(axes);
-    return ret;
+    return axes;
 }
 
-// permute the XIO format adesc to OIX format
+// used to permute the xio format to oix format
 /// \note
 /// The logical axes will be permuted in the following manner:
 /// for (i = 0; i < ndims(); i++)
@@ -325,19 +330,18 @@ memory::desc permute_NCX2NXC(const memory::desc &adesc) {
 ///     permutation[1] = 3
 ///     permutation[2] = 1
 ///     permutation[3] = 0
-memory::desc permute_XIO2OIX(const memory::desc &adesc) {
-    assert(adesc.data.ndims > 2);
-    int count = 0;
-    std::vector<int> axes(adesc.data.ndims);
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+std::vector<int64_t> get_xio2oix_permutation(int ndims) {
+    assert(ndims > 2);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
     axes.push_back(axes[1]);
     axes.push_back(axes[0]);
     axes.erase(axes.begin());
     axes.erase(axes.begin());
-    return adesc.permute_axes(axes);
+    return axes;
 }
 
-// permute the OIX format adesc to XIO format
+// permute the oix format to xio format
 /// \note
 /// The logical axes will be permuted in the following manner:
 /// for (i = 0; i < ndims(); i++)
@@ -347,15 +351,15 @@ memory::desc permute_XIO2OIX(const memory::desc &adesc) {
 ///     permutation[1] = 2
 ///     permutation[2] = 0
 ///     permutation[3] = 1
-memory::desc permute_OIX2XIO(const memory::desc &adesc) {
-    int count = 0;
-    std::vector<int> axes(adesc.data.ndims);
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+std::vector<int64_t> get_oix2xio_permutation(int ndims) {
+    assert(ndims > 2);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
     axes.insert(axes.begin(), axes[axes.size() - 2]);
     axes.insert(axes.begin(), axes[axes.size() - 1]);
     axes.pop_back();
     axes.pop_back();
-    return adesc.permute_axes(axes);
+    return axes;
 }
 
 memory::desc transpose(const memory::desc &adesc, dim dim0, dim dim1) {

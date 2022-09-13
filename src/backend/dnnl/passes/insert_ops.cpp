@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 #include "interface/c_types_map.hpp"
 
@@ -36,100 +37,32 @@ using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
 
-// TODO(xxx): extend to support other ops
-// for those ops with data_format/filter_format attributes
-static bool need_insert_permute(op_kind_t kind) {
-    static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
-            op_kind::dnnl_conv_depthwise, op_kind::dnnl_convtranspose,
-            op_kind::dnnl_convtranspose_bwd_data, op_kind::dnnl_pool,
-            op_kind::dnnl_batchnorm, op_kind::dnnl_prelu,
-            op_kind::dnnl_prelu_bwd, op_kind::dnnl_resampling,
-            op_kind::dnnl_resampling_bwd};
-    return ops.count(kind) != 0;
-}
-
-impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t insert_permute_for_conv_or_deconv(
+        std::shared_ptr<subgraph_t> &sg) {
     subgraph_rewriter_t rewriter(sg);
 
-    // insert permute for convolution/convtranspose op
-    auto insert_permute_for_conv_or_deconv
-            = [&](const op_ptr &conv_op) -> bool {
-        const bool need_permute_0 = conv_op->has_attr(op_attr::data_format)
-                ? (conv_op->get_attr<std::string>(op_attr::data_format)
-                        == "NXC")
-                : false;
-        const bool need_permute_1 = conv_op->has_attr(op_attr::filter_format)
-                ? (conv_op->get_attr<std::string>(op_attr::filter_format)
-                        == "XIO")
-                : false;
+    const auto &mgr = sg->fusion_info_mgr_;
+
+    for (auto &op : sg->get_ops()) {
+        if (!(op->get_kind() == op_kind::dnnl_convolution
+                    || op->get_kind() == op_kind::dnnl_conv_depthwise
+                    || op->get_kind() == op_kind::dnnl_convtranspose
+                    || op->get_kind() == op_kind::dnnl_convtranspose_bwd_data))
+            continue;
+
+        const bool need_permute_src = op->has_attr(op_attr::data_format)
+                && op->get_attr<std::string>(op_attr::data_format) == "NXC";
+        const bool need_permute_wei = op->has_attr(op_attr::filter_format)
+                && op->get_attr<std::string>(op_attr::filter_format) == "XIO";
         // conv + depthwise case
-        const bool need_permute_2 = conv_op->has_attr(op_attr::dw_filter_format)
-                ? (conv_op->get_attr<std::string>(op_attr::dw_filter_format)
-                        == "XIO")
-                : false;
-
-        if (!(need_permute_0 || need_permute_1 || need_permute_2)) return false;
-
-        for (size_t i = 0; i < conv_op->num_inputs(); ++i) {
-            op_ptr perm_op
-                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
-
-            if (i == 0) {
-                if (!need_permute_0) continue;
-                perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-                perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            } else if (i == 1) {
-                if (!need_permute_1) continue;
-                perm_op->set_attr<std::string>(op_attr::from_format, "XIO");
-                perm_op->set_attr<std::string>(op_attr::to_format, "OIX");
-            } else if (i == 2) {
-                // skip for bias input
-                if (conv_op->get_attr<bool>(op_attr::with_bias)) continue;
-                if (need_permute_2) {
-                    perm_op->set_attr<std::string>(op_attr::from_format, "XIO");
-                    perm_op->set_attr<std::string>(op_attr::to_format, "OIX");
-                } else if (need_permute_0
-                        && conv_op->get_kind()
-                                != op_kind::dnnl_conv_depthwise) {
-                    // this input is also the input of post binary ops
-                    perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-                    perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-                } else {
-                    continue;
-                }
-            } else {
-                // if not set data_format as NXC, no need to permute for other
-                // inputs of post binary ops
-                if (!need_permute_0) continue;
-                perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-                perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            }
-
-            rewriter.insert_op_before(perm_op, conv_op, i);
-        }
-
-        // remove the attrs in cur_op to avoid re-permute
-        conv_op->set_attr<std::string>(op_attr::data_format, "NCX");
-        conv_op->set_attr<std::string>(op_attr::filter_format, "OIX");
-        // conv + depthwise case
-        if (need_permute_2)
-            conv_op->set_attr<std::string>(op_attr::dw_filter_format, "OIX");
-
-        return need_permute_0;
-    };
-
-    // insert permute for those ops only requiring data_format attribute
-    // (e.g pool, batchnorm, interpolate)
-    auto insert_permute_for_op_only_require_data_format
-            = [&](const op_ptr &op) -> bool {
-        const bool need_permute_0 = op->has_attr(op_attr::data_format)
-                ? (op->get_attr<std::string>(op_attr::data_format) == "NXC")
-                : false;
-        if (!need_permute_0) return false;
+        const bool need_permute_post_dw_conv_wei
+                = !(op->has_attr(op_attr::with_bias)
+                          && op->get_attr<bool>(op_attr::with_bias))
+                && op->has_attr(op_attr::dw_filter_format)
+                && op->get_attr<std::string>(op_attr::dw_filter_format)
+                        == "XIO";
 
         size_t num_post_binary_ops = 0;
-        const auto &mgr = sg->fusion_info_mgr_;
         if (op->has_attr(op_attr::fusion_info_key)
                 && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
             int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
@@ -141,64 +74,124 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         }
 
         for (size_t i = 0; i < op->num_inputs(); ++i) {
-            // Skip for those non-data input and non-post-binary inputs,
-            // If PReLU/PReLUBackprop data format is NXC, we need to permute all
-            // inputs.
-            if (i > 0 && i < op->num_inputs() - num_post_binary_ops
-                    && op->get_kind() != op_kind::dnnl_prelu
-                    && op->get_kind() != op_kind::dnnl_prelu_bwd
-                    && op->get_kind() != op_kind::dnnl_resampling_bwd)
-                continue;
-            // Skip optional non-data input for resampling backward op
-            if (i > 1 && op->get_kind() == op_kind::dnnl_resampling_bwd)
-                continue;
+            auto val = op->get_input_value(i);
+            auto ndims = val->get_logical_tensor().ndims;
 
-            op_ptr perm_op
-                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
-            perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
-            perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
-            rewriter.insert_op_before(perm_op, op, i);
-        }
-        // remove the attrs in cur_op to avoid re-permute
-        op->set_attr<std::string>(op_attr::data_format, "NCX");
-        return true;
-    };
+            std::vector<int64_t> perm;
+            if (i == 0 && need_permute_src) {
+                // optionally permute src
+                perm = get_nxc2ncx_permutation(ndims);
+            } else if (i == 1 && need_permute_wei) {
+                // optionally permute weight
+                perm = get_xio2oix_permutation(ndims);
+            } else if (i == 2 && need_permute_post_dw_conv_wei) {
+                perm = get_xio2oix_permutation(ndims);
+            } else if (i >= op->num_inputs() - num_post_binary_ops
+                    && need_permute_src) {
+                // optionally permute post-binary/post-sum inputs
+                perm = get_nxc2ncx_permutation(ndims);
+            }
 
-    for (auto &cur_op : sg->get_ops()) {
-        if (!need_insert_permute(cur_op->get_kind())) continue;
-
-        bool require_output_permute = false;
-        if (cur_op->get_kind() == op_kind::dnnl_convolution
-                || cur_op->get_kind() == op_kind::dnnl_conv_depthwise
-                || cur_op->get_kind() == op_kind::dnnl_convtranspose
-                || cur_op->get_kind() == op_kind::dnnl_convtranspose_bwd_data) {
-            require_output_permute = insert_permute_for_conv_or_deconv(cur_op);
-        } else {
-            require_output_permute
-                    = insert_permute_for_op_only_require_data_format(cur_op);
-        }
-
-        // permute output back to NXC
-        if (require_output_permute) {
-            op_ptr perm_op
-                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-            perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
-            perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
-            perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
-            rewriter.insert_op_after(perm_op, cur_op, 0);
-
-            // Insert permute after prelu bprop second output
-            if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
-                op_ptr perm_op_1
+            if (!perm.empty()) {
+                op_ptr perm_op
                         = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-                perm_op_1->set_attr<std::string>(
-                        op_attr::permute_kind, "permute");
-                perm_op_1->set_attr<std::string>(op_attr::from_format, "NCX");
-                perm_op_1->set_attr<std::string>(op_attr::to_format, "NXC");
-                rewriter.insert_op_after(perm_op_1, cur_op, 1);
+                perm_op->set_attr<std::vector<int64_t>>(
+                        op_attr::permutation, perm);
+                rewriter.insert_op_before(perm_op, op, i);
             }
         }
+
+        // remove the attrs in cur_op to avoid re-permute
+        op->set_attr<std::string>(op_attr::data_format, "NCX");
+        op->set_attr<std::string>(op_attr::filter_format, "OIX");
+        if (need_permute_post_dw_conv_wei)
+            op->set_attr<std::string>(op_attr::dw_filter_format, "OIX");
+
+        // permute output back to NXC
+        if (need_permute_src) {
+            auto ndims = op->get_output_value(0)->get_logical_tensor().ndims;
+            auto perm = get_ncx2nxc_permutation(ndims);
+            op_ptr perm_op
+                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
+            perm_op->set_attr<std::vector<int64_t>>(op_attr::permutation, perm);
+            rewriter.insert_op_after(perm_op, op, 0);
+        }
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+using io_indices_t = std::vector<size_t>;
+std::unordered_map<impl::op_kind_t, std::pair<io_indices_t, io_indices_t>>
+        io_idx_to_permute = {
+                {op_kind::dnnl_batchnorm, {{0}, {0}}},
+                {op_kind::dnnl_prelu, {{0, 1}, {0}}},
+                {op_kind::dnnl_prelu_bwd, {{0, 1, 2}, {0, 1}}},
+                {op_kind::dnnl_resampling, {{0}, {0}}},
+                {op_kind::dnnl_resampling_bwd, {{0, 1}, {0}}},
+};
+
+// insert permute for those ops only requiring data_format attribute
+// (e.g batchnorm, interpolate)
+impl::status_t insert_permute_for_op_only_require_data_format(
+        std::shared_ptr<subgraph_t> &sg) {
+    subgraph_rewriter_t rewriter(sg);
+    const auto &mgr = sg->fusion_info_mgr_;
+
+    for (auto &op : sg->get_ops()) {
+        if (!io_idx_to_permute.count(op->get_kind())) continue;
+
+        const bool need_permute = op->has_attr(op_attr::data_format)
+                && op->get_attr<std::string>(op_attr::data_format) == "NXC";
+        if (!need_permute) continue;
+
+        io_indices_t in_indices = io_idx_to_permute.at(op->get_kind()).first;
+        io_indices_t out_indices = io_idx_to_permute.at(op->get_kind()).second;
+
+        // permute explicitly defined inputs
+        for (auto idx : in_indices) {
+            auto ndims = op->get_input_value(idx)->get_logical_tensor().ndims;
+            auto perm = get_nxc2ncx_permutation(ndims);
+            op_ptr perm_op
+                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
+            perm_op->set_attr<std::vector<int64_t>>(op_attr::permutation, perm);
+            rewriter.insert_op_before(perm_op, op, idx);
+        }
+
+        fusion_info_t fusion_info;
+        if (op->has_attr(op_attr::fusion_info_key)
+                && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
+            fusion_info = mgr.get_info(key);
+        }
+
+        // permute extra inputs for fused post-binary
+        const auto &pops = fusion_info.get_post_ops();
+        for (int n = 0; n < pops.size(); ++n) {
+            if (!pops[n]->is_post_binary() && !pops[n]->is_post_sum()) continue;
+            const size_t idx = pops[n]->get_unfused_input_indices()[0];
+
+            auto ndims = op->get_input_value(idx)->get_logical_tensor().ndims;
+            auto perm = get_nxc2ncx_permutation(ndims);
+            op_ptr perm_op
+                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
+            perm_op->set_attr<std::vector<int64_t>>(op_attr::permutation, perm);
+            rewriter.insert_op_before(perm_op, op, idx);
+        }
+
+        // permute explicitly defined output back to NXC
+        for (auto idx : out_indices) {
+            auto ndims = op->get_output_value(idx)->get_logical_tensor().ndims;
+            auto perm = get_ncx2nxc_permutation(ndims);
+            op_ptr perm_op
+                    = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
+            perm_op->set_attr<std::vector<int64_t>>(op_attr::permutation, perm);
+            rewriter.insert_op_after(perm_op, op, idx);
+        }
+
+        // remove the attrs in cur_op to avoid re-permute
+        op->set_attr<std::string>(op_attr::data_format, "NCX");
     }
 
     rewriter.run();
@@ -214,7 +207,9 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
 
         impl::logical_tensor_t src_lt
                 = cur_op->get_input_value(0)->get_logical_tensor();
-        const logical_tensor_wrapper_t src(src_lt);
+        impl::logical_tensor_t dst_lt
+                = cur_op->get_output_value(0)->get_logical_tensor();
+        const logical_tensor_wrapper_t src(src_lt), dst(dst_lt);
         const auto axis = cur_op->get_attr<int64_t>(op_attr::axis);
         const auto known_strides
                 = (src.is_strided()) ? !src.is_stride_unknown() : false;
@@ -226,17 +221,17 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         cur_op->set_attr(op_attr::axis, new_axis);
         op_ptr perm_src_op
                 = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-        perm_src_op->set_attr<std::string>(op_attr::permute_kind, "permute");
-        perm_src_op->set_attr<std::string>(op_attr::from_format, "NXC");
-        perm_src_op->set_attr<std::string>(op_attr::to_format, "NCX");
+        auto src_perm = get_nxc2ncx_permutation(src.ndims());
+        perm_src_op->set_attr<std::vector<int64_t>>(
+                op_attr::permutation, src_perm);
         rewriter.insert_op_before(perm_src_op, cur_op, 0);
 
         // permute output back to NXC
         op_ptr perm_dst_op
                 = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
-        perm_dst_op->set_attr<std::string>(op_attr::permute_kind, "permute");
-        perm_dst_op->set_attr<std::string>(op_attr::from_format, "NCX");
-        perm_dst_op->set_attr<std::string>(op_attr::to_format, "NXC");
+        auto dst_perm = get_ncx2nxc_permutation(dst.ndims());
+        perm_dst_op->set_attr<std::vector<int64_t>>(
+                op_attr::permutation, dst_perm);
         rewriter.insert_op_after(perm_dst_op, cur_op, 0);
     }
 
@@ -334,30 +329,28 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t insert_permute_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     subgraph_rewriter_t rewriter(sg);
 
     for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
 
         std::vector<bool> trans_flag(2);
-        if (cur_op->has_attr(op_attr::transpose_a))
-            trans_flag[0] = cur_op->get_attr<bool>(op_attr::transpose_a);
-        if (cur_op->has_attr(op_attr::transpose_b))
-            trans_flag[1] = cur_op->get_attr<bool>(op_attr::transpose_b);
+        trans_flag[0] = cur_op->has_attr(op_attr::transpose_a)
+                && cur_op->get_attr<bool>(op_attr::transpose_a);
+        trans_flag[1] = cur_op->has_attr(op_attr::transpose_b)
+                && cur_op->get_attr<bool>(op_attr::transpose_b);
         if (!(trans_flag[0] || trans_flag[1])) continue;
 
         for (size_t i = 0; i < trans_flag.size(); ++i) {
+            auto ndims = cur_op->get_input_value(i)->get_logical_tensor().ndims;
             // skip if transpose flag is false or the input's ndim is 1
-            // otherwise, we need do do unsqueeze
-            if (!trans_flag[i]
-                    || cur_op->get_input_value(i)->get_logical_tensor().ndims
-                            <= 1)
-                continue;
-            op_ptr transpose_op = std::make_shared<op_t>(op_kind::dnnl_permute);
-            transpose_op->set_attr<std::string>(
-                    op_attr::permute_kind, "transpose");
-            rewriter.insert_op_before(transpose_op, cur_op, i);
+            if (!trans_flag[i] || ndims <= 1) continue;
+            op_ptr permute_op = std::make_shared<op_t>(op_kind::dnnl_permute);
+            auto perm = get_last_two_dims_permutation(ndims);
+            permute_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, perm);
+            rewriter.insert_op_before(permute_op, cur_op, i);
         }
         // remove attr to avoid re-transpose during shape inference
         cur_op->set_attr<bool>(op_attr::transpose_a, false);

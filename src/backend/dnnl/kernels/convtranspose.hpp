@@ -291,7 +291,7 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);
         }
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_conv_or_deconv);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
 
         pipeline.reset_visualize_arg(true, false);
@@ -364,7 +364,7 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_conv_or_deconv);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
 
         pipeline.reset_visualize_arg(true, false);

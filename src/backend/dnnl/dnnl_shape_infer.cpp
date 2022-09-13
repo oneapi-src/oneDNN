@@ -203,56 +203,20 @@ status_t infer_permute_output_shape(op_t *n,
     using ltw = logical_tensor_wrapper_t;
     auto out0 = ltw(outputs[0]);
 
-    // this permute is actually a transpose
-    if (n->get_attr<std::string>(op_attr::permute_kind) == "transpose") {
-        auto tmp = ltw(inputs[0]).vdims();
-        auto rank = tmp.size();
-        // swap the right-most two elements
-        std::swap(tmp[rank - 2], tmp[rank - 1]);
-
-        // check the given shape
-        if (!out0.is_shape_unknown()) {
-            if (!validate(tmp, out0.vdims())) { return status::invalid_shape; }
-        }
-
-        set_shape_and_strides(*outputs[0], tmp);
-        return status::success;
-    }
-
-    auto from_format = n->get_attr<std::string>(op_attr::from_format);
-    auto to_format = n->get_attr<std::string>(op_attr::to_format);
-    impl::logical_tensor_t tmp;
-    std::vector<dim_t> tmp_dims;
-    if (from_format == "NCX" && to_format == "NXC") {
-        auto in_dims = ltw(inputs[0]).vdims();
-        tmp_dims.emplace_back(in_dims[0]); // N
-        for (size_t i = 2; i < in_dims.size(); i++) { // X
-            tmp_dims.emplace_back(in_dims[i]);
-        }
-        tmp_dims.emplace_back(in_dims[1]); // C
-    } else if (from_format == "NXC" && to_format == "NCX") {
-        tmp = ltw(inputs[0]).reorder_data_dims_strides();
-        tmp_dims = ltw(tmp).vdims();
-    } else if (from_format == "XIO" && to_format == "OIX") {
-        tmp = ltw(inputs[0]).reorder_weight_dims_strides();
-        tmp_dims = ltw(tmp).vdims();
-    } else if (from_format == "OIX" && to_format == "XIO") {
-        auto in_dims = ltw(inputs[0]).vdims();
-        for (size_t i = 2; i < in_dims.size(); i++) { // X
-            tmp_dims.emplace_back(in_dims[i]);
-        }
-        tmp_dims.emplace_back(in_dims[1]); // I
-        tmp_dims.emplace_back(in_dims[0]); // O
-    } else {
-        assertm(false, "should not reach here");
-        return status::unimplemented;
+    auto in_dims = ltw(inputs[0]).vdims();
+    auto perm = n->get_attr<std::vector<int64_t>>(op_attr::permutation);
+    std::vector<dim_t> inferred_out_dims(perm.size(), -1);
+    for (size_t i = 0; i < perm.size(); i++) {
+        inferred_out_dims[perm[i]] = in_dims[i];
     }
 
     // check the given shape
     if (!out0.is_shape_unknown()) {
-        if (!validate(tmp_dims, out0.vdims())) { return status::invalid_shape; }
+        if (!validate(inferred_out_dims, out0.vdims())) {
+            return status::invalid_shape;
+        }
     }
-    set_shape_and_strides(*outputs[0], tmp_dims);
+    set_shape_and_strides(*outputs[0], inferred_out_dims);
 
     return status::success;
 }

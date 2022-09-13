@@ -54,10 +54,7 @@ const op_attr_t fusion_info_key = 0x10103;
 // string
 const op_attr_t dw_filter_format = 0x10200;
 const op_attr_t dw_type = 0x10201;
-const op_attr_t from_format = 0x10202;
 const op_attr_t kind = 0x10204;
-const op_attr_t permute_kind = 0x10205;
-const op_attr_t to_format = 0x10206;
 
 // float
 const op_attr_t p = 0x10300;
@@ -65,6 +62,7 @@ const op_attr_t p = 0x10300;
 // vector of int64_t
 const op_attr_t dst_zps = 0x10400;
 const op_attr_t src_zps = 0x10401;
+const op_attr_t permutation = 0x10402;
 
 static inline std::string internal_attr2str(impl::op_attr_t attr) {
 #define CASE(a) \
@@ -91,13 +89,11 @@ static inline std::string internal_attr2str(impl::op_attr_t attr) {
         CASE(fusion_info_key);
         CASE(dw_filter_format);
         CASE(dw_type);
-        CASE(from_format);
         CASE(kind);
-        CASE(permute_kind);
-        CASE(to_format);
         CASE(p);
         CASE(dst_zps);
         CASE(src_zps);
+        CASE(permutation);
         default: return "undefined_attr";
     }
 #undef CASE
