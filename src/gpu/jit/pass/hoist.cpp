@@ -24,6 +24,51 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+class sum_expr_t {
+public:
+    sum_expr_t(const expr_t &e)
+        : type_(e.type()), args_(split_by_add(e, e.type().elems())) {}
+
+    std::vector<expr_t> args() const { return args_; }
+
+    bool is_trivial() const { return args_.size() <= 1; }
+
+    expr_t expr() const { return make_add(args_, type_); }
+
+    static expr_t make_add(
+            const std::vector<expr_t> &args, const type_t &type) {
+        auto maybe_bcast = [&](const expr_t &e) {
+            if (e.type().elems() == type.elems()) return e;
+            ir_assert(e.type().is_scalar());
+            return shuffle_t::make_broadcast(e, type.elems());
+        };
+        if (args.empty()) return cast(0, type);
+        auto ret = maybe_bcast(args[0]);
+        for (int i = 1; i < (int)args.size(); i++)
+            ret += maybe_bcast(args[i]);
+        return ret;
+    }
+
+private:
+    static std::vector<expr_t> split_by_add(const expr_t &e, int elems) {
+        auto *shuffle = e.as_ptr<shuffle_t>();
+        if (shuffle && shuffle->is_broadcast() && shuffle->elems() == elems) {
+            return split_by_add(shuffle->vec[0], elems);
+        }
+        auto *op = e.as_ptr<binary_op_t>();
+        if (!op || op->op_kind != op_kind_t::_add) return {e};
+        auto a_args = split_by_add(op->a, elems);
+        auto b_args = split_by_add(op->b, elems);
+        std::vector<expr_t> args;
+        args.insert(args.end(), a_args.begin(), a_args.end());
+        args.insert(args.end(), b_args.begin(), b_args.end());
+        return args;
+    }
+
+    type_t type_;
+    std::vector<expr_t> args_;
+};
+
 class hoist_exprs_mutator_t : public ir_mutator_t {
 public:
     hoist_exprs_mutator_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
@@ -120,32 +165,27 @@ private:
 
     expr_t hoist_expr_with_add(const expr_t &expr, const expr_t &expr_var = {},
             bool *fully_hoisted = nullptr) {
-        auto cur_expr = nary_op_canonicalize(expr);
-
-        auto is_nary_add = [](const expr_t &e) {
-            auto *nary = e.as_ptr<nary_op_t>();
-            return nary && (nary->op_kind == op_kind_t::_add);
-        };
+        const type_t &type = expr.type();
+        sum_expr_t cur_expr(expr);
 
         for (size_t i = 0; i < loops_.size(); i++) {
             std::vector<expr_t> invariant_args;
             std::vector<expr_t> other_args;
             std::vector<expr_t> nary_args;
-            if (is_nary_add(cur_expr)) {
-                nary_args = cvt_expr_to_nary_op_args(cur_expr);
+            if (!cur_expr.is_trivial()) {
+                nary_args = cur_expr.args();
             } else {
-                nary_args.push_back(cur_expr);
+                nary_args.push_back(cur_expr.expr());
             }
-            for (auto &_a : nary_args) {
-                auto a = nary_op_back_transform(_a);
+            for (auto &a : nary_args) {
                 bool is_inv_arg = true;
                 for (size_t j = i; j < loops_.size(); j++) {
                     if (!is_invariant(a, loops_[j].var)) is_inv_arg = false;
                 }
                 if (is_inv_arg) {
-                    invariant_args.push_back(_a);
+                    invariant_args.push_back(a);
                 } else {
-                    other_args.push_back(_a);
+                    other_args.push_back(a);
                 }
             }
             // Nothing to hoist for this loop, continue.
@@ -153,10 +193,13 @@ private:
             if (invariant_args.size() == 1 && is_var(invariant_args[0])
                     && !other_args.empty())
                 continue;
+            if (invariant_args.size() == 1
+                    && (is_const(invariant_args[0])
+                            || is_const_broadcast(invariant_args[0])))
+                continue;
 
             // Introduce new variable for the invariant sub-expression.
-            auto inv_expr = nary_op_back_transform(
-                    make_nary_op(op_kind_t::_add, invariant_args));
+            auto inv_expr = sum_expr_t::make_add(invariant_args, type);
             expr_t inv_var;
             if (!expr_var.is_empty() && other_args.empty()) {
                 // If nothing to hoist further, reuse the old variable and
@@ -175,9 +218,9 @@ private:
             }
 
             other_args.push_back(inv_var);
-            cur_expr = make_nary_op(op_kind_t::_add, other_args);
+            cur_expr = sum_expr_t::make_add(other_args, type);
         }
-        return nary_op_back_transform(cur_expr);
+        return cur_expr.expr();
     }
 
     stmt_t injects_lets_and_pop_loop(const stmt_t &_s) {
