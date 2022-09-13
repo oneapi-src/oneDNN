@@ -20423,11 +20423,11 @@ template <HW hw>
 constexpr typename gemm_kernel_generator_t<hw>::status_stream::Endl
         gemm_kernel_generator_t<hw>::status_stream::endl;
 
-template class gemm_kernel_generator_t<HW::Gen9>;
-template class gemm_kernel_generator_t<HW::Gen12LP>;
-template class gemm_kernel_generator_t<HW::XeHP>;
-template class gemm_kernel_generator_t<HW::XeHPG>;
-template class gemm_kernel_generator_t<HW::XeHPC>;
+REG_GEN9_ISA(template class gemm_kernel_generator_t<HW::Gen9>);
+REG_XELP_ISA(template class gemm_kernel_generator_t<HW::Gen12LP>);
+REG_XEHP_ISA(template class gemm_kernel_generator_t<HW::XeHP>);
+REG_XEHPG_ISA(template class gemm_kernel_generator_t<HW::XeHPG>);
+REG_XEHPC_ISA(template class gemm_kernel_generator_t<HW::XeHPC>);
 
 } // namespace jit
 } // namespace gpu
