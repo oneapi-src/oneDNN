@@ -71,13 +71,12 @@ dnnl_status_t brgemm_attr_init(
         auto key_str = parser::get_substr(key_value_str, value_pos, ':');
         auto value_str = parser::get_substr(key_value_str, value_pos, '\0');
 
-#define PROCESS_KEY_VAL(setting) \
-    if (key_str.find(STRINGIFY(setting)) != std::string::npos) \
-        brgattr->setting = std::stoi(value_str);
-
 #define PROCESS_SETTING_KEY_VAL(setting, key) \
     if (key_str.compare(STRINGIFY(key)) == 0) \
         brgattr->setting = std::stoi(value_str);
+
+#define PROCESS_KEY_VAL(setting) PROCESS_SETTING_KEY_VAL(setting, setting)
+
         // TODO: `max_top_vpad` and `max_bottom_vpad` do not affect anything in
         // the kernel call and reference computation so far since
         // batch_element_t struct is not adjusted to incorporate different pad
@@ -107,8 +106,8 @@ dnnl_status_t brgemm_attr_init(
         PROCESS_SETTING_KEY_VAL(hint_prfC.dist1, hint_prfC_dist1);
         PROCESS_SETTING_KEY_VAL(hint_prfC.dist2, hint_prfC_dist2);
 
-#undef PROCESS_KEY_VAL
 #undef PROCESS_SETTING_KEY_VAL
+#undef PROCESS_KEY_VAL
 
         if (key_str.find(STRINGIFY(hint_innermost_loop)) != std::string::npos)
             brgattr->hint_innermost_loop
@@ -148,8 +147,14 @@ std::string prepare_wei_format_string(
         case 48: wtag += "48b"; break;
         case 32: wtag += "32b"; break;
         default:
-            assert(n <= 16);
-            wtag += "16b";
+            if (n <= 16)
+                wtag += "16b";
+            else {
+                if (n % 16 != 0) {
+                    wtag += std::to_string(n) + "b";
+                } else
+                    wtag += std::to_string(16 * div_up(n, 16)) + "b";
+            }
             break;
     }
     if (is_vnni_layout) {
@@ -362,10 +367,12 @@ int doit(const prb_t *prb, res_t *res) {
     }
     auto brgemm_kernel = make_benchdnn_dnnl_wrapper(brgemm_kernel_);
 
-    char palette[AMX_PALETTE_SIZE] = {};
-    const auto init_tile_status = brgemm_init_tiles(brgemm_desc, palette);
-    if (init_tile_status == dnnl_success)
+    const auto is_tmm = brgemm_desc.is_tmm;
+    if (is_tmm) {
+        char palette[AMX_PALETTE_SIZE] = {};
+        DNN_SAFE(brgemm_init_tiles(brgemm_desc, palette), WARN);
         DNN_SAFE(amx_tile_configure(palette), WARN);
+    }
 
     auto src_md = dnn_mem_t::init_md(
             prb->ndims, src_dims, prb->src_dt(), prb->stag, src_strides);
@@ -587,7 +594,7 @@ int doit(const prb_t *prb, res_t *res) {
             std::placeholders::_2);
     measure_perf(prb->ctx_exe, res, perf_func, args);
 
-    if (init_tile_status == dnnl_success) DNN_SAFE(amx_tile_release(), WARN);
+    if (is_tmm) DNN_SAFE(amx_tile_release(), WARN);
 
     return OK;
 }
