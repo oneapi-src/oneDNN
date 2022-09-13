@@ -121,7 +121,7 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
 }
 } // namespace
 
-status_t dnnl_dilated_deconvolution_forward_primitive_desc_create(
+status_t dnnl_deconvolution_forward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
@@ -139,7 +139,7 @@ status_t dnnl_dilated_deconvolution_forward_primitive_desc_create(
             (const op_desc_t *)&deconv_desc, nullptr, attr);
 }
 
-status_t dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
+status_t dnnl_deconvolution_backward_data_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
         const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc,
@@ -155,7 +155,7 @@ status_t dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
             (const op_desc_t *)&deconv_desc, hint_fwd_pd, attr);
 }
 
-status_t dnnl_dilated_deconvolution_backward_weights_primitive_desc_create(
+status_t dnnl_deconvolution_backward_weights_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *diff_weights_desc,

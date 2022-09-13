@@ -4923,8 +4923,8 @@ struct convolution_forward : public primitive {
                     weights_desc, nullptr, dst_desc, strides, nullptr,
                     padding_l, padding_r, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated convolution forward
-        /// propagation primitive with bias.
+        /// Constructs a primitive descriptor for a convolution forward
+        ///     propagation primitive with bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4974,8 +4974,8 @@ struct convolution_forward : public primitive {
                     weights_desc, &bias_desc, dst_desc, strides, &dilates,
                     padding_l, padding_r, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated convolution forward
-        /// propagation primitive without bias.
+        /// Constructs a primitive descriptor for a convolution forward
+        ///     propagation primitive without bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -5084,8 +5084,8 @@ struct convolution_forward : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
-                    = dnnl_dilated_convolution_forward_primitive_desc_create(
-                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                    = dnnl_convolution_forward_primitive_desc_create(&pd,
+                            aengine.get(), dnnl::convert_to_c(aprop_kind),
                             convert_to_c(aalgorithm), &src_desc.data,
                             &weights_desc.data, optional_arg(bias_desc),
                             &dst_desc.data, &strides[0], optional_arg(dilates),
@@ -5170,8 +5170,8 @@ struct convolution_backward_data : public primitive {
                     diff_dst_desc, strides, nullptr, padding_l, padding_r,
                     hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated convolution backward
-        /// propagation primitive.
+        /// Constructs a primitive descriptor for a convolution backward
+        ///     propagation primitive.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -5274,11 +5274,10 @@ struct convolution_backward_data : public primitive {
             if (dilates)
                 memory::validate_dims(*dilates, diff_src_desc.data.ndims - 2);
 
-            // TODO: maybe use only dilated version?
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
-                    = dnnl_dilated_convolution_backward_data_primitive_desc_create(
-                            &pd, aengine.get(), convert_to_c(aalgorithm),
+                    = dnnl_convolution_backward_data_primitive_desc_create(&pd,
+                            aengine.get(), convert_to_c(aalgorithm),
                             &diff_src_desc.data, &weights_desc.data,
                             &diff_dst_desc.data, &strides[0],
                             optional_arg(dilates), &padding_l[0], &padding_r[0],
@@ -5413,7 +5412,7 @@ struct convolution_backward_weights : public primitive {
                     nullptr, diff_dst_desc, strides, nullptr, padding_l,
                     padding_r, hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated convolution weights
+        /// Constructs a primitive descriptor for a convolution weights
         ///     gradient primitive with bias.
         ///
         /// @note
@@ -5466,7 +5465,7 @@ struct convolution_backward_weights : public primitive {
                     &diff_bias_desc, diff_dst_desc, strides, &dilates,
                     padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated convolution weights
+        /// Constructs a primitive descriptor for a convolution weights
         ///     gradient primitive without bias.
         ///
         /// @note
@@ -5583,7 +5582,7 @@ struct convolution_backward_weights : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
-                    = dnnl_dilated_convolution_backward_weights_primitive_desc_create(
+                    = dnnl_convolution_backward_weights_primitive_desc_create(
                             &pd, aengine.get(), convert_to_c(aalgorithm),
                             &src_desc.data, &diff_weights_desc.data,
                             optional_arg(diff_bias_desc), &diff_dst_desc.data,
@@ -5723,8 +5722,8 @@ struct deconvolution_forward : public primitive {
                     weights_desc, nullptr, dst_desc, strides, nullptr,
                     padding_l, padding_r, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated deconvolution
-        ///     forward propagation primitive with bias.
+        /// Constructs a primitive descriptor for a deconvolution forward
+        ///     propagation primitive with bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -5773,8 +5772,8 @@ struct deconvolution_forward : public primitive {
                     weights_desc, &bias_desc, dst_desc, strides, &dilates,
                     padding_l, padding_r, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated deconvolution
-        ///     forward propagation primitive without bias.
+        /// Constructs a primitive descriptor for a deconvolution forward
+        ///     propagation primitive without bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -5879,8 +5878,8 @@ struct deconvolution_forward : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
-                    = dnnl_dilated_deconvolution_forward_primitive_desc_create(
-                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                    = dnnl_deconvolution_forward_primitive_desc_create(&pd,
+                            aengine.get(), dnnl::convert_to_c(aprop_kind),
                             convert_to_c(aalgorithm), &src_desc.data,
                             &weights_desc.data, optional_arg(bias_desc),
                             &dst_desc.data, &strides[0], optional_arg(dilates),
@@ -5964,8 +5963,8 @@ struct deconvolution_backward_data : public primitive {
                     diff_dst_desc, strides, nullptr, padding_l, padding_r,
                     hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated deconvolution
-        ///     backward propagation primitive.
+        /// Constructs a primitive descriptor for a deconvolution backward
+        ///     propagation primitive.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -6069,7 +6068,7 @@ struct deconvolution_backward_data : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
-                    = dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
+                    = dnnl_deconvolution_backward_data_primitive_desc_create(
                             &pd, aengine.get(), convert_to_c(aalgorithm),
                             &diff_src_desc.data, &weights_desc.data,
                             &diff_dst_desc.data, &strides[0],
@@ -6203,8 +6202,8 @@ struct deconvolution_backward_weights : public primitive {
                     nullptr, diff_dst_desc, strides, nullptr, padding_l,
                     padding_r, hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated deconvolution
-        ///     weights gradient primitive with bias.
+        /// Constructs a primitive descriptor for a deconvolution weights
+        ///     gradient primitive with bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -6255,8 +6254,8 @@ struct deconvolution_backward_weights : public primitive {
                     &diff_bias_desc, diff_dst_desc, strides, &dilates,
                     padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
 
-        /// Constructs a primitive descriptor for a dilated deconvolution
-        ///     weights gradient primitive without bias.
+        /// Constructs a primitive descriptor for a deconvolution weights
+        ///     gradient primitive without bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -6368,7 +6367,7 @@ struct deconvolution_backward_weights : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
-                    = dnnl_dilated_deconvolution_backward_weights_primitive_desc_create(
+                    = dnnl_deconvolution_backward_weights_primitive_desc_create(
                             &pd, aengine.get(), convert_to_c(aalgorithm),
                             &src_desc.data, &diff_weights_desc.data,
                             optional_arg(diff_bias_desc), &diff_dst_desc.data,

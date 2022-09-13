@@ -179,7 +179,7 @@ void test2() {
     dnnl_primitive_desc_t c3_pd;
     dnnl_primitive_t c3;
 
-    CHECK(dnnl_dilated_convolution_forward_primitive_desc_create(&c3_pd, engine,
+    CHECK(dnnl_convolution_forward_primitive_desc_create(&c3_pd, engine,
             dnnl_forward_training, dnnl_convolution_direct, &c3_src_md,
             &c3_weights_md, &c3_bias_md, &c3_dst_md, strides, dilation, padding,
             NULL, NULL));

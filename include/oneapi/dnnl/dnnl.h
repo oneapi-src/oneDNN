@@ -1414,7 +1414,7 @@ dnnl_status_t DNNL_API dnnl_binary_primitive_desc_create(
 /// @addtogroup dnnl_api_convolution
 /// @{
 
-/// Creates a primitive descriptor for a dilated convolution forward propagation
+/// Creates a primitive descriptor for a convolution forward propagation
 ///     primitive.
 ///
 /// @note
@@ -1451,7 +1451,7 @@ dnnl_status_t DNNL_API dnnl_binary_primitive_desc_create(
 /// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_dilated_convolution_forward_primitive_desc_create(
+dnnl_status_t DNNL_API dnnl_convolution_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
         const dnnl_memory_desc_t *src_desc,
@@ -1461,8 +1461,8 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_forward_primitive_desc_create(
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
         const_dnnl_primitive_attr_t attr);
 
-/// Creates a primitive descriptor for a dilated convolution backward
-///     propagation primitive.
+/// Creates a primitive descriptor for a convolution backward propagation
+///     primitive.
 ///
 /// @note
 ///     Memory descriptors can be initialized with
@@ -1495,8 +1495,7 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_forward_primitive_desc_create(
 /// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API
-dnnl_dilated_convolution_backward_data_primitive_desc_create(
+dnnl_status_t DNNL_API dnnl_convolution_backward_data_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
         const dnnl_memory_desc_t *weights_desc,
@@ -1505,8 +1504,7 @@ dnnl_dilated_convolution_backward_data_primitive_desc_create(
         const dnnl_dims_t padding_r, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
-/// Creates a primitive descriptor for a dilated convolution weights gradient
-///     primitive.
+/// Creates a primitive descriptor for a convolution weights gradient primitive.
 ///
 /// @note
 ///     Memory descriptors can be initialized with
@@ -1542,8 +1540,7 @@ dnnl_dilated_convolution_backward_data_primitive_desc_create(
 /// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API
-dnnl_dilated_convolution_backward_weights_primitive_desc_create(
+dnnl_status_t DNNL_API dnnl_convolution_backward_weights_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
         const dnnl_memory_desc_t *diff_weights_desc,
@@ -1558,8 +1555,8 @@ dnnl_dilated_convolution_backward_weights_primitive_desc_create(
 /// @addtogroup dnnl_api_deconvolution
 /// @{
 
-/// Creates a primitive descriptor for a dilated deconvolution forward
-///     propagation primitive.
+/// Creates a primitive descriptor for a deconvolution forward propagation
+///     primitive.
 ///
 /// @note
 ///     Memory descriptors can be initialized with
@@ -1594,7 +1591,7 @@ dnnl_dilated_convolution_backward_weights_primitive_desc_create(
 /// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_dilated_deconvolution_forward_primitive_desc_create(
+dnnl_status_t DNNL_API dnnl_deconvolution_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
         const dnnl_memory_desc_t *src_desc,
@@ -1604,8 +1601,8 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_forward_primitive_desc_create(
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
         const_dnnl_primitive_attr_t attr);
 
-/// Creates a primitive descriptor for a dilated deconvolution backward
-///     propagation primitive.
+/// Creates a primitive descriptor for a deconvolution backward propagation
+///     primitive.
 ///
 /// @note
 ///     Memory descriptors can be initialized with
@@ -1637,8 +1634,7 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_forward_primitive_desc_create(
 /// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API
-dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
+dnnl_status_t DNNL_API dnnl_deconvolution_backward_data_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
         const dnnl_memory_desc_t *weights_desc,
@@ -1647,7 +1643,7 @@ dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
         const dnnl_dims_t padding_r, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
-/// Creates a primitive descriptor for a dilated deconvolution weights gradient
+/// Creates a primitive descriptor for a deconvolution weights gradient
 ///     primitive.
 ///
 /// @note
@@ -1684,7 +1680,7 @@ dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API
-dnnl_dilated_deconvolution_backward_weights_primitive_desc_create(
+dnnl_deconvolution_backward_weights_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
         const dnnl_memory_desc_t *diff_weights_desc,

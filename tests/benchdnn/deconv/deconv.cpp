@@ -370,20 +370,17 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         case FWD_D:
         case FWD_B:
         case FWD_I:
-            DNN_SAFE_STATUS(
-                    dnnl_dilated_deconvolution_forward_primitive_desc_create(
-                            &init_pd_args.pd, init_pd_args.engine,
-                            prb->dir == FWD_I ? dnnl_forward_inference
-                                              : dnnl_forward_training,
-                            alg, &src_d, &wei_d,
-                            prb->dir == FWD_B ? &bia_d : nullptr, &dst_d,
-                            prb->strides().data(), prb->dilations().data(),
-                            prb->padding().data(), prb->padding_r().data(),
-                            dnnl_attr));
+            DNN_SAFE_STATUS(dnnl_deconvolution_forward_primitive_desc_create(
+                    &init_pd_args.pd, init_pd_args.engine,
+                    prb->dir == FWD_I ? dnnl_forward_inference
+                                      : dnnl_forward_training,
+                    alg, &src_d, &wei_d, prb->dir == FWD_B ? &bia_d : nullptr,
+                    &dst_d, prb->strides().data(), prb->dilations().data(),
+                    prb->padding().data(), prb->padding_r().data(), dnnl_attr));
             break;
         case BWD_D:
             DNN_SAFE_STATUS(
-                    dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
+                    dnnl_deconvolution_backward_data_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, &src_d,
                             &wei_d, &dst_d, prb->strides().data(),
                             prb->dilations().data(), prb->padding().data(),
@@ -393,7 +390,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         case BWD_W:
         case BWD_WB:
             DNN_SAFE_STATUS(
-                    dnnl_dilated_deconvolution_backward_weights_primitive_desc_create(
+                    dnnl_deconvolution_backward_weights_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, &src_d,
                             &wei_d, prb->dir == BWD_W ? nullptr : &bia_d,
                             &dst_d, prb->strides().data(),
