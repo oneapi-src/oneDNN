@@ -117,8 +117,9 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
 
             ACL_CHECK_SUPPORT(!is_fwd(), "must be forward mode");
 
-            ACL_CHECK_SUPPORT(src_d.data_type() != data_type::f32,
-                    "data type must be f32");
+            ACL_CHECK_SUPPORT(!utils::one_of(src_d.data_type(), data_type::f32,
+                                      data_type::f16),
+                    "data type must be f32/f16");
 
             // Dimensions can be permuted but no blocking or padding
             ACL_CHECK_SUPPORT((!src_d.is_plain() || !stat_d.is_plain()),
@@ -133,9 +134,10 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
 
             // mean, var, scale and shift all have a single dimension with size
             // equal to the number of channels
-            abp.stats_info = arm_compute::TensorInfo(
-                    arm_compute::TensorShape(C()), 1,
-                    arm_compute::DataType::F32, arm_compute::DataLayout::NHWC);
+            auto acl_stats_dt = acl_utils::get_acl_data_t(stat_d.data_type());
+            abp.stats_info
+                    = arm_compute::TensorInfo(arm_compute::TensorShape(C()), 1,
+                            acl_stats_dt, arm_compute::DataLayout::NHWC);
 
             // We can simplify into two cases: channels are dense or not dense
             auto channel_stride = src_d.blocking_desc().strides[1];
@@ -176,10 +178,9 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
                 auto data_shape = use_acl_threads
                         ? arm_compute::TensorShape(C(), w, 1, 1)
                         : arm_compute::TensorShape(C(), 1, w, 1);
-
+                auto acl_data_dt = acl_utils::get_acl_data_t(src_d.data_type());
                 abp.data_info = arm_compute::TensorInfo(data_shape, 1,
-                        arm_compute::DataType::F32,
-                        arm_compute::DataLayout::NHWC);
+                        acl_data_dt, arm_compute::DataLayout::NHWC);
             } else {
                 // Implemented in ACL but not yet optimal
                 return status::unimplemented;

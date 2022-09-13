@@ -42,6 +42,7 @@ status_t acl_gemm_convolution_fwd_t<src_type, wei_type, dst_type,
 
 using namespace data_type;
 template struct acl_gemm_convolution_fwd_t<f32>;
+template struct acl_gemm_convolution_fwd_t<f16>;
 template struct acl_gemm_convolution_fwd_t<s8, s8, s8, s32>;
 
 } // namespace aarch64

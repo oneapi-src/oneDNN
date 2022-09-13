@@ -67,24 +67,24 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     // Transpose A (src) or B (wei)
     amp.is_transA = helper.transA() == 'T';
     amp.is_transB = helper.transB() == 'T';
+    auto acl_src_data_t = acl_utils::get_acl_data_t(src_md.data_type);
+    auto acl_wei_data_t = acl_utils::get_acl_data_t(wei_md.data_type);
+    auto acl_dst_data_t = acl_utils::get_acl_data_t(dst_md.data_type);
+
     if (amp.is_transA)
         amp.src_acc_info = arm_compute::TensorInfo(
                 arm_compute::TensorShape(M, K, 1, src_batch), 1,
-                arm_compute::DataType::F32);
+                acl_src_data_t);
     if (amp.is_transB)
         amp.wei_acc_info = arm_compute::TensorInfo(
-                arm_compute::TensorShape(K, N, wei_batch), 1,
-                arm_compute::DataType::F32);
+                arm_compute::TensorShape(K, N, wei_batch), 1, acl_wei_data_t);
 
     amp.src_info = arm_compute::TensorInfo(
-            arm_compute::TensorShape(K, M, 1, src_batch), 1,
-            arm_compute::DataType::F32);
-    amp.wei_info
-            = arm_compute::TensorInfo(arm_compute::TensorShape(N, K, wei_batch),
-                    1, arm_compute::DataType::F32);
+            arm_compute::TensorShape(K, M, 1, src_batch), 1, acl_src_data_t);
+    amp.wei_info = arm_compute::TensorInfo(
+            arm_compute::TensorShape(N, K, wei_batch), 1, acl_wei_data_t);
     amp.dst_info = arm_compute::TensorInfo(
-            arm_compute::TensorShape(N, M, 1, dst_batch), 1,
-            arm_compute::DataType::F32);
+            arm_compute::TensorShape(N, M, 1, dst_batch), 1, acl_dst_data_t);
 
     // Fast-math mode
     auto math_mode = get_fpmath_mode();
