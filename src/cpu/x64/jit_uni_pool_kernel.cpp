@@ -1317,9 +1317,6 @@ void jit_uni_pool_kernel<isa>::generate() {
         vmovups(vmm_idx(), ptr[tmp_gpr]);
     }
 
-    int r_pad
-            = nstl::max(0, calculate_end_padding(l_pad, ow, iw, stride_w, kw));
-
     auto process_oi = [&](int ur_w, int ur_bc, int lpad, int rpad,
                               bool with_c_tail_proccessing,
                               bool inc_reg = true) {
@@ -1393,59 +1390,51 @@ void jit_uni_pool_kernel<isa>::generate() {
             if (isa == avx || isa == avx2) { mov(reg_shuf_mask, 0x0c080400); }
         }
 
-        auto ur_w = nstl::min(jpp.ow, jpp.ur / jpp.ur_bc);
-        auto ur_w_tail = jpp.ow % ur_w;
-
-        const int n_oi_iterations = ow / ur_w;
-        int n_oi = n_oi_iterations;
-
-        const int r_pad1
-                = calculate_end_padding(l_pad, ur_w * n_oi, iw, stride_w, kw);
+        const int ur_w = nstl::min(jpp.ow, jpp.ur / jpp.ur_bc);
+        const int n_oi_iterations = utils::div_up(ow, ur_w);
         const int ur_stride_w = ur_w * stride_w;
-        const int l_pad_iterations = utils::div_up(l_pad, ur_stride_w);
-        const int r_pad_iterations = utils::div_up(r_pad1, ur_stride_w);
-
-        n_oi -= nstl::max(0, r_pad_iterations);
+        const int l_pad_iterations
+                = nstl::min(n_oi_iterations, utils::div_up(l_pad, ur_stride_w));
 
         for (int i = 0; i < l_pad_iterations; ++i) {
-            n_oi--;
+            const int ow_s = i * ur_w;
+            const int ow_e = nstl::min(ow, ow_s + ur_w);
             const int cur_l_pad = l_pad - i * ur_stride_w;
-            if (n_oi < 0 && r_pad1 > 0)
-                process_oi(
-                        ur_w, ur_bc, cur_l_pad, r_pad1, with_c_tail_processing);
-            else if (n_oi >= 0)
-                process_oi(ur_w, ur_bc, cur_l_pad, 0, with_c_tail_processing);
+            const int cur_r_pad = nstl::max(
+                    0, calculate_end_padding(l_pad, ow_e, iw, stride_w, kw));
+            const int cur_ur_w = ow_e - ow_s;
+            process_oi(cur_ur_w, ur_bc, cur_l_pad, cur_r_pad,
+                    with_c_tail_processing);
         }
 
-        xor_(oi_iter, oi_iter);
-        if (n_oi > 0) {
+        const int rem_n_oi_iters = n_oi_iterations - l_pad_iterations;
+        const int cur_iw = l_pad_iterations * ur_stride_w - l_pad;
+        const int cur_iw_rightmost_idx = cur_iw + kw - 1;
+        const int no_pad_full_n_oi_iters = utils::saturate<int>(
+                0, rem_n_oi_iters, (iw - cur_iw_rightmost_idx) / ur_stride_w);
+
+        if (no_pad_full_n_oi_iters > 0) {
             Label ow_loop;
+            if (no_pad_full_n_oi_iters > 1) xor_(oi_iter, oi_iter);
             L(ow_loop);
             {
                 process_oi(ur_w, ur_bc, 0, 0, with_c_tail_processing);
-
-                inc(oi_iter);
-                cmp(oi_iter, n_oi);
-                jl(ow_loop, T_NEAR);
+                if (no_pad_full_n_oi_iters > 1) {
+                    inc(oi_iter);
+                    cmp(oi_iter, no_pad_full_n_oi_iters);
+                    jl(ow_loop, T_NEAR);
+                }
             }
         }
 
-        if (n_oi >= 0) {
-            const int r_pad1_tail = r_pad1 % ur_stride_w != 0
-                    ? r_pad1 % ur_stride_w
-                    : ur_stride_w;
-            for (int i = 0; i < r_pad_iterations; ++i) {
-                const int cur_r_pad = r_pad1_tail + ur_stride_w * i;
-                process_oi(ur_w, ur_bc, 0, cur_r_pad, with_c_tail_processing);
-            }
-        }
-
-        if (ur_w_tail != 0) {
-            const int l_pad_tail = n_oi_iterations < l_pad_iterations
-                    ? l_pad % ur_stride_w
-                    : 0;
-            process_oi(ur_w_tail, ur_bc, l_pad_tail, r_pad,
-                    with_c_tail_processing, false);
+        for (int i = l_pad_iterations + no_pad_full_n_oi_iters;
+                i < n_oi_iterations; ++i) {
+            const int ow_s = i * ur_w;
+            const int ow_e = nstl::min(ow, ow_s + ur_w);
+            const int cur_r_pad = nstl::max(
+                    0, calculate_end_padding(l_pad, ow_e, iw, stride_w, kw));
+            const int cur_ur_w = ow_e - ow_s;
+            process_oi(cur_ur_w, ur_bc, 0, cur_r_pad, with_c_tail_processing);
         }
     };
     Label ur_bc_tail_label, c_tail_processing_label, finish_label;
