@@ -1609,7 +1609,6 @@ private:
             // TODO: for now, only b-blocking (per G) of the MAD loop is ready;
             //       please implement n-blocking (per OC) as well!
             ir_assert(a_view.tlayout().size() % a_stride == 0);
-            ir_assert(prb_.ic == 1);
             ir_assert(masks.is_simd());
 
             std::vector<stmt_t> loop(std::max(1, 32 / m_blk));
