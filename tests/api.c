@@ -104,6 +104,7 @@ void test2() {
     dnnl_dims_t c3_weights_sizes = {groups, 384 / groups, 256 / groups, 3, 3};
     dnnl_dims_t c3_bias_sizes = {384};
     dnnl_dims_t strides = {1, 1};
+    dnnl_dims_t dilation = {0, 0};
     dnnl_dims_t padding = {0, 0}; // set proper values
     dnnl_dims_t c3_dst_sizes = {mb, 384,
             (c3_src_sizes[2] + 2 * padding[0] - c3_weights_sizes[3])
@@ -178,10 +179,10 @@ void test2() {
     dnnl_primitive_desc_t c3_pd;
     dnnl_primitive_t c3;
 
-    CHECK(dnnl_convolution_forward_primitive_desc_create(&c3_pd, engine,
+    CHECK(dnnl_dilated_convolution_forward_primitive_desc_create(&c3_pd, engine,
             dnnl_forward_training, dnnl_convolution_direct, &c3_src_md,
-            &c3_weights_md, &c3_bias_md, &c3_dst_md, strides, padding, NULL,
-            NULL));
+            &c3_weights_md, &c3_bias_md, &c3_dst_md, strides, dilation, padding,
+            NULL, NULL));
 
     CHECK_TRUE(dnnl_memory_desc_equal(&c3_src_md,
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_src_md, 0)));

@@ -180,6 +180,7 @@ void simple_net() {
     dnnl_dims_t conv_bias_sizes = {OC};
     dnnl_dims_t conv_user_dst_sizes = {BATCH, OC, CONV_OH, CONV_OW};
     dnnl_dims_t conv_strides = {CONV_STRIDE, CONV_STRIDE};
+    dnnl_dims_t conv_dilation = {0, 0};
     dnnl_dims_t conv_padding = {CONV_PAD, CONV_PAD};
 
     float *conv_src = net_src;
@@ -217,10 +218,10 @@ void simple_net() {
         CHECK(dnnl_memory_desc_init_by_tag(&conv_dst_md, ndims,
                 conv_user_dst_sizes, dnnl_f32, dnnl_format_tag_any));
 
-        CHECK(dnnl_convolution_forward_primitive_desc_create(&conv_pd, engine,
-                dnnl_forward, dnnl_convolution_direct, &conv_src_md,
+        CHECK(dnnl_dilated_convolution_forward_primitive_desc_create(&conv_pd,
+                engine, dnnl_forward, dnnl_convolution_direct, &conv_src_md,
                 &conv_weights_md, &conv_bias_md, &conv_dst_md, conv_strides,
-                conv_padding, conv_padding, NULL));
+                conv_dilation, conv_padding, conv_padding, NULL));
     }
 
     dnnl_memory_t conv_internal_src_memory, conv_internal_weights_memory,
@@ -565,11 +566,11 @@ void simple_net() {
                 conv_user_dst_sizes, dnnl_f32, dnnl_format_tag_any));
 
         // create backward convolution descriptor
-        CHECK(dnnl_convolution_backward_weights_primitive_desc_create(
+        CHECK(dnnl_dilated_convolution_backward_weights_primitive_desc_create(
                 &conv_bwd_weights_pd, engine, dnnl_convolution_direct,
                 &conv_diff_src_md, &conv_diff_weights_md, &conv_diff_bias_md,
-                &conv_diff_dst_md, conv_strides, conv_padding, conv_padding,
-                conv_pd, NULL));
+                &conv_diff_dst_md, conv_strides, conv_dilation, conv_padding,
+                conv_padding, conv_pd, NULL));
     }
 
     // for best performance convolution backward might chose

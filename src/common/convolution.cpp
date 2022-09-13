@@ -131,24 +131,6 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
 } // namespace impl
 } // namespace dnnl
 
-status_t dnnl_convolution_forward_primitive_desc_create(
-        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
-        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
-        const primitive_attr_t *attr) {
-    if (!one_of(prop_kind, forward_training, forward_inference))
-        return invalid_arguments;
-
-    auto conv_desc = convolution_desc_t();
-    CHECK(dnnl::impl::conv_desc_init(&conv_desc, prop_kind, alg_kind, src_desc,
-            weights_desc, bias_desc, dst_desc, strides, nullptr, padding_l,
-            padding_r));
-    return primitive_desc_create(primitive_desc_iface, engine,
-            (const op_desc_t *)&conv_desc, nullptr, attr);
-}
-
 status_t dnnl_dilated_convolution_forward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
@@ -167,22 +149,6 @@ status_t dnnl_dilated_convolution_forward_primitive_desc_create(
             (const op_desc_t *)&conv_desc, nullptr, attr);
 }
 
-status_t dnnl_convolution_backward_data_primitive_desc_create(
-        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
-        const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc,
-        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
-        const primitive_desc_iface_t *hint_fwd_pd,
-        const primitive_attr_t *attr) {
-
-    auto conv_desc = convolution_desc_t();
-    CHECK(dnnl::impl::conv_desc_init(&conv_desc, backward_data, alg_kind,
-            diff_src_desc, weights_desc, nullptr, diff_dst_desc, strides,
-            nullptr, padding_l, padding_r));
-    return primitive_desc_create(primitive_desc_iface, engine,
-            (const op_desc_t *)&conv_desc, hint_fwd_pd, attr);
-}
-
 status_t dnnl_dilated_convolution_backward_data_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
@@ -195,23 +161,6 @@ status_t dnnl_dilated_convolution_backward_data_primitive_desc_create(
     CHECK(dnnl::impl::conv_desc_init(&conv_desc, backward_data, alg_kind,
             diff_src_desc, weights_desc, nullptr, diff_dst_desc, strides,
             dilates, padding_l, padding_r));
-    return primitive_desc_create(primitive_desc_iface, engine,
-            (const op_desc_t *)&conv_desc, hint_fwd_pd, attr);
-}
-
-status_t dnnl_convolution_backward_weights_primitive_desc_create(
-        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        alg_kind_t alg_kind, const memory_desc_t *src_desc,
-        const memory_desc_t *diff_weights_desc,
-        const memory_desc_t *diff_bias_desc, const memory_desc_t *diff_dst_desc,
-        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
-        const primitive_desc_iface_t *hint_fwd_pd,
-        const primitive_attr_t *attr) {
-
-    auto conv_desc = convolution_desc_t();
-    CHECK(dnnl::impl::conv_desc_init(&conv_desc, backward_weights, alg_kind,
-            src_desc, diff_weights_desc, diff_bias_desc, diff_dst_desc, strides,
-            nullptr, padding_l, padding_r));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&conv_desc, hint_fwd_pd, attr);
 }

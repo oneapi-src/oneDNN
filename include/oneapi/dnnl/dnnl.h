@@ -1414,49 +1414,6 @@ dnnl_status_t DNNL_API dnnl_binary_primitive_desc_create(
 /// @addtogroup dnnl_api_convolution
 /// @{
 
-/// Creates a primitive descriptor for a convolution forward propagation
-///     primitive.
-///
-/// @note
-///     Memory descriptors can be initialized with
-///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
-///
-/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
-/// spatial dimensions only and hence must have the same number of elements as
-/// there are spatial dimensions. The order of values is the same as in the
-/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
-///
-/// @param primitive_desc Output primitive_descriptor.
-/// @param engine Engine to use.
-/// @param prop_kind Propagation kind. Possible values are
-///     #dnnl_forward_training and #dnnl_forward_inference.
-/// @param alg_kind Convolution algorithm. Possible values are
-///     #dnnl_convolution_direct, #dnnl_convolution_winograd,
-///     #dnnl_convolution_auto.
-/// @param src_desc Source memory descriptor.
-/// @param weights_desc Weights memory descriptor.
-/// @param bias_desc Bias memory descriptor. Passing NULL, a zero memory
-///     descriptor, or a memory descriptor with format_kind set to
-///     #dnnl_format_kind_undef disables the bias term.
-/// @param dst_desc Destination memory descriptor.
-/// @param strides Array of strides for spatial dimension.
-/// @param padding_l Array of padding values for low indices for each spatial
-///     dimension `([[front,] top,] left)`.
-/// @param padding_r Array of padding values for high indices for each spatial
-///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
-///     padding is assumed to be symmetrical.
-/// @param attr Primitive attributes (can be NULL).
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_convolution_forward_primitive_desc_create(
-        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
-        const dnnl_dims_t strides, const dnnl_dims_t padding_l,
-        const dnnl_dims_t padding_r, const_dnnl_primitive_attr_t attr);
-
 /// Creates a primitive descriptor for a dilated convolution forward propagation
 ///     primitive.
 ///
@@ -1504,46 +1461,6 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_forward_primitive_desc_create(
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
         const_dnnl_primitive_attr_t attr);
 
-/// Creates a primitive descriptor for a convolution backward propagation
-///     primitive.
-///
-/// @note
-///     Memory descriptors can be initialized with
-///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
-///
-/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
-/// spatial dimensions only and hence must have the same number of elements as
-/// there are spatial dimensions. The order of values is the same as in the
-/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
-///
-/// @param primitive_desc Output primitive descriptor.
-/// @param engine Engine to use.
-/// @param alg_kind Convolution algorithm. Possible values are
-///     #dnnl_convolution_direct, #dnnl_convolution_winograd,
-///     #dnnl_convolution_auto.
-/// @param diff_src_desc Diff source memory descriptor.
-/// @param weights_desc Weights memory descriptor.
-/// @param diff_dst_desc Diff destination memory descriptor.
-/// @param strides Array of strides for spatial dimension.
-/// @param padding_l Array of padding values for low indices for each spatial
-///     dimension `([[front,] top,] left)`.
-/// @param padding_r Array of padding values for high indices for each spatial
-///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
-///     padding is assumed to be symmetrical.
-/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
-///     primitive.
-/// @param attr Primitive attributes (can be NULL).
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_convolution_backward_data_primitive_desc_create(
-        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
-        const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
-        const_dnnl_primitive_desc_t hint_fwd_pd,
-        const_dnnl_primitive_attr_t attr);
-
 /// Creates a primitive descriptor for a dilated convolution backward
 ///     propagation primitive.
 ///
@@ -1586,49 +1503,6 @@ dnnl_dilated_convolution_backward_data_primitive_desc_create(
         const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t dilates, const dnnl_dims_t padding_l,
         const dnnl_dims_t padding_r, const_dnnl_primitive_desc_t hint_fwd_pd,
-        const_dnnl_primitive_attr_t attr);
-
-/// Creates a primitive descriptor for a convolution weights gradient primitive.
-///
-/// @note
-///     Memory descriptors can be initialized with
-///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
-///
-/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
-/// spatial dimensions only and hence must have the same number of elements as
-/// there are spatial dimensions. The order of values is the same as in the
-/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
-///
-/// @param primitive_desc Output primitive descriptor.
-/// @param engine Engine to use.
-/// @param alg_kind Convolution algorithm. Possible values are
-///     #dnnl_convolution_direct, #dnnl_convolution_winograd,
-///     #dnnl_convolution_auto.
-/// @param src_desc Source memory descriptor.
-/// @param diff_weights_desc Diff weights memory descriptor.
-/// @param diff_bias_desc Diff bias memory descriptor. Passing NULL, a zero
-///     memory descriptor, or a memory descriptor with format_kind set to
-///     #dnnl_format_kind_undef disables the bias term.
-/// @param diff_dst_desc Diff destination memory descriptor.
-/// @param strides Array of strides for spatial dimension.
-/// @param padding_l Array of padding values for low indices for each spatial
-///     dimension `([[front,] top,] left)`.
-/// @param padding_r Array of padding values for high indices for each spatial
-///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
-///     padding is considered to be symmetrical.
-/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
-///     primitive.
-/// @param attr Primitive attributes (can be NULL).
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_convolution_backward_weights_primitive_desc_create(
-        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *diff_weights_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
-        const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
-        const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a dilated convolution weights gradient
@@ -1684,48 +1558,6 @@ dnnl_dilated_convolution_backward_weights_primitive_desc_create(
 /// @addtogroup dnnl_api_deconvolution
 /// @{
 
-/// Creates a primitive descriptor for a deconvolution forward propagation
-///     primitive.
-///
-/// @note
-///     Memory descriptors can be initialized with
-///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
-///
-/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
-/// spatial dimensions only and hence must have the same number of elements as
-/// there are spatial dimensions. The order of values is the same as in the
-/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
-///
-/// @param primitive_desc Output primitive descriptor.
-/// @param engine Engine to use.
-/// @param prop_kind Propagation kind. Possible values are
-///     #dnnl_forward_training and #dnnl_forward_inference.
-/// @param alg_kind Deconvolution algorithm. Possible values are
-///     #dnnl_deconvolution_direct, #dnnl_deconvolution_winograd.
-/// @param src_desc Source memory descriptor.
-/// @param weights_desc Weights memory descriptor.
-/// @param bias_desc Bias memory descriptor. Passing NULL, a zero memory
-///     descriptor, or a memory descriptor with format_kind set to
-///     #dnnl_format_kind_undef disables the bias term.
-/// @param dst_desc Destination memory descriptor.
-/// @param strides Array of strides for spatial dimension.
-/// @param padding_l Array of padding values for low indices for each spatial
-///     dimension `([[front,] top,] left)`.
-/// @param padding_r Array of padding values for high indices for each spatial
-///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
-///     padding is considered to be symmetrical.
-/// @param attr Primitive attributes (can be NULL).
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_deconvolution_forward_primitive_desc_create(
-        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
-        const dnnl_dims_t strides, const dnnl_dims_t padding_l,
-        const dnnl_dims_t padding_r, const_dnnl_primitive_attr_t attr);
-
 /// Creates a primitive descriptor for a dilated deconvolution forward
 ///     propagation primitive.
 ///
@@ -1772,45 +1604,6 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_forward_primitive_desc_create(
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
         const_dnnl_primitive_attr_t attr);
 
-/// Creates a primitive descriptor for a deconvolution backward propagation
-///     primitive.
-///
-/// @note
-///     Memory descriptors can be initialized with
-///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
-///
-/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
-/// spatial dimensions only and hence must have the same number of elements as
-/// there are spatial dimensions. The order of values is the same as in the
-/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
-///
-/// @param primitive_desc Output primitive descriptor.
-/// @param engine Engine to use.
-/// @param alg_kind Deconvolution algorithm. Possible values are
-///     #dnnl_deconvolution_direct, #dnnl_deconvolution_winograd.
-/// @param diff_src_desc Diff source memory descriptor.
-/// @param weights_desc Weights memory descriptor.
-/// @param diff_dst_desc Diff destination memory descriptor.
-/// @param strides Array of strides for spatial dimension.
-/// @param padding_l Array of padding values for low indices for each spatial
-///     dimension `([[front,] top,] left)`.
-/// @param padding_r Array of padding values for high indices for each spatial
-///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
-///     padding is considered to be symmetrical.
-/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
-///     primitive.
-/// @param attr Primitive attributes (can be NULL).
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_deconvolution_backward_data_primitive_desc_create(
-        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
-        const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
-        const_dnnl_primitive_desc_t hint_fwd_pd,
-        const_dnnl_primitive_attr_t attr);
-
 /// Creates a primitive descriptor for a dilated deconvolution backward
 ///     propagation primitive.
 ///
@@ -1852,50 +1645,6 @@ dnnl_dilated_deconvolution_backward_data_primitive_desc_create(
         const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t dilates, const dnnl_dims_t padding_l,
         const dnnl_dims_t padding_r, const_dnnl_primitive_desc_t hint_fwd_pd,
-        const_dnnl_primitive_attr_t attr);
-
-/// Creates a primitive descriptor for a deconvolution weights gradient
-///     primitive.
-///
-/// @note
-///     Memory descriptors can be initialized with
-///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
-///
-/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
-/// spatial dimensions only and hence must have the same number of elements as
-/// there are spatial dimensions. The order of values is the same as in the
-/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
-///
-/// @param primitive_desc Output primitive descriptor.
-/// @param engine Engine to use.
-/// @param alg_kind Deconvolution algorithm. Possible values are
-///     #dnnl_deconvolution_direct, #dnnl_deconvolution_winograd.
-/// @param src_desc Source memory descriptor.
-/// @param diff_weights_desc Diff weights memory descriptor.
-/// @param diff_bias_desc Diff bias memory descriptor. Passing NULL, a zero
-///     memory descriptor, or a memory descriptor with format_kind set to
-///     #dnnl_format_kind_undef disables the bias term.
-/// @param diff_dst_desc Diff destination memory descriptor.
-/// @param strides Array of strides for spatial dimension.
-/// @param padding_l Array of padding values for low indices for each spatial
-///     dimension `([[front,] top,] left)`.
-/// @param padding_r Array of padding values for high indices for each spatial
-///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
-///     padding is considered to be symmetrical.
-/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
-///     primitive.
-/// @param attr Primitive attributes (can be NULL).
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API
-dnnl_deconvolution_backward_weights_primitive_desc_create(
-        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *diff_weights_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
-        const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
-        const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a dilated deconvolution weights gradient
