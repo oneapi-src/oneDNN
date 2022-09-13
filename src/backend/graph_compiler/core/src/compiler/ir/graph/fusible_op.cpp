@@ -193,7 +193,7 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
     stmts ss = builder::make_stmts_unattached({}).checked_as<stmts>();
     // unwrapper tensor slice, for compute_block, it just accpet single
     // tensor_slice
-    bool use_cached_anchor = false;
+    bool use_iter_anchor = committed_anchor->isa<fuse_iter_anchor_map_t>();
     for (size_t i = 0; i < in_slice_size; i++) {
         stmt compute_core;
         std::vector<const tensor_slice *> new_inputs_ptr(inputs.size());
@@ -207,27 +207,18 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
         bld.push_scope();
         compute_block(parti->ctx_, new_outputs_ptr, new_inputs_ptr);
         compute_core = bld.pop_scope();
-        if (committed_anchor->anchor_position_->attr().has_key("iter_anchor")) {
-            auto iter = committed_anchor->anchor_position_->attr().get<expr>(
-                    "iter_anchor");
-            std::vector<stmts> cached_iter_anchor;
-            if (committed_anchor->anchor_position_->attr().has_key(
-                        "cached_iter_anchor")) {
-                cached_iter_anchor = committed_anchor->anchor_position_->attr()
-                                             .get<std::vector<stmts>>(
-                                                     "cached_iter_anchor");
-            }
+        if (use_iter_anchor) {
+            auto iter_anchor
+                    = committed_anchor->dyn_cast<fuse_iter_anchor_map_t>();
+            auto iter = iter_anchor->iter_;
+            std::vector<stmts> cached_iter_anchor
+                    = iter_anchor->cached_iter_anchor_;
             if (cached_iter_anchor.size() < in_slice_size) {
                 cached_iter_anchor.push_back(compute_core.checked_as<stmts>());
-                committed_anchor->anchor_position_->attr()["cached_iter_anchor"]
-                        = cached_iter_anchor;
-            } else {
-                ss = cached_iter_anchor.at(i);
-                use_cached_anchor = true;
-            }
-            if (!use_cached_anchor) {
                 compute_core = make_stmt<if_else_node_t>(
                         iter == i, compute_core, stmt());
+            } else {
+                ss = cached_iter_anchor.at(i);
             }
             ss->seq_.emplace_back(compute_core);
         } else {
@@ -238,7 +229,7 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
     }
 
     // commit into anchor
-    if (!use_cached_anchor) committed_anchor->commit_stmts(ss);
+    if (!use_iter_anchor) committed_anchor->commit_stmts(ss);
 }
 
 void fusible_op_t::query_format(context_ptr ctx,

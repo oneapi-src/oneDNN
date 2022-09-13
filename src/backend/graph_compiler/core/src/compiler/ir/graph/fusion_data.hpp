@@ -222,8 +222,8 @@ struct fuse_anchor_map_t {
     std::unordered_map<void *, size_t> content_number_map_;
 
     fuse_anchor_map_t() = default;
-    fuse_anchor_map_t(stmts pos, fslice_map fsmap,
-            std::shared_ptr<fuse_anchor_map_t> parent = nullptr)
+    fuse_anchor_map_t(stmts pos, const fslice_map &fsmap,
+            const std::shared_ptr<fuse_anchor_map_t> &parent = nullptr)
         : anchor_position_(std::move(pos))
         , fsmap_(std::move(fsmap))
         , parent_(parent) {
@@ -283,9 +283,38 @@ struct fuse_anchor_map_t {
                     cont_numb_pair.second + contents_size));
         }
     }
+
+    template <typename T>
+    bool isa() const {
+        static_assert(is_base_of_t<fuse_anchor_map_t, T>::value,
+                "T is not a subclass of fuse_anchor_map.");
+        return dynamic_cast<const T *>(this);
+    }
+
+    template <typename T>
+    T *dyn_cast() {
+        return dynamic_cast<T *>(this);
+    }
+
+    virtual ~fuse_anchor_map_t() = default;
 };
 
 using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
+
+/**
+ * iter_anchor represents irregular slice range which is binded with loop iter.
+ * @param iter_: loop var
+ * @param cached_iter_anchor_: real multi anchor used to commit code
+ * */
+struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
+    // iterated var
+    expr iter_;
+    std::vector<stmts> cached_iter_anchor_;
+
+    fuse_iter_anchor_map_t(expr iter_var, stmts pos, const fslice_map &fsmap,
+            const fuse_anchor_map_ptr &parent = nullptr)
+        : fuse_anchor_map_t(pos, fsmap, parent), iter_(std::move(iter_var)) {}
+};
 
 } // namespace sc
 

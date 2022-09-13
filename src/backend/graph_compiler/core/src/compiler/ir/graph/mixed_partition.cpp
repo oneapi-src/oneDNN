@@ -400,101 +400,60 @@ void mxp_buffer_allocator::tensor_initialize() {
     }
 }
 
-/**
- * for_loop(){
- *   // body
- *   ...
- *   // anchor
- *   {}
- * }
- * */
-static stmts get_anchor_inside_loop(
-        const mixed_parti_t *parti, const for_loop &loop) {
-    auto &body = loop->body_;
-    if (body.isa<stmts>()) {
-        auto ss = body.static_as<stmts>();
-        for (auto s : ss->seq_) {
-            // find iterared anchor
-            if (s.isa<if_else>()) {
-                auto if_node = s.static_as<if_else>();
-                if (!if_node->then_case_.defined()
-                        || if_node->else_case_.defined())
-                    continue;
-                auto then_stmts = if_node->then_case_.static_as<stmts>();
-                if (then_stmts->seq_.size() == 1)
-                    s = then_stmts->seq_[0];
-                else
-                    continue;
-            }
-            if (!s.isa<stmts>()) continue;
-            auto inner_ss = s.static_as<stmts>();
-            auto anchor_map = parti->lookup_anchor_map(inner_ss);
-            if (anchor_map) return inner_ss;
-        }
+fuse_anchor_map_ptr mxp_buffer_allocator::get_real_anchor_for_buffer(
+        const expr &buffer) const {
+    auto tsr = get_real_tensor(buffer);
+    COMPILE_ASSERT(tsr_anch_map_.find(tsr) != tsr_anch_map_.end(),
+            "Could ont find " << tsr << " in tsr2anchor map")
+    auto anch = tsr_anch_map_.find(tsr)->second;
+    auto parent_loop = get_parent_loop(anch->anchor_position_);
+    if (parent_loop->attr().has_key(stmt_attr_key::reduce_root_loop)) {
+        auto raw = parent_loop->attr()
+                           .get<std::weak_ptr<stmt_base_t>>(
+                                   stmt_attr_key::reduce_root_loop)
+                           .lock();
+        COMPILE_ASSERT(raw, "reduce_root_loop weak ptr invalidated");
+        parent_loop = stmt(raw).checked_as<for_loop>();
+        anch = binded_mxp_->get_anchor_inside_loop(parent_loop);
+        COMPILE_ASSERT(anch,
+                "No anchor found under reduce root loop, please create it "
+                "otherwise, it may cause correctness issue")
     }
-    return stmts();
+    return anch;
 }
 
-static for_loop get_next_inner_loop_with_anchor(const mixed_parti_t *parti,
-        const for_loop &cur_loop,
-        const fuse_anchor_map_ptr &target_fanchor = nullptr) {
-    if (cur_loop->body_.isa<for_loop>()) {
-        return cur_loop->body_.checked_as<for_loop>();
-    } else if (cur_loop->body_.isa<stmts>()) {
-        auto ss = cur_loop->body_.static_as<stmts>();
-        if (ss->seq_.size() == 1 && ss->seq_[0].isa<for_loop>()) {
-            return cur_loop->body_.checked_as<stmts>()
-                    ->seq_[0]
-                    .checked_as<for_loop>();
-        } else if (ss->seq_.size() == 2 && ss->seq_[0].isa<for_loop>()
-                && ss->seq_[1].isa<stmts>()) {
-            auto inner_ss = ss->seq_[1].static_as<stmts>();
-            if (inner_ss->seq_.empty()) {
-                auto anchor_map = parti->lookup_anchor_map(inner_ss);
-                if (anchor_map) {
-                    return (anchor_map == target_fanchor)
-                            ? for_loop()
-                            : cur_loop->body_.checked_as<stmts>()
-                                      ->seq_[0]
-                                      .checked_as<for_loop>();
-                }
-            }
-        }
+slice_range mxp_buffer_allocator::get_shrinked_info(const expr &buffer) const {
+    auto anchor = get_real_anchor_for_buffer(buffer);
+    COMPILE_ASSERT(b2g_map_.find(buffer) != b2g_map_.end(),
+            "Could not find " << buffer << " b2g map")
+    auto range_list = anchor->fsmap_.get(b2g_map_.find(buffer)->second);
+    if (range_list.size() != 1) {
+        if (range_list.empty() || !anchor->isa<fuse_iter_anchor_map_t>())
+            return {};
+        else
+            return *std::max_element(range_list.begin(), range_list.end(),
+                    [&](const slice_range &A, const slice_range &B) {
+                        return cmp_slice_range({A}, {B}) == cmp_res::l_less_r;
+                    });
+
+    } else {
+        return range_list[0];
     }
-    return for_loop();
 }
 
 void mxp_buffer_allocator::declare_and_shrink_tensor() {
-    // define real tensor in fdata, and put it at the beginning of ss
+    // define real tensor, and put it at the beginning of ss
     auto declare_tensor_ = [&](const expr &tsr,
                                    const fuse_anchor_map_ptr &fanchor) {
         // recurrsively find parent fanchor
         auto parent_loop = get_parent_loop(fanchor->anchor_position_);
-        if (parent_loop->attr().has_key(stmt_attr_key::reduce_root_loop)) {
-            auto raw = parent_loop->attr()
-                               .get<std::weak_ptr<stmt_base_t>>(
-                                       stmt_attr_key::reduce_root_loop)
-                               .lock();
-            COMPILE_ASSERT(raw, "reduce_root_loop weak ptr invalidated");
-            parent_loop = stmt(raw).checked_as<for_loop>();
-        }
         auto &ss = parent_loop->body_.checked_as<stmts>()->seq_;
         ss.emplace(ss.begin(), builder::make_var_tensor_def_unattached(tsr));
     };
-
-    auto set_shrink_info_ = [](const expr &buffer,
-                                    const slice_range_list &range_list,
-                                    bool iter_anchor) {
-        if (range_list.empty()) return;
-        auto shrink_range = range_list[0];
-        if (range_list.size() != 1) {
-            if (!iter_anchor) return;
-            shrink_range = *std::max_element(range_list.begin(),
-                    range_list.end(),
-                    [&](const slice_range &A, const slice_range &B) {
-                        return cmp_slice_range({A}, {B}) == cmp_res::l_less_r;
-                    });
-        }
+    // set shrink info
+    auto set_shrink_info_ = [&](const expr &buffer) {
+        auto shrink_range = get_shrinked_info(buffer);
+        if (shrink_range.empty()) return;
         buffer->attr()[tensor_shrinker_attrs::should_shrink]
                 = tensor_shrinker_t::shrink_info_t {
                         /*base*/ get_slice_idx(shrink_range),
@@ -503,28 +462,12 @@ void mxp_buffer_allocator::declare_and_shrink_tensor() {
 
     for (auto &tsr2def : tsr_anch_map_) {
         if (tsr2def.first->attr().has_key(mixed_attr_key_cut_buffer)) continue;
-        declare_tensor_(tsr2def.first, tsr2def.second);
+        declare_tensor_(
+                tsr2def.first, get_real_anchor_for_buffer(tsr2def.first));
     }
     for (auto &buf2shr : b2g_map_) {
-        auto buf = buf2shr.first;
-        if (buf->attr().has_key(mixed_attr_key_cut_buffer)) continue;
-        auto anch = tsr_anch_map_[get_real_tensor(buf)];
-        auto parent_loop = get_parent_loop(anch->anchor_position_);
-        if (parent_loop->attr().has_key(stmt_attr_key::reduce_root_loop)) {
-            auto raw = parent_loop->attr()
-                               .get<std::weak_ptr<stmt_base_t>>(
-                                       stmt_attr_key::reduce_root_loop)
-                               .lock();
-            COMPILE_ASSERT(raw, "reduce_root_loop weak ptr invalidated");
-            parent_loop = stmt(raw).checked_as<for_loop>();
-            anch = binded_mxp_->lookup_anchor_map(
-                    get_anchor_inside_loop(binded_mxp_, parent_loop));
-            COMPILE_ASSERT(anch,
-                    "No anchor found under reduce root loop, please create it "
-                    "otherwise, it may cause correctness issue")
-        }
-        set_shrink_info_(buf, anch->fsmap_.get(buf2shr.second),
-                anch->anchor_position_->attr().has_key("iter_anchor"));
+        if (buf2shr.first->attr().has_key(mixed_attr_key_cut_buffer)) continue;
+        set_shrink_info_(buf2shr.first);
     }
 }
 
@@ -589,10 +532,9 @@ void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
             for (size_t i = 0; i < ir_tsrs.size(); i++) {
                 if (iter_anchor.tsr_.ptr_same(ir_tsrs[i])) {
                     fsmap.get(gtsrs[i]) = iter_anchor.slice_list_;
-                    iter_anchor.anchor_position_->attr()["iter_anchor"]
-                            = iter_anchor.iter_;
                     parti->fanchors_.emplace_back(
-                            std::make_shared<fuse_anchor_map_t>(
+                            std::make_shared<fuse_iter_anchor_map_t>(
+                                    iter_anchor.iter_,
                                     iter_anchor.anchor_position_, fsmap));
                 }
             }
@@ -952,10 +894,8 @@ static bool try_merge_mixed_parti_parallel(
     std::unordered_map<expr, expr> expr_map;
     expr_map[outermost_loop_A->var_] = outermost_loop_B->var_;
 
-    auto common_fanchor
-            = A->lookup_anchor_map(get_anchor_inside_loop(A, outermost_loop_A));
-    auto common_other_fanchor
-            = B->lookup_anchor_map(get_anchor_inside_loop(B, outermost_loop_B));
+    auto common_fanchor = A->get_anchor_inside_loop(outermost_loop_A);
+    auto common_other_fanchor = B->get_anchor_inside_loop(outermost_loop_B);
     // create common anchor if necessary
     if (!common_fanchor) {
         auto s = builder::make_stmts_unattached({}).checked_as<stmts>();
@@ -1432,21 +1372,18 @@ static bool try_merge_mixed_parti_vertically(
     /* * * * * * * * * * * * * * * * *
      * Step 1: Merge func_
      * * * * * * * * * * * * * * * * */
-    auto max_to_merge_anchor = get_anchor_inside_loop(
-            pa_to_merge, outer_loops_to_merge[merged_loop_size - 1]);
-    auto max_be_merged_anchor = get_anchor_inside_loop(
-            parti_be_merged, outer_loops_be_merged[merged_loop_size - 1]);
-    auto max_to_merge_anchor_map
-            = pa_to_merge->lookup_anchor_map(max_to_merge_anchor);
-    auto max_be_merged_anchor_map
-            = parti_be_merged->lookup_anchor_map(max_be_merged_anchor);
+    auto max_to_merge_anchor_map = pa_to_merge->get_anchor_inside_loop(
+            outer_loops_to_merge[merged_loop_size - 1]);
+    auto max_be_merged_anchor_map = parti_be_merged->get_anchor_inside_loop(
+            outer_loops_be_merged[merged_loop_size - 1]);
     auto max_be_merged_ss = outer_loops_be_merged[merged_loop_size - 1]->body_;
     auto max_to_merge_ss = outer_loops_to_merge[merged_loop_size - 1]->body_;
     // insert be_merged_ss to the back of to_merged_ss
     if (max_to_merge_anchor_map) {
         max_to_merge_anchor_map->commit_stmt(max_be_merged_ss);
         // redirect parent node
-        set_parent_node(max_be_merged_ss, max_to_merge_anchor);
+        set_parent_node(
+                max_be_merged_ss, max_to_merge_anchor_map->anchor_position_);
     } else {
         return false;
     }
@@ -1485,22 +1422,15 @@ static bool try_merge_mixed_parti_vertically(
     for (size_t i = 0; i < merged_loop_size; i++) {
         expr_map[outer_loops_be_merged[i]->var_]
                 = outer_loops_to_merge[i]->var_;
-        auto be_merged_anchor = get_anchor_inside_loop(
-                     parti_be_merged, outer_loops_be_merged[i]),
-             to_merge_anchor
-                = get_anchor_inside_loop(pa_to_merge, outer_loops_to_merge[i]);
-        fuse_anchor_map_ptr be_merged_anchor_map, to_merge_anchor_map;
-        if (be_merged_anchor.defined()) {
-            be_merged_anchor_map
-                    = parti_be_merged->lookup_anchor_map(be_merged_anchor);
+        auto be_merged_anchor_map = parti_be_merged->get_anchor_inside_loop(
+                     outer_loops_be_merged[i]),
+             to_merge_anchor_map
+                = pa_to_merge->get_anchor_inside_loop(outer_loops_to_merge[i]);
+        if (be_merged_anchor_map) {
             be_merged_anchor_masks.insert(be_merged_anchor_map);
-        }
-        if (to_merge_anchor.defined()) {
-            to_merge_anchor_map
-                    = pa_to_merge->lookup_anchor_map(to_merge_anchor);
-        }
-        if (be_merged_anchor_map && to_merge_anchor_map) {
-            to_merge_anchor_map->merge(be_merged_anchor_map);
+            if (to_merge_anchor_map) {
+                to_merge_anchor_map->merge(be_merged_anchor_map);
+            }
         }
     }
 
@@ -1622,7 +1552,7 @@ bool mixed_parti_t::is_ok_to_add(sc_op *op, const op_dep_matrix_t &g) {
     if (!ready_for_op(op)) {
         SC_MODULE_INFO << op->op_name_ << "_" << op->logical_op_id_
                        << " fail to add partition: " << func_->name_
-                       << ", due to not suitable anchor found";
+                       << ", due to no suitable anchor found";
         return false;
     }
     return true;
@@ -1759,12 +1689,75 @@ std::vector<for_loop> mixed_parti_t::get_outer_loops(
             auto loop = st.static_as<for_loop>();
             while (loop.defined()) {
                 outer_loops.emplace_back(loop);
-                loop = get_next_inner_loop_with_anchor(
-                        this, loop, target_fanchor);
+                loop = get_next_inner_loop_with_anchor(loop, target_fanchor);
             }
         }
     }
     return outer_loops;
+}
+
+/**
+ * for_loop(){
+ *   // body
+ *   ...
+ *   // anchor
+ *   {}
+ * }
+ * */
+fuse_anchor_map_ptr mixed_parti_t::get_anchor_inside_loop(
+        const for_loop &loop) const {
+    auto &body = loop->body_;
+    if (body.isa<stmts>()) {
+        auto ss = body.static_as<stmts>();
+        for (auto s : ss->seq_) {
+            // find iterared anchor
+            if (s.isa<if_else>()) {
+                auto if_node = s.static_as<if_else>();
+                if (!if_node->then_case_.defined()
+                        || if_node->else_case_.defined())
+                    continue;
+                auto then_stmts = if_node->then_case_.static_as<stmts>();
+                if (then_stmts->seq_.size() == 1)
+                    s = then_stmts->seq_[0];
+                else
+                    continue;
+            }
+            if (!s.isa<stmts>()) continue;
+            auto inner_ss = s.static_as<stmts>();
+            auto anchor_map = lookup_anchor_map(inner_ss);
+            if (anchor_map) return anchor_map;
+        }
+    }
+    return nullptr;
+}
+
+for_loop mixed_parti_t::get_next_inner_loop_with_anchor(
+        const for_loop &cur_loop,
+        const fuse_anchor_map_ptr &target_fanchor) const {
+    if (cur_loop->body_.isa<for_loop>()) {
+        return cur_loop->body_.checked_as<for_loop>();
+    } else if (cur_loop->body_.isa<stmts>()) {
+        auto ss = cur_loop->body_.static_as<stmts>();
+        if (ss->seq_.size() == 1 && ss->seq_[0].isa<for_loop>()) {
+            return cur_loop->body_.checked_as<stmts>()
+                    ->seq_[0]
+                    .checked_as<for_loop>();
+        } else if (ss->seq_.size() == 2 && ss->seq_[0].isa<for_loop>()
+                && ss->seq_[1].isa<stmts>()) {
+            auto inner_ss = ss->seq_[1].static_as<stmts>();
+            if (inner_ss->seq_.empty()) {
+                auto anchor_map = lookup_anchor_map(inner_ss);
+                if (anchor_map) {
+                    return (anchor_map == target_fanchor)
+                            ? for_loop()
+                            : cur_loop->body_.checked_as<stmts>()
+                                      ->seq_[0]
+                                      .checked_as<for_loop>();
+                }
+            }
+        }
+    }
+    return for_loop();
 }
 
 void mixed_parti_t::try_split_outermost_loop(int64_t block) {
@@ -2001,8 +1994,36 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
     return true;
 }
 
-bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
-        mxp_buffer_allocator &buf_alloc,
+static bool validate_optimized_reduce(
+        const std::shared_ptr<mixed_parti_t> &parti) {
+    for (auto &op : parti->ops) {
+        if (auto coll = op->dyn_cast<reduce_collect_op_t>()) {
+            if (coll->op_ == reduce_collect_op_t::kind::COPY) {
+                auto gt = coll->get_inputs()[0];
+                COMPILE_ASSERT(gt->producer_owner_->isa<reduce_compute_op_t>(),
+                        "reduce_collect_op is only expected follow "
+                        "reduce_compute_op");
+                COMPILE_ASSERT(parti->buf_alloc_.g2b_map_.haskey(gt),
+                        "Could not found allocated buffer for "
+                                << coll->op_name_)
+                auto buf = parti->buf_alloc_.g2b_map_.get(gt);
+                auto shrinked_info = parti->buf_alloc_.get_shrinked_info(buf);
+                if (shrinked_info.empty()) continue;
+                auto shape = get_slice_shape(shrinked_info);
+                auto prod = get_dims_product(get_expr_to_dims(shape));
+                auto tsr_simd_len = vectorize_step(parti->ctx_,
+                        get_real_tensor(buf)->elem_dtype_.type_code_);
+                constexpr int max_register_tol = 16;
+                if (prod % tsr_simd_len != 0
+                        || (prod / tsr_simd_len) >= max_register_tol)
+                    return false;
+            }
+        }
+    }
+    return true;
+}
+
+static bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
         std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> &graph2orig) {
     bool reduce_contained = false;
     std::unordered_set<sc_op_ptr> tunable_op_set;
@@ -2016,7 +2037,9 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
 
     if (!reduce_contained) return false;
 
-    auto split_rd_op = [](const context_ptr &ctx, sc_graph_t &g, sc_op *op,
+    bool redo = false;
+
+    auto split_rd_op = [&redo](const context_ptr &ctx, sc_graph_t &g, sc_op *op,
                                std::unordered_map<graph_tensor_ptr,
                                        graph_tensor_ptr> &graph2orig) {
         COMPILE_ASSERT(op->isa<op_traits::maybe_split_optimized_t>(),
@@ -2039,6 +2062,7 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
             graph2orig.erase(iter);
             graph2orig.insert(std::make_pair(new_out, orig_v));
         }
+        redo = true;
     };
 
     if (!tunable_op_set.empty()) {
@@ -2063,42 +2087,35 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
                 });
         if (!splited_reduce_set.empty()) {
             std::for_each(splited_reduce_set.begin(), splited_reduce_set.end(),
-                    [&g, &buf_alloc, &ctx, &graph2orig, &split_rd_op](
+                    [&g, &ctx, &graph2orig, &split_rd_op](
                             op_traits::maybe_split_optimized_t *red_op) {
                         auto op = dynamic_cast<sc_op *>(red_op);
                         // pre-check
-                        if (op->isa<reduce_compute_op_t>()) {
-                            auto gt = op->get_outputs()[0];
-                            COMPILE_ASSERT(
-                                    graph2orig.find(gt) != graph2orig.end(),
-                                    "could not find original graph tensor")
-                            auto orig_gt = graph2orig[gt];
-                            auto buf = buf_alloc.g2b_map_.get(orig_gt);
-                            COMPILE_ASSERT(buf_alloc.tsr_anch_map_.find(buf)
-                                            != buf_alloc.tsr_anch_map_.end(),
-                                    "Could not find "
-                                            << buf
-                                            << " in tensor-to-anchor map")
-                            auto anchor = buf_alloc.tsr_anch_map_[buf];
-                            auto slice_range_list = anchor->fsmap_.get(
-                                    buf_alloc.b2g_map_[buf]);
-                            if (slice_range_list.size() != 1) return;
-                            auto shape = get_slice_shape(slice_range_list[0]);
-                            auto prod
-                                    = get_dims_product(get_expr_to_dims(shape));
-                            auto tsr_simd_len = vectorize_step(ctx,
-                                    get_real_tensor(buf)
-                                            ->elem_dtype_.type_code_);
-                            constexpr int max_register_tol = 16;
-                            if (prod % tsr_simd_len != 0
-                                    || (prod / tsr_simd_len) > max_register_tol)
-                                return;
-                        };
+                        if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
+                            auto rd_axis = rd_op->get_rd_axis();
+                            rd_axis.erase(rd_axis.begin());
+                            if (!rd_axis.empty()) {
+                                sc_dim prod = 1;
+                                for (auto &ax : rd_axis) {
+                                    prod *= rd_op->get_inputs()[0]
+                                                    ->details_
+                                                    .get_blocking_dims()[ax];
+                                }
+                                auto tsr_simd_len = vectorize_step(ctx,
+                                        rd_op->get_inputs()[0]
+                                                ->details_.dtype_.type_code_);
+                                constexpr int max_register_tol = 16;
+                                if (prod % tsr_simd_len != 0
+                                        || (prod / tsr_simd_len)
+                                                >= max_register_tol)
+                                    return;
+                            }
+                        }
                         if (red_op->can_split_op()) {
                             split_rd_op(ctx, g, op, graph2orig);
                         }
                     });
-            return true;
+            return redo;
         } else {
             return false;
         }
@@ -2113,6 +2130,7 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
         }
     }
 
+    // try to give sub graph hint for outer loop generator if necessary
     if (std::all_of(g.ops_.begin(), g.ops_.end(), [](const sc_op_ptr &op) {
             return op->isa<input_op>() || op->isa<output_op>()
                     || op->isa<constant_op_t>()
@@ -2130,7 +2148,7 @@ bool try_optimize_reduce(const context_ptr &ctx, sc_graph_t &g,
         return true;
     }
 
-    return false;
+    return redo;
 }
 
 /**
@@ -2233,14 +2251,15 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     // prepare for redo fall-back case
     auto copied_grpah = copy_graph(sub_graph);
 
-    redo_flag = (redo_flag
-            || try_optimize_reduce(
-                    ctx, sub_graph, parti.buf_alloc_, graph_2_orig));
+    // currently, only redo one time
+    redo_flag = (!g.attrs_.get_or_else(
+                        "temp.mixed_partition_hint.retried_graph", false))
+            && (redo_flag || try_optimize_reduce(ctx, sub_graph, graph_2_orig));
 
-    if (!g.attrs_.get_or_else("temp.mixed_partition_hint.retried_graph", false)
-            && redo_flag) {
+    if (redo_flag) {
         sub_graph.attrs_["temp.mixed_partition_hint.retried_graph"] = true;
-        SC_MODULE_INFO << "Redo mixed partition for current pattern...";
+        SC_MODULE_INFO << "Redo mixed partition for current pattern: "
+                       << partition->func_->name_;
         // redo mixed partition with setting hint
         do_mixed_partition(ctx, sub_graph);
         for (auto &op : sub_graph.ops_) {
@@ -2304,6 +2323,15 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                 }
             }
         }
+        if (fused_op) {
+            // redo validation stage
+            if (!validate_optimized_reduce(fused_op->parti_)) {
+                // reset
+                fused_op = nullptr;
+                SC_MODULE_WARN << "invalid optmized reduce detected, fall-back "
+                                  "to original pattern";
+            }
+        }
     }
     if (!fused_op) {
         // mark read/write buffer
@@ -2334,19 +2362,6 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         parti.func_->decl_->params_ = args;
         parti.func_->decl_->name_ = parti.func_->name_;
 
-        // push return to the end of body
-        auto ret = builder::make_returns_unattached(true);
-        parti.func_->body_.checked_as<stmts>()->seq_.emplace_back(ret);
-
-        // buffer schedule: declare, set shrink info and tensor initilize.
-        parti.buffer_schedule();
-
-        // remove all parallel flag
-        remove_parallel(parti.func_, false);
-
-        // clear unused fanchor
-        partition->clear_fanchors();
-
         fused_op = std::make_shared<mixed_fuse_op_t>(parti.func_->name_,
                 partition, copied_grpah,
                 /*ins*/ fused_op_in,
@@ -2356,6 +2371,22 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
 
     if (!g.attrs_.get_or_else(
                 "temp.mixed_partition_hint.retried_graph", false)) {
+        /** Freeze IR **/
+
+        // buffer schedule: declare, set shrink info and tensor initilize.
+        fused_op->parti_->buffer_schedule();
+
+        // clear unused fanchor, inavoid of loop fuse break
+        fused_op->parti_->clear_fanchors();
+
+        // push return to the end of body
+        auto ret = builder::make_returns_unattached(true);
+        fused_op->parti_->func_->body_.checked_as<stmts>()->seq_.emplace_back(
+                ret);
+
+        // remove all parallel flag
+        remove_parallel(fused_op->parti_->func_, false);
+
         SC_MODULE_INFO << "mixed partition result:";
         SC_MODULE_INFO << fused_op->parti_->func_;
     }
@@ -2486,7 +2517,6 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
 void mixed_partition(sc_graph_t &graph, const context_ptr &ctx) {
     if (!graph.attrs_.get_or_else("temp.fuse", 1)) { return; }
     SC_MODULE_INFO << "Starting Mixed Partition...";
-    // print_graph(graph, std::cout, 1);
     do_mixed_partition(ctx, graph);
 }
 

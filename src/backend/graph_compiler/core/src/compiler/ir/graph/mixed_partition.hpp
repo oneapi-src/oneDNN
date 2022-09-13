@@ -108,6 +108,10 @@ struct mxp_buffer_allocator {
     void replace_buffer(graph_tensor *gt, expr &old_input, expr &new_input);
     // calculate total allocated buffer size
     size_t get_total_allocated_buffer_size() const;
+    // get real anchor for the specfic buffer
+    fuse_anchor_map_ptr get_real_anchor_for_buffer(const expr &buffer) const;
+    // get shrinked info for buffer
+    slice_range get_shrinked_info(const expr &buffer) const;
 };
 
 struct mixed_parti_t : fusion_partition_t {
@@ -193,7 +197,15 @@ struct mixed_parti_t : fusion_partition_t {
     std::vector<fuse_anchor_map_ptr> lookup_sub_anchor_map(
             const fuse_anchor_map_ptr &parent_fanchor) const;
 
-    // clear all contents of given fanchor, but not erase it from fanchor list
+    // get anchor inside given loop
+    fuse_anchor_map_ptr get_anchor_inside_loop(const for_loop &loop) const;
+
+    /// get next inner loop including anchor
+    for_loop get_next_inner_loop_with_anchor(const for_loop &cur_loop,
+            const fuse_anchor_map_ptr &target_fanchor = nullptr) const;
+
+    // clear all contents of given fanchor, but not erase it from
+    // fanchor list
     void clear_fanchor(fuse_anchor_map_ptr &fanchor);
 
     // clear all unused fanchor, and erase them from fanchor list
