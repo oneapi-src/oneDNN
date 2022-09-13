@@ -94,6 +94,7 @@ TEST(Partition, Clone) {
     // clone the partition
     auto p_copy = std::dynamic_pointer_cast<
             dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t>(p.clone());
+    ASSERT_NE(p_copy, nullptr);
     ASSERT_FALSE(p_copy->is_initialized());
     ASSERT_TRUE(p_copy->get_assigned_backend()->get_name() == "dnnl_backend");
     ASSERT_EQ(p_copy->get_ops()[0]->get_kind(), op_kind::Convolution);
