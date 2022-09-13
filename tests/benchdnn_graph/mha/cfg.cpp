@@ -272,6 +272,7 @@ void mha_graph_prb_t::build_tensor_desc_bwd(const mha_graph_spec_t &spec) {
     dims_t k2_transpose_shape = {bs, spec.head, query_sz, seq_len};
     dims_t qk_matmul_shape = {bs, spec.head, seq_len, seq_len};
     dims_t attention_mask_shape = {bs, 1, 1, seq_len};
+    dims_t grad_wei_shape = {bs, spec.head, seq_len, query_sz};
     _tensor_desc_info tensor_desc_cfg;
 
     for (int i = 0; i < TENSOR_DESC_BWD_TYPES_TOTAL; i++) {
@@ -313,9 +314,9 @@ void mha_graph_prb_t::build_tensor_desc_bwd(const mha_graph_spec_t &spec) {
     tensor_desc_cfg[GRADDIVDATA]
             = {true, STRINGIFY(GRADDIVDATA), spec.mha_dt, qk_matmul_shape};
     tensor_desc_cfg[GRADKWEI]
-            = {true, STRINGIFY(GRADKWEI), spec.mha_dt, qkv_shape};
+            = {true, STRINGIFY(GRADKWEI), spec.mha_dt, grad_wei_shape};
     tensor_desc_cfg[GRADQWEI]
-            = {true, STRINGIFY(GRADQWEI), spec.mha_dt, qkv_shape};
+            = {true, STRINGIFY(GRADQWEI), spec.mha_dt, grad_wei_shape};
 
     for (int i = 0; i < TENSOR_DESC_BWD_TYPES_TOTAL; i++) {
         if (tensor_desc_cfg[i].isavailable) {
