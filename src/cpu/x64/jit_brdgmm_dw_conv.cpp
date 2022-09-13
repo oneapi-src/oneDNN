@@ -70,6 +70,25 @@ bool post_ops_ok(jit_brdgmm_conv_conf_t &jcp, const primitive_attr_t &attr,
                     broadcasting_strategy_t::no_broadcast}));
 }
 
+cpu_isa_t get_supported_isa(
+        bool is_f32, bool is_int8, bool is_bf16, bool is_f16) {
+    std::vector<cpu_isa_t> isa_list;
+    if (is_f32) {
+        isa_list = {avx512_core, avx2};
+    } else if (is_int8) {
+        isa_list = {avx512_core_vnni};
+    } else if (is_bf16) {
+        isa_list = {avx512_core_bf16};
+    } else if (is_f16) {
+        isa_list = {avx512_core_fp16};
+    }
+
+    for (auto isa : isa_list) {
+        if (mayiuse(isa)) return isa;
+    }
+    return isa_undef;
+}
+
 status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     using skip_mask_t = primitive_attr_t::skip_mask_t;
@@ -88,15 +107,14 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             && one_of(dst_type, bf16, f32);
     const bool is_f16 = everyone_is(f16, src_type, wei_type)
             && one_of(dst_type, f16, f32);
-    const cpu_isa_t isa
-            = utils::map(true, avx512_core, is_int8, avx512_core_vnni, is_bf16,
-                    avx512_core_bf16, is_f16, avx512_core_fp16);
+    const cpu_isa_t isa = get_supported_isa(is_f32, is_int8, is_bf16, is_f16);
 
     auto skip_mask = skip_mask_t::post_ops;
     if (is_int8) skip_mask |= skip_mask_t::oscale_runtime;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
-            && one_of(true, is_f32, is_int8, is_bf16, is_f16) && mayiuse(isa)
+            && one_of(true, is_f32, is_int8, is_bf16, is_f16)
+            && (isa != isa_undef) && mayiuse(isa)
             && IMPLICATION(is_int8,
                     one_of(bia_type, data_type::undef, f32, s32, s8, u8))
             && IMPLICATION(!is_int8,
@@ -146,14 +164,11 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     if (!(everyone_is(1, jcp.ic, jcp.oc))) return status::unimplemented;
 
-    const int simd_w = 16;
     const auto def_data_tag = format_tag::nhwc;
-    const auto def_wei_tag = format_tag::hwioG16g;
     const bool any_eligible = (cd.prop_kind == prop_kind::forward_inference
             || is_int8 || is_f16);
     CHECK(init_tag(src_md_, src_d, def_data_tag, any_eligible));
     CHECK(init_tag(dst_md_, dst_d, def_data_tag, any_eligible));
-    CHECK(init_tag(weights_md_, weights_d, def_wei_tag, true));
 
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
@@ -175,11 +190,10 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const auto &oscales = attr()->output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
 
-    jcp.ch_block = simd_w;
-    jcp.nb_ch = div_up(jcp.ngroups, jcp.ch_block);
-
     // strd is only feasible for 1D (i.e., height dim is one)
-    if (jcp.kh == 1) {
+    // and if there are no tails (for calculating matrix_B strides).
+    // Since, we cannot always predict the blocking is 8 or 16.
+    if (jcp.kh == 1 && jcp.ngroups % 16 == 0) {
         jcp.batch_kind = brgemm_strd;
     } else if ((jcp.mb * jcp.oh) % jcp.nthr != 0) {
         jcp.batch_kind = brgemm_offs;
@@ -215,8 +229,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
         // only needed for strd batch_kind
         const brgemm_strides_t strides
                 = {static_cast<dim_t>(jcp.src_dsz) * jcp.ngroups,
-                        static_cast<dim_t>(jcp.wei_dsz)
-                                * rnd_up(jcp.ngroups, jcp.ch_block)};
+                        static_cast<dim_t>(jcp.wei_dsz) * jcp.ngroups};
 
         auto &bcp = bcps_[idx];
         CHECK(brdgmm_desc_init(&bcp, jcp.isa, jcp.batch_kind, jcp.src_dt,
@@ -236,6 +249,15 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
     int ker_idx = 0;
     CHECK(init_bcp(ker_idx, jcp.ow, jcp.ngroups)); // default full row kernel.
 
+    const auto &bcp_0 = bcps_[0];
+    jcp.ch_block = bcp_0.ld_block;
+    jcp.nb_ch = div_up(jcp.ngroups, jcp.ch_block);
+
+    const auto wei_tag
+            = jcp.ch_block == 16 ? format_tag::hwioG16g : format_tag::hwioG8g;
+    const memory_desc_wrapper weights_d(&weights_md_);
+    CHECK(init_tag(weights_md_, weights_d, wei_tag, true));
+
     if ((jcp.mb * jcp.oh) % jcp.nthr != 0) {
         // determine ow_block
         {
@@ -250,7 +272,10 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
                     jcp.ow_block = jcp.ow;
                 }
             } else {
-                jcp.ow_block = nstl::min(6, jcp.ow);
+                const int max_ow_block = is_superset(jcp.isa, avx512_core)
+                        ? 6
+                        : bcp_0.bd_block2 /*TODO: Tune for avx2*/;
+                jcp.ow_block = nstl::min(max_ow_block, jcp.ow);
             }
             jcp.ow_tail = jcp.ow % jcp.ow_block;
         }
@@ -267,7 +292,11 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
                 else
                     jcp.nb_ch_blocking = jcp.ngroups;
             } else {
-                jcp.nb_ch_blocking = nstl::min(4 * jcp.ch_block, jcp.ngroups);
+                const int max_ch_block2 = is_superset(jcp.isa, avx512_core)
+                        ? 4
+                        : bcp_0.ld_block2 /*TODO: Tune for avx2*/;
+                jcp.nb_ch_blocking
+                        = nstl::min(max_ch_block2 * jcp.ch_block, jcp.ngroups);
             }
             jcp.chb_tail = jcp.ngroups % jcp.nb_ch_blocking;
         }

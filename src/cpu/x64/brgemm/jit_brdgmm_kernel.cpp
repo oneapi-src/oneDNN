@@ -185,7 +185,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::cvt2ps(data_type_t type_in,
     const int tail_size = n_block1_tail();
     const bool is_load_tail = op.isMEM() && mask_flag && tail_size > 0
             && (tail_size
-                    < static_cast<int>(vreg_traits<Vmm>::vlen) / sizeof(float));
+                    < static_cast<int>(vreg_traits<Vmm>::vlen / sizeof(float)));
     if (IMPLICATION(is_load_tail, isa_has_masks(brg.isa_impl))) {
         const Vmm vmm = maybe_mask(vmm_in, is_load_tail, store);
         switch (type_in) {
