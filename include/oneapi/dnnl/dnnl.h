@@ -574,68 +574,6 @@ int DNNL_API dnnl_post_ops_len(const_dnnl_post_ops_t post_ops);
 dnnl_primitive_kind_t DNNL_API dnnl_post_ops_get_kind(
         const_dnnl_post_ops_t post_ops, int index);
 
-/// Appends an accumulation (sum) to post-ops. Prior to accumulating the
-/// result, the previous value is multiplied by a scale.
-///
-/// The kind of this post-op is #dnnl_sum.
-///
-/// This feature may improve performance for cases like residual learning
-/// blocks, where the result of convolution is accumulated to the previously
-/// computed activations. The parameter @p scale may be used for the
-/// integer-based computations when the result and previous activations have
-/// different logical scaling factors.
-///
-/// In the simplest case where the accumulation is the only post-op, the
-/// computations will be:
-///
-///     dst[:] <- scale * dst[:] + op(...) // instead of dst[:] <- op(...)
-///
-/// @note
-///     This post-op executes in-place and does not change the
-///     destination layout.
-///
-/// @param post_ops Post-ops.
-/// @param scale Accumulation scaling factor.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_post_ops_append_sum(
-        dnnl_post_ops_t post_ops, float scale);
-
-/// Appends an accumulation v2 (sum) to post-ops. Prior to accumulating the
-/// result, the previous value is multiplied by a scale.
-///
-/// The kind of this post-op is #dnnl_sum.
-///
-/// This feature may improve performance for cases like residual learning
-/// blocks, where the result of convolution is accumulated to the previously
-/// computed activations. The parameter @p scale may be used for the
-/// integer-based computations when the result and previous activations have
-/// different logical scaling factors.
-///
-/// In the simplest case where the accumulation is the only post-op, the
-/// computations will be:
-///
-///     dst[:] <- scale * dst[:] + op(...) // instead of dst[:] <- op(...)
-///
-/// If @p data_type is specified, original dst tensor will be reinterpreted
-/// as a tensor with provided data type. Since it is reinterpretation,
-/// data_type and dst data type should have the same size.
-/// As a result, computations will be:
-///
-///     dst[:] <- scale * as_data_type(dst[:]) + op(...)
-///                                        // instead of dst[:] <- op(...)
-/// @note
-///     This post-op executes in-place and does not change the
-///     destination layout.
-///
-/// @param post_ops Post-ops.
-/// @param scale Accumulation scaling factor.
-/// @param data_type Accumulation data_type.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_post_ops_append_sum_v2(
-        dnnl_post_ops_t post_ops, float scale, dnnl_data_type_t data_type);
-
 /// Appends an accumulation v3 (sum) to post-ops. Prior to accumulating the
 /// result, a zero point is subtracted from the previous value and is
 /// multiplied by the scale.
@@ -671,31 +609,6 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_sum_v2(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_post_ops_append_sum_v3(dnnl_post_ops_t post_ops,
         float scale, int32_t zero_point, dnnl_data_type_t data_type);
-
-/// Returns the parameters of an accumulation (sum) post-op.
-///
-/// @param post_ops Post-ops.
-/// @param index Index of the sum post-op.
-/// @param scale Output accumulation scaling factor.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-/// @returns #dnnl_invalid_arguments if @p index does not refer to a sum
-///     post-op.
-dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum(
-        const_dnnl_post_ops_t post_ops, int index, float *scale);
-
-/// Returns the parameters of an accumulation (sum) post-op with
-/// a data type parameter.
-///
-/// @param post_ops Post-ops.
-/// @param index Index of the sum post-op.
-/// @param scale Output accumulation scaling factor.
-/// @param data_type Data type for accumulation.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum_v2(
-        const_dnnl_post_ops_t post_ops, int index, float *scale,
-        dnnl_data_type_t *data_type);
 
 /// Returns the parameters of an accumulation (sum) post-op with
 /// zero point and data type parameter.

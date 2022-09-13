@@ -539,19 +539,6 @@ primitive_kind_t dnnl_post_ops_get_kind(const post_ops_t *post_ops, int index) {
     return post_ops->entry_[index].kind;
 }
 
-status_t dnnl_post_ops_append_sum(post_ops_t *post_ops, float scale) {
-    if (post_ops == nullptr) return invalid_arguments;
-
-    return post_ops->append_sum(scale);
-}
-
-status_t dnnl_post_ops_append_sum_v2(
-        post_ops_t *post_ops, float scale, data_type_t dt) {
-    if (post_ops == nullptr) return invalid_arguments;
-
-    return post_ops->append_sum(scale, 0, dt);
-}
-
 status_t dnnl_post_ops_append_sum_v3(
         post_ops_t *post_ops, float scale, int32_t zero_point, data_type_t dt) {
     if (post_ops == nullptr) return invalid_arguments;
@@ -567,28 +554,6 @@ bool simple_get_params_check(
     return ok;
 }
 } // namespace
-
-status_t dnnl_post_ops_get_params_sum(
-        const post_ops_t *post_ops, int index, float *scale) {
-    bool ok = true
-            && simple_get_params_check(post_ops, index, primitive_kind::sum)
-            && !any_null(scale);
-    if (!ok) return invalid_arguments;
-
-    *scale = post_ops->entry_[index].sum.scale;
-    return success;
-}
-
-status_t dnnl_post_ops_get_params_sum_v2(
-        const post_ops_t *post_ops, int index, float *scale, data_type_t *dt) {
-    bool ok = true
-            && simple_get_params_check(post_ops, index, primitive_kind::sum);
-    if (!ok) return invalid_arguments;
-
-    if (scale) *scale = post_ops->entry_[index].sum.scale;
-    if (dt) *dt = post_ops->entry_[index].sum.dt;
-    return success;
-}
 
 status_t dnnl_post_ops_get_params_sum_v3(const post_ops_t *post_ops, int index,
         float *scale, int32_t *zero_point, data_type_t *dt) {

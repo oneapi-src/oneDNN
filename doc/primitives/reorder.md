@@ -89,7 +89,7 @@ The reorder primitive support the following attributes and post-ops:
 | :--                                                         | :--
 | [Output scales](@ref dnnl_primitive_attr_set_output_scales) | Copy and scale the data according to the scaling factors
 | [Zero points](@ref dnnl::primitive_attr::set_zero_points)   | Sets zero point(s) for the corresponding tensors
-| [Sum post-op](@ref dnnl_post_ops_append_sum)                | Instead of copy the data accumulate it to the previous data
+| [Sum post-op](@ref dnnl::post_ops::append_sum)              | Instead of copy the data accumulate it to the previous data
 
 For instance, the following pseudo-code
 
