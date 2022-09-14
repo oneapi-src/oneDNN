@@ -3798,8 +3798,8 @@ private:
                                 1);
                 }
             }
-            process_block(
-                    body, seen_dst, stmt_vec, bgn, stmt_vec.size() - is_mad);
+            process_block(body, seen_dst, stmt_vec, bgn,
+                    (int)stmt_vec.size() - is_mad);
             retn.emplace_back(stmt_group_t::make(group.label, body));
         }
         return retn;
