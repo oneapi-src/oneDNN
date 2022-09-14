@@ -32,7 +32,7 @@
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_inner_product_utils.hpp"
 
-#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_uni_convert_xf16.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -274,8 +274,8 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->with_bias())
             CHECK(safe_ptr_assign(bias_reduction_,
-                    new jit_avx512_core_cvt_bf16_to_ps_t(
-                            true, (size_t)pd()->OC())));
+                    new jit_cvt_xf16_to_ps_t(
+                            data_type::bf16, true, (size_t)pd()->OC())));
         return status::success;
     }
 
@@ -294,7 +294,7 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     void execute_backward_bias(const exec_ctx_t &ctx) const;
 
-    std::unique_ptr<jit_avx512_core_cvt_bf16_to_ps_t> bias_reduction_;
+    std::unique_ptr<jit_cvt_xf16_to_ps_t> bias_reduction_;
 };
 
 } // namespace x64

@@ -32,7 +32,6 @@
 #include "cpu/x64/jit_uni_reorder.hpp"
 
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
-#include "cpu/x64/jit_avx512_core_fp16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 // #define TR_DEBUG

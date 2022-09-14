@@ -40,82 +40,8 @@ struct jit_call_t {
     void *out;
     void *add;
     size_t nelems;
-    int mask;
 };
 } // namespace f16_support
-
-struct jit_avx512_core_fp16_cvt_ps_to_f16_t : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_fp16_cvt_ps_to_f16)
-
-    jit_avx512_core_fp16_cvt_ps_to_f16_t(size_t nelems = 0)
-        : jit_generator(jit_name())
-        , nelems_(nelems)
-        , simd_w_(16)
-        , tail_mask_((1 << (nelems % simd_w_)) - 1)
-        , is_dynamic_size_(nelems_ == 0) {
-
-        create_kernel();
-    }
-
-    void generate() override;
-
-    void operator()(f16_support::jit_call_t *params) const {
-        jit_generator::operator()(params);
-        msan_unpoison(params->out,
-                (nelems_ ? nelems_ : params->nelems) * sizeof(float16_t));
-    }
-
-private:
-    size_t nelems_;
-    int simd_w_;
-    int tail_mask_;
-
-    bool is_dynamic_size_;
-
-    Xbyak::Opmask ktail_mask = k2;
-    Xbyak::Zmm fp32_inp = Xbyak::Zmm(0);
-    Xbyak::Zmm fp32_tmp = Xbyak::Zmm(1);
-
-    Xbyak::Zmm one = Xbyak::Zmm(2);
-    Xbyak::Zmm even = Xbyak::Zmm(3);
-    Xbyak::Zmm selector = Xbyak::Zmm(4);
-
-    Xbyak::Ymm f16_out = Xbyak::Ymm(5);
-
-    Xbyak::Reg64 scratch = r15;
-    Xbyak::Reg64 reg_inp = rax;
-    Xbyak::Reg64 reg_out = rbx;
-    Xbyak::Reg64 reg_nelems = rdx;
-
-    Xbyak::Reg64 reg64_tail = rcx;
-    Xbyak::Reg32 reg32_tail = ecx;
-    Xbyak::Reg8 reg8_mask_shift = cl;
-    Xbyak::Reg32 reg32_mask = r8d;
-};
-
-struct jit_avx512_core_fp16_cvt_f16_to_ps_t : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_fp16_cvt_f16_to_ps_t)
-
-    jit_avx512_core_fp16_cvt_f16_to_ps_t(
-            bool with_add = false, size_t row_stride = 0)
-        : jit_generator(jit_name())
-        , with_add_(with_add)
-        , row_stride_(row_stride) {
-        create_kernel();
-    }
-
-    void generate() override;
-
-    void operator()(float *out, const float16_t *inp, size_t nelems,
-            size_t rows = 1) const {
-        jit_generator::operator()(out, inp, nelems, rows);
-        msan_unpoison(out, nelems * sizeof(float));
-    }
-
-private:
-    bool with_add_;
-    size_t row_stride_;
-};
 
 // performs element-by-element sum of inp and add float arrays and stores
 // result to float16 out array with downconversion
@@ -159,7 +85,6 @@ private:
     Xbyak::Reg32 reg32_mask = r8d;
 };
 
-#undef GET_OFF
 } // namespace x64
 } // namespace cpu
 } // namespace impl

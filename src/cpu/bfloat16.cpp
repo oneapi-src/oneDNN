@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_uni_convert_xf16.hpp"
 #endif
 
 namespace dnnl {
@@ -34,13 +35,14 @@ namespace impl {
 bool try_cvt_float_to_bfloat16(bfloat16_t *out, const float *inp) {
 
 #if DNNL_X64
-    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
-        cpu::x64::bf16_support::jit_call_t p;
-        p.inp = (void *)inp;
-        p.out = (void *)out;
-        static const cpu::x64::jit_avx512_core_cvt_ps_to_bf16_t
-                cvt_one_ps_to_bf16(1);
-        cvt_one_ps_to_bf16(&p);
+    using namespace cpu::x64;
+    if (mayiuse(cpu_isa_t::avx512_core)) {
+        cpu::x64::cvt_xf16_support::jit_call_t p_;
+        p_.inp = (void *)inp;
+        p_.out = (void *)out;
+        static const cpu::x64::jit_cvt_ps_to_xf16_t cvt_one_ps_to_bf16(
+                data_type::bf16, 1);
+        cvt_one_ps_to_bf16(&p_);
         return true;
     }
 #endif
@@ -49,12 +51,14 @@ bool try_cvt_float_to_bfloat16(bfloat16_t *out, const float *inp) {
 
 void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t nelems) {
 #if DNNL_X64
-    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
-        cpu::x64::bf16_support::jit_call_t p_;
+    using namespace cpu::x64;
+    if (mayiuse(cpu_isa_t::avx512_core)) {
+        cpu::x64::cvt_xf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
         p_.nelems = nelems;
-        static const cpu::x64::jit_avx512_core_cvt_ps_to_bf16_t cvt_ps_to_bf16;
+        static const cpu::x64::jit_cvt_ps_to_xf16_t cvt_ps_to_bf16(
+                data_type::bf16);
         cvt_ps_to_bf16(&p_);
         return;
     }
@@ -67,8 +71,10 @@ void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t nelems) {
 
 void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t nelems) {
 #if DNNL_X64
-    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
-        static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t kernel(false);
+    using namespace cpu::x64;
+    if (mayiuse(cpu_isa_t::avx512_core)) {
+        static const cpu::x64::jit_cvt_xf16_to_ps_t kernel(
+                data_type::bf16, false);
         return kernel(out, inp, nelems);
     }
 #endif

@@ -21,6 +21,7 @@
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_avx512_core_fp16cvt.hpp"
+#include "cpu/x64/jit_uni_convert_xf16.hpp"
 #endif
 
 namespace dnnl {
@@ -28,12 +29,12 @@ namespace impl {
 
 bool try_cvt_float_to_float16(float16_t *out, const float *inp) {
 #if DNNL_X64
-    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core_fp16)) {
-        cpu::x64::f16_support::jit_call_t p;
+    using namespace cpu::x64;
+    if (mayiuse(avx512_core_fp16)) {
+        cvt_xf16_support::jit_call_t p;
         p.inp = (void *)inp;
         p.out = (void *)out;
-        static const cpu::x64::jit_avx512_core_fp16_cvt_ps_to_f16_t
-                cvt_one_ps_to_f16(1);
+        static const jit_cvt_ps_to_xf16_t cvt_one_ps_to_f16(data_type::f16, 1);
         cvt_one_ps_to_f16(&p);
         return true;
     }
@@ -43,13 +44,13 @@ bool try_cvt_float_to_float16(float16_t *out, const float *inp) {
 
 void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems) {
 #if DNNL_X64
-    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core_fp16)) {
-        cpu::x64::f16_support::jit_call_t p_;
+    using namespace cpu::x64;
+    if (mayiuse(avx512_core_fp16)) {
+        cvt_xf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
         p_.nelems = nelems;
-        static const cpu::x64::jit_avx512_core_fp16_cvt_ps_to_f16_t
-                cvt_ps_to_f16;
+        static const jit_cvt_ps_to_xf16_t cvt_ps_to_f16(data_type::f16);
         cvt_ps_to_f16(&p_);
         return;
     }
@@ -62,9 +63,9 @@ void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems) {
 
 void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems) {
 #if DNNL_X64
-    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core_fp16)) {
-        static const cpu::x64::jit_avx512_core_fp16_cvt_f16_to_ps_t kernel(
-                false);
+    using namespace cpu::x64;
+    if (mayiuse(avx512_core_fp16)) {
+        static const jit_cvt_xf16_to_ps_t kernel(data_type::f16, false);
         return kernel(out, inp, nelems);
     }
 #endif
