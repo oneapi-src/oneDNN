@@ -223,15 +223,7 @@ private:
 };
 
 struct cfg_t : public base_cfg_t {
-    cfg_t(const prb_t *prb, std::vector<data_kind_t> kinds) {
-        for (const auto kind : kinds) {
-            auto orig_data_type = prb->get_dt(kind);
-            auto data_type
-                    = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
-            cfg_entry_.push_back(cfg_entry_t(
-                    kind, orig_data_type, data_type, get_cfg_map(kind)));
-        }
-    }
+    cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds);
 
     cfg_entry_t::cfg_map_t get_cfg_map(data_kind_t kind) const override;
 

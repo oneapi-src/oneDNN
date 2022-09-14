@@ -151,6 +151,7 @@ std::string prepare_wei_format_string(
             case dnnl_f32: break;
             case dnnl_f16:
             case dnnl_bf16: wtag += "2a"; break;
+            case dnnl_u8:
             case dnnl_s8: wtag += "4a"; break;
             default: assert(!"unsupported data type");
         }
@@ -487,6 +488,7 @@ int doit(const prb_t *prb, res_t *res) {
         case dnnl_f32: block_size = 16; break;
         case dnnl_f16: block_size = 16; break;
         case dnnl_bf16: block_size = 32; break;
+        case dnnl_u8:
         case dnnl_s8: block_size = 64; break;
         default: break;
     }
