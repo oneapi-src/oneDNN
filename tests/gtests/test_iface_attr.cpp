@@ -123,29 +123,15 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestIntOutputScales) {
     dnnl::primitive_attr attr;
 
     int mask = INT_MAX;
-    std::vector<float> scales;
 
     // default scales
-    attr.get_output_scales(mask, scales);
+    attr.get_output_scales(mask);
     ASSERT_EQ(mask, 0);
-    ASSERT_EQ(scales.size(), 1U);
-    ASSERT_EQ(scales[0], 1.);
 
-    // single non-default scale
-    attr.set_output_scales(0, {2.});
-    attr.get_output_scales(mask, scales);
+    // non-default scale
+    attr.set_output_scales(0);
+    attr.get_output_scales(mask);
     ASSERT_EQ(mask, 0);
-    ASSERT_EQ(scales.size(), 1U);
-    ASSERT_EQ(scales[0], 2.);
-
-    // multiple scales
-    attr.set_output_scales(1 << 1, {1., 2., 3.});
-    attr.get_output_scales(mask, scales);
-    ASSERT_EQ(mask, 1 << 1);
-    ASSERT_EQ(scales.size(), 3U);
-    ASSERT_EQ(scales[0], 1.);
-    ASSERT_EQ(scales[1], 2.);
-    ASSERT_EQ(scales[2], 3.);
 }
 
 TEST_F(attr_test_t, TestZeroPoints) {
@@ -608,7 +594,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
     std::vector<float> scales(512);
     ops.append_dw(dt, dt, dt, 3, 1, 1, 1 << 1, scales);
     attr_s.set_scales(DNNL_ARG_SRC_0, 0, {0.2f});
-    attr_os.set_output_scales(1 << 1, scales);
+    attr_os.set_output_scales(1 << 1);
     attr_dw.set_post_ops(ops);
 
     memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};

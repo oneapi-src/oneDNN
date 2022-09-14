@@ -903,15 +903,11 @@ dnnl_primitive_attr_t create_dnnl_attr(
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (!attr.oscale.is_def()) {
+        SAFE_V(attr.oscale.runtime ? OK : FAIL);
         const auto &os_args = attr_args.get(DNNL_ARG_ATTR_OUTPUT_SCALES);
         const auto &policy = attr.oscale.policy;
-
-        const auto count = os_args.get_count(policy);
         const auto mask = os_args.get_mask(policy);
-        const auto scales = os_args.get_float_ptr();
-
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(
-                dnnl_attr, count, mask, scales));
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr, mask));
     } else if (!attr.scales.is_def()) {
         const auto &as = attr.scales;
         for (const auto &arg : as.scales) {

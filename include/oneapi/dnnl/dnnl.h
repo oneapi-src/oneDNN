@@ -326,18 +326,15 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scratchpad_mode(
 ///     @p scales after @p attr is destroyed.
 ///
 /// @param attr Primitive attributes.
-/// @param count Output length of the array of scaling factors @p scales.
 /// @param mask Output scaling factors correspondence mask that defines the
 ///     correspondence between the output tensor dimensions and the @p scales
 ///     vector. The set i-th bit indicates that a dedicated output scaling
 ///     factor is used for each index along that dimension. The mask value of
 ///     0 implies a common output scaling factor for the whole output tensor.
-/// @param scales Output pointer to a constant array of scaling factors.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_get_output_scales(
-        const_dnnl_primitive_attr_t attr, dnnl_dim_t *count, int *mask,
-        const float **scales);
+        const_dnnl_primitive_attr_t attr, int *mask);
 
 /// Sets output scaling factors correspondence mask and values.
 ///
@@ -359,34 +356,22 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_output_scales(
 ///
 ///     dnnl_primitive_attr_t attr;
 ///     dnnl_primitive_attr_create(&attr); // create primitive attributes
-///     dnnl_primitive_attr_set_output_scales(attr, oc, 1 << oc_dim, scales);
+///     dnnl_primitive_attr_set_output_scales(attr, 1 << oc_dim);
 ///
 ///     dnnl_primitive_desc_t conv_pd;
 ///     dnnl_primitive_desc_create(&conv_pd, &conv_d, attr, engine, NULL);
 /// @endcode
 ///
 /// @param attr Primitive attributes.
-/// @param count Length of the array of scaling factors @p scales.
 /// @param mask Scaling factors correspondence mask that defines the
 ///     correspondence between the output tensor dimensions and the @p scales
 ///     array. The set i-th bit indicates that a dedicated output scaling
 ///     factor is used for each index along that dimension. The mask value of
 ///     0 implies a common output scaling factor for the whole output tensor.
-/// @param scales Array of output scaling factors. If the output scaling
-///     factors are known at the time of this call, this array must contain @p
-///     count values and the following equality must hold:
-///     \f[count = \prod\limits_{d \in mask} output.dims[d].\f]
-///     Violations can only be detected when the attributes are used to create
-///     a primitive descriptor.
-///     If the output scaling factors are not known at the time of the call,
-///     this array must contain a single #DNNL_RUNTIME_F32_VAL value and the
-///     output scaling factors must be passed at execution time as an argument
-///     with index #DNNL_ARG_ATTR_OUTPUT_SCALES.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_scales(
-        dnnl_primitive_attr_t attr, dnnl_dim_t count, int mask,
-        const float *scales);
+        dnnl_primitive_attr_t attr, int mask);
 
 /// Returns primitive attributes scaling factors correspondence mask and values
 /// for a given memory argument.

@@ -93,7 +93,9 @@ void reorder_example(dnnl::engine::kind engine_kind) {
 
     // Create primitive post-ops (per-channel output scales)
     primitive_attr reorder_attr;
-    reorder_attr.set_output_scales(0 | (1 << ic_dim), scales);
+    reorder_attr.set_output_scales(1 << ic_dim);
+    auto oscales_mem = memory({{IC}, dt::f32, tag::x}, engine);
+    write_to_dnnl_memory(scales.data(), oscales_mem);
 
     // Create primitive descriptor.
     auto reorder_pd = reorder::primitive_desc(
@@ -106,6 +108,7 @@ void reorder_example(dnnl::engine::kind engine_kind) {
     std::unordered_map<int, memory> reorder_args;
     reorder_args.insert({DNNL_ARG_SRC, src_mem});
     reorder_args.insert({DNNL_ARG_DST, dst_mem});
+    reorder_args.insert({DNNL_ARG_ATTR_OUTPUT_SCALES, oscales_mem});
 
     // Primitive execution: reorder with scaled sum.
     reorder_prim.execute(engine_stream, reorder_args);

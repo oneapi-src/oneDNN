@@ -167,6 +167,7 @@ protected:
 
         auto aprop_kind = prop_kind::forward;
         bool with_bias = p.formats.bias_format != memory::format_tag::undef;
+        bool with_oscales = attr.oscale.is_def();
 
         auto c_src_desc = create_md({cd.mb, cd.ic, cd.ih, cd.iw}, data_type_src,
                 p.formats.src_format);
@@ -180,11 +181,15 @@ protected:
         auto c_bias_desc = with_bias
                 ? create_md({cd.oc}, data_type_dst, p.formats.bias_format)
                 : create_md({}, data_type_dst, p.formats.bias_format);
+        auto c_oscales_desc = with_oscales
+                ? create_md({1}, memory::data_type::f32, memory::format_tag::x)
+                : create_md({}, memory::data_type::f32, memory::format_tag::x);
 
         auto c_src = test_memory(c_src_desc, eng);
         auto c_weights = test_memory(c_weights_desc, eng);
         auto c_bias = test_memory(c_bias_desc, eng);
         auto c_dst = test_memory(c_dst_desc, eng);
+        auto c_oscales = test_memory(c_oscales_desc, eng);
 
         // Only true for dense format
         fill_data<data_t_dst>(
@@ -197,6 +202,11 @@ protected:
             fill_data<data_t_dst>(
                     c_bias.get_size() / sizeof(data_t_dst), c_bias.get());
         }
+        if (with_oscales) {
+            fill_data<float>(c_oscales.get_size() / sizeof(float),
+                    c_oscales.get(), attr.oscale.scale, 0.0f);
+        }
+
         check_zero_tail<data_t_src>(1, c_src.get());
         check_zero_tail<data_t_wei>(1, c_weights.get());
         check_zero_tail<data_t_dst>(1, c_dst.get());
@@ -246,7 +256,9 @@ protected:
                         {{DNNL_ARG_SRC, c_src.get()},
                                 {DNNL_ARG_WEIGHTS, c_weights.get()},
                                 {DNNL_ARG_BIAS, c_bias.get()},
-                                {DNNL_ARG_DST, c_dst.get()}});
+                                {DNNL_ARG_DST, c_dst.get()},
+                                {DNNL_ARG_ATTR_OUTPUT_SCALES,
+                                        c_oscales.get()}});
         strm.wait();
 
         auto ref_memory = test::make_memory(c_dst_desc, eng);

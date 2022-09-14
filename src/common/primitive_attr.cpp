@@ -131,7 +131,9 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
 #define CHECK_MASK(mask_name, mask_field) \
     CHECK_ARG(IMPLICATION( \
             (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
-    CHECK_MASK(smask_t::oscale, output_scales_);
+    CHECK_ARG(IMPLICATION(
+            !output_scales_.has_default_values(), !output_scales_.defined()));
+    CHECK_MASK(smask_t::oscale_runtime, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
     CHECK_MASK(smask_t::zero_points, zero_points_);
     CHECK_MASK(smask_t::post_ops, post_ops_);
@@ -436,25 +438,21 @@ status_t dnnl_primitive_attr_set_scratchpad_mode(
     return attr->set_scratchpad_mode(scratchpad_mode);
 }
 
-status_t dnnl_primitive_attr_get_output_scales(const primitive_attr_t *attr,
-        dim_t *count, int *mask, const float **scales) {
-    if (any_null(attr, count, mask, scales)) return invalid_arguments;
+status_t dnnl_primitive_attr_get_output_scales(
+        const primitive_attr_t *attr, int *mask) {
+    if (any_null(attr, mask)) return invalid_arguments;
 
-    *count = attr->output_scales_.count_;
     *mask = attr->output_scales_.mask_;
-    *scales = attr->output_scales_.scales_;
 
     return success;
 }
 
 status_t dnnl_primitive_attr_set_output_scales(
-        primitive_attr_t *attr, dim_t count, int mask, const float *scales) {
-    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0
-            && attr->scales_.has_default_values()
-            && IMPLICATION(is_runtime_value(*scales), count == 1);
+        primitive_attr_t *attr, int mask) {
+    bool ok = attr && mask >= 0 && attr->scales_.has_default_values();
     if (!ok) return invalid_arguments;
-
-    return attr->output_scales_.set(count, mask, scales);
+    float scales = DNNL_RUNTIME_F32_VAL;
+    return attr->output_scales_.set(1, mask, &scales);
 }
 
 status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,

@@ -166,19 +166,14 @@ protected:
             int mask = scales_mask == P::PER_N ? 1 << (ndims - 1) : 0;
             memory::dim scale_size = mask ? p.base.dst.dims[ndims - 1] : 1;
 
-            if (p.attr.scale_flags & P::RUNTIME) {
-                attr.set_output_scales(mask, {DNNL_RUNTIME_F32_VAL});
+            attr.set_output_scales(mask);
 
-                scales_m = test::make_memory(
-                        {{scale_size}, memory::data_type::f32, {1}}, eng);
-                auto s = map_memory<float>(scales_m);
-                GTEST_EXPECT_NE(s, nullptr);
-                for (memory::dim i = 0; i < scale_size; ++i)
-                    s[i] = 2.f;
-            } else {
-                std::vector<float> scales(scale_size, 2.f);
-                attr.set_output_scales(mask, scales);
-            }
+            scales_m = test::make_memory(
+                    {{scale_size}, memory::data_type::f32, {1}}, eng);
+            auto s = map_memory<float>(scales_m);
+            GTEST_EXPECT_NE(s, nullptr);
+            for (memory::dim i = 0; i < scale_size; ++i)
+                s[i] = 2.f;
         }
 
         // zero points
@@ -378,12 +373,10 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
     const float scale = 1.f;
     const float alpha = 1.f;
     const float beta = 1.f;
-    const float oscale = 1.5f;
 
     const int ndims = std::get<4>(GetParam());
     // per-channel output scales
-    std::vector<float> oscales(tensor_dims[1], oscale);
-    attr.set_output_scales(1 << (ndims - 1), oscales);
+    attr.set_output_scales(1 << (ndims - 1));
 
     dnnl::post_ops ops;
     ops.append_sum(1.0);
@@ -573,7 +566,7 @@ static auto cases_f = [](memory::data_type dt) {
     // output scales + per_n + runtime
     cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
                              {{10, 20}, dt, tag::ab}, data_type::undef},
-            {P::SCALES | P::PER_N | P::RUNTIME}});
+            {P::SCALES | P::PER_N}});
 
     // post-ops
     cases.push_back({{{{10, 1}, dt, tag::ab}, {{1, 20}, dt, tag::ab},
@@ -597,8 +590,7 @@ static auto cases_f = [](memory::data_type dt) {
                              {{1, 20}, dt, tag::ab, P::WEIGHTS | P::RUNTIME},
                              {{10, 20}, dt, tag::ab, P::DST | P::RUNTIME},
                              data_type::f32},
-            {P::SCALES | P::COMMON | P::RUNTIME, {},
-                    {{primitive::kind::sum}}}});
+            {P::SCALES | P::COMMON, {}, {{primitive::kind::sum}}}});
 
     return ::testing::ValuesIn(cases);
 };
@@ -640,7 +632,7 @@ static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
     cases.push_back(
             {{{{10, 2}, src_dt, tag::ab}, {{2, 20}, data_type::s8, tag::ab},
                      {{10, 20}, dst_dt, tag::ab}, data_type::undef},
-                    {P::SCALES | P::PER_N | P::RUNTIME}});
+                    {P::SCALES | P::PER_N}});
 
     // zero points
     cases.push_back(
@@ -694,7 +686,7 @@ static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
     cases.push_back({{{{10, 2}, src_dt, tag::ba},
                              {{2, 20}, data_type::s8, tag::ba},
                              {{10, 20}, dst_dt, tag::ab}, data_type::s8},
-            {P::SCALES | P::PER_N | P::RUNTIME,
+            {P::SCALES | P::PER_N,
                     {P::ZERO_POINTS | P::SRC | P::COMMON | P::RUNTIME,
                             P::ZERO_POINTS | P::WEIGHTS | P::COMMON
                                     | P::RUNTIME,

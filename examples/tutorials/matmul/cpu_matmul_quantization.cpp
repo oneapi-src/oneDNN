@@ -237,8 +237,7 @@ void quantize(q10n_scheme_t q10n_scheme, const std::vector<float> &X_f32,
     memory X_f32_m(x_f32_md, eng, (void *)X_f32.data());
 
     primitive_attr q10n_attr;
-    q10n_attr.set_output_scales(/* mask */ 0,
-            {is_dynamic_q10n ? DNNL_RUNTIME_F32_VAL : inv_scale_X});
+    q10n_attr.set_output_scales(/* mask */ 0);
     q10n_attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0,
             {is_dynamic_q10n ? DNNL_RUNTIME_S32_VAL : zp_X});
 
@@ -341,7 +340,7 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
     // Create and compute a reduced precision MatMul primitive
     {
         primitive_attr matmul_attr;
-        matmul_attr.set_output_scales(/* mask */ 0, {DNNL_RUNTIME_F32_VAL});
+        matmul_attr.set_output_scales(/* mask */ 0);
         matmul_attr.set_zero_points(
                 DNNL_ARG_SRC, /* mask */ 0, {DNNL_RUNTIME_S32_VAL});
 
@@ -408,8 +407,7 @@ void static_q10n_matmul(int64_t M, int64_t N, int64_t K,
         memory C_u8_m(c_u8_md, eng, (void *)C_u8.data());
 
         primitive_attr matmul_attr;
-        matmul_attr.set_output_scales(
-                /* mask */ 0, {scale_A * scale_B / scale_C});
+        matmul_attr.set_output_scales(/* mask */ 0);
         matmul_attr.set_zero_points(DNNL_ARG_SRC, /* mask */ 0, {zp_A});
         matmul_attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0, {zp_C});
 

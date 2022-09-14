@@ -136,7 +136,7 @@ matmul dynamic_matmul_create() {
 
     // Create attributes (to handle alpha dynamically and beta if necessary)
     primitive_attr attr;
-    attr.set_output_scales(/* mask */ 0, {DNNL_RUNTIME_F32_VAL});
+    attr.set_output_scales(/* mask */ 0);
     if (beta != 0.f) {
         post_ops po;
         po.append_sum(beta);
@@ -180,54 +180,6 @@ void dynamic_matmul_execute(matmul &matmul_p, char transA, char transB,
     s.wait();
 }
 
-// Create and execute a _static_ MatMul primitive. All shapes and parameters
-// are hard-coded in the primitive and cannot be changed later.
-void static_matmul_create_and_execute(char transA, char transB, int64_t M,
-        int64_t N, int64_t K, float alpha, const float *A, int64_t lda,
-        const float *B, int64_t ldb, float beta, float *C, int64_t ldc) {
-    using dims = memory::dims;
-
-    // Prepare strides based on the transA and transB flags: transposed
-    // matrices have strides swapped
-    dims a_strides = tolower(transA) == 'n' ? dims {lda, 1} : dims {1, lda};
-    dims b_strides = tolower(transB) == 'n' ? dims {ldb, 1} : dims {1, ldb};
-
-    // Prepare memory descriptors
-    memory::desc a_md({M, K}, memory::data_type::f32, a_strides);
-    memory::desc b_md({K, N}, memory::data_type::f32, b_strides);
-    memory::desc c_md({M, N}, memory::data_type::f32, {ldc, 1});
-
-    // Create attributes (to handle alpha and beta if necessary)
-    primitive_attr attr;
-    if (alpha != 1.f) attr.set_output_scales(/* mask */ 0, {alpha});
-    if (beta != 0.f) {
-        post_ops po;
-        po.append_sum(beta);
-        attr.set_post_ops(po);
-    }
-
-    // Create a MatMul primitive
-    matmul::primitive_desc matmul_pd(eng, a_md, b_md, c_md, attr);
-    matmul matmul_p(matmul_pd);
-
-    // Wrap raw pointers into oneDNN memory objects
-    memory A_m(a_md, eng, (void *)A);
-    memory B_m(b_md, eng, (void *)B);
-    memory C_m(c_md, eng, (void *)C);
-
-    // Execute the MatMul primitive.
-    // Since here all shapes and parameters are static, please note that we
-    // don't need to pass alpha (scales) again, as they are already hard-coded
-    // in the primitive descriptor. Also, we are not allowed to change the
-    // shapes of matrices A, B, and C -- they should exactly match
-    // the memory descriptors passed to MatMul operation descriptor.
-    stream s(eng);
-    matmul_p.execute(s,
-            {{DNNL_ARG_SRC, A_m}, {DNNL_ARG_WEIGHTS, B_m},
-                    {DNNL_ARG_DST, C_m}});
-    s.wait();
-}
-
 void sgemm_and_matmul_with_params(char transA, char transB, int64_t M,
         int64_t N, int64_t K, float alpha, float beta) {
     if (beta != fixed_beta)
@@ -244,7 +196,6 @@ void sgemm_and_matmul_with_params(char transA, char transB, int64_t M,
     init_vector(C_sgemm);
 
     std::vector<float> C_dynamic_matmul = C_sgemm;
-    std::vector<float> C_static_matmul = C_sgemm;
 
     // Prepare leading dimensions
     int64_t lda = tolower(transA) == 'n' ? K : M;
@@ -264,18 +215,9 @@ void sgemm_and_matmul_with_params(char transA, char transB, int64_t M,
                 A.data(), lda, B.data(), ldb, beta, C_dynamic_matmul.data(),
                 ldc);
 
-    // 3. Execute static MatMul
-    for (int run = 0; run < number_of_runs; ++run)
-        static_matmul_create_and_execute(transA, transB, M, N, K, alpha,
-                A.data(), lda, B.data(), ldb, beta, C_static_matmul.data(),
-                ldc);
-
     int rc = 0;
     rc |= compare_vectors(
             C_sgemm, C_dynamic_matmul, K, "Compare SGEMM vs dynamic MatMul");
-    if (rc) throw std::logic_error("The resulting matrices diverged too much.");
-    rc |= compare_vectors(
-            C_sgemm, C_static_matmul, K, "Compare SGEMM vs static MatMul");
     if (rc) throw std::logic_error("The resulting matrices diverged too much.");
 }
 

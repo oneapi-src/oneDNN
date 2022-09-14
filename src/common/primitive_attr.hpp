@@ -648,7 +648,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     enum class skip_mask_t : unsigned {
         none = 0,
         oscale = 1u << 0,
-        oscale_runtime = (unsigned)oscale | (1u << 1),
+        oscale_runtime = 1u << 1,
         scales = 1u << 2,
         scales_runtime = (unsigned)scales | (1u << 3),
         zero_points = 1u << 4,

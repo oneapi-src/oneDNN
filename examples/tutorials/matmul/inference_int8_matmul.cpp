@@ -113,7 +113,7 @@ matmul::primitive_desc matmul_pd_create(
     // Create attributes and indicate that the alpha and zero points are
     // runtime parameters
     primitive_attr attr;
-    attr.set_output_scales(/* mask */ (1 << 1), {DNNL_RUNTIME_F32_VAL});
+    attr.set_output_scales(/* mask */ 1 << 1);
     attr.set_zero_points(DNNL_ARG_SRC, /* mask */ 0, {DNNL_RUNTIME_S32_VAL});
     attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0, {DNNL_RUNTIME_S32_VAL});
     post_ops po;

@@ -577,10 +577,8 @@ struct test_convolution_attr_t {
     void dnnl_attr_recreate() {
         mkl_attr = dnnl::primitive_attr();
         if (oscale.is_def()) {
-            const memory::dim count = 1;
             const int mask = 0;
-            std::vector<float> s(count, oscale.scale);
-            mkl_attr.set_output_scales(mask, s);
+            mkl_attr.set_output_scales(mask);
         }
     }
 
@@ -826,7 +824,7 @@ template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_oscale(const engine &eng, bool supports_oscale,
         const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr_oscale;
-    attr_oscale.set_output_scales(0, {2.f});
+    attr_oscale.set_output_scales(0);
     if (supports_oscale)
         EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_oscale));
     else
@@ -896,12 +894,12 @@ void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
 
         // Check oscale and scales don't work together
         dnnl::primitive_attr attr_oscale_scales;
-        attr_oscale_scales.set_output_scales(0, {2.f});
+        attr_oscale_scales.set_output_scales(0);
         EXPECT_ANY_THROW(attr_oscale_scales.set_scales(DNNL_ARG_SRC, 0, {2.f}));
 
         dnnl::primitive_attr attr_scales_oscale;
         attr_scales_oscale.set_scales(DNNL_ARG_SRC, 0, {2.f});
-        EXPECT_ANY_THROW(attr_scales_oscale.set_output_scales(0, {2.f}));
+        EXPECT_ANY_THROW(attr_scales_oscale.set_output_scales(0));
     } else
         EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_scales));
 }
@@ -953,7 +951,7 @@ template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_oscale(const engine &eng, const hint_pd_t &hint,
         bool supports_oscale, const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr_oscale;
-    attr_oscale.set_output_scales(0, {2.f});
+    attr_oscale.set_output_scales(0);
     if (supports_oscale)
         EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr_oscale));
     else

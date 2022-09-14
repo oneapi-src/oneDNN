@@ -3458,19 +3458,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     scaling factor is used for each index along that dimension. The
     ///     mask value of 0 implies a common output scaling factor for the
     ///     whole output tensor.
-    /// @param scales Vector of output scaling factors.
-    void get_output_scales(int &mask, std::vector<float> &scales) const {
-        dnnl_dim_t count;
-        int c_mask;
-        const float *c_scales;
-        error::wrap_c_api(dnnl_primitive_attr_get_output_scales(
-                                  get(), &count, &c_mask, &c_scales),
+    void get_output_scales(int &mask) const {
+        error::wrap_c_api(dnnl_primitive_attr_get_output_scales(get(), &mask),
                 "could not get output scales primitive attribute");
-        scales.resize(count);
-
-        mask = c_mask;
-        for (dnnl_dim_t c = 0; c < count; ++c)
-            scales[c] = c_scales[c];
     }
 
     /// Sets output scaling factors correspondence mask and values.
@@ -3487,7 +3477,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     dnnl::convolution::desc conv_d;
     ///
     ///     dnnl::primitive_attr attr;
-    ///     attr.set_output_scales(attr, oc, 1 << oc_dim, scales);
+    ///     attr.set_output_scales(attr, 1 << oc_dim);
     ///
     ///     dnnl::primitive_desc conv_pd(conv_d, attr, engine);
     /// @endcode
@@ -3505,20 +3495,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     that a dedicated scaling factor is used for each index along that
     ///     dimension. Set the mask to 0 to use a common output scaling factor
     ///     for the whole output tensor.
-    /// @param scales Constant vector of output scaling factors. If the
-    ///     scaling factors are known at the time of this call, the following
-    ///     equality must hold:
-    ///     \f$scales.size() = \prod\limits_{d \in mask} output.dims[d].\f$
-    ///     Violations can only be detected when the attributes
-    ///     are used to create a primitive descriptor.
-    ///     If the scaling factors are not known at the time of the call,
-    ///     this vector must contain a single #DNNL_RUNTIME_F32_VAL value and
-    ///     the output scaling factors must be passed at execution time as an
-    ///     argument with index #DNNL_ARG_ATTR_OUTPUT_SCALES.
-    void set_output_scales(int mask, const std::vector<float> &scales) {
-        error::wrap_c_api(
-                dnnl_primitive_attr_set_output_scales(
-                        get(), (dnnl_dim_t)scales.size(), mask, scales.data()),
+    void set_output_scales(int mask) {
+        error::wrap_c_api(dnnl_primitive_attr_set_output_scales(get(), mask),
                 "could not set output scales primitive attribute");
     }
 

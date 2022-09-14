@@ -46,7 +46,7 @@ struct ref_sum_t : public primitive_t {
             reorder_pds_.resize(n_ + need_output_reorder());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                r_attr.output_scales_.set(scales_[i]);
+                r_attr.output_scales_.set(0);
                 if (i != 0) r_attr.post_ops_.append_sum(1.0);
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), dst_acc_md(), &r_attr));
@@ -87,6 +87,19 @@ struct ref_sum_t : public primitive_t {
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i)
             pd()->reorder_pds_[i]->create_primitive(reorders_[i], engine);
+
+        memory_desc_t scales_md;
+        scales_md.ndims = 1;
+        scales_md.dims[0] = 1;
+        scales_md.data_type = data_type::f32;
+        CHECK(memory_desc_init_by_tag(scales_md, format_tag::x));
+        const float *scales = pd()->scales();
+
+        scales_mem_.resize(n);
+        for (size_t i = 0; i < n; ++i)
+            scales_mem_[i] = std::make_shared<memory_t>(engine, &scales_md,
+                    use_runtime_ptr, const_cast<float *>(&(scales[i])));
+
         return status::success;
     }
 
@@ -116,6 +129,7 @@ struct ref_sum_t : public primitive_t {
         for (int i = 0; i < n; ++i) {
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
             r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
+            r_args[DNNL_ARG_ATTR_OUTPUT_SCALES] = {scales_mem_[i].get(), true};
 
             exec_ctx_t r_ctx(ctx, std::move(r_args));
 
@@ -140,6 +154,7 @@ struct ref_sum_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::vector<std::shared_ptr<primitive_t>> reorders_;
+    std::vector<std::shared_ptr<memory_t>> scales_mem_;
 };
 
 } // namespace cpu
