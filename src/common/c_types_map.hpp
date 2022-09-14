@@ -80,7 +80,6 @@ const alg_kind_t eltwise_soft_relu = dnnl_eltwise_soft_relu;
 const alg_kind_t eltwise_logistic = dnnl_eltwise_logistic;
 const alg_kind_t eltwise_mish = dnnl_eltwise_mish;
 const alg_kind_t eltwise_exp = dnnl_eltwise_exp;
-const alg_kind_t eltwise_gelu = dnnl_eltwise_gelu;
 const alg_kind_t eltwise_log = dnnl_eltwise_log;
 const alg_kind_t eltwise_clip = dnnl_eltwise_clip;
 const alg_kind_t eltwise_clip_v2 = dnnl_eltwise_clip_v2;

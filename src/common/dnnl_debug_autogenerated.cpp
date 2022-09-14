@@ -1135,7 +1135,6 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_logistic) return "eltwise_logistic";
     if (v == dnnl_eltwise_exp) return "eltwise_exp";
     if (v == dnnl_eltwise_gelu_tanh) return "eltwise_gelu_tanh";
-    if (v == dnnl_eltwise_gelu) return "eltwise_gelu";
     if (v == dnnl_eltwise_swish) return "eltwise_swish";
     if (v == dnnl_eltwise_log) return "eltwise_log";
     if (v == dnnl_eltwise_clip) return "eltwise_clip";

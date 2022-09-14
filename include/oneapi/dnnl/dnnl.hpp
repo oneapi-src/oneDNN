@@ -551,9 +551,6 @@ enum class algorithm {
     eltwise_logistic = dnnl_eltwise_logistic,
     /// Elementwise: exponent
     eltwise_exp = dnnl_eltwise_exp,
-    /// Elementwise: gelu
-    /// alias for #dnnl::algorithm::eltwise_gelu_tanh
-    eltwise_gelu = dnnl_eltwise_gelu,
     /// Elementwise: tanh-based gelu
     eltwise_gelu_tanh = dnnl_eltwise_gelu_tanh,
     /// Elementwise: erf-based gelu

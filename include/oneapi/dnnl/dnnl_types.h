@@ -1467,8 +1467,6 @@ typedef enum {
     /// @note Tanh approximation formula is used to approximate
     /// the cumulative distribution function of a Gaussian here
     dnnl_eltwise_gelu_tanh = 0xcf,
-    /// Eltwise: tanh-based gelu (alias for dnnl_eltwise_gelu_tanh)
-    dnnl_eltwise_gelu = dnnl_eltwise_gelu_tanh,
     /// Eltwise: swish
     dnnl_eltwise_swish = 0xdf,
     /// Eltwise: natural logarithm
