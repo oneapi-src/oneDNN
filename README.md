@@ -142,7 +142,7 @@ The following additional requirements apply:
 [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 2017 or later.
 * DPCPP runtime requires
-  * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
+  * [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
   * [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 
 Some implementations rely on OpenMP 4.0 SIMD extensions. For the best
@@ -160,11 +160,11 @@ is enabled:
     * OpenCL driver (with kernel language support for OpenCL C 2.0 or later)
       with Intel subgroups and USM extensions support
 * DPCPP runtime requires
-    * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
+    * [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
     * OpenCL runtime library (OpenCL version 1.2 or later)
     * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
 * DPCPP runtime with NVIDIA GPU support requires
-    * [oneAPI DPC++ Compiler](https://github.com/intel/llvm)
+    * [oneAPI DPC++/C++ Compiler](https://github.com/intel/llvm)
     * NVIDIA CUDA\* driver
     * cuBLAS 10.1 or later
     * cuDNN 7.6 or later
@@ -234,36 +234,28 @@ Runtime-specific dependencies:
 CPU engine was validated on RedHat\* Enterprise Linux 7 with
 * GNU Compiler Collection 4.8, 5.4, 6.1, 7.2, 8.1, and 9.1
 * Clang\* 3.8.1, 7.1, 8.0, and 9.0
-* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  19.1
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
+* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
 
 on Windows Server\* 2016 with
-* Microsoft Visual Studio 2015, 2017, and 2019
-* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  19.1
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
+* Microsoft Visual Studio 2019 and 2022
+* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
 
-on macOS 10.13 (High Sierra) with
-* Apple LLVM version 9.1
-* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  19.1
+on macOS 11 (Big Sur) with
+* Apple LLVM version 13.0
+* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
 
 GPU engine was validated on Ubuntu\* 20.04 with
 * GNU Compiler Collection 7.2, 8.1, and 9.1
 * Clang 3.8.1, 7.1, 8.0, and 9.0
-* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  19.1
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
+* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
 * [Intel Software for General Purpose GPU capabilities](https://dgpu-docs.intel.com/index.html)
 latest stable version available at the time of release
 
 on Windows Server 2019 with
-* Microsoft Visual Studio 2015, 2017, and 2019
-* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  19.1
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
-* [Intel Graphics - Windows 10 DCH Drivers](https://downloadcenter.intel.com/download/29808/Intel-Graphics-Windows-10-DCH-Drivers)
+* Microsoft Visual Studio 2019 and 2022
+* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
+* [Intel Graphics - Windows 10 DCH Drivers](https://www.intel.com/content/www/us/en/download/19344/intel-graphics-windows-dch-drivers.html)
+* [Intel Arc Graphics Windows DCH Driver](https://www.intel.com/content/www/us/en/download/726609/intel-arc-graphics-windows-dch-driver.html)
 latest stable version available at the time of release
 
 ## Requirements for Pre-built Binaries
