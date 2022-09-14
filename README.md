@@ -75,8 +75,8 @@ The library is optimized for the following CPUs:
 * Intel Core(TM) processors (at least Intel SSE4.1 support is required)
 * Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
-* Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, and Cooper
-  Lake)
+* Intel Xeon Scalable processors (formerly Skylake, Cascade Lake, Cooper
+  Lake, and Ice Lake)
 * future Intel Xeon Scalable processor (code name Sapphire Rapids)
 
 On a CPU based on Intel 64 or on AMD64 architecture, oneDNN detects
@@ -104,7 +104,9 @@ Compute Library versions 22.05 or later.
 The library is optimized for the following GPUs:
 * Intel Processor Graphics based on Gen9, Gen9.5 and Gen11, and Gen12 architectures
 * Intel Iris(R) Xe graphics (formerly DG1)
-* future Intel Arc(TM) graphics (code name Alchemist and DG2)
+* Intel Arc(TM) graphics (formerly Alchemist and DG2)
+* Intel Data Center GPU Flex Series (formerly Arctic Sound-M)
+* future Xe Architecture graphics (code name Ponte Vecchio)
 
 ## Requirements for Building from Source
 
