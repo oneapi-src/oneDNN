@@ -278,7 +278,7 @@ memory::desc permute_last_two_dims(const memory::desc &adesc) {
     int count = 0;
     std::vector<int> axes(adesc.data.ndims);
     std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    const auto last_dim = static_cast<dims::size_type>(adesc.data.ndims - 1);
+    const auto last_dim = adesc.data.ndims - 1;
     std::swap(axes[last_dim], axes[last_dim - 1]);
     return adesc.permute_axes(axes);
 }
