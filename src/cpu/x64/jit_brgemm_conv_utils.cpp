@@ -2454,21 +2454,21 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
     // empiric balancing for some shapes
     bool neat_1x1
             = everyone_is(1, jcp.id, jcp.kh, jcp.kw, jcp.ngroups, jcp.stride_h);
-    if (neat_1x1 && jcp.nthr >= 56 && jcp.mb >= jcp.nthr) {
+    if (neat_1x1 && jcp.nthr >= 28 && jcp.mb >= jcp.nthr) {
         const bool more_oc = (jcp.ic < jcp.oc);
         if (jcp.ih * jcp.iw >= 56 * 56 && jcp.ic >= 64 && jcp.oc >= 64) {
-            nthr_mb = 56;
+            nthr_mb = jcp.nthr;
             nthr_oc_b = 1;
         } else if (jcp.ih * jcp.iw >= 28 * 28 && jcp.ic >= 128
                 && jcp.oc >= 128) {
-            nthr_mb = 14;
+            nthr_mb = jcp.nthr / 4;
             nthr_oc_b = more_oc ? 4 : 1;
         } else if (jcp.ih * jcp.iw >= 14 * 14 && jcp.ic >= 256
                 && jcp.oc >= 256) {
-            nthr_mb = 7;
+            nthr_mb = jcp.nthr / 8;
             nthr_oc_b = more_oc ? 8 : 1;
         } else if (jcp.ih * jcp.iw >= 7 * 7 && jcp.ic >= 512 && jcp.oc >= 512) {
-            nthr_mb = 4;
+            nthr_mb = jcp.nthr / 14;
             nthr_oc_b = more_oc ? 14 : 1;
         }
         nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
