@@ -225,8 +225,8 @@ struct eltwise_bwd_pd_t : public eltwise_pd_t {
                        eltwise_clip_v2, eltwise_elu, eltwise_exp,
                        eltwise_gelu_erf, eltwise_gelu_tanh, eltwise_hardsigmoid,
                        eltwise_linear, eltwise_logistic, eltwise_mish,
-                       eltwise_relu, eltwise_soft_relu, eltwise_soft_relu_v2,
-                       eltwise_square, eltwise_swish, eltwise_tanh)
+                       eltwise_relu, eltwise_soft_relu_v2, eltwise_square,
+                       eltwise_swish, eltwise_tanh)
                 || one_of(alg, eltwise_elu_use_dst_for_bwd,
                         eltwise_exp_use_dst_for_bwd,
                         eltwise_logistic_use_dst_for_bwd,

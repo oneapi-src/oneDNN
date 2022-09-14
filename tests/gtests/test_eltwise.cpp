@@ -111,24 +111,17 @@ T bounded_relu_bwd(T dd, T s, A alpha) {
     return dd * ((0 < s && s < alpha) ? 1 : 0);
 }
 
-template <typename T>
-T soft_relu_fwd(T s) {
-    return s < (T)logf(FLT_MAX) ? T(log1pf(::expf(s))) : s;
-}
-
-template <typename T>
-T soft_relu_bwd(T dd, T s) {
-    return dd / (1 + ::expf(-s));
-}
-
 template <typename T, typename A>
 T soft_relu_v2_fwd(T s, A alpha) {
-    return soft_relu_fwd(s * alpha) / alpha;
+    s = s * alpha;
+    float v = (s < (T)logf(FLT_MAX) ? T(log1pf(::expf(s))) : T(s));
+    return v / alpha;
 }
 
 template <typename T, typename A>
 T soft_relu_v2_bwd(T dd, T s, A alpha) {
-    return soft_relu_bwd(dd, (T)(s * alpha));
+    float v = (float)s * (float)alpha;
+    return dd / (1 + ::expf(-v));
 }
 
 template <typename T>
@@ -220,7 +213,6 @@ void check_eltwise_fwd(const eltwise_test_params_t &p, const memory::desc &md,
             case algorithm::eltwise_bounded_relu:
                 ref_d = bounded_relu_fwd(s, p.alpha);
                 break;
-            case algorithm::eltwise_soft_relu: ref_d = soft_relu_fwd(s); break;
             case algorithm::eltwise_soft_relu_v2:
                 ref_d = soft_relu_v2_fwd(s, p.alpha);
                 break;
@@ -252,10 +244,7 @@ void compare_eltwise_fwd(const eltwise_test_params_t &p, const memory::desc &md,
                                   || p.alg_kind == algorithm::eltwise_gelu_tanh
                                   || p.alg_kind == algorithm::eltwise_gelu_erf)
                                 ? 2e-5
-                                : p.alg_kind == algorithm::eltwise_soft_relu
-                                                || p.alg_kind
-                                                        == algorithm::
-                                                                eltwise_soft_relu_v2
+                                : p.alg_kind == algorithm::eltwise_soft_relu_v2
                                         ? 3e-5
                                         : 1e-6);
     compare_data(ref_dst, dst, eps);
@@ -274,8 +263,7 @@ void check_eltwise_bwd(const eltwise_test_params_t &p, const memory::desc &md,
     const dnnl::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
     float eps_f = 0;
-    if (p.alg_kind == algorithm::eltwise_soft_relu
-            || p.alg_kind == algorithm::eltwise_soft_relu_v2) {
+    if (p.alg_kind == algorithm::eltwise_soft_relu_v2) {
         eps_f = 2e-6f;
     } else if (p.alg_kind == algorithm::eltwise_tanh) {
         eps_f = (get_test_engine_kind() == engine::kind::gpu) ? 2e-5f : 2e-6f;
@@ -311,9 +299,6 @@ void check_eltwise_bwd(const eltwise_test_params_t &p, const memory::desc &md,
                 break;
             case algorithm::eltwise_bounded_relu:
                 ref_ds = bounded_relu_bwd(ref_dd, ref_s, p.alpha);
-                break;
-            case algorithm::eltwise_soft_relu:
-                ref_ds = soft_relu_bwd(ref_dd, ref_s);
                 break;
             case algorithm::eltwise_soft_relu_v2:
                 ref_ds = soft_relu_v2_bwd(ref_dd, ref_s, p.alpha);
@@ -389,7 +374,7 @@ protected:
                         && p.alg_kind != algorithm::eltwise_bounded_relu
                         && p.alg_kind != algorithm::eltwise_tanh
                         && p.alg_kind != algorithm::eltwise_elu
-                        && p.alg_kind != algorithm::eltwise_soft_relu
+                        && p.alg_kind != algorithm::eltwise_soft_relu_v2
                         && p.alg_kind != algorithm::eltwise_abs
                         && p.alg_kind != algorithm::eltwise_logistic,
                 "Unsupported algorithm type for HIP");
@@ -486,7 +471,7 @@ protected:
                 "CUDA does not support different data formats for data and "
                 "diff vectors");
         SKIP_IF_HIP(p.alg_kind != algorithm::eltwise_relu
-                        && p.alg_kind != algorithm::eltwise_soft_relu
+                        && p.alg_kind != algorithm::eltwise_soft_relu_v2
                         && p.alg_kind != algorithm::eltwise_bounded_relu,
                 "Unsupported algorithm");
         SKIP_IF_HIP(p.diff_format != p.data_format,
@@ -595,7 +580,6 @@ TEST_P(eltwise_test_s8, TestsEltwise) {}
 
 #define PARAMS_ALL_ALG_SDPART(...) \
     EXPAND(PARAMS(eltwise_linear, __VA_ARGS__)), \
-            EXPAND(PARAMS(eltwise_soft_relu, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 

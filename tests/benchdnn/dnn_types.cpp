@@ -366,8 +366,6 @@ static po_table_entry_t kind_table[] = {
         {pk_t::SQRT_DST, {"sqrt_dst", "eltwise_sqrt_use_dst_for_bwd"},
                 dnnl_eltwise_sqrt_use_dst_for_bwd},
         {pk_t::SQUARE, {"square", "eltwise_square"}, dnnl_eltwise_square},
-        {pk_t::SRELU, {"soft_relu", "eltwise_soft_relu", "srelu"},
-                dnnl_eltwise_soft_relu},
         {pk_t::SRELU_V2, {"soft_relu_v2", "eltwise_soft_relu_v2", "srelu_v2"},
                 dnnl_eltwise_soft_relu_v2},
         {pk_t::SWISH, {"swish", "eltwise_swish"}, dnnl_eltwise_swish},
@@ -1326,7 +1324,6 @@ float compute_eltwise_fwd(
         case pk_t::SQRT: return scale * sqrt_fwd(src);
         case pk_t::LINEAR: return scale * linear_fwd(src, alpha, beta);
         case pk_t::BRELU: return scale * bounded_relu_fwd(src, alpha);
-        case pk_t::SRELU: return scale * soft_relu_fwd(src);
         case pk_t::SRELU_V2: return scale * soft_relu_v2_fwd(src, alpha);
         case pk_t::MISH: return scale * mish_fwd(src);
         case pk_t::LOGISTIC: return scale * logistic_fwd(src);
@@ -1368,7 +1365,6 @@ float compute_eltwise_bwd(
         case pk_t::SQRT: return sqrt_bwd(d_dst, src);
         case pk_t::LINEAR: return linear_bwd(d_dst, src, alpha, beta);
         case pk_t::BRELU: return bounded_relu_bwd(d_dst, src, alpha);
-        case pk_t::SRELU: return soft_relu_bwd(d_dst, src);
         case pk_t::SRELU_V2: return soft_relu_v2_bwd(d_dst, src, alpha);
         case pk_t::MISH: return mish_bwd(d_dst, src);
         case pk_t::LOGISTIC: return logistic_bwd(d_dst, src);

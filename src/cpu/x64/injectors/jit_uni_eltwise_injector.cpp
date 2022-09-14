@@ -36,14 +36,14 @@ bool is_alg_supported(alg_kind_t alg) {
     using namespace alg_kind;
     return utils::one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            eltwise_bounded_relu, eltwise_soft_relu, eltwise_soft_relu_v2,
-            eltwise_logistic, eltwise_mish, eltwise_exp, eltwise_gelu_tanh,
-            eltwise_hardsigmoid, eltwise_hardswish, eltwise_swish, eltwise_log,
-            eltwise_clip, eltwise_clip_v2, eltwise_pow, eltwise_gelu_erf,
-            eltwise_round, eltwise_relu_use_dst_for_bwd,
-            eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
-            eltwise_sqrt_use_dst_for_bwd, eltwise_logistic_use_dst_for_bwd,
-            eltwise_exp_use_dst_for_bwd, eltwise_clip_v2_use_dst_for_bwd);
+            eltwise_bounded_relu, eltwise_soft_relu_v2, eltwise_logistic,
+            eltwise_mish, eltwise_exp, eltwise_gelu_tanh, eltwise_hardsigmoid,
+            eltwise_hardswish, eltwise_swish, eltwise_log, eltwise_clip,
+            eltwise_clip_v2, eltwise_pow, eltwise_gelu_erf, eltwise_round,
+            eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
+            eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
+            eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd,
+            eltwise_clip_v2_use_dst_for_bwd);
 }
 
 bool is_supported(cpu_isa_t isa, alg_kind_t alg) {
@@ -68,10 +68,10 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::injector_preamble(
     // For avx we need a register to save the upper part of Ymm
     preserve_vec_for_avx = isa == avx
             && utils::one_of(alg_, eltwise_tanh, eltwise_elu, eltwise_abs,
-                    eltwise_soft_relu, eltwise_soft_relu_v2, eltwise_mish,
-                    eltwise_logistic, eltwise_exp, eltwise_gelu_tanh,
-                    eltwise_swish, eltwise_gelu_erf,
-                    eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+                    eltwise_soft_relu_v2, eltwise_mish, eltwise_logistic,
+                    eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
+                    eltwise_gelu_erf, eltwise_tanh_use_dst_for_bwd,
+                    eltwise_elu_use_dst_for_bwd,
                     eltwise_logistic_use_dst_for_bwd,
                     eltwise_exp_use_dst_for_bwd);
     if (preserve_vec_for_avx) vecs_to_preserve++;
@@ -672,8 +672,11 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::hardsigmoid_compute_vector_fwd(
 }
 
 template <cpu_isa_t isa, typename Wmm>
-void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_fwd(
+void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_v2_compute_vector_fwd(
         const Vmm &vmm_src) {
+    // alpha scaling
+    h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
+
     // ln(1 + exp(x)) =
     // = ln(1 + exp(n * ln(2) + r)) // divide x by ln(2) and get quot and rem
     // = ln(1 + 2^n * exp(r)) // simplify the exp(n*ln(2)) expression
@@ -780,16 +783,11 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_fwd(
     // y = (x < max log f) ? soft_relu(x) : x
     compute_cmp_mask(vmm_aux2, table_val(exp_ln_flt_max_f), _cmp_gt_os);
     blend_with_mask(vmm_src, vmm_aux2);
-}
-
-template <cpu_isa_t isa, typename Wmm>
-void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_v2_compute_vector_fwd(
-        const Vmm &vmm_src) {
-    h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
-    soft_relu_compute_vector_fwd(vmm_src);
-    if (alpha_ == -1) { // logsigmoid case
+    if (alpha_ == 1.f) { // standard soft_relu case
+        // Skip an instruction.
+    } else if (alpha_ == -1) { // logsigmoid case
         h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
-    } else {
+    } else { // General case.
         h->uni_vdivps(vmm_src, vmm_src, table_val(alpha));
     }
 }
@@ -1345,16 +1343,10 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::bounded_relu_compute_vector_bwd(
 }
 
 template <cpu_isa_t isa, typename Wmm>
-void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_bwd(
-        const Vmm &vmm_src) {
-    logistic_compute_vector_fwd(vmm_src);
-}
-
-template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_v2_compute_vector_bwd(
         const Vmm &vmm_src) {
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
-    soft_relu_compute_vector_bwd(vmm_src);
+    logistic_compute_vector_fwd(vmm_src);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1627,7 +1619,6 @@ size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count() {
             case eltwise_sqrt: return 0;
             case eltwise_linear: return 1;
             case eltwise_bounded_relu: return 0;
-            case eltwise_soft_relu:
             case eltwise_soft_relu_v2: return 4;
             case eltwise_mish: return 4;
             case eltwise_logistic_use_dst_for_bwd:
@@ -1661,7 +1652,6 @@ size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count() {
             case eltwise_sqrt: return 1;
             case eltwise_linear: return 0;
             case eltwise_bounded_relu: return 1;
-            case eltwise_soft_relu:
             case eltwise_soft_relu_v2: return 4;
             case eltwise_mish: return 4;
             case eltwise_logistic_use_dst_for_bwd: return 1;
@@ -1713,9 +1703,6 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_body(
                 case eltwise_bounded_relu:
                     bounded_relu_compute_vector_fwd(Vmm(idx));
                     break;
-                case eltwise_soft_relu:
-                    soft_relu_compute_vector_fwd(Vmm(idx));
-                    break;
                 case eltwise_soft_relu_v2:
                     soft_relu_v2_compute_vector_fwd(Vmm(idx));
                     break;
@@ -1761,9 +1748,6 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_body(
                 case eltwise_linear: linear_compute_vector_bwd(Vmm(idx)); break;
                 case eltwise_bounded_relu:
                     bounded_relu_compute_vector_bwd(Vmm(idx));
-                    break;
-                case eltwise_soft_relu:
-                    soft_relu_compute_vector_bwd(Vmm(idx));
                     break;
                 case eltwise_soft_relu_v2:
                     soft_relu_v2_compute_vector_bwd(Vmm(idx));
@@ -2325,7 +2309,6 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::register_table_entries() {
                 case eltwise_gelu_erf: gelu_erf_ = true; break;
                 case eltwise_gelu_tanh: gelu_tanh_ = true; break;
                 case eltwise_log: log_ = true; break;
-                case eltwise_soft_relu: soft_relu_ = true; break;
                 case eltwise_soft_relu_v2: soft_relu_ = true; break;
                 case eltwise_mish: mish_ = true; break;
                 case eltwise_tanh_use_dst_for_bwd:

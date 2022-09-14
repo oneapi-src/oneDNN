@@ -58,7 +58,6 @@ void check_correctness(const settings_t &s) {
             case alg_t::SQRT:
             case alg_t::SQRT_DST:
             case alg_t::SQUARE:
-            case alg_t::SRELU:
             case alg_t::TANH:
             case alg_t::TANH_DST:
                 if (i_alpha != 0)

@@ -45,7 +45,9 @@ struct miopen_eltwise_fwd_t : public primitive_t {
                     // Supported algorithms
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
                             eltwise_bounded_relu, eltwise_tanh, eltwise_elu,
-                            eltwise_soft_relu, eltwise_abs, eltwise_logistic)
+                            eltwise_soft_relu_v2, eltwise_abs, eltwise_logistic)
+                    && IMPLICATION(desc()->alg_kind == eltwise_soft_relu_v2,
+                            desc()->alpha == 1.f)
                     // Supported data types
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16)
@@ -80,7 +82,9 @@ struct miopen_eltwise_bwd_t : public primitive_t {
                     && desc()->prop_kind == prop_kind::backward_data
                     // Supported algorithms
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
-                            eltwise_bounded_relu, eltwise_soft_relu)
+                            eltwise_bounded_relu, eltwise_soft_relu_v2)
+                    && IMPLICATION(desc()->alg_kind == eltwise_soft_relu_v2,
+                            desc()->alpha == 1.f)
                     // Supported data types
                     && desc()->data_desc.data_type == data_type::f32
                     && set_default_formats_common()

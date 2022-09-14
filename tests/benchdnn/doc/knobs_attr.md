@@ -165,7 +165,6 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `sqrt`
       - `sqrt_dst`
       - `square`
-      - `soft_relu`
       - `tanh`
       - `tanh_dst`
   - Eltwise operations that support only alpha:

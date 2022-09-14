@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,8 +66,6 @@ TEST_P(convolution_test, TestConvolutionEltwise) {}
             EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_linear, __VA_ARGS__)), \
             EXPAND_ARGS(PARAMS_CONV( \
                     algorithm::eltwise_bounded_relu, __VA_ARGS__)), \
-            EXPAND_ARGS( \
-                    PARAMS_CONV(algorithm::eltwise_soft_relu, __VA_ARGS__)), \
             EXPAND_ARGS(PARAMS_CONV( \
                     algorithm::eltwise_soft_relu_v2, __VA_ARGS__)), \
             EXPAND_ARGS( \

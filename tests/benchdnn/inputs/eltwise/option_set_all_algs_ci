@@ -4,16 +4,16 @@
 --alpha=0 --beta=0
 --alg=abs,exp,exp_dst,gelu_erf,gelu_tanh,hardswish,log,logistic, \
       logistic_dst,mish,relu,relu_dst,round,sqrt,sqrt_dst,square, \
-      soft_relu,tanh,tanh_dst
+      tanh,tanh_dst
 --batch=shapes_ci
 
 ## algs which support negative alpha
 --alpha=-2 --beta=0
---alg=elu,relu,soft_relu_v2,swish
+--alg=elu,relu,swish
 --batch=shapes_ci
 
-### logsigmoid
---alpha=-1 --beta=0
+### logsigmoid and soft_relu
+--alpha=-1,1,2 --beta=0
 --alg=soft_relu_v2
 --batch=shapes_ci
 

@@ -120,9 +120,9 @@ struct jit_uni_eltwise_injector_f32 {
         assert(is_superset(isa, sve_128));
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                eltwise_exp, eltwise_gelu_tanh, eltwise_swish, eltwise_log,
-                eltwise_clip, eltwise_clip_v2, eltwise_gelu_erf, eltwise_round,
+                eltwise_bounded_relu, eltwise_logistic, eltwise_exp,
+                eltwise_gelu_tanh, eltwise_swish, eltwise_log, eltwise_clip,
+                eltwise_clip_v2, eltwise_gelu_erf, eltwise_round,
                 eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
                 eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
                 eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd,
