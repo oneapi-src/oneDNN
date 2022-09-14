@@ -84,8 +84,7 @@ struct primitive_t : public c_compatible {
     // creation in `create_primitive_common`.
     // The rationale behind marking it as `const` is to simplify enabling the
     // primitive cache mode for storing compiled GPU kernels instead of
-    // binaries - DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE=ON and to preserve the
-    // current primitive cache implementation.
+    // binaries and to preserve the current primitive cache implementation.
     //
     // The main idea is to create a resource inside the primitive_t only once
     // and cache it as part of primitive_t.

@@ -98,11 +98,7 @@ status_t dnnl_engine_get_kind(engine_t *engine, engine_kind_t *kind) {
 }
 
 status_t dnnl_engine_destroy(engine_t *engine) {
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     if (engine != nullptr) engine->release();
-#else
-    delete engine;
-#endif
     return success;
 }
 

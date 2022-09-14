@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,18 +39,12 @@ memory_storage_t::memory_storage_t(
         engine_t *engine, const memory_storage_t *parent_storage)
     : parent_storage_(parent_storage) {
     engine_ = engine;
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     if (engine_) engine_->retain();
-#endif
 }
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
 memory_storage_t::~memory_storage_t() {
     if (engine_) engine_->release();
 };
-#else
-memory_storage_t::~memory_storage_t() = default;
-#endif
 
 } // namespace impl
 } // namespace dnnl

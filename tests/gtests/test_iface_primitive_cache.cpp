@@ -94,11 +94,6 @@ TEST(primitive_cache_test, TestCacheHit) {
     fill_primitive_cache(1);
     fill_primitive_cache(1);
 
-#ifndef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
-    ASSERT_EQ(get_primitive_cache_size(), 1);
-    return;
-#endif
-
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     if (get_test_engine_kind() == engine::kind::cpu) {
         // Regular CPU engines are always considered equal.

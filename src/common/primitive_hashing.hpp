@@ -21,13 +21,10 @@
 #include <type_traits>
 
 #include "c_types_map.hpp"
+#include "engine_id.hpp"
 #include "oneapi/dnnl/dnnl.h"
 #include "primitive_attr.hpp"
 #include "type_helpers.hpp"
-
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
-#include "engine_id.hpp"
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -53,13 +50,7 @@ struct key_t {
     int pd_iterator_offset_;
     int impl_nthr_;
     std::vector<memory_desc_t> hint_mds_;
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     engine_id_t engine_id_;
-#else
-    engine_kind_t engine_kind_;
-    runtime_kind_t runtime_kind_;
-    device_id_t device_id_;
-#endif
 
 private:
     template <typename desc_t>
@@ -144,17 +135,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         seed = hash_combine(seed, hash_combine(0, key.pd_iterator_offset_));
         seed = hash_combine(seed, hash_combine(0, key.impl_nthr_));
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
         seed = hash_combine(seed, key.engine_id_.hash());
-#else
-        seed = hash_combine(
-                seed, hash_combine(0, static_cast<size_t>(key.engine_kind_)));
-        seed = hash_combine(
-                seed, hash_combine(0, static_cast<size_t>(key.runtime_kind_)));
-        seed = hash_combine(seed, hash_combine(0, std::get<0>(key.device_id_)));
-        seed = hash_combine(seed, hash_combine(0, std::get<1>(key.device_id_)));
-        seed = hash_combine(seed, hash_combine(0, std::get<2>(key.device_id_)));
-#endif
         // Combine hash for op_desc with the computed hash
 #define CASE(pkind) \
     case primitive_kind::pkind: \

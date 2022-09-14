@@ -146,7 +146,6 @@ public:
 
     device_id_t device_id() const override { return std::make_tuple(0, 0, 0); }
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     engine_id_t engine_id() const override {
         // Non-sycl CPU engine doesn't have device and context.
         return {};
@@ -154,7 +153,6 @@ public:
 
 protected:
     ~cpu_engine_t() override = default;
-#endif
 };
 
 class cpu_engine_factory_t : public engine_factory_t {

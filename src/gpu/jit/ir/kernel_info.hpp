@@ -186,15 +186,9 @@ public:
         int key = args_[idx].key;
         switch (args_[idx].kind) {
             case arg_kind_t::resource:
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
                 return *(primitive->cached_mapper()
                                  ->template get<gpu_resource_t>(primitive)
                                  ->get_memory_storage(key));
-#else
-                return *(ctx.get_resource_mapper()
-                                 ->get<gpu_resource_t>(primitive)
-                                 ->get_memory_storage(key));
-#endif
             case arg_kind_t::scratchpad:
                 return ctx.get_scratchpad_grantor().get_memory_storage(key);
             case arg_kind_t::user: {

@@ -25,12 +25,9 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_impl_list.hpp"
+#include "gpu/ocl/ocl_gpu_engine_id.hpp"
 #include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
-#include "gpu/ocl/ocl_gpu_engine_id.hpp"
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -99,15 +96,12 @@ public:
 
     status_t serialize_device(serialization_stream_t &sstream) const override;
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     engine_id_t engine_id() const override {
         return engine_id_t(new ocl_gpu_engine_id_impl_t(
                 device(), context(), kind(), runtime_kind(), index()));
     }
 
 protected:
-#endif
-
     ~ocl_gpu_engine_t() override {
         if (device_) { clReleaseDevice(device_); }
         if (context_) { clReleaseContext(context_); }

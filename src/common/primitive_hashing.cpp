@@ -35,15 +35,8 @@ key_t::key_t(const engine_t *engine, const op_desc_t *op_desc,
     , pd_iterator_offset_(pd_iterator_offset)
     , impl_nthr_(dnnl_get_max_threads())
     , hint_mds_(hint_mds)
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     , engine_id_(engine->engine_id())
-#else
-    , engine_kind_(engine->kind())
-    , runtime_kind_(engine->runtime_kind())
-    , device_id_(engine->device_id())
-#endif
-    , thread_id_(std::this_thread::get_id()) {
-}
+    , thread_id_(std::this_thread::get_id()) {}
 
 key_t::key_t(const primitive_desc_t *pd, const engine_t *engine)
     : key_t(engine, pd->op_desc(), pd->attr(), pd->pd_iterator_offset(),
@@ -55,13 +48,7 @@ bool key_t::operator==(const key_t &rhs) const {
     bool ret = true
         // Less expensive comparisons come first
         && primitive_kind_ == rhs.primitive_kind_
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
         && engine_id_ == rhs.engine_id_
-#else
-        && engine_kind_ == rhs.engine_kind_
-        && runtime_kind_ == rhs.runtime_kind_
-        && device_id_ == rhs.device_id_
-#endif
         && hint_mds_.size() == rhs.hint_mds_.size()
         && pd_iterator_offset_ == rhs.pd_iterator_offset_
         && impl_nthr_ == rhs.impl_nthr_

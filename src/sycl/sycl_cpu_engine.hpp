@@ -68,10 +68,9 @@ public:
             const op_desc_t *desc) const override {
         return cpu::cpu_engine_impl_list_t::get_implementation_list(desc);
     }
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+
 protected:
     ~sycl_cpu_engine_t() override = default;
-#endif
 };
 
 } // namespace sycl

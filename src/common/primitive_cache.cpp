@@ -290,12 +290,6 @@ void lru_primitive_cache_t::evict(size_t n) {
 lru_primitive_cache_t::~lru_primitive_cache_t() {
     if (cache_mapper().empty()) return;
 
-// The library unloading issue affects only Windows and
-// DPCPP and OpenCL runtimes when DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE is ON.
-#ifndef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
-    return;
-#else
-
 #if defined(_WIN32) \
         && (defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL)
     // The ntdll.dll library is located in system32 therefore setting additional
@@ -357,8 +351,6 @@ lru_primitive_cache_t::~lru_primitive_cache_t() {
     // library unloading order in such cases.
     cache_mapper_.reset();
 #endif
-
-#endif /* DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE */
 }
 
 } // namespace impl

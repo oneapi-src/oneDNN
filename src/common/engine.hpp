@@ -23,11 +23,8 @@
 #include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #endif
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
-#include "engine_id.hpp"
-#endif
-
 #include "c_types_map.hpp"
+#include "engine_id.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
 #include "primitive_desc.hpp"
@@ -45,11 +42,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         : kind_(kind)
         , runtime_kind_(runtime_kind)
         , index_(index)
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
-        , counter_(1)
-#endif
-    {
-    }
+        , counter_(1) {}
 
     /** get kind of the current engine */
     dnnl::impl::engine_kind_t kind() const { return kind_; }
@@ -62,9 +55,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     virtual dnnl::impl::device_id_t device_id() const = 0;
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     virtual dnnl::impl::engine_id_t engine_id() const = 0;
-#endif
 
     /** create memory storage */
     virtual dnnl::impl::status_t create_memory_storage(
@@ -127,27 +118,21 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     virtual bool mayiuse_f16_accumulator_with_f16() const { return false; }
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     void retain() { counter_++; }
 
     void release() {
         if (--counter_ == 0) { delete this; }
     }
-#else
-    virtual ~dnnl_engine() = default;
-#endif
 
 protected:
     dnnl::impl::engine_kind_t kind_;
     dnnl::impl::runtime_kind_t runtime_kind_;
     size_t index_;
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     virtual ~dnnl_engine() = default;
 
 private:
     std::atomic<int> counter_;
-#endif
 };
 
 namespace dnnl {
@@ -195,13 +180,7 @@ struct engine_factory_t : public c_compatible {
 };
 
 struct engine_deleter_t {
-    void operator()(engine_t *e) const {
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
-        e->release();
-#else
-        delete e;
-#endif
-    }
+    void operator()(engine_t *e) const { e->release(); }
 };
 
 } // namespace impl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,17 +26,10 @@
 #include "gpu/gemm/gpu_gemm_exec_types.hpp"
 #include "gpu/gpu_resource.hpp"
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
 #define CTX_GPU_RES_STORAGE(arg) \
     (*(cached_mapper() \
                     ->template get<gpu_resource_t>(this) \
                     ->get_memory_storage(arg)))
-#else
-#define CTX_GPU_RES_STORAGE(arg) \
-    (*(ctx.get_resource_mapper() \
-                    ->get<gpu_resource_t>(this) \
-                    ->get_memory_storage(arg)))
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -67,7 +60,6 @@ struct gpu_primitive_t : public primitive_t {
         const primitive_t *primitive_;
     };
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     const resource_mapper_t *cached_mapper() const { return &cached_mapper_; }
 
     status_t init_cached_resource(engine_t *engine) const override {
@@ -91,19 +83,6 @@ struct gpu_primitive_t : public primitive_t {
         }
         return status::success;
     }
-#else
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        CHECK(fill_mapper(engine, mapper));
-        // When caching binaries there is a single common mapper that is
-        // filled for the whole hierarchy of primitives.
-        for (const auto &cb : compute_blocks()) {
-            if (cb && cb.is_primitive())
-                CHECK(cb.primitive()->create_resource(engine, mapper));
-        }
-        return status::success;
-    }
-#endif
 
     status_t get_cache_blob_size(size_t *size) const override {
         if (!size) return status::invalid_arguments;
@@ -137,7 +116,6 @@ struct gpu_primitive_t : public primitive_t {
             switch (cb.kind()) {
                 case compute_block_t::kind_t::kernel: {
                     compute::binary_t binary;
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
                     const resource_mapper_t *rm = cached_mapper();
                     ;
                     const auto *resource = rm->get<gpu_resource_t>(this);
@@ -147,9 +125,6 @@ struct gpu_primitive_t : public primitive_t {
                     // TODO: Copy binary directly to `blob` when binary cache
                     // mode is removed.
                     CHECK(realized_kernel.binary(engine, binary));
-#else
-                    binary = *(cb.kernel().binary());
-#endif
                     CHECK(blob.add_binary(binary.data(), binary.size()));
                     break;
                 }
@@ -243,11 +218,7 @@ protected:
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
         const resource_mapper_t *rm = nullptr;
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
         rm = cached_mapper();
-#else
-        rm = ctx.get_resource_mapper();
-#endif
         return parallel_for(rm, ctx.stream(), range, kernel, arg_list);
     }
 
@@ -255,11 +226,7 @@ protected:
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
         const resource_mapper_t *rm = nullptr;
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
         rm = cached_mapper();
-#else
-        rm = ctx.get_resource_mapper();
-#endif
         return parallel_for(rm, ctx.stream(), range, kernel, arg_list);
     }
 
@@ -298,13 +265,9 @@ private:
         return status::success;
     }
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     // Make these mutable to allow modifying them from `init_cached_resource`.
     mutable resource_mapper_t cached_mapper_;
     mutable std::vector<compute_block_t> registered_compute_blocks_;
-#else
-    std::vector<compute_block_t> registered_compute_blocks_;
-#endif
 };
 
 } // namespace gpu

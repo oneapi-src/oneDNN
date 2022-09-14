@@ -577,29 +577,14 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     if (res->state == SKIPPED) return OK;
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
-        // The first primitive creation using a temporary engine.
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice using different
     // engines but the same device and context in the case of OpenCL and DPCPP.
     // Rationale: make sure that the primitive cache is robust in the case
     // where CPU and GPU engines are re-created because this is a commonly
     // used scenario in the frameworks.
     engine_t engine(get_test_engine());
-#else
-    // The idea is to create the requested primitive twice using
-    // different engines.
-    // Rationale:
-    // 1. Make sure that the primitive cache is robust for the cases when:
-    //   - CPU engine is re-created
-    //   - GPU engine is re-created for the same device but different context
-    // These 2 cases are commonly used or expected to be used in the frameworks.
-    // 2. (for GPU only) Identify context dependent parts in primitive
-    // implementations, e.g. if a primitive implementation contains
-    // a memory_storage_t (for scales, zero points or buffers), which depends
-    // on a particular engine then it should fail at execution time.
-    engine_t engine(engine_tgt_kind);
-#endif
 
+    // The first primitive creation using a temporary engine.
     SAFE(create_primitive(primw, engine, init_pd_func, prb, res, dir, hint,
                  is_service_prim),
             WARN);

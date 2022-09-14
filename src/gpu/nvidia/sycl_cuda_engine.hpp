@@ -80,10 +80,8 @@ public:
     const bool has_primary_context() const { return primary_context_; }
     device_id_t device_id() const override;
 
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
 protected:
     ~sycl_cuda_engine_t() override = default;
-#endif
 
 private:
     // This functions sets the context type. Since cuda requires different

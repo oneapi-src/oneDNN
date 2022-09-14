@@ -95,9 +95,8 @@ protected:
     state_t state_;
     cl_kernel ocl_kernel_;
     std::shared_ptr<compute::binary_t> binary_;
-    // When DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE is defined the binary_ is
-    // cleared via `clear()` to reduce memory footprint. Because of that the
-    // binary size is stored separately to avoid querying it.
+    // The binary_ is cleared via `clear()` to reduce memory footprint. Because
+    // of that the binary size is stored separately to avoid querying it.
     size_t binary_size_;
     std::string kernel_name_;
 

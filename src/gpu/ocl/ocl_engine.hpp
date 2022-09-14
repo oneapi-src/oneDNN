@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,11 +53,7 @@ public:
 
         status = ocl_engine->init();
         if (status != status::success) {
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
             ocl_engine->release();
-#else
-            delete ocl_engine;
-#endif
             return status;
         }
         *engine = ocl_engine;
@@ -71,11 +67,7 @@ public:
 
         status_t status = ocl_engine->init();
         if (status != status::success) {
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
             ocl_engine->release();
-#else
-            delete ocl_engine;
-#endif
             return status;
         }
         *engine = ocl_engine;
