@@ -35,7 +35,7 @@ inline bool jit_eltwise_injector_f32_is_supported(alg_kind_t alg) {
             eltwise_gelu_erf, eltwise_hardsigmoid, eltwise_hardswish,
             eltwise_log, eltwise_mish, eltwise_pow, eltwise_relu,
             eltwise_relu_use_dst_for_bwd, eltwise_bounded_relu,
-            eltwise_soft_relu_v2, eltwise_sqrt, eltwise_sqrt_use_dst_for_bwd,
+            eltwise_soft_relu, eltwise_sqrt, eltwise_sqrt_use_dst_for_bwd,
             eltwise_square, eltwise_swish, eltwise_tanh,
             eltwise_tanh_use_dst_for_bwd, eltwise_abs, eltwise_round,
             eltwise_linear, eltwise_clip, eltwise_clip_v2,
@@ -114,10 +114,10 @@ private:
     void mish_compute_fwd(
             int simd, const ngen::GRF &r, int phase, int off, int batch);
     void pow_compute_fwd(int simd, const ngen::GRF &r, int phase, int off);
-    void soft_relu_v2_compute_fwd_inner(int simd, const ngen::GRF &input,
+    void soft_relu_compute_fwd_inner(int simd, const ngen::GRF &input,
             const ngen::GRF &temp, const ngen::GRF &dest, int phase, int off,
             float alpha);
-    void soft_relu_v2_compute_fwd(
+    void soft_relu_compute_fwd(
             int simd, const ngen::GRF &r, int phase, int off);
     void sqrt_compute_fwd(int simd, const ngen::GRF &r);
     void square_compute_fwd(int simd, const ngen::GRF &r);

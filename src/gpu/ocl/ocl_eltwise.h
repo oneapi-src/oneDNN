@@ -60,12 +60,12 @@ float bounded_relu_bwd(float dd, float s, float alpha) {
     return dd * (0 < s && s <= alpha ? 1 : 0);
 }
 
-float soft_relu_v2_fwd(float s, float alpha) {
+float soft_relu_fwd(float s, float alpha) {
     s = alpha * s;
     float v = (s < log((float)DATA_MAX) ? log1p(exp(s)) : s);
     return v / alpha;
 }
-float soft_relu_v2_bwd(float dd, float s, float alpha) {
+float soft_relu_bwd(float dd, float s, float alpha) {
     s = alpha * s;
     return dd / (1 + exp(-s));
 }
@@ -117,11 +117,11 @@ float tanh_bwd_use_dst(float dd, float d) {
 }
 
 float mish_fwd(float s) {
-    return s * tanh_fwd(soft_relu_v2_fwd(s, 1.f));
+    return s * tanh_fwd(soft_relu_fwd(s, 1.f));
 }
 float mish_bwd(float dd, float s) {
-    const float tanh = tanh_fwd(soft_relu_v2_fwd(s, 1.f));
-    const float srelu_bwd = soft_relu_v2_bwd(1.f, s, 1.f);
+    const float tanh = tanh_fwd(soft_relu_fwd(s, 1.f));
+    const float srelu_bwd = soft_relu_bwd(1.f, s, 1.f);
     const float derivative = tanh + s * srelu_bwd * (1 - pow(tanh, 2.0f));
     return dd * derivative;
 }
@@ -246,7 +246,7 @@ float fwd_eltwise_common(
         case RELU: return scale_ * relu_fwd(x, alpha_); break;
         case LINEAR: return scale_ * linear_fwd(x, alpha_, beta_); break;
         case BOUNDED_RELU: return scale_ * bounded_relu_fwd(x, alpha_); break;
-        case SOFT_RELU_V2: return scale_ * soft_relu_v2_fwd(x, alpha_); break;
+        case SOFT_RELU: return scale_ * soft_relu_fwd(x, alpha_); break;
         case MISH: return scale_ * mish_fwd(x); break;
         case LOGISTIC: return scale_ * logistic_fwd(x); break;
         case TANH: return scale_ * tanh_fwd(x); break;
@@ -293,7 +293,7 @@ float bwd_eltwise(float x, float y, float alpha_, float beta_) {
         case RELU: return relu_bwd(x, y, alpha_); break;
         case LINEAR: return linear_bwd(x, alpha_); break;
         case BOUNDED_RELU: return bounded_relu_bwd(x, y, alpha_); break;
-        case SOFT_RELU_V2: return soft_relu_v2_bwd(x, y, alpha_); break;
+        case SOFT_RELU: return soft_relu_bwd(x, y, alpha_); break;
         case MISH: return mish_bwd(x, y); break;
         case LOGISTIC: return logistic_bwd(x, y); break;
         case TANH: return tanh_bwd(x, y); break;

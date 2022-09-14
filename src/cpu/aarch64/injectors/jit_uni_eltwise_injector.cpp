@@ -40,7 +40,7 @@ bool is_alg_supported(alg_kind_t alg) {
     using namespace alg_kind;
     return utils::one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            eltwise_bounded_relu, /*eltwise_soft_relu_v2,*/
+            eltwise_bounded_relu, /*eltwise_soft_relu,*/
             eltwise_logistic, /*eltwise_mish,*/ eltwise_exp, eltwise_gelu_tanh,
             /*eltwise_hardswish,*/ eltwise_swish, eltwise_log, eltwise_clip,
             /*eltwise_clip_v2, eltwise_pow,*/ eltwise_gelu_erf, eltwise_round,
@@ -257,7 +257,7 @@ void jit_uni_eltwise_injector_f32<isa>::set_coef_to_regs() {
                 table_val(beta, vmm_aux0);
                 break;
             case eltwise_bounded_relu: table_val(alpha, z_tmp); break;
-            // case eltwise_soft_relu_v2: // TODO: enable me.
+            // case eltwise_soft_relu: // TODO: enable me.
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic:
             case eltwise_exp_use_dst_for_bwd:
@@ -287,7 +287,7 @@ void jit_uni_eltwise_injector_f32<isa>::set_coef_to_regs() {
             case eltwise_sqrt:
             case eltwise_linear:
             case eltwise_bounded_relu:
-            // case eltwise_soft_relu_v2:
+            // case eltwise_soft_relu:
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic:
             case eltwise_exp_use_dst_for_bwd:
@@ -1297,7 +1297,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_sqrt: return 0;
             case eltwise_linear: return 2;
             case eltwise_bounded_relu: return 1;
-            // case eltwise_soft_relu_v2: return 5;
+            // case eltwise_soft_relu: return 5;
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic: return 5; /* = exp + 1 */
             case eltwise_exp_use_dst_for_bwd:
@@ -1324,7 +1324,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_sqrt: return 2;
             case eltwise_linear: return 1;
             case eltwise_bounded_relu: return 1;
-            // case eltwise_soft_relu_v2: return 5; /* = logistic */
+            // case eltwise_soft_relu: return 5; /* = logistic */
             case eltwise_logistic_use_dst_for_bwd: return 2;
             case eltwise_logistic: return 5; /* = logistic */
             case eltwise_exp_use_dst_for_bwd: return 0;

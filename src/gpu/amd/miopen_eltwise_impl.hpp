@@ -69,7 +69,7 @@ public:
             case alg_kind::eltwise_abs:
                 *miopen_alg_kind = miopenActivationMode_t::miopenActivationABS;
                 break;
-            case alg_kind::eltwise_soft_relu_v2:
+            case alg_kind::eltwise_soft_relu:
                 *miopen_alg_kind
                         = miopenActivationMode_t::miopenActivationSOFTRELU;
                 break;

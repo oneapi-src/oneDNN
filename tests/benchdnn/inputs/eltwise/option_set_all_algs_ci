@@ -14,7 +14,7 @@
 
 ### logsigmoid and soft_relu
 --alpha=-1,1,2 --beta=0
---alg=soft_relu_v2
+--alg=soft_relu
 --batch=shapes_ci
 
 ## algs which do not support negative alpha

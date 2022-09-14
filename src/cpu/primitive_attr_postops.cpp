@@ -56,7 +56,7 @@ float compute_eltwise_scalar_fwd(
         case eltwise_sqrt: d = sqrt_fwd(s); break;
         case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
         case eltwise_bounded_relu: d = bounded_relu_fwd(s, alpha); break;
-        case eltwise_soft_relu_v2: d = soft_relu_v2_fwd(s, alpha); break;
+        case eltwise_soft_relu: d = soft_relu_fwd(s, alpha); break;
         case eltwise_logistic: d = logistic_fwd(s); break;
         case eltwise_exp: d = exp_fwd(s); break;
         case eltwise_gelu_tanh: d = gelu_tanh_fwd(s); break;
@@ -97,7 +97,7 @@ float compute_eltwise_scalar_bwd(
         case eltwise_sqrt: ds = sqrt_bwd(dd, s); break;
         case eltwise_linear: ds = linear_bwd(dd, s, alpha, beta); break;
         case eltwise_bounded_relu: ds = bounded_relu_bwd(dd, s, alpha); break;
-        case eltwise_soft_relu_v2: ds = soft_relu_v2_bwd(dd, s, alpha); break;
+        case eltwise_soft_relu: ds = soft_relu_bwd(dd, s, alpha); break;
         case eltwise_logistic: ds = logistic_bwd(dd, s); break;
         case eltwise_exp: ds = exp_bwd(dd, s); break;
         case eltwise_gelu_tanh: ds = gelu_tanh_bwd(dd, s); break;
@@ -154,7 +154,7 @@ ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
     : alg_(alg), alpha_(alpha), beta_(beta), scale_(scale) {
     assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            eltwise_bounded_relu, eltwise_soft_relu_v2, eltwise_mish,
+            eltwise_bounded_relu, eltwise_soft_relu, eltwise_mish,
             eltwise_logistic, eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
             eltwise_log, eltwise_clip, eltwise_clip_v2, eltwise_pow,
             eltwise_gelu_erf, eltwise_round, eltwise_hardsigmoid,

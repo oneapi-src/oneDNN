@@ -44,7 +44,7 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_relu:
             case eltwise_relu_use_dst_for_bwd: return (alpha_ == 0.f) ? 0 : 1;
             case eltwise_abs: return 0;
-            case eltwise_soft_relu_v2: return 1;
+            case eltwise_soft_relu: return 1;
             case eltwise_sqrt:
             case eltwise_sqrt_use_dst_for_bwd: return 0;
             case eltwise_square: return 0;
@@ -91,7 +91,7 @@ int jit_eltwise_injector_f32<hw>::preferred_scratch_regs() {
             case eltwise_relu_use_dst_for_bwd: return (alpha_ == 0.f) ? 0 : 8;
             case eltwise_tanh: return 8;
             case eltwise_gelu_tanh: return 8;
-            case eltwise_soft_relu_v2: return 8;
+            case eltwise_soft_relu: return 8;
             case eltwise_swish: return 8;
             default: break;
         }
@@ -121,7 +121,7 @@ int jit_eltwise_injector_f32<hw>::max_batch_size() {
             case eltwise_elu_use_dst_for_bwd:
             case eltwise_hardswish:
             case eltwise_pow:
-            case eltwise_soft_relu_v2:
+            case eltwise_soft_relu:
             case eltwise_swish: return ss;
             case eltwise_tanh:
             case eltwise_mish:
@@ -154,12 +154,12 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
             case eltwise_hardswish: return 3;
             case eltwise_log: return 2;
             case eltwise_mish:
-                return phase_count(alg_kind::eltwise_soft_relu_v2)
+                return phase_count(alg_kind::eltwise_soft_relu)
                         + phase_count(alg_kind::eltwise_tanh) + 1;
             case eltwise_pow: return 6;
             case eltwise_relu:
             case eltwise_relu_use_dst_for_bwd: return (alpha_ == 0) ? 1 : 2;
-            case eltwise_soft_relu_v2: return 10;
+            case eltwise_soft_relu: return 10;
             case eltwise_swish: return 5;
             case eltwise_tanh:
             case eltwise_tanh_use_dst_for_bwd:
@@ -211,7 +211,7 @@ void jit_eltwise_injector_f32<hw>::abs_compute_fwd(
 }
 
 template <gpu_gen_t hw>
-void jit_eltwise_injector_f32<hw>::soft_relu_v2_compute_fwd_inner(int simd,
+void jit_eltwise_injector_f32<hw>::soft_relu_compute_fwd_inner(int simd,
         const ngen::GRF &input, const ngen::GRF &temp, const ngen::GRF &dest,
         int phase, int off, float alpha) {
     const float exp_overflow_bound = 88.72283172607421875;
@@ -233,10 +233,10 @@ void jit_eltwise_injector_f32<hw>::soft_relu_v2_compute_fwd_inner(int simd,
 }
 
 template <gpu_gen_t hw>
-void jit_eltwise_injector_f32<hw>::soft_relu_v2_compute_fwd(
+void jit_eltwise_injector_f32<hw>::soft_relu_compute_fwd(
         int simd, const ngen::GRF &r, int phase, int off) {
     auto temp = scratch_[off].f();
-    soft_relu_v2_compute_fwd_inner(simd, r, temp, r, phase, off, alpha_);
+    soft_relu_compute_fwd_inner(simd, r, temp, r, phase, off, alpha_);
 }
 
 template <gpu_gen_t hw>
@@ -613,11 +613,11 @@ void jit_eltwise_injector_f32<hw>::mish_compute_fwd(
         int simd, const ngen::GRF &r, int phase, int off, int batch) {
     auto temp = scratch_[off + batch].f();
     auto temp2 = scratch_[off + 2 * batch].f();
-    const int srelu_phases = phase_count(alg_kind::eltwise_soft_relu_v2);
+    const int srelu_phases = phase_count(alg_kind::eltwise_soft_relu);
     const int tanh_phases = phase_count(alg_kind::eltwise_tanh);
     // note tanh_compute_fwd_* clobbers scratch_[off] and scratch_[off + batch]
     if (phase < srelu_phases)
-        soft_relu_v2_compute_fwd_inner(simd, r, temp, temp2, phase, off, 1.f);
+        soft_relu_compute_fwd_inner(simd, r, temp, temp2, phase, off, 1.f);
     if (phase >= srelu_phases && phase < srelu_phases + tanh_phases) {
         if (use_tanh_compat())
             tanh_compute_fwd_compat(
@@ -708,8 +708,8 @@ void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
                             clip_compute_fwd(simd, base, phase, 0, alpha_);
                             break;
                         case eltwise_abs: abs_compute_fwd(simd, base); break;
-                        case eltwise_soft_relu_v2:
-                            soft_relu_v2_compute_fwd(simd, base, phase, ii);
+                        case eltwise_soft_relu:
+                            soft_relu_compute_fwd(simd, base, phase, ii);
                             break;
                         case eltwise_sqrt:
                         case eltwise_sqrt_use_dst_for_bwd:

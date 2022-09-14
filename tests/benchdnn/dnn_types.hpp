@@ -239,7 +239,7 @@ struct attr_t {
             SQRT,
             SQRT_DST,
             SQUARE,
-            SRELU_V2,
+            SRELU,
             SWISH,
             TANH,
             TANH_DST,

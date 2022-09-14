@@ -173,7 +173,7 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `elu_dst`
       - `relu`
       - `relu_dst`
-      - `soft_relu_v2`
+      - `soft_relu`
       - `swish`
   - Eltwise operations that support both alpha and beta:
       - `clip`

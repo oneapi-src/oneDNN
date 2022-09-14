@@ -246,7 +246,7 @@ inline U logistic_bwd_use_dst(T dd, T d) {
 
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
-inline U soft_relu_v2_fwd(T s, A alpha) {
+inline U soft_relu_fwd(T s, A alpha) {
     float exp_overflow_bound = 88.72283172607421875;
     float in = (float)s * (float)alpha;
     float v = (in < exp_overflow_bound ? (U)(::log1pf(::expf(in))) : (U)in);
@@ -254,19 +254,19 @@ inline U soft_relu_v2_fwd(T s, A alpha) {
 }
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
-inline U soft_relu_v2_bwd(T dd, T s, A alpha) {
+inline U soft_relu_bwd(T dd, T s, A alpha) {
     float in = (float)s * (float)alpha;
     return (U)(dd * logistic_fwd<float>(in));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U mish_fwd(T s) {
-    return s * tanh_fwd(soft_relu_v2_fwd(s, 1.f));
+    return s * tanh_fwd(soft_relu_fwd(s, 1.f));
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U mish_bwd(T dd, T s) {
-    const float tanh = tanh_fwd(soft_relu_v2_fwd(s, 1.f));
-    const float srelu_bwd = soft_relu_v2_bwd(1.f, s, 1.f);
+    const float tanh = tanh_fwd(soft_relu_fwd(s, 1.f));
+    const float srelu_bwd = soft_relu_bwd(1.f, s, 1.f);
     const float derivative = tanh + s * srelu_bwd * (1 - ::powf(tanh, 2.0f));
     return dd * derivative;
 }
@@ -411,7 +411,7 @@ inline bool is_eltwise_ok(
     const bool eltwise_use_src
             = one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
                       eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                      eltwise_bounded_relu, eltwise_soft_relu_v2, eltwise_mish,
+                      eltwise_bounded_relu, eltwise_soft_relu, eltwise_mish,
                       eltwise_logistic, eltwise_exp, eltwise_gelu_tanh,
                       eltwise_hardsigmoid, eltwise_hardswish, eltwise_swish,
                       eltwise_log, eltwise_clip, eltwise_clip_v2, eltwise_pow,

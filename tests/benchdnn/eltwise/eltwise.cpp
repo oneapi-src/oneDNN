@@ -110,7 +110,7 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             // catch catastrophic cancellation, which occurs when err in tanh(s)
             // is high and tanh(s) is close to 1.
             return (prb->dir & FLAG_BWD) && (1.f - s * s) <= comp_err;
-        case alg_t::SRELU_V2:
+        case alg_t::SRELU:
             // when `alpha * s` is negative, expf(alpha * s) -> 0 rapidly
             // which leads to log1pf(expf(alpha * s)) -> 0
             // which leads to high relative error,
@@ -119,7 +119,7 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             return (prb->dir & FLAG_FWD) && std::signbit(prb->alpha * s)
                     && log1pf(expf(prb->alpha * s)) <= 10.f * comp_err;
         case alg_t::MISH:
-            // same situation like in SRELU_V2
+            // same situation like in SRELU
             return (prb->dir & FLAG_FWD) && std::signbit(s)
                     && s * tanh(log1pf(expf(s))) <= 10.f * comp_err;
         case alg_t::LOGISTIC:
@@ -151,7 +151,7 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
     // Tolerate bigger compute errors for complex algorithms.
     const bool alg_has_higher_tolerance = alg == alg_t::GELU_TANH
             || alg == alg_t::ELU || alg == alg_t::SWISH || alg == alg_t::TANH
-            || alg == alg_t::SRELU_V2 || alg == alg_t::MISH || alg == alg_t::LOG
+            || alg == alg_t::SRELU || alg == alg_t::MISH || alg == alg_t::LOG
             || ((alg == alg_t::ELU_DST || alg == alg_t::TANH_DST) && is_fwd);
     if (dt == dnnl_f32 && alg_has_higher_tolerance) trh = 4e-5;
     return trh;

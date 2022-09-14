@@ -1131,7 +1131,7 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_sqrt) return "eltwise_sqrt";
     if (v == dnnl_eltwise_linear) return "eltwise_linear";
     if (v == dnnl_eltwise_bounded_relu) return "eltwise_bounded_relu";
-    if (v == dnnl_eltwise_soft_relu_v2) return "eltwise_soft_relu_v2";
+    if (v == dnnl_eltwise_soft_relu) return "eltwise_soft_relu";
     if (v == dnnl_eltwise_hardsigmoid) return "eltwise_hardsigmoid";
     if (v == dnnl_eltwise_logistic) return "eltwise_logistic";
     if (v == dnnl_eltwise_exp) return "eltwise_exp";

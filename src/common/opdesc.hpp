@@ -196,7 +196,7 @@ struct eltwise_desc_t {
     // #dnnl_eltwise_tanh, #dnnl_eltwise_elu, #dnnl_eltwise_square,
     // #dnnl_eltwise_abs, #dnnl_eltwise_sqrt, #dnnl_eltwise_linear,
     // #dnnl_eltwise_bounded_relu,
-    // #dnnl_eltwise_soft_relu_v2, #dnnl_eltwise_logistic, #dnnl_eltwise_exp,
+    // #dnnl_eltwise_soft_relu, #dnnl_eltwise_logistic, #dnnl_eltwise_exp,
     // #dnnl_eltwise_gelu_tanh, #dnnl_eltwise_swish, #dnnl_eltwise_log,
     // #dnnl_eltwise_clip, #dnnl_eltwise_clip_v2, #dnnl_eltwise_pow,
     // #dnnl_eltwise_gelu_erf, #dnnl_eltwise_round,
@@ -222,7 +222,7 @@ struct eltwise_desc_t {
     //  - #dnnl_eltwise_sqrt: @p alpha and @p beta ignored
     //  - #dnnl_eltwise_linear: @p alpha -- scale, @p beta -- shift
     //  - #dnnl_eltwise_bounded_relu: @p alpha -- upper bound, @p beta ignored
-    //  - #dnnl_eltwise_soft_relu_v2: @p alpha -- soft_relu_v2 arg scaling, @p beta ignored
+    //  - #dnnl_eltwise_soft_relu: @p alpha -- soft_relu arg scaling, @p beta ignored
     //  - #dnnl_eltwise_logistic: @p alpha and @p beta ignored
     //  - #dnnl_eltwise_exp: @p alpha and @p beta ignored
     //  - #dnnl_eltwise_gelu_tanh: @p alpha and @p beta ignored
