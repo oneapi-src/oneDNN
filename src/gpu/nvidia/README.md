@@ -174,10 +174,10 @@ eltwise forward and eltwise backward in oneDNN respectively. There are some
 limitations when using Nvidia backend for eltwise primitive:
 
 * cuDNN only supports the following operations - `RELU`, `ELU`, `TANH`,
-  `LOGISTIC` and `BRELU`.
+  `LOGISTIC`.
 * `RELU` is only supported with alpha = 0.
 * cuDNN expects `x`, `y` and `dy` as inputs to the backward pass, hence, only
-  `RELU` and `BRELU` operations are supported in the backward pass.
+  `RELU` operation supports backward proragation kind.
   TODO: add `ELU_DST`, `TANH_DST` and `LOGISTIC_DST` support which require `dy`.
 * Forward pass supports `f32`, `f16` and `s8` data types. Although blocking is
   not supported for `s8`.

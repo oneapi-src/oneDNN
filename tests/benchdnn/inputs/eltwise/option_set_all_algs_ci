@@ -19,7 +19,7 @@
 
 ## algs which do not support negative alpha
 --alpha=2 --beta=0
---alg=bounded_relu,elu_dst,relu_dst
+--alg=elu_dst,relu_dst
 --batch=shapes_ci
 
 ## algs which support alpha and beta

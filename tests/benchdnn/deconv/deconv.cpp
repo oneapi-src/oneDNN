@@ -57,7 +57,7 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
         int count = 0;
 
         // Check for all post-ops that convert negative to zero
-        std::vector<pk> non_neg_po {pk::ABS, pk::BRELU};
+        std::vector<pk> non_neg_po {pk::ABS};
         std::vector<pk> non_neg_alpha_0_po {
                 pk::CLIP, pk::CLIP_V2, pk::ELU, pk::RELU};
         for (int i = 0; i < po.len(); ++i) {

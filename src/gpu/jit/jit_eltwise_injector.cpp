@@ -53,7 +53,6 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_tanh_use_dst_for_bwd: return 2;
             case eltwise_round: return 0;
             case eltwise_linear: return 0;
-            case eltwise_bounded_relu:
             case eltwise_clip:
             case eltwise_clip_v2:
             case eltwise_clip_v2_use_dst_for_bwd: return 0;
@@ -68,7 +67,6 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_abs: return 1;
             case eltwise_square: return 0;
             case eltwise_linear: return 0;
-            case eltwise_bounded_relu:
             case eltwise_clip: return 1;
             case eltwise_gelu_tanh: return 2;
             default: assert(!"unsupported eltwise algorithm");
@@ -165,7 +163,6 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
             case eltwise_tanh_use_dst_for_bwd:
                 return (use_tanh_compat()) ? 9 : 6;
             case eltwise_linear: return 2;
-            case eltwise_bounded_relu:
             case eltwise_clip:
             case eltwise_clip_v2:
             case eltwise_clip_v2_use_dst_for_bwd: return 2;
@@ -177,7 +174,6 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
     } else {
         switch (alg) {
             case eltwise_abs: return 2;
-            case eltwise_bounded_relu:
             case eltwise_clip: return 4;
             case eltwise_gelu_tanh: return 14;
             default: break;
@@ -704,9 +700,6 @@ void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
                             else
                                 relu_compute_fwd(simd, base, phase, ii);
                             break;
-                        case eltwise_bounded_relu:
-                            clip_compute_fwd(simd, base, phase, 0, alpha_);
-                            break;
                         case eltwise_abs: abs_compute_fwd(simd, base); break;
                         case eltwise_soft_relu:
                             soft_relu_compute_fwd(simd, base, phase, ii);
@@ -752,9 +745,6 @@ void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
                 } else {
                     switch (alg_) {
                         case eltwise_relu: relu_compute_bwd(simd, base); break;
-                        case eltwise_bounded_relu:
-                            clip_compute_bwd(simd, base, phase, 0, alpha_);
-                            break;
                         case eltwise_abs:
                             abs_compute_bwd(simd, base, phase);
                             break;
@@ -803,7 +793,6 @@ void jit_eltwise_injector_f32<hw>::prepare() {
         switch (alg_) {
             case eltwise_relu: relu_prepare_bwd(); break;
             case eltwise_abs: abs_prepare_bwd(); break;
-            case eltwise_bounded_relu:
             case eltwise_clip: clip_prepare_bwd(); break;
             default: break;
         }

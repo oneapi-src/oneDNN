@@ -245,9 +245,6 @@ struct cudnn_gemm_inner_product_fwd_impl_t
             case alg_kind::eltwise_logistic:
                 act_mode = CUDNN_ACTIVATION_SIGMOID;
                 break;
-            case alg_kind::eltwise_bounded_relu:
-                act_mode = CUDNN_ACTIVATION_CLIPPED_RELU;
-                break;
             default: return status::unimplemented;
         }
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetActivationDescriptor, act_desc_,

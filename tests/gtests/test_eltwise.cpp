@@ -101,14 +101,14 @@ T linear_bwd(T dd, T s, A alpha, A beta) {
 }
 
 template <typename T, typename A>
-T bounded_relu_fwd(T s, A alpha) {
-    s = s > 0 ? s : T(0);
-    return s > alpha ? T(alpha) : s;
+T clip_fwd(T s, A alpha, A beta) {
+    s = s > alpha ? s : T(alpha);
+    return s > beta ? T(beta) : s;
 }
 
 template <typename T, typename A>
-T bounded_relu_bwd(T dd, T s, A alpha) {
-    return dd * ((0 < s && s < alpha) ? 1 : 0);
+T clip_bwd(T dd, T s, A alpha, A beta) {
+    return dd * ((alpha < s && s < beta) ? 1 : 0);
 }
 
 template <typename T, typename A>
@@ -210,8 +210,8 @@ void check_eltwise_fwd(const eltwise_test_params_t &p, const memory::desc &md,
             case algorithm::eltwise_linear:
                 ref_d = linear_fwd(s, p.alpha, p.beta);
                 break;
-            case algorithm::eltwise_bounded_relu:
-                ref_d = bounded_relu_fwd(s, p.alpha);
+            case algorithm::eltwise_clip:
+                ref_d = clip_fwd(s, p.alpha, p.beta);
                 break;
             case algorithm::eltwise_soft_relu:
                 ref_d = soft_relu_fwd(s, p.alpha);
@@ -297,8 +297,8 @@ void check_eltwise_bwd(const eltwise_test_params_t &p, const memory::desc &md,
             case algorithm::eltwise_linear:
                 ref_ds = linear_bwd(ref_dd, ref_s, p.alpha, p.beta);
                 break;
-            case algorithm::eltwise_bounded_relu:
-                ref_ds = bounded_relu_bwd(ref_dd, ref_s, p.alpha);
+            case algorithm::eltwise_clip:
+                ref_ds = clip_bwd(ref_dd, ref_s, p.alpha, p.beta);
                 break;
             case algorithm::eltwise_soft_relu:
                 ref_ds = soft_relu_bwd(ref_dd, ref_s, p.alpha);
@@ -358,7 +358,6 @@ protected:
         SKIP_IF_HIP(data_type == memory::data_type::s8,
                 "HIP backend doesn't support eltwise with s8");
         SKIP_IF_CUDA(p.alg_kind != algorithm::eltwise_relu
-                        && p.alg_kind != algorithm::eltwise_bounded_relu
                         && p.alg_kind != algorithm::eltwise_tanh
                         && p.alg_kind != algorithm::eltwise_elu
                         && p.alg_kind != algorithm::eltwise_logistic,
@@ -371,7 +370,6 @@ protected:
                 "Unsupported format tag");
 
         SKIP_IF_HIP(p.alg_kind != algorithm::eltwise_relu
-                        && p.alg_kind != algorithm::eltwise_bounded_relu
                         && p.alg_kind != algorithm::eltwise_tanh
                         && p.alg_kind != algorithm::eltwise_elu
                         && p.alg_kind != algorithm::eltwise_soft_relu
@@ -464,15 +462,13 @@ protected:
     }
 
     void Backward() {
-        SKIP_IF_CUDA(p.alg_kind != algorithm::eltwise_relu
-                        && p.alg_kind != algorithm::eltwise_bounded_relu,
-                "Unsupported algorithm");
+        SKIP_IF_CUDA(
+                p.alg_kind != algorithm::eltwise_relu, "Unsupported algorithm");
         SKIP_IF_CUDA(p.diff_format != p.data_format,
                 "CUDA does not support different data formats for data and "
                 "diff vectors");
         SKIP_IF_HIP(p.alg_kind != algorithm::eltwise_relu
-                        && p.alg_kind != algorithm::eltwise_soft_relu
-                        && p.alg_kind != algorithm::eltwise_bounded_relu,
+                        && p.alg_kind != algorithm::eltwise_soft_relu,
                 "Unsupported algorithm");
         SKIP_IF_HIP(p.diff_format != p.data_format,
                 "HIP does not support different data formats for data and "
@@ -580,7 +576,7 @@ TEST_P(eltwise_test_s8, TestsEltwise) {}
 
 #define PARAMS_ALL_ALG_SDPART(...) \
     EXPAND(PARAMS(eltwise_linear, __VA_ARGS__)), \
-            EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
+            EXPAND(PARAMS(eltwise_clip, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 
 #define _CPU_INST_TEST_CASE(str, data_t, ...) \

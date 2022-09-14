@@ -40,7 +40,7 @@ bool is_alg_supported(alg_kind_t alg) {
     using namespace alg_kind;
     return utils::one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            eltwise_bounded_relu, /*eltwise_soft_relu,*/
+            /*eltwise_soft_relu,*/
             eltwise_logistic, /*eltwise_mish,*/ eltwise_exp, eltwise_gelu_tanh,
             /*eltwise_hardswish,*/ eltwise_swish, eltwise_log, eltwise_clip,
             /*eltwise_clip_v2, eltwise_pow,*/ eltwise_gelu_erf, eltwise_round,
@@ -256,7 +256,6 @@ void jit_uni_eltwise_injector_f32<isa>::set_coef_to_regs() {
                 table_val(alpha, z_tmp);
                 table_val(beta, vmm_aux0);
                 break;
-            case eltwise_bounded_relu: table_val(alpha, z_tmp); break;
             // case eltwise_soft_relu: // TODO: enable me.
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic:
@@ -286,7 +285,6 @@ void jit_uni_eltwise_injector_f32<isa>::set_coef_to_regs() {
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt:
             case eltwise_linear:
-            case eltwise_bounded_relu:
             // case eltwise_soft_relu:
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic:
@@ -628,13 +626,6 @@ void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector_fwd(
         const TRegS &vmm_src) {
     // compute x = alpha * x + beta;
     h->fmad(vmm_src, p_all / T_m, z_tmp, vmm_aux0);
-}
-
-template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector_fwd(
-        const TRegS &vmm_src) {
-    h->fmaxnm(vmm_src, p_all, 0.f);
-    h->fminnm(vmm_src, p_all, z_tmp);
 }
 
 template <cpu_isa_t isa>
@@ -1091,21 +1082,6 @@ void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector_bwd(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector_bwd(
-        const TRegS &vmm_src) {
-    // get mask of values > alpha and blend with 0.f
-    compute_cmp_mask(vmm_src, table_val(alpha, z_tmp), _cmp_gt_os);
-    blend_with_mask(vmm_src, table_val(zero, z_tmp));
-    // make all negative values zeros
-    h->fmov(z_tmp, 0.f);
-    h->fmaxnm(vmm_src, p_all, z_tmp);
-
-    // everything bigger than 0.f should be 1.f
-    compute_cmp_mask(vmm_src, table_val(zero, z_tmp), _cmp_gt_os);
-    blend_with_mask(vmm_src, table_val(one, z_tmp));
-}
-
-template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_bwd(
         const TRegS &vmm_src) {
     logistic_compute_vector_fwd(vmm_src);
@@ -1296,7 +1272,6 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt: return 0;
             case eltwise_linear: return 2;
-            case eltwise_bounded_relu: return 1;
             // case eltwise_soft_relu: return 5;
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic: return 5; /* = exp + 1 */
@@ -1323,7 +1298,6 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt: return 2;
             case eltwise_linear: return 1;
-            case eltwise_bounded_relu: return 1;
             // case eltwise_soft_relu: return 5; /* = logistic */
             case eltwise_logistic_use_dst_for_bwd: return 2;
             case eltwise_logistic: return 5; /* = logistic */
@@ -1370,9 +1344,6 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_linear:
                     linear_compute_vector_fwd(TRegS(idx));
                     break;
-                case eltwise_bounded_relu:
-                    bounded_relu_compute_vector_fwd(TRegS(idx));
-                    break;
                 // case eltwise_soft_relu:
                 //     soft_relu_compute_vector_fwd(TRegS(idx));
                 //     break;
@@ -1409,9 +1380,6 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_sqrt: sqrt_compute_vector_bwd(TRegS(idx)); break;
                 case eltwise_linear:
                     linear_compute_vector_bwd(TRegS(idx));
-                    break;
-                case eltwise_bounded_relu:
-                    bounded_relu_compute_vector_bwd(TRegS(idx));
                     break;
                 // case eltwise_soft_relu:
                 //     soft_relu_compute_vector_bwd(TRegS(idx));

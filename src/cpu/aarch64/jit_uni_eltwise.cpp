@@ -203,11 +203,10 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             eltwise_relu, eltwise_elu_use_dst_for_bwd, eltwise_elu,
             eltwise_tanh_use_dst_for_bwd, eltwise_tanh, eltwise_square,
             eltwise_abs, eltwise_sqrt_use_dst_for_bwd, eltwise_sqrt,
-            eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
-            eltwise_logistic_use_dst_for_bwd, eltwise_logistic,
-            eltwise_exp_use_dst_for_bwd, eltwise_exp, eltwise_gelu_tanh,
-            eltwise_swish, eltwise_log, eltwise_clip, eltwise_gelu_erf,
-            eltwise_round);
+            eltwise_linear, eltwise_soft_relu, eltwise_logistic_use_dst_for_bwd,
+            eltwise_logistic, eltwise_exp_use_dst_for_bwd, eltwise_exp,
+            eltwise_gelu_tanh, eltwise_swish, eltwise_log, eltwise_clip,
+            eltwise_gelu_erf, eltwise_round);
 
     return ok ? status::success : status::unimplemented;
 }
@@ -279,10 +278,10 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             eltwise_relu, eltwise_elu_use_dst_for_bwd, eltwise_elu,
             eltwise_tanh_use_dst_for_bwd, eltwise_tanh, eltwise_square,
             eltwise_abs, eltwise_sqrt_use_dst_for_bwd, eltwise_sqrt,
-            eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
-            eltwise_logistic_use_dst_for_bwd, eltwise_logistic,
-            eltwise_exp_use_dst_for_bwd, eltwise_exp, eltwise_gelu_tanh,
-            eltwise_swish, eltwise_log, eltwise_clip, eltwise_gelu_erf);
+            eltwise_linear, eltwise_soft_relu, eltwise_logistic_use_dst_for_bwd,
+            eltwise_logistic, eltwise_exp_use_dst_for_bwd, eltwise_exp,
+            eltwise_gelu_tanh, eltwise_swish, eltwise_log, eltwise_clip,
+            eltwise_gelu_erf);
 
     return ok ? status::success : status::unimplemented;
 }

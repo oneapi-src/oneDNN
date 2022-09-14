@@ -345,7 +345,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestPostOps) {
     ASSERT_EQ(1, sum_zp);
     ASSERT_EQ(data_type::f32, dt);
 
-    ops.append_eltwise(2.2f, algorithm::eltwise_bounded_relu, 3.3f, 4.4f);
+    ops.append_eltwise(2.2f, algorithm::eltwise_clip, 3.3f, 4.4f);
     attr.set_post_ops(ops);
 
     ASSERT_EQ(attr.get_post_ops().len(), 2);
@@ -353,7 +353,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestPostOps) {
     ASSERT_EQ(attr.get_post_ops().kind(1), primitive::kind::eltwise);
     attr.get_post_ops().get_params_eltwise(1, scale, alg, alpha, beta);
     ASSERT_FLOAT_EQ(scale, 2.2f);
-    ASSERT_EQ(alg, algorithm::eltwise_bounded_relu);
+    ASSERT_EQ(alg, algorithm::eltwise_clip);
     ASSERT_FLOAT_EQ(alpha, 3.3f);
     ASSERT_FLOAT_EQ(beta, 4.4f);
 

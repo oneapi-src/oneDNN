@@ -1454,8 +1454,6 @@ typedef enum {
     dnnl_eltwise_sqrt = 0x6f,
     /// Eltwise: linear
     dnnl_eltwise_linear = 0x7f,
-    /// Eltwise: bounded_relu
-    dnnl_eltwise_bounded_relu = 0x8f,
     /// Eltwise: soft_relu
     dnnl_eltwise_soft_relu = 0xa0,
     /// Eltwise: hardsigmoid

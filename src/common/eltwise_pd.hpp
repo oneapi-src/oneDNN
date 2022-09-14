@@ -138,8 +138,8 @@ struct eltwise_fwd_pd_t : public eltwise_pd_t {
         using namespace utils;
         return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
                        eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_swish,
-                       eltwise_bounded_relu, eltwise_gelu_tanh,
-                       eltwise_gelu_erf, eltwise_round, eltwise_hardswish)
+                       eltwise_gelu_tanh, eltwise_gelu_erf, eltwise_round,
+                       eltwise_hardswish)
                 || one_of(alg, eltwise_relu_use_dst_for_bwd,
                         eltwise_tanh_use_dst_for_bwd,
                         eltwise_elu_use_dst_for_bwd,
@@ -221,12 +221,12 @@ struct eltwise_bwd_pd_t : public eltwise_pd_t {
         // zero, so excluding all those algs from here.
         using namespace alg_kind;
         using namespace utils;
-        return one_of(alg, eltwise_abs, eltwise_bounded_relu, eltwise_clip,
-                       eltwise_clip_v2, eltwise_elu, eltwise_exp,
-                       eltwise_gelu_erf, eltwise_gelu_tanh, eltwise_hardsigmoid,
-                       eltwise_linear, eltwise_logistic, eltwise_mish,
-                       eltwise_relu, eltwise_soft_relu, eltwise_square,
-                       eltwise_swish, eltwise_tanh)
+        return one_of(alg, eltwise_abs, eltwise_clip, eltwise_clip_v2,
+                       eltwise_elu, eltwise_exp, eltwise_gelu_erf,
+                       eltwise_gelu_tanh, eltwise_hardsigmoid, eltwise_linear,
+                       eltwise_logistic, eltwise_mish, eltwise_relu,
+                       eltwise_soft_relu, eltwise_square, eltwise_swish,
+                       eltwise_tanh)
                 || one_of(alg, eltwise_elu_use_dst_for_bwd,
                         eltwise_exp_use_dst_for_bwd,
                         eltwise_logistic_use_dst_for_bwd,

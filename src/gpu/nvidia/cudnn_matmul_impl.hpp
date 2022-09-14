@@ -77,9 +77,6 @@ struct cudnn_matmul_impl_t {
             case alg_kind::eltwise_relu:
                 mode = cudnnActivationMode_t::CUDNN_ACTIVATION_RELU;
                 break;
-            case alg_kind::eltwise_bounded_relu:
-                mode = cudnnActivationMode_t::CUDNN_ACTIVATION_CLIPPED_RELU;
-                break;
             case alg_kind::eltwise_tanh:
                 mode = cudnnActivationMode_t::CUDNN_ACTIVATION_TANH;
                 break;

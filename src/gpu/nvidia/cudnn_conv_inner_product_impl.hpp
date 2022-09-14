@@ -401,9 +401,6 @@ private:
                 case alg_kind::eltwise_logistic:
                     no_relu_mode = CUDNN_ACTIVATION_SIGMOID;
                     break;
-                case alg_kind::eltwise_bounded_relu:
-                    no_relu_mode = CUDNN_ACTIVATION_CLIPPED_RELU;
-                    break;
                 default: return status::unimplemented;
             }
             CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetActivationDescriptor,

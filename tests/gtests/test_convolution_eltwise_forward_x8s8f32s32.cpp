@@ -63,8 +63,7 @@ using convolution_test_s8s8s32f32
             EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_square, __VA_ARGS__)), \
             EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_abs, __VA_ARGS__)), \
             EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_linear, __VA_ARGS__)), \
-            EXPAND_ARGS(PARAMS_CONV( \
-                    algorithm::eltwise_bounded_relu, __VA_ARGS__)), \
+            EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_clip, __VA_ARGS__)), \
             EXPAND_ARGS( \
                     PARAMS_CONV(algorithm::eltwise_soft_relu, __VA_ARGS__)), \
             EXPAND_ARGS( \
@@ -74,7 +73,7 @@ using convolution_test_s8s8s32f32
 //  EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_exp, __VA_ARGS__))
 
 #define ELTWISE_ALPHA 0.5f
-#define ELTWISE_BETA 0.f
+#define ELTWISE_BETA 2.f
 
 #define PARAMS_CONV(alg, src, weights, bias, dst, ...) \
     test_convolution_eltwise_params_t { \

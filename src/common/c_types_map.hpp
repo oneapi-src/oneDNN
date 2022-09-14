@@ -76,7 +76,6 @@ const alg_kind_t eltwise_abs = dnnl_eltwise_abs;
 const alg_kind_t eltwise_sqrt = dnnl_eltwise_sqrt;
 const alg_kind_t eltwise_swish = dnnl_eltwise_swish;
 const alg_kind_t eltwise_linear = dnnl_eltwise_linear;
-const alg_kind_t eltwise_bounded_relu = dnnl_eltwise_bounded_relu;
 const alg_kind_t eltwise_soft_relu = dnnl_eltwise_soft_relu;
 const alg_kind_t eltwise_logistic = dnnl_eltwise_logistic;
 const alg_kind_t eltwise_mish = dnnl_eltwise_mish;

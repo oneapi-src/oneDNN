@@ -215,7 +215,6 @@ struct attr_t {
             // eltwise
             ELTWISE_START, // a guard to check kind is eltwise
             ABS,
-            BRELU,
             CLIP,
             CLIP_V2,
             CLIP_V2_DST,

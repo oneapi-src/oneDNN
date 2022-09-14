@@ -91,8 +91,8 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
                     case algorithm::eltwise_linear:
                         d = linear_fwd(d, elt_alpha, elt_beta);
                         break;
-                    case algorithm::eltwise_bounded_relu:
-                        d = bounded_relu_fwd(d, elt_alpha);
+                    case algorithm::eltwise_clip:
+                        d = clip_fwd(d, elt_alpha, elt_beta);
                         break;
                     case algorithm::eltwise_soft_relu:
                         d = soft_relu_fwd(d, elt_alpha);
@@ -145,7 +145,6 @@ protected:
                                         memory::format_tag::odhwi))),
                 "Format is not supported.");
         SKIP_IF_CUDA(p.alg != algorithm::eltwise_relu
-                        && p.alg != algorithm::eltwise_bounded_relu
                         && p.alg != algorithm::eltwise_tanh
                         && p.alg != algorithm::eltwise_elu
                         && p.alg != algorithm::eltwise_logistic,

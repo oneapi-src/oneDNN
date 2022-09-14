@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,8 +44,7 @@ struct cudnn_eltwise_fwd_t : public primitive_t {
                             prop_kind::forward_inference)
                     // Supported algorithms
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
-                            eltwise_bounded_relu, eltwise_tanh, eltwise_elu,
-                            eltwise_logistic)
+                            eltwise_tanh, eltwise_elu, eltwise_logistic)
                     // Supported data types
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16, data_type::s8)
@@ -81,8 +80,7 @@ struct cudnn_eltwise_bwd_t : public primitive_t {
             bool ok = true
                     && desc()->prop_kind == prop_kind::backward_data
                     // Supported algorithms
-                    && utils::one_of(desc()->alg_kind, eltwise_bounded_relu,
-                            eltwise_relu)
+                    && utils::one_of(desc()->alg_kind, eltwise_relu)
                     // Supported data types
                     && desc()->data_desc.data_type == data_type::f32
                     && IMPLICATION(desc()->alg_kind == eltwise_relu,

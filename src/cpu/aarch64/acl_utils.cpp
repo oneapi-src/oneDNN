@@ -86,9 +86,6 @@ status_t convert_to_acl_act(alg_kind_t eltwise_alg, float alpha, float beta,
         case eltwise_linear:
             act_info = ActivationLayerInfo(act_func::LINEAR, alpha, beta);
             break;
-        case eltwise_bounded_relu:
-            act_info = ActivationLayerInfo(act_func::BOUNDED_RELU, alpha, beta);
-            break;
         case eltwise_soft_relu:
             act_info = ActivationLayerInfo(act_func::SOFT_RELU, alpha, beta);
             break;

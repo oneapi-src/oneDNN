@@ -214,18 +214,6 @@ inline U linear_bwd(T dd, T s, A alpha, A beta) {
     return (U)(dd * alpha);
 }
 
-template <typename T, typename A,
-        typename U = typename utils::remove_reference<T>::type>
-inline U bounded_relu_fwd(T s, A alpha) {
-    s = s > 0 ? s : (U)0;
-    return s > alpha ? (U)(alpha) : s;
-}
-template <typename T, typename A,
-        typename U = typename utils::remove_reference<T>::type>
-inline U bounded_relu_bwd(T dd, T s, A alpha) {
-    return dd * (0 < s && s <= alpha ? 1 : 0);
-}
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_fwd(T s) {
     // Here we avoid division/inverse by infinity as some architectures have
@@ -395,7 +383,7 @@ inline U hardsigmoid_bwd(T dd, T s, A alpha, A beta) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U hardswish_fwd(T s) {
-    return (s / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
+    return (s / 6.f) * clip_fwd(s + 3.f, 0.f, 6.f);
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U hardswish_bwd(T dd, T s) {
@@ -411,12 +399,11 @@ inline bool is_eltwise_ok(
     const bool eltwise_use_src
             = one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
                       eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                      eltwise_bounded_relu, eltwise_soft_relu, eltwise_mish,
-                      eltwise_logistic, eltwise_exp, eltwise_gelu_tanh,
-                      eltwise_hardsigmoid, eltwise_hardswish, eltwise_swish,
-                      eltwise_log, eltwise_clip, eltwise_clip_v2, eltwise_pow,
+                      eltwise_soft_relu, eltwise_mish, eltwise_logistic,
+                      eltwise_exp, eltwise_gelu_tanh, eltwise_hardsigmoid,
+                      eltwise_hardswish, eltwise_swish, eltwise_log,
+                      eltwise_clip, eltwise_clip_v2, eltwise_pow,
                       eltwise_gelu_erf, eltwise_round)
-            && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(
                     one_of(alg, eltwise_clip, eltwise_clip_v2), beta >= alpha)
             && IMPLICATION(alg == eltwise_round, dt == dnnl_f32)

@@ -59,7 +59,6 @@ public:
             case alg_kind::eltwise_sqrt: return "sqrt";
             case alg_kind::eltwise_swish: return "swish";
             case alg_kind::eltwise_linear: return "linear";
-            case alg_kind::eltwise_bounded_relu: return "bounded_relu";
             case alg_kind::eltwise_soft_relu: return "soft_relu";
             case alg_kind::eltwise_logistic: return "logistic";
             case alg_kind::eltwise_mish: return "mish";

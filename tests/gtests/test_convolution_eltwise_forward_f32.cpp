@@ -64,8 +64,7 @@ TEST_P(convolution_test, TestConvolutionEltwise) {}
             EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_square, __VA_ARGS__)), \
             EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_abs, __VA_ARGS__)), \
             EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_linear, __VA_ARGS__)), \
-            EXPAND_ARGS(PARAMS_CONV( \
-                    algorithm::eltwise_bounded_relu, __VA_ARGS__)), \
+            EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_clip, __VA_ARGS__)), \
             EXPAND_ARGS( \
                     PARAMS_CONV(algorithm::eltwise_soft_relu, __VA_ARGS__)), \
             EXPAND_ARGS( \

@@ -543,8 +543,6 @@ enum class algorithm {
     eltwise_swish = dnnl_eltwise_swish,
     /// Elementwise: linear
     eltwise_linear = dnnl_eltwise_linear,
-    /// Elementwise: bounded_relu
-    eltwise_bounded_relu = dnnl_eltwise_bounded_relu,
     /// Elementwise: soft_relu
     eltwise_soft_relu = dnnl_eltwise_soft_relu,
     /// Elementwise: mish

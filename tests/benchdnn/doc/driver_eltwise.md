@@ -40,9 +40,9 @@ the end to specify fewer dimensions.
 
 
 ## Floating point arguments
-Some operations support `alpha` argument such as `BRELU`, `CLIP`, `CLIP_V2`,
- `ELU`, `LINEAR`, `POW` and `RELU`. `CLIP`, `CLIP_V2`, `LINEAR` and `POW` also
-support `beta` argument.
+Some operations support `alpha` argument. Some also support `beta` argument.
+Refer to a [full list](knobs_attr.md) for details.
+
 
 The `alpha` and `beta` parameters should meet algorithm requirements, otherwise
 the problem will be silently skipped. For instance:

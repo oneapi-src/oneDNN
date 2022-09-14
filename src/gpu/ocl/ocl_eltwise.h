@@ -52,14 +52,6 @@ float linear_bwd(float dd, float alpha) {
     return dd * alpha;
 }
 
-float bounded_relu_fwd(float s, float alpha) {
-    s = s > 0 ? s : 0;
-    return s > alpha ? alpha : s;
-}
-float bounded_relu_bwd(float dd, float s, float alpha) {
-    return dd * (0 < s && s <= alpha ? 1 : 0);
-}
-
 float soft_relu_fwd(float s, float alpha) {
     s = alpha * s;
     float v = (s < log((float)DATA_MAX) ? log1p(exp(s)) : s);
@@ -233,7 +225,7 @@ float hardsigmoid_bwd(float dd, float s, float alpha, float beta) {
 }
 
 float hardswish_fwd(float s) {
-    return (s / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
+    return (s / 6.f) * clip_fwd(s + 3.f, 0.f, 6.f);
 }
 float hardswish_bwd(float dd, float s) {
     return (s < 3.f && s > -3.f ? dd * (2 * s + 3.f) / 6.f
@@ -245,7 +237,6 @@ float fwd_eltwise_common(
     switch (eltwise_alg) {
         case RELU: return scale_ * relu_fwd(x, alpha_); break;
         case LINEAR: return scale_ * linear_fwd(x, alpha_, beta_); break;
-        case BOUNDED_RELU: return scale_ * bounded_relu_fwd(x, alpha_); break;
         case SOFT_RELU: return scale_ * soft_relu_fwd(x, alpha_); break;
         case MISH: return scale_ * mish_fwd(x); break;
         case LOGISTIC: return scale_ * logistic_fwd(x); break;
@@ -292,7 +283,6 @@ float bwd_eltwise(float x, float y, float alpha_, float beta_) {
     switch (ELTWISE_ALG) {
         case RELU: return relu_bwd(x, y, alpha_); break;
         case LINEAR: return linear_bwd(x, alpha_); break;
-        case BOUNDED_RELU: return bounded_relu_bwd(x, y, alpha_); break;
         case SOFT_RELU: return soft_relu_bwd(x, y, alpha_); break;
         case MISH: return mish_bwd(x, y); break;
         case LOGISTIC: return logistic_bwd(x, y); break;

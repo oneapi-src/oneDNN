@@ -1036,7 +1036,6 @@ inline void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
 inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
     kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
-    kernel_ctx.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
     kernel_ctx.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
     kernel_ctx.define_int("MISH", alg_kind::eltwise_mish);
     kernel_ctx.define_int("LOGISTIC", alg_kind::eltwise_logistic);

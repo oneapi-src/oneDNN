@@ -75,7 +75,6 @@ void check_correctness(const settings_t &s) {
                             "WARNING: non-zero beta is ignored. "
                             "Consider adding --beta=0 to a command line.");
                 break;
-            case alg_t::BRELU:
             case alg_t::ELU:
             case alg_t::ELU_DST:
             case alg_t::RELU:

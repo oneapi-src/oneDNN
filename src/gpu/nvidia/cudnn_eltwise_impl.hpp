@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,10 +51,6 @@ public:
             case alg_kind::eltwise_relu:
                 *cuda_alg_kind = cudnnActivationMode_t::CUDNN_ACTIVATION_RELU;
                 break;
-            case alg_kind::eltwise_bounded_relu:
-                *cuda_alg_kind
-                        = cudnnActivationMode_t::CUDNN_ACTIVATION_CLIPPED_RELU;
-                break;
             case alg_kind::eltwise_tanh:
                 *cuda_alg_kind = cudnnActivationMode_t::CUDNN_ACTIVATION_TANH;
                 break;
@@ -83,8 +79,7 @@ protected:
     // alpha and beta are post operation scaling parameters used by cuDNN
     float alpha = 1;
     float beta = 0;
-    // coef in cuDNN is use for Relu (is equal to zero) and BRelu (represents
-    // the bound)
+    // coef in cuDNN is use for Relu (is equal to zero)
     double coef = 0;
 };
 

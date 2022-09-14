@@ -168,7 +168,6 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `tanh`
       - `tanh_dst`
   - Eltwise operations that support only alpha:
-      - `bounded_relu`
       - `elu`
       - `elu_dst`
       - `relu`

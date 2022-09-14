@@ -163,9 +163,6 @@ static float get_eltwise_zero_trust_percent(const prb_t *prb) {
         case alg_t::LINEAR:
             if (prb->alpha == 0) ztp = 100.f;
             break;
-        case alg_t::BRELU:
-            if ((prb->alpha == 0) || (prb->dir & FLAG_BWD)) ztp = 100.f;
-            break;
         case alg_t::CLIP:
         case alg_t::CLIP_V2:
         case alg_t::CLIP_V2_DST:
@@ -268,7 +265,6 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         case alg_t::CLIP:
         case alg_t::CLIP_V2:
         case alg_t::CLIP_V2_DST: is_invalid = prb->beta < prb->alpha; break;
-        case alg_t::BRELU:
         case alg_t::ELU_DST:
         case alg_t::RELU_DST: is_invalid = prb->alpha < 0; break;
         case alg_t::ROUND:

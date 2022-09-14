@@ -6,7 +6,7 @@
 --batch=shapes_eltwise
 
 --alpha=0,0.25,-0.25 --beta=0
---alg=bounded_relu,elu,elu_dst,relu,relu_dst,swish
+--alg=elu,elu_dst,relu,relu_dst,swish
 --batch=shapes_eltwise
 
 ### logsigmoid and soft_relu

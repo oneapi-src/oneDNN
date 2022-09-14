@@ -52,10 +52,6 @@ public:
                 *miopen_alg_kind
                         = miopenActivationMode_t::miopenActivationLEAKYRELU;
                 break;
-            case alg_kind::eltwise_bounded_relu:
-                *miopen_alg_kind
-                        = miopenActivationMode_t::miopenActivationCLIPPEDRELU;
-                break;
             case alg_kind::eltwise_tanh:
                 *miopen_alg_kind = miopenActivationMode_t::miopenActivationTANH;
                 break;
