@@ -185,8 +185,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
                    utils::divide_and_ceil(N, iin_block), cfg.N_split_num)
     * iin_block;
   int single_K = K;
-  // TODO(zhennan): Query L2 cache size from hardware
-  int L2_size = 1024 * 1024 * 2;
+  int L2_size = static_cast<int>(ctx->machine_.cpu_flags_.getDCacheSize(2));
   int single_K_threshold
     = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
     / sizeofdtypeA;

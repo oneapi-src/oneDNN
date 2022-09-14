@@ -16,6 +16,7 @@
 
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_TARGET_MACHINE_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_TARGET_MACHINE_HPP
+#include <array>
 #include <memory>
 #include <utility>
 #include "data_type.hpp"
@@ -72,6 +73,20 @@ struct cpu_flags_t : public machine_flags_t {
     bool fAVX512AMXINT8 = false; // AVX512 Advanced Matrix Extension for int8
     bool fAVX512VBMI = false; //  AVX512 Vector Byte Manipulation Instructions
     bool fAVX512BF16 = false; //  AVX512 BF16 Instructions
+
+    static const size_t maxNumberCacheLevels = 10;
+    std::array<size_t, maxNumberCacheLevels> dataCacheSize_;
+    size_t dataCacheLevels_ = 0;
+
+public:
+    size_t getDCacheSize(size_t cache_level) const {
+        if (cache_level == 1) {
+            // L1-d cache size
+            return dataCacheSize_[0];
+        } else {
+            return dataCacheSize_[cache_level];
+        }
+    }
 };
 
 struct SC_API target_machine_t {

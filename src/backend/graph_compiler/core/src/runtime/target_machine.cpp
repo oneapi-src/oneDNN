@@ -36,6 +36,10 @@ static void cpuid(int info[4], int InfoType, int v2) {
 extern char **environ;
 #endif
 
+static size_t extractBit(size_t val, size_t base, size_t end) {
+    return (val >> base) & ((1u << (end - base)) - 1);
+}
+
 SC_MODULE(target)
 namespace sc {
 using namespace env_key;
@@ -168,6 +172,16 @@ target_machine_t get_native_target_machine() {
         tm.cpu_flags_.fSSE4a = (info[2] & ((int)1 << 6)) != 0;
         tm.cpu_flags_.fFMA4 = (info[2] & ((int)1 << 16)) != 0;
         tm.cpu_flags_.fXOP = (info[2] & ((int)1 << 11)) != 0;
+    }
+    for (int i = 0; tm.cpu_flags_.dataCacheLevels_
+            < sc::runtime::cpu_flags_t::maxNumberCacheLevels;
+            i++) {
+        cpuid(info, 0x00000004, i);
+        tm.cpu_flags_.dataCacheSize_[tm.cpu_flags_.dataCacheLevels_]
+                = (extractBit(info[1], 22, 31) + 1)
+                * (extractBit(info[1], 12, 21) + 1)
+                * (extractBit(info[1], 0, 11) + 1) * (info[2] + 1);
+        tm.cpu_flags_.dataCacheLevels_++;
     }
     target_machine_t::set_simd_length_and_max_cpu_threads(tm.cpu_flags_);
     return tm;
