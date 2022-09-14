@@ -638,8 +638,8 @@ TEST_P(eltwise_test_s8, TestsEltwise) {}
     INST_TEST_CASE_S8(str, __VA_ARGS__)
 
 INST_TEST_CASE(SimpleZeroDim,
-        PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 0, 2, 4, 4, 4),
-        PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 2, 0, 4, 4, 4),
+        PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.9f, 0, 2, 4, 4, 4),
+        PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.9f, 2, 0, 4, 4, 4),
         PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 0, 4, 2, 2, 2),
         PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 0, 2, 2, 2));
 
@@ -652,16 +652,16 @@ INST_TEST_CASE(SimpleZeroDim,
 INST_TEST_CASE(SimpleExpectedFails, CASE_EF(relu, -1, 2, 4, 4),
         CASE_EF(logistic, -1, 2, 4, 4), CASE_EF(relu, 1, -2, 4, 4),
         CASE_EF(logistic, 1, -2, 4, 4),
-        PARAMS_ALL_ALG_EF(any, nchw, 0.1f, 0.f, 2, 16, 16, 8, true,
+        PARAMS_ALL_ALG_EF(any, nchw, 0.1f, 0.9f, 2, 16, 16, 8, true,
                 dnnl_invalid_arguments));
 
 INST_TEST_CASE(Simple_3D,
-        PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 2, 8, 4, 4, 4),
-        PARAMS_ALL_ALG(nCdhw8c, ncdhw, 0.1f, 0.f, 2, 16, 4, 4, 4),
-        PARAMS_ALL_ALG(ncdhw, ncdhw, 0.1f, 0.f, 2, 16, 8, 8, 8),
-        PARAMS_ALL_ALG(nCdhw8c, nCdhw8c, 0.1f, 0.f, 2, 16, 16, 8, 6),
-        PARAMS_ALL_ALG(ndhwc, ncdhw, 0.1f, 0.f, 2, 16, 10, 8, 6),
-        PARAMS_ALL_ALG(ncdhw, ndhwc, 0.1f, 0.f, 10, 10, 10, 10, 10));
+        PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.9f, 2, 8, 4, 4, 4),
+        PARAMS_ALL_ALG(nCdhw8c, ncdhw, 0.1f, 0.9f, 2, 16, 4, 4, 4),
+        PARAMS_ALL_ALG(ncdhw, ncdhw, 0.1f, 0.9f, 2, 16, 8, 8, 8),
+        PARAMS_ALL_ALG(nCdhw8c, nCdhw8c, 0.1f, 0.9f, 2, 16, 16, 8, 6),
+        PARAMS_ALL_ALG(ndhwc, ncdhw, 0.1f, 0.9f, 2, 16, 10, 8, 6),
+        PARAMS_ALL_ALG(ncdhw, ndhwc, 0.1f, 0.9f, 10, 10, 10, 10, 10));
 
 INST_TEST_CASE(Simple_blocked_3d_padded,
         PARAMS_ALL_ALG(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 15, 2, 2, 2),
@@ -681,7 +681,7 @@ INST_TEST_CASE(Simple_blocked_padded,
 
 CPU_INST_TEST_CASE(Simple_NCDHW,
         PARAMS_ALL_ALG(ncdhw, ncdhw, 0.f, 0.f, 2, 32, 28, 28, 28),
-        PARAMS_ALL_ALG(ncdhw, ncdhw, 1.f, 0.f, 2, 64, 13, 13, 13),
+        PARAMS_ALL_ALG(ncdhw, ncdhw, 1.f, 2.f, 2, 64, 13, 13, 13),
         PARAMS_ALL_ALG(ncdhw, ncdhw, 1.f, 1.f, 1, 64, 27, 27, 27),
         PARAMS_ALL_ALG(ncdhw, ncdhw, 0.f, 1.f, 1, 128, 11, 11, 11));
 
@@ -694,41 +694,41 @@ CPU_INST_TEST_CASE(SimpleZeroNegativeSlope,
         PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 1, 1, 1, 1),
         PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 3, 5, 7, 11));
 
-INST_TEST_CASE(Simple_NCHW, PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 8, 4, 4),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 4, 4),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 16, 8),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 10, 8),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 10, 10, 10, 10),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 256, 64, 8, 16),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 1, 1, 1, 1),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 3, 5, 7, 11));
+INST_TEST_CASE(Simple_NCHW, PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 2, 8, 4, 4),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 2, 16, 4, 4),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 2, 16, 8, 8),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 2, 16, 16, 8),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 2, 16, 10, 8),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 10, 10, 10, 10),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 256, 64, 8, 16),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 1, 1, 1, 1),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 3, 5, 7, 11));
 
 INST_TEST_CASE(Simple_NCHW_SDPART,
-        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.f, 256, 64, 8, 16));
+        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.9f, 256, 64, 8, 16));
 
-CPU_INST_TEST_CASE(Simple, PARAMS_ALL_ALG(nchw, nChw8c, 0.1f, 0.f, 2, 8, 4, 4),
-        PARAMS_ALL_ALG(nChw8c, nchw, 0.1f, 0.f, 2, 16, 4, 4),
-        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
-        PARAMS_ALL_ALG(nChw8c, nChw8c, 0.1f, 0.f, 2, 16, 16, 8),
-        PARAMS_ALL_ALG(nhwc, nchw, 0.1f, 0.f, 2, 16, 10, 8),
-        PARAMS_ALL_ALG(nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10));
+CPU_INST_TEST_CASE(Simple, PARAMS_ALL_ALG(nchw, nChw8c, 0.1f, 0.9f, 2, 8, 4, 4),
+        PARAMS_ALL_ALG(nChw8c, nchw, 0.1f, 0.9f, 2, 16, 4, 4),
+        PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.9f, 2, 16, 8, 8),
+        PARAMS_ALL_ALG(nChw8c, nChw8c, 0.1f, 0.9f, 2, 16, 16, 8),
+        PARAMS_ALL_ALG(nhwc, nchw, 0.1f, 0.9f, 2, 16, 10, 8),
+        PARAMS_ALL_ALG(nchw, nhwc, 0.1f, 0.9f, 10, 10, 10, 10));
 
 CPU_INST_TEST_CASE(Simple_SDPART,
-        PARAMS_ALL_ALG_SDPART(nchw, nChw8c, 0.1f, 0.f, 2, 8, 4, 4),
-        PARAMS_ALL_ALG_SDPART(nChw8c, nchw, 0.1f, 0.f, 2, 16, 4, 4),
-        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
-        PARAMS_ALL_ALG_SDPART(nChw8c, nChw8c, 0.1f, 0.f, 2, 16, 16, 8),
-        PARAMS_ALL_ALG_SDPART(nhwc, nchw, 0.1f, 0.f, 2, 16, 10, 8),
-        PARAMS_ALL_ALG_SDPART(nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10));
+        PARAMS_ALL_ALG_SDPART(nchw, nChw8c, 0.1f, 0.9f, 2, 8, 4, 4),
+        PARAMS_ALL_ALG_SDPART(nChw8c, nchw, 0.1f, 0.9f, 2, 16, 4, 4),
+        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.9f, 2, 16, 8, 8),
+        PARAMS_ALL_ALG_SDPART(nChw8c, nChw8c, 0.1f, 0.9f, 2, 16, 16, 8),
+        PARAMS_ALL_ALG_SDPART(nhwc, nchw, 0.1f, 0.9f, 2, 16, 10, 8),
+        PARAMS_ALL_ALG_SDPART(nchw, nhwc, 0.1f, 0.9f, 10, 10, 10, 10));
 
 INST_TEST_CASE(AlexNet_NCHW,
-        PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
-        PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
-        PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13),
-        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
-        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
-        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13));
+        PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.9f, 2, 96, 55, 55),
+        PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.9f, 2, 256, 27, 27),
+        PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.9f, 2, 384, 13, 13),
+        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.9f, 2, 96, 55, 55),
+        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.9f, 2, 256, 27, 27),
+        PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.9f, 2, 384, 13, 13));
 
 INST_TEST_CASE(Simple_X, PARAMS_ALL_ALG(x, x, 0.f, 0.f, 55));
 
