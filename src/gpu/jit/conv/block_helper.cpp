@@ -52,7 +52,8 @@ public:
                 = min(rem_bmnk_dim_, prb_dims_[prb_dim_idx_]->max_dim(level_));
         int dim = compute_next_block(level_, prb_level_dim(), target_dim,
                 bmnk_dim_.base_iter_block(), rem_prb_dim_,
-                prb_dims_[prb_dim_idx_]->base_iter_block(), is_last_prb_dim());
+                prb_dims_[prb_dim_idx_]->base_iter_block(), is_last_prb_dim(),
+                prb_dims_[prb_dim_idx_]->pad_block());
         if (level_ == tile_level_t::iter) {
             ir_assert(dim % prb_dims_[prb_dim_idx_]->base_iter_block() == 0);
         }
@@ -156,7 +157,7 @@ private:
 
     int compute_next_block(tile_level_t level, int level_dim,
             dim_value_t target_dim, int target_base_blk, int dim,
-            int base_iter_block, bool is_last_dim,
+            int base_iter_block, bool is_last_dim, int pad_block,
             double target_eff = 0.75) const {
         if (target_dim.is_unlimited()) return dim;
 
@@ -197,6 +198,8 @@ private:
         if (ret == 0) ret = step;
         if (require_pow_2) ir_assert(math::is_pow2(ret));
         if (level == tile_level_t::iter) ir_assert(ret % base_iter_block == 0);
+        if (pad_block > ret && pad_block % ret != 0)
+            ret = math::gcd(pad_block, ret);
         return ret;
     }
 
