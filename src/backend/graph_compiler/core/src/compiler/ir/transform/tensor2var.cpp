@@ -43,6 +43,14 @@ static tensor2var_result_t *get_result(const expr_c &v) {
     return nullptr;
 }
 
+static int64_t check_bound(int64_t idx, const indexing_c &index,
+        int64_t chk_size, size_t tensor_size) {
+    COMPILE_ASSERT(idx < chk_size,
+            "The out-of-bound access is found: " << index << ", tensor size:"
+                                                 << tensor_size);
+    return idx;
+}
+
 class tensor2var_analysis_t : public ir_viewer_t {
 public:
     using ir_viewer_t::dispatch;
@@ -147,7 +155,10 @@ public:
                                 // SIMD length
                                 result->can_replace_ = false;
                             }
-                            result->referenced_.at(cidx / cur_simd) = true;
+                            result->referenced_[check_bound(cidx / cur_simd, v,
+                                    result->referenced_.size(),
+                                    result->tensor_len_)]
+                                    = true;
                         }
                     }
                 }
@@ -169,11 +180,10 @@ public:
             bool must_tensor2var = v->var_->attr_
                     && v->var_->attr_->get_or_else(
                             attr_keys::must_tensor2var, false);
-            if (must_tensor2var) {
-                COMPILE_ASSERT(result->can_replace_,
-                        "The tensor " << v
-                                      << " is marked must_tensor2var but "
-                                         "cannot be replaced.");
+            if (must_tensor2var && !result->can_replace_) {
+                SC_MODULE_WARN << "The tensor " << v
+                               << " is marked must_tensor2var but "
+                                  "cannot be replaced.";
             }
             // fix-me(yijie): met performance regression when replacing scalar
             // values. Need to figure out why, and remove the following check
@@ -222,7 +232,8 @@ public:
                 assert(v->idx_.size() == 1UL);
                 auto idx = v->idx_.front();
                 auto cidx = get_const_as_int(idx.checked_as<constant>());
-                return result->to_replace_.at(cidx / result->simd_len_);
+                return result->to_replace_[check_bound(cidx / result->simd_len_,
+                        v, result->to_replace_.size(), result->tensor_len_)];
             }
         }
 
