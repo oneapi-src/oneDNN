@@ -53,10 +53,10 @@ HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestAttrOutputScales) {
 HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestAttrArgScales) {
     dnnl::primitive_attr attr;
 
-    attr.set_scales(DNNL_ARG_SRC_0, 0, {NAN});
+    attr.set_scales(DNNL_ARG_SRC_0, 0);
     TEST_SELF_COMPARISON(attr);
 
-    attr.set_scales(DNNL_ARG_SRC_0, 1 << 1, {1.5f, NAN, 3.5f});
+    attr.set_scales(DNNL_ARG_SRC_0, 1 << 1);
     TEST_SELF_COMPARISON(attr);
 }
 

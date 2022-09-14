@@ -915,13 +915,13 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (as.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
+            // Only RT scales are supported.
+            SAFE_V(e.runtime ? OK : FAIL);
             // Only common policy is supported in the library at this point
-            int64_t count = 1;
             int mask = attr_t::get_default_mask(e.policy);
-            const float *scales = e.runtime ? &DNNL_RUNTIME_F32_VAL : &e.scale;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_scales(
-                    dnnl_attr, arg_name, count, mask, scales));
+            DNN_SAFE_V(
+                    dnnl_primitive_attr_set_scales(dnnl_attr, arg_name, mask));
         }
     }
 

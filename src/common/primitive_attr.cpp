@@ -133,6 +133,7 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
             (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
     CHECK_ARG(IMPLICATION(
             !output_scales_.has_default_values(), !output_scales_.defined()));
+    CHECK_ARG(IMPLICATION(!scales_.has_default_values(), !scales_.defined()));
     CHECK_MASK(smask_t::oscale_runtime, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
     CHECK_MASK(smask_t::zero_points, zero_points_);
@@ -455,22 +456,26 @@ status_t dnnl_primitive_attr_set_output_scales(
     return attr->output_scales_.set(1, mask, &scales);
 }
 
-status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
-        dim_t count, int mask, const float *scales) {
-    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0 && arg >= 0
-            && attr->output_scales_.has_default_values()
-            && IMPLICATION(is_runtime_value(*scales), count == 1);
+status_t dnnl_primitive_attr_set_scales(
+        primitive_attr_t *attr, int arg, int mask) {
+    bool ok = attr && mask >= 0 && arg >= 0
+            && attr->output_scales_.has_default_values();
     if (!ok) return invalid_arguments;
-
-    return attr->scales_.set(arg, count, mask, scales);
+    // XXX: can be removed
+    float scales = DNNL_RUNTIME_F32_VAL;
+    return attr->scales_.set(arg, 1, mask, &scales);
 }
 
-status_t dnnl_primitive_attr_get_scales(primitive_attr_t *attr, int arg,
-        dim_t *count, int *mask, const float **scales) {
-    bool ok = !any_null(attr, count, mask, scales) && arg >= 0;
+status_t dnnl_primitive_attr_get_scales(
+        primitive_attr_t *attr, int arg, int *mask) {
+    bool ok = !any_null(attr, mask) && arg >= 0;
     if (!ok) return invalid_arguments;
 
-    return attr->scales_.get(arg, count, mask, scales);
+    // XXX: not used
+    const float *scales {nullptr};
+    dim_t count {0};
+
+    return attr->scales_.get(arg, &count, mask, &scales);
 }
 
 status_t dnnl_primitive_attr_get_zero_points(const primitive_attr_t *attr,

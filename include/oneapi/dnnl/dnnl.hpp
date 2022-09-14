@@ -3510,19 +3510,12 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     scales vector. The set i-th bit indicates that a dedicated scaling
     ///     factor is used for each index along that dimension. Set the mask to
     ///     0 to use a common scaling factor for the whole output tensor.
-    /// @param scales Output vector of scaling factors.
-    void get_scales(int arg, int &mask, std::vector<float> &scales) const {
-        dnnl_dim_t count;
+    void get_scales(int arg, int &mask) const {
         int c_mask;
-        const float *c_scales;
-        error::wrap_c_api(dnnl_primitive_attr_get_scales(
-                                  get(), arg, &count, &c_mask, &c_scales),
+        error::wrap_c_api(dnnl_primitive_attr_get_scales(get(), arg, &c_mask),
                 "could not get scales primitive attributes");
-        scales.resize(count);
 
         mask = c_mask;
-        for (dnnl_dim_t c = 0; c < count; ++c)
-            scales[c] = c_scales[c];
     }
 
     /// Sets scaling factors for primitive operations for a given memory
@@ -3538,13 +3531,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     vector. The set i-th bit indicates that a dedicated scaling factor
     ///     is used for each index along that dimension. Set the mask to 0 to
     ///     use a common scaling factor for the whole output tensor.
-    /// @param scales Constant vector of scaling factors. The following equality
-    ///     must hold:
-    ///     \f$scales.size() = \prod\limits_{d \in mask} argument.dims[d].\f$
-    void set_scales(int arg, int mask, const std::vector<float> &scales) {
-        error::wrap_c_api(
-                dnnl_primitive_attr_set_scales(get(), arg,
-                        (dnnl_dim_t)scales.size(), mask, scales.data()),
+    void set_scales(int arg, int mask) {
+        error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg, mask),
                 "could not set scales primitive attribute");
     }
 

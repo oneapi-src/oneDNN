@@ -198,31 +198,22 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
     const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
             DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
     int scales_mask = INT_MAX;
-    std::vector<float> scales;
 
     // default scales
     for (int arg : supported_args) {
-        attr.get_scales(arg, scales_mask, scales);
+        attr.get_scales(arg, scales_mask);
         ASSERT_EQ(scales_mask, 0);
-        ASSERT_EQ(scales.size(), 1U);
-        ASSERT_EQ(scales[0], 1.f);
     }
 
     // single non-default scales for supported arg
-    attr.set_scales(supported_args[0], 0, {2});
-    attr.get_scales(supported_args[0], scales_mask, scales);
+    attr.set_scales(supported_args[0], 0);
+    attr.get_scales(supported_args[0], scales_mask);
     ASSERT_EQ(scales_mask, 0);
-    ASSERT_EQ(scales.size(), 1U);
-    ASSERT_EQ(scales[0], 2);
 
     // multiple scales
-    attr.set_scales(supported_args[0], 1 << 1, {1., 2., 3.});
-    attr.get_scales(supported_args[0], scales_mask, scales);
+    attr.set_scales(supported_args[0], 1 << 1);
+    attr.get_scales(supported_args[0], scales_mask);
     ASSERT_EQ(scales_mask, 1 << 1);
-    ASSERT_EQ(scales.size(), 3U);
-    ASSERT_EQ(scales[0], 1.);
-    ASSERT_EQ(scales[1], 2.);
-    ASSERT_EQ(scales[2], 3.);
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNDataQuantization) {
@@ -305,8 +296,8 @@ TEST_F(attr_test_t, TestScalesExpectFailure) {
     const int unsupported_arg = DNNL_ARG_MEAN;
 
     // non-default scales for unsupported arg
-    EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 0, {2}));
-    EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 1 << 1, {1, 2, 3}));
+    EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 0));
+    EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 1 << 1));
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestPostOps) {
@@ -593,7 +584,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
     dnnl::post_ops ops;
     std::vector<float> scales(512);
     ops.append_dw(dt, dt, dt, 3, 1, 1, 1 << 1, scales);
-    attr_s.set_scales(DNNL_ARG_SRC_0, 0, {0.2f});
+    attr_s.set_scales(DNNL_ARG_SRC_0, 0);
     attr_os.set_output_scales(1 << 1);
     attr_dw.set_post_ops(ops);
 

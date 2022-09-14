@@ -887,7 +887,7 @@ template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
         const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr_scales;
-    attr_scales.set_scales(DNNL_ARG_SRC, 0, {2.f});
+    attr_scales.set_scales(DNNL_ARG_SRC, 0);
 
     if (supports_scales) { // Currently only used with binary ops
         EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_scales));
@@ -895,10 +895,10 @@ void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
         // Check oscale and scales don't work together
         dnnl::primitive_attr attr_oscale_scales;
         attr_oscale_scales.set_output_scales(0);
-        EXPECT_ANY_THROW(attr_oscale_scales.set_scales(DNNL_ARG_SRC, 0, {2.f}));
+        EXPECT_ANY_THROW(attr_oscale_scales.set_scales(DNNL_ARG_SRC, 0));
 
         dnnl::primitive_attr attr_scales_oscale;
-        attr_scales_oscale.set_scales(DNNL_ARG_SRC, 0, {2.f});
+        attr_scales_oscale.set_scales(DNNL_ARG_SRC, 0);
         EXPECT_ANY_THROW(attr_scales_oscale.set_output_scales(0));
     } else
         EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_scales));
@@ -912,7 +912,7 @@ void test_fwd_pd_allow_empty(
     dnnl::primitive_attr unsupported_attr;
     // Assumption is that mask "10" is a legit mask for scales
     // from API perspective.
-    unsupported_attr.set_scales(DNNL_ARG_SRC, 10, {0});
+    unsupported_attr.set_scales(DNNL_ARG_SRC, 10);
     ASSERT_NO_THROW(new_pd = pd_t(pd.get_engine(), prim_params...,
                             unsupported_attr, allow_empty));
     ASSERT_FALSE(new_pd);
@@ -1014,7 +1014,7 @@ template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_scales(const engine &eng, const hint_pd_t &hint,
         bool supports_scales, const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr_scales;
-    attr_scales.set_scales(DNNL_ARG_SRC, 0, {2.f});
+    attr_scales.set_scales(DNNL_ARG_SRC, 0);
     EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., hint, attr_scales));
 }
 
@@ -1026,7 +1026,7 @@ void test_bwd_pd_allow_empty(const pd_t &pd, const hint_pd_t &hint,
     dnnl::primitive_attr unsupported_attr;
     // Assumption is that mask "10" is a legit mask for scales
     // from API perspective.
-    unsupported_attr.set_scales(DNNL_ARG_SRC, 10, {0});
+    unsupported_attr.set_scales(DNNL_ARG_SRC, 10);
     ASSERT_NO_THROW(new_pd = pd_t(pd.get_engine(), prim_params..., hint,
                             unsupported_attr, allow_empty));
     ASSERT_FALSE(new_pd);
