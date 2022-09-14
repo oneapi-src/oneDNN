@@ -168,7 +168,7 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &sc = prb->attr.scales.get(DNNL_ARG_MULTIPLE_SRC + i_input);
         float scale_val = sc.scale;
         maybe_prepare_runtime_scales(scales[i_input], sc, 1, &scale_val);
-        args.set((DNNL_ARG_MULTIPLE_SRC + i_input) | DNNL_ARG_ATTR_INPUT_SCALES,
+        args.set((DNNL_ARG_MULTIPLE_SRC + i_input) | DNNL_ARG_ATTR_SCALES,
                 scales[i_input]);
     }
 

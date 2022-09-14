@@ -40,8 +40,8 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     const float *scales[2];
-    ASSIGN_INPUT_SCALE_VALUE(scales[0], DNNL_ARG_SRC_0);
-    ASSIGN_INPUT_SCALE_VALUE(scales[1], DNNL_ARG_SRC_1);
+    ASSIGN_ARG_SCALE_VALUE(scales[0], DNNL_ARG_SRC_0);
+    ASSIGN_ARG_SCALE_VALUE(scales[1], DNNL_ARG_SRC_1);
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));

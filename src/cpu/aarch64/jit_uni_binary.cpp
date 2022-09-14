@@ -931,8 +931,8 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
     const auto &post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(post_ops, ctx);
     const float *scales[2];
-    ASSIGN_INPUT_SCALE_VALUE(scales[0], DNNL_ARG_SRC_0);
-    ASSIGN_INPUT_SCALE_VALUE(scales[1], DNNL_ARG_SRC_1);
+    ASSIGN_ARG_SCALE_VALUE(scales[0], DNNL_ARG_SRC_0);
+    ASSIGN_ARG_SCALE_VALUE(scales[1], DNNL_ARG_SRC_1);
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));

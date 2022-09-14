@@ -63,17 +63,17 @@
     if (zero_points_ptr == nullptr) return status::invalid_arguments; \
     MAYBE_UNUSED(zero_points_ptr);
 
-#define ASSIGN_INPUT_SCALE_VALUE(scale, mem_arg) \
+#define ASSIGN_ARG_SCALE_VALUE(scale, mem_arg) \
     if (pd()->attr()->scales_.get(mem_arg).defined()) { \
         scale = pd()->attr()->scales_.get(mem_arg).scales_; \
     } else { \
         const auto scale_d \
-                = ctx.memory_mdw(DNNL_ARG_ATTR_INPUT_SCALES | mem_arg); \
+                = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | mem_arg); \
         bool ok = scale_d.data_type() == data_type::f32 \
                 && scale_d.ndims() == 1 && scale_d.dims()[0] == 1; \
         if (!ok) return status::invalid_arguments; \
         const float *scale_p = CTX_IN_MEM( \
-                const float *, DNNL_ARG_ATTR_INPUT_SCALES | mem_arg); \
+                const float *, DNNL_ARG_ATTR_SCALES | mem_arg); \
         if (scale_p == nullptr) return status::invalid_arguments; \
         scale = scale_p; \
     }

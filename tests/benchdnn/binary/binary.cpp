@@ -224,12 +224,12 @@ int doit(const prb_t *prb, res_t *res) {
     float scale0 = prb->attr.scales.get(DNNL_ARG_SRC_0).scale;
     maybe_prepare_runtime_scales(
             input_scales_m0, prb->attr.scales.get(DNNL_ARG_SRC_0), 1, &scale0);
-    args.set(DNNL_ARG_ATTR_INPUT_SCALES | DNNL_ARG_SRC_0, input_scales_m0);
+    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0, input_scales_m0);
     dnn_mem_t input_scales_m1;
     float scale1 = prb->attr.scales.get(DNNL_ARG_SRC_1).scale;
     maybe_prepare_runtime_scales(
             input_scales_m1, prb->attr.scales.get(DNNL_ARG_SRC_1), 1, &scale1);
-    args.set(DNNL_ARG_ATTR_INPUT_SCALES | DNNL_ARG_SRC_1, input_scales_m1);
+    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1, input_scales_m1);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 

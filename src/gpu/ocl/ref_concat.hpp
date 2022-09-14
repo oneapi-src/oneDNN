@@ -150,7 +150,7 @@ struct ref_concat_t : public gpu_primitive_t {
 
             for (int i = 0; i < n; ++i) {
                 const auto &src_scales_arg = ctx.args().find(
-                        DNNL_ARG_ATTR_INPUT_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
+                        DNNL_ARG_ATTR_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
 
                 const memory_arg_t *src_scales = nullptr;
                 if (src_scales_arg != ctx.args().end())
@@ -165,7 +165,7 @@ struct ref_concat_t : public gpu_primitive_t {
         } else {
             for (int i = 0; i < n; ++i) {
                 const auto &src_scales_arg = ctx.args().find(
-                        DNNL_ARG_ATTR_INPUT_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
+                        DNNL_ARG_ATTR_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
 
                 const memory_arg_t *src_scales = nullptr;
                 if (src_scales_arg != ctx.args().end()) {

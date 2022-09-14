@@ -33,8 +33,8 @@ argument index as specified by the following table.
 | \f$\src_1\f$                | DNNL_ARG_SRC_1                                                            |
 | \dst                        | DNNL_ARG_DST                                                              |
 | \f$\text{binary post-op}\f$ | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
-| \f$binary scale0\f$         | DNNL_ARG_ATTR_INPUT_SCALES \| DNNL_ARG_SRC_0                              |
-| \f$binary scale1\f$         | DNNL_ARG_ATTR_INPUT_SCALES \| DNNL_ARG_SRC_1                              |
+| \f$binary scale0\f$         | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_SRC_0                                    |
+| \f$binary scale1\f$         | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_SRC_1                                    |
 
 ## Implementation Details
 
