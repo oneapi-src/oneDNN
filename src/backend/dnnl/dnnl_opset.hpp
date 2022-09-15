@@ -34,8 +34,6 @@ public:
     static void for_each_schema(const std::function<void(op_schema_t &&)> &fn) {
         // fusion ops
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        dnnl_conv_depthwise, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         dnnl_mul_scales, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         dnnl_constant_scales, 1)>());

@@ -38,7 +38,6 @@ const op_attr_t is_training = 0x10004;
 const op_attr_t fwd_alg_kind = 0x10005;
 const op_attr_t fuse_relu = 0x10006;
 const op_attr_t with_bias = 0x10007;
-const op_attr_t with_dw_bias = 0x10008; // seems not used.
 const op_attr_t with_runtime_scales = 0x10009;
 const op_attr_t with_runtime_zps = 0x10000a;
 const op_attr_t with_runtime_src_zps = 0x1000b;
@@ -48,11 +47,9 @@ const op_attr_t with_sum = 0x1000e;
 
 // int64_t
 const op_attr_t alg_kind = 0x10100;
-const op_attr_t dw_groups = 0x10101;
 const op_attr_t fusion_info_key = 0x10103;
 
 // string
-const op_attr_t dw_filter_format = 0x10200;
 const op_attr_t dw_type = 0x10201;
 const op_attr_t kind = 0x10204;
 
@@ -77,7 +74,6 @@ static inline std::string internal_attr2str(impl::op_attr_t attr) {
         CASE(fwd_alg_kind);
         CASE(fuse_relu);
         CASE(with_bias);
-        CASE(with_dw_bias);
         CASE(with_runtime_scales);
         CASE(with_runtime_zps);
         CASE(with_runtime_src_zps);
@@ -85,9 +81,7 @@ static inline std::string internal_attr2str(impl::op_attr_t attr) {
         CASE(is_bias_add);
         CASE(with_sum);
         CASE(alg_kind);
-        CASE(dw_groups);
         CASE(fusion_info_key);
-        CASE(dw_filter_format);
         CASE(dw_type);
         CASE(kind);
         CASE(p);

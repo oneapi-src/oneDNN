@@ -35,46 +35,6 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper_t;
 
-static void remove_optional_conv_dw_output(std::shared_ptr<subgraph_t> &sg) {
-    subgraph_rewriter_t rewriter(sg);
-
-    auto &pd_cache = sg->pd_cache_;
-
-    for (auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_conv_depthwise) continue;
-
-        op_ptr new_conv_dw
-                = std::make_shared<impl::op_t>(op_kind::dnnl_conv_depthwise);
-        new_conv_dw->merge_attributes(cur_op->get_attributes());
-
-        for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
-            const auto &in_val = cur_op->get_input_value(i);
-            in_val->remove_consumer(*cur_op, i);
-            new_conv_dw->connect_input(i, in_val);
-        }
-        // connect outputs, omit optional one with offset > 1
-        value_ptr conv_dw_dst = cur_op->get_output_value(0);
-        new_conv_dw->connect_output(0, conv_dw_dst);
-        value_ptr scratchpad = cur_op->get_output_value(1);
-        new_conv_dw->connect_output(1, scratchpad);
-
-        auto pos = pd_cache.find(cur_op.get());
-        if (pos != pd_cache.end()) {
-            // we are replacing op, but we want to keep it's cached pd,
-            // so later, during compile_ops execution, removed optional
-            // output will not be required.
-            auto &pd = pd_cache.at(cur_op.get());
-            pd_cache.insert({new_conv_dw.get(), pd});
-            pd_cache.erase(pos);
-        }
-
-        rewriter.to_insert(new_conv_dw);
-        rewriter.to_remove(cur_op);
-    }
-
-    rewriter.run();
-}
-
 bool need_prop_once_more(const std::shared_ptr<subgraph_t> &sg) {
     for (const auto &cur_op : sg->get_ops()) {
         for (const auto &in : cur_op->get_input_values()) {
@@ -83,17 +43,11 @@ bool need_prop_once_more(const std::shared_ptr<subgraph_t> &sg) {
                 return true;
             }
         }
-        size_t out_idx = 0;
         for (const auto &out : cur_op->get_output_values()) {
-            // ignore the second output of conv_depthwise
-            if (cur_op->get_kind() == op_kind::dnnl_conv_depthwise
-                    && out_idx > 0)
-                continue;
             if (ltw(out->get_logical_tensor()).layout_type()
                     == layout_type::any) {
                 return true;
             }
-            out_idx++;
         }
     }
     return false;
@@ -184,8 +138,6 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
 
         rewriter.run();
     } while (need_prop_once_more(sg));
-
-    remove_optional_conv_dw_output(sg);
 
     // Add check for the layout type of partition outputs to make partition
     // always output public layouts: abcd or acdb. If non-strided output, we

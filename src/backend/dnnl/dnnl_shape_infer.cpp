@@ -67,6 +67,9 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     using ltw = impl::logical_tensor_wrapper_t;
 
+    auto out = logical_tensor_wrapper_t(outputs[0]);
+    const bool org_out_shape_unknown = out.is_shape_unknown();
+
     auto backup_wei_shape = *inputs[1];
     auto backup_groups = n->get_attr<int64_t>(op_attr::groups);
     if (n->has_attr(op_attr::canonicalized)
@@ -88,21 +91,13 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
     infer_conv_output_shape(n, inputs, outputs);
     *inputs[1] = backup_wei_shape;
     n->set_attr<int64_t>(op_attr::groups, backup_groups);
-    return status::success;
-}
 
-status_t infer_dnnl_conv_depthwise_output_shape(op_t *n,
-        std::vector<logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs) {
-    logical_tensor_t tmp_out = empty_logical_tensor_with_default_id();
-    std::vector<logical_tensor_t *> tmp_outs {&tmp_out};
-    const status_t ret = infer_conv_output_shape(n, inputs, tmp_outs);
-    if (ret != status::success) return ret;
-
-    // at this stage tmp_out corresponds to conv_1x1 dst
+    // The following code will take effect only when fusing dw conv.
+    // At this stage outputs[0] corresponds to conv_1x1 dst
     // we now just need to adjust oh and ow in case of dw_k3s2p1 post-op
-    dims output_dims(logical_tensor_wrapper_t(&tmp_out).vdims());
-    if (n->get_attr<std::string>(op_attr::dw_type) == "k3s2p1") {
+    dims output_dims(logical_tensor_wrapper_t(outputs[0]).vdims());
+    if (org_out_shape_unknown && n->has_attr(op_attr::dw_type)
+            && n->get_attr<std::string>(op_attr::dw_type) == "k3s2p1") {
         const std::string src_fmt
                 = n->get_attr<std::string>(op_attr::data_format);
         const size_t oh_offset
@@ -116,9 +111,9 @@ status_t infer_dnnl_conv_depthwise_output_shape(op_t *n,
                 std::ceil(output_dims[ow_offset] / stride));
         output_dims[oh_offset] = new_oh;
         output_dims[ow_offset] = new_ow;
+        set_shape_and_strides(*outputs[0], output_dims);
     }
 
-    set_shape_and_strides(*outputs[0], output_dims);
     return status::success;
 }
 

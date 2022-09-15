@@ -174,6 +174,24 @@ public:
         return post_ops_;
     }
 
+    bool has_post_dw_conv() const {
+        auto pos = std::find_if(post_ops_.begin(), post_ops_.end(),
+                [](const std::shared_ptr<meta_op_t> &mop) {
+                    return mop->get_op()->get_kind()
+                            == op_kind::dnnl_convolution;
+                });
+        return pos != post_ops_.end();
+    }
+
+    const std::shared_ptr<meta_op_t> &get_post_dw_conv() const {
+        auto pos = std::find_if(post_ops_.begin(), post_ops_.end(),
+                [](const std::shared_ptr<meta_op_t> &mop) {
+                    return mop->get_op()->get_kind()
+                            == op_kind::dnnl_convolution;
+                });
+        return *pos;
+    }
+
 private:
     std::shared_ptr<meta_op_t> output_scales_;
     std::unordered_map<size_t, std::shared_ptr<meta_op_t>> input_zps_;

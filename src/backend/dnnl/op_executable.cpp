@@ -59,10 +59,12 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
+    fusion_info_t fusion_info;
     if (op->has_attr(op_attr::fusion_info_key)
             && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
         int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
-        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
+        fusion_info = mgr.get_info(key);
+        prm_attr = make_dnnl_primitive_attr(op, fusion_info);
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     prm_attr.set_fpmath_mode(
@@ -79,18 +81,18 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
             : prop_kind::forward_training;
     auto weight = make_dnnl_memory_desc(wei_lt);
     weight = to_format_any(weight);
-    size_t dst_offset = 0;
-    if (op->get_kind() == op_kind::dnnl_conv_depthwise) {
-        // at this stage conv_depthwise op should have 3 outputs: the dst, the
-        // scratchpad and the intermediate out
-        assertm(op->num_outputs() == 3,
-                "conv_depthwise op should have 3 outputs.");
-        // we want to take 3nd output as it represent base conv output
-        // (needed to create pd)
-        dst_offset = 2;
+
+    auto base_conv_dst_lt = op->get_output_value(0)->get_logical_tensor();
+    if (fusion_info.has_post_dw_conv()) {
+        // when fused post depthwise conv, onednn required to use the base conv
+        // dst md to create the conv primitive. in the subgraph, the base conv
+        // dst is a intermediate output which has been fused away, so here we
+        // get it from fusion info
+        const auto &dw_conv = fusion_info.get_post_dw_conv();
+        base_conv_dst_lt
+                = dw_conv->get_op()->get_input_value(0)->get_logical_tensor();
     }
-    auto dst = make_dnnl_memory_desc(
-            op->get_output_value(dst_offset)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(base_conv_dst_lt);
     dst = to_nxc_format(dst);
 
     dnnl::convolution_forward::primitive_desc pd;

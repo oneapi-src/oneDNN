@@ -35,7 +35,6 @@ namespace op_kind {
 // s will be the internal op kind value, can be accessed via impl::op_kind::s.
 // v will be used to define the name string of each op kind.
 #define INTERNAL_OPS \
-    X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
     X(dnnl_mul_scales, Dnnl_mul_scales) \
     X(dnnl_constant_scales, Dnnl_constant_scales) \
     X(dnnl_add_zps, Dnnl_add_zps) \

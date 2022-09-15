@@ -1019,8 +1019,6 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
 
             fusion_info_t &fusion_info = mgr.get_mutable_info(key);
 
-            bool with_op_replacement = false;
-
             if (post_op->get_kind() == op_kind::dnnl_eltwise) {
                 float scale = 1.f;
 
@@ -1164,54 +1162,18 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 fusion_info.append_post_binary(post_op->shared_from_this(),
                         std::vector<size_t> {base_op->num_inputs()});
             } else if (post_op->get_kind() == op_kind::dnnl_convolution) {
-                const std::string dw_type
-                        = (post_op->get_attr<std::vector<int64_t>>(
-                                   op_attr::strides)[0]
-                                  == 1)
-                        ? "k3s1p1"
-                        : "k3s2p1";
-
+                // TODO(xx) if dw_conv has bias, we also need to put it into the
+                // unfused input indices
                 fusion_info.append_post_dw_conv(post_op->shared_from_this(),
                         std::vector<size_t> {base_op->num_inputs()});
-
-                op_ptr conv_dw
-                        = std::make_shared<op_t>(op_kind::dnnl_conv_depthwise);
-                const auto dw_groups
-                        = post_op->get_attr<int64_t>(op_attr::groups);
-                const auto dw_filter_format = post_op->get_attr<std::string>(
-                        op_attr::filter_format);
-                conv_dw->set_attr(op_attr::dw_groups, dw_groups);
-                conv_dw->set_attr(op_attr::dw_filter_format, dw_filter_format);
-                conv_dw->set_attr(op_attr::dw_type, dw_type);
-
-                auto base_op_shared_ptr = base_op->shared_from_this();
-                rewriter.replace_op(base_op_shared_ptr, conv_dw);
-                conv_dw->merge_attributes(base_op->get_attributes());
-
-                rewriter.fuse_op_to_predecessor(post_op->shared_from_this(),
-                        fuse_op_predecessor_offset);
-                // conv_depthwise op may have additional output, which is
-                // intermediate base conv output. It is needed in layout
-                // propagation step.
-                auto base_out_lt
-                        = base_op->get_output_value(0)->get_logical_tensor();
-                op_t &conv_dw_ref = *conv_dw.get();
-                auto intermediate_out = std::make_shared<value_t>(
-                        conv_dw_ref, conv_dw->num_outputs(), base_out_lt, true);
-                conv_dw->connect_output(
-                        conv_dw->num_outputs(), intermediate_out);
-
-                with_op_replacement = true;
             } else {
                 // unsupported post ops
                 continue;
             }
 
-            if (!with_op_replacement) {
-                // remove the fused post_ops op
-                rewriter.fuse_op_to_predecessor(post_op->shared_from_this(),
-                        fuse_op_predecessor_offset);
-            }
+            // remove the fused post_ops op
+            rewriter.fuse_op_to_predecessor(
+                    post_op->shared_from_this(), fuse_op_predecessor_offset);
         }
 
         rewriter.run();

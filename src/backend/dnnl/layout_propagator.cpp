@@ -104,7 +104,6 @@ impl::status_t layout_propagator_for_conv(op_ptr &op,
         const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
     impl::status_t status = impl::status::success;
-    const bool is_dw = op->get_kind() == op_kind::dnnl_conv_depthwise;
     // always create pd using any format
     const auto &pd
             = conv_fwd_executable_t::create_desc(op, p_engine, mgr, pd_cache);
@@ -129,11 +128,25 @@ impl::status_t layout_propagator_for_conv(op_ptr &op,
         value_ptr bias = op->get_input_value(2);
         status = fill_layout_info(bias, pd.bias_desc());
         if (status != impl::status::success) return status;
-    } else if (is_dw) {
+    }
+
+    fusion_info_t fusion_info;
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
+        fusion_info = mgr.get_info(key);
+    }
+    if (fusion_info.has_post_dw_conv()) {
+        const auto &dw_conv = fusion_info.get_post_dw_conv();
+        auto dw_wei_idx = dw_conv->get_unfused_input_indices();
+        // TODO(xx) support bias
+        assertm(dw_wei_idx.size() == 1,
+                "not support bias for fused dw_conv now");
+
         const auto &dw_wei_opt_mdesc = pd.query_md(query::exec_arg_md,
                 DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-        insert_reorder_before(
-                op, 2, dw_wei_opt_mdesc, p_engine, mgr, pd_cache, rewriter);
+        insert_reorder_before(op, dw_wei_idx[0], dw_wei_opt_mdesc, p_engine,
+                mgr, pd_cache, rewriter);
         value_ptr dw_wei = op->get_input_value(2);
         status = fill_layout_info(dw_wei, dw_wei_opt_mdesc);
         if (status != impl::status::success) return status;

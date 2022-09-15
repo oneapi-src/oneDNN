@@ -33,10 +33,6 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
-status_t infer_dnnl_conv_depthwise_output_shape(op_t *n,
-        std::vector<logical_tensor_t *> &inputs,
-        std::vector<logical_tensor_t *> &outputs);
-
 status_t infer_dnnl_convtranspose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);

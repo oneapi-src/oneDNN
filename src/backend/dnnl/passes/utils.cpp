@@ -184,6 +184,34 @@ std::vector<value_t *> get_constant_block_output_values(
 }
 
 impl::status_t infer_shape(std::shared_ptr<subgraph_t> &sg) {
+    // workaround: the conv output shape will be impacted if the post-op is a
+    // k3s2p1 dw conv. but with current shape infer functions' implementation,
+    // we can't access the fusion info inside them. so, still remain the
+    // internal dw_type attr to record the post-dw-conv info used to infer
+    // correct shape. Here the dw_type attr is a temporary attr only used during
+    // shape infer, and will be removed from the op before existing shape infer.
+    const auto &mgr = sg->fusion_info_mgr_;
+    std::vector<op_ptr> conv_fused_post_s2_dw_conv;
+    for (auto &op : sg->get_ops()) {
+        fusion_info_t fusion_info;
+        if (op->has_attr(op_attr::fusion_info_key)
+                && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
+            fusion_info = mgr.get_info(key);
+        }
+
+        if (fusion_info.has_post_dw_conv()) {
+            const auto &dw_conv = fusion_info.get_post_dw_conv()->get_op();
+            const auto &dw_conv_strides
+                    = dw_conv->get_attr<std::vector<int64_t>>(op_attr::strides);
+            const bool is_k3s2p1 = dw_conv_strides[0] == 2;
+            if (is_k3s2p1) {
+                conv_fused_post_s2_dw_conv.emplace_back(op);
+                op->set_attr<std::string>(op_attr::dw_type, "k3s2p1");
+            }
+        }
+    }
+
     auto ret = sg->infer_shape();
     if (ret != impl::status::success) return ret;
 
@@ -196,6 +224,10 @@ impl::status_t infer_shape(std::shared_ptr<subgraph_t> &sg) {
                 set_shape_and_strides(sg->outs_[i], inferred_shape);
             }
         }
+    }
+
+    for (auto &op : conv_fused_post_s2_dw_conv) {
+        op->remove_attr(op_attr::dw_type);
     }
 
     return ret;

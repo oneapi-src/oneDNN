@@ -40,12 +40,10 @@ using value_ptr = std::shared_ptr<impl::value_t>;
 impl::status_t insert_permute_for_conv_or_deconv(
         std::shared_ptr<subgraph_t> &sg) {
     subgraph_rewriter_t rewriter(sg);
-
     const auto &mgr = sg->fusion_info_mgr_;
 
     for (auto &op : sg->get_ops()) {
         if (!(op->get_kind() == op_kind::dnnl_convolution
-                    || op->get_kind() == op_kind::dnnl_conv_depthwise
                     || op->get_kind() == op_kind::dnnl_convtranspose
                     || op->get_kind() == op_kind::dnnl_convtranspose_bwd_data))
             continue;
@@ -55,22 +53,26 @@ impl::status_t insert_permute_for_conv_or_deconv(
         const bool need_permute_wei = op->has_attr(op_attr::filter_format)
                 && op->get_attr<std::string>(op_attr::filter_format) == "XIO";
         // conv + depthwise case
-        const bool need_permute_post_dw_conv_wei
-                = !(op->has_attr(op_attr::with_bias)
-                          && op->get_attr<bool>(op_attr::with_bias))
-                && op->has_attr(op_attr::dw_filter_format)
-                && op->get_attr<std::string>(op_attr::dw_filter_format)
-                        == "XIO";
-
-        size_t num_post_binary_ops = 0;
+        bool need_permute_post_dw_conv_wei = false;
+        const impl::op_t *post_dw_conv = nullptr;
+        fusion_info_t fusion_info;
         if (op->has_attr(op_attr::fusion_info_key)
                 && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
             int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
-            const auto &pops = mgr.get_info(key).get_post_ops();
-            for (int n = 0; n < pops.size(); ++n) {
-                if (pops[n]->get_op()->get_kind() == op_kind::dnnl_binary)
-                    num_post_binary_ops++;
-            }
+            fusion_info = mgr.get_info(key);
+        }
+        if (fusion_info.has_post_dw_conv()) {
+            post_dw_conv = fusion_info.get_post_dw_conv()->get_op();
+            need_permute_post_dw_conv_wei = post_dw_conv->get_attr<std::string>(
+                                                    op_attr::filter_format)
+                    == "XIO";
+        }
+
+        size_t num_post_binary_ops = 0;
+        const auto &pops = fusion_info.get_post_ops();
+        for (int n = 0; n < pops.size(); ++n) {
+            if (pops[n]->get_op()->get_kind() == op_kind::dnnl_binary)
+                num_post_binary_ops++;
         }
 
         for (size_t i = 0; i < op->num_inputs(); ++i) {
@@ -105,7 +107,8 @@ impl::status_t insert_permute_for_conv_or_deconv(
         op->set_attr<std::string>(op_attr::data_format, "NCX");
         op->set_attr<std::string>(op_attr::filter_format, "OIX");
         if (need_permute_post_dw_conv_wei)
-            op->set_attr<std::string>(op_attr::dw_filter_format, "OIX");
+            const_cast<impl::op_t *>(post_dw_conv)
+                    ->set_attr<std::string>(op_attr::filter_format, "OIX");
 
         // permute output back to NXC
         if (need_permute_src) {
@@ -242,10 +245,10 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
 impl::status_t insert_to_group_for_conv_or_deconv(
         std::shared_ptr<subgraph_t> &sg) {
     subgraph_rewriter_t rewriter(sg);
+    const auto &mgr = sg->fusion_info_mgr_;
 
-    auto insert_to_group = [&](const op_ptr &op, op_attr_t attr_name,
+    auto insert_to_group = [&](const op_ptr &op, int64_t groups,
                                    const size_t offset) -> bool {
-        auto groups = op->get_attr<int64_t>(attr_name);
         if (groups <= 1) {
             op->set_attr<bool>(op_attr::canonicalized, true);
             return false;
@@ -270,17 +273,25 @@ impl::status_t insert_to_group_for_conv_or_deconv(
     for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_convolution
                 && cur_op->get_kind() != op_kind::dnnl_convtranspose
-                && cur_op->get_kind() != op_kind::dnnl_convtranspose_bwd_data
-                && cur_op->get_kind() != op_kind::dnnl_conv_depthwise)
+                && cur_op->get_kind() != op_kind::dnnl_convtranspose_bwd_data)
             continue;
 
-        if (cur_op->get_kind() == op_kind::dnnl_conv_depthwise) {
-            const auto inserted
-                    = insert_to_group(cur_op, op_attr::dw_groups, 2);
+        fusion_info_t fusion_info;
+        if (cur_op->has_attr(op_attr::fusion_info_key)
+                && cur_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            int64_t key = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
+            fusion_info = mgr.get_info(key);
+        }
+
+        if (fusion_info.has_post_dw_conv()) {
+            const auto &dw_conv = fusion_info.get_post_dw_conv()->get_op();
+            auto dw_conv_groups = dw_conv->get_attr<int64_t>(op_attr::groups);
+            const auto inserted = insert_to_group(cur_op, dw_conv_groups, 2);
             if (!inserted) continue;
         }
 
-        const auto inserted = insert_to_group(cur_op, op_attr::groups, 1);
+        auto groups = cur_op->get_attr<int64_t>(op_attr::groups);
+        const auto inserted = insert_to_group(cur_op, groups, 1);
         if (!inserted) continue;
     }
 
