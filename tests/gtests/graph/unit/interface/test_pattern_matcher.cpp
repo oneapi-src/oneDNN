@@ -126,6 +126,7 @@ TEST(PatternMatcherV2, GraphAppendNonLeafOp) {
     ASSERT_NE(op1->get_producer(IN0), nullptr);
     ASSERT_EQ(op1->get_producer(IN0)->first, op0);
     ASSERT_EQ(op1->get_producer(IN0)->second, OUT0);
+    ASSERT_NE(op0->get_consumers(OUT0), nullptr);
     ASSERT_EQ(op0->get_consumers(OUT0)->at(0)->first, op1);
     ASSERT_EQ(op0->get_consumers(OUT0)->at(0)->second, IN0);
 
