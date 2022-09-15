@@ -43,7 +43,7 @@ struct thread_pool_table {
     int (*is_in_parallel)();
 };
 
-struct SC_API runtime_config_t {
+struct SC_INTERNAL_API runtime_config_t {
     enum trace_mode_t { OFF = 0, FAST, KERNEL, MULTI_THREAD };
     thread_pool_table *thread_pool_table_;
     // if in muti-instance simulation, the number of threads per instance.
