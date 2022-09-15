@@ -64,6 +64,7 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PATTERN_CALL(quantize_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(interpolate_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(softmax_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(layernorm_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(sum_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(reorder_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(shuffle_fusion, pass_registry_);

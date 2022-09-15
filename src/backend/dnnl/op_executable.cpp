@@ -678,6 +678,14 @@ layernorm_executable_t::desc_t layernorm_executable_t::create_desc(
         return {pd, true};
     }
 
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
+    }
+
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     float epsilon = 1e-5;
     if (op->has_attr(op_attr::epsilon))
         epsilon = op->get_attr<float>(op_attr::epsilon);
@@ -699,8 +707,21 @@ layernorm_executable_t::desc_t layernorm_executable_t::create_desc(
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
 
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    // Create an empty memory descriptor for stat_d.
+    // This is an temporary way to create stat_d because
+    // the primitive implementation is not aligned with
+    // c api description for dnnl_layer_normalization_forward_desc_init().
+    // TODO(zhejiang): It can be replaced after fix this bug.
+    auto stad_dims = src.dims();
+    if (!stad_dims.empty()) stad_dims.pop_back();
+    memory::desc stat_d {
+            stad_dims, memory::data_type::f32, memory::format_tag::any};
+
     dnnl::layer_normalization_forward::primitive_desc pd(
-            {pkind, src, epsilon, flags}, p_engine);
+            {pkind, src, dst, stat_d, epsilon, flags}, prm_attr, p_engine);
 
     pd_cache.insert({op.get(), pd});
     return {pd, false};

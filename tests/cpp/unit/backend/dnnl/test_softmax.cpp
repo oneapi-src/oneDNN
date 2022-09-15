@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <random>
 #include "gtest/gtest.h"
 
 #include "cpp/unit/backend/dnnl/dnnl_test_common.hpp"
@@ -347,6 +348,86 @@ static inline void test_softmax_bwd_get_inplace_pair_common(
     ASSERT_EQ(inplace_pairs.size(), 1);
     ASSERT_EQ(inplace_pairs[0].input_id, diff_dst_lt.id);
     ASSERT_EQ(inplace_pairs[0].output_id, diff_src_lt.id);
+}
+
+TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
+                    && engine.kind() == impl::engine_kind::cpu,
+            "Skip bf16 test for systems that do not support avx512_core.");
+
+    std::vector<int64_t> softmax_shape {2, 2, 2};
+    test::vector<float> src_data(product(softmax_shape));
+
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> src_distribution(0.f, 1.f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return src_distribution(generator); });
+
+    impl::op_t softmax_op(0, impl::op_kind::SoftMax, "softmax");
+    softmax_op.set_attr<int64_t>(impl::op_attr::axis, 2);
+    impl::op_t typecast(1, impl::op_kind::TypeCast, "typecast");
+    impl::op_t quantize(2, impl::op_kind::Quantize, "quantize");
+    quantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f});
+    quantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {0});
+    quantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src = utils::logical_tensor_init(
+            0, softmax_shape, impl::data_type::bf16);
+    impl::logical_tensor_t softmax_dst = utils::logical_tensor_init(
+            1, softmax_shape, impl::data_type::bf16);
+    impl::logical_tensor_t tc_dst = utils::logical_tensor_init(
+            2, softmax_shape, impl::data_type::f32);
+    impl::logical_tensor_t quant_dst
+            = utils::logical_tensor_init(3, softmax_shape, impl::data_type::u8);
+
+    softmax_op.add_input(src);
+    softmax_op.add_output(softmax_dst);
+    typecast.add_input(softmax_dst);
+    typecast.add_output(tc_dst);
+    quantize.add_input(tc_dst);
+    quantize.add_output(quant_dst);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&softmax_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&typecast), impl::status::success);
+    ASSERT_EQ(g.add_op(&quantize), impl::status::success);
+    ASSERT_EQ(g.build_graph(), impl::status::success);
+
+    impl::pass::pass_base_ptr apass = get_pass("softmax_post_ops_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {&src};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&quant_dst};
+
+    ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, &engine), impl::status::success);
+
+    test::vector<float> dst_data(product(softmax_shape));
+    test::vector<float> ref_data(product(softmax_shape));
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t dst_ts(quant_dst, &engine, dst_data.data());
+    impl::tensor_t ref_ts(quant_dst, &engine, ref_data.data());
+
+    ASSERT_EQ(run_graph(g, {src_ts}, {ref_ts}, engine, strm),
+            impl::status::success);
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
+    strm.wait();
+
+    for (size_t i = 0; i < ref_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(ref_data[i], dst_data[i]);
+    }
 }
 
 TEST(Compile, SoftMaxBackwardGetInplacePair) {

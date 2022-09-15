@@ -152,7 +152,8 @@ impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
     std::set<op_t *> visited;
     for (auto &cur_op : sg->get_ops()) {
         if ((!has_int8_support(cur_op->get_kind())
-                    && cur_op->get_kind() != op_kind::dnnl_softmax)
+                    && cur_op->get_kind() != op_kind::dnnl_softmax
+                    && cur_op->get_kind() != op_kind::dnnl_layernorm)
                 || visited.count(cur_op.get()) != 0)
             continue;
 
@@ -220,7 +221,8 @@ impl::status_t replace_quant_data_with_binary_post_op(
     std::set<op_t *> visited;
     for (const auto &cur_op : sg->get_ops()) {
         if ((is_output_scales_supported(cur_op->get_kind())
-                    && cur_op->get_kind() != op_kind::dnnl_softmax)
+                    && cur_op->get_kind() != op_kind::dnnl_softmax
+                    && cur_op->get_kind() != op_kind::dnnl_layernorm)
                 || visited.count(cur_op.get()))
             continue;
 
@@ -1889,10 +1891,13 @@ impl::status_t fuse_post_typecast_to_matmul_or_conv(
     return impl::status::success;
 }
 
-impl::status_t fuse_post_typecast_to_softmax(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t fuse_post_typecast_to_softmax_or_layernorm(
+        std::shared_ptr<subgraph_t> &sg) {
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_softmax) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_softmax
+                && cur_op->get_kind() != op_kind::dnnl_layernorm)
+            continue;
         auto out = cur_op->get_output_value(0);
         if (out->get_consumers().size() != 1) continue;
         auto &next_op = out->get_consumers()[0].get_op();
