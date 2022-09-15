@@ -751,6 +751,17 @@ protected:
     }
 
     template <typename Vmm>
+    void compute_vsubps(const Vmm &v1, const Vmm &v2, const Vmm &v3,
+            const Vmm &buf, int vlen_bytes) {
+        if (vlen_bytes == 4)
+            // special case for scalar-based tail processing
+            uni_vsubss(Xbyak::Xmm(v1.getIdx()), Xbyak::Xmm(v2.getIdx()),
+                    Xbyak::Xmm(v3.getIdx()), Xbyak::Xmm(buf.getIdx()));
+        else
+            uni_vsubps(v1, v2, v3, buf);
+    }
+
+    template <typename Vmm>
     void compute_vmulps(
             const Vmm &v1, const Vmm &v2, const Vmm &v3, int vlen_bytes) {
         if (vlen_bytes == 4)
@@ -759,6 +770,17 @@ protected:
                     Xbyak::Xmm(v3.getIdx()));
         else
             uni_vmulps(v1, v2, v3);
+    }
+
+    template <typename Vmm>
+    void compute_vmulps(const Vmm &v1, const Vmm &v2, const Vmm &v3,
+            const Vmm &buf, int vlen_bytes) {
+        if (vlen_bytes == 4)
+            // special case for scalar-based tail processing
+            uni_vmulss(Xbyak::Xmm(v1.getIdx()), Xbyak::Xmm(v2.getIdx()),
+                    Xbyak::Xmm(v3.getIdx()), Xbyak::Xmm(buf.getIdx()));
+        else
+            uni_vmulps(v1, v2, v3, buf);
     }
 
     template <typename Vmm>

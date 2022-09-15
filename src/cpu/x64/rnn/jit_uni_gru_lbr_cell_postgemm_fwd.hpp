@@ -82,7 +82,7 @@ protected:
         const Reg64 table_reg(rbx); // table is used for data scale and shifts
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        const Vmm G0(1), G1(2), G2(3), tmp1_vmm(5), tmp2_vmm(6);
+        const Vmm G0(1), G1(2), G2(3), tmp1_vmm(5), tmp2_vmm(6), tmp3_vmm(7);
 
         // constant table map
         const Address one_addr = ptr[table_reg];
@@ -189,12 +189,14 @@ protected:
                             scratch_dt_size);
                     uni_vbroadcastss(tmp2_vmm, tmp2s_vmm);
                     // G01 = (1 - a) * G0
-                    compute_vsubps(tmp2_vmm, tmp1_vmm, tmp2_vmm, current_vlen);
+                    compute_vsubps(tmp2_vmm, tmp1_vmm, tmp2_vmm, tmp3_vmm,
+                            current_vlen);
                     compute_vmulps(G0, G0, tmp2_vmm, current_vlen);
                     // tmp1 = 1 - G01
                     compute_vsubps(tmp1_vmm, tmp1_vmm, G0, current_vlen);
                     // tmp1 = G2 * tmp1
-                    compute_vmulps(tmp1_vmm, G2, tmp1_vmm, current_vlen);
+                    compute_vmulps(
+                            tmp1_vmm, G2, tmp1_vmm, tmp3_vmm, current_vlen);
                     // states_t_l = G01 * states_tm1_l + tmp2
                     to_float(tmp2_vmm, ptr[addr_states_tm1_l_reg], src_data_t,
                             current_vlen);
