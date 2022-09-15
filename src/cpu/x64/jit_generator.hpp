@@ -103,8 +103,8 @@ static inline void tc_configure_tile(
 
 #ifdef XBYAK64
 constexpr Xbyak::Operand::Code abi_save_gpr_regs[] = {
-        Xbyak::Operand::RBX,
         Xbyak::Operand::RBP,
+        Xbyak::Operand::RBX,
         Xbyak::Operand::R12,
         Xbyak::Operand::R13,
         Xbyak::Operand::R14,
@@ -194,8 +194,11 @@ public:
                 uni_vmovdqu(ptr[rsp + i * xmm_len],
                         Xbyak::Xmm(xmm_to_preserve_start + i));
         }
-        for (size_t i = 0; i < num_abi_save_gpr_regs; ++i)
+        for (size_t i = 0; i < num_abi_save_gpr_regs; ++i) {
             push(Xbyak::Reg64(abi_save_gpr_regs[i]));
+            // Stack magic: save rsp into rbp state to be able to unwind stack.
+            if (i == 0) mov(rbp, rsp);
+        }
 #ifndef DNNL_ENABLE_MEM_DEBUG
         // do not use RBP in mem debug mode to enable backtracing from jit code
         if (is_valid_isa(avx512_core)) {
