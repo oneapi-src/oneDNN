@@ -768,6 +768,20 @@ public:
         vsubss(x, Xbyak::Xmm(op1.getIdx()), Xbyak::Xmm(op2.getIdx()));
     }
 
+    void uni_vsubss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+            const Xbyak::Operand &op2, const Xbyak::Xmm &buf) {
+        if (is_valid_isa(avx))
+            vsubss(x, op1, op2);
+        else {
+            if (!buf.isEqualIfNotInherited(op1)) {
+                assert(!buf.isEqualIfNotInherited(op2));
+                movss(buf, op1);
+            }
+            subss(buf, op2);
+            if (x.getIdx() != buf.getIdx()) movss(x, buf);
+        }
+    }
+
     void uni_vsubps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
         if (is_valid_isa(avx))
@@ -817,8 +831,24 @@ public:
         if (is_valid_isa(avx))
             vmulps(x, op1, op2);
         else {
-            if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
+            if (!x.isEqualIfNotInherited(op1)) {
+                assert(!x.isEqualIfNotInherited(op2));
+                movups(x, op1);
+            }
             mulps(x, op2);
+        }
+    }
+    void uni_vmulps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+            const Xbyak::Operand &op2, const Xbyak::Xmm &buf) {
+        if (is_valid_isa(avx))
+            vmulps(x, op1, op2);
+        else {
+            if (!buf.isEqualIfNotInherited(op1)) {
+                assert(!buf.isEqualIfNotInherited(op2));
+                movss(buf, op1);
+            }
+            mulps(buf, op2);
+            if (x.getIdx() != buf.getIdx()) movss(x, buf);
         }
     }
     void uni_vmulps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
@@ -833,6 +863,19 @@ public:
         else {
             assert(x.isEqualIfNotInherited(op1));
             mulss(x, op2);
+        }
+    }
+    void uni_vmulss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+            const Xbyak::Operand &op2, const Xbyak::Xmm &buf) {
+        if (is_valid_isa(avx))
+            vmulss(x, op1, op2);
+        else {
+            if (!buf.isEqualIfNotInherited(op1)) {
+                assert(!buf.isEqualIfNotInherited(op2));
+                movss(buf, op1);
+            }
+            mulss(buf, op2);
+            if (x.getIdx() != buf.getIdx()) movss(x, buf);
         }
     }
     void uni_vmulss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
