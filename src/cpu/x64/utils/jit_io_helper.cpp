@@ -167,9 +167,9 @@ void jit_io_helper_t<Vmm>::prepare_vmm_mask(
     if (how_many_bits_to_set < simd_w) {
         host_->mov(reg_tmp,
                 reinterpret_cast<size_t>(&mask_f32[7 - how_many_bits_to_set]));
-        host_->vmovups(mask, host_->ptr[reg_tmp]);
+        host_->uni_vmovups(mask, host_->ptr[reg_tmp]);
     } else if (how_many_bits_to_set == simd_w) {
-        host_->vcmpps(mask, mask, mask, jit_generator::_cmp_eq_oq);
+        host_->uni_vcmpps(mask, mask, mask, jit_generator::_cmp_eq_oq);
     } else {
         assert(!"Can't set so many bits.");
     }
