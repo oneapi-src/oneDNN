@@ -133,6 +133,8 @@ endif()
 
 # Very sad CMake older then 3.2 does not support continue() command.
 file(GLOB all_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs inputs/*)
+# Graph driver don't support CORR mode for now
+list(REMOVE_ITEM all_drivers graph)
 foreach(driver ${all_drivers})
     set(driver_dir ${CMAKE_CURRENT_SOURCE_DIR}/inputs/${driver})
     # Collect input files in groups
