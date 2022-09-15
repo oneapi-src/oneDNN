@@ -156,7 +156,6 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `exp_dst`
       - `gelu_erf`
       - `gelu_tanh`
-      - `hardswish`
       - `log`
       - `logistic`
       - `logistic_dst`
@@ -179,6 +178,7 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `clip_v2`
       - `clip_v2_dst`
       - `hardsigmoid`
+      - `hardswish`
       - `linear`
       - `pow`
 

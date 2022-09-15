@@ -149,7 +149,7 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
             case eltwise_exp_use_dst_for_bwd: return 2;
             case eltwise_gelu_erf: return 25;
             case eltwise_hardsigmoid: return 4;
-            case eltwise_hardswish: return 3;
+            case eltwise_hardswish: return 5;
             case eltwise_log: return 2;
             case eltwise_mish:
                 return phase_count(alg_kind::eltwise_soft_relu)
@@ -586,9 +586,11 @@ void jit_eltwise_injector_f32<hw>::hardswish_compute_fwd(
         int simd, const ngen::GRF &r, int phase, int off) {
     auto temp = scratch_[off].f();
     switch (phase) {
-        case 0: h->add(simd, temp, r, 3.f); break;
-        case 1: h->mul(simd | sat, temp, temp, 1.f / 6.f); break;
-        case 2: h->mul(simd, r, r, temp); break;
+        case 0: h->mul(simd, temp, r, alpha_); break;
+        case 1: h->add(simd, temp, temp, beta_); break;
+        case 2: h->min_(simd, temp, temp, 1.f); break;
+        case 3: h->max_(simd, temp, temp, 0.f); break;
+        case 4: h->mul(simd, r, r, temp); break;
         default: assert(!"invalid phase");
     }
 }

@@ -381,14 +381,17 @@ inline U hardsigmoid_bwd(T dd, T s, A alpha, A beta) {
     return v <= 0.f ? 0.f : v >= 1.f ? 0.f : dd * alpha;
 }
 
-template <typename T, typename U = typename utils::remove_reference<T>::type>
-inline U hardswish_fwd(T s) {
-    return (s / 6.f) * clip_fwd(s + 3.f, 0.f, 6.f);
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U hardswish_fwd(T s, A alpha, A beta) {
+    return (U)(s * hardsigmoid_fwd(s, alpha, beta));
 }
-template <typename T, typename U = typename utils::remove_reference<T>::type>
-inline U hardswish_bwd(T dd, T s) {
-    return (s < 3.f && s > -3.f ? dd * (2 * s + 3.f) / 6.f
-                                : s >= 3.f ? dd : 0.f);
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U hardswish_bwd(T dd, T s, A alpha, A beta) {
+    float v = alpha * s + beta;
+    float w = 2.f * alpha * s + beta;
+    return v <= 0.f ? 0.f : v >= 1.f ? dd : dd * w;
 }
 
 inline bool is_eltwise_ok(

@@ -224,12 +224,13 @@ float hardsigmoid_bwd(float dd, float s, float alpha, float beta) {
     return v <= 0.f ? 0.f : v >= 1.f ? 0.f : dd * alpha;
 }
 
-float hardswish_fwd(float s) {
-    return (s / 6.f) * clip_fwd(s + 3.f, 0.f, 6.f);
+float hardswish_fwd(float s, float alpha, float beta) {
+    return s * hardsigmoid_fwd(s, alpha, beta);
 }
-float hardswish_bwd(float dd, float s) {
-    return (s < 3.f && s > -3.f ? dd * (2 * s + 3.f) / 6.f
-                                : s >= 3.f ? dd : 0.f);
+float hardswish_bwd(float dd, float s, float alpha, float beta) {
+    float v = alpha * s + beta;
+    float w = 2.f * alpha * s + beta;
+    return (v <= 0.f ? 0.f : v >= 1.f ? dd : dd * w);
 }
 
 float fwd_eltwise_common(
@@ -254,7 +255,7 @@ float fwd_eltwise_common(
         case POW: return scale_ * pow_fwd(x, alpha_, beta_); break;
         case GELU_ERF: return scale_ * gelu_erf_fwd(x); break;
         case ROUND: return scale_ * round_fwd(x); break;
-        case HARDSWISH: return scale_ * hardswish_fwd(x); break;
+        case HARDSWISH: return scale_ * hardswish_fwd(x, alpha_, beta_); break;
         case HARDSIGMOID:
             return scale_ * hardsigmoid_fwd(x, alpha_, beta_);
             break;
@@ -299,7 +300,7 @@ float bwd_eltwise(float x, float y, float alpha_, float beta_) {
         case CLIP_V2: return clip_v2_bwd(x, y, alpha_, beta_); break;
         case POW: return pow_bwd(x, y, alpha_, beta_); break;
         case GELU_ERF: return gelu_erf_bwd(x, y); break;
-        case HARDSWISH: return hardswish_bwd(x, y); break;
+        case HARDSWISH: return hardswish_bwd(x, y, alpha_, beta_); break;
         case HARDSIGMOID: return hardsigmoid_bwd(x, y, alpha_, beta_); break;
 
         case RELU_DST: return relu_bwd_use_dst(x, y, alpha_); break;
