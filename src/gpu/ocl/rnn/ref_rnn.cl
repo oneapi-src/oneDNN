@@ -939,7 +939,7 @@ ref_rnn_gates_reduction(int dir, int lay, int iter,
     const int i = get_global_id(1); // n_bias
 #endif // USE_SUBGROUP_REDUCTION
 
-    const int n_bias_max = (CELL_KIND == LBR_GRU) ? 4 : 3;
+    const int n_bias_max = (CELL_KIND == LBR_GRU) ? 4 : N_GATES;
     if (k >= DHC || i >= n_bias_max) return;
 
     __global DIFF_DATA_T *diff_bias
