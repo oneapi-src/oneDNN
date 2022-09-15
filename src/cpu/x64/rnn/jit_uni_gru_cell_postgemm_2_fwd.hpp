@@ -81,6 +81,7 @@ protected:
     }
     const Vmm tmp1_vmm = Vmm(9);
     const Vmm tmp2_vmm = Vmm(10);
+    const Vmm tmp3_vmm = Vmm(11);
 
     void generate() override {
         using namespace Xbyak;
@@ -219,8 +220,8 @@ protected:
                                 scratch_dt_size);
                         uni_vbroadcastss(tmp2_vmm, tmp2s_vmm);
                         // G01 = (1 - a) * G0
-                        compute_vsubps(
-                                tmp2_vmm, tmp1_vmm, tmp2_vmm, current_vlen);
+                        compute_vsubps(tmp2_vmm, tmp1_vmm, tmp2_vmm, tmp3_vmm,
+                                current_vlen);
                         compute_vmulps(G0(loop_ur_idx), G0(loop_ur_idx),
                                 tmp2_vmm, current_vlen);
                         to_float(tmp2_vmm,
@@ -232,7 +233,7 @@ protected:
                                 current_vlen);
                         // tmp1 = G2 * tmp1
                         compute_vmulps(tmp1_vmm, G2(loop_ur_idx), tmp1_vmm,
-                                current_vlen);
+                                tmp3_vmm, current_vlen);
                         // states_t_l = G01 * states_tm1_l + tmp1
                         compute_vfmadd213ps(G0(loop_ur_idx), tmp2_vmm, tmp1_vmm,
                                 current_vlen);
