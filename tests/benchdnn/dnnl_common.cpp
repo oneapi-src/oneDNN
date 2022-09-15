@@ -761,84 +761,135 @@ static size_t get_gpu_ram_size() {
     return 0;
 }
 
+struct check_mem_size_args_t {
+    check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input,
+            bool add_ref_size = false)
+        : pd(pd)
+        , want_input(want_input)
+        , add_ref_size(add_ref_size)
+        , is_scratchpad(false)
+        , total_size_device(0)
+        , total_size_cpu(0)
+        , scratchpad_size(0) {}
+
+    // Input args.
+    const_dnnl_primitive_desc_t pd;
+    bool want_input;
+    bool add_ref_size;
+    bool is_scratchpad;
+
+    // Output args.
+    size_t total_size_device;
+    size_t total_size_cpu;
+    size_t scratchpad_size;
+};
+
 static int check_total_size(
-        size_t total_mem_size, size_t scratchpad_size, res_t *res) {
+        const check_mem_size_args_t &check_mem_size_args, res_t *res) {
     static uint64_t cpu_device_capacity = get_cpu_ram_size();
     static uint64_t gpu_device_capacity = get_gpu_ram_size();
 
-    const uint64_t devices_max_capacity = is_cpu()
-            ? cpu_device_capacity
-            : MIN2(cpu_device_capacity, gpu_device_capacity);
+    const uint64_t device_max_capacity
+            = is_cpu() ? cpu_device_capacity : gpu_device_capacity;
+    const uint64_t cpu_max_capacity = cpu_device_capacity;
 
     // 0.75f is taken randomly and is subject to change in future.
     const double capacity_factor = 0.75;
-    const double benchdnn_limit = capacity_factor * devices_max_capacity;
-    assert(benchdnn_limit > 0);
+    const double benchdnn_device_limit = capacity_factor * device_max_capacity;
+    const double benchdnn_cpu_limit = capacity_factor * cpu_max_capacity;
+    assert(benchdnn_device_limit > 0 && benchdnn_cpu_limit > 0);
 
-    const bool fits_device_ram = total_mem_size <= benchdnn_limit;
+    const bool fits_device_ram = is_gpu()
+            ? (check_mem_size_args.total_size_device <= benchdnn_device_limit)
+            : true;
+    if (!fits_device_ram) {
+        BENCHDNN_PRINT(
+                2, "%s\n", "benchdnn: not enough device RAM for a problem.");
+        res->state = SKIPPED;
+        res->reason = NOT_ENOUGH_RAM;
+    }
+
     auto GB = [](double bytes) { return bytes / powf(2, 30); };
 
-    if (!fits_device_ram) {
-        BENCHDNN_PRINT(2, "%s\n", "benchdnn: not enough RAM for a problem.");
-        if (is_cpu(get_test_engine())) {
-            // Try to catch a huge scratchpad size requested by the library.
-            // Use following logic:
-            //     scratch_size
-            // ---------------------- <= 0.75 (pre-defined threshold).
-            // io_size + scratch_size
-            //
-            // 0.75 value supposed to be experimental and might be adjusted.
-            static constexpr float scratch_trh = 0.75f;
-            if (scratchpad_size > scratch_trh * total_mem_size) {
-                BENCHDNN_PRINT(2, "%s `%ld` %s `%ld`.\n",
-                        "benchdnn: CPU scratchpad size", (long)scratchpad_size,
-                        "exceeded a given threshold",
-                        (long)(scratch_trh * total_mem_size));
-                res->state = FAILED;
-            } else {
-                res->state = SKIPPED;
-            }
+    if (is_gpu()) {
+        BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
+                "Requested: %g GB, benchdnn device limit: %g GB, device RAM "
+                "capacity: %g GB\n",
+                GB(check_mem_size_args.total_size_device),
+                GB(benchdnn_device_limit), GB(gpu_device_capacity));
+    }
+
+    size_t total_size_cpu = check_mem_size_args.total_size_cpu;
+    if (is_cpu()) total_size_cpu += check_mem_size_args.total_size_device;
+    bool fits_cpu_ram = total_size_cpu <= benchdnn_cpu_limit;
+
+    if (!fits_cpu_ram) {
+        BENCHDNN_PRINT(
+                2, "%s\n", "benchdnn: not enough CPU RAM for a problem.");
+        // Try to catch a huge scratchpad size requested by the library.
+        // Use following logic:
+        //     scratch_size
+        // ---------------------- <= 0.75 (pre-defined threshold).
+        // io_size + scratch_size
+        //
+        // 0.75 value supposed to be experimental and might be adjusted.
+        static constexpr float scratch_trh = 0.75f;
+        if (check_mem_size_args.scratchpad_size
+                > scratch_trh * total_size_cpu) {
+            BENCHDNN_PRINT(2, "%s `%ld` %s `%ld`.\n",
+                    "benchdnn: CPU scratchpad size",
+                    (long)check_mem_size_args.scratchpad_size,
+                    "exceeded a given threshold",
+                    (long)(scratch_trh * total_size_cpu));
+            res->state = FAILED;
         } else {
-            assert(is_gpu(get_test_engine()));
             res->state = SKIPPED;
         }
         res->reason = NOT_ENOUGH_RAM;
     }
 
-    BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
-            "Requested: %g GB, benchdnn limit: %g GB, CPU RAM capacity: %g GB, "
-            "GPU RAM capacity: %g GB\n",
-            GB(total_mem_size), GB(benchdnn_limit), GB(cpu_device_capacity),
-            GB(gpu_device_capacity));
+    BENCHDNN_PRINT((!fits_cpu_ram ? 2 : 6),
+            "Requested: %g GB, benchdnn CPU limit: %g GB, CPU RAM capacity: %g "
+            "GB\n",
+            GB(total_size_cpu), GB(benchdnn_cpu_limit),
+            GB(cpu_device_capacity));
 
     return res->state == FAILED ? FAIL : OK;
 }
 
-static size_t get_md_size(const_dnnl_memory_desc_t md,
-        bool add_ref_size = false, bool add_ref_out_size = false) {
+static void add_md_size(const_dnnl_memory_desc_t md,
+        check_mem_size_args_t &check_mem_size_args) {
     const auto mem_size = dnnl_memory_desc_get_size(md);
-    // runtime mem size is not defined
-    if (mem_size == 0 || mem_size == DNNL_RUNTIME_SIZE_VAL) return 0;
-    if (!add_ref_size) return mem_size;
+    // Runtime mem size is not defined.
+    if (mem_size == 0 || mem_size == DNNL_RUNTIME_SIZE_VAL) return;
 
-    // reference memories are always fp32, hence need rescaling factor
-    size_t ref_mem_factor = 1;
-    const auto md_dt = query_md_data_type(md);
-    if (md_dt != dnnl_data_type_undef)
-        ref_mem_factor
-                = dnnl_data_type_size(dnnl_f32) / dnnl_data_type_size(md_dt);
-    // correctness pass allocates additional plain f32 memory to compare values.
-    if (add_ref_out_size && is_bench_mode(CORR)) ref_mem_factor *= 2;
+    check_mem_size_args.total_size_device += mem_size; // Original memory size.
+    if (!check_mem_size_args.add_ref_size) return;
 
-    // all memory is mapped once it is created and unmapped only before
+    // Reference memories are always tag::abx fp32, hence need re-creating
+    // memory descriptor and take its size.
+    auto ref_md = dnn_mem_t::init_md(md->ndims, md->dims, dnnl_f32, tag::abx);
+    const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
+
+    // Correctness pass allocates additional tag::abx f32 memory.
+    bool compare_mem_factor = !check_mem_size_args.want_input
+            && check_mem_size_args.add_ref_size;
+
+    // All memory is mapped once it is created and unmapped only before
     // primitive execution. Device memory requires additional buffer for mapped
     // memory.
     // XXX: In DPC++ build oneDNN uses USM memory, which shouldn't require an
-    // additional buffer, so mapped_mem_factor should be equal to 0 for DPC++.
+    // additional buffer, so map factor should be equal to 0 for DPC++.
     // However due to a driver issue oneDNN pretends that shared USM is not
     // accessible on the host, hence map will allocate an extra memory.
-    const size_t mapped_mem_factor = engine_tgt_kind == dnnl_cpu ? 0 : 1;
-    return (1 + mapped_mem_factor + ref_mem_factor) * mem_size;
+    check_mem_size_args.total_size_cpu += !is_cpu() * mem_size; // Map factor.
+    if (check_mem_size_args.is_scratchpad) {
+        check_mem_size_args.scratchpad_size += mem_size;
+    } else {
+        check_mem_size_args.total_size_cpu += ref_md_size; // Reference memory.
+        // Comparison memory.
+        check_mem_size_args.total_size_cpu += compare_mem_factor * ref_md_size;
+    }
 }
 
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind) {
@@ -847,10 +898,11 @@ bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind) {
             || prop_kind == dnnl_prop_kind_undef;
 }
 
-static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
-        bool want_input, bool add_ref_size = false) {
-    const int n_idx
-            = want_input ? query_n_inputs(const_pd) : query_n_outputs(const_pd);
+static void get_memory_bytes(check_mem_size_args_t &check_mem_size_args) {
+    auto const_pd = check_mem_size_args.pd;
+    const int n_idx = check_mem_size_args.want_input
+            ? query_n_inputs(const_pd)
+            : query_n_outputs(const_pd);
     const auto prop_kind = query_prop_kind(const_pd);
     const bool is_fwd = is_fwd_prop_kind(prop_kind);
 
@@ -866,55 +918,57 @@ static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
 
     const auto &query_in_mds = is_fwd ? query_fwd_in_mds : query_bwd_in_mds;
     const auto &query_out_mds = is_fwd ? query_fwd_out_mds : query_bwd_out_mds;
+    const auto &query_mds
+            = check_mem_size_args.want_input ? query_in_mds : query_out_mds;
 
-    size_t total_mem_size = 0;
-    if (want_input) {
-        for_(const auto query : query_in_mds)
-        for (int idx = 0; idx < n_idx; ++idx) {
-            const auto &md = query_md(const_pd, query, idx);
-            total_mem_size += get_md_size(md, add_ref_size);
-        }
-    } else {
-        const bool add_ref_out_size = true;
-        for_(const auto query : query_out_mds)
-        for (int idx = 0; idx < n_idx; ++idx) {
-            const auto &md = query_md(const_pd, query, idx);
-            total_mem_size += get_md_size(md, add_ref_size, add_ref_out_size);
-        }
+    for_(const auto query : query_mds)
+    for (int idx = 0; idx < n_idx; ++idx) {
+        const auto &md = query_md(const_pd, query, idx);
+        add_md_size(md, check_mem_size_args);
     }
-
-    return total_mem_size;
 }
 
-int check_mem_size(const dnnl_memory_desc_t &md, res_t *res) {
+int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
     if (!mem_check) return OK;
 
-    size_t total_mem_size = dnnl_memory_desc_get_size(md);
+    check_mem_size_args_t check_mem_size_args(nullptr, false, false);
+    check_mem_size_args.total_size_device = dnnl_memory_desc_get_size(md);
 
-    return check_total_size(total_mem_size, 0, res);
+    return check_total_size(check_mem_size_args, res);
 }
 
 int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     if (!mem_check) return OK;
 
-    bool add_ref_size = true;
-    bool inputs = true;
-    bool outputs = !inputs;
-    size_t total_mem_size = get_memory_bytes(const_pd, inputs, add_ref_size)
-            + get_memory_bytes(const_pd, outputs, add_ref_size);
+    // Get input sizes.
+    check_mem_size_args_t check_mem_size_args(const_pd, /* want_input = */ true,
+            /* add_ref_size = */ true);
+    get_memory_bytes(check_mem_size_args);
 
-    // Depending on scratchpad mode, either of sizes will be 0.
-    const auto &scratchpad = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-    size_t scratchpad_size = get_md_size(scratchpad, add_ref_size);
-    scratchpad_size += query_mem_consumption(const_pd);
-    total_mem_size += scratchpad_size;
+    // Get scratchpad size. Treat it as `want_input=true` to avoid comparison
+    // factor count. Since scratchpad modes are mutual excluded, it takes sizes
+    // of both modes since either of them will report 0 size.
+    check_mem_size_args.is_scratchpad = true;
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
+    add_md_size(scratchpad_md, check_mem_size_args);
+    check_mem_size_args.is_scratchpad = false;
+    check_mem_size_args.total_size_device += query_mem_consumption(const_pd);
+    check_mem_size_args.scratchpad_size += query_mem_consumption(const_pd);
 
-    return check_total_size(total_mem_size, scratchpad_size, res);
+    // Get output sizes.
+    check_mem_size_args.want_input = false;
+    get_memory_bytes(check_mem_size_args);
+
+    return check_total_size(check_mem_size_args, res);
 }
 
 int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
-    res->ibytes = get_memory_bytes(const_pd, /* want_input = */ true);
-    res->obytes = get_memory_bytes(const_pd, /* want_input = */ false);
+    check_mem_size_args_t check_mem_in_size_args(
+            const_pd, /* want_input = */ true);
+    get_memory_bytes(check_mem_in_size_args); // Get input bytes.
+    check_mem_size_args_t check_mem_out_size_args(
+            const_pd, /* want_input = */ false);
+    get_memory_bytes(check_mem_out_size_args); // Get output bytes.
 
     // Update read bytes with dst bytes in case of sum post-op.
     auto const_attr_po = query_post_ops(const_pd);
@@ -923,9 +977,13 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
         const auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
         if (kind == dnnl_sum) {
             const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
-            res->ibytes += get_md_size(dst_md);
+            add_md_size(dst_md, check_mem_in_size_args);
         }
     }
+
+    res->ibytes = check_mem_in_size_args.total_size_device;
+    res->obytes = check_mem_out_size_args.total_size_device;
+
     return OK;
 }
 

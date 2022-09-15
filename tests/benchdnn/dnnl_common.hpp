@@ -343,7 +343,7 @@ int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
         const_dnnl_primitive_desc_t pd, res_t *res);
-int check_mem_size(const dnnl_memory_desc_t &md, res_t *res);
+int check_mem_size(const_dnnl_memory_desc_t md, res_t *res);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res);
 
 void skip_start(res_t *res);
