@@ -55,6 +55,36 @@
 #define DEFINE_SCALES_BUFFER(scales) \
     DEFINE_SCALES_BUFFER_ATTR(pd()->attr(), scales)
 
+#define DEFINE_ARG_SCALES_BUFFER_ATTR(attr, scales, arg) \
+    alignas(16) float CONCAT2(scales, _buf16)[16] = {0}; \
+    const float *scales {nullptr}; \
+    if ((attr)) { \
+        if ((attr)->scales_.get(arg).has_default_values()) { \
+            utils::array_set(CONCAT2(scales, _buf16), 1.0f, 16); \
+            scales = CONCAT2(scales, _buf16); \
+        } else { \
+            scales = CTX_IN_MEM(const float *, DNNL_ARG_ATTR_SCALES | arg); \
+            if (scales == nullptr) return status::invalid_arguments; \
+            const auto scales_d = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | arg); \
+            bool ok = scales_d.data_type() == data_type::f32 \
+                    && scales_d.ndims() == 1; \
+            if (!ok) return status::invalid_arguments; \
+            if (scales_d.dims()[0] == 1) { \
+                if (arg == DNNL_ARG_DST) { \
+                    utils::array_set( \
+                            CONCAT2(scales, _buf16), 1.f / scales[0], 16); \
+                } else { \
+                    utils::array_set(CONCAT2(scales, _buf16), scales[0], 16); \
+                } \
+                scales = CONCAT2(scales, _buf16); \
+            } \
+        } \
+    } \
+    MAYBE_UNUSED(scales);
+
+#define DEFINE_ARG_SCALES_BUFFER(scales, arg) \
+    DEFINE_ARG_SCALES_BUFFER_ATTR(pd()->attr(), scales, arg)
+
 #define DEFINE_ZERO_POINTS_BUFFER(zero_points_ptr, mem_arg) \
     int32_t CONCAT2(default_zero_point_, mem_arg) = 0; \
     const int32_t *zero_points_ptr \
