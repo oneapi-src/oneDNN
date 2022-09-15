@@ -176,11 +176,7 @@ private:
 };
 
 struct arg_scales_t : public c_compatible {
-    arg_scales_t() {
-        for (const auto &sa : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}) {
-            set(sa, 1.f);
-        }
-    }
+    arg_scales_t()  = default;
 
     const scales_t &get(int arg) const {
         static const scales_t default_scales;
@@ -196,6 +192,22 @@ struct arg_scales_t : public c_compatible {
     bool has_default_values() const {
         for (const auto &s : scales_) {
             if (!s.second.has_default_values()) return false;
+        }
+        return true;
+    }
+
+    bool has_default_values(const std::vector<int> &skip_args) const {
+        for (const auto &s : scales_) {
+            if (!s.second.has_default_values()) {
+                bool skip = false;
+                for (const auto &skip_a : skip_args)
+                    if (s.first == skip_a) {
+                        skip = true;
+                        break;
+                    }
+                if (skip) continue;
+                else return false;
+            }
         }
         return true;
     }
@@ -247,6 +259,10 @@ private:
         }
         // concat
         if (arg & DNNL_ARG_MULTIPLE_SRC) return true;
+        // convolution
+        for (const auto &sa : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            if (arg == sa) return true;
+        }
         return false;
     }
 };
