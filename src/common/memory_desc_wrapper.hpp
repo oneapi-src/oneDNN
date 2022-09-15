@@ -87,12 +87,15 @@ struct memory_desc_wrapper : public c_compatible {
     /** returns true if memory descriptor is zero */
     bool is_zero() const { return ndims() == 0; }
 
-    /** returns true if memory descriptor contains zero as one of its dim */
-    bool has_zero_dim() const {
+    /** returns true if memory descriptor contains `val` as one of its dim */
+    bool has_dim_value(dim_t val) const {
         for (int d = 0; d < ndims(); ++d)
-            if (dims()[d] == 0) return true;
+            if (dims()[d] == val) return true;
         return false;
     }
+
+    /** returns true if memory descriptor contains zero as one of its dim */
+    bool has_zero_dim() const { return has_dim_value(0); }
 
     /** return the size of data type (a shortcut) */
     size_t data_type_size() const { return types::data_type_size(data_type()); }
