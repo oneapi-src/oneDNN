@@ -105,6 +105,7 @@ bool prefer_ymm_requested() {
 }
 
 bool has_data_type_support(data_type_t data_type) {
+    // Notice: see notes in header
     switch (data_type) {
         case data_type::bf16:
 #if DNNL_X64

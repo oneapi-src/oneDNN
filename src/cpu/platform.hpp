@@ -152,6 +152,9 @@ status_t set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints);
 dnnl_cpu_isa_hints_t get_cpu_isa_hints();
 
 bool DNNL_API prefer_ymm_requested();
+// This call is limited to performing checks on plain C-code implementations
+// (e.g. 'ref' and 'simple_primitive') and should avoid any x64 JIT
+// implementations since these require specific code-path updates.
 bool DNNL_API has_data_type_support(data_type_t data_type);
 float DNNL_API s8s8_weights_scale_factor();
 
