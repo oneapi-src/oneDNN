@@ -32,11 +32,21 @@ namespace impl {
 namespace cpu {
 
 namespace {
-void maybe_oscale(
-        float &d, dim_t g, dim_t C, dim_t c, const float *scales, int mask) {
+void dequantize(float &d, dim_t g, dim_t C, dim_t c, const float *wei_scales,
+        bool with_groups, int wei_mask, const float *src_scales) {
     // scale_idx_mult = 1 for per_channel scales and 0, otherwise
-    const int scale_idx_mult = mask == (1 << 1);
-    d *= scales[(g * C + c) * scale_idx_mult];
+    const int wei_scale_idx_mult = wei_mask == (1 << with_groups);
+    float scale = 1.0f;
+    if (src_scales) scale *= src_scales[0];
+    if (wei_scales) scale *= wei_scales[(g * C + c) * wei_scale_idx_mult];
+    d *= scale;
+}
+
+void quantize(float &d, dim_t g, dim_t C, dim_t c, const float *dst_scales) {
+    float scale = 1.0f;
+    if (dst_scales) scale *= dst_scales[0];
+    // dst_scale is inverted in DEFINE_ARG_SCALES_BUFFER
+    d *= scale;
 }
 } // namespace
 
@@ -49,8 +59,12 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
     auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
     CHECK(status);
 
-    DEFINE_SCALES_BUFFER(scales);
-    const int scale_mask = pd()->attr()->output_scales_.mask_;
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const int wei_scale_mask
+            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -227,6 +241,10 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
                     acc += ker(g, mb, oc, od, oh, ow);
 
                 float d = static_cast<float>(acc);
+
+                dequantize(d, g, OC, oc, wei_scales, with_groups,
+                        wei_scale_mask, src_scales);
+
                 if (bias) {
                     const auto bias_off = bias_d.off(g * OC + oc);
                     const float b = io::load_float_value(
@@ -240,14 +258,14 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
                 dim_t dst_l_off = (mb * OC * G + g * OC + oc) * OD * OH * OW
                         + od * OH * OW + oh * OW + ow;
 
-                maybe_oscale(d, g, OC, oc, scales, scale_mask);
-
                 ref_post_ops_t::args_t args;
                 args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
                 args.ctx = &ctx;
                 args.l_offset = dst_l_off;
                 args.dst_md = pd()->dst_md();
                 ref_post_ops->execute(d, args);
+
+                if (dst_scales) quantize(d, g, OC, oc, dst_scales);
 
                 if (dst_zero_point) {
                     const int dst_zp = io::load_int_value(data_type::s32,
@@ -268,8 +286,12 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
-    DEFINE_SCALES_BUFFER(scales);
-    const int scale_mask = pd()->attr()->output_scales_.mask_;
+    DEFINE_ARG_SCALES_BUFFER(diff_src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(diff_wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(diff_dst_scales, DNNL_ARG_DST);
+
+    const int diff_wei_scale_mask
+            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
@@ -439,7 +461,9 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
                     acc += ker(g, mb, ic, id, ih, iw);
 
                 float ds = static_cast<float>(acc);
-                maybe_oscale(ds, g, IC, ic, scales, scale_mask);
+                dequantize(ds, g, IC, ic, diff_wei_scales, with_groups,
+                        diff_wei_scale_mask, diff_dst_scales);
+                quantize(ds, g, IC, ic, diff_src_scales);
 
                 const auto diff_src_off = ref_conv_utils::get_data_off(
                         diff_src_d, ndims, mb, g * IC + ic, id, ih, iw);

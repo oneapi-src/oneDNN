@@ -52,13 +52,12 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
                             utils::one_of(bia_type, f32, bf16, s32, s8, u8))
                     && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
                     && set_default_formats()
-                    && attr()->has_default_values(smask_t::oscale_runtime
+                    && attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_type)
                     && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-                    && output_scales_mask_ok() && zero_points_ok()
-                    && post_ops_ok()
+                    && scales_mask_ok() && zero_points_ok() && post_ops_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
@@ -73,10 +72,18 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
-        bool output_scales_mask_ok() const {
+        bool scales_mask_ok() const {
             using namespace data_type;
-            const auto &mask = attr()->output_scales_.mask_;
-            return mask == 0 || mask == (1 << 1);
+            bool ok = true;
+            // TODO: Check that the rest argument scales are default
+            for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+                const auto &mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok && (mask == 0 || mask == (1 << with_groups()));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
         }
 
         bool zero_points_ok() const {
@@ -131,8 +138,8 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
                     && utils::one_of(diff_src_type, f32, bf16, s32, s8, u8)
                     && set_default_formats()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale_runtime)
-                    && output_scales_mask_ok();
+                            primitive_attr_t::skip_mask_t::scales_runtime)
+                    && scales_mask_ok();
 
             return ok ? status::success : status::unimplemented;
         }
@@ -147,10 +154,19 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
-        bool output_scales_mask_ok() const {
+        bool scales_mask_ok() const {
             using namespace data_type;
-            const auto &mask = attr()->output_scales_.mask_;
-            return mask == 0 || mask == (1 << 1);
+            bool ok = true;
+            // TODO: Check that the rest argument scales are default
+            for (int arg :
+                    {DNNL_ARG_DIFF_DST, DNNL_ARG_WEIGHTS, DNNL_ARG_DIFF_SRC}) {
+                const auto &mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok && (mask == 0 || mask == (1 << with_groups()));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
         }
     };
 
