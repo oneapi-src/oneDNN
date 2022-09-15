@@ -1441,64 +1441,64 @@ typedef enum {
     /// Winograd deconvolution
     dnnl_deconvolution_winograd = 0xb,
     /// Eltwise: ReLU
-    dnnl_eltwise_relu = 0x1f,
+    dnnl_eltwise_relu = 0x20,
     /// Eltwise: hyperbolic tangent non-linearity (tanh)
-    dnnl_eltwise_tanh = 0x2f,
+    dnnl_eltwise_tanh,
     /// Eltwise: exponential linear unit (elu)
-    dnnl_eltwise_elu = 0x3f,
+    dnnl_eltwise_elu,
     /// Eltwise: square
-    dnnl_eltwise_square = 0x4f,
+    dnnl_eltwise_square,
     /// Eltwise: abs
-    dnnl_eltwise_abs = 0x5f,
+    dnnl_eltwise_abs,
     /// Eltwise: square root
-    dnnl_eltwise_sqrt = 0x6f,
+    dnnl_eltwise_sqrt,
     /// Eltwise: linear
-    dnnl_eltwise_linear = 0x7f,
+    dnnl_eltwise_linear,
     /// Eltwise: soft_relu
-    dnnl_eltwise_soft_relu = 0xa0,
+    dnnl_eltwise_soft_relu,
     /// Eltwise: hardsigmoid
-    dnnl_eltwise_hardsigmoid = 0xa1,
+    dnnl_eltwise_hardsigmoid,
     /// Eltwise: logistic
-    dnnl_eltwise_logistic = 0xaf,
+    dnnl_eltwise_logistic,
     /// Eltwise: exponent
-    dnnl_eltwise_exp = 0xbf,
+    dnnl_eltwise_exp,
     /// Eltwise: gelu
     ///
     /// @note Tanh approximation formula is used to approximate
     /// the cumulative distribution function of a Gaussian here
-    dnnl_eltwise_gelu_tanh = 0xcf,
+    dnnl_eltwise_gelu_tanh,
     /// Eltwise: swish
-    dnnl_eltwise_swish = 0xdf,
+    dnnl_eltwise_swish,
     /// Eltwise: natural logarithm
-    dnnl_eltwise_log = 0xef,
+    dnnl_eltwise_log,
     /// Eltwise: clip
-    dnnl_eltwise_clip = 0xff,
+    dnnl_eltwise_clip,
     /// Eltwise: clip version 2
-    dnnl_eltwise_clip_v2 = 0x10,
+    dnnl_eltwise_clip_v2,
     /// Eltwise: pow
-    dnnl_eltwise_pow = 0x20,
+    dnnl_eltwise_pow,
     /// Eltwise: erf-based gelu
-    dnnl_eltwise_gelu_erf = 0x30,
+    dnnl_eltwise_gelu_erf,
     /// Eltwise: round
-    dnnl_eltwise_round = 0x40,
+    dnnl_eltwise_round,
     /// Eltwise: mish
-    dnnl_eltwise_mish = 0x60,
+    dnnl_eltwise_mish,
     /// Eltwise: hardswish
-    dnnl_eltwise_hardswish = 0x70,
+    dnnl_eltwise_hardswish,
     /// Eltwise: ReLU (dst for backward)
     dnnl_eltwise_relu_use_dst_for_bwd = 0x100,
     /// Eltwise: hyperbolic tangent non-linearity (tanh) (dst for backward)
-    dnnl_eltwise_tanh_use_dst_for_bwd = 0x101,
+    dnnl_eltwise_tanh_use_dst_for_bwd,
     /// Eltwise: exponential linear unit (elu) (dst for backward)
-    dnnl_eltwise_elu_use_dst_for_bwd = 0x102,
+    dnnl_eltwise_elu_use_dst_for_bwd,
     /// Eltwise: square root (dst for backward)
-    dnnl_eltwise_sqrt_use_dst_for_bwd = 0x103,
+    dnnl_eltwise_sqrt_use_dst_for_bwd,
     /// Eltwise: logistic (dst for backward)
-    dnnl_eltwise_logistic_use_dst_for_bwd = 0x104,
+    dnnl_eltwise_logistic_use_dst_for_bwd,
     /// Eltwise: exp (dst for backward)
-    dnnl_eltwise_exp_use_dst_for_bwd = 0x105,
+    dnnl_eltwise_exp_use_dst_for_bwd,
     /// Eltwise: clip version 2 (dst for backward)
-    dnnl_eltwise_clip_v2_use_dst_for_bwd = 0x106,
+    dnnl_eltwise_clip_v2_use_dst_for_bwd,
     /// Max pooling
     dnnl_pooling_max = 0x1ff,
     /// Average pooling include padding
