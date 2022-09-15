@@ -118,7 +118,7 @@ static void make_dump_tensor_call(const std::vector<expr> &outs,
         const sc_op_ptr &node, const ir_module_ptr &ret_mod,
         const std::string &callee_name, int &global_str_counter,
         result_dump_config_t &dump_config, const expr &dump_out_path,
-        stmts_node_t *target_body) {
+        stmts_node_t *target_body, bool is_graph_dynamic) {
     for (size_t i = 0; i < outs.size(); i++) {
         auto &out = outs[i];
         auto &graph_tsr = node->get_outputs()[i];
@@ -131,8 +131,7 @@ static void make_dump_tensor_call(const std::vector<expr> &outs,
                 ret_mod, tensor_name.str(), global_str_counter);
         std::stringstream shape_name;
         size_t total_shape1 = utils::get_sizeof_type(tsr->elem_dtype_);
-        for (auto &dimv : tsr->dims_) {
-            auto dim = get_const_as_int(dimv.checked_as<constant_c>());
+        for (auto &dim : graph_tsr->details_.get_blocking_dims()) {
             total_shape1 *= dim;
             shape_name << dim << ',';
         }
@@ -141,7 +140,7 @@ static void make_dump_tensor_call(const std::vector<expr> &outs,
         auto the_call = builtin::call_dump_tensor(out, namestr, shapestr,
                 total_shape1, dump_config.bytes_per_dump_, dump_out_path,
                 dump_config.binary_format_,
-                static_cast<uint64_t>(tsr->elem_dtype_));
+                static_cast<uint64_t>(tsr->elem_dtype_), is_graph_dynamic);
         target_body->seq_.emplace_back(
                 builder::make_evaluate_unattached(the_call));
     }
@@ -1203,7 +1202,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                         && dump_config.should_function_dump(callee_name)) {
                     make_dump_tensor_call(outs, node, ret_mod, callee_name,
                             global_str_counter, dump_config, dump_out_path,
-                            target_body);
+                            target_body, is_graph_dynamic);
                 }
             }
         }

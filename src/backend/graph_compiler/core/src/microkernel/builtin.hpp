@@ -378,7 +378,7 @@ std::pair<func_t, func_t> get_brgemm_update_funcs(
 
 // makes a call node to sc_dump_tensor function
 expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,
-        expr outpath, expr format, expr dtype);
+        expr outpath, expr format, expr dtype, expr is_dynamic);
 
 // makes a call node to sc_value_check function
 expr call_value_check(expr tsr, expr name, expr size);

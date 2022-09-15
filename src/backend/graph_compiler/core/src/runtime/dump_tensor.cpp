@@ -23,7 +23,9 @@
 #include <stdio.h>
 #include <string>
 #include <runtime/data_type.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/bf16.hpp>
+#include <util/utils.hpp>
 
 using namespace sc;
 
@@ -69,28 +71,53 @@ static void dump_str(std::ofstream &ofs, void *tsr, size_t sz) {
 
 extern "C" void sc_dump_tensor(void *tsr, const char *name, const char *shape,
         size_t size, size_t limit, const char *path, bool binary_fmt,
-        uint64_t idtype) {
+        uint64_t idtype, bool is_dynamic) {
     static std::atomic<int> cnt = {0};
     std::string outpath = std::string(path);
     outpath += '/';
     outpath += name;
     outpath += '.';
     outpath += std::to_string(cnt++);
-    if (limit == 0) limit = size;
-    size_t real_size = std::min(limit, size);
+
     using etype_t = sc_data_etype;
     // lower 16 bits are sc_data_etype
     etype_t etype = static_cast<etype_t>(idtype & (0xffff));
+
+    std::string dyn_shape;
+    void *real_tsr = tsr;
+    if (is_dynamic) {
+        auto *dyn_tsr = static_cast<runtime::dynamic_tensor_t *>(tsr);
+        int64_t *shape_tsr = dyn_tsr->dims_;
+        size = 1;
+        for (int i = 0; i < dyn_tsr->ndims_; i++) {
+            size *= shape_tsr[i];
+            if (i) { dyn_shape += ","; }
+            dyn_shape += std::to_string(shape_tsr[i]);
+        }
+        real_tsr = dyn_tsr->data_;
+        shape = dyn_shape.c_str();
+        etype = sc_data_etype(dyn_tsr->dtype_);
+        size *= utils::get_sizeof_etype(etype);
+    }
+    if (limit == 0) limit = size;
+    size_t real_size = std::min(limit, size);
+
     if (!binary_fmt) {
         outpath += ".txt";
         std::ofstream ofs(outpath);
         ofs << "shape=" << shape << "\n";
         switch (etype) {
-            case etype_t::S32: dump_str<int32_t>(ofs, tsr, real_size); break;
-            case etype_t::F32: dump_str<float>(ofs, tsr, real_size); break;
-            case etype_t::BF16: dump_str<bf16_t>(ofs, tsr, real_size); break;
-            case etype_t::S8: dump_str<int8_t>(ofs, tsr, real_size); break;
-            case etype_t::U8: dump_str<uint8_t>(ofs, tsr, real_size); break;
+            case etype_t::S32:
+                dump_str<int32_t>(ofs, real_tsr, real_size);
+                break;
+            case etype_t::F32: dump_str<float>(ofs, real_tsr, real_size); break;
+            case etype_t::BF16:
+                dump_str<bf16_t>(ofs, real_tsr, real_size);
+                break;
+            case etype_t::S8: dump_str<int8_t>(ofs, real_tsr, real_size); break;
+            case etype_t::U8:
+                dump_str<uint8_t>(ofs, real_tsr, real_size);
+                break;
             default: std::cerr << "Bad type for sc_dump_tensor"; std::abort();
         }
     } else {
@@ -120,7 +147,7 @@ extern "C" void sc_dump_tensor(void *tsr, const char *name, const char *shape,
         uint16_t headerlen = header.size();
         fwrite(&headerlen, sizeof(headerlen), 1, of);
         fwrite(header.c_str(), header.size(), 1, of);
-        char *buf = reinterpret_cast<char *>(tsr);
+        char *buf = static_cast<char *>(real_tsr);
         fwrite(buf, real_size, 1, of);
         fclose(of);
     }

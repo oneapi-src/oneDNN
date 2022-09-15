@@ -111,7 +111,7 @@ expr make_trace_kernel(expr func_name, expr in_or_out, expr arg) {
 }
 
 expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,
-        expr outpath, expr format, expr dtype) {
+        expr outpath, expr format, expr dtype, expr is_dynamic) {
     static func_t dump_tensor_f = make_func("sc_dump_tensor",
             {make_var(datatypes::pointer, "tsr"),
                     make_var(datatypes::pointer, "name"),
@@ -120,11 +120,12 @@ expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,
                     make_var(datatypes::index, "limit"),
                     make_var(datatypes::pointer, "outpath"),
                     make_var(datatypes::boolean, "format"),
-                    make_var(datatypes::index, "dtype")},
+                    make_var(datatypes::index, "dtype"),
+                    make_var(datatypes::boolean, "is_dynamic")},
             stmt(), datatypes::void_t);
     return dump_tensor_f(std::move(tsr), std::move(name), std::move(shape),
             std::move(size), std::move(limit), std::move(outpath),
-            std::move(format), std::move(dtype));
+            std::move(format), std::move(dtype), std::move(is_dynamic));
 }
 
 expr call_value_check(expr tsr, expr name, expr size) {
