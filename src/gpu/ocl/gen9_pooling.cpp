@@ -74,14 +74,14 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         c_padded = utils::rnd_up(conf.c_padded, c_block_size);
         conf.use_mb_c_block = true;
         conf.vect_dt_n = 8;
-        conf.nvect = 1;
+        conf.nvect = 2;
         conf.chunks_per_c_block = c_block_size / conf.sub_group_size;
         conf.chunks_per_mb_block
                 = conf.vect_dt_n * conf.nvect / conf.chunks_per_c_block;
     } else if (c_block_size == 16 && n_block_size == 1) {
         conf.use_only_c_block = true;
         conf.vect_dt_n = 1;
-        conf.nvect = 1;
+        conf.nvect = 2;
         conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
         conf.chunks_per_mb_block = 1;
     } else {
