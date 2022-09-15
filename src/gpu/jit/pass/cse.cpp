@@ -320,7 +320,6 @@ public:
     void add_usage(
             const expr_t &e, const ir_path_t &path, bool do_increment = true) {
         if (e.type().is_bool()) return; // Ignore booleans.
-        if (e.type().is_u64() && e.type().elems() >= 8) return;
         return find_cse_expr(e).add_usage(path, do_increment);
     }
 

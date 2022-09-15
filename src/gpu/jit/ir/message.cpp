@@ -1029,7 +1029,8 @@ stmt_t access_builder_t::create_send_stmt(const send_t &send) {
     if (send.slots == 1 || !is_same_base) {
         off = shuffle_t::make(off_vec);
     } else {
-        off = shuffle_t::make_broadcast(off_base0 + off_const0, send.slots)
+        off = shuffle_t::make_broadcast(off_base0, send.slots)
+                + shuffle_t::make_broadcast(off_const0, send.slots)
                 + shuffle_t::make(off_const_vec);
     }
     bool allow_fail = send.is_prefetch();
