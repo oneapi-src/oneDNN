@@ -34,6 +34,18 @@ static cpu_isa_t get_supported_isa() {
     return isa_any;
 }
 
+static bool impl_supports_datatype(data_type_t data_type) {
+    switch (data_type) {
+        case data_type::bf16: return x64::mayiuse(x64::avx512_core);
+        case data_type::f16: return x64::mayiuse(x64::avx512_core_fp16);
+        case data_type::f32:
+        case data_type::s32:
+        case data_type::s8:
+        case data_type::u8: return true;
+        default: return false;
+    }
+}
+
 status_t jit_uni_reduction_t::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
     using namespace data_type;
@@ -50,8 +62,8 @@ status_t jit_uni_reduction_t::pd_t::init(engine_t *engine) {
     conf_.dst_dt_size = types::data_type_size(conf_.dst_type);
     conf_.acc_dt_size = types::data_type_size(conf_.acc_type);
 
-    const bool ok = platform::has_data_type_support(conf_.src_type)
-            && platform::has_data_type_support(conf_.dst_type)
+    const bool ok = impl_supports_datatype(conf_.src_type)
+            && impl_supports_datatype(conf_.dst_type)
             && set_default_params() == status::success
             && attr()->has_default_values(sm::post_ops)
             && attr_.set_default_formats(dst_md(0)) == status::success;

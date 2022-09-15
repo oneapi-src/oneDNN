@@ -33,6 +33,18 @@ namespace x64 {
 
 using namespace Xbyak;
 
+static bool impl_supports_datatype(data_type_t data_type) {
+    switch (data_type) {
+        case data_type::bf16: return x64::mayiuse(x64::avx512_core);
+        case data_type::f16: return x64::mayiuse(x64::avx512_core_fp16);
+        case data_type::f32:
+        case data_type::s32:
+        case data_type::s8:
+        case data_type::u8: return true;
+        default: return false;
+    }
+}
+
 #define GET_OFF(field) offsetof(jit_resampling_args_t, field)
 struct jit_resampling_args_t {
     const void *src; // fwd: src bwd: diff_dst
@@ -809,8 +821,8 @@ status_t jit_avx512_core_resampling_bwd_t::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
     const bool ok = mayiuse(avx512_core) && !is_fwd() && !has_zero_dim_memory()
-            && platform::has_data_type_support(diff_dst_md()->data_type)
-            && platform::has_data_type_support(diff_src_md()->data_type)
+            && impl_supports_datatype(diff_dst_md()->data_type)
+            && impl_supports_datatype(diff_src_md()->data_type)
             && IMPLICATION(diff_src_md()->data_type == f16,
                     mayiuse(avx512_core_fp16)
                             && memory_desc_wrapper(diff_src_md()).is_plain())

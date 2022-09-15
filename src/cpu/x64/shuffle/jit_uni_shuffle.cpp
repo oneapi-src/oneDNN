@@ -29,6 +29,18 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+static bool impl_supports_datatype(data_type_t data_type) {
+    switch (data_type) {
+        case data_type::bf16: return x64::mayiuse(x64::avx512_core);
+        case data_type::f16: return x64::mayiuse(x64::avx512_core_fp16);
+        case data_type::f32:
+        case data_type::s32:
+        case data_type::s8:
+        case data_type::u8: return true;
+        default: return false;
+    }
+}
+
 template <cpu_isa_t isa>
 status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
     using namespace format_tag;
@@ -38,7 +50,7 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
 
     const bool ok = mayiuse(isa)
             && utils::one_of(conf_.data_type, f32, s32, bf16)
-            && platform::has_data_type_support(conf_.data_type)
+            && impl_supports_datatype(conf_.data_type)
             && attr()->has_default_values() && axis() == 1
             && IMPLICATION(!is_fwd(), set_default_formats_common());
 

@@ -48,6 +48,18 @@ static cpu_isa_t get_supported_isa(bool is_plain) {
     return isa_any;
 }
 
+static bool impl_supports_datatype(data_type_t data_type) {
+    switch (data_type) {
+        case data_type::bf16: return x64::mayiuse(x64::avx512_core);
+        case data_type::f16: return x64::mayiuse(x64::avx512_core_fp16);
+        case data_type::f32:
+        case data_type::s32:
+        case data_type::s8:
+        case data_type::u8: return true;
+        default: return false;
+    }
+}
+
 status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
     using sm = primitive_attr_t::skip_mask_t;
@@ -64,8 +76,8 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
     const bool ok = is_fwd() && !has_zero_dim_memory()
             && conf_.src_tag != format_tag::undef
             && set_default_params(conf_.src_tag) == status::success
-            && platform::has_data_type_support(conf_.src_data_type)
-            && platform::has_data_type_support(conf_.dst_data_type)
+            && impl_supports_datatype(conf_.src_data_type)
+            && impl_supports_datatype(conf_.dst_data_type)
             && IMPLICATION(conf_.src_data_type == f16, src_d.is_plain())
             && attr()->has_default_values(sm::post_ops, conf_.dst_data_type)
             && attr_.set_default_formats(dst_md(0)) == status::success;
