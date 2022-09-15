@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ enum class ProductFamily : uint32_t {
     SKL = 0x12,
     CNL = 0x1A,
     ICL = 0x1C,
-    TGLLP = 0x22,
+    TGLLP = 0x21,
     DG1 = 1210,
     XE_HP_SDV = 1250,
     DG2 = 1270,
