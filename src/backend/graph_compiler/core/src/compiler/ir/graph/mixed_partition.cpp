@@ -832,11 +832,38 @@ static bool check_parti_connectionship(mixed_parti_t *A, mixed_parti_t *B) {
     return false;
 }
 
+/**
+ * Check two partition ring risk
+ * */
+static bool check_parti_ring_risk(
+        mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+    auto dep = check_parti_dep(A, B, g);
+    if (dep == parti_dep::inter_dep)
+        return true;
+    else if (dep == parti_dep::no_dep)
+        return false;
+
+    auto append_parti = (dep == parti_dep::l_dep_r) ? A : B,
+         target_parti = (dep == parti_dep::l_dep_r) ? B : A;
+    auto append_ops = append_parti->ops;
+    for (auto &op_a : append_ops) {
+        for (auto &inp : op_a->get_inputs()) {
+            // skip non-input-cut op of append parti
+            if (!append_parti->is_parti_inp(inp)) continue;
+            // check input-cut op ring risk for target parti
+            if (!target_parti->fusion_partition_t::is_ok_to_add(op_a.get(), g))
+                return true;
+        }
+    }
+    return false;
+}
+
 static bool try_merge_mixed_parti_parallel(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
     if (A->get_root() == B->get_root()) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
     if (!check_parti_connectionship(A, B)) return false;
+    if (check_parti_ring_risk(A, B, g)) return false;
 
     auto outer_loops_A = A->get_outer_loops(),
          outer_loops_B = B->get_outer_loops();
