@@ -217,6 +217,19 @@ public:
     void replace_op(const std::shared_ptr<impl::op_t> &org_op,
             const std::shared_ptr<impl::op_t> &new_op);
 
+    // Swap neighboring single input ops, can be extend to support mimo per
+    // requirement
+    //
+    //   in_val          in_val
+    //     |               |
+    //  producer        consumer
+    //     |      -->      |
+    //  consumer        producer
+    //     |               |
+    //   out_val         out_val
+    void swap_neighboring_si_ops(const std::shared_ptr<impl::op_t> &producer,
+            const std::shared_ptr<impl::op_t> &consumer);
+
 private:
     bool is_to_be_removed(const std::shared_ptr<impl::op_t> &op) const;
 

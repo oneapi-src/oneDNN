@@ -3253,26 +3253,13 @@ impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg) {
         }
 
         if (to_be_swapped.empty()) break;
-
+        subgraph_rewriter_t rewriter(sg);
         for (auto &pair : to_be_swapped) {
             impl::op_t *producer = pair.first;
             impl::op_t *tc = pair.second;
 
-            auto producer_src = producer->get_input_value(0);
-            auto producer_dst = producer->get_output_value(0);
-
-            producer_src->remove_consumer(*producer, 0);
-            tc->connect_input(0, producer_src);
-
-            auto tc_dst = tc->get_output_value(0);
-            producer->connect_output(0, tc_dst);
-
-            impl::logical_tensor_t new_lt
-                    = impl::empty_logical_tensor_with_default_id();
-            auto new_val = std::make_shared<value_t>(*tc, 0, new_lt, true);
-            new_val->set_data_type(tc_dst->get_logical_tensor().data_type);
-            tc->connect_output(0, new_val);
-            producer->connect_input(0, new_val);
+            rewriter.swap_neighboring_si_ops(
+                    producer->shared_from_this(), tc->shared_from_this());
         }
     }
     return infer_shape(sg);
@@ -3302,26 +3289,13 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
         }
 
         if (to_be_swapped.empty()) break;
-
+        subgraph_rewriter_t rewriter(sg);
         for (auto &pair : to_be_swapped) {
             impl::op_t *producer = pair.first;
             impl::op_t *quant = pair.second;
 
-            auto producer_src = producer->get_input_value(0);
-            auto producer_dst = producer->get_output_value(0);
-
-            producer_src->remove_consumer(*producer, 0);
-            quant->connect_input(0, producer_src);
-
-            auto quant_dst = quant->get_output_value(0);
-            producer->connect_output(0, quant_dst);
-
-            impl::logical_tensor_t new_lt
-                    = impl::empty_logical_tensor_with_default_id();
-            auto new_val = std::make_shared<value_t>(*quant, 0, new_lt, true);
-            new_val->set_data_type(quant_dst->get_logical_tensor().data_type);
-            quant->connect_output(0, new_val);
-            producer->connect_input(0, new_val);
+            rewriter.swap_neighboring_si_ops(
+                    producer->shared_from_this(), quant->shared_from_this());
         }
     }
     return infer_shape(sg);
