@@ -22,10 +22,10 @@ trigger:
 jobs:
   - job: 'ClangFormat'
     pool:
-      vmImage: 'ubuntu-18.04'
+      vmImage: 'ubuntu-20.04'
     steps:
       - script: |
-          .github/automation/env/clang.sh
+          .github/automation/env/clang.sh 9
         displayName: 'init'
       - script: |
           .github/automation/clang-format.sh
@@ -46,7 +46,7 @@ jobs:
     steps:
       - script: |
           if [ "$(CC)" == "clang" ]; then
-            .github/automation/env/clang.sh
+            .github/automation/env/clang.sh 9
           fi
         displayName: "Init_Env"
       - script: |
@@ -56,10 +56,10 @@ jobs:
           .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
-  - job: 'Ubuntu18'
+  - job: 'Ubuntu22'
     timeoutInMinutes: 120
     pool:
-      vmImage: 'ubuntu-18.04'
+      vmImage: 'ubuntu-22.04'
     strategy:
       matrix: 
         clang:
@@ -71,7 +71,7 @@ jobs:
     steps:
       - script: |
           if [ "$(CC)" == "clang" ]; then
-            .github/automation/env/clang.sh
+            .github/automation/env/clang.sh 15
           fi
         displayName: "Init_Env"
       - script: |

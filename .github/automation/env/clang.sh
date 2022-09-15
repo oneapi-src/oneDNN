@@ -16,17 +16,22 @@
 # limitations under the License.
 #===============================================================================
 
+VERSION=${1//[^0-9.]/}
+if [ -z "${VERSION}" ]; then
+    VERSION=9
+fi
+
 UBUNTU_DISTRO="$(cat /etc/lsb-release | grep CODENAME | sed 's/.*=//g')"
 
 sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421
 
-sudo add-apt-repository "deb http://apt.llvm.org/${UBUNTU_DISTRO}/ llvm-toolchain-${UBUNTU_DISTRO}-9 main"
-sudo add-apt-repository "deb-src http://apt.llvm.org/${UBUNTU_DISTRO}/ llvm-toolchain-${UBUNTU_DISTRO}-9 main"
-sudo apt update && sudo apt install -y clang-9 lldb-9 lld-9 clang-format-9
+sudo add-apt-repository "deb http://apt.llvm.org/${UBUNTU_DISTRO}/ llvm-toolchain-${UBUNTU_DISTRO}-${VERSION} main"
+sudo add-apt-repository "deb-src http://apt.llvm.org/${UBUNTU_DISTRO}/ llvm-toolchain-${UBUNTU_DISTRO}-${VERSION} main"
+sudo apt update && sudo apt install -y "clang-${VERSION}" "lldb-${VERSION}" "lld-${VERSION}" "clang-format-${VERSION}"  "libomp-${VERSION}-dev" hwloc
 
-sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-9 100
-sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-9 100
-sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100
-sudo update-alternatives --set clang /usr/bin/clang-9
-sudo update-alternatives --set clang++ /usr/bin/clang++-9
-sudo update-alternatives --set clang-format /usr/bin/clang-format-9
+sudo update-alternatives --install /usr/bin/clang clang "/usr/bin/clang-${VERSION}" 100
+sudo update-alternatives --install /usr/bin/clang++ clang++ "/usr/bin/clang++-${VERSION}" 100
+sudo update-alternatives --install /usr/bin/clang-format clang-format "/usr/bin/clang-format-${VERSION}" 100
+sudo update-alternatives --set clang "/usr/bin/clang-${VERSION}"
+sudo update-alternatives --set clang++ "/usr/bin/clang++-${VERSION}"
+sudo update-alternatives --set clang-format "/usr/bin/clang-format-${VERSION}"
