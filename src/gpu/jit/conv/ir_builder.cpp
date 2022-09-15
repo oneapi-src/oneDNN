@@ -2598,6 +2598,7 @@ void conv_ir_builder_t::build() {
     stmt_ = lift_alloc(stmt_, ir_ctx, cfg_.pipeline().reuse_headers());
     stmt_ = lift_send_2d_header_store(stmt_, ir_ctx);
     stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false);
+    stmt_ = split_shuffle(stmt_, ir_ctx);
     stmt_ = eliminate_common_subexprs(
             stmt_, ir_ctx, cfg_.reserved_regs(), cfg_.slm().gmem_bufs());
     stmt_ = hoist_exprs(stmt_, ir_ctx);

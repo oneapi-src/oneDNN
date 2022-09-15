@@ -30,6 +30,7 @@
 #include "gpu/jit/pass/overflow.hpp"
 #include "gpu/jit/pass/peephole.hpp"
 #include "gpu/jit/pass/send.hpp"
+#include "gpu/jit/pass/shuffle_splitter.hpp"
 #include "gpu/jit/pass/simplify.hpp"
 #include "gpu/jit/pass/slm.hpp"
 #include "gpu/jit/pass/strength_reduce.hpp"
