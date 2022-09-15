@@ -357,50 +357,6 @@ private:
     bool need_comp_pads = false;
 };
 
-template <typename Vmm>
-void load_bytes_skip_zmm(jit_generator *jit, data_type_t dt, Vmm vmm,
-        Xbyak::Address addr, int nelems) {
-    jit->load_bytes(vmm, addr, nelems * types::data_type_size(dt));
-}
-
-template <>
-void load_bytes_skip_zmm(jit_generator *jit, data_type_t dt, Xbyak::Zmm vmm,
-        Xbyak::Address addr, int nelems) {
-    // silently return. This is only needed to let build succeed as load_bytes
-    // doesn't support zmm.
-    assert(!"invalid code");
-}
-
-template <typename Vmm>
-void load_data_skip_zmm(jit_generator *jit, data_type_t dt, Vmm vmm,
-        Xbyak::Address addr, int nelems) {
-    // Note: load_data expands elements to 32-bits (s8->s32 and u8->s32)
-    jit->load_data(dt, vmm, addr, nelems);
-}
-
-template <>
-void load_data_skip_zmm<Xbyak::Zmm>(jit_generator *jit, data_type_t dt,
-        Xbyak::Zmm vmm, Xbyak::Address addr, int nelems) {
-    // silently return. This is only needed to let build succeed as load_data
-    // doesn't support zmm.
-    assert(!"invalid code");
-}
-
-template <typename Vmm>
-void store_data_skip_zmm(jit_generator *jit, data_type_t type_out,
-        const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset, int nelems) {
-    // Note: store_data compresses elements from 32-bits (s32->s8 and s32->u8)
-    jit->store_data(type_out, vmm, reg, offset, nelems);
-}
-
-template <>
-void store_data_skip_zmm<Xbyak::Zmm>(jit_generator *jit, data_type_t type_out,
-        const Zmm &vmm, const Xbyak::Reg64 &reg, int64_t offset, int nelems) {
-    // silently return. This is only needed to let build succeed as store_data
-    // doesn't support zmm.
-    assert(!"invalid code");
-}
-
 template <cpu_isa_t isa, typename Wmm>
 int jit_brgemm_kernel_t<isa, Wmm>::A_offset(int bd, int rd, bool is_amx) const
         noexcept {
@@ -606,7 +562,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::cvt2ps(data_type_t type_in,
         vmm = vmm_mask(vmm_in, mask_flag, store, ktail_mask);
     } else {
         uni_vpxor(vmm_in, vmm_in, vmm_in);
-        load_data_skip_zmm(this, type_in, vmm_in, op.getAddress(), tail_size);
+        load_data(type_in, vmm_in, op.getAddress(), tail_size);
         if (types::is_integral_dt(type_in)) uni_vcvtdq2ps(vmm_in, vmm_in);
         return;
     }
@@ -1029,8 +985,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_alpha_beta(
                     else
                         uni_vaddps(vmm_masked, vmm, ptr_C);
                 } else {
-                    load_data_skip_zmm(
-                            this, brg.dt_c, vmm_prev_dst, ptr_C, ld_size);
+                    load_data(brg.dt_c, vmm_prev_dst, ptr_C, ld_size);
                     if (brg.is_int8)
                         uni_vpaddd(vmm, vmm, vmm_prev_dst);
                     else
@@ -1176,8 +1131,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
                     uni_vmulps(vmm_masked, vmm, addr);
                 } else {
                     auto vmm_scales = vmm_tmp_1();
-                    load_data_skip_zmm(
-                            this, data_type::f32, vmm_scales, addr, ld_size);
+                    load_data(data_type::f32, vmm_scales, addr, ld_size);
                     uni_vmulps(vmm, vmm, vmm_scales);
                 }
             }
@@ -1264,8 +1218,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
                 }
             } else {
                 const int ld_block = is_tail ? brg.ldb_tail : brg.ld_block;
-                store_data_skip_zmm(this, brg.dt_d, vmm, reg_aux_D,
-                        D_offset(bd, ld), ld_block);
+                store_data(
+                        brg.dt_d, vmm, reg_aux_D, D_offset(bd, ld), ld_block);
             }
         }
     }
@@ -1296,8 +1250,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
                         = vmm_mask(vmm_zp_comp_a, true, false, k_mask);
                 uni_vmovups(vmm_zp_comp_a_masked, zp_comp_a_addr);
             } else {
-                load_data_skip_zmm(this, data_type::s32, vmm_zp_comp_a,
-                        zp_comp_a_addr, ld_size);
+                load_data(
+                        data_type::s32, vmm_zp_comp_a, zp_comp_a_addr, ld_size);
             }
             uni_vpmulld(vmm_zp_comp_a, vmm_zp_comp_a, vmm_zp_a_val);
 
@@ -1333,8 +1287,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
                 vmm_comp = vmm_mask(vmm_comp, true, false, k_mask);
                 uni_vmovups(vmm_comp, comp_addr);
             } else {
-                load_data_skip_zmm(
-                        this, data_type::s32, vmm_comp, comp_addr, ld_size);
+                load_data(data_type::s32, vmm_comp, comp_addr, ld_size);
             }
             for (int bd = 0; bd < bd_block; bd++) {
                 auto vmm = accm(ld_block2, bd, ld);
@@ -1377,8 +1330,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_without_post_ops(
                 if (is_superset(brg.isa_impl, avx512_core)) {
                     uni_vmovups(addr_c | ld_tail_mask | T_z, vmm);
                 } else {
-                    store_data_skip_zmm(this, brg.dt_c, vmm, reg_aux_C,
-                            C_offset(bd, ld), brg.ldb_tail);
+                    store_data(brg.dt_c, vmm, reg_aux_C, C_offset(bd, ld),
+                            brg.ldb_tail);
                 }
             } else
                 uni_vmovups(ptr[reg_aux_C + C_offset(bd, ld)], vmm);
@@ -1789,8 +1742,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                 vmm_store = vmm_mask(vmm_store, is_tail, false, ld_tail_mask);
                 uni_vmovups(vmm_store, addr);
             } else {
-                load_bytes_skip_zmm(this, brg.dt_b, load(), addr,
-                        brg.ldb_tail * brg.ld_step);
+                load_bytes(load(), addr,
+                        brg.typesize_B * brg.ldb_tail * brg.ld_step);
             }
 
             if (brg.req_cal_comp_pads) {
@@ -1843,8 +1796,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     if (is_superset(brg.isa_impl, avx512_core)) {
                         uni_vmovups(vmm_load, addr);
                     } else {
-                        load_bytes_skip_zmm(this, brg.dt_b, vmm_load, addr,
-                                brg.ldb_tail * brg.ld_step);
+                        load_bytes(vmm_load, addr,
+                                brg.typesize_B * brg.ldb_tail * brg.ld_step);
                     }
                 } else {
                     uni_vmovups(vmm_load, addr);
@@ -1888,8 +1841,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     if (is_superset(brg.isa_impl, avx512_core)) {
                         uni_vmovups(vmm_load, addr);
                     } else {
-                        load_bytes_skip_zmm(this, brg.dt_b, vmm_load, addr,
-                                brg.ldb_tail * brg.ld_step);
+                        load_bytes(vmm_load, addr,
+                                brg.typesize_B * brg.ldb_tail * brg.ld_step);
                     }
                 } else {
                     uni_vmovups(vmm_load, addr);

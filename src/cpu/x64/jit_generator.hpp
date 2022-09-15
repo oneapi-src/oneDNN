@@ -2050,17 +2050,32 @@ public:
     template <typename Vmm>
     void load_bytes(
             const Vmm &vmm, const Xbyak::Address &src_addr, int load_size) {
+
+        constexpr bool is_vmm_supported = std::is_same<Vmm, Xbyak::Ymm>::value
+                || std::is_same<Vmm, Xbyak::Xmm>::value;
+        if (!is_vmm_supported) {
+            assert("load_bytes() is only supported for xmm and ymm");
+            return;
+        }
+
         const auto addr = [&](int bytes_offset) {
             return ptr[src_addr.getRegExp()
                     + Xbyak::RegExp(bytes_offset * sizeof(int8_t))];
         };
 
-        load_bytes(vmm, load_size, addr);
+        helper_load_bytes(vmm, load_size, addr);
     }
 
     template <typename Vmm>
     void load_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
             int load_size) {
+
+        constexpr bool is_vmm_supported = std::is_same<Vmm, Xbyak::Ymm>::value
+                || std::is_same<Vmm, Xbyak::Xmm>::value;
+        if (!is_vmm_supported) {
+            assert("load_bytes() is only supported for xmm and ymm");
+            return;
+        }
 
         // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
@@ -2069,17 +2084,17 @@ public:
             return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
         };
 
-        load_bytes(vmm, load_size, addr);
+        helper_load_bytes(vmm, load_size, addr);
     }
 
 private:
     template <typename Vmm, typename AddrFunc>
-    void load_bytes(const Vmm &vmm, int load_size, const AddrFunc &addr) {
+    void helper_load_bytes(
+            const Vmm &vmm, int load_size, const AddrFunc &addr) {
 
         constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
-        static_assert(
-                is_xmm || is_ymm, "only Xmm or Ymm registers are allowed");
+        assert((is_xmm || is_ymm) && "only Xmm or Ymm registers are allowed");
 
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
@@ -2341,10 +2356,16 @@ public:
     void load_bytes_to_dword_extension(const Vmm &vmm,
             const Xbyak::Address &src_addr, bool is_signed, int load_size) {
 
+        constexpr bool is_vmm_supported = std::is_same<Vmm, Xbyak::Ymm>::value
+                || std::is_same<Vmm, Xbyak::Xmm>::value;
+        if (!is_vmm_supported) {
+            assert("load_bytes_to_dword_extension() is only supported for xmm "
+                   "and ymm");
+            return;
+        }
+
         constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
-        static_assert(
-                is_xmm || is_ymm, "only Xmm or Ymm registers are allowed");
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
 
@@ -2392,6 +2413,23 @@ public:
      */
     template <typename Vmm>
     void store_data(data_type_t type_out, const Vmm &vmm,
+            const Xbyak::Reg64 &reg, int64_t offset, int store_size) {
+        constexpr bool is_vmm_supported = std::is_same<Vmm, Xbyak::Ymm>::value
+                || std::is_same<Vmm, Xbyak::Xmm>::value;
+        using supported_vmm_t = typename utils::conditional<is_vmm_supported,
+                Vmm, Xbyak::Ymm /*dummy*/>::type;
+
+        if (!is_vmm_supported) {
+            assert("load_bytes() not supported");
+            return;
+        }
+        helper_store_data(type_out, supported_vmm_t(vmm.getIdx()), reg, offset,
+                store_size);
+    }
+
+private:
+    template <typename Vmm>
+    void helper_store_data(data_type_t type_out, const Vmm &vmm,
             const Xbyak::Reg64 &reg, int64_t offset, int store_size) {
 
         assert(is_valid_isa(sse41)
@@ -2445,6 +2483,7 @@ public:
         }
     }
 
+public:
     /* A utility function to load data of type type_in to vmm register
      * from the memory. Moreover load_size many chunks are read from the memory
      * beginning with ptr[reg + offset] address.
