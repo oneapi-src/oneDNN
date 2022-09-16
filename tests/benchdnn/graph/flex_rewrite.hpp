@@ -376,7 +376,11 @@ struct flex_rewrite {
                     break;
                 // infer_conv_bprop_data_output_shape
                 case dnnl::graph::op::kind::ConvolutionBackpropData:
-                    use_oi = 1; // use IC as output in backprop case
+                    if (aop.attrs_.find("output_shape") != aop.attrs_.end()) {
+                        gi[aop.out_lts_[0].id_]
+                                = aop.attrs_["output_shape"].get_s64_vector();
+                    }
+                    break;
                 // infer_convtranspose_output_shape
                 case dnnl::graph::op::kind::ConvTranspose:
                     split_ncx(data_format, gi[aop.in_lts_[0].id_], n, c,
