@@ -2452,24 +2452,23 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
     balance(nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b);
 
     // empiric balancing for some shapes
+    const auto sps = (jcp.ih * jcp.iw);
     bool neat_1x1
             = everyone_is(1, jcp.id, jcp.kh, jcp.kw, jcp.ngroups, jcp.stride_h);
     if (neat_1x1 && jcp.nthr >= 28 && jcp.mb >= jcp.nthr) {
         const bool more_oc = (jcp.ic < jcp.oc);
-        if (jcp.ih * jcp.iw >= 56 * 56 && jcp.ic >= 64 && jcp.oc >= 64) {
+        if (sps >= 56 * 56 && jcp.ic >= 64 && jcp.oc >= 64) {
             nthr_mb = jcp.nthr;
             nthr_oc_b = 1;
-        } else if (jcp.ih * jcp.iw >= 28 * 28 && jcp.ic >= 128
-                && jcp.oc >= 128) {
+        } else if (sps >= 28 * 28 && jcp.ic >= 128 && jcp.oc >= 128) {
             nthr_mb = jcp.nthr / 4;
-            nthr_oc_b = more_oc ? 4 : 1;
-        } else if (jcp.ih * jcp.iw >= 14 * 14 && jcp.ic >= 256
-                && jcp.oc >= 256) {
-            nthr_mb = jcp.nthr / 8;
-            nthr_oc_b = more_oc ? 8 : 1;
-        } else if (jcp.ih * jcp.iw >= 7 * 7 && jcp.ic >= 512 && jcp.oc >= 512) {
-            nthr_mb = jcp.nthr / 14;
-            nthr_oc_b = more_oc ? 14 : 1;
+            nthr_oc_b = more_oc ? jcp.nthr / nthr_mb : 1;
+        } else if (sps >= 14 * 14 && jcp.ic >= 256 && jcp.oc >= 256) {
+            nthr_mb = div_up(jcp.nthr, 8);
+            nthr_oc_b = more_oc ? jcp.nthr / nthr_mb : 1;
+        } else if (sps >= 7 * 7 && jcp.ic >= 512 && jcp.oc >= 512) {
+            nthr_mb = div_up(jcp.nthr, 14);
+            nthr_oc_b = more_oc ? jcp.nthr / nthr_mb : 1;
         }
         nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
         nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
