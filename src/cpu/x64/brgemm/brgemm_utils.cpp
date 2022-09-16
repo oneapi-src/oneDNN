@@ -86,8 +86,8 @@ bool can_dispatch_uker(const brgemm_t *brg) {
 void maybe_try_bf32(brgemm_t *brg) {
     const bool try_bf32 = brg->is_f32
             && brg->brgattr.fpmath_mode == fpmath_mode::bf16
-            && utils::one_of(brg->isa_user, isa_any, avx512_core_bf16_amx_bf16)
-            && mayiuse(avx512_core_bf16_amx_bf16);
+            && utils::one_of(brg->isa_user, isa_any, avx512_core_amx)
+            && mayiuse(avx512_core_amx);
     if (try_bf32) {
         const bool is_tmm = brg->is_tmm;
         brg->is_tmm = true;
@@ -110,27 +110,24 @@ void set_isa_impl(brgemm_t *brg) {
     };
 
     if (brg->is_bf32) {
-        brg->isa_impl = avx512_core_bf16_amx_bf16;
+        brg->isa_impl = avx512_core_amx;
     } else if (brg->is_f32) {
         brg->isa_impl = utils::map(true, isa_any,
-                is_isa_ok(avx512_core)
-                        || is_isa_ok(avx512_core_bf16_amx_bf16) /*bf32*/,
+                is_isa_ok(avx512_core) || is_isa_ok(avx512_core_amx) /*bf32*/,
                 avx512_core, is_isa_ok(avx2), avx2,
                 // Allow avx512_core_fp16 isa in case of a f16 primitive that
                 // is implemented using pre-conversion of inputs to f32.
                 // This is needed to support f16 binary post-ops.
                 is_isa_ok(avx512_core_fp16), avx512_core_fp16);
     } else if (brg->is_bf16) {
-        brg->isa_impl = utils::map(true, isa_any,
-                is_isa_ok(avx512_core_bf16_amx_bf16), avx512_core_bf16_amx_bf16,
-                is_isa_ok(avx512_core_bf16), avx512_core_bf16);
+        brg->isa_impl = utils::map(true, isa_any, is_isa_ok(avx512_core_amx),
+                avx512_core_amx, is_isa_ok(avx512_core_bf16), avx512_core_bf16);
     } else if (brg->is_f16) {
         brg->isa_impl = utils::map(
                 true, isa_any, is_isa_ok(avx512_core_fp16), avx512_core_fp16);
     } else if (brg->is_int8) {
-        brg->isa_impl = utils::map(true, isa_any,
-                is_isa_ok(avx512_core_bf16_amx_int8), avx512_core_bf16_amx_int8,
-                is_isa_ok(avx512_core_vnni), avx512_core_vnni,
+        brg->isa_impl = utils::map(true, isa_any, is_isa_ok(avx512_core_amx),
+                avx512_core_amx, is_isa_ok(avx512_core_vnni), avx512_core_vnni,
                 is_isa_ok(avx2_vnni), avx2_vnni);
     }
 }
@@ -456,13 +453,11 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
 
     brg->isa_user = isa;
     set_isa_impl(brg);
-    brg->is_int8_tmm
-            = brg->is_int8 && brg->isa_impl == avx512_core_bf16_amx_int8;
-    brg->is_bf16_tmm
-            = brg->is_bf16 && brg->isa_impl == avx512_core_bf16_amx_bf16;
+    brg->is_int8_tmm = brg->is_int8 && brg->isa_impl == avx512_core_amx;
+    brg->is_bf16_tmm = brg->is_bf16 && brg->isa_impl == avx512_core_amx;
     brg->is_bf32 = is_bf32
-            && utils::one_of(brg->isa_user, isa_any, avx512_core_bf16_amx_bf16)
-            && mayiuse(avx512_core_bf16_amx_bf16);
+            && utils::one_of(brg->isa_user, isa_any, avx512_core_amx)
+            && mayiuse(avx512_core_amx);
     set_brg_vmm(brg); // TODO: Investigate if it is really needed here.
     brg->req_s8s8_compensation
             = brg->is_int8 && !brg->is_int8_tmm && brg->dt_a == data_type::s8;
@@ -511,7 +506,7 @@ void init_brdgmm_conf(brgemm_t *brg, brgemm_batch_kind_t type,
     brg->typesize_C = types::data_type_size(brg->dt_c);
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
-    brg->is_bf16_tmm = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    brg->is_bf16_tmm = brg->is_bf16 && mayiuse(avx512_core_amx);
     brg->is_dgmm = true;
 
     brg->LDA = static_cast<int>(LDA);

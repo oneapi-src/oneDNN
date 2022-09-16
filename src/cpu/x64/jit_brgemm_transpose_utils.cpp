@@ -573,7 +573,7 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
                     3, 19, 9, 25, 11, 27, 5, 21, 7, 23, 13, 29, 15, 31};
 
     constexpr int amx_bf16_granularity = 2;
-    const bool last_row_padded = conf_->isa == avx512_core_bf16_amx_bf16
+    const bool last_row_padded = conf_->isa == avx512_core_amx
             && conf_->os % amx_bf16_granularity != 0;
     const int eff_K_tail = conf_->K_tail - (last_row_padded ? 1 : 0);
 
@@ -1341,7 +1341,7 @@ void jit_trans_to_vnni_t::generate() {
         int row_block = conf_->os_block;
 
         constexpr int amx_bf16_granularity = 2;
-        const bool last_row_padded = conf_->isa == avx512_core_bf16_amx_bf16
+        const bool last_row_padded = conf_->isa == avx512_core_amx
                 && conf_->os % amx_bf16_granularity != 0;
         const int eff_K_tail = conf_->K_tail - (last_row_padded ? 1 : 0);
 
@@ -2906,8 +2906,7 @@ status_t create_brgemm_trans_src(
 status_t create_brgemm_copy_to_coarse(
         std::unique_ptr<jit_brgemm_copy_to_coarse_t> &copy_ker,
         const jit_brgemm_primitive_conf_t *conf) {
-    if (conf->isa == avx512_core_bf16_amx_int8
-            || conf->isa == avx512_core_bf16_amx_bf16)
+    if (conf->isa == avx512_core_amx)
         CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_copy_to_coarse_t(conf)));
     else
         return status::invalid_arguments;

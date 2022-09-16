@@ -401,8 +401,7 @@ struct rnn_conf_t {
 
     inline bool is_cell_int8_amx() const {
 #if DNNL_X64
-        return brgemm_isa == x64::avx512_core_bf16_amx_int8
-                && is_cell_dt_int8();
+        return brgemm_isa == x64::avx512_core_amx && is_cell_dt_int8();
 #else
         return false;
 #endif
@@ -416,8 +415,7 @@ struct rnn_conf_t {
     inline bool is_cell_dt_bf16() const { return cell_dt == data_type::bf16; }
     inline bool is_cell_bf16_amx() const {
 #if DNNL_X64
-        return brgemm_isa == x64::avx512_core_bf16_amx_bf16
-                && is_cell_dt_bf16();
+        return brgemm_isa == x64::avx512_core_amx && is_cell_dt_bf16();
 #else
         return false;
 #endif

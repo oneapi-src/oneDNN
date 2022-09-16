@@ -119,9 +119,9 @@ status_t check_isa_with_datatype(
     const bool ok = IMPLICATION(bm_conf_utils.is_f32(),
                             isa == avx512_core || bm_conf_utils.is_bf32())
             && IMPLICATION(bm_conf_utils.is_int8(),
-                    one_of(isa, avx512_core_bf16_amx_int8, avx512_core_vnni))
+                    one_of(isa, avx512_core_amx, avx512_core_vnni))
             && IMPLICATION(bm_conf_utils.is_bf16(),
-                    one_of(isa, avx512_core_bf16_amx_bf16, avx512_core_bf16))
+                    one_of(isa, avx512_core_amx, avx512_core_bf16))
             && IMPLICATION(bm_conf_utils.is_f16(), isa == avx512_core_fp16)
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
                     mayiuse(avx512_core_vnni));
@@ -141,7 +141,7 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , int8_dt(utils::one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
               && one_of(bgmmc.dst_dt, u8, s8, s32, f32, bf16))
     , bf32_dt(f32_dt && attr.fpmath_mode_ == fpmath_mode::bf16
-              && isa == avx512_core_bf16_amx_bf16)
+              && isa == avx512_core_amx)
     , A_any_layout(A_any_layout)
     , B_any_layout(B_any_layout)
     , C_any_layout(C_any_layout)
@@ -533,9 +533,10 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
     const int min_k_per_thread = 1024;
     const int max_k_parallel_work
             = div_up(static_cast<int>(bgmmc.K), min_k_per_thread);
-    const bool is_amx_bf16
-            = bgmmc.isa == avx512_core_bf16_amx_bf16; // note: also bf32
-    const bool is_amx_int8 = bgmmc.isa == avx512_core_bf16_amx_int8;
+    const bool is_amx_bf16 = bgmmc.is_amx
+            && (bm_conf_utils.is_bf16() || bm_conf_utils.is_bf32());
+    const bool is_amx_int8 = bgmmc.is_amx && bm_conf_utils.is_int8();
+
     const int max_nthr_k = is_amx_bf16 && bgmmc.batch == 1
             ? nstl::min(saturate(1, 7, bgmmc.nthr / 8), max_k_parallel_work)
             : 1;
@@ -808,11 +809,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     CHECK(check_isa_with_datatype(isa, bm_conf_utils));
 
-    const bool is_amx_int8 = isa == avx512_core_bf16_amx_int8;
-    const bool is_amx_bf16 = isa == avx512_core_bf16_amx_bf16;
-    const bool is_amx_bf32 = bm_conf_utils.is_bf32();
-    bgmmc.is_amx = is_amx_int8 || is_amx_bf16 || is_amx_bf32;
-
+    bgmmc.is_amx = isa == avx512_core_amx;
     bgmmc.a_dt_sz = bgmmc.tr_a_dt_sz = types::data_type_size(bgmmc.src_dt);
     bgmmc.b_dt_sz = bgmmc.tr_b_dt_sz = types::data_type_size(bgmmc.wei_dt);
 
@@ -1122,7 +1119,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 bgmmc.nthr * bgmmc.zp_b_comp_elems_per_thr,
                 types::data_type_size(s32));
 
-    if (one_of(bgmmc.isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16))
+    if (bgmmc.isa == avx512_core_amx)
         scratchpad.book(key_conv_amx_tile_buffer,
                 static_cast<size_t>(bgmmc.nthr) * bgmmc.wsp_tile_per_thr_bytes,
                 default_data_align);

@@ -388,7 +388,7 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
     constexpr bool is_f32 = data_traits<a_type>::data_type == data_type::f32;
-    bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
+    bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx);
 
     dim_t m_stk = col_offset_ws ? 1 : m;
     dim_t n_stk = row_offset_ws ? 1 : n;
@@ -532,8 +532,8 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
     constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
-    bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
-    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx);
+    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_amx);
     bool is_amx = is_int8_amx || is_bf16_amx;
 
     const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
@@ -810,8 +810,8 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
     constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
-    bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
-    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx);
+    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_amx);
     bool is_amx = is_int8_amx || is_bf16_amx;
 
     // B buffer needs to be large due to zero-padding.
@@ -1416,8 +1416,8 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
     constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
-    bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
-    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx);
+    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_amx);
     bool is_amx = is_int8_amx || is_bf16_amx;
 
     const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;

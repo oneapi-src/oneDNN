@@ -1226,7 +1226,7 @@ void jit_brgemm_matmul_copy_b_int8_t::generate() {
     src_stride = (conf_->wei_tag == format_tag::acbd ? conf_->copy_B_wei_stride
                                                      : conf_->N * typesize);
     tr_src_stride = conf_->LDB * k_blk_step * typesize;
-    is_amx = mayiuse(avx512_core_bf16_amx_int8);
+    is_amx = mayiuse(avx512_core_amx);
     do_compute_compensation
             = conf_->s8s8_compensation_required || conf_->has_zero_point_a;
 

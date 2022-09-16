@@ -123,8 +123,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         brgemm_attr_t brgattr;
         brgattr.generate_skip_accumulation
                 = bgmmc_.post_ops_applicable && bgmmc_.nthr_k > 1;
-        constexpr bool is_amx = one_of(
-                isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
+        constexpr bool is_amx = isa == avx512_core_amx;
         if (is_amx) {
             if (!brgattr.generate_skip_accumulation) {
                 // TODO: uker doesn't yet support generate_skip_accumulation
@@ -167,7 +166,7 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
         brgemm_kernel_t *ker = nullptr;
         CHECK(brgemm_kernel_create(&ker, pd()->get_brg_desc(idx)));
         CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
-        if (one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16))
+        if (isa == avx512_core_amx)
             CHECK(brgemm_init_tiles(
                     pd()->get_brg_desc(idx), &brg_kernel_palettes_[idx][0]));
     }
@@ -205,8 +204,7 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const bool use_buffer_a
             = bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only;
-    constexpr bool is_amx
-            = one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
+    constexpr bool is_amx = isa == avx512_core_amx;
     const int num_threads = brgmm_ctx.get_num_threads_for_parallelization();
 
     parallel(num_threads, [&](const int ithr, const int nthr) {
@@ -263,8 +261,7 @@ template <cpu_isa_t isa>
 void brgemm_matmul_t<isa>::compute_kernel(
         const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
         int m_blk_idx, int n_blk_idx, int k_chunk_idx, bool do_init) const {
-    constexpr bool is_amx
-            = one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
+    constexpr bool is_amx = isa == avx512_core_amx;
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const auto addr_batch = brgmm_ctx.get_batch_elem_ptr(ithr);
     const int base_brg_ker_idx = brgmm_ctx.get_base_brgemm_kernel_idx();
@@ -655,8 +652,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
                 : nullptr;
 
-        is_amx_ = one_of(
-                isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
+        is_amx_ = isa == avx512_core_amx;
         wsp_tile_ptr_ = is_amx_
                 ? ctx.get_scratchpad_grantor().template get<char>(
                         key_conv_amx_tile_buffer)
@@ -696,9 +692,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 pd->attr()->post_ops_, ctx);
         base_brg_ker_idx_
                 = pd->get_brg_kernel_idx(false, true, false, false, false);
-        vnni_factor = isa == avx512_core_bf16_amx_int8
-                ? 4
-                : isa == avx512_core_bf16_amx_bf16 ? 2 : 1;
+        vnni_factor = data_type_vnni_granularity(bgmmc.wei_dt);
 
         reorder_zp_a_comp_ptr_ = nullptr;
         if (bgmmc_.has_zero_point_a && bgmmc_.blocked_B) {
@@ -1107,8 +1101,7 @@ private:
     int last_chunk_brgemm_batch_size_;
 };
 
-template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;
-template struct brgemm_matmul_t<avx512_core_bf16_amx_bf16>;
+template struct brgemm_matmul_t<avx512_core_amx>;
 template struct brgemm_matmul_t<avx512_core_fp16>;
 template struct brgemm_matmul_t<avx512_core_bf16>;
 template struct brgemm_matmul_t<avx512_core_vnni>;

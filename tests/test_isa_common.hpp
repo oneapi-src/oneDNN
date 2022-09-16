@@ -79,9 +79,8 @@ inline std::set<impl::cpu::x64::cpu_isa_t> masked_internal_cpu_isa(
 
     cpu_isa_t internal_isa = cvt_to_internal_cpu_isa(isa);
 
-    static const std::set<cpu_isa_t> amx_isa_list {avx512_core_amx,
-            avx512_core_bf16_amx_bf16, avx512_core_bf16_amx_int8, amx_bf16,
-            amx_int8, amx_tile};
+    static const std::set<cpu_isa_t> amx_isa_list {
+            avx512_core_amx, amx_bf16, amx_int8, amx_tile};
 
     if (internal_isa == avx512_core_amx) return amx_isa_list;
     return {internal_isa};

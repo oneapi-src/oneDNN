@@ -86,7 +86,7 @@ struct brgemm_convolution_bwd_weights_t : public primitive_t {
         jit_conv_conf_t jit_jcp_;
         void copy2jit_jcp();
 
-        static const cpu_isa_t isa = avx512_core_bf16_amx_bf16;
+        static const cpu_isa_t isa = avx512_core_amx;
         int brgs_sz_;
         std::vector<std::shared_ptr<brgemm_t>> brgs_;
         std::vector<std::shared_ptr<std::vector<char>>> bd_masks;

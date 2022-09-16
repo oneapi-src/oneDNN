@@ -99,7 +99,7 @@ template <typename weights_t, typename scratch_t, typename gemm_acc_t>
 void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::execute()
         const {
     if (rnn_.is_cell_dt_bf16()
-            && rnn_.diff_src_brgemm.isa == x64::avx512_core_bf16_amx_bf16) {
+            && rnn_.diff_src_brgemm.isa == x64::avx512_core_amx) {
         parallel(max_nthr_, [this](const int ithr, const int nthr) {
             this->kernel_amx(ithr, nthr);
         });

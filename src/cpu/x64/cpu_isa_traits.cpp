@@ -86,14 +86,12 @@ struct isa_info_t {
     isa_info_t(cpu_isa_t aisa) : isa(aisa) {};
 
     // this converter is needed as code base defines certain ISAs
-    // that the library does not expose (e.g. avx512_core_bf16_amx_int8),
+    // that the library does not expose (e.g. avx512_core_bf16_ymm),
     // so the internal and external enum types do not coincide.
     dnnl_cpu_isa_t convert_to_public_enum(void) const {
         switch (isa) {
             case avx512_core_amx: return dnnl_cpu_isa_avx512_core_amx;
             case avx512_core_fp16: return dnnl_cpu_isa_avx512_core_fp16;
-            case avx512_core_bf16_amx_bf16: // fallback to avx512_core_bf16
-            case avx512_core_bf16_amx_int8: // fallback to avx512_core_bf16
             case avx512_core_bf16_ymm: // fallback to avx512_core_bf16
             case avx512_core_bf16: return dnnl_cpu_isa_avx512_core_bf16;
             case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
@@ -112,12 +110,6 @@ struct isa_info_t {
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support and Intel AMX with bfloat16 and 8-bit "
                        "integer support";
-            case avx512_core_bf16_amx_bf16:
-                return "Intel AVX-512 with Intel DL Boost and bfloat16 support "
-                       "and Intel AMX with bfloat16 support";
-            case avx512_core_bf16_amx_int8:
-                return "Intel AVX-512 with Intel DL Boost and bfloat16 support "
-                       "and Intel AMX with 8-bit integer support";
             case avx512_core_fp16:
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support ";
@@ -147,8 +139,6 @@ static isa_info_t get_isa_info_t(void) {
 #define HANDLE_CASE(cpu_isa) \
     if (mayiuse(cpu_isa)) return isa_info_t(cpu_isa);
     HANDLE_CASE(avx512_core_amx);
-    HANDLE_CASE(avx512_core_bf16_amx_bf16);
-    HANDLE_CASE(avx512_core_bf16_amx_int8);
     HANDLE_CASE(avx512_core_fp16);
     HANDLE_CASE(avx512_core_bf16_ymm);
     HANDLE_CASE(avx512_core_bf16);

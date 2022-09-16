@@ -52,10 +52,8 @@ dim_t adjust_m_block_lstm(dim_t nthr, dim_t M, dim_t N_blocks, bool is_int8_amx,
         bool is_bf16_amx);
 
 x64::cpu_isa_t brgemm_calc_isa(dim_t K1, dim_t K2, bool is_int8, bool is_bf16) {
-    const bool is_amx_int8
-            = is_int8 && x64::mayiuse(x64::avx512_core_bf16_amx_int8);
-    const bool is_amx_bf16
-            = is_bf16 && x64::mayiuse(x64::avx512_core_bf16_amx_bf16);
+    const bool is_amx_int8 = is_int8 && x64::mayiuse(x64::avx512_core_amx);
+    const bool is_amx_bf16 = is_bf16 && x64::mayiuse(x64::avx512_core_amx);
 
     if (is_amx_int8 || is_amx_bf16) {
         const dim_t padding = (is_int8 ? 4 : (is_bf16 ? 2 : 1));
@@ -68,10 +66,7 @@ x64::cpu_isa_t brgemm_calc_isa(dim_t K1, dim_t K2, bool is_int8, bool is_bf16) {
                 || k2_block_tail % padding || k1_block_amx % padding
                 || k2_block_amx % padding;
 
-        if (!amx_block_invalid) {
-            return is_amx_int8 ? x64::avx512_core_bf16_amx_int8
-                               : x64::avx512_core_bf16_amx_bf16;
-        }
+        if (!amx_block_invalid) return x64::avx512_core_amx;
     }
 
     if (is_int8) {
@@ -87,8 +82,8 @@ std::pair<dim_t, dim_t> brgemm_calc_k_block(dim_t K1, dim_t K2, dim_t M,
         dim_t n_block, alg_kind_t cell_kind, dim_t src_layer_type_size,
         dim_t As, dim_t Bs, dim_t Cs, dim_t l2_cache_size, x64::cpu_isa_t isa,
         bool is_int8, bool is_bf16) {
-    const bool is_amx_int8 = is_int8 && isa == x64::avx512_core_bf16_amx_int8;
-    const bool is_amx_bf16 = is_bf16 && isa == x64::avx512_core_bf16_amx_bf16;
+    const bool is_amx_int8 = is_int8 && isa == x64::avx512_core_amx;
+    const bool is_amx_bf16 = is_bf16 && isa == x64::avx512_core_amx;
 
     if (is_amx_int8 || is_amx_bf16)
         return brgemm_calc_k_block_amx(K1, K2, is_int8);
@@ -101,8 +96,7 @@ std::pair<dim_t, dim_t> brgemm_calc_k_block(dim_t K1, dim_t K2, dim_t M,
 
 std::pair<dim_t, dim_t> brgemm_calc_k_block_amx(
         dim_t K1, dim_t K2, bool is_int8) {
-    const bool is_amx_int8
-            = is_int8 && x64::mayiuse(x64::avx512_core_bf16_amx_int8);
+    const bool is_amx_int8 = is_int8 && x64::mayiuse(x64::avx512_core_amx);
     const dim_t max_row_width = is_amx_int8 ? 64 : 32;
 
     dim_t k1_block = nstl::min(K1, max_row_width);
@@ -261,8 +255,7 @@ x64::cpu_isa_t adjust_isa_by_m_block(
      * throughput.
      */
     if (is_int8_amx && m_block < 4) {
-        if (x64::mayiuse(x64::avx512_core_bf16_amx_int8))
-            return x64::avx512_core_bf16_amx_int8;
+        if (x64::mayiuse(x64::avx512_core_amx)) return x64::avx512_core_amx;
     }
 
     return current_isa;
@@ -340,7 +333,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     const int bf32_reduction_dim_threshold = 128;
     const bool is_shape_ok_for_bf32 = rnn.K1 >= bf32_reduction_dim_threshold
             && rnn.K2 >= bf32_reduction_dim_threshold;
-    const bool is_bf32 = is_bf16 && rnn.brgemm_isa == avx512_core_bf16_amx_bf16
+    const bool is_bf32 = is_bf16 && rnn.brgemm_isa == avx512_core_amx
             && rnn.dt_conf == all_f32
             // workspace data type and layouts can differ between fwd and bwd
             // implementations during training.
@@ -448,9 +441,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
                 rnn.brgemm_isa = rnn.is_cell_dt_int8() ? x64::avx512_core_vnni
                                                        : x64::avx512_core_bf16;
             } else {
-                rnn.brgemm_isa = rnn.is_cell_dt_int8()
-                        ? x64::avx512_core_bf16_amx_int8
-                        : x64::avx512_core_bf16_amx_bf16;
+                rnn.brgemm_isa = x64::avx512_core_amx;
             }
         } else {
             rnn.kproj_block = rnn.Kproj;
@@ -867,7 +858,7 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     diff_src_conf.isa
             = brgemm_calc_isa(diff_src_conf.K, diff_src_conf.K, false, is_bf16);
     const bool is_bf16_amx
-            = is_bf16 && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16;
+            = is_bf16 && diff_src_conf.isa == x64::avx512_core_amx;
     const bool split_gates_computation = is_bf16_amx && diff_src_conf.K >= 1024
             && diff_src_conf.n_tail == 0;
     diff_src_conf.gates_block = split_gates_computation ? 1 : rnn.n_gates;
@@ -917,7 +908,7 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
             = brgemm_calc_isa(diff_wei_conf.K, diff_wei_conf.K, false, is_bf16);
 
     const bool is_wei_bf16_amx = rnn.is_cell_dt_bf16()
-            && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16;
+            && diff_wei_conf.isa == x64::avx512_core_amx;
     const bool diff_wei_can_use_nblock64 = is_wei_bf16_amx
             && diff_wei_conf.N % 64 == 0 && !rnn.is_lstm_peephole;
     diff_wei_conf.n_block = diff_wei_can_use_nblock64 ? 64 : 32;
@@ -987,20 +978,20 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     rnn.K2padded = rnn.K1padded;
     rnn.unfused_post_gemm = true;
 
-    if (utils::one_of(x64::avx512_core_bf16_amx_bf16, diff_wei_conf.isa,
-                diff_src_conf.isa)) {
-        rnn.brgemm_isa = x64::avx512_core_bf16_amx_bf16;
+    if (utils::one_of(
+                x64::avx512_core_amx, diff_wei_conf.isa, diff_src_conf.isa)) {
+        rnn.brgemm_isa = x64::avx512_core_amx;
     } else {
         rnn.brgemm_isa = diff_wei_conf.isa;
     }
 
     if (!rnn.is_orig_gru) {
         rnn.diff_src_brgemm.loop_order
-                = is_bf16 && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16
+                = is_bf16 && diff_src_conf.isa == x64::avx512_core_amx
                 ? brgemm_rnn_execute_loop_order_t::mblk_nblk
                 : brgemm_rnn_execute_loop_order_t::nblk_mblk;
         rnn.diff_wei_brgemm.loop_order
-                = is_bf16 && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16
+                = is_bf16 && diff_wei_conf.isa == x64::avx512_core_amx
                 ? brgemm_rnn_execute_loop_order_t::mblk_nblk
                 : brgemm_rnn_execute_loop_order_t::nblk_mblk;
     }
@@ -1168,7 +1159,7 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
     }
 
     const bool is_bf16_amx = rnn.is_cell_dt_bf16()
-            && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16;
+            && diff_src_conf.isa == x64::avx512_core_amx;
 
     if (is_bf16_amx) {
         CHECK(brgemm_init_tiles(diff_src.desc_iter_layer_beta0_,
@@ -1278,7 +1269,7 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
     }
 
     const bool is_bf16_amx_wei = rnn.is_cell_dt_bf16()
-            && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16;
+            && diff_wei_conf.isa == x64::avx512_core_amx;
 
     if (is_bf16_amx_wei) {
         CHECK(brgemm_init_tiles(

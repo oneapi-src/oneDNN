@@ -205,7 +205,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             // for dw: Always fuse with same ISA.
             // Caveat: May be a better dw conv exists.
 
-            bool ok = !mayiuse(avx512_core_bf16_amx_bf16)
+            bool ok = !mayiuse(avx512_core_amx)
                     && (attr_1x1.post_ops_.find(primitive_kind::sum) == -1)
                     // TODO: Below may be further tuned.
                     && (l2_cache * 2 < src_d.size())

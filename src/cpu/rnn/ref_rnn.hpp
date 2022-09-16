@@ -332,8 +332,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt)
                 return status::unimplemented;
 
-            if (rnn_.is_signed_int8_conf()
-                    && !mayiuse(avx512_core_bf16_amx_int8))
+            if (rnn_.is_signed_int8_conf() && !mayiuse(avx512_core_amx))
                 return status::unimplemented;
             if (rnn_.is_int8_conf() && !mayiuse(avx512_core_vnni))
                 return status::unimplemented;

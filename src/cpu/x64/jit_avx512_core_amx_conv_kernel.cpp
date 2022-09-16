@@ -2243,14 +2243,12 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             one_of(dst_d.data_type(), data_type::f32, data_type::s32,
                     data_type::s8, data_type::u8, data_type::bf16));
 
-    bool supported = false
-            || (is_bf16_convolution && mayiuse(avx512_core_bf16_amx_bf16))
-            || (is_int8_convolution && mayiuse(avx512_core_bf16_amx_int8));
+    bool supported = mayiuse(avx512_core_amx)
+            && (is_bf16_convolution || is_int8_convolution);
     if (!supported) return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
-    jcp.isa = is_bf16_convolution ? avx512_core_bf16_amx_bf16
-                                  : avx512_core_bf16_amx_int8;
+    jcp.isa = avx512_core_amx;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -3660,12 +3658,12 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
                     weights_d.data_type() == s8,
                     one_of(diff_src_d.data_type(), f32, s32, s8, u8));
 
-    bool supported = false || (is_bf16 && mayiuse(avx512_core_bf16_amx_bf16))
-            || (is_int8_deconvolution && mayiuse(avx512_core_bf16_amx_int8));
+    bool supported = mayiuse(avx512_core_amx)
+            && (is_bf16_convolution || is_int8_deconvolution);
     if (!supported) return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
-    jcp.isa = is_bf16 ? avx512_core_bf16_amx_bf16 : avx512_core_bf16_amx_int8;
+    jcp.isa = avx512_core_amx;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -5066,8 +5064,8 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
     int ndims = src_d.ndims();
 
-    if (!mayiuse(avx512_core_bf16_amx_bf16)) return status::unimplemented;
-    jcp.isa = avx512_core_bf16_amx_bf16;
+    if (!mayiuse(avx512_core_amx)) return status::unimplemented;
+    jcp.isa = avx512_core_amx;
 
     jcp.has_vnni = true; // Needed for transpose routines
     jcp.nthr = nthreads;

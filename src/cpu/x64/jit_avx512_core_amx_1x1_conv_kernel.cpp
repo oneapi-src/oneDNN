@@ -948,14 +948,12 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             one_of(dst_d.data_type(), data_type::f32, data_type::s32,
                     data_type::s8, data_type::u8, data_type::bf16));
 
-    bool supported = false
-            || (is_bf16_convolution && mayiuse(avx512_core_bf16_amx_bf16))
-            || (is_int8_convolution && mayiuse(avx512_core_bf16_amx_int8));
+    bool supported = mayiuse(avx512_core_amx)
+            && (is_bf16_convolution || is_int8_convolution);
     if (!supported) return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
-    jcp.isa = is_bf16_convolution ? avx512_core_bf16_amx_bf16
-                                  : avx512_core_bf16_amx_int8;
+    jcp.isa = avx512_core_amx;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;

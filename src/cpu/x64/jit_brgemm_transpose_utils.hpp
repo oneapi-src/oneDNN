@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,9 +61,7 @@ struct jit_brgemm_copy_to_coarse_t : public jit_generator {
     jit_brgemm_copy_to_coarse_t(const jit_brgemm_primitive_conf_t *conf)
         : jit_generator(jit_name())
         , conf_(conf)
-        , typesize_(conf_->isa == avx512_core_bf16_amx_int8
-                          ? sizeof(int8_t)
-                          : sizeof(bfloat16_t))
+        , typesize_(sizeof(float) / data_type_vnni_granularity(conf_->wei_dt))
         , is_fwd_dir_(utils::one_of(conf_->prop_kind,
                   prop_kind::forward_training, prop_kind::forward_inference))
         , row_block_size_(is_fwd_dir_ ? conf_->ic_block : conf_->oc_block)
@@ -76,8 +74,7 @@ struct jit_brgemm_copy_to_coarse_t : public jit_generator {
         , tr_data_stride_(tr_row_size_ * typesize_) {
 
         // Kernel is supposed to be called under the following constraints
-        assert(conf_->isa == avx512_core_bf16_amx_int8
-                || conf_->isa == avx512_core_bf16_amx_bf16);
+        assert(conf_->isa == avx512_core_amx);
         assert(row_size_ % row_granularity_ != 0);
 
         MAYBE_UNUSED(row_granularity_);

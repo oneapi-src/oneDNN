@@ -67,7 +67,7 @@ inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
 }
 
 bool is_amx(cpu_isa_t isa) {
-    return one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
+    return isa == avx512_core_amx;
 }
 
 bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
@@ -1685,8 +1685,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.bia_dt = jcp.with_bias ? bias_md.data_type : data_type::undef;
 
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
-            && attr.fpmath_mode_ == fpmath_mode::bf16
-            && isa == avx512_core_bf16_amx_bf16;
+            && attr.fpmath_mode_ == fpmath_mode::bf16 && isa == avx512_core_amx;
 
     const bool is_not_vnni_tag = one_of(jcp.wei_dt, f32, f16);
     brg_blocking_t::last_ic_block_size
@@ -2501,8 +2500,8 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     const memory_desc_wrapper diff_dst_d(&diff_dst_md);
     const memory_desc_wrapper diff_bias_d(&diff_bias_md);
 
-    if (!mayiuse(avx512_core_bf16_amx_bf16)) return status::unimplemented;
-    jcp.isa = avx512_core_bf16_amx_bf16;
+    if (!mayiuse(avx512_core_amx)) return status::unimplemented;
+    jcp.isa = avx512_core_amx;
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
     int ndims = src_d.ndims();

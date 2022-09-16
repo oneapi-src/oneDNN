@@ -74,7 +74,7 @@ void prepare_bo(int32_t &bo_gemm_info, const uint8_t *bo_orig) {
 template <>
 void prepare_bo(int32_t &bo_gemm_info, const int8_t *bo_orig) {
     int bo_s32 = bo_orig ? *bo_orig : 0;
-    if (!mayiuse(avx512_core_bf16_amx_int8)) bo_s32 += 128;
+    if (!mayiuse(avx512_core_amx)) bo_s32 += 128;
     bo_gemm_info = bo_s32;
 }
 
@@ -210,15 +210,15 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     // instructions for AMX kernel.
     {
         constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
-        const bool max_isa_supports_bf16_ymm = mayiuse(avx512_core_bf16_ymm)
-                && !mayiuse(avx512_core_bf16_amx_bf16);
+        const bool max_isa_supports_bf16_ymm
+                = mayiuse(avx512_core_bf16_ymm) && !mayiuse(avx512_core_amx);
 
         use_bf16_ymm = is_bf16 && max_isa_supports_bf16_ymm;
     }
 
     switch (data_traits<a_t>::data_type) {
         case data_type::s8:
-            if (mayiuse(avx512_core_bf16_amx_int8)) {
+            if (mayiuse(avx512_core_amx)) {
                 this->um = 32;
                 this->un = 32;
                 this->uk = 64;
@@ -277,7 +277,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
             break;
 
         case data_type::bf16:
-            if (mayiuse(avx512_core_bf16_amx_bf16)) {
+            if (mayiuse(avx512_core_amx)) {
                 this->um = 32;
                 this->un = 32;
                 this->uk = 32;
@@ -362,8 +362,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         constexpr bool is_int8 = utils::one_of(
                 data_traits<a_t>::data_type, data_type::s8, data_type::u8);
         constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
-        bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
-        bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+        bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx);
+        bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_amx);
         bool is_amx = is_int8_amx || is_bf16_amx;
 
         static maybe_unique_ptr<jit_generator> copy_a[2][2] = {{nullptr}};
@@ -573,7 +573,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 = {{{{nullptr}}}};
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
-                if (mayiuse(avx512_core_bf16_amx_int8)) {
+                if (mayiuse(avx512_core_amx)) {
                     for (int isBeta0 : {no_beta0, do_beta0}) {
                         kernel[isBeta0][do_alpha1][no_sum][no_sum].reset(
                                 new jit_avx512_core_amx_gemm_kern(
@@ -636,7 +636,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::bf16:
-                if (mayiuse(avx512_core_bf16_amx_bf16)) {
+                if (mayiuse(avx512_core_amx)) {
                     for (int isBeta0 : {no_beta0, do_beta0}) {
                         kernel[isBeta0][do_alpha1][no_sum][no_sum].reset(
                                 new jit_avx512_core_amx_gemm_kern(
