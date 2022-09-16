@@ -345,13 +345,14 @@ int doit(const prb_t *prb, res_t *res) {
             = query_engine(const_pd, dnnl_query_reorder_src_engine);
     dnnl_engine_t dst_engine
             = query_engine(const_pd, dnnl_query_reorder_dst_engine);
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, src_engine);
+    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t src_dt(src_md, src_engine);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, src_engine);
 
-    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, dst_engine);
+    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t dst_dt(dst_md, dst_engine);
 
     SAFE(fill_memory(prb, SRC, src_dt, src_fp), WARN);
@@ -387,7 +388,7 @@ int doit(const prb_t *prb, res_t *res) {
                 int ndims = static_cast<int>(dims.size());
                 auto md = dnn_mem_t::init_md(
                         ndims, dims.data(), dnnl_s32, tag::abx);
-                m = dnn_mem_t(md, dst_engine);
+                m = dnn_mem_t(md, ref_engine);
             }
             return OK;
         };
