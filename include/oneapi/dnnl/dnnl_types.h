@@ -184,7 +184,6 @@ typedef enum {
     dnnl_ab, ///< plain 2D tensor
     dnnl_abc, ///< plain 3D tensor
     dnnl_abcd, ///< plain 4D tensor
-    dnnl_acbd, ///< plain 4D tensor
     dnnl_abcde, ///< plain 5D tensor
     dnnl_abcdef, ///< plain 6D tensor
     dnnl_abcdefg, ///< plain 7D tensor
@@ -196,28 +195,35 @@ typedef enum {
 
     // Permuted plain formats
 
-    dnnl_abdc, ///< permuted 4D tensor
-    dnnl_abdec, ///< permuted 5D tensor
-    dnnl_acb, ///< permuted 3D tensor
-    dnnl_acbde, ///< permuted 5D tensor
-    dnnl_acbdef, ///< permuted 6D tensor
-    dnnl_acdb, ///< permuted 4D tensor
-    dnnl_acdeb, ///< permuted 5D tensor
     dnnl_ba, ///< permuted 2D tensor
+    dnnl_acb, ///< permuted 3D tensor
     dnnl_bac, ///< permuted 3D tensor
-    dnnl_bacd, ///< permuted 4D tensor
-    dnnl_bacde, ///< permuted 5D tensor
     dnnl_bca, ///< permuted 3D tensor
-    dnnl_bcda, ///< permuted 4D tensor
-    dnnl_bcdea, ///< permuted 5D tensor
     dnnl_cba, ///< permuted 3D tensor
+    dnnl_abdc, ///< permuted 4D tensor
+    dnnl_acbd, ///< permuted 4D tensor
+    dnnl_acdb, ///< permuted 4D tensor
+    dnnl_adbc, ///< permuted 4D tensor
+    dnnl_adcb, ///< permuted 4D tensor
+    dnnl_bacd, ///< permuted 4D tensor
+    dnnl_bcda, ///< permuted 4D tensor
     dnnl_cdba, ///< permuted 4D tensor
     dnnl_dcab, ///< permuted 4D tensor
+    dnnl_abced, ///< permuted 5D tensor
+    dnnl_abdec, ///< permuted 5D tensor
+    dnnl_acbde, ///< permuted 5D tensor
+    dnnl_acdeb, ///< permuted 5D tensor
+    dnnl_adecb, ///< permuted 5D tensor
+    dnnl_bacde, ///< permuted 5D tensor
+    dnnl_bcdea, ///< permuted 5D tensor
     dnnl_cdeba, ///< permuted 5D tensor
     dnnl_decab, ///< permuted 5D tensor
-    dnnl_defcab, ///< permuted 6D tensor
-    dnnl_abced, ///< permuted 5D tensor
     dnnl_abcdfe, ///< permuted 6D tensor
+    dnnl_abdefc, ///< permuted 6D tensor
+    dnnl_abdfce, ///< permuted 6D tensor
+    dnnl_acbdef, ///< permuted 6D tensor
+    dnnl_adefcb, ///< permuted 6D tensor
+    dnnl_defcab, ///< permuted 6D tensor
     dnnl_abcdegf, ///< permuted 7D tensor
     dnnl_abcdefhg, ///< permuted 8D tensor
     dnnl_abcdefgih, ///< permuted 9D tensor
@@ -427,8 +433,6 @@ typedef enum {
     dnnl_aCBdef4c8b8c4b,
     dnnl_BAcde16a16b,
     dnnl_aCBdef16b16c,
-    dnnl_abdfce, ///< permuted 6D tensor
-    dnnl_abdefc, ///< permuted 6D tensor
     dnnl_ABc16b32a,
     dnnl_ABc16b64a,
     dnnl_ABc4b32a4b,
@@ -496,7 +500,6 @@ typedef enum {
     dnnl_aBdc64b,
     dnnl_aBdC64b2c,
     dnnl_aBdC64b4c,
-    dnnl_adcb,
     dnnl_adCb2c,
     dnnl_adCb4c,
     dnnl_AcdB32a2b,
@@ -517,7 +520,6 @@ typedef enum {
     dnnl_aBdec64b,
     dnnl_aBdeC64b2c,
     dnnl_aBdeC64b4c,
-    dnnl_adecb,
     dnnl_adeCb2c,
     dnnl_adeCb4c,
     dnnl_Acdeb32a,
@@ -540,7 +542,6 @@ typedef enum {
     dnnl_aBdefc64b,
     dnnl_aBdefC64b2c,
     dnnl_aBdefC64b4c,
-    dnnl_adefcb,
     dnnl_adefCb2c,
     dnnl_adefCb4c,
     dnnl_AB16b32a4b,
@@ -716,7 +717,6 @@ typedef enum {
     dnnl_aBC16b32c,
     dnnl_AB16a16b,
     dnnl_AB16a32b,
-    dnnl_adbc,
     dnnl_ABcde16a16b2a,
     dnnl_aBCdef16b16c2b,
     dnnl_Acedb16a,
