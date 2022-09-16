@@ -534,6 +534,7 @@ TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution) {
 
 TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
@@ -546,6 +547,7 @@ TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution) {
 
 TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
@@ -558,6 +560,7 @@ TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution) {
     REQUIRE_VNNI_AMXINT8();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
@@ -570,6 +573,7 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution) {
 
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC) {
     REQUIRE_VNNI_AMXINT8();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
@@ -583,6 +587,7 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC) {
 
 TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution) {
     REQUIRE_VNNI_AMXINT8();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,

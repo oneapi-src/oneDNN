@@ -657,6 +657,7 @@ TEST(GCPatternTests, BF16MHATrainingPattern) {
 
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
@@ -679,6 +680,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
 
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
@@ -703,6 +705,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
@@ -725,6 +728,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
@@ -750,6 +754,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
 
 TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
     REQUIRE_BF16_AMXBF16();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
@@ -772,6 +777,7 @@ TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
 
 TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
     REQUIRE_AVX512();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
@@ -797,6 +803,7 @@ TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
 
 TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
     REQUIRE_BF16_AMXBF16();
+    REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,

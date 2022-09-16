@@ -652,7 +652,7 @@ pm::pb_op_t *identical_bottleneck_training_backward_v2(
     return relu_bwd;
 };
 
-COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_conv_pattern)
+COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_conv_inference_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_identical_bottleneck)
         .set_priority(5.0f)
@@ -708,7 +708,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = identical_bottleneck_resblock(pgraph, output);
                 });
+COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
+COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_conv_training_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_identical_bottleneck_forward)
         .set_priority(5.0f)
@@ -766,7 +768,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
-COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_conv_pattern)
+COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_conv_inference_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_identical_bottleneck)
         .set_priority(5.0f)
@@ -829,7 +831,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                         output = identical_bottleneck_resblock(
                                 pgraph, output, true);
                 });
+COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
+COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_conv_training_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_identical_bottleneck_forward)
         .set_priority(5.0f)
@@ -887,7 +891,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
-COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_conv_pattern)
+COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_conv_inference_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_identical_bottleneck)
         .set_priority(5.0f)
