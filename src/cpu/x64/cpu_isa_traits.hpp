@@ -58,14 +58,14 @@ enum cpu_isa_bit_t : unsigned {
     sse41_bit = 1u << 0,
     avx_bit = 1u << 1,
     avx2_bit = 1u << 2,
-    avx512_core_bit = 1u << 6,
-    avx512_core_vnni_bit = 1u << 7,
-    avx512_core_bf16_bit = 1u << 8,
+    avx_vnni_bit = 1u << 3,
+    avx512_core_bit = 1u << 5,
+    avx512_core_vnni_bit = 1u << 6,
+    avx512_core_bf16_bit = 1u << 7,
+    avx512_core_fp16_bit = 1u << 8,
     amx_tile_bit = 1u << 9,
     amx_int8_bit = 1u << 10,
     amx_bf16_bit = 1u << 11,
-    avx_vnni_bit = 1u << 12,
-    avx512_core_fp16_bit = 1u << 13,
 
     // Fill in hints from most significant bit to least significant bit
     prefer_ymm_bit = 1u << (cpu_isa_total_bits - 1),
@@ -106,8 +106,7 @@ enum cpu_isa_t : unsigned {
     sse41 = sse41_bit,
     avx = avx_bit | sse41,
     avx2 = avx2_bit | avx,
-    avx_vnni = avx_vnni_bit | avx_bit,
-    avx2_vnni = avx_vnni | avx2,
+    avx2_vnni = avx_vnni_bit | avx2,
     avx512_core = avx512_core_bit | avx2,
     avx512_core_vnni = avx512_core_vnni_bit | avx512_core,
     avx512_core_bf16 = avx512_core_bf16_bit | avx512_core_vnni,
@@ -117,7 +116,7 @@ enum cpu_isa_t : unsigned {
     amx_bf16 = amx_bf16_bit | amx_tile,
     avx512_core_bf16_amx_int8 = avx512_core_bf16 | amx_int8,
     avx512_core_bf16_amx_bf16 = avx512_core_bf16 | amx_bf16,
-    avx512_core_fp16 = avx512_core_fp16_bit | avx512_core_bf16,
+    avx512_core_fp16 = avx512_core_fp16_bit | avx512_core_bf16 | avx_vnni_bit,
     avx512_core_amx = avx512_core_fp16 | amx_int8 | amx_bf16,
     // NOTES: 1. isa_all by default has no isa specific hints
     isa_all = ~0u & ~cpu_isa_hints_utils::hints_mask,
@@ -315,8 +314,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
         case sse41: return cpu().has(Cpu::tSSE41);
         case avx: return cpu().has(Cpu::tAVX);
         case avx2: return cpu().has(Cpu::tAVX2);
-        case avx_vnni: return cpu().has(Cpu::tAVX_VNNI);
-        case avx2_vnni: return mayiuse(avx2, soft) && mayiuse(avx_vnni, soft);
+        case avx2_vnni: return mayiuse(avx2, soft) && cpu().has(Cpu::tAVX_VNNI);
         case avx512_core:
             return cpu().has(Cpu::tAVX512F) && cpu().has(Cpu::tAVX512BW)
                     && cpu().has(Cpu::tAVX512VL) && cpu().has(Cpu::tAVX512DQ);
@@ -328,7 +326,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
             return mayiuse(avx512_core_vnni, soft)
                     && cpu().has(Cpu::tAVX512_BF16);
         case avx512_core_bf16_ymm:
-            return mayiuse(avx512_core_bf16)
+            return mayiuse(avx512_core_bf16, soft)
                     && cpu_isa_hints_utils::is_hints_bit_set(
                             prefer_ymm_bit, soft);
         case amx_tile:
@@ -343,7 +341,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
             return mayiuse(avx512_core_bf16, soft) && mayiuse(amx_bf16, soft);
         case avx512_core_fp16:
             return cpu().has(Cpu::tAVX512_FP16)
-                    && mayiuse(avx512_core_bf16, soft);
+                    && mayiuse(avx512_core_bf16, soft)
+                    && mayiuse(avx2_vnni, soft);
         case avx512_core_amx:
             return mayiuse(avx512_core_bf16_amx_int8, soft)
                     && mayiuse(avx512_core_bf16_amx_bf16, soft)

@@ -12590,22 +12590,18 @@ enum class cpu_isa {
     avx = dnnl_cpu_isa_avx,
     /// @copydoc dnnl_cpu_isa_avx2
     avx2 = dnnl_cpu_isa_avx2,
-    /// @copydoc dnnl_cpu_isa_avx512_mic
-    avx512_mic = dnnl_cpu_isa_avx512_mic,
-    /// @copydoc dnnl_cpu_isa_avx512_mic_4ops
-    avx512_mic_4ops = dnnl_cpu_isa_avx512_mic_4ops,
+    /// @copydoc dnnl_cpu_isa_avx2_vnni
+    avx2_vnni = dnnl_cpu_isa_avx2_vnni,
     /// @copydoc dnnl_cpu_isa_avx512_core
     avx512_core = dnnl_cpu_isa_avx512_core,
     /// @copydoc dnnl_cpu_isa_avx512_core_vnni
     avx512_core_vnni = dnnl_cpu_isa_avx512_core_vnni,
     /// @copydoc dnnl_cpu_isa_avx512_core_bf16
     avx512_core_bf16 = dnnl_cpu_isa_avx512_core_bf16,
-    /// @copydoc dnnl_cpu_isa_avx512_core_amx
-    avx512_core_amx = dnnl_cpu_isa_avx512_core_amx,
-    /// @copydoc dnnl_cpu_isa_avx2_vnni
-    avx2_vnni = dnnl_cpu_isa_avx2_vnni,
     /// @copydoc dnnl_cpu_isa_avx512_core_fp16
     avx512_core_fp16 = dnnl_cpu_isa_avx512_core_fp16,
+    /// @copydoc dnnl_cpu_isa_avx512_core_amx
+    avx512_core_amx = dnnl_cpu_isa_avx512_core_amx,
 };
 
 /// @copydoc dnnl_set_max_cpu_isa()
