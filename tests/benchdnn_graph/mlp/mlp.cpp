@@ -131,7 +131,7 @@ inline int fill_data(data_kind_t kind, const mlp_graph_spec_t *spec,
     ::matmul::prb_t matmul_prb(prb_vdims, dt_vec, spec->raw_data_tag,
             spec->raw_wei_tag, spec->raw_data_tag, strides,
             benchdnnext::convert_dt(spec->mlp_bias_dt), bias_mask,
-            rt_dims_masks, attr);
+            rt_dims_masks, attr, default_thr_ctx, default_thr_ctx);
     matmul_prb.scales = scales;
     ::matmul::cfg_t cfg(&matmul_prb, {SRC, WEI, BIA, DST});
     const auto density = cfg.get_density({kind, matmul_prb.k});
