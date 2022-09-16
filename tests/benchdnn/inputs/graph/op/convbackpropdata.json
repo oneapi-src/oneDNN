@@ -1,0 +1,142 @@
+{
+  "version": "0.6.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "Conv2DBackpropInput",
+      "kind": "ConvolutionBackpropData",
+      "attrs": {
+        "output_shape": {
+          "type": "s64[]",
+          "value": [
+            2, 
+            56, 
+            56, 
+            128
+          ]
+        },
+        "filter_format": {
+          "type": "string",
+          "value": "XIO"
+        },
+        "output_padding": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NXC"
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            2, 
+            2
+          ]
+        },
+        "groups": {
+          "type": "s64",
+          "value": 1
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "bf16",
+          "shape": [
+            2, 
+            28, 
+            28, 
+            128
+          ],
+          "stride": [
+            100352, 
+            3584, 
+            128, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 1,
+          "dtype": "bf16",
+          "shape": [
+            3, 
+            3, 
+            128, 
+            128
+          ],
+          "stride": [
+            49152, 
+            16384, 
+            128, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "bf16",
+          "shape": [
+            2, 
+            56, 
+            56, 
+            128
+          ],
+          "stride": [
+            401408, 
+            7168, 
+            128, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

@@ -18,3 +18,4 @@
 --reset
 --case=pattern/fp32_conv_bn_relu.json
 --case=pattern/bf16_conv_bn_relu.json
+--case=op/convbackpropdata.json
