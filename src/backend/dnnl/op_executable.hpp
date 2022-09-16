@@ -1351,19 +1351,10 @@ struct batchnorm_executable_t : public op_executable_t {
                 {e0});
         // new_running_variance = momentum * old_running_variance +
         //                                  (1 - momentum) * batch_variance
-        dnnl::sum({scales_,
-                          {old_running_variance.get_desc(),
-                                  batch_variance.get_desc()},
-                          p_engine})
-                .execute(stream,
-                        {{DNNL_ARG_MULTIPLE_SRC, old_running_variance},
-                                {DNNL_ARG_MULTIPLE_SRC + 1, batch_variance},
-                                {DNNL_ARG_DST, new_running_variance}});
-
         auto sum_prim_1 = dnnl::sum({scales_,
                 {old_running_variance.get_desc(), batch_variance.get_desc()},
                 p_engine});
-        auto e2 = dnnl::sycl_interop::execute(sum_prim_0, stream,
+        auto e2 = dnnl::sycl_interop::execute(sum_prim_1, stream,
                 {{DNNL_ARG_MULTIPLE_SRC, old_running_variance},
                         {DNNL_ARG_MULTIPLE_SRC + 1, batch_variance},
                         {DNNL_ARG_DST, new_running_variance}},
