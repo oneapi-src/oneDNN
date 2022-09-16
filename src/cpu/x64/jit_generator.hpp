@@ -845,10 +845,10 @@ public:
         else {
             if (!buf.isEqualIfNotInherited(op1)) {
                 assert(!buf.isEqualIfNotInherited(op2));
-                movss(buf, op1);
+                movups(buf, op1);
             }
             mulps(buf, op2);
-            if (x.getIdx() != buf.getIdx()) movss(x, buf);
+            if (x.getIdx() != buf.getIdx()) movups(x, buf);
         }
     }
     void uni_vmulps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
