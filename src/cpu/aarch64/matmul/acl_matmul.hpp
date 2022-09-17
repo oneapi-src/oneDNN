@@ -27,38 +27,6 @@ namespace cpu {
 namespace aarch64 {
 namespace matmul {
 
-struct acl_resource_t : public resource_t {
-    acl_resource_t() : acl_obj_(utils::make_unique<acl_matmul_obj_t>()) {}
-
-    status_t configure(const acl_matmul_conf_t &amp) {
-        if (!acl_obj_) return status::out_of_memory;
-        acl_obj_->src_tensor.allocator()->init(amp.src_info);
-        acl_obj_->wei_tensor.allocator()->init(amp.wei_info);
-        acl_obj_->dst_tensor.allocator()->init(amp.dst_info);
-        // Configure transpose kernel for src, wei or both
-        if (amp.is_transA) {
-            acl_obj_->src_acc_tensor.allocator()->init(amp.src_acc_info);
-            acl_obj_->transA.configure(
-                    &acl_obj_->src_acc_tensor, &acl_obj_->src_tensor);
-        }
-        if (amp.is_transB) {
-            acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
-            acl_obj_->transB.configure(
-                    &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
-        }
-        // Configure GEMM
-        acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
-                nullptr, &acl_obj_->dst_tensor, amp.alpha, 0.0f, amp.gemm_info);
-        return status::success;
-    }
-    acl_matmul_obj_t &get_acl_obj() const { return *acl_obj_; }
-
-    DNNL_DISALLOW_COPY_AND_ASSIGN(acl_resource_t);
-
-private:
-    std::unique_ptr<acl_matmul_obj_t> acl_obj_;
-};
-
 struct acl_matmul_t : public primitive_t {
     struct pd_t : public dnnl::impl::cpu::matmul::cpu_matmul_pd_t {
 
@@ -110,18 +78,40 @@ struct acl_matmul_t : public primitive_t {
         }
     };
 
-    acl_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+    acl_matmul_t(const pd_t *apd)
+        : primitive_t(apd), acl_obj_(utils::make_unique<acl_matmul_obj_t>()) {}
+
+    status_t init(engine_t *engine) override {
+        CHECK(configure(pd()->amp_));
+        return status::success;
+    }
+
+    status_t configure(const acl_matmul_conf_t &amp) {
+        if (!acl_obj_) return status::out_of_memory;
+        acl_obj_->src_tensor.allocator()->init(amp.src_info);
+        acl_obj_->wei_tensor.allocator()->init(amp.wei_info);
+        acl_obj_->dst_tensor.allocator()->init(amp.dst_info);
+        // Configure transpose kernel for src, wei or both
+        if (amp.is_transA) {
+            acl_obj_->src_acc_tensor.allocator()->init(amp.src_acc_info);
+            acl_obj_->transA.configure(
+                    &acl_obj_->src_acc_tensor, &acl_obj_->src_tensor);
+        }
+        if (amp.is_transB) {
+            acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
+            acl_obj_->transB.configure(
+                    &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
+        }
+        // Configure GEMM
+        acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
+                nullptr, &acl_obj_->dst_tensor, amp.alpha, 0.0f, amp.gemm_info);
+        return status::success;
+    }
+
+    acl_matmul_obj_t &get_acl_obj() const { return *acl_obj_; }
 
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<acl_resource_t>();
-        if (!r) return status::out_of_memory;
-
-        // Configure the resource based on information from primitive descriptor
-        CHECK(r->configure(pd()->amp_));
-        mapper.add(this, std::move(r));
-
         CHECK(pd()->post_ops.create_resource(engine, mapper));
 
         return status::success;
@@ -134,11 +124,11 @@ struct acl_matmul_t : public primitive_t {
     }
 
 private:
-    // To guard the const execute_forward(), the mutex must be 'mutable'
-    mutable std::mutex mtx;
     status_t execute_forward(const exec_ctx_t &ctx) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    std::unique_ptr<acl_matmul_obj_t> acl_obj_;
 }; // acl_matmul_t
 
 } // namespace matmul

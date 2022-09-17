@@ -34,9 +34,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     bool is_transB = pd()->amp_.is_transB;
     bool use_dst_acc = pd()->amp_.use_dst_acc;
 
-    std::lock_guard<std::mutex> _lock {this->mtx};
-    auto *acl_resource = ctx.get_resource_mapper()->get<acl_resource_t>(this);
-    acl_matmul_obj_t &acl_obj = acl_resource->get_acl_obj();
+    acl_matmul_obj_t &acl_obj = get_acl_obj();
     // Run transpose kernel
     if (is_transA && !is_transB) {
         acl_obj.src_tensor.allocator()->allocate();
