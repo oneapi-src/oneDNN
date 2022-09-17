@@ -27,13 +27,8 @@ template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
         data_type_t bia_type>
 status_t acl_gemm_convolution_fwd_t<src_type, wei_type, dst_type,
         bia_type>::execute_forward(const exec_ctx_t &ctx) const {
-    // Lock here is needed because resource_mapper does not support
-    // concurrent multithreaded access.
-    std::lock_guard<std::mutex> _lock {this->mtx};
     // Retrieve primitive resource and configured Compute Library objects
-    auto *acl_resource = ctx.get_resource_mapper()->get<acl_resource_t>(this);
-    acl_obj_t<arm_compute::NEGEMMConvolutionLayer> &acl_obj
-            = acl_resource->get_acl_obj();
+    acl_obj_t<arm_compute::NEGEMMConvolutionLayer> &acl_obj = get_acl_obj();
 
     return execute_forward_conv_acl<
             acl_obj_t<arm_compute::NEGEMMConvolutionLayer>, pd_t, src_data_t,

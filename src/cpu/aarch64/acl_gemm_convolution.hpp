@@ -27,38 +27,6 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-struct acl_resource_t : public resource_t {
-    acl_resource_t()
-        : acl_obj_(utils::make_unique<
-                acl_obj_t<arm_compute::NEGEMMConvolutionLayer>>()) {}
-
-    status_t configure(const acl_conv_conf_t &acp) {
-        if (!acl_obj_) return status::out_of_memory;
-
-        // Init Compute Library tensors based on info from descriptor
-        acl_obj_->src_tensor.allocator()->init(acp.src_info);
-        acl_obj_->wei_tensor.allocator()->init(acp.wei_info);
-        acl_obj_->dst_tensor.allocator()->init(acp.dst_info);
-        acl_obj_->bia_tensor.allocator()->init(acp.bia_info);
-
-        acl_obj_->conv.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
-                acp.with_bias ? &acl_obj_->bia_tensor : nullptr,
-                &acl_obj_->dst_tensor, acp.padstride_info, acp.weights_info,
-                acp.dilation_info, acp.act_info, acp.fast_math);
-        return status::success;
-    }
-
-    acl_obj_t<arm_compute::NEGEMMConvolutionLayer> &get_acl_obj() const {
-        return *acl_obj_;
-    }
-
-    DNNL_DISALLOW_COPY_AND_ASSIGN(acl_resource_t);
-
-private:
-    std::unique_ptr<acl_obj_t<arm_compute::NEGEMMConvolutionLayer>> acl_obj_;
-
-}; // acl_resource_t
-
 template <data_type_t src_type, data_type_t wei_type = src_type,
         data_type_t dst_type = src_type, data_type_t bia_type = dst_type>
 struct acl_gemm_convolution_fwd_t : public primitive_t {
@@ -116,18 +84,45 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
         }
     };
 
-    acl_gemm_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    acl_gemm_convolution_fwd_t(const pd_t *apd)
+        : primitive_t(apd)
+        , acl_obj_(utils::make_unique<
+                  acl_obj_t<arm_compute::NEGEMMConvolutionLayer>>()) {}
+
+    status_t init(engine_t *engine) override {
+        // Configure the resource based on information from primitive descriptor
+        CHECK(configure(pd()->acp_));
+        return status::success;
+    }
+
+    status_t configure(const acl_conv_conf_t &acp) {
+        if (!acl_obj_) return status::out_of_memory;
+
+        // Init Compute Library tensors based on info from descriptor
+        acl_obj_->src_tensor.allocator()->init(acp.src_info);
+        acl_obj_->wei_tensor.allocator()->init(acp.wei_info);
+        acl_obj_->dst_tensor.allocator()->init(acp.dst_info);
+        acl_obj_->bia_tensor.allocator()->init(acp.bia_info);
+
+        acl_obj_->conv.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
+                acp.with_bias ? &acl_obj_->bia_tensor : nullptr,
+                &acl_obj_->dst_tensor, acp.padstride_info, acp.weights_info,
+                acp.dilation_info, acp.act_info, acp.fast_math);
+        return status::success;
+    }
+
+    acl_obj_t<arm_compute::NEGEMMConvolutionLayer> &get_acl_obj() const {
+        return *acl_obj_;
+    }
 
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-
-        auto r = utils::make_unique<acl_resource_t>();
-        if (!r) return status::out_of_memory;
-
-        // Configure the resource based on information from primitive descriptor
-        CHECK(r->configure(pd()->acp_));
-        mapper.add(this, std::move(r));
+        // reconfigure the acl gemm ops, required for cached primitive execution
+        acl_obj_->conv.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
+                pd()->acp_.with_bias ? &acl_obj_->bia_tensor : nullptr,
+                &acl_obj_->dst_tensor, pd()->acp_.padstride_info,
+                pd()->acp_.weights_info, pd()->acp_.dilation_info,
+                pd()->acp_.act_info, pd()->acp_.fast_math);
 
         CHECK(pd()->post_ops.create_resource(engine, mapper));
 
@@ -144,10 +139,9 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
     }
 
 private:
-    // To guard the const execute_forward(), the mutex must be 'mutable'
-    mutable std::mutex mtx;
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::unique_ptr<acl_obj_t<arm_compute::NEGEMMConvolutionLayer>> acl_obj_;
 }; // acl_gemm_convolution_fwd_t
 
 } // namespace aarch64
