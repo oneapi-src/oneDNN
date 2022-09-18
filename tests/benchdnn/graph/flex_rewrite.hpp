@@ -45,6 +45,7 @@ struct flex_rewrite {
             op_attrs_rewrite(dgraph);
         }
         infer_output_shape(dgraph);
+        quantized_graph_rewrite(dgraph);
     }
 
     void split_ncx(std::string data_format, dims_t &in, int64_t &n, int64_t &c,
@@ -738,6 +739,44 @@ struct flex_rewrite {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    void quantized_graph_rewrite(deserialized_graph &dgraph) {
+        for (auto &aop : dgraph.ops_) {
+            if (aop.kind_ != "Dequantize" && aop.kind_ != "Quantize") {
+                continue;
+            }
+            auto &attr = aop.attrs_;
+            if (attr.find("scales") != attr.end()
+                    && attr.find("zps") != attr.end()
+                    && attr.find("qtype") != attr.end()
+                    && attr["qtype"].get_string() == "per_channel") {
+                auto pre_scales = attr["scales"].get_f32_vector();
+                auto pre_zps = attr["zps"].get_s64_vector();
+                int64_t axis = 1;
+                auto ndims = aop.in_lts_.front().shape_.size();
+                if (attr.find("axis") != attr.end()) {
+                    axis = (attr["axis"].get_s64() + ndims) % ndims;
+                }
+                size_t scales_num = aop.in_lts_.front().shape_[axis];
+                std::vector<float> scales;
+                std::vector<int64_t> zps;
+                for (size_t i = 0; i < scales_num; i++) {
+                    if (i < pre_scales.size()) {
+                        scales.push_back(pre_scales[i]);
+                    } else {
+                        scales.push_back(pre_scales[0]);
+                    }
+                    if (i < pre_zps.size()) {
+                        zps.push_back(pre_zps[i]);
+                    } else {
+                        zps.push_back(0);
+                    }
+                }
+                aop.attrs_["scales"].f32_vector_ = scales;
+                aop.attrs_["zps"].s64_vector_ = zps;
             }
         }
     }
