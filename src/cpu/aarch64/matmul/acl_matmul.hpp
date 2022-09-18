@@ -96,12 +96,24 @@ struct acl_matmul_t : public primitive_t {
             acl_obj_->src_acc_tensor.allocator()->init(amp.src_acc_info);
             acl_obj_->transA.configure(
                     &acl_obj_->src_acc_tensor, &acl_obj_->src_tensor);
+
+            acl_obj_->src_intermediate_tensor.allocator()->init(amp.src_info);
+            acl_obj_->src_intermediate_tensor.allocator()->allocate();
         }
         if (amp.is_transB) {
             acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
             acl_obj_->transB.configure(
                     &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
+
+            acl_obj_->wei_intermediate_tensor.allocator()->init(amp.wei_info);
+            acl_obj_->wei_intermediate_tensor.allocator()->allocate();
         }
+
+        if (amp.use_dst_acc) {
+            acl_obj_->dst_intermediate_tensor.allocator()->init(amp.dst_info);
+            acl_obj_->dst_intermediate_tensor.allocator()->allocate();
+        }
+
         // Configure GEMM
         acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
                 nullptr, &acl_obj_->dst_tensor, amp.alpha, 0.0f, amp.gemm_info);

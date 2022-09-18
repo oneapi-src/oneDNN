@@ -35,6 +35,9 @@ struct acl_matmul_obj_t {
     arm_compute::Tensor wei_tensor;
     arm_compute::Tensor wei_acc_tensor;
     arm_compute::Tensor dst_tensor;
+    arm_compute::Tensor dst_intermediate_tensor;
+    arm_compute::Tensor src_intermediate_tensor;
+    arm_compute::Tensor wei_intermediate_tensor;
 };
 
 struct acl_matmul_conf_t {

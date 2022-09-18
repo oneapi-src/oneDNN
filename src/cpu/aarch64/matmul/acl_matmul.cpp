@@ -37,24 +37,28 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_matmul_obj_t &acl_obj = get_acl_obj();
     // Run transpose kernel
     if (is_transA && !is_transB) {
-        acl_obj.src_tensor.allocator()->allocate();
+        acl_obj.src_tensor.allocator()->import_memory(
+                acl_obj.src_intermediate_tensor.allocator()->data());
         acl_obj.src_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
         acl_obj.transA.run();
         acl_obj.wei_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
     } else if (is_transB && !is_transA) {
-        acl_obj.wei_tensor.allocator()->allocate();
+        acl_obj.wei_tensor.allocator()->import_memory(
+                acl_obj.wei_intermediate_tensor.allocator()->data());
         acl_obj.wei_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
         acl_obj.transB.run();
         acl_obj.src_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
     } else if (is_transA && is_transB) {
-        acl_obj.src_tensor.allocator()->allocate();
+        acl_obj.src_tensor.allocator()->import_memory(
+                acl_obj.src_intermediate_tensor.allocator()->data());
         acl_obj.src_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
-        acl_obj.wei_tensor.allocator()->allocate();
+        acl_obj.wei_tensor.allocator()->import_memory(
+                acl_obj.wei_intermediate_tensor.allocator()->data());
         acl_obj.wei_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
         acl_obj.transA.run();
@@ -69,7 +73,8 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     if (use_dst_acc) {
         // Put the result in a new tensor, it will be accumalated to the dst
         // during the post ops
-        acl_obj.dst_tensor.allocator()->allocate();
+        acl_obj.dst_tensor.allocator()->import_memory(
+                acl_obj.dst_intermediate_tensor.allocator()->data());
     } else {
         auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
         acl_obj.dst_tensor.allocator()->import_memory(dst_base);
