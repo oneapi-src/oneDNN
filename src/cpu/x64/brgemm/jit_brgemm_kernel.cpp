@@ -983,13 +983,13 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_alpha_beta(
 
     if (apply_beta && !use_vadd_for_beta) {
         mov(reg_tmp_gpr, float2int(static_cast<float>(brg.beta)));
-        movq(Xmm(vmm_beta.getIdx()), reg_tmp_gpr);
-        vbroadcastss(vmm_beta, Xmm(vmm_beta.getIdx()));
+        uni_vmovq(Xmm(vmm_beta.getIdx()), reg_tmp_gpr);
+        uni_vbroadcastss(vmm_beta, Xmm(vmm_beta.getIdx()));
     }
     if (apply_alpha) {
         mov(reg_tmp_gpr, float2int(static_cast<float>(brg.alpha)));
-        movq(Xmm(vmm_alpha.getIdx()), reg_tmp_gpr);
-        vbroadcastss(vmm_alpha, Xmm(vmm_alpha.getIdx()));
+        uni_vmovq(Xmm(vmm_alpha.getIdx()), reg_tmp_gpr);
+        uni_vbroadcastss(vmm_alpha, Xmm(vmm_alpha.getIdx()));
     }
     for_(int bd = 0; bd < bd_block; bd++)
     for (int ld = 0; ld < ld_block2; ld++) {

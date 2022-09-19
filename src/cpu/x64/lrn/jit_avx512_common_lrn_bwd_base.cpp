@@ -102,7 +102,7 @@ void jit_avx512_common_lrn_kernel_bwd_t<d_type>::load_tail(int tail_value,
     for (int i = 0; i < tail_value; ++i) {
         if (d_type == bf16) {
             this->movzx(this->imm_addr64_, word[src + src_mem_offset]);
-            this->movq(this->xreg(0, tmp_load_to_stack_idx_tail),
+            this->vmovq(this->xreg(0, tmp_load_to_stack_idx_tail),
                     this->imm_addr64_);
             this->vpslld(this->xreg(0, tmp_load_to_stack_idx_tail),
                     this->xreg(0, tmp_load_to_stack_idx_tail), 0x10);

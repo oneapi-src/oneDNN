@@ -1444,7 +1444,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
             if (prb_.itype == data_type::u8 && prb_.otype == data_type::s8) {
                 mov(reg_tmp_, 0x7f7f7f7f7f7f7f7f);
-                movq(Xmm(ymm_8x127b_.getIdx()), reg_tmp_);
+                uni_vmovq(Xmm(ymm_8x127b_.getIdx()), reg_tmp_);
             }
         } else {
             uni_vxorps(xmm_zero_, xmm_zero_, xmm_zero_);
