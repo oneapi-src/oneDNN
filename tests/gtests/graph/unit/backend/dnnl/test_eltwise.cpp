@@ -14,8 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <functional>
+#include <random>
+
+#include "interface/c_types_map.hpp"
+
+#include "gtest/gtest.h"
+
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 #include "graph/unit/backend/dnnl/ref_func.hpp"
+#include "graph/unit/unit_test_common.hpp"
+#include "graph/unit/utils.hpp"
+
+namespace graph = dnnl::impl::graph;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 template <typename attr_data_t = float>
 static inline void test_eltwise_common(test::vector<float> &src,
@@ -23,8 +35,8 @@ static inline void test_eltwise_common(test::vector<float> &src,
         const dnnl_graph_op_kind_t op_kind, const std::string &op_name,
         const std::map<dnnl::impl::graph::op_attr_t, attr_data_t> &attrs_data
         = {}) {
-    impl::engine_t *eng = get_engine();
-    impl::op_t op(op_kind, op_name);
+    graph::engine_t *eng = get_engine();
+    graph::op_t op(op_kind, op_name);
 
     test::vector<float> dst(src.size(), 0.0);
 
@@ -32,50 +44,50 @@ static inline void test_eltwise_common(test::vector<float> &src,
         op.set_attr<attr_data_t>(attr_data.first, attr_data.second);
     }
 
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, dims, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            1, dims, impl::data_type::f32, impl::layout_type::any);
+    graph::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, dims, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, dims, graph::data_type::f32, graph::layout_type::any);
 
     op.add_input(src_lt);
     op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&op);
     g.finalize();
 
     std::string pass_name = op_name + "_pass";
 
-    impl::pass::pass_base_ptr apass = get_pass(pass_name);
+    graph::pass::pass_base_ptr apass = get_pass(pass_name);
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
 
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
 
     cp.execute(strm, {src_ts}, {dst_ts});
     strm->wait();
 
-    if (op_kind == impl::op_kind::Log || op_kind == impl::op_kind::GELU
-            || op_kind == impl::op_kind::SoftPlus) {
+    if (op_kind == graph::op_kind::Log || op_kind == graph::op_kind::GELU
+            || op_kind == graph::op_kind::SoftPlus) {
         for (size_t i = 0; i < src.size(); ++i) {
             ASSERT_NEAR(dst[i], ref_dst[i], 1e-5);
         }
@@ -92,7 +104,7 @@ TEST(Execute, Abs) {
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Abs, "abs");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::Abs, "abs");
 }
 
 TEST(Execute, Round) {
@@ -101,19 +113,19 @@ TEST(Execute, Round) {
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Round, "round");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::Round, "round");
 }
 
 TEST(Execute, Clamp) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
 
-    impl::dims dims {1, 2, 3};
-    const std::map<impl::op_attr_t, float> attrs_data {
-            {impl::op_attr::min, -1.f}, {impl::op_attr::max, 2.f}};
+    graph::dims dims {1, 2, 3};
+    const std::map<graph::op_attr_t, float> attrs_data {
+            {graph::op_attr::min, -1.f}, {graph::op_attr::max, 2.f}};
 
     test_eltwise_common(
-            src, ref_dst, dims, impl::op_kind::Clamp, "clamp", attrs_data);
+            src, ref_dst, dims, graph::op_kind::Clamp, "clamp", attrs_data);
 }
 
 template <typename attr_data_t = float>
@@ -125,62 +137,62 @@ static inline void test_eltwise_bwd_common(
         const std::map<dnnl::impl::graph::op_attr_t, attr_data_t> &attrs_data
         = {}) {
     static const std::set<dnnl_graph_op_kind_t> with_support_for_use_dst {
-            impl::op_kind::EluBackprop, impl::op_kind::ClampBackprop,
-            impl::op_kind::ReLUBackprop, impl::op_kind::SigmoidBackprop,
-            impl::op_kind::SqrtBackprop, impl::op_kind::TanhBackprop};
+            graph::op_kind::EluBackprop, graph::op_kind::ClampBackprop,
+            graph::op_kind::ReLUBackprop, graph::op_kind::SigmoidBackprop,
+            graph::op_kind::SqrtBackprop, graph::op_kind::TanhBackprop};
     const test::vector<float> &fwd_data = fwd_data_pair.first;
     const bool is_fwd_data_src = fwd_data_pair.second;
 
-    impl::op_t op(op_kind, op_name);
+    graph::op_t op(op_kind, op_name);
     for (const auto &attr_data : attrs_data) {
         op.set_attr<attr_data_t>(attr_data.first, attr_data.second);
     }
     if (with_support_for_use_dst.count(op_kind)) {
-        op.set_attr<bool>(impl::op_attr::use_dst, !is_fwd_data_src);
+        op.set_attr<bool>(graph::op_attr::use_dst, !is_fwd_data_src);
     }
 
     test::vector<float> diff_src_data(ref_diff_src.size(), 0.0f);
 
-    impl::logical_tensor_t fwd_data_lt
-            = utils::logical_tensor_init(0, dims, impl::data_type::f32);
-    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            1, dims, impl::data_type::f32, impl::layout_type::any);
-    impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(2, dims, impl::data_type::f32);
+    graph::logical_tensor_t fwd_data_lt
+            = utils::logical_tensor_init(0, dims, graph::data_type::f32);
+    graph::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            1, dims, graph::data_type::f32, graph::layout_type::any);
+    graph::logical_tensor_t diff_dst_lt
+            = utils::logical_tensor_init(2, dims, graph::data_type::f32);
 
     op.add_input(fwd_data_lt);
     op.add_input(diff_dst_lt);
     op.add_output(diff_src_lt);
 
-    impl::engine_t *eng = get_engine();
-    impl::graph_t g(eng->kind());
+    graph::engine_t *eng = get_engine();
+    graph::graph_t g(eng->kind());
     g.add_op(&op);
     g.finalize();
 
     std::string pass_name = op_name + "_pass";
-    impl::pass::pass_base_ptr apass = get_pass(pass_name);
+    graph::pass::pass_base_ptr apass = get_pass(pass_name);
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
-    std::vector<const impl::logical_tensor_t *> inputs {
+    graph::compiled_partition_t cp(p);
+    std::vector<const graph::logical_tensor_t *> inputs {
             &fwd_data_lt, &diff_dst_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&diff_src_lt};
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::tensor_t fwd_data_ts(
+    graph::tensor_t fwd_data_ts(
             fwd_data_lt, eng, const_cast<float *>(fwd_data.data()));
-    impl::tensor_t diff_dst_ts(
+    graph::tensor_t diff_dst_ts(
             diff_dst_lt, eng, const_cast<float *>(diff_dst_data.data()));
-    impl::tensor_t diff_src_ts(diff_src_lt, eng, diff_src_data.data());
+    graph::tensor_t diff_src_ts(diff_src_lt, eng, diff_src_data.data());
 
-    std::vector<impl::tensor_t> input_ts {fwd_data_ts, diff_dst_ts};
-    std::vector<impl::tensor_t> output_ts {diff_src_ts};
-    impl::stream_t *strm = get_stream();
+    std::vector<graph::tensor_t> input_ts {fwd_data_ts, diff_dst_ts};
+    std::vector<graph::tensor_t> output_ts {diff_src_ts};
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, input_ts, output_ts);
     strm->wait();
 
@@ -199,14 +211,14 @@ TEST(Execute, ClampBackward) {
     test::vector<float> ref_diff_src {
             3, -0, 0.0194608, -0.0559478, 0, 0, 0.754086, -0.218955, 0};
 
-    impl::dims dims {1, 3, 3};
-    const std::map<impl::op_attr_t, float> attrs_data {
-            {impl::op_attr::min, -1.f}, {impl::op_attr::max, 2.f}};
+    graph::dims dims {1, 3, 3};
+    const std::map<graph::op_attr_t, float> attrs_data {
+            {graph::op_attr::min, -1.f}, {graph::op_attr::max, 2.f}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::ClampBackprop, "clamp_bw", attrs_data);
+            graph::op_kind::ClampBackprop, "clamp_bw", attrs_data);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::ClampBackprop, "clamp_bw", attrs_data);
+            graph::op_kind::ClampBackprop, "clamp_bw", attrs_data);
 }
 
 TEST(Execute, Elu) {
@@ -223,12 +235,12 @@ TEST(Execute, Elu) {
         ref_dst.push_back(temp);
     }
 
-    impl::dims dims {1, 2, 3};
-    const std::map<impl::op_attr_t, float> attrs_data {
-            {impl::op_attr::alpha, 1.f}};
+    graph::dims dims {1, 2, 3};
+    const std::map<graph::op_attr_t, float> attrs_data {
+            {graph::op_attr::alpha, 1.f}};
 
     test_eltwise_common(
-            src, ref_dst, dims, impl::op_kind::Elu, "elu", attrs_data);
+            src, ref_dst, dims, graph::op_kind::Elu, "elu", attrs_data);
 }
 
 TEST(Execute, EluBackward) {
@@ -242,13 +254,13 @@ TEST(Execute, EluBackward) {
             0.754086, -0.105544, 88.5838};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
-    const std::map<impl::op_attr_t, float> attrs_data {
-            {impl::op_attr::alpha, 1.f}};
+    const std::map<graph::op_attr_t, float> attrs_data {
+            {graph::op_attr::alpha, 1.f}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::EluBackprop, "elu_bw", attrs_data);
+            graph::op_kind::EluBackprop, "elu_bw", attrs_data);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::EluBackprop, "elu_bw", attrs_data);
+            graph::op_kind::EluBackprop, "elu_bw", attrs_data);
 }
 
 TEST(Execute, Exp) {
@@ -261,7 +273,7 @@ TEST(Execute, Exp) {
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Exp, "exp");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::Exp, "exp");
 }
 
 TEST(Execute, Gelu) {
@@ -271,7 +283,7 @@ TEST(Execute, Gelu) {
 
     dnnl::impl::graph::dims dims {1, 3, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::GELU, "gelu");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::GELU, "gelu");
 }
 
 TEST(Execute, GeluBackward) {
@@ -285,7 +297,7 @@ TEST(Execute, GeluBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::GELUBackprop, "gelu_bw");
+            graph::op_kind::GELUBackprop, "gelu_bw");
 }
 
 TEST(Execute, HardSwish) {
@@ -296,7 +308,7 @@ TEST(Execute, HardSwish) {
     dnnl::impl::graph::dims dims {1, 3, 3};
 
     test_eltwise_common(
-            src, ref_dst, dims, impl::op_kind::HardSwish, "hardswish");
+            src, ref_dst, dims, graph::op_kind::HardSwish, "hardswish");
 }
 
 TEST(Execute, HardSwishBackward) {
@@ -310,16 +322,16 @@ TEST(Execute, HardSwishBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::HardSwishBackprop, "hardswish_bw");
+            graph::op_kind::HardSwishBackprop, "hardswish_bw");
 }
 
 TEST(Execute, Relu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
     test::vector<float> ref_dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0};
 
-    impl::dims dims {1, 3, 3};
+    graph::dims dims {1, 3, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::ReLU, "relu");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::ReLU, "relu");
 }
 
 TEST(Execute, ReluBackward) {
@@ -335,9 +347,9 @@ TEST(Execute, ReluBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::ReLUBackprop, "relu_bw");
+            graph::op_kind::ReLUBackprop, "relu_bw");
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::ReLUBackprop, "relu_bw");
+            graph::op_kind::ReLUBackprop, "relu_bw");
 }
 
 TEST(Execute, Sigmoid) {
@@ -346,7 +358,7 @@ TEST(Execute, Sigmoid) {
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Sigmoid, "sigmoid");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::Sigmoid, "sigmoid");
 }
 
 TEST(Execute, SigmoidBackward) {
@@ -362,9 +374,9 @@ TEST(Execute, SigmoidBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::SigmoidBackprop, "sigmoid_bw");
+            graph::op_kind::SigmoidBackprop, "sigmoid_bw");
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::SigmoidBackprop, "sigmoid_bw");
+            graph::op_kind::SigmoidBackprop, "sigmoid_bw");
 }
 
 TEST(Execute, SoftPlus) {
@@ -380,22 +392,22 @@ TEST(Execute, SoftPlus) {
             40, 0, 0.449667, 0.104465, 44.317};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
-    const std::map<impl::op_attr_t, int64_t> attrs_data_case1 {
-            {impl::op_attr::beta, -1}};
-    const std::map<impl::op_attr_t, int64_t> attrs_data_case2 {
-            {impl::op_attr::beta, 1}};
-    const std::map<impl::op_attr_t, int64_t> attrs_data_case3 {
-            {impl::op_attr::beta, -2}};
-    const std::map<impl::op_attr_t, int64_t> attrs_data_case4 {
-            {impl::op_attr::beta, 2}};
+    const std::map<graph::op_attr_t, int64_t> attrs_data_case1 {
+            {graph::op_attr::beta, -1}};
+    const std::map<graph::op_attr_t, int64_t> attrs_data_case2 {
+            {graph::op_attr::beta, 1}};
+    const std::map<graph::op_attr_t, int64_t> attrs_data_case3 {
+            {graph::op_attr::beta, -2}};
+    const std::map<graph::op_attr_t, int64_t> attrs_data_case4 {
+            {graph::op_attr::beta, 2}};
 
-    test_eltwise_common(src, ref_dst_case1, dims, impl::op_kind::SoftPlus,
+    test_eltwise_common(src, ref_dst_case1, dims, graph::op_kind::SoftPlus,
             "softplus", attrs_data_case1);
-    test_eltwise_common(src, ref_dst_case2, dims, impl::op_kind::SoftPlus,
+    test_eltwise_common(src, ref_dst_case2, dims, graph::op_kind::SoftPlus,
             "softplus", attrs_data_case2);
-    test_eltwise_common(src, ref_dst_case3, dims, impl::op_kind::SoftPlus,
+    test_eltwise_common(src, ref_dst_case3, dims, graph::op_kind::SoftPlus,
             "softplus", attrs_data_case3);
-    test_eltwise_common(src, ref_dst_case4, dims, impl::op_kind::SoftPlus,
+    test_eltwise_common(src, ref_dst_case4, dims, graph::op_kind::SoftPlus,
             "softplus", attrs_data_case4);
 }
 
@@ -414,23 +426,23 @@ TEST(Execute, SoftPlusBackward) {
             -0.0269537, 70, 0, 0.447293, -0.0412833, 88.5838};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
-    const std::map<impl::op_attr_t, int64_t> attrs_data_case1 {
-            {impl::op_attr::beta, -1}};
-    const std::map<impl::op_attr_t, int64_t> attrs_data_case2 {
-            {impl::op_attr::beta, 1}};
-    const std::map<impl::op_attr_t, int64_t> attrs_data_case3 {
-            {impl::op_attr::beta, -2}};
-    const std::map<impl::op_attr_t, int64_t> attrs_data_case4 {
-            {impl::op_attr::beta, 2}};
+    const std::map<graph::op_attr_t, int64_t> attrs_data_case1 {
+            {graph::op_attr::beta, -1}};
+    const std::map<graph::op_attr_t, int64_t> attrs_data_case2 {
+            {graph::op_attr::beta, 1}};
+    const std::map<graph::op_attr_t, int64_t> attrs_data_case3 {
+            {graph::op_attr::beta, -2}};
+    const std::map<graph::op_attr_t, int64_t> attrs_data_case4 {
+            {graph::op_attr::beta, 2}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case1, dims,
-            impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case1);
+            graph::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case1);
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case2, dims,
-            impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case2);
+            graph::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case2);
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case3, dims,
-            impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case3);
+            graph::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case3);
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case4, dims,
-            impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case4);
+            graph::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case4);
 }
 
 TEST(Execute, Sqrt) {
@@ -439,7 +451,7 @@ TEST(Execute, Sqrt) {
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Sqrt, "sqrt");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::Sqrt, "sqrt");
 }
 
 TEST(Execute, SqrtBackward) {
@@ -455,9 +467,9 @@ TEST(Execute, SqrtBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::SqrtBackprop, "sqrt_bw");
+            graph::op_kind::SqrtBackprop, "sqrt_bw");
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::SqrtBackprop, "sqrt_bw");
+            graph::op_kind::SqrtBackprop, "sqrt_bw");
 }
 
 TEST(Execute, Square) {
@@ -470,7 +482,7 @@ TEST(Execute, Square) {
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Square, "square");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::Square, "square");
 }
 
 TEST(Execute, Log) {
@@ -483,7 +495,7 @@ TEST(Execute, Log) {
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Log, "log");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::Log, "log");
 }
 
 TEST(Execute, Tanh) {
@@ -492,7 +504,7 @@ TEST(Execute, Tanh) {
 
     dnnl::impl::graph::dims dims {1, 2, 3};
 
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Tanh, "tanh");
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::Tanh, "tanh");
 }
 
 TEST(Execute, TanhBackward) {
@@ -508,14 +520,14 @@ TEST(Execute, TanhBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::TanhBackprop, "tanh_bw");
+            graph::op_kind::TanhBackprop, "tanh_bw");
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::TanhBackprop, "tanh_bw");
+            graph::op_kind::TanhBackprop, "tanh_bw");
 }
 
 TEST(ExecuteSubgraphFp32, Shuffle) {
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     const std::vector<std::pair<size_t, test::vector<float>>> configs {
             {1,
@@ -550,25 +562,25 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
         test::vector<float> src_data {
                 1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7., 8., 8.};
 
-        impl::op_t reshape0 {0, impl::op_kind::StaticReshape, "reshape0"};
-        reshape0.set_attr(impl::op_attr::shape, reshape0_dst_shape);
-        reshape0.set_attr(impl::op_attr::special_zero, false);
+        graph::op_t reshape0 {0, graph::op_kind::StaticReshape, "reshape0"};
+        reshape0.set_attr(graph::op_attr::shape, reshape0_dst_shape);
+        reshape0.set_attr(graph::op_attr::special_zero, false);
 
-        impl::op_t transpose {1, impl::op_kind::StaticTranspose, "transpose"};
-        transpose.set_attr(impl::op_attr::order, order);
+        graph::op_t transpose {1, graph::op_kind::StaticTranspose, "transpose"};
+        transpose.set_attr(graph::op_attr::order, order);
 
-        impl::op_t reshape1 {2, impl::op_kind::StaticReshape, "reshape1"};
-        reshape1.set_attr(impl::op_attr::shape, reshape1_dst_shape);
-        reshape1.set_attr(impl::op_attr::special_zero, false);
+        graph::op_t reshape1 {2, graph::op_kind::StaticReshape, "reshape1"};
+        reshape1.set_attr(graph::op_attr::shape, reshape1_dst_shape);
+        reshape1.set_attr(graph::op_attr::special_zero, false);
 
-        impl::logical_tensor_t reshape0_src = utils::logical_tensor_init(
-                0, reshape0_src_shape, impl::data_type::f32);
-        impl::logical_tensor_t reshape0_dst = utils::logical_tensor_init(
-                1, reshape0_dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t transpose_dst = utils::logical_tensor_init(
-                2, transpose_dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t reshape1_dst = utils::logical_tensor_init(
-                3, reshape1_dst_shape, impl::data_type::f32);
+        graph::logical_tensor_t reshape0_src = utils::logical_tensor_init(
+                0, reshape0_src_shape, graph::data_type::f32);
+        graph::logical_tensor_t reshape0_dst = utils::logical_tensor_init(
+                1, reshape0_dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t transpose_dst = utils::logical_tensor_init(
+                2, transpose_dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t reshape1_dst = utils::logical_tensor_init(
+                3, reshape1_dst_shape, graph::data_type::f32);
 
         reshape0.add_input(reshape0_src);
         reshape0.add_output(reshape0_dst);
@@ -579,30 +591,30 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
         reshape1.add_input(transpose_dst);
         reshape1.add_output(reshape1_dst);
 
-        impl::graph_t agraph(engine->kind());
+        graph::graph_t agraph(engine->kind());
         agraph.add_op(&reshape0);
         agraph.add_op(&transpose);
         agraph.add_op(&reshape1);
         agraph.finalize();
 
-        impl::pass::pass_base_ptr apass = get_pass("shuffle_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("shuffle_fusion");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         auto part = agraph.get_partitions()[0];
 
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins {&reshape0_src};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&reshape1_dst};
+        std::vector<const graph::logical_tensor_t *> lt_ins {&reshape0_src};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&reshape1_dst};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         test::vector<float> dst_data(product(reshape1_dst_shape));
-        impl::tensor_t reshape0_src_ts(reshape0_src, engine, src_data.data());
-        impl::tensor_t reshape1_dst_ts(reshape1_dst, engine, dst_data.data());
+        graph::tensor_t reshape0_src_ts(reshape0_src, engine, src_data.data());
+        graph::tensor_t reshape1_dst_ts(reshape1_dst, engine, dst_data.data());
 
         cp.execute(strm, {reshape0_src_ts}, {reshape1_dst_ts});
         strm->wait();
@@ -614,26 +626,26 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
 }
 
 TEST(ExecuteSubgraphFp32, ReciprocalMul) {
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
 
     test::vector<float> src0_data {1.0, 2.0, 3.0, 10.0, 20.0, 30.0};
     test::vector<float> src1_data {2.0, 2.0, 2.0, 5.0, 5.0, 5.0};
     test::vector<float> ref_dst_data {0.5, 1.0, 1.5, 2.0, 4.0, 6.0};
     test::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
-    impl::op_t reciprocal_op {0, impl::op_kind::Reciprocal, "reciprocal"};
+    graph::op_t reciprocal_op {0, graph::op_kind::Reciprocal, "reciprocal"};
 
-    impl::op_t mul_op {1, impl::op_kind::Multiply, "mul"};
+    graph::op_t mul_op {1, graph::op_kind::Multiply, "mul"};
 
     // prepare logical tensor
-    impl::logical_tensor_t src0
-            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t src1
-            = utils::logical_tensor_init(1, {1, 2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t reciprocal_dst = utils::logical_tensor_init(
-            3, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
-    impl::logical_tensor_t mul_dst = utils::logical_tensor_init(
-            4, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
+    graph::logical_tensor_t src0
+            = utils::logical_tensor_init(0, {1, 2, 3}, graph::data_type::f32);
+    graph::logical_tensor_t src1
+            = utils::logical_tensor_init(1, {1, 2, 3}, graph::data_type::f32);
+    graph::logical_tensor_t reciprocal_dst = utils::logical_tensor_init(
+            3, {1, 2, 3}, graph::data_type::f32, graph::layout_type::any);
+    graph::logical_tensor_t mul_dst = utils::logical_tensor_init(
+            4, {1, 2, 3}, graph::data_type::f32, graph::layout_type::any);
 
     reciprocal_op.add_input(src1);
     reciprocal_op.add_output(reciprocal_dst);
@@ -641,36 +653,36 @@ TEST(ExecuteSubgraphFp32, ReciprocalMul) {
     mul_op.add_input(reciprocal_dst);
     mul_op.add_output(mul_dst);
 
-    impl::graph_t g(eng->kind());
-    ASSERT_EQ(g.add_op(&reciprocal_op), impl::status::success);
-    ASSERT_EQ(g.add_op(&mul_op), impl::status::success);
+    graph::graph_t g(eng->kind());
+    ASSERT_EQ(g.add_op(&reciprocal_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&mul_op), graph::status::success);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("reciprocal_multiply_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("reciprocal_multiply_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
     // compile
-    std::vector<const impl::logical_tensor_t *> inputs {&src0, &src1};
-    std::vector<const impl::logical_tensor_t *> outputs {&mul_dst};
+    std::vector<const graph::logical_tensor_t *> inputs {&src0, &src1};
+    std::vector<const graph::logical_tensor_t *> outputs {&mul_dst};
 
-    impl::compiled_partition_t cp(p);
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(mul_dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src0_ts(src0, eng, src0_data.data());
-    impl::tensor_t src1_ts(src1, eng, src1_data.data());
-    impl::tensor_t dst_ts(lt, eng, dst_data.data());
+    graph::tensor_t src0_ts(src0, eng, src0_data.data());
+    graph::tensor_t src1_ts(src1, eng, src1_data.data());
+    graph::tensor_t dst_ts(lt, eng, dst_data.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src0_ts, src1_ts}, {dst_ts}),
-            impl::status::success);
+            graph::status::success);
     strm->wait();
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
@@ -689,39 +701,39 @@ TEST(Execute, Sum) {
                         \      /
                            Add
     */
-    impl::engine_t *engine = get_engine();
+    graph::engine_t *engine = get_engine();
 
     std::vector<int64_t> input_dims {1, 3, 3};
 
-    impl::op_t add0 {0, impl::op_kind::Add, "add_0"};
-    add0.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
-    impl::logical_tensor_t input0
-            = utils::logical_tensor_init(0, input_dims, impl::data_type::f32);
-    impl::logical_tensor_t input1
-            = utils::logical_tensor_init(1, input_dims, impl::data_type::f32);
-    impl::logical_tensor_t output0
-            = utils::logical_tensor_init(2, input_dims, impl::data_type::f32);
+    graph::op_t add0 {0, graph::op_kind::Add, "add_0"};
+    add0.set_attr<std::string>(graph::op_attr::auto_broadcast, "none");
+    graph::logical_tensor_t input0
+            = utils::logical_tensor_init(0, input_dims, graph::data_type::f32);
+    graph::logical_tensor_t input1
+            = utils::logical_tensor_init(1, input_dims, graph::data_type::f32);
+    graph::logical_tensor_t output0
+            = utils::logical_tensor_init(2, input_dims, graph::data_type::f32);
 
-    impl::op_t add1 {1, impl::op_kind::Add, "add_1"};
-    add1.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
-    impl::logical_tensor_t input2
-            = utils::logical_tensor_init(3, input_dims, impl::data_type::f32);
-    impl::logical_tensor_t output1
-            = utils::logical_tensor_init(4, input_dims, impl::data_type::f32);
+    graph::op_t add1 {1, graph::op_kind::Add, "add_1"};
+    add1.set_attr<std::string>(graph::op_attr::auto_broadcast, "none");
+    graph::logical_tensor_t input2
+            = utils::logical_tensor_init(3, input_dims, graph::data_type::f32);
+    graph::logical_tensor_t output1
+            = utils::logical_tensor_init(4, input_dims, graph::data_type::f32);
 
-    impl::op_t add2 {2, impl::op_kind::Add, "add_2"};
-    add2.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
-    impl::logical_tensor_t input3
-            = utils::logical_tensor_init(5, input_dims, impl::data_type::f32);
-    impl::logical_tensor_t output2
-            = utils::logical_tensor_init(6, input_dims, impl::data_type::f32);
+    graph::op_t add2 {2, graph::op_kind::Add, "add_2"};
+    add2.set_attr<std::string>(graph::op_attr::auto_broadcast, "none");
+    graph::logical_tensor_t input3
+            = utils::logical_tensor_init(5, input_dims, graph::data_type::f32);
+    graph::logical_tensor_t output2
+            = utils::logical_tensor_init(6, input_dims, graph::data_type::f32);
 
-    impl::op_t add3 {3, impl::op_kind::Add, "add_3"};
-    add3.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
-    impl::logical_tensor_t input4
-            = utils::logical_tensor_init(7, input_dims, impl::data_type::f32);
-    impl::logical_tensor_t output3
-            = utils::logical_tensor_init(8, input_dims, impl::data_type::f32);
+    graph::op_t add3 {3, graph::op_kind::Add, "add_3"};
+    add3.set_attr<std::string>(graph::op_attr::auto_broadcast, "none");
+    graph::logical_tensor_t input4
+            = utils::logical_tensor_init(7, input_dims, graph::data_type::f32);
+    graph::logical_tensor_t output3
+            = utils::logical_tensor_init(8, input_dims, graph::data_type::f32);
 
     add0.add_input(input0);
     add0.add_input(input1);
@@ -739,29 +751,29 @@ TEST(Execute, Sum) {
     add3.add_input(input4);
     add3.add_output(output3);
 
-    impl::graph_t agraph(engine->kind());
+    graph::graph_t agraph(engine->kind());
 
-    ASSERT_EQ(agraph.add_op(&add0), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&add1), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&add2), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&add3), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&add0), graph::status::success);
+    ASSERT_EQ(agraph.add_op(&add1), graph::status::success);
+    ASSERT_EQ(agraph.add_op(&add2), graph::status::success);
+    ASSERT_EQ(agraph.add_op(&add3), graph::status::success);
     agraph.finalize();
-    impl::pass::pass_base_ptr apass = get_pass("sum_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("sum_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     auto part = agraph.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &input0, &input1, &input2, &input3, &input4};
-    std::vector<const impl::logical_tensor_t *> outputs {&output3};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), impl::status::success);
+    std::vector<const graph::logical_tensor_t *> outputs {&output3};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
     test::vector<float> input0_data(product(input_dims), 1);
     test::vector<float> input1_data(product(input_dims), 1);
@@ -770,14 +782,14 @@ TEST(Execute, Sum) {
     test::vector<float> input4_data(product(input_dims), 1);
     test::vector<float> output_data(product(input_dims), 0);
 
-    impl::tensor_t input0_ts(input0, engine, input0_data.data());
-    impl::tensor_t input1_ts(input1, engine, input1_data.data());
-    impl::tensor_t input2_ts(input2, engine, input2_data.data());
-    impl::tensor_t input3_ts(input3, engine, input3_data.data());
-    impl::tensor_t input4_ts(input4, engine, input4_data.data());
-    impl::tensor_t output_ts(output3, engine, output_data.data());
+    graph::tensor_t input0_ts(input0, engine, input0_data.data());
+    graph::tensor_t input1_ts(input1, engine, input1_data.data());
+    graph::tensor_t input2_ts(input2, engine, input2_data.data());
+    graph::tensor_t input3_ts(input3, engine, input3_data.data());
+    graph::tensor_t input4_ts(input4, engine, input4_data.data());
+    graph::tensor_t output_ts(output3, engine, output_data.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {input0_ts, input1_ts, input2_ts, input3_ts, input4_ts},
             {output_ts});
     strm->wait();
@@ -792,36 +804,36 @@ TEST(Compile, EltwiseGetInplacePair) {
     // logic
     SKIP_IF(true, "library and bridge have different inplace logic");
 
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
 
-    impl::op_t eltwise_op(impl::op_kind::Tanh);
+    graph::op_t eltwise_op(graph::op_kind::Tanh);
 
     // prepare logical tensor
-    impl::logical_tensor_t src
-            = utils::logical_tensor_init(0, {2, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst
-            = utils::logical_tensor_init(1, {2, 3}, impl::data_type::f32);
+    graph::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 3}, graph::data_type::f32);
+    graph::logical_tensor_t dst
+            = utils::logical_tensor_init(1, {2, 3}, graph::data_type::f32);
 
     eltwise_op.add_input(src);
     eltwise_op.add_output(dst);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&eltwise_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("tanh_pass");
+    graph::pass::pass_base_ptr apass = get_pass("tanh_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
     // compile
-    std::vector<const impl::logical_tensor_t *> inputs {&src};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+    std::vector<const graph::logical_tensor_t *> inputs {&src};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst};
 
-    impl::compiled_partition_t cp(p);
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
     auto pairs = cp.get_inplace_pairs();
     ASSERT_EQ(pairs.size(), 1U);
@@ -830,9 +842,9 @@ TEST(Compile, EltwiseGetInplacePair) {
 }
 
 struct eltwise_binary_params_t {
-    impl::op_kind_t eltwise_kind;
-    impl::op_kind_t binary_kind;
-    std::vector<impl::dim_t> binary_src_shape;
+    graph::op_kind_t eltwise_kind;
+    graph::op_kind_t binary_kind;
+    std::vector<graph::dim_t> binary_src_shape;
     bool swap;
 };
 
@@ -842,9 +854,9 @@ public:
     void TestEltwiseBinary() {
         const auto params
                 = ::testing::TestWithParam<eltwise_binary_params_t>::GetParam();
-        impl::engine_t *eng = get_engine();
+        graph::engine_t *eng = get_engine();
 
-        std::vector<impl::dim_t> binary_src_shape = params.binary_src_shape;
+        std::vector<graph::dim_t> binary_src_shape = params.binary_src_shape;
         test::vector<float> src {-2.0, -1.5, 1.0, 0.5};
         test::vector<float> binary_src(product(binary_src_shape));
         std::default_random_engine generator(7);
@@ -853,23 +865,23 @@ public:
                 [&]() { return f32_distribution(generator); });
         test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-        impl::op_t eltwise_op(0, params.eltwise_kind, "elt");
-        if (params.eltwise_kind == impl::op_kind::Elu) {
-            eltwise_op.set_attr<float>(impl::op_attr::alpha, 1.f);
-        } else if (params.eltwise_kind == impl::op_kind::Clamp) {
-            eltwise_op.set_attr<float>(impl::op_attr::min, -1.f);
-            eltwise_op.set_attr<float>(impl::op_attr::max, 2.f);
+        graph::op_t eltwise_op(0, params.eltwise_kind, "elt");
+        if (params.eltwise_kind == graph::op_kind::Elu) {
+            eltwise_op.set_attr<float>(graph::op_attr::alpha, 1.f);
+        } else if (params.eltwise_kind == graph::op_kind::Clamp) {
+            eltwise_op.set_attr<float>(graph::op_attr::min, -1.f);
+            eltwise_op.set_attr<float>(graph::op_attr::max, 2.f);
         }
-        impl::op_t binary_op(1, params.binary_kind, "binary");
+        graph::op_t binary_op(1, params.binary_kind, "binary");
 
-        impl::logical_tensor_t eltwise_src_lt = utils::logical_tensor_init(
-                0, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
-                1, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
-        impl::logical_tensor_t binary_src_lt = utils::logical_tensor_init(
-                2, binary_src_shape, impl::data_type::f32);
-        impl::logical_tensor_t binary_dst_lt = utils::logical_tensor_init(
-                3, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+        graph::logical_tensor_t eltwise_src_lt = utils::logical_tensor_init(
+                0, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(1,
+                {1, 1, 2, 2}, graph::data_type::f32, graph::layout_type::any);
+        graph::logical_tensor_t binary_src_lt = utils::logical_tensor_init(
+                2, binary_src_shape, graph::data_type::f32);
+        graph::logical_tensor_t binary_dst_lt = utils::logical_tensor_init(3,
+                {1, 1, 2, 2}, graph::data_type::f32, graph::layout_type::any);
 
         eltwise_op.add_input(eltwise_src_lt);
         eltwise_op.add_output(eltwise_dst_lt);
@@ -883,42 +895,42 @@ public:
         }
         binary_op.add_output(binary_dst_lt);
 
-        impl::graph_t g(eng->kind());
+        graph::graph_t g(eng->kind());
         g.add_op(&eltwise_op);
         g.add_op(&binary_op);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {
+        std::vector<const graph::logical_tensor_t *> inputs {
                 &eltwise_src_lt, &binary_src_lt};
 
-        std::vector<const impl::logical_tensor_t *> outputs {&binary_dst_lt};
+        std::vector<const graph::logical_tensor_t *> outputs {&binary_dst_lt};
 
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-        impl::logical_tensor_t lt;
+        graph::logical_tensor_t lt;
         cp.query_logical_tensor(binary_dst_lt.id, &lt);
 
-        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+        ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        impl::tensor_t src_ts(eltwise_src_lt, eng, src.data());
-        impl::tensor_t binary_src_ts(binary_src_lt, eng, binary_src.data());
-        impl::tensor_t binary_dst_ts(binary_dst_lt, eng, dst.data());
+        graph::tensor_t src_ts(eltwise_src_lt, eng, src.data());
+        graph::tensor_t binary_src_ts(binary_src_lt, eng, binary_src.data());
+        graph::tensor_t binary_dst_ts(binary_dst_lt, eng, dst.data());
 
-        impl::stream_t *strm = get_stream();
+        graph::stream_t *strm = get_stream();
 
         ASSERT_EQ(cp.execute(strm, {src_ts, binary_src_ts}, {binary_dst_ts}),
-                impl::status::success);
+                graph::status::success);
         strm->wait();
     }
 };
@@ -931,31 +943,31 @@ INSTANTIATE_TEST_SUITE_P(Execute, eltwise_binary_t,
         ::testing::Values(
                 // with broadcast add and no swap inputs
                 eltwise_binary_params_t {
-                        impl::op_kind::ReLU, impl::op_kind::Add, {1}, false},
+                        graph::op_kind::ReLU, graph::op_kind::Add, {1}, false},
                 // with broadcast add and swap inputs
                 eltwise_binary_params_t {
-                        impl::op_kind::ReLU, impl::op_kind::Add, {1}, true},
+                        graph::op_kind::ReLU, graph::op_kind::Add, {1}, true},
                 // no broadcast add and no swap inputs
-                eltwise_binary_params_t {impl::op_kind::ReLU,
-                        impl::op_kind::Add, {1, 1, 2, 2}, false},
+                eltwise_binary_params_t {graph::op_kind::ReLU,
+                        graph::op_kind::Add, {1, 1, 2, 2}, false},
                 // no broadcast add and swap inputs
-                eltwise_binary_params_t {impl::op_kind::ReLU,
-                        impl::op_kind::Add, {1, 1, 2, 2}, true},
-                eltwise_binary_params_t {impl::op_kind::Clamp,
-                        impl::op_kind::Multiply, {1}, false},
-                eltwise_binary_params_t {impl::op_kind::Round,
-                        impl::op_kind::Maximum, {1, 1, 2, 2}, false},
-                eltwise_binary_params_t {impl::op_kind::Sigmoid,
-                        impl::op_kind::Divide, {1}, false},
-                eltwise_binary_params_t {impl::op_kind::SoftPlus,
-                        impl::op_kind::Minimum, {1, 1, 2, 2}, false},
-                eltwise_binary_params_t {impl::op_kind::Exp,
-                        impl::op_kind::Minimum, {1, 1, 2, 2}, false},
-                eltwise_binary_params_t {impl::op_kind::Elu,
-                        impl::op_kind::Subtract, {1, 1, 2, 2}, false},
-                eltwise_binary_params_t {impl::op_kind::Sqrt,
-                        impl::op_kind::Minimum, {1}, false},
-                eltwise_binary_params_t {impl::op_kind::HardSwish,
-                        impl::op_kind::Minimum, {1}, false},
+                eltwise_binary_params_t {graph::op_kind::ReLU,
+                        graph::op_kind::Add, {1, 1, 2, 2}, true},
+                eltwise_binary_params_t {graph::op_kind::Clamp,
+                        graph::op_kind::Multiply, {1}, false},
+                eltwise_binary_params_t {graph::op_kind::Round,
+                        graph::op_kind::Maximum, {1, 1, 2, 2}, false},
+                eltwise_binary_params_t {graph::op_kind::Sigmoid,
+                        graph::op_kind::Divide, {1}, false},
+                eltwise_binary_params_t {graph::op_kind::SoftPlus,
+                        graph::op_kind::Minimum, {1, 1, 2, 2}, false},
+                eltwise_binary_params_t {graph::op_kind::Exp,
+                        graph::op_kind::Minimum, {1, 1, 2, 2}, false},
+                eltwise_binary_params_t {graph::op_kind::Elu,
+                        graph::op_kind::Subtract, {1, 1, 2, 2}, false},
+                eltwise_binary_params_t {graph::op_kind::Sqrt,
+                        graph::op_kind::Minimum, {1}, false},
+                eltwise_binary_params_t {graph::op_kind::HardSwish,
+                        graph::op_kind::Minimum, {1}, false},
                 eltwise_binary_params_t {
-                        impl::op_kind::Tanh, impl::op_kind::Add, {1}, true}));
+                        graph::op_kind::Tanh, graph::op_kind::Add, {1}, true}));

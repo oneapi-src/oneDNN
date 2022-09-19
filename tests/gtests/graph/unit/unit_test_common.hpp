@@ -37,20 +37,19 @@
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "test_thread.hpp"
 #endif
-namespace impl = dnnl::impl::graph;
 
 #ifdef DNNL_WITH_SYCL
 ::sycl::device &get_device();
 ::sycl::context &get_context();
 #endif // DNNL_WITH_SYCL
 
-impl::engine_t *get_engine();
+dnnl::impl::graph::engine_t *get_engine();
 
-impl::stream_t *get_stream();
+dnnl::impl::graph::stream_t *get_stream();
 
-impl::engine_kind_t get_test_engine_kind();
+dnnl::impl::graph::engine_kind_t get_test_engine_kind();
 
-void set_test_engine_kind(impl::engine_kind_t kind);
+void set_test_engine_kind(dnnl::impl::graph::engine_kind_t kind);
 
 namespace test {
 
@@ -64,7 +63,8 @@ public:
     typedef T value_type;
 
     T *allocate(size_t num_elements) {
-        if (get_test_engine_kind() == impl::engine_kind::cpu) {
+        namespace graph = dnnl::impl::graph;
+        if (get_test_engine_kind() == graph::engine_kind::cpu) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
             dev_ = get_device();
             ctx_ = get_context();
@@ -74,7 +74,7 @@ public:
 #else
             return reinterpret_cast<T *>(malloc(num_elements * sizeof(T)));
 #endif
-        } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
+        } else if (get_test_engine_kind() == graph::engine_kind::gpu) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             dev_ = get_device();
             ctx_ = get_context();
@@ -90,15 +90,16 @@ public:
     }
 
     void deallocate(T *ptr, size_t) {
+        namespace graph = dnnl::impl::graph;
         if (!ptr) return;
 
-        if (get_test_engine_kind() == impl::engine_kind::cpu) {
+        if (get_test_engine_kind() == graph::engine_kind::cpu) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
             ::sycl::free(ptr, ctx_);
 #else
             free(ptr);
 #endif
-        } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
+        } else if (get_test_engine_kind() == graph::engine_kind::gpu) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             ::sycl::free(ptr, ctx_);
 #endif

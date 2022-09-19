@@ -19,11 +19,15 @@
 
 #include "gtest/gtest.h"
 
+#include "graph/unit/unit_test_common.hpp"
+#include "graph/unit/utils.hpp"
+
 #include "interface/backend.hpp"
 
 #include "backend/dnnl/dnnl_backend.hpp"
 
-using namespace dnnl::impl::graph;
+namespace graph = dnnl::impl::graph;
+namespace dnnl_impl = dnnl::impl::graph::dnnl_impl;
 
 TEST(LayoutId, OpaqueMdLayoutIdMapping) {
     using memory = dnnl_impl::memory;
@@ -31,7 +35,8 @@ TEST(LayoutId, OpaqueMdLayoutIdMapping) {
     using format_tag = dnnl_impl::format_tag;
 
     dnnl_impl::dnnl_layout_id_manager_t &mgr
-            = dnnl_impl::dnnl_backend::get_singleton().get_layout_id_manager();
+            = graph::dnnl_impl::dnnl_backend::get_singleton()
+                      .get_layout_id_manager();
 
     // opaque md should be cached and generate a layout id, and the later
     // layout id should be greater than the former one
@@ -56,7 +61,8 @@ TEST(LayoutId, OpaqueMdLayoutIdMapping) {
     auto id3_asym = mgr.set_mem_desc(md3);
     auto recovered_md3_asym = mgr.get_mem_desc(id3_asym.value());
     ASSERT_TRUE(recovered_md3_asym.has_value());
-    ASSERT_EQ(utils::any_cast<memory::desc>(recovered_md3_asym.value()), md3);
+    ASSERT_EQ(graph::utils::any_cast<memory::desc>(recovered_md3_asym.value()),
+            md3);
 #else
     ASSERT_GT(id2.value(), id1.value());
 
@@ -64,10 +70,10 @@ TEST(LayoutId, OpaqueMdLayoutIdMapping) {
     // layout id
     auto recovered_md1 = mgr.get_mem_desc(id1.value());
     ASSERT_TRUE(recovered_md1.has_value());
-    ASSERT_EQ(utils::any_cast<memory::desc>(recovered_md1.value()), md1);
+    ASSERT_EQ(graph::utils::any_cast<memory::desc>(recovered_md1.value()), md1);
 
     auto recovered_md2 = mgr.get_mem_desc(id2.value());
     ASSERT_TRUE(recovered_md2.has_value());
-    ASSERT_EQ(utils::any_cast<memory::desc>(recovered_md2.value()), md2);
+    ASSERT_EQ(graph::utils::any_cast<memory::desc>(recovered_md2.value()), md2);
 #endif // DNNL_GRAPH_LAYOUT_DEBUG
 }

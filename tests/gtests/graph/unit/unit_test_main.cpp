@@ -21,7 +21,10 @@
 
 #include "unit_test_common.hpp"
 
+#include "interface/c_types_map.hpp"
+
 using namespace testing;
+namespace graph = dnnl::impl::graph;
 
 static std::string find_cmd_option(
         char **argv_beg, char **argv_end, const std::string &option) {
@@ -33,13 +36,13 @@ static std::string find_cmd_option(
     return {};
 }
 
-inline impl::engine_kind_t to_engine_kind(const std::string &str) {
-    if (str.empty() || str == "cpu") return impl::engine_kind::cpu;
+inline graph::engine_kind_t to_engine_kind(const std::string &str) {
+    if (str.empty() || str == "cpu") return graph::engine_kind::cpu;
 
-    if (str == "gpu") return impl::engine_kind::gpu;
+    if (str == "gpu") return graph::engine_kind::gpu;
 
     assert(!"not expected");
-    return impl::engine_kind::cpu;
+    return graph::engine_kind::cpu;
 }
 
 int main(int argc, char *argv[]) {
@@ -49,7 +52,7 @@ int main(int argc, char *argv[]) {
     set_test_engine_kind(to_engine_kind(engine_str));
 
 #if DNNL_GPU_RUNTIME != DNNL_RUNTIME_SYCL
-    if (get_test_engine_kind() == impl::engine_kind::gpu) {
+    if (get_test_engine_kind() == graph::engine_kind::gpu) {
         std::cout << "GPU runtime is not enabled" << std::endl;
         return 0;
     }

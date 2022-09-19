@@ -16,7 +16,7 @@
 
 #include <memory>
 
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
 
 #include "interface/op.hpp"
 #include "interface/partition.hpp"
@@ -66,7 +66,7 @@ TEST(Partition, GetOps) {
 
 TEST(Partition, Init) {
     // (todo)xinyu: improve engine test
-    impl::engine_t *eng = get_engine();
+    engine_t *eng = get_engine();
     dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
             eng->kind(), fpmath_mode::strict, partition_kind::undef);
     std::shared_ptr<op_t> n(new op_t(0, op_kind::Convolution, "Conv"));
@@ -77,7 +77,7 @@ TEST(Partition, Init) {
 }
 
 TEST(Partition, Clone) {
-    impl::engine_t *eng = get_engine();
+    engine_t *eng = get_engine();
     dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(eng->kind(),
             fpmath_mode::strict, partition_kind::convolution_post_ops);
     auto n = std::make_shared<op_t>(op_kind::Convolution);
@@ -118,7 +118,7 @@ TEST(Op, AssignedPartition) {
 }
 
 TEST(Partition, SetFpmathMode) {
-    impl::engine_t *eng = get_engine();
+    engine_t *eng = get_engine();
     for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
                  fpmath_mode::any}) {
         dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(

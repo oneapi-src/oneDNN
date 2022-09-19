@@ -28,11 +28,13 @@
 
 #include <dnnl.hpp>
 
+namespace graph = dnnl::impl::graph;
+
 TEST(Scratchpad, TemporaryScratchpad) {
     using dnnl::impl::graph::allocator_t;
     using dnnl::impl::graph::dnnl_impl::temporary_scratchpad_t;
 
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     allocator_t *alloc = static_cast<allocator_t *>(g_eng->get_allocator());
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 

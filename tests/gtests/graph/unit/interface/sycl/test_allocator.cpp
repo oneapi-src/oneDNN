@@ -23,22 +23,23 @@
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
 
-using namespace dnnl::impl::graph;
+namespace graph = dnnl::impl::graph;
 
 TEST(TestAllocator, DefaultSyclAllocator) {
-    engine_kind_t kind = get_test_engine_kind();
+    graph::engine_kind_t kind = get_test_engine_kind();
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
-    SKIP_IF(kind == impl::engine_kind::cpu,
+    SKIP_IF(kind == graph::engine_kind::cpu,
             "skip sycl api test for native cpu runtime.");
 #endif
-    allocator_t &alloc = *allocator_t::create();
-    sycl::queue q = kind == engine_kind::gpu
+    graph::allocator_t &alloc = *graph::allocator_t::create();
+    sycl::queue q = kind == graph::engine_kind::gpu
             ? sycl::queue {sycl::gpu_selector {},
                     sycl::property::queue::in_order {}}
             : sycl::queue {
                     sycl::cpu_selector {}, sycl::property::queue::in_order {}};
 
-    allocator_t::mem_attr_t attr {allocator_t::mem_type_t::persistent, 4096};
+    graph::allocator_t::mem_attr_t attr {
+            graph::allocator_t::mem_type_t::persistent, 4096};
     void *mem_ptr = alloc.allocate(
             static_cast<size_t>(16), q.get_device(), q.get_context(), attr);
     ASSERT_NE(mem_ptr, nullptr);
@@ -48,19 +49,20 @@ TEST(TestAllocator, DefaultSyclAllocator) {
 }
 
 TEST(TestAllocator, SyclAllocator) {
-    engine_kind_t kind = get_test_engine_kind();
+    graph::engine_kind_t kind = get_test_engine_kind();
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
-    SKIP_IF(kind == engine_kind::cpu,
+    SKIP_IF(kind == graph::engine_kind::cpu,
             "skip sycl api test for native cpu runtime.");
 #endif
-    allocator_t::mem_attr_t alloc_attr {
-            allocator_t::mem_type_t::persistent, 1024};
-    ASSERT_EQ(alloc_attr.type_, allocator_t::mem_type_t::persistent);
+    graph::allocator_t::mem_attr_t alloc_attr {
+            graph::allocator_t::mem_type_t::persistent, 1024};
+    ASSERT_EQ(alloc_attr.type_, graph::allocator_t::mem_type_t::persistent);
+
     ASSERT_EQ(alloc_attr.alignment_, 1024);
-    allocator_t &sycl_alloc
-            = *allocator_t::create(dnnl::graph::testing::sycl_malloc_wrapper,
-                    dnnl::graph::testing::sycl_free_wrapper);
-    sycl::device sycl_dev = (kind == engine_kind::gpu)
+    graph::allocator_t &sycl_alloc = *graph::allocator_t::create(
+            dnnl::graph::testing::sycl_malloc_wrapper,
+            dnnl::graph::testing::sycl_free_wrapper);
+    sycl::device sycl_dev = (kind == graph::engine_kind::gpu)
             ? sycl::device {sycl::gpu_selector()}
             : sycl::device {sycl::cpu_selector()};
     sycl::context sycl_ctx {sycl_dev};

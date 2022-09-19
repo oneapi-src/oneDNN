@@ -14,167 +14,179 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <functional>
+#include <random>
+
+#include "interface/c_types_map.hpp"
+
+#include "gtest/gtest.h"
+
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 #include "graph/unit/backend/dnnl/ref_func.hpp"
+#include "graph/unit/unit_test_common.hpp"
+#include "graph/unit/utils.hpp"
+
+namespace graph = dnnl::impl::graph;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 struct eltwise_param_t {
     std::string pass_name;
     test::vector<float> bias;
     test::vector<float> ref_dst;
-    impl::op_kind_t op_kind;
+    graph::op_kind_t op_kind;
     std::string op_name;
-    std::vector<std::pair<impl::op_attr_t, float>> attrs;
+    std::vector<std::pair<graph::op_attr_t, float>> attrs;
 };
 
 TEST(Compile, ConvolutionFp32) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
+    graph::engine_t *engine = get_engine();
 
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src = utils::logical_tensor_init(
-            0, {8, 3, 224, 224}, impl::data_type::f32);
-    impl::logical_tensor_t weight = utils::logical_tensor_init(
-            1, {16, 3, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst = utils::logical_tensor_init(
-            2, {8, 16, 222, 222}, impl::data_type::f32, impl::layout_type::any);
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, {8, 3, 224, 224}, graph::data_type::f32);
+    graph::logical_tensor_t weight = utils::logical_tensor_init(
+            1, {16, 3, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t dst = utils::logical_tensor_init(2,
+            {8, 16, 222, 222}, graph::data_type::f32, graph::layout_type::any);
 
     conv_op.add_input(src);
     conv_op.add_input(weight);
     conv_op.add_output(dst);
 
-    impl::graph_t g(engine->kind());
+    graph::graph_t g(engine->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+    std::vector<const graph::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst};
 
     p.compile(&cp, inputs, outputs, engine);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 }
 
 TEST(Compile, ConvolutionBackpropDataFp32) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
 
-    impl::op_t conv_op(impl::op_kind::ConvolutionBackpropData);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    graph::op_t conv_op(graph::op_kind::ConvolutionBackpropData);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
     // according to spec, group should be greater than 0
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-    conv_op.set_attr<dims>(impl::op_attr::output_shape, dims {8, 3, 224, 224});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+    conv_op.set_attr<dims>(graph::op_attr::output_shape, dims {8, 3, 224, 224});
 
     // prepare logical tensor
-    impl::logical_tensor_t diff_src = utils::logical_tensor_init(
-            0, {8, 3, 224, 224}, impl::data_type::f32);
-    impl::logical_tensor_t weights = utils::logical_tensor_init(
-            1, {16, 3, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
-            2, {8, 16, 222, 222}, impl::data_type::f32);
+    graph::logical_tensor_t diff_src = utils::logical_tensor_init(
+            0, {8, 3, 224, 224}, graph::data_type::f32);
+    graph::logical_tensor_t weights = utils::logical_tensor_init(
+            1, {16, 3, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            2, {8, 16, 222, 222}, graph::data_type::f32);
 
     conv_op.add_input(diff_dst);
     conv_op.add_input(weights);
     conv_op.add_output(diff_src);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&diff_dst, &weights};
-    std::vector<const impl::logical_tensor_t *> outputs {&diff_src};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    std::vector<const graph::logical_tensor_t *> inputs {&diff_dst, &weights};
+    std::vector<const graph::logical_tensor_t *> outputs {&diff_src};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(diff_src.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 }
 
 TEST(Compile, ConvolutionBackpropFilterFp32) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
 
-    impl::op_t conv_op(impl::op_kind::ConvolutionBackpropFilters);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
-    conv_op.set_attr<dims>(impl::op_attr::filter_shape, dims {3, 3, 64, 64});
+    graph::op_t conv_op(graph::op_kind::ConvolutionBackpropFilters);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
+    conv_op.set_attr<dims>(graph::op_attr::filter_shape, dims {3, 3, 64, 64});
 
     // prepare logical tensor
-    impl::logical_tensor_t src = utils::logical_tensor_init(
-            0, {1, 224, 224, 64}, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
-            1, {1, 222, 222, 64}, impl::data_type::f32);
-    impl::logical_tensor_t diff_weight = utils::logical_tensor_init(
-            2, {3, 3, 64, 64}, impl::data_type::f32, impl::layout_type::any);
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, {1, 224, 224, 64}, graph::data_type::f32);
+    graph::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            1, {1, 222, 222, 64}, graph::data_type::f32);
+    graph::logical_tensor_t diff_weight = utils::logical_tensor_init(
+            2, {3, 3, 64, 64}, graph::data_type::f32, graph::layout_type::any);
 
     conv_op.add_input(src);
     conv_op.add_input(diff_dst);
     conv_op.add_output(diff_weight);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src, &diff_dst};
-    std::vector<const impl::logical_tensor_t *> outputs {&diff_weight};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    std::vector<const graph::logical_tensor_t *> inputs {&src, &diff_dst};
+    std::vector<const graph::logical_tensor_t *> outputs {&diff_weight};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 }
 
 TEST(Compile, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     const dims src_dims {2, 4, 2};
     const dims diff_dst_dims {2, 4, 2};
@@ -189,115 +201,115 @@ TEST(Compile, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     const std::string data_format {"NCX"};
     const std::string filter_format {"OIX"};
 
-    impl::op_t conv_op(impl::op_kind::ConvolutionBackpropFilters);
-    conv_op.set_attr(impl::op_attr::strides, strides)
-            .set_attr(impl::op_attr::pads_begin, pads_begin)
-            .set_attr(impl::op_attr::pads_end, pads_end)
-            .set_attr(impl::op_attr::dilations, dilations)
-            .set_attr(impl::op_attr::groups, groups)
-            .set_attr(impl::op_attr::auto_pad, auto_pad)
-            .set_attr(impl::op_attr::data_format, data_format)
-            .set_attr(impl::op_attr::filter_format, filter_format);
+    graph::op_t conv_op(graph::op_kind::ConvolutionBackpropFilters);
+    conv_op.set_attr(graph::op_attr::strides, strides)
+            .set_attr(graph::op_attr::pads_begin, pads_begin)
+            .set_attr(graph::op_attr::pads_end, pads_end)
+            .set_attr(graph::op_attr::dilations, dilations)
+            .set_attr(graph::op_attr::groups, groups)
+            .set_attr(graph::op_attr::auto_pad, auto_pad)
+            .set_attr(graph::op_attr::data_format, data_format)
+            .set_attr(graph::op_attr::filter_format, filter_format);
 
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
-            1, diff_dst_dims, impl::data_type::f32);
-    impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
-            2, diff_wei_dims, impl::data_type::f32, impl::layout_type::any);
+    graph::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, src_dims, graph::data_type::f32);
+    graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+            1, diff_dst_dims, graph::data_type::f32);
+    graph::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
+            2, diff_wei_dims, graph::data_type::f32, graph::layout_type::any);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(diff_dst_lt);
     conv_op.add_output(diff_wei_lt);
 
-    impl::engine_t *eng = get_engine();
-    impl::graph_t g(eng->kind());
+    graph::engine_t *eng = get_engine();
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &diff_dst_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&diff_wei_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &diff_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&diff_wei_lt};
 
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(diff_wei_lt.id, &lt);
     // if layout queried from the primitive will make descriptor impossible
     // to reshape (with groups -> no groups), we make it strided (via reorder)
-    ASSERT_TRUE(lt.layout_type == impl::layout_type::opaque
-            || lt.layout_type == impl::layout_type::strided);
+    ASSERT_TRUE(lt.layout_type == graph::layout_type::opaque
+            || lt.layout_type == graph::layout_type::strided);
 }
 
 TEST(Execute, ConvolutionNcxOix) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -306,62 +318,63 @@ TEST(Execute, ConvolutionNcxOix) {
 }
 
 TEST(Execute, ConvtransposeWithGroups) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {1.0, 2.0, 3.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
             0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
     test::vector<float> ref_dst {1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(ref_dst.size(), 0);
-    impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
-    convtranspose_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    convtranspose_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    convtranspose_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 2);
-    convtranspose_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    convtranspose_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t convtranspose_op(graph::op_kind::ConvTranspose);
+    convtranspose_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    convtranspose_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    convtranspose_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    convtranspose_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    convtranspose_op.set_attr<int64_t>(graph::op_attr::groups, 2);
+    convtranspose_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    convtranspose_op.set_attr<std::string>(
+            graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 4, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {4, 4, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 8, 1, 1}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 4, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {4, 4, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 8, 1, 1}, graph::data_type::f32);
 
     convtranspose_op.add_input(src_lt);
     convtranspose_op.add_input(weight_lt);
     convtranspose_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&convtranspose_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
+    graph::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
-    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(dst_lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -373,62 +386,62 @@ TEST(Execute, Convolution3DNcxOix) {
     using dims = std::vector<int64_t>;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-            0, {1, 1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-            1, {1, 1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            2, {1, 1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 2, 2}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -437,65 +450,65 @@ TEST(Execute, Convolution3DNcxOix) {
 }
 
 TEST(Execute, ConvolutionNcxXio) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {3, 3, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {3, 3, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -504,65 +517,65 @@ TEST(Execute, ConvolutionNcxXio) {
 }
 
 TEST(Execute, Convolution3DNcxXio) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-            0, {1, 1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-            1, {1, 3, 3, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            2, {1, 1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 3, 3, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 2, 2}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -571,66 +584,66 @@ TEST(Execute, Convolution3DNcxXio) {
 }
 
 TEST(Execute, ConvolutionNxcXio) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {
             -3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5, -1.0, 0};
     test::vector<float> weight {
             1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
     test::vector<float> ref_dst {0.5};
     test::vector<float> dst {0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 3, 4, 1}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {3, 4, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 1, 1, 1}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 3, 4, 1}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {3, 4, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 1}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -639,66 +652,66 @@ TEST(Execute, ConvolutionNxcXio) {
 }
 
 TEST(Execute, Convolution3DNxcXio) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {
             -3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5, -1.0, 0};
     test::vector<float> weight {
             1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
     test::vector<float> ref_dst {0.5};
     test::vector<float> dst {0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-            0, {1, 1, 3, 4, 1}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-            1, {1, 3, 4, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            2, {1, 1, 1, 1, 1}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 3, 4, 1}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 3, 4, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 1, 1}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -707,65 +720,65 @@ TEST(Execute, Convolution3DNxcXio) {
 }
 
 TEST(Execute, ConvolutionNxcOix) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 4, 4, 1}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 2, 2, 1}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 4, 4, 1}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 2, 2, 1}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -774,65 +787,65 @@ TEST(Execute, ConvolutionNxcOix) {
 }
 
 TEST(Execute, Convolution3DNxcOix) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-            0, {1, 1, 4, 4, 1}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-            1, {1, 1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            2, {1, 1, 2, 2, 1}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4, 1}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2, 1}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -841,78 +854,78 @@ TEST(Execute, Convolution3DNxcOix) {
 }
 
 TEST(Execute, ConvolutionF16F16F16) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *eng = get_engine();
-    SKIP_IF(eng->kind() != impl::engine_kind::gpu,
+    graph::engine_t *eng = get_engine();
+    SKIP_IF(eng->kind() != graph::engine_kind::gpu,
             "Skip fp16 test for non-GPU device.");
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f16);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f16);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f16);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f16);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, graph::data_type::f16);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2}, graph::data_type::f16);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
 }
 
 TEST(Execute, ConvolutionBf16Bf16Bf16) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core
-                    && eng->kind() == impl::engine_kind::cpu,
+                    && eng->kind() == graph::engine_kind::cpu,
             "Skip bf16 examples for systems that do not support avx512_core.");
 
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
@@ -920,56 +933,56 @@ TEST(Execute, ConvolutionBf16Bf16Bf16) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-            0, {1, 1, 4, 4}, impl::data_type::bf16);
-    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-            1, {1, 1, 3, 3}, impl::data_type::bf16);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            2, {1, 1, 2, 2}, impl::data_type::bf16);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::bf16);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, graph::data_type::bf16);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2}, graph::data_type::bf16);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
 }
@@ -980,59 +993,59 @@ TEST(Compile, ConvAddSharedInputs) {
            \  /
            Add
     */
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t conv_dst_lt
-            = utils::logical_tensor_init(2, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 4, 4}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            3, {1, 1, 4, 4}, graph::data_type::f32);
 
     // create op conv
-    impl::op_t conv_op(0, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(0, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(conv_dst_lt);
     // create op add
-    impl::op_t add_op(1, impl::op_kind::Add, "Add");
+    graph::op_t add_op(1, graph::op_kind::Add, "Add");
     add_op.add_input(conv_dst_lt);
     add_op.add_input(src_lt);
     add_op.add_output(add_dst_lt);
     // build graph
-    impl::engine_t *eng = get_engine();
-    impl::graph_t g(eng->kind());
+    graph::engine_t *eng = get_engine();
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.finalize();
 
     // run pass
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile conv+add partition
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
-    impl::compiled_partition_t cp(p);
-    std::vector<const impl::logical_tensor_t *> inputs {
+    graph::compiled_partition_t cp(p);
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src_lt, &weight_lt, &src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
     // check inplace pairs
-    std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
+    std::vector<graph::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
     ASSERT_EQ(inplace_pairs.size(), 0U);
 }
 
@@ -1042,131 +1055,131 @@ TEST(Compile, ConvAddInplace) {
            \  /
            Add
     */
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // TODO(qun): re-enable this test once library and bridge align the inplace
     // logic
     SKIP_IF(true, "library and bridge have different inplace logic");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t conv_dst_lt
-            = utils::logical_tensor_init(2, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t add_src_lt
-            = utils::logical_tensor_init(3, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 4, 4}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t add_src_lt = utils::logical_tensor_init(
+            3, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {1, 1, 4, 4}, graph::data_type::f32);
 
     // create op conv
-    impl::op_t conv_op(0, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(0, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(conv_dst_lt);
     // create op add
-    impl::op_t add_op(1, impl::op_kind::Add, "Add");
+    graph::op_t add_op(1, graph::op_kind::Add, "Add");
     add_op.add_input(add_src_lt);
     add_op.add_input(conv_dst_lt);
     add_op.add_output(add_dst_lt);
     // build graph
-    impl::engine_t *eng = get_engine();
-    impl::graph_t g(eng->kind());
+    graph::engine_t *eng = get_engine();
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.finalize();
 
     // run pass
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile conv+add partition
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
     // arbitrary order of inputs
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &add_src_lt, &weight_lt, &src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
     // check inplace pairs
-    std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
+    std::vector<graph::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
     ASSERT_EQ(inplace_pairs.size(), 1U);
     ASSERT_EQ(inplace_pairs[0].input_id, add_src_lt.id);
     ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 }
 
 TEST(Execute, GroupConvolution) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
 
-    impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 4);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(graph::op_kind::Convolution);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 4);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-            0, {8, 32, 16, 16}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-            1, {32, 8, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-            2, {8, 32, 16, 16}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {8, 32, 16, 16}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {32, 8, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            2, {8, 32, 16, 16}, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
     test::vector<float> src(8 * 32 * 16 * 16, 1);
     test::vector<float> weight(32 * 8 * 1 * 1, 1);
     test::vector<float> dst(8 * 32 * 16 * 16, 1);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -1177,7 +1190,7 @@ TEST(Execute, GroupConvolution) {
 TEST(Execute, ConvolutionBackpropData) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
 
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
@@ -1187,56 +1200,56 @@ TEST(Execute, ConvolutionBackpropData) {
     test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0};
     test::vector<float> diff_src(src.size(), 0.0);
 
-    impl::op_t conv_op(impl::op_kind::ConvolutionBackpropData);
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-    conv_op.set_attr<dims>(impl::op_attr::output_shape, dims {1, 1, 4, 4});
+    graph::op_t conv_op(graph::op_kind::ConvolutionBackpropData);
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+    conv_op.set_attr<dims>(graph::op_attr::output_shape, dims {1, 1, 4, 4});
 
     // prepare logical tensor
-    impl::logical_tensor_t diff_src_lt
-            = utils::logical_tensor_init(1, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(2, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            1, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            2, {1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+            3, {1, 1, 2, 2}, graph::data_type::f32);
 
     conv_op.add_input(diff_dst_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(diff_src_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
+    graph::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &diff_dst_lt, &weight_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    std::vector<const graph::logical_tensor_t *> outputs {&diff_src_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(diff_src_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(diff_src_lt, eng, diff_src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
+    graph::tensor_t diff_src_ts(diff_src_lt, eng, diff_src.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {diff_dst_ts, weight_ts}, {diff_src_ts});
     strm->wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
@@ -1245,42 +1258,42 @@ TEST(Execute, ConvolutionBackpropData) {
 }
 
 TEST(Execute, ConvolutionBnFp32) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
 
-    impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(0, graph::op_kind::Convolution, "conv");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-    impl::op_t bn_op(1, impl::op_kind::BatchNormInference, "bn");
-    bn_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    bn_op.set_attr(impl::op_attr::epsilon, 1e-6f);
+    graph::op_t bn_op(1, graph::op_kind::BatchNormInference, "bn");
+    bn_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    bn_op.set_attr(graph::op_attr::epsilon, 1e-6f);
 
     // prepare logical tensor
-    impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
-            0, {8, 32, 16, 16}, impl::data_type::f32);
-    impl::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
-            1, {32, 32, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
-            2, {8, 32, 16, 16}, impl::data_type::f32);
-    impl::logical_tensor_t gamma_lt
-            = utils::logical_tensor_init(3, {32}, impl::data_type::f32);
-    impl::logical_tensor_t beta_lt
-            = utils::logical_tensor_init(4, {32}, impl::data_type::f32);
-    impl::logical_tensor_t scale_lt
-            = utils::logical_tensor_init(5, {32}, impl::data_type::f32);
-    impl::logical_tensor_t shift_lt
-            = utils::logical_tensor_init(6, {32}, impl::data_type::f32);
-    impl::logical_tensor_t bn_dst_lt = utils::logical_tensor_init(
-            7, {8, 32, 16, 16}, impl::data_type::f32);
+    graph::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
+            0, {8, 32, 16, 16}, graph::data_type::f32);
+    graph::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
+            1, {32, 32, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {8, 32, 16, 16}, graph::data_type::f32);
+    graph::logical_tensor_t gamma_lt
+            = utils::logical_tensor_init(3, {32}, graph::data_type::f32);
+    graph::logical_tensor_t beta_lt
+            = utils::logical_tensor_init(4, {32}, graph::data_type::f32);
+    graph::logical_tensor_t scale_lt
+            = utils::logical_tensor_init(5, {32}, graph::data_type::f32);
+    graph::logical_tensor_t shift_lt
+            = utils::logical_tensor_init(6, {32}, graph::data_type::f32);
+    graph::logical_tensor_t bn_dst_lt = utils::logical_tensor_init(
+            7, {8, 32, 16, 16}, graph::data_type::f32);
 
     test::vector<float> conv_src(8 * 32 * 16 * 16);
     test::vector<float> conv_weight(32 * 32 * 1 * 1);
@@ -1307,13 +1320,13 @@ TEST(Execute, ConvolutionBnFp32) {
     std::generate(bn_shift.begin(), bn_shift.end(),
             [&]() { return distribution(generator); });
 
-    impl::tensor_t conv_src_ts(conv_src_lt, eng, conv_src.data());
-    impl::tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight.data());
-    impl::tensor_t bn_gamma_ts(gamma_lt, eng, bn_gamma.data());
-    impl::tensor_t bn_beta_ts(beta_lt, eng, bn_beta.data());
-    impl::tensor_t bn_scale_ts(scale_lt, eng, bn_scale.data());
-    impl::tensor_t bn_shift_ts(shift_lt, eng, bn_shift.data());
-    impl::tensor_t bn_dst_ts(bn_dst_lt, eng, bn_dst.data());
+    graph::tensor_t conv_src_ts(conv_src_lt, eng, conv_src.data());
+    graph::tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight.data());
+    graph::tensor_t bn_gamma_ts(gamma_lt, eng, bn_gamma.data());
+    graph::tensor_t bn_beta_ts(beta_lt, eng, bn_beta.data());
+    graph::tensor_t bn_scale_ts(scale_lt, eng, bn_scale.data());
+    graph::tensor_t bn_shift_ts(shift_lt, eng, bn_shift.data());
+    graph::tensor_t bn_dst_ts(bn_dst_lt, eng, bn_dst.data());
 
     conv_op.add_input(conv_src_lt);
     conv_op.add_input(conv_weight_lt);
@@ -1325,7 +1338,7 @@ TEST(Execute, ConvolutionBnFp32) {
     bn_op.add_input(shift_lt);
     bn_op.add_output(bn_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&bn_op);
     g.finalize();
@@ -1335,28 +1348,28 @@ TEST(Execute, ConvolutionBnFp32) {
                       {conv_src_ts, conv_weight_ts, bn_gamma_ts, bn_beta_ts,
                               bn_scale_ts, bn_shift_ts},
                       {bn_dst_ts}, *eng, *strm),
-            impl::status::success);
+            graph::status::success);
 
     // run fusion partition
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&conv_src_lt,
+    std::vector<const graph::logical_tensor_t *> inputs {&conv_src_lt,
             &conv_weight_lt, &gamma_lt, &beta_lt, &scale_lt, &shift_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&bn_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&bn_dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
     test::vector<float> convbn_dst(8 * 32 * 16 * 16, 0.0);
-    impl::tensor_t convbn_dst_ts(bn_dst_lt, eng, convbn_dst.data());
+    graph::tensor_t convbn_dst_ts(bn_dst_lt, eng, convbn_dst.data());
 
     cp.execute(strm,
             {conv_src_ts, conv_weight_ts, bn_gamma_ts, bn_beta_ts, bn_scale_ts,
@@ -1373,36 +1386,36 @@ TEST(Execute, ConvolutionBnFp32) {
 
 TEST(Compile, ConvBnSharedInputs) {
     // bn has shared gamma/beta/mean/var
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
 
-    impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(0, graph::op_kind::Convolution, "conv");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-    impl::op_t bn_op(1, impl::op_kind::BatchNormInference, "bn");
-    bn_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    bn_op.set_attr(impl::op_attr::epsilon, 1e-6f);
+    graph::op_t bn_op(1, graph::op_kind::BatchNormInference, "bn");
+    bn_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    bn_op.set_attr(graph::op_attr::epsilon, 1e-6f);
 
     // prepare logical tensor
-    impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
-            0, {8, 32, 16, 16}, impl::data_type::f32);
-    impl::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
-            1, {32, 32, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
-            2, {8, 32, 16, 16}, impl::data_type::f32);
-    impl::logical_tensor_t shared_lt
-            = utils::logical_tensor_init(3, {32}, impl::data_type::f32);
-    impl::logical_tensor_t bn_dst_lt = utils::logical_tensor_init(
-            7, {8, 32, 16, 16}, impl::data_type::f32);
+    graph::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
+            0, {8, 32, 16, 16}, graph::data_type::f32);
+    graph::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
+            1, {32, 32, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {8, 32, 16, 16}, graph::data_type::f32);
+    graph::logical_tensor_t shared_lt
+            = utils::logical_tensor_init(3, {32}, graph::data_type::f32);
+    graph::logical_tensor_t bn_dst_lt = utils::logical_tensor_init(
+            7, {8, 32, 16, 16}, graph::data_type::f32);
 
     test::vector<float> conv_src(8 * 32 * 16 * 16);
     test::vector<float> conv_weight(32 * 32 * 1 * 1);
@@ -1420,10 +1433,10 @@ TEST(Compile, ConvBnSharedInputs) {
     std::generate(bn_shared_input.begin(), bn_shared_input.end(),
             [&]() { return distribution(generator); });
 
-    impl::tensor_t conv_src_ts(conv_src_lt, eng, conv_src.data());
-    impl::tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight.data());
-    impl::tensor_t bn_shared_input_ts(shared_lt, eng, bn_shared_input.data());
-    impl::tensor_t bn_dst_ts(bn_dst_lt, eng, bn_dst.data());
+    graph::tensor_t conv_src_ts(conv_src_lt, eng, conv_src.data());
+    graph::tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight.data());
+    graph::tensor_t bn_shared_input_ts(shared_lt, eng, bn_shared_input.data());
+    graph::tensor_t bn_dst_ts(bn_dst_lt, eng, bn_dst.data());
 
     conv_op.add_input(conv_src_lt);
     conv_op.add_input(conv_weight_lt);
@@ -1435,7 +1448,7 @@ TEST(Compile, ConvBnSharedInputs) {
     bn_op.add_input(shared_lt);
     bn_op.add_output(bn_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&bn_op);
     g.finalize();
@@ -1446,28 +1459,28 @@ TEST(Compile, ConvBnSharedInputs) {
                               bn_shared_input_ts, bn_shared_input_ts,
                               bn_shared_input_ts},
                       {bn_dst_ts}, *eng, *strm),
-            impl::status::success);
+            graph::status::success);
 
     // run fusion partition
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&conv_src_lt,
+    std::vector<const graph::logical_tensor_t *> inputs {&conv_src_lt,
             &conv_weight_lt, &shared_lt, &shared_lt, &shared_lt, &shared_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&bn_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&bn_dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
     test::vector<float> convbn_dst(8 * 32 * 16 * 16, 0.0);
-    impl::tensor_t convbn_dst_ts(bn_dst_lt, eng, convbn_dst.data());
+    graph::tensor_t convbn_dst_ts(bn_dst_lt, eng, convbn_dst.data());
 
     cp.execute(strm,
             {conv_src_ts, conv_weight_ts, bn_shared_input_ts,
@@ -1478,10 +1491,10 @@ TEST(Compile, ConvBnSharedInputs) {
 }
 
 TEST(Execute, ConvAdd) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
@@ -1492,29 +1505,29 @@ TEST(Execute, ConvAdd) {
     std::vector<bool> swaps {false, true};
 
     for (auto swap : swaps) {
-        impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-        conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-        conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-        conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-        impl::op_t add_op(2, impl::op_kind::Add, "Add");
+        graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+        conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+        conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+        graph::op_t add_op(2, graph::op_kind::Add, "Add");
 
         // prepare logical tensor
-        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-                0, {1, 1, 4, 4}, impl::data_type::f32);
-        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-                1, {1, 1, 3, 3}, impl::data_type::f32);
-        impl::logical_tensor_t post_src_lt = utils::logical_tensor_init(
-                2, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-                3, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
-                4, {1, 1, 2, 2}, impl::data_type::f32);
+        graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 4, 4}, graph::data_type::f32);
+        graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, graph::data_type::f32);
+        graph::logical_tensor_t post_src_lt = utils::logical_tensor_init(
+                2, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                3, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, graph::data_type::f32);
 
-        impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+        graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
 
         in_op.add_output(post_src_lt);
         conv_op.add_input(src_lt);
@@ -1529,39 +1542,39 @@ TEST(Execute, ConvAdd) {
         }
         add_op.add_output(add_dst_lt);
 
-        impl::graph_t g(eng->kind());
+        graph::graph_t g(eng->kind());
         g.add_op(&in_op);
         g.add_op(&conv_op);
         g.add_op(&add_op);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+        graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {
+        std::vector<const graph::logical_tensor_t *> inputs {
                 &src_lt, &weight_lt, &post_src_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+        std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
 
         p.compile(&cp, inputs, outputs, eng);
 
-        impl::logical_tensor_t lt;
+        graph::logical_tensor_t lt;
         cp.query_logical_tensor(add_dst_lt.id, &lt);
-        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+        ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, eng, src.data());
-        impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-        impl::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
-        impl::tensor_t add_dst_ts(add_dst_lt, eng, dst.data());
+        graph::tensor_t src_ts(src_lt, eng, src.data());
+        graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+        graph::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
+        graph::tensor_t add_dst_ts(add_dst_lt, eng, dst.data());
 
-        impl::stream_t *strm = get_stream();
+        graph::stream_t *strm = get_stream();
         cp.execute(strm, {src_ts, weight_ts, post_src_ts}, {add_dst_ts});
         strm->wait();
         for (size_t i = 0; i < dst.size(); ++i) {
@@ -1571,41 +1584,41 @@ TEST(Execute, ConvAdd) {
 }
 
 TEST(Execute, ConvAddPerTensorBroadcast) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> post_src {3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-    impl::op_t add_op(2, impl::op_kind::Add, "Add");
+    graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+    graph::op_t add_op(2, graph::op_kind::Add, "Add");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, graph::data_type::f32);
     // post_src will first be unsequeeze to {1,1,1,1} and then broadcast
     // to {1,1,2,2}
-    impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 1, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {1, 1, 2, 2}, graph::data_type::f32);
 
-    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+    graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
 
     in_op.add_output(post_src_lt);
     conv_op.add_input(src_lt);
@@ -1615,38 +1628,38 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src_lt, &weight_lt, &post_src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(add_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -1655,39 +1668,39 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
 }
 
 TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> post_src {3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-    impl::op_t add_op(2, impl::op_kind::Add, "Add");
+    graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+    graph::op_t add_op(2, graph::op_kind::Add, "Add");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {1, 1, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t post_src_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 1, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {1, 1, 2, 2}, graph::data_type::f32);
 
-    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+    graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
 
     in_op.add_output(post_src_lt);
     conv_op.add_input(src_lt);
@@ -1697,38 +1710,38 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src_lt, &weight_lt, &post_src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(add_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -1737,10 +1750,10 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
 }
 
 TEST(Execute, ConvAddPerChannelBroadcast) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
@@ -1748,29 +1761,29 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
     test::vector<float> post_src {3.0, 3.0};
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5, 2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-    impl::op_t add_op(2, impl::op_kind::Add, "Add");
+    graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+    graph::op_t add_op(2, graph::op_kind::Add, "Add");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {2, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {1, 2, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 2, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(4, {1, 2, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {2, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t post_src_lt = utils::logical_tensor_init(
+            2, {1, 2, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 2, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {1, 2, 2, 2}, graph::data_type::f32);
 
-    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+    graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
 
     in_op.add_output(post_src_lt);
     conv_op.add_input(src_lt);
@@ -1780,38 +1793,38 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src_lt, &weight_lt, &post_src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(add_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -1820,10 +1833,10 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
 }
 
 TEST(Execute, ConvAddPerChannelBroadcastNxc) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0,
@@ -1831,29 +1844,29 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     test::vector<float> post_src {3.0, 3.0};
     test::vector<float> ref_dst {2.0, 2.0, 5.5, 5.5, 8.0, 8.0, 4.5, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
-    impl::op_t add_op(2, impl::op_kind::Add, "Add");
+    graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
+    graph::op_t add_op(2, graph::op_kind::Add, "Add");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 4, 4, 1}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {3, 3, 1, 2}, impl::data_type::f32);
-    impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {1, 1, 1, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 2, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(4, {1, 2, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 4, 4, 1}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {3, 3, 1, 2}, graph::data_type::f32);
+    graph::logical_tensor_t post_src_lt = utils::logical_tensor_init(
+            2, {1, 1, 1, 2}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 2, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {1, 2, 2, 2}, graph::data_type::f32);
 
-    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+    graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
 
     in_op.add_output(post_src_lt);
     conv_op.add_input(src_lt);
@@ -1863,38 +1876,38 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src_lt, &weight_lt, &post_src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(add_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
-    impl::tensor_t dst_ts(dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
+    graph::tensor_t dst_ts(dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -1903,37 +1916,37 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
 }
 
 TEST(Compile, ConvAddBroadcast) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> post_src {3.0, 3.0};
-    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-    impl::op_t add_op(2, impl::op_kind::Add, "Add");
+    graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+    graph::op_t add_op(2, graph::op_kind::Add, "Add");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_src_lt
-            = utils::logical_tensor_init(2, {2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(2, {2}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 1, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {1, 1, 2, 2}, graph::data_type::f32);
 
-    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+    graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
 
     in_op.add_output(post_src_lt);
     conv_op.add_input(src_lt);
@@ -1943,68 +1956,68 @@ TEST(Compile, ConvAddBroadcast) {
     add_op.add_input(post_src_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src_lt, &weight_lt, &post_src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
 
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 }
 
 TEST(Execute, ConvAddRelu) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> post_src {-1.0, -2.0, -3.0, -4.0};
     test::vector<float> ref_dst {0.0, 0.5, 2.0, 0.0};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
-    impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+    graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
 
-    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+    graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
 
-    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-    impl::op_t add_op(2, impl::op_kind::Add, "Add");
-    impl::op_t relu_op(3, impl::op_kind::ReLU, "ReLU");
+    conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+    graph::op_t add_op(2, graph::op_kind::Add, "Add");
+    graph::op_t relu_op(3, graph::op_kind::ReLU, "ReLU");
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t post_lt
-            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t relu_dst_lt
-            = utils::logical_tensor_init(5, {1, 1, 2, 2}, impl::data_type::f32);
+    graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+            0, {1, 1, 4, 4}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {1, 1, 3, 3}, graph::data_type::f32);
+    graph::logical_tensor_t post_lt = utils::logical_tensor_init(
+            2, {1, 1, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 1, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {1, 1, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t relu_dst_lt = utils::logical_tensor_init(
+            5, {1, 1, 2, 2}, graph::data_type::f32);
 
     in_op.add_output(post_lt);
     conv_op.add_input(src_lt);
@@ -2016,40 +2029,40 @@ TEST(Execute, ConvAddRelu) {
     relu_op.add_input(add_dst_lt);
     relu_op.add_output(relu_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&in_op);
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.add_op(&relu_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src_lt, &weight_lt, &post_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&relu_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&relu_dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(relu_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t post_src_ts(post_lt, eng, post_src.data());
-    impl::tensor_t relu_dst_ts(relu_dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t post_src_ts(post_lt, eng, post_src.data());
+    graph::tensor_t relu_dst_ts(relu_dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, weight_ts, post_src_ts}, {relu_dst_ts});
     strm->wait();
     for (size_t i = 0; i < dst.size(); ++i) {
@@ -2058,10 +2071,10 @@ TEST(Execute, ConvAddRelu) {
 }
 
 TEST(Execute, ConvMultiplePostOps) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
@@ -2072,20 +2085,20 @@ TEST(Execute, ConvMultiplePostOps) {
     test::vector<float> ref_dst {0.0, 6.0, 10.0, 2.0};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-    impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
     std::string data_format = "NXC";
     std::string filter_format = "XIO";
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, data_format);
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, filter_format);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, data_format);
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, filter_format);
 
-    impl::op_t mul_op(2, impl::op_kind::Multiply, "Mul");
-    impl::op_t sum_op(3, impl::op_kind::Add, "Sum");
-    impl::op_t add_op(4, impl::op_kind::Add, "Add");
+    graph::op_t mul_op(2, graph::op_kind::Multiply, "Mul");
+    graph::op_t sum_op(3, graph::op_kind::Add, "Sum");
+    graph::op_t add_op(4, graph::op_kind::Add, "Add");
 
     std::vector<int64_t> src_dims {1, 1, 4, 4};
     std::vector<int64_t> weight_dims {1, 1, 3, 3};
@@ -2097,26 +2110,26 @@ TEST(Execute, ConvMultiplePostOps) {
     if (filter_format == "XIO") weight_dims = {3, 3, 1, 1};
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, weight_dims, impl::data_type::f32);
-    impl::logical_tensor_t bias_lt
-            = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
-    impl::logical_tensor_t mul_other_lt
-            = utils::logical_tensor_init(3, dst_dims, impl::data_type::f32);
-    impl::logical_tensor_t mul_dst_lt
-            = utils::logical_tensor_init(4, dst_dims, impl::data_type::f32);
-    impl::logical_tensor_t sum_other_lt
-            = utils::logical_tensor_init(5, dst_dims, impl::data_type::f32);
-    impl::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(6, dst_dims, impl::data_type::f32);
-    impl::logical_tensor_t sum_dst_lt
-            = utils::logical_tensor_init(7, dst_dims, impl::data_type::f32);
-    impl::logical_tensor_t add_other_lt
-            = utils::logical_tensor_init(8, {1}, impl::data_type::f32);
-    impl::logical_tensor_t add_dst_lt
-            = utils::logical_tensor_init(9, dst_dims, impl::data_type::f32);
+    graph::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, src_dims, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, weight_dims, graph::data_type::f32);
+    graph::logical_tensor_t bias_lt
+            = utils::logical_tensor_init(2, {1}, graph::data_type::f32);
+    graph::logical_tensor_t mul_other_lt
+            = utils::logical_tensor_init(3, dst_dims, graph::data_type::f32);
+    graph::logical_tensor_t mul_dst_lt
+            = utils::logical_tensor_init(4, dst_dims, graph::data_type::f32);
+    graph::logical_tensor_t sum_other_lt
+            = utils::logical_tensor_init(5, dst_dims, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(6, dst_dims, graph::data_type::f32);
+    graph::logical_tensor_t sum_dst_lt
+            = utils::logical_tensor_init(7, dst_dims, graph::data_type::f32);
+    graph::logical_tensor_t add_other_lt
+            = utils::logical_tensor_init(8, {1}, graph::data_type::f32);
+    graph::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(9, dst_dims, graph::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
@@ -2132,48 +2145,48 @@ TEST(Execute, ConvMultiplePostOps) {
     add_op.add_input(add_other_lt);
     add_op.add_output(add_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&mul_op);
     g.add_op(&sum_op);
     g.add_op(&add_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt,
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &weight_lt,
             &bias_lt, &mul_other_lt, &sum_other_lt, &add_other_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&add_dst_lt};
 
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
+    std::vector<graph::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
     ASSERT_EQ(inplace_pairs.size(), 1U);
     ASSERT_EQ(inplace_pairs[0].input_id, sum_other_lt.id);
     ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(add_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src_ts(src_lt, eng, src.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t bias_ts(bias_lt, eng, bias.data());
-    impl::tensor_t mul_other_ts(mul_other_lt, eng, mul_other.data());
-    impl::tensor_t sum_other_ts(sum_other_lt, eng, sum_other.data());
-    impl::tensor_t add_other_ts(add_other_lt, eng, add_other.data());
-    impl::tensor_t add_dst_ts(add_dst_lt, eng, dst.data());
+    graph::tensor_t src_ts(src_lt, eng, src.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t bias_ts(bias_lt, eng, bias.data());
+    graph::tensor_t mul_other_ts(mul_other_lt, eng, mul_other.data());
+    graph::tensor_t sum_other_ts(sum_other_lt, eng, sum_other.data());
+    graph::tensor_t add_other_ts(add_other_lt, eng, add_other.data());
+    graph::tensor_t add_dst_ts(add_dst_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm,
             {src_ts, weight_ts, bias_ts, mul_other_ts, sum_other_ts,
                     add_other_ts},
@@ -2188,7 +2201,7 @@ TEST(Execute, ConvBiasEltwise) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
@@ -2196,58 +2209,58 @@ TEST(Execute, ConvBiasEltwise) {
 
     std::vector<eltwise_param_t> params1 = {
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {2.0, 1.5, 4.0, 0.5}, impl::op_kind::Abs, "Abs", {}},
+                    {2.0, 1.5, 4.0, 0.5}, graph::op_kind::Abs, "Abs", {}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {static_cast<float>(exp(-2) - 1), 1.5, 4.0, 0.5},
-                    impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
+                    graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {-0.04f, 1.5f, 4.0f, 0.5f}, impl::op_kind::LeakyReLU,
-                    "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
+                    {-0.04f, 1.5f, 4.0f, 0.5f}, graph::op_kind::LeakyReLU,
+                    "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    mish_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Mish,
+                    mish_func({-2.0, 1.5, 4.0, 0.5}), graph::op_kind::Mish,
                     "Mish", {}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {0.0, 1.5, 3.0, 0.5}, impl::op_kind::Clamp, "Clamp",
-                    {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 3.f}}},
+                    {0.0, 1.5, 3.0, 0.5}, graph::op_kind::Clamp, "Clamp",
+                    {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 3.f}}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    sigmoid_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Sigmoid,
-                    "Sigmoid", {}},
+                    sigmoid_func({-2.0, 1.5, 4.0, 0.5}),
+                    graph::op_kind::Sigmoid, "Sigmoid", {}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {4.0, 2.25, 16.0, 0.25}, impl::op_kind::Square, "Square",
+                    {4.0, 2.25, 16.0, 0.25}, graph::op_kind::Square, "Square",
                     {}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    tanh_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Tanh,
+                    tanh_func({-2.0, 1.5, 4.0, 0.5}), graph::op_kind::Tanh,
                     "Tanh", {}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {1.0},
-                    sqrt_func({0.0, 3.5, 6.0, 2.5}), impl::op_kind::Sqrt,
+                    sqrt_func({0.0, 3.5, 6.0, 2.5}), graph::op_kind::Sqrt,
                     "Sqrt", {}},
     };
 
     for (auto &param : params1) {
-        impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-        conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-        conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-        conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-        conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-        conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-        impl::op_t eltwise_op(2, param.op_kind, param.op_name);
+        graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+        conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+        conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+        graph::op_t eltwise_op(2, param.op_kind, param.op_name);
         for (auto &attr : param.attrs) {
             eltwise_op.set_attr<float>(attr.first, attr.second);
         }
 
         // prepare logical tensor
-        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-                0, {1, 1, 4, 4}, impl::data_type::f32);
-        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-                1, {1, 1, 3, 3}, impl::data_type::f32);
-        impl::logical_tensor_t bias_lt
-                = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-                4, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
-                5, {1, 1, 2, 2}, impl::data_type::f32);
+        graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 4, 4}, graph::data_type::f32);
+        graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, graph::data_type::f32);
+        graph::logical_tensor_t bias_lt = utils::logical_tensor_init(
+                2, dims {1}, graph::data_type::f32);
+        graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
+                5, {1, 1, 2, 2}, graph::data_type::f32);
 
         conv_op.add_input(src_lt);
         conv_op.add_input(weight_lt);
@@ -2256,38 +2269,38 @@ TEST(Execute, ConvBiasEltwise) {
         eltwise_op.add_input(dst_lt);
         eltwise_op.add_output(eltwise_dst_lt);
 
-        impl::graph_t g(eng->kind());
+        graph::graph_t g(eng->kind());
         g.add_op(&conv_op);
         g.add_op(&eltwise_op);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
+        graph::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {
+        std::vector<const graph::logical_tensor_t *> inputs {
                 &src_lt, &weight_lt, &bias_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {&eltwise_dst_lt};
+        std::vector<const graph::logical_tensor_t *> outputs {&eltwise_dst_lt};
 
         p.compile(&cp, inputs, outputs, eng);
 
-        impl::logical_tensor_t lt;
+        graph::logical_tensor_t lt;
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
-        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+        ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, eng, src.data());
-        impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-        impl::tensor_t bias_ts(bias_lt, eng, param.bias.data());
-        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst.data());
+        graph::tensor_t src_ts(src_lt, eng, src.data());
+        graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+        graph::tensor_t bias_ts(bias_lt, eng, param.bias.data());
+        graph::tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst.data());
 
-        impl::stream_t *strm = get_stream();
+        graph::stream_t *strm = get_stream();
         cp.execute(strm, {src_ts, weight_ts, bias_ts}, {eltwise_dst_ts});
         strm->wait();
         for (size_t i = 0; i < dst.size(); ++i) {
@@ -2300,7 +2313,7 @@ TEST(Execute, ConvBiasAddEltwise) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
@@ -2310,52 +2323,52 @@ TEST(Execute, ConvBiasAddEltwise) {
     std::vector<eltwise_param_t> params2 = {
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
                     {static_cast<float>(exp(-4.0) - 1), 2.5, 3.0, 0.5},
-                    impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
+                    graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    {-0.08f, 2.5f, 3.0f, 0.5f}, impl::op_kind::LeakyReLU,
-                    "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
+                    {-0.08f, 2.5f, 3.0f, 0.5f}, graph::op_kind::LeakyReLU,
+                    "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {-1.0},
-                    mish_func({-4.0f, 2.5f, 3.0f, 0.5f}), impl::op_kind::Mish,
+                    mish_func({-4.0f, 2.5f, 3.0f, 0.5f}), graph::op_kind::Mish,
                     "Mish", {}},
             eltwise_param_t {"conv_bias_post_ops_fusion", {3.0},
-                    {0.0, 6.f, 6.f, 4.5}, impl::op_kind::Clamp, "ReLU6",
-                    {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
+                    {0.0, 6.f, 6.f, 4.5}, graph::op_kind::Clamp, "ReLU6",
+                    {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 6.f}}},
     };
 
     for (auto &param : params2) {
-        impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
+        graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
 
-        impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
+        graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
 
-        conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-        conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-        conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-        conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-        conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+        conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+        conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-        impl::op_t add_op(2, impl::op_kind::Add, "Add");
-        impl::op_t eltwise_op(3, param.op_kind, param.op_name);
+        graph::op_t add_op(2, graph::op_kind::Add, "Add");
+        graph::op_t eltwise_op(3, param.op_kind, param.op_name);
         for (auto &attr : param.attrs) {
             eltwise_op.set_attr<float>(attr.first, attr.second);
         }
 
         // prepare logical tensor
-        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-                0, {1, 1, 4, 4}, impl::data_type::f32);
-        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-                1, {1, 1, 3, 3}, impl::data_type::f32);
-        impl::logical_tensor_t bias_lt
-                = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-        impl::logical_tensor_t post_lt = utils::logical_tensor_init(
-                3, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-                4, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
-                5, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
-                6, {1, 1, 2, 2}, impl::data_type::f32);
+        graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 4, 4}, graph::data_type::f32);
+        graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, graph::data_type::f32);
+        graph::logical_tensor_t bias_lt = utils::logical_tensor_init(
+                2, dims {1}, graph::data_type::f32);
+        graph::logical_tensor_t post_lt = utils::logical_tensor_init(
+                3, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+                5, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
+                6, {1, 1, 2, 2}, graph::data_type::f32);
 
         in_op.add_output(post_lt);
         conv_op.add_input(src_lt);
@@ -2368,48 +2381,48 @@ TEST(Execute, ConvBiasAddEltwise) {
         eltwise_op.add_input(add_dst_lt);
         eltwise_op.add_output(eltwise_dst_lt);
 
-        impl::graph_t g(eng->kind());
+        graph::graph_t g(eng->kind());
         g.add_op(&in_op);
         g.add_op(&conv_op);
         g.add_op(&add_op);
         g.add_op(&eltwise_op);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
+        graph::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {
+        std::vector<const graph::logical_tensor_t *> inputs {
                 &src_lt, &weight_lt, &bias_lt, &post_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {&eltwise_dst_lt};
+        std::vector<const graph::logical_tensor_t *> outputs {&eltwise_dst_lt};
 
         p.compile(&cp, inputs, outputs, eng);
 
-        impl::logical_tensor_t lt;
+        graph::logical_tensor_t lt;
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
-        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+        ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, eng, src.data());
-        impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-        impl::tensor_t bias_ts(bias_lt, eng, param.bias.data());
-        impl::tensor_t post_src_ts(post_lt, eng, post_src.data());
-        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst.data());
+        graph::tensor_t src_ts(src_lt, eng, src.data());
+        graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+        graph::tensor_t bias_ts(bias_lt, eng, param.bias.data());
+        graph::tensor_t post_src_ts(post_lt, eng, post_src.data());
+        graph::tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst.data());
 
-        impl::stream_t *strm = get_stream();
+        graph::stream_t *strm = get_stream();
         cp.execute(strm, {src_ts, weight_ts, bias_ts, post_src_ts},
                 {eltwise_dst_ts});
         strm->wait();
         for (size_t i = 0; i < dst.size(); ++i) {
             // we noticed mish test has slightly accuracy issue on GPU or
             // AArch64 CPU..
-            if (eng->kind() == impl::engine_kind::gpu
+            if (eng->kind() == graph::engine_kind::gpu
                     || dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx) {
                 ASSERT_NEAR(dst[i], param.ref_dst[i], 1e-6);
             } else {
@@ -2423,7 +2436,7 @@ TEST(Execute, ConvAddEltwise) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
             2.5, -1.0, 0.0, 3.0, -2.0, -1.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
@@ -2434,47 +2447,47 @@ TEST(Execute, ConvAddEltwise) {
     std::vector<eltwise_param_t> params = {
             eltwise_param_t {"conv_post_ops_fusion", {0.0},
                     {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
-                    impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
+                    graph::op_kind::Elu, "Elu", {{graph::op_attr::alpha, 1.f}}},
             eltwise_param_t {"conv_post_ops_fusion", {0.0},
-                    {-0.06f, 3.5f, 4.0f, 1.5f}, impl::op_kind::LeakyReLU,
-                    "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
+                    {-0.06f, 3.5f, 4.0f, 1.5f}, graph::op_kind::LeakyReLU,
+                    "LeakyReLU", {{graph::op_attr::alpha, 0.02f}}},
             eltwise_param_t {"conv_post_ops_fusion", {0.0},
-                    mish_func({-3.0f, 3.5f, 4.0f, 1.5f}), impl::op_kind::Mish,
+                    mish_func({-3.0f, 3.5f, 4.0f, 1.5f}), graph::op_kind::Mish,
                     "Mish", {}},
             eltwise_param_t {"conv_post_ops_fusion", {0.0},
-                    {0.0, 3.5, 4.f, 1.5}, impl::op_kind::Clamp, "ReLU6",
-                    {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
+                    {0.0, 3.5, 4.f, 1.5}, graph::op_kind::Clamp, "ReLU6",
+                    {{graph::op_attr::min, 0.f}, {graph::op_attr::max, 6.f}}},
     };
 
     for (auto &param : params) {
-        impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
-        impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-        conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
-        conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-        conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
-        conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
-        conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-        impl::op_t add_op(2, impl::op_kind::Add, "Add");
-        impl::op_t eltwise_op(3, param.op_kind, param.op_name);
+        graph::op_t in_op(0, graph::op_kind::Wildcard, "Wildcard");
+        graph::op_t conv_op(1, graph::op_kind::Convolution, "Convolution");
+        conv_op.set_attr<dims>(graph::op_attr::strides, {1, 1});
+        conv_op.set_attr<dims>(graph::op_attr::dilations, {1, 1});
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, {0, 0});
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, {0, 0});
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+        graph::op_t add_op(2, graph::op_kind::Add, "Add");
+        graph::op_t eltwise_op(3, param.op_kind, param.op_name);
         for (auto &attr : param.attrs) {
             eltwise_op.set_attr<float>(attr.first, attr.second);
         }
 
         // prepare logical tensor
-        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-                0, {1, 1, 4, 4}, impl::data_type::f32);
-        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
-                1, {1, 1, 3, 3}, impl::data_type::f32);
-        impl::logical_tensor_t post_lt = utils::logical_tensor_init(
-                2, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-                3, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
-                4, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
-                5, {1, 1, 2, 2}, impl::data_type::f32);
+        graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 4, 4}, graph::data_type::f32);
+        graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {1, 1, 3, 3}, graph::data_type::f32);
+        graph::logical_tensor_t post_lt = utils::logical_tensor_init(
+                2, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                3, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+                4, {1, 1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
+                5, {1, 1, 2, 2}, graph::data_type::f32);
 
         in_op.add_output(post_lt);
         conv_op.add_input(src_lt);
@@ -2486,40 +2499,40 @@ TEST(Execute, ConvAddEltwise) {
         eltwise_op.add_input(add_dst_lt);
         eltwise_op.add_output(eltwise_dst_lt);
 
-        impl::graph_t g(eng->kind());
+        graph::graph_t g(eng->kind());
         g.add_op(&in_op);
         g.add_op(&conv_op);
         g.add_op(&add_op);
         g.add_op(&eltwise_op);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
+        graph::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {
+        std::vector<const graph::logical_tensor_t *> inputs {
                 &src_lt, &weight_lt, &post_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {&eltwise_dst_lt};
+        std::vector<const graph::logical_tensor_t *> outputs {&eltwise_dst_lt};
 
         p.compile(&cp, inputs, outputs, eng);
 
-        impl::logical_tensor_t lt;
+        graph::logical_tensor_t lt;
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
-        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+        ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, eng, src.data());
-        impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-        impl::tensor_t post_src_ts(post_lt, eng, post_src.data());
-        impl::tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst.data());
+        graph::tensor_t src_ts(src_lt, eng, src.data());
+        graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+        graph::tensor_t post_src_ts(post_lt, eng, post_src.data());
+        graph::tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst.data());
 
-        impl::stream_t *strm = get_stream();
+        graph::stream_t *strm = get_stream();
         cp.execute(strm, {src_ts, weight_ts, post_src_ts}, {eltwise_dst_ts});
         strm->wait();
         for (size_t i = 0; i < dst.size(); ++i) {
@@ -2529,10 +2542,10 @@ TEST(Execute, ConvAddEltwise) {
 }
 
 TEST(ExecuteSubgraphFp32, ConvDepthwise) {
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
-    SKIP_IF(engine->kind() == impl::engine_kind::gpu,
+    SKIP_IF(engine->kind() == graph::engine_kind::gpu,
             "Skip for GPU - not supported yet.");
 
     // N, IC, IH, IW
@@ -2561,23 +2574,23 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
     std::generate(dw_wei_data.begin(), dw_wei_data.end(),
             [&]() { return f32_distribution(generator); });
 
-    impl::op_t conv {0, impl::op_kind::Convolution, "conv"};
+    graph::op_t conv {0, graph::op_kind::Convolution, "conv"};
     utils::set_conv_dw_base_op_attr(conv);
 
-    impl::op_t depthwise {1, impl::op_kind::Convolution, "depthwise"};
+    graph::op_t depthwise {1, graph::op_kind::Convolution, "depthwise"};
     utils::set_conv_dw_post_op_attr(depthwise, dw_type);
 
-    impl::logical_tensor_t conv_src = utils::logical_tensor_init(
-            0, conv_src_shape, impl::data_type::f32);
-    impl::logical_tensor_t conv_wei = utils::logical_tensor_init(
-            1, conv_wei_shape, impl::data_type::f32);
-    impl::logical_tensor_t conv_dst = utils::logical_tensor_init(
-            2, conv_dst_shape, impl::data_type::f32);
+    graph::logical_tensor_t conv_src = utils::logical_tensor_init(
+            0, conv_src_shape, graph::data_type::f32);
+    graph::logical_tensor_t conv_wei = utils::logical_tensor_init(
+            1, conv_wei_shape, graph::data_type::f32);
+    graph::logical_tensor_t conv_dst = utils::logical_tensor_init(
+            2, conv_dst_shape, graph::data_type::f32);
 
-    impl::logical_tensor_t dw_wei
-            = utils::logical_tensor_init(3, dw_wei_shape, impl::data_type::f32);
-    impl::logical_tensor_t dw_dst
-            = utils::logical_tensor_init(4, dw_dst_shape, impl::data_type::f32);
+    graph::logical_tensor_t dw_wei = utils::logical_tensor_init(
+            3, dw_wei_shape, graph::data_type::f32);
+    graph::logical_tensor_t dw_dst = utils::logical_tensor_init(
+            4, dw_dst_shape, graph::data_type::f32);
 
     conv.add_input(conv_src);
     conv.add_input(conv_wei);
@@ -2587,42 +2600,42 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
     depthwise.add_input(dw_wei);
     depthwise.add_output(dw_dst);
 
-    impl::graph_t g(engine->kind());
+    graph::graph_t g(engine->kind());
     g.add_op(&conv);
     g.add_op(&depthwise);
     g.finalize();
 
-    impl::tensor_t conv_src_ts(conv_src, engine, src_data.data());
-    impl::tensor_t conv_wei_ts(conv_wei, engine, wei_data.data());
-    impl::tensor_t dw_wei_ts(dw_wei, engine, dw_wei_data.data());
+    graph::tensor_t conv_src_ts(conv_src, engine, src_data.data());
+    graph::tensor_t conv_wei_ts(conv_wei, engine, wei_data.data());
+    graph::tensor_t dw_wei_ts(dw_wei, engine, dw_wei_data.data());
 
     // -------------------------case 1----------------------------------
     test::vector<float> case1_out_data(product(dw_dst_shape));
-    impl::tensor_t dw_dst_ts(dw_dst, engine, case1_out_data.data());
+    graph::tensor_t dw_dst_ts(dw_dst, engine, case1_out_data.data());
 
     ASSERT_EQ(run_graph(g, {conv_src_ts, conv_wei_ts, dw_wei_ts}, {dw_dst_ts},
                       *engine, *strm),
-            impl::status::success);
+            graph::status::success);
 
     // -------------------------case 2----------------------------------
-    impl::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> lt_ins {
+    std::vector<const graph::logical_tensor_t *> lt_ins {
             &conv_src, &conv_wei, &dw_wei};
-    std::vector<const impl::logical_tensor_t *> lt_outs {&dw_dst};
+    std::vector<const graph::logical_tensor_t *> lt_outs {&dw_dst};
 
-    ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), impl::status::success);
+    ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
 
     test::vector<float> case2_out_data(product(dw_dst_shape));
-    impl::tensor_t dw_dst_ts2(dw_dst, engine, case2_out_data.data());
+    graph::tensor_t dw_dst_ts2(dw_dst, engine, case2_out_data.data());
 
     cp.execute(strm, {conv_src_ts, conv_wei_ts, dw_wei_ts}, {dw_dst_ts2});
     strm->wait();
@@ -2633,10 +2646,10 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
 }
 
 TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::vector<size_t> nds = {1, 2, 3};
     std::vector<int64_t> groups = {1};
@@ -2651,7 +2664,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (engine->kind() == impl::engine_kind::gpu
+        if (engine->kind() == graph::engine_kind::gpu
                 && (src_qtype == "asymmetric" || nd == 1))
             continue;
 
@@ -2704,40 +2717,41 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, nd)
 
-        impl::op_t qout_node(5, impl::op_kind::Quantize, "qout_node");
+        graph::op_t qout_node(5, graph::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
 
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_s8
-                = utils::logical_tensor_init(8, dst_shape, impl::data_type::s8);
-        impl::logical_tensor_t bias_f32;
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_s8 = utils::logical_tensor_init(
+                8, dst_shape, graph::data_type::s8);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -2754,30 +2768,30 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
         qout_node.add_input(dst_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
         g.add_op(&qout_node);
         g.finalize();
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
+        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_s8_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
@@ -2785,20 +2799,20 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32};
         else
             lt_ins = {&src_u8, &weight_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
 
-        ASSERT_EQ(
-                p.compile(&cp, lt_ins, lt_outs, engine), impl::status::success);
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                graph::status::success);
 
         if (with_bias)
             cp.execute(strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -2817,11 +2831,11 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
 }
 
 static inline void quantized_conv2d_eltwise(
-        impl::op_kind_t eltwise, const float *alpha, const float *beta) {
-    using dims = impl::dnnl_impl::dims;
+        graph::op_kind_t eltwise, const float *alpha, const float *beta) {
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::vector<int64_t> groups = {1, 4};
     std::vector<bool> with_biases = {true, false};
@@ -2871,47 +2885,48 @@ static inline void quantized_conv2d_eltwise(
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
 
-        impl::op_t eltwise_node(5, eltwise, "eltwise_node");
-        if (alpha) eltwise_node.set_attr<float>(impl::op_attr::alpha, *alpha);
-        if (beta) eltwise_node.set_attr<float>(impl::op_attr::beta, *beta);
+        graph::op_t eltwise_node(5, eltwise, "eltwise_node");
+        if (alpha) eltwise_node.set_attr<float>(graph::op_attr::alpha, *alpha);
+        if (beta) eltwise_node.set_attr<float>(graph::op_attr::beta, *beta);
 
-        impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
+        graph::op_t qout_node(6, graph::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
 
         // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_relu_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_s8
-                = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
-        impl::logical_tensor_t bias_f32;
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_relu_f32 = utils::logical_tensor_init(
+                8, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_s8 = utils::logical_tensor_init(
+                9, dst_shape, graph::data_type::s8);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -2931,7 +2946,7 @@ static inline void quantized_conv2d_eltwise(
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -2939,23 +2954,23 @@ static inline void quantized_conv2d_eltwise(
         g.add_op(&qout_node);
         g.finalize();
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
+        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_s8_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
@@ -2963,17 +2978,17 @@ static inline void quantized_conv2d_eltwise(
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32};
         else
             lt_ins = {&src_u8, &weight_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
@@ -2994,26 +3009,26 @@ static inline void quantized_conv2d_eltwise(
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dRelu) {
-    const impl::op_kind_t opk = impl::op_kind::ReLU;
+    const graph::op_kind_t opk = graph::op_kind::ReLU;
     quantized_conv2d_eltwise(opk, nullptr, nullptr);
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dLeakyRelu) {
-    const impl::op_kind_t opk = impl::op_kind::LeakyReLU;
+    const graph::op_kind_t opk = graph::op_kind::LeakyReLU;
     const float alpha = 0.02f;
     quantized_conv2d_eltwise(opk, &alpha, nullptr);
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dMish) {
-    const impl::op_kind_t opk = impl::op_kind::Mish;
+    const graph::op_kind_t opk = graph::op_kind::Mish;
     quantized_conv2d_eltwise(opk, nullptr, nullptr);
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     static auto isa = dnnl_get_effective_cpu_isa();
 
@@ -3071,60 +3086,63 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         int64_t zp_src = 0;
         // post-sum didn't support zps on GPU
         int64_t zp_other = other_qtype == "symmetric"
-                        || engine->kind() == impl::engine_kind::gpu
+                        || engine->kind() == graph::engine_kind::gpu
                 ? 0
                 : 128;
         // The following cmd will be skiped by benchdnn, since oneDNN didn't
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
-        impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
+        graph::op_t qout_node(6, graph::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
 
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        graph::op_t dqother_node(8, graph::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
+                graph::op_attr::zps, {zp_other});
         dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+        graph::op_t add_node(9, graph::op_kind::Add, "add_node");
 
         // prepare logical tensor
-        auto src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
+        auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+        auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+        auto weight_s8 = utils::logical_tensor_init(4, graph::data_type::s8);
         auto weight_f32_dq
-                = utils::logical_tensor_init(5, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
-        auto dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
-        auto dst_s8 = utils::logical_tensor_init(9, impl::data_type::s8);
-        auto other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
+                = utils::logical_tensor_init(5, graph::data_type::f32);
+        auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+        auto dst_relu_f32
+                = utils::logical_tensor_init(8, graph::data_type::f32);
+        auto dst_s8 = utils::logical_tensor_init(9, graph::data_type::s8);
+        auto other_s8 = utils::logical_tensor_init(11, graph::data_type::s8);
         auto other_f32_dq
-                = utils::logical_tensor_init(12, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+                = utils::logical_tensor_init(12, graph::data_type::f32);
+        auto dst_add_f32
+                = utils::logical_tensor_init(13, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
+            bias_f32 = utils::logical_tensor_init(6, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -3155,7 +3173,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -3166,36 +3184,36 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         g.finalize();
 
         // prepare in/out with full shape
-        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
         weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
+                4, weight_shape, graph::data_type::s8);
         other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
+                11, dst_shape, graph::data_type::s8);
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
         }
-        dst_s8 = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
+        dst_s8 = utils::logical_tensor_init(9, dst_shape, graph::data_type::s8);
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
+        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                           {dst_s8_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
@@ -3204,17 +3222,17 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32, &other_s8};
         else
             lt_ins = {&src_u8, &weight_s8, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
@@ -3237,10 +3255,10 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     static auto isa = dnnl_get_effective_cpu_isa();
 
@@ -3296,57 +3314,60 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
         dqweight_node.set_attr<int64_t>(
-                impl::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
+                graph::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
-        conv_node.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-        conv_node.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+        conv_node.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+        conv_node.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
-        impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
+        graph::op_t qout_node(6, graph::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
 
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        graph::op_t dqother_node(8, graph::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
+                graph::op_attr::zps, {zp_other});
         dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+        graph::op_t add_node(9, graph::op_kind::Add, "add_node");
 
         // prepare logical tensor
-        auto src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
+        auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+        auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+        auto weight_s8 = utils::logical_tensor_init(4, graph::data_type::s8);
         auto weight_f32_dq
-                = utils::logical_tensor_init(5, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
-        auto dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
-        auto dst_s8 = utils::logical_tensor_init(9, impl::data_type::s8);
-        auto other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
+                = utils::logical_tensor_init(5, graph::data_type::f32);
+        auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+        auto dst_relu_f32
+                = utils::logical_tensor_init(8, graph::data_type::f32);
+        auto dst_s8 = utils::logical_tensor_init(9, graph::data_type::s8);
+        auto other_s8 = utils::logical_tensor_init(11, graph::data_type::s8);
         auto other_f32_dq
-                = utils::logical_tensor_init(12, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+                = utils::logical_tensor_init(12, graph::data_type::f32);
+        auto dst_add_f32
+                = utils::logical_tensor_init(13, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
+            bias_f32 = utils::logical_tensor_init(6, graph::data_type::f32);
         }
 
         // -------------------------case 2----------------------------------
@@ -3374,7 +3395,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -3385,36 +3406,36 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         g.finalize();
 
         // prepare in/out with full shape
-        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
         weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
+                4, weight_shape, graph::data_type::s8);
         other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
+                11, dst_shape, graph::data_type::s8);
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
         }
-        dst_s8 = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
+        dst_s8 = utils::logical_tensor_init(9, dst_shape, graph::data_type::s8);
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
+        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                           {dst_s8_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
@@ -3423,17 +3444,17 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32, &other_s8};
         else
             lt_ins = {&src_u8, &weight_s8, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
@@ -3456,10 +3477,10 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
 }
 
 TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::vector<size_t> nds = {1, 2, 3};
     std::vector<int64_t> groups = {1};
@@ -3469,7 +3490,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine->kind() == impl::engine_kind::cpu,
+                    && engine->kind() == graph::engine_kind::cpu,
             "Skip the test for systems that do not support svx512_core_vnni.");
 
     for_(const auto &nd : nds)
@@ -3477,7 +3498,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (engine->kind() == impl::engine_kind::gpu
+        if (engine->kind() == graph::engine_kind::gpu
                 && (src_qtype == "asymmetric" || nd == 1))
             continue;
 
@@ -3529,28 +3550,29 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, nd)
 
         // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -3564,30 +3586,30 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
         if (with_bias) conv_node.add_input(bias_f32);
         conv_node.add_output(dst_f32);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
         g.finalize();
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
 
         // -------------------------case 1----------------------------------
         test::vector<float> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_f32, engine, case1_out_data.data());
+        graph::tensor_t dst_f32_ts(dst_f32, engine, case1_out_data.data());
 
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_f32_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
@@ -3595,22 +3617,23 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32};
         else
             lt_ins = {&src_u8, &weight_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_f32};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_f32};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         test::vector<float> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_case2_ts(dst_f32, engine, case2_out_data.data());
+        graph::tensor_t dst_f32_case2_ts(
+                dst_f32, engine, case2_out_data.data());
         if (with_bias)
             cp.execute(strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                     {dst_f32_case2_ts});
@@ -3628,10 +3651,10 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::vector<int64_t> groups = {1, 4};
     std::vector<bool> with_biases = {true, false};
@@ -3639,7 +3662,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine->kind() == impl::engine_kind::cpu,
+                    && engine->kind() == graph::engine_kind::cpu,
             "Skip the test for systems that do not support "
             "avx512_core_vnni.");
 
@@ -3685,34 +3708,35 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
         // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_relu_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_relu_f32 = utils::logical_tensor_init(
+                8, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -3729,32 +3753,32 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
         relu_node.add_input(dst_f32);
         relu_node.add_output(dst_relu_f32);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
         g.add_op(&relu_node);
         g.finalize();
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_relu_f32_ts(
+        graph::tensor_t dst_relu_f32_ts(
                 dst_relu_f32, engine, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(
+        graph::tensor_t dst_f32_case2_ts(
                 dst_relu_f32, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_relu_f32_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
@@ -3762,17 +3786,17 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32};
         else
             lt_ins = {&src_u8, &weight_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_relu_f32};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_relu_f32};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
@@ -3793,14 +3817,14 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine->kind() == impl::engine_kind::cpu,
+                    && engine->kind() == graph::engine_kind::cpu,
             "Skip the test for systems that do not support "
             "avx512_core_vnni.");
 
@@ -3857,42 +3881,45 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        graph::op_t dqother_node(8, graph::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
+                graph::op_attr::zps, {zp_other});
         dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+        graph::op_t add_node(9, graph::op_kind::Add, "add_node");
 
         // prepare logical tensor
-        auto src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
+        auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+        auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+        auto weight_s8 = utils::logical_tensor_init(4, graph::data_type::s8);
         auto weight_f32_dq
-                = utils::logical_tensor_init(5, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
-        auto dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
-        auto other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
+                = utils::logical_tensor_init(5, graph::data_type::f32);
+        auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+        auto dst_relu_f32
+                = utils::logical_tensor_init(8, graph::data_type::f32);
+        auto other_s8 = utils::logical_tensor_init(11, graph::data_type::s8);
         auto other_f32_dq
-                = utils::logical_tensor_init(12, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+                = utils::logical_tensor_init(12, graph::data_type::f32);
+        auto dst_add_f32
+                = utils::logical_tensor_init(13, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
+            bias_f32 = utils::logical_tensor_init(6, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -3916,7 +3943,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
         relu_node.add_input(dst_add_f32);
         relu_node.add_output(dst_relu_f32);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -3926,39 +3953,39 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
         g.finalize();
 
         // prepare in/out with full shape
-        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
         weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
+                4, weight_shape, graph::data_type::s8);
         other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
+                11, dst_shape, graph::data_type::s8);
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
         }
         dst_relu_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
+                8, dst_shape, graph::data_type::f32);
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_relu_f32_ts(
+        graph::tensor_t dst_relu_f32_ts(
                 dst_relu_f32, engine, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(
+        graph::tensor_t dst_f32_case2_ts(
                 dst_relu_f32, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                           {dst_relu_f32_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
@@ -3967,17 +3994,17 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32, &other_s8};
         else
             lt_ins = {&src_u8, &weight_s8, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_relu_f32};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_relu_f32};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
@@ -4000,14 +4027,14 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine->kind() == impl::engine_kind::cpu,
+                    && engine->kind() == graph::engine_kind::cpu,
             "Skip the test for systems that do not support "
             "avx512_core_vnni.");
 
@@ -4064,46 +4091,49 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
         dqweight_node.set_attr<int64_t>(
-                impl::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
+                graph::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
-        conv_node.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-        conv_node.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+        conv_node.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+        conv_node.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        graph::op_t dqother_node(8, graph::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
+                graph::op_attr::zps, {zp_other});
         dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+        graph::op_t add_node(9, graph::op_kind::Add, "add_node");
 
         // prepare logical tensor
-        auto src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
+        auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+        auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+        auto weight_s8 = utils::logical_tensor_init(4, graph::data_type::s8);
         auto weight_f32_dq
-                = utils::logical_tensor_init(5, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
-        auto dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
-        auto other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
+                = utils::logical_tensor_init(5, graph::data_type::f32);
+        auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+        auto dst_relu_f32
+                = utils::logical_tensor_init(8, graph::data_type::f32);
+        auto other_s8 = utils::logical_tensor_init(11, graph::data_type::s8);
         auto other_f32_dq
-                = utils::logical_tensor_init(12, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+                = utils::logical_tensor_init(12, graph::data_type::f32);
+        auto dst_add_f32
+                = utils::logical_tensor_init(13, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
+            bias_f32 = utils::logical_tensor_init(6, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -4127,7 +4157,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
         relu_node.add_input(dst_add_f32);
         relu_node.add_output(dst_relu_f32);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -4137,39 +4167,39 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
         g.finalize();
 
         // prepare in/out with full shape
-        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
         weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
+                4, weight_shape, graph::data_type::s8);
         other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
+                11, dst_shape, graph::data_type::s8);
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
         }
         dst_relu_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
+                8, dst_shape, graph::data_type::f32);
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_relu_f32_ts(
+        graph::tensor_t dst_relu_f32_ts(
                 dst_relu_f32, engine, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(
+        graph::tensor_t dst_f32_case2_ts(
                 dst_relu_f32, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                           {dst_relu_f32_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
@@ -4178,17 +4208,17 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_s8, &bias_f32, &other_s8};
         else
             lt_ins = {&src_u8, &weight_s8, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_relu_f32};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_relu_f32};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
@@ -4210,14 +4240,14 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
     }
 }
 TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine->kind() == impl::engine_kind::cpu,
+                    && engine->kind() == graph::engine_kind::cpu,
             "Skip the test for systems that do not support "
             "avx512_core_vnni.");
 
@@ -4277,56 +4307,57 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
         dqweight_node.set_attr<int64_t>(
-                impl::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
+                graph::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
-        conv_node.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-        conv_node.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+        conv_node.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+        conv_node.set_attr<std::string>(graph::op_attr::filter_format, "XIO");
 
-        impl::op_t dqother_node(5, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        graph::op_t dqother_node(5, graph::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
+                graph::op_attr::zps, {zp_other});
         dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t add_node(6, impl::op_kind::Add, "add_node");
+        graph::op_t add_node(6, graph::op_kind::Add, "add_node");
 
-        impl::op_t mul_node(7, impl::op_kind::Multiply, "mul_node");
+        graph::op_t mul_node(7, graph::op_kind::Multiply, "mul_node");
 
         // prepare logical tensor
-        auto src_u8
-                = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
+        auto src_u8 = utils::logical_tensor_init(
+                0, src_shape, graph::data_type::u8);
         auto src_f32_dq = utils::logical_tensor_init(
-                1, src_shape, impl::data_type::f32);
+                1, src_shape, graph::data_type::f32);
         auto weight_s8 = utils::logical_tensor_init(
-                2, weight_shape, impl::data_type::s8);
+                2, weight_shape, graph::data_type::s8);
         auto weight_f32_dq = utils::logical_tensor_init(
-                3, weight_shape, impl::data_type::f32);
+                3, weight_shape, graph::data_type::f32);
         auto dst_f32 = utils::logical_tensor_init(
-                4, dst_shape, impl::data_type::f32);
-        auto other_s8
-                = utils::logical_tensor_init(5, dst_shape, impl::data_type::s8);
+                4, dst_shape, graph::data_type::f32);
+        auto other_s8 = utils::logical_tensor_init(
+                5, dst_shape, graph::data_type::s8);
         auto other_f32_dq = utils::logical_tensor_init(
-                6, dst_shape, impl::data_type::f32);
+                6, dst_shape, graph::data_type::f32);
         auto dst_add_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
+                7, dst_shape, graph::data_type::f32);
         auto other_mul_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
+                8, dst_shape, graph::data_type::f32);
         auto dst_mul_f32 = utils::logical_tensor_init(
-                9, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+                9, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    10, bias_shape, impl::data_type::f32);
+                    10, bias_shape, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -4351,7 +4382,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
         mul_node.add_input(other_mul_f32);
         mul_node.add_output(dst_mul_f32);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -4360,18 +4391,18 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
         g.add_op(&mul_node);
         g.finalize();
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        impl::tensor_t other_mul_f32_ts
-                = impl::tensor_t(other_mul_f32, engine, other_mul_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
+        graph::tensor_t other_mul_f32_ts
+                = graph::tensor_t(other_mul_f32, engine, other_mul_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_f32_case1_ts(
+        graph::tensor_t dst_f32_case1_ts(
                 dst_mul_f32, engine, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(
+        graph::tensor_t dst_f32_case2_ts(
                 dst_mul_f32, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
@@ -4379,11 +4410,11 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts,
                                   other_mul_f32_ts},
                           {dst_f32_case1_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
@@ -4392,18 +4423,18 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {
                     &src_u8, &weight_s8, &bias_f32, &other_s8, &other_mul_f32};
         else
             lt_ins = {&src_u8, &weight_s8, &other_s8, &other_mul_f32};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_mul_f32};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_mul_f32};
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
@@ -4428,9 +4459,9 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
+    graph::engine_t *engine = get_engine();
 
     std::vector<int64_t> groups = {1, 4};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
@@ -4452,91 +4483,92 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         int64_t zp_src = 0;
         // post-sum didn't support zps on GPU
         int64_t zp_other = other_qtype == "symmetric"
-                        || engine->kind() == impl::engine_kind::gpu
+                        || engine->kind() == graph::engine_kind::gpu
                 ? 0
                 : 128;
         // The following cmd will be skiped by benchdnn, since oneDNN didn't
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
-        impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
+        graph::op_t qout_node(6, graph::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
 
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        graph::op_t dqother_node(8, graph::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
+                graph::op_attr::zps, {zp_other});
         dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+        graph::op_t add_node(9, graph::op_kind::Add, "add_node");
 
-        impl::op_t dqdata_node2(10, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node2(10, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node2)
 
-        impl::op_t dqweight_node2(
-                11, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node2(
+                11, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node2)
 
-        impl::op_t conv_node2(12, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node2(12, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node2, 2)
 
-        impl::op_t relu_node2(13, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node2(13, graph::op_kind::ReLU, "relu_node");
 
-        impl::op_t qout_node2(14, impl::op_kind::Quantize, "qout_node");
+        graph::op_t qout_node2(14, graph::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node2)
 
         // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_relu_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_s8
-                = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
-        impl::logical_tensor_t other_f32_dq = utils::logical_tensor_init(
-                12, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_add_f32 = utils::logical_tensor_init(
-                13, dst_shape, impl::data_type::f32);
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_relu_f32 = utils::logical_tensor_init(
+                8, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_s8 = utils::logical_tensor_init(
+                9, dst_shape, graph::data_type::s8);
+        graph::logical_tensor_t other_f32_dq = utils::logical_tensor_init(
+                12, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_add_f32 = utils::logical_tensor_init(
+                13, dst_shape, graph::data_type::f32);
 
-        impl::logical_tensor_t src_u8_2 = utils::logical_tensor_init(
-                14, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq_2 = utils::logical_tensor_init(
-                15, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8_2 = utils::logical_tensor_init(
-                16, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq_2 = utils::logical_tensor_init(
-                17, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_f32_2 = utils::logical_tensor_init(
-                18, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_s8_2 = utils::logical_tensor_init(
-                19, dst_shape, impl::data_type::s8);
+        graph::logical_tensor_t src_u8_2 = utils::logical_tensor_init(
+                14, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq_2 = utils::logical_tensor_init(
+                15, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8_2 = utils::logical_tensor_init(
+                16, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq_2 = utils::logical_tensor_init(
+                17, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_f32_2 = utils::logical_tensor_init(
+                18, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_s8_2 = utils::logical_tensor_init(
+                19, dst_shape, graph::data_type::s8);
 
         dqdata_node.add_input(src_u8);
         dqdata_node.add_output(src_f32_dq);
@@ -4574,7 +4606,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         qout_node2.add_input(dst_f32_2);
         qout_node2.add_output(dst_s8_2);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
@@ -4588,8 +4620,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         g.add_op(&qout_node2);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
@@ -4600,32 +4632,32 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         auto part1 = g.get_partitions()[1]; // int8_conv
 
         // compile
-        impl::partition_t p1, p2;
+        graph::partition_t p1, p2;
         p1.init(part1);
         p2.init(part2);
 
-        impl::compiled_partition_t cp1(p1);
-        impl::compiled_partition_t cp2(p2);
+        graph::compiled_partition_t cp1(p1);
+        graph::compiled_partition_t cp2(p2);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins1;
+        std::vector<const graph::logical_tensor_t *> lt_ins1;
         lt_ins1 = {&src_u8_2, &weight_s8_2};
 
-        dst_s8_2.layout_type = impl::layout_type::any;
-        std::vector<const impl::logical_tensor_t *> lt_outs1 {&dst_s8_2};
+        dst_s8_2.layout_type = graph::layout_type::any;
+        std::vector<const graph::logical_tensor_t *> lt_outs1 {&dst_s8_2};
 
         p1.compile(&cp1, lt_ins1, lt_outs1, engine);
 
         cp1.query_logical_tensor(dst_s8_2.id, &dst_s8_2);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         lt_ins = {&src_u8, &weight_s8, &dst_s8_2};
 
-        dst_s8.layout_type = impl::layout_type::any;
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+        dst_s8.layout_type = graph::layout_type::any;
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
 
         p2.compile(&cp2, lt_ins, lt_outs, engine);
 
-        std::vector<impl::inplace_pair_t> inplace_pairs
+        std::vector<graph::inplace_pair_t> inplace_pairs
                 = cp2.get_inplace_pairs();
 
         ASSERT_EQ(inplace_pairs.size(), 1U);
@@ -4636,8 +4668,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
 
 TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::string qtype = "per_channel";
     std::vector<int64_t> groups = {1, 4};
@@ -4675,64 +4707,65 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         float scale_out = 1 / 255.f; // map to 0~255
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 110;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 110;
 
-        impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
         dqdata_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
-        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
         dqweight_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, scale_wei);
-        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
-        impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
-        impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
+        graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+        graph::op_t tcweight_op {
+                3, graph::op_kind::TypeCast, "typecast_weight"};
 
-        impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
-        conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
-        conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
-        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
-        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
-        conv_op.set_attr<int64_t>(impl::op_attr::groups, g_);
-        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+        graph::op_t conv_op(4, graph::op_kind::Convolution, "conv_op");
+        conv_op.set_attr<dims>(graph::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-        impl::op_t tcdst_op {5, impl::op_kind::TypeCast, "typecast_dst"};
+        graph::op_t tcdst_op {5, graph::op_kind::TypeCast, "typecast_dst"};
 
-        impl::op_t qout_op(6, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        graph::op_t qout_op(6, graph::op_kind::Quantize, "qdout_op");
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_out});
-        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
         // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                1, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t src_bf16 = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::bf16);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                3, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::bf16);
-        impl::logical_tensor_t bias_bf16 = utils::logical_tensor_init(
-                6, bias_shape, impl::data_type::bf16);
-        impl::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::bf16);
-        impl::logical_tensor_t conv_f32 = utils::logical_tensor_init(
-                9, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_u8 = utils::logical_tensor_init(
-                10, dst_shape, impl::data_type::u8);
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                0, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t src_bf16 = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::bf16);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                3, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::bf16);
+        graph::logical_tensor_t bias_bf16 = utils::logical_tensor_init(
+                6, bias_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_f32 = utils::logical_tensor_init(
+                9, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_u8 = utils::logical_tensor_init(
+                10, dst_shape, graph::data_type::u8);
 
         dqdata_op.add_input(src_u8);
         dqdata_op.add_output(src_f32_dq);
@@ -4757,18 +4790,18 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         qout_op.add_input(conv_f32);
         qout_op.add_output(dst_u8);
 
-        impl::graph_t g(engine->kind());
-        ASSERT_EQ(g.add_op(&dqdata_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&dqweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&conv_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcdst_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
+        graph::graph_t g(engine->kind());
+        ASSERT_EQ(g.add_op(&dqdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&dqweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdst_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_bias_fusion_gpu"
                                 : "int8_conv_bias_fusion_cpu");
         apass->run(g);
@@ -4776,23 +4809,23 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins {
+        std::vector<const graph::logical_tensor_t *> lt_ins {
                 &src_u8, &weight_s8, &bias_bf16};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_u8};
 
-        ASSERT_EQ(
-                p.compile(&cp, lt_ins, lt_outs, engine), impl::status::success);
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                graph::status::success);
 
         test::vector<uint8_t> dst_data(product(dst_shape));
-        impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
-        impl::tensor_t bias_bf16_ts(bias_bf16, engine, bias_data.data());
-        impl::tensor_t dst_ts(dst_u8, engine, dst_data.data());
+        graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
+        graph::tensor_t bias_bf16_ts(bias_bf16, engine, bias_data.data());
+        graph::tensor_t dst_ts(dst_u8, engine, dst_data.data());
         cp.execute(strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts}, {dst_ts});
         strm->wait();
     }
@@ -4800,8 +4833,8 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
 
 TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::string qtype = "per_channel";
     std::vector<int64_t> groups = {1, 4};
@@ -4838,82 +4871,83 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         float scale_out = 1 / 255.f; // map to 0~255
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 110;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 110;
 
-        impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
         dqdata_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
-        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t qweight_op(10, impl::op_kind::Quantize, "qweight_op");
-        qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        graph::op_t qweight_op(10, graph::op_kind::Quantize, "qweight_op");
+        qweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
         qweight_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, scale_wei);
-        qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
-        impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
         dqweight_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, scale_wei);
-        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
-        impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
-        impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
+        graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+        graph::op_t tcweight_op {
+                3, graph::op_kind::TypeCast, "typecast_weight"};
 
-        impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
-        conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
-        conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
-        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
-        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
-        conv_op.set_attr<int64_t>(impl::op_attr::groups, g_);
-        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+        graph::op_t conv_op(4, graph::op_kind::Convolution, "conv_op");
+        conv_op.set_attr<dims>(graph::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-        impl::op_t tc_bias_op {5, impl::op_kind::TypeCast, "typecast_bias"};
+        graph::op_t tc_bias_op {5, graph::op_kind::TypeCast, "typecast_bias"};
 
-        impl::op_t biasadd_op {6, impl::op_kind::BiasAdd, "biasadd_op"};
-        biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        graph::op_t biasadd_op {6, graph::op_kind::BiasAdd, "biasadd_op"};
+        biasadd_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
 
-        impl::op_t tcdst_op {8, impl::op_kind::TypeCast, "typecast_dst"};
+        graph::op_t tcdst_op {8, graph::op_kind::TypeCast, "typecast_dst"};
 
-        impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        graph::op_t qout_op(9, graph::op_kind::Quantize, "qdout_op");
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_out});
-        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
         // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                1, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t src_bf16 = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::bf16);
-        impl::logical_tensor_t weight_f32 = utils::logical_tensor_init(
-                30, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                3, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::bf16);
-        impl::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
-                6, dst_shape, impl::data_type::bf16);
-        impl::logical_tensor_t bias_f32 = utils::logical_tensor_init(
-                7, bias_shape, impl::data_type::f32);
-        impl::logical_tensor_t bias_bf16 = utils::logical_tensor_init(
-                8, bias_shape, impl::data_type::bf16);
-        impl::logical_tensor_t bias_out_bf16 = utils::logical_tensor_init(
-                9, dst_shape, impl::data_type::bf16);
-        impl::logical_tensor_t conv_f32 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_u8 = utils::logical_tensor_init(
-                12, dst_shape, impl::data_type::u8);
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                0, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t src_bf16 = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::bf16);
+        graph::logical_tensor_t weight_f32 = utils::logical_tensor_init(
+                30, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                3, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
+                6, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t bias_f32 = utils::logical_tensor_init(
+                7, bias_shape, graph::data_type::f32);
+        graph::logical_tensor_t bias_bf16 = utils::logical_tensor_init(
+                8, bias_shape, graph::data_type::bf16);
+        graph::logical_tensor_t bias_out_bf16 = utils::logical_tensor_init(
+                9, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_f32 = utils::logical_tensor_init(
+                11, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_u8 = utils::logical_tensor_init(
+                12, dst_shape, graph::data_type::u8);
 
         dqdata_op.add_input(src_u8);
         dqdata_op.add_output(src_f32_dq);
@@ -4947,21 +4981,21 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         qout_op.add_input(conv_f32);
         qout_op.add_output(dst_u8);
 
-        impl::graph_t g(engine->kind());
-        ASSERT_EQ(g.add_op(&dqdata_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&qweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&dqweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&conv_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&biasadd_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tc_bias_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcdst_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
+        graph::graph_t g(engine->kind());
+        ASSERT_EQ(g.add_op(&dqdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&dqweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&biasadd_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tc_bias_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdst_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_bias_fusion_gpu"
                                 : "int8_conv_bias_fusion_cpu");
         apass->run(g);
@@ -4969,23 +5003,23 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins {
+        std::vector<const graph::logical_tensor_t *> lt_ins {
                 &src_u8, &weight_f32, &bias_f32};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_u8};
 
-        ASSERT_EQ(
-                p.compile(&cp, lt_ins, lt_outs, engine), impl::status::success);
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                graph::status::success);
 
         test::vector<uint8_t> dst_data(product(dst_shape));
-        impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-        impl::tensor_t weight_f32_ts(weight_f32, engine, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, engine, bias_data.data());
-        impl::tensor_t dst_ts(dst_u8, engine, dst_data.data());
+        graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
+        graph::tensor_t weight_f32_ts(weight_f32, engine, weight_data.data());
+        graph::tensor_t bias_f32_ts(bias_f32, engine, bias_data.data());
+        graph::tensor_t dst_ts(dst_u8, engine, dst_data.data());
         cp.execute(strm, {src_u8_ts, weight_f32_ts, bias_f32_ts}, {dst_ts});
         strm->wait();
     }
@@ -4993,8 +5027,8 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
 
 TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::string qtype = "per_channel";
     std::vector<int64_t> groups = {1, 4};
@@ -5032,68 +5066,69 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         float scale_out = 1 / 255.f; // map to 0~255
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 110;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 110;
 
-        impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
         dqdata_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
-        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
         dqweight_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, scale_wei);
-        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
-        impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
-        impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
+        graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+        graph::op_t tcweight_op {
+                3, graph::op_kind::TypeCast, "typecast_weight"};
 
-        impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
-        conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
-        conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
-        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
-        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
-        conv_op.set_attr<int64_t>(impl::op_attr::groups, g_);
-        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+        graph::op_t conv_op(4, graph::op_kind::Convolution, "conv_op");
+        conv_op.set_attr<dims>(graph::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-        impl::op_t gelu_op {5, impl::op_kind::GELU, "gelu_op"};
+        graph::op_t gelu_op {5, graph::op_kind::GELU, "gelu_op"};
 
-        impl::op_t tcdst_op {6, impl::op_kind::TypeCast, "typecast_dst"};
+        graph::op_t tcdst_op {6, graph::op_kind::TypeCast, "typecast_dst"};
 
-        impl::op_t qout_op(7, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        graph::op_t qout_op(7, graph::op_kind::Quantize, "qdout_op");
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_out});
-        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
         // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                1, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t src_bf16 = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::bf16);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                3, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::bf16);
-        impl::logical_tensor_t bias_bf16 = utils::logical_tensor_init(
-                6, bias_shape, impl::data_type::bf16);
-        impl::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::bf16);
-        impl::logical_tensor_t gelu_out_bf16 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::bf16);
-        impl::logical_tensor_t conv_f32 = utils::logical_tensor_init(
-                9, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_u8 = utils::logical_tensor_init(
-                10, dst_shape, impl::data_type::u8);
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                0, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t src_bf16 = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::bf16);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                3, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::bf16);
+        graph::logical_tensor_t bias_bf16 = utils::logical_tensor_init(
+                6, bias_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t gelu_out_bf16 = utils::logical_tensor_init(
+                8, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_f32 = utils::logical_tensor_init(
+                9, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_u8 = utils::logical_tensor_init(
+                10, dst_shape, graph::data_type::u8);
 
         dqdata_op.add_input(src_u8);
         dqdata_op.add_output(src_f32_dq);
@@ -5121,19 +5156,19 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         qout_op.add_input(conv_f32);
         qout_op.add_output(dst_u8);
 
-        impl::graph_t g(engine->kind());
-        ASSERT_EQ(g.add_op(&dqdata_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&dqweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&conv_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcdst_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
+        graph::graph_t g(engine->kind());
+        ASSERT_EQ(g.add_op(&dqdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&dqweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&gelu_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdst_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_bias_fusion_gpu"
                                 : "int8_conv_bias_fusion_cpu");
         apass->run(g);
@@ -5141,23 +5176,23 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins {
+        std::vector<const graph::logical_tensor_t *> lt_ins {
                 &src_u8, &weight_s8, &bias_bf16};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_u8};
 
-        ASSERT_EQ(
-                p.compile(&cp, lt_ins, lt_outs, engine), impl::status::success);
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                graph::status::success);
 
         test::vector<uint8_t> dst_data(product(dst_shape));
-        impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
-        impl::tensor_t bias_bf16_ts(bias_bf16, engine, bias_data.data());
-        impl::tensor_t dst_ts(dst_u8, engine, dst_data.data());
+        graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
+        graph::tensor_t weight_s8_ts(weight_s8, engine, weight_data.data());
+        graph::tensor_t bias_bf16_ts(bias_bf16, engine, bias_data.data());
+        graph::tensor_t dst_ts(dst_u8, engine, dst_data.data());
         cp.execute(strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts}, {dst_ts});
         strm->wait();
     }
@@ -5165,8 +5200,8 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
 
 TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::string qtype = "per_channel";
     std::vector<int64_t> groups = {1, 4};
@@ -5203,86 +5238,87 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         float scale_out = 1 / 255.f; // map to 0~255
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 110;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 110;
 
-        impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
         dqdata_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
-        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t qweight_op(10, impl::op_kind::Quantize, "qweight_op");
-        qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        graph::op_t qweight_op(10, graph::op_kind::Quantize, "qweight_op");
+        qweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
         qweight_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, scale_wei);
-        qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
-        impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
         dqweight_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, scale_wei);
-        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
-        impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
-        impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
+        graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+        graph::op_t tcweight_op {
+                3, graph::op_kind::TypeCast, "typecast_weight"};
 
-        impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
-        conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
-        conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
-        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
-        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
-        conv_op.set_attr<int64_t>(impl::op_attr::groups, g_);
-        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+        graph::op_t conv_op(4, graph::op_kind::Convolution, "conv_op");
+        conv_op.set_attr<dims>(graph::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-        impl::op_t tc_bias_op {5, impl::op_kind::TypeCast, "typecast_bias"};
+        graph::op_t tc_bias_op {5, graph::op_kind::TypeCast, "typecast_bias"};
 
-        impl::op_t biasadd_op {6, impl::op_kind::BiasAdd, "biasadd_op"};
-        biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        graph::op_t biasadd_op {6, graph::op_kind::BiasAdd, "biasadd_op"};
+        biasadd_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
 
-        impl::op_t gelu_op {7, impl::op_kind::GELU, "gelu_op"};
+        graph::op_t gelu_op {7, graph::op_kind::GELU, "gelu_op"};
 
-        impl::op_t tcdst_op {8, impl::op_kind::TypeCast, "typecast_dst"};
+        graph::op_t tcdst_op {8, graph::op_kind::TypeCast, "typecast_dst"};
 
-        impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        graph::op_t qout_op(9, graph::op_kind::Quantize, "qdout_op");
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_out});
-        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+                graph::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(graph::op_attr::axis, 1);
 
         // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                1, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t src_bf16 = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::bf16);
-        impl::logical_tensor_t weight_f32 = utils::logical_tensor_init(
-                30, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                3, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::bf16);
-        impl::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
-                6, dst_shape, impl::data_type::bf16);
-        impl::logical_tensor_t bias_f32 = utils::logical_tensor_init(
-                7, bias_shape, impl::data_type::f32);
-        impl::logical_tensor_t bias_bf16 = utils::logical_tensor_init(
-                8, bias_shape, impl::data_type::bf16);
-        impl::logical_tensor_t bias_out_bf16 = utils::logical_tensor_init(
-                9, dst_shape, impl::data_type::bf16);
-        impl::logical_tensor_t gelu_out_bf16 = utils::logical_tensor_init(
-                10, dst_shape, impl::data_type::bf16);
-        impl::logical_tensor_t conv_f32 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_u8 = utils::logical_tensor_init(
-                12, dst_shape, impl::data_type::u8);
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                0, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t src_bf16 = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::bf16);
+        graph::logical_tensor_t weight_f32 = utils::logical_tensor_init(
+                30, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                3, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
+                6, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t bias_f32 = utils::logical_tensor_init(
+                7, bias_shape, graph::data_type::f32);
+        graph::logical_tensor_t bias_bf16 = utils::logical_tensor_init(
+                8, bias_shape, graph::data_type::bf16);
+        graph::logical_tensor_t bias_out_bf16 = utils::logical_tensor_init(
+                9, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t gelu_out_bf16 = utils::logical_tensor_init(
+                10, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_f32 = utils::logical_tensor_init(
+                11, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_u8 = utils::logical_tensor_init(
+                12, dst_shape, graph::data_type::u8);
 
         dqdata_op.add_input(src_u8);
         dqdata_op.add_output(src_f32_dq);
@@ -5319,22 +5355,22 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         qout_op.add_input(conv_f32);
         qout_op.add_output(dst_u8);
 
-        impl::graph_t g(engine->kind());
-        ASSERT_EQ(g.add_op(&dqdata_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&qweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&dqweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&conv_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&biasadd_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tc_bias_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&tcdst_op), impl::status::success);
-        ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
+        graph::graph_t g(engine->kind());
+        ASSERT_EQ(g.add_op(&dqdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&dqweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&biasadd_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&gelu_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tc_bias_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdst_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_bias_fusion_gpu"
                                 : "int8_conv_bias_fusion_cpu");
         apass->run(g);
@@ -5342,23 +5378,23 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins {
+        std::vector<const graph::logical_tensor_t *> lt_ins {
                 &src_u8, &weight_f32, &bias_f32};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_u8};
 
-        ASSERT_EQ(
-                p.compile(&cp, lt_ins, lt_outs, engine), impl::status::success);
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                graph::status::success);
 
         test::vector<uint8_t> dst_data(product(dst_shape));
-        impl::tensor_t src_u8_ts(src_u8, engine, src_data.data());
-        impl::tensor_t weight_f32_ts(weight_f32, engine, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, engine, bias_data.data());
-        impl::tensor_t dst_ts(dst_u8, engine, dst_data.data());
+        graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
+        graph::tensor_t weight_f32_ts(weight_f32, engine, weight_data.data());
+        graph::tensor_t bias_f32_ts(bias_f32, engine, bias_data.data());
+        graph::tensor_t dst_ts(dst_u8, engine, dst_data.data());
         cp.execute(strm, {src_u8_ts, weight_f32_ts, bias_f32_ts}, {dst_ts});
         strm->wait();
     }
@@ -5367,7 +5403,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
 TEST(Execute, ConvSumSum) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
     test::vector<float> src1(1 * 8 * 112 * 112, 1.25);
     test::vector<float> weight(8 * 8 * 3 * 3, 1.25);
     test::vector<float> src2(1 * 8 * 110 * 110, 1.3);
@@ -5375,40 +5411,40 @@ TEST(Execute, ConvSumSum) {
     test::vector<float> ref_dst(1 * 8 * 110 * 110, 115.4);
     test::vector<float> dst(1 * 8 * 110 * 110, 0);
 
-    impl::op_t in_op1(0, impl::op_kind::Wildcard, "Wildcard");
-    impl::op_t in_op2(1, impl::op_kind::Wildcard, "Wildcard");
-    impl::op_t in_op3(2, impl::op_kind::Wildcard, "Wildcard");
-    impl::op_t conv_op(3, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
-    impl::op_t add_op1(4, impl::op_kind::Add, "Add");
-    add_op1.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
-    impl::op_t add_op2(5, impl::op_kind::Add, "Add");
-    add_op2.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
+    graph::op_t in_op1(0, graph::op_kind::Wildcard, "Wildcard");
+    graph::op_t in_op2(1, graph::op_kind::Wildcard, "Wildcard");
+    graph::op_t in_op3(2, graph::op_kind::Wildcard, "Wildcard");
+    graph::op_t conv_op(3, graph::op_kind::Convolution, "Convolution");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
+    graph::op_t add_op1(4, graph::op_kind::Add, "Add");
+    add_op1.set_attr<std::string>(graph::op_attr::auto_broadcast, "none");
+    graph::op_t add_op2(5, graph::op_kind::Add, "Add");
+    add_op2.set_attr<std::string>(graph::op_attr::auto_broadcast, "none");
 
     // prepare logical tensor
-    impl::logical_tensor_t src1_lt = utils::logical_tensor_init(
-            0, {1, 8, 112, 112}, impl::data_type::f32);
-    impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {8, 8, 3, 3}, impl::data_type::f32);
+    graph::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            0, {1, 8, 112, 112}, graph::data_type::f32);
+    graph::logical_tensor_t weight_lt = utils::logical_tensor_init(
+            1, {8, 8, 3, 3}, graph::data_type::f32);
 
-    impl::logical_tensor_t conv_lt = utils::logical_tensor_init(
-            2, {1, 8, 110, 110}, impl::data_type::f32);
-    impl::logical_tensor_t src2_lt = utils::logical_tensor_init(
-            3, {1, 8, 110, 110}, impl::data_type::f32);
+    graph::logical_tensor_t conv_lt = utils::logical_tensor_init(
+            2, {1, 8, 110, 110}, graph::data_type::f32);
+    graph::logical_tensor_t src2_lt = utils::logical_tensor_init(
+            3, {1, 8, 110, 110}, graph::data_type::f32);
 
-    impl::logical_tensor_t add1_lt = utils::logical_tensor_init(
-            4, {1, 8, 110, 110}, impl::data_type::f32);
-    impl::logical_tensor_t src3_lt = utils::logical_tensor_init(
-            5, {1, 8, 110, 110}, impl::data_type::f32);
+    graph::logical_tensor_t add1_lt = utils::logical_tensor_init(
+            4, {1, 8, 110, 110}, graph::data_type::f32);
+    graph::logical_tensor_t src3_lt = utils::logical_tensor_init(
+            5, {1, 8, 110, 110}, graph::data_type::f32);
 
-    impl::logical_tensor_t add2_lt = utils::logical_tensor_init(
-            6, {1, 8, 110, 110}, impl::data_type::f32);
+    graph::logical_tensor_t add2_lt = utils::logical_tensor_init(
+            6, {1, 8, 110, 110}, graph::data_type::f32);
 
     in_op1.add_output(src1_lt);
     conv_op.add_input(src1_lt);
@@ -5423,7 +5459,7 @@ TEST(Execute, ConvSumSum) {
     add_op2.add_input(src3_lt);
     add_op2.add_output(add2_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&in_op1);
     g.add_op(&in_op2);
     g.add_op(&in_op3);
@@ -5438,69 +5474,69 @@ TEST(Execute, ConvSumSum) {
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src1_lt, &weight_lt, &src2_lt, &src3_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&add2_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&add2_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
-    impl::logical_tensor_t lt;
+    graph::logical_tensor_t lt;
     cp.query_logical_tensor(add2_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    impl::tensor_t src1_ts(src1_lt, eng, src1.data());
-    impl::tensor_t src2_ts(src2_lt, eng, src2.data());
-    impl::tensor_t src3_ts(src3_lt, eng, src3.data());
-    impl::tensor_t weight_ts(weight_lt, eng, weight.data());
-    impl::tensor_t add2_ts(add2_lt, eng, dst.data());
+    graph::tensor_t src1_ts(src1_lt, eng, src1.data());
+    graph::tensor_t src2_ts(src2_lt, eng, src2.data());
+    graph::tensor_t src3_ts(src3_lt, eng, src3.data());
+    graph::tensor_t weight_ts(weight_lt, eng, weight.data());
+    graph::tensor_t add2_ts(add2_lt, eng, dst.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src1_ts, weight_ts, src2_ts, src3_ts}, {add2_ts});
     strm->wait();
 }
 
 TEST(Execute, ConvolutionBf16InFp32Out) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core
-                    && eng->kind() == impl::engine_kind::cpu,
+                    && eng->kind() == graph::engine_kind::cpu,
             "Skip bf16 examples for systems that do not support avx512_core.");
 
-    impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(0, graph::op_kind::Convolution, "conv");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-    impl::op_t add_op(1, impl::op_kind::Add, "add");
-    impl::op_t tc_op(2, impl::op_kind::TypeCast, "tc");
+    graph::op_t add_op(1, graph::op_kind::Add, "add");
+    graph::op_t tc_op(2, graph::op_kind::TypeCast, "tc");
 
     // prepare logical tensor
-    impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
-            0, {8, 32, 16, 16}, impl::data_type::bf16);
-    impl::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
-            1, {32, 32, 1, 1}, impl::data_type::bf16);
-    impl::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
-            2, {8, 32, 16, 16}, impl::data_type::bf16);
-    impl::logical_tensor_t post_src_lt = utils::logical_tensor_init(
-            3, {8, 32, 16, 16}, impl::data_type::bf16);
-    impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
-            4, {8, 32, 16, 16}, impl::data_type::bf16);
-    impl::logical_tensor_t tc_dst_lt = utils::logical_tensor_init(
-            5, {8, 32, 16, 16}, impl::data_type::f32);
+    graph::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
+            0, {8, 32, 16, 16}, graph::data_type::bf16);
+    graph::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
+            1, {32, 32, 1, 1}, graph::data_type::bf16);
+    graph::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {8, 32, 16, 16}, graph::data_type::bf16);
+    graph::logical_tensor_t post_src_lt = utils::logical_tensor_init(
+            3, {8, 32, 16, 16}, graph::data_type::bf16);
+    graph::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+            4, {8, 32, 16, 16}, graph::data_type::bf16);
+    graph::logical_tensor_t tc_dst_lt = utils::logical_tensor_init(
+            5, {8, 32, 16, 16}, graph::data_type::f32);
 
     // Initialize
     test::vector<uint16_t> conv_src(8 * 32 * 16 * 16, 3);
@@ -5508,10 +5544,10 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
     test::vector<uint16_t> post_src(8 * 32 * 16 * 16, 1);
     test::vector<float> tc_dst(8 * 32 * 16 * 16, 0.0);
 
-    impl::tensor_t conv_src_ts(conv_src_lt, eng, conv_src.data());
-    impl::tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight.data());
-    impl::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
-    impl::tensor_t tc_dst_ts(tc_dst_lt, eng, tc_dst.data());
+    graph::tensor_t conv_src_ts(conv_src_lt, eng, conv_src.data());
+    graph::tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight.data());
+    graph::tensor_t post_src_ts(post_src_lt, eng, post_src.data());
+    graph::tensor_t tc_dst_ts(tc_dst_lt, eng, tc_dst.data());
 
     conv_op.add_input(conv_src_lt);
     conv_op.add_input(conv_weight_lt);
@@ -5522,7 +5558,7 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
     tc_op.add_input(add_dst_lt);
     tc_op.add_output(tc_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&add_op);
     g.add_op(&tc_op);
@@ -5531,29 +5567,29 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
     //run unfused graph to compute the reference
     ASSERT_EQ(run_graph(g, {conv_src_ts, conv_weight_ts, post_src_ts},
                       {tc_dst_ts}, *eng, *strm),
-            impl::status::success);
+            graph::status::success);
 
     // run fusion partition
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     ASSERT_EQ(part->get_ops().size(), 3U);
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
 
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &conv_src_lt, &conv_weight_lt, &post_src_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&tc_dst_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&tc_dst_lt};
 
     p.compile(&cp, inputs, outputs, eng);
 
     test::vector<float> convtc_dst(8 * 32 * 16 * 16, 0.0);
-    impl::tensor_t convtc_dst_ts(tc_dst_lt, eng, convtc_dst.data());
+    graph::tensor_t convtc_dst_ts(tc_dst_lt, eng, convtc_dst.data());
 
     cp.execute(
             strm, {conv_src_ts, conv_weight_ts, post_src_ts}, {convtc_dst_ts});
@@ -5565,10 +5601,10 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
 }
 
 TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     std::vector<int64_t> groups = {1, 4};
     std::vector<bool> with_biases = {true, false};
@@ -5622,57 +5658,60 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t qweight_node(2, impl::op_kind::Quantize, "qweight_node");
+        graph::op_t qweight_node(2, graph::op_kind::Quantize, "qweight_node");
         SET_Q_DQ_WEIGHT_ATTR(qweight_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
-        impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
+        graph::op_t qout_node(6, graph::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
 
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        graph::op_t dqother_node(8, graph::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
+                graph::op_attr::zps, {zp_other});
         dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+        graph::op_t add_node(9, graph::op_kind::Add, "add_node");
 
         // prepare logical tensor
-        auto src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
-        auto weight_f32 = utils::logical_tensor_init(3, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
+        auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+        auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+        auto weight_f32 = utils::logical_tensor_init(3, graph::data_type::f32);
+        auto weight_s8 = utils::logical_tensor_init(4, graph::data_type::s8);
         auto weight_f32_dq
-                = utils::logical_tensor_init(5, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
-        auto dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
-        auto dst_s8 = utils::logical_tensor_init(9, impl::data_type::s8);
-        auto other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
+                = utils::logical_tensor_init(5, graph::data_type::f32);
+        auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+        auto dst_relu_f32
+                = utils::logical_tensor_init(8, graph::data_type::f32);
+        auto dst_s8 = utils::logical_tensor_init(9, graph::data_type::s8);
+        auto other_s8 = utils::logical_tensor_init(11, graph::data_type::s8);
         auto other_f32_dq
-                = utils::logical_tensor_init(12, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+                = utils::logical_tensor_init(12, graph::data_type::f32);
+        auto dst_add_f32
+                = utils::logical_tensor_init(13, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
+            bias_f32 = utils::logical_tensor_init(6, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -5702,7 +5741,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&qweight_node);
         g.add_op(&dqweight_node);
@@ -5714,41 +5753,41 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         g.finalize();
 
         // prepare in/out with full shape
-        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
         weight_f32 = utils::logical_tensor_init(
-                3, weight_shape, impl::data_type::f32);
+                3, weight_shape, graph::data_type::f32);
         // set weight to be constant
-        weight_f32.property = impl::property_type::constant;
-        dst_s8 = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
+        weight_f32.property = graph::property_type::constant;
+        dst_s8 = utils::logical_tensor_init(9, dst_shape, graph::data_type::s8);
         other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
+                11, dst_shape, graph::data_type::s8);
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
             // set bias to be constant
-            bias_f32.property = impl::property_type::constant;
+            bias_f32.property = graph::property_type::constant;
         }
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_f32_ts(
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_f32_ts(
                 weight_f32, engine, weight_f32_data.data());
-        impl::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+        graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
+        graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_f32_ts, bias_f32_ts, other_s8_ts},
                           {dst_s8_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
@@ -5757,20 +5796,20 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_f32, &bias_f32, &other_s8};
         else
             lt_ins = {&src_u8, &weight_f32, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
 
-        impl::status_t ret = p.compile(&cp, lt_ins, lt_outs, engine);
-        ASSERT_EQ(ret, impl::status::success);
+        graph::status_t ret = p.compile(&cp, lt_ins, lt_outs, engine);
+        ASSERT_EQ(ret, graph::status::success);
 
         // single thread
         for (size_t iter = 0; iter < 5; iter++) {
@@ -5798,13 +5837,13 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
 
 TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
     static auto isa = dnnl_get_effective_cpu_isa();
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *engine = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
 
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine->kind() == impl::engine_kind::cpu,
+                    && engine->kind() == graph::engine_kind::cpu,
             "Skip u8+s8 examples for systems that do not support "
             "avx512_core_vnni.");
 
@@ -5860,57 +5899,60 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == impl::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+        graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
-        impl::op_t qweight_node(2, impl::op_kind::Quantize, "qweight_node");
+        graph::op_t qweight_node(2, graph::op_kind::Quantize, "qweight_node");
         SET_Q_DQ_WEIGHT_ATTR(qweight_node)
 
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+        graph::op_t dqweight_node(
+                3, graph::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
 
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+        graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
-        impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
+        graph::op_t qout_node(6, graph::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
 
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        graph::op_t dqother_node(8, graph::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
+                graph::op_attr::zps, {zp_other});
         dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+                graph::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+        graph::op_t add_node(9, graph::op_kind::Add, "add_node");
 
         // prepare logical tensor
-        auto src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
-        auto weight_f32 = utils::logical_tensor_init(3, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
+        auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+        auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+        auto weight_f32 = utils::logical_tensor_init(3, graph::data_type::f32);
+        auto weight_s8 = utils::logical_tensor_init(4, graph::data_type::s8);
         auto weight_f32_dq
-                = utils::logical_tensor_init(5, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
-        auto dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
-        auto dst_u8 = utils::logical_tensor_init(9, impl::data_type::u8);
-        auto other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
+                = utils::logical_tensor_init(5, graph::data_type::f32);
+        auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+        auto dst_relu_f32
+                = utils::logical_tensor_init(8, graph::data_type::f32);
+        auto dst_u8 = utils::logical_tensor_init(9, graph::data_type::u8);
+        auto other_s8 = utils::logical_tensor_init(11, graph::data_type::s8);
         auto other_f32_dq
-                = utils::logical_tensor_init(12, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
+                = utils::logical_tensor_init(12, graph::data_type::f32);
+        auto dst_add_f32
+                = utils::logical_tensor_init(13, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32;
         if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
+            bias_f32 = utils::logical_tensor_init(6, graph::data_type::f32);
         }
 
         dqdata_node.add_input(src_u8);
@@ -5940,7 +5982,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_u8);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&dqdata_node);
         g.add_op(&qweight_node);
         g.add_op(&dqweight_node);
@@ -5952,41 +5994,41 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
         g.finalize();
 
         // prepare in/out with full shape
-        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
         weight_f32 = utils::logical_tensor_init(
-                3, weight_shape, impl::data_type::f32);
+                3, weight_shape, graph::data_type::f32);
         // set weight to be constant
-        weight_f32.property = impl::property_type::constant;
-        dst_u8 = utils::logical_tensor_init(9, dst_shape, impl::data_type::u8);
+        weight_f32.property = graph::property_type::constant;
+        dst_u8 = utils::logical_tensor_init(9, dst_shape, graph::data_type::u8);
         other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
+                11, dst_shape, graph::data_type::s8);
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
+                    6, bias_shape, graph::data_type::f32);
             // set bias to be constant
-            bias_f32.property = impl::property_type::constant;
+            bias_f32.property = graph::property_type::constant;
         }
 
-        impl::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
-        impl::tensor_t weight_f32_ts(
+        graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+        graph::tensor_t weight_f32_ts(
                 weight_f32, engine, weight_f32_data.data());
-        impl::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
-        impl::tensor_t bias_f32_ts;
+        graph::tensor_t other_s8_ts(other_s8, engine, other_s8_data.data());
+        graph::tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, engine, bias_data.data());
+            bias_f32_ts = graph::tensor_t(bias_f32, engine, bias_data.data());
         }
-        impl::tensor_t dst_u8_ts(dst_u8, engine, case1_out_data.data());
-        impl::tensor_t dst_u8_case2_ts(dst_u8, engine, case2_out_data.data());
+        graph::tensor_t dst_u8_ts(dst_u8, engine, case1_out_data.data());
+        graph::tensor_t dst_u8_case2_ts(dst_u8, engine, case2_out_data.data());
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_f32_ts, bias_f32_ts, other_s8_ts},
                           {dst_u8_ts}, *engine, *strm),
-                impl::status::success);
+                graph::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == impl::engine_kind::gpu
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
@@ -5995,20 +6037,20 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> lt_ins;
+        std::vector<const graph::logical_tensor_t *> lt_ins;
         if (with_bias)
             lt_ins = {&src_u8, &weight_f32, &bias_f32, &other_s8};
         else
             lt_ins = {&src_u8, &weight_f32, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_u8};
 
-        impl::status_t ret = p.compile(&cp, lt_ins, lt_outs, engine);
-        ASSERT_EQ(ret, impl::status::success);
+        graph::status_t ret = p.compile(&cp, lt_ins, lt_outs, engine);
+        ASSERT_EQ(ret, graph::status::success);
 
         // single thread
         for (size_t iter = 0; iter < 5; iter++) {
@@ -6027,32 +6069,32 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
 }
 
 TEST(Execute, ConvReluUnfused) {
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
-    impl::engine_t *eng = get_engine();
-    impl::stream_t *strm = get_stream();
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
 
-    impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
-    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
-    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
-    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    graph::op_t conv_op(0, graph::op_kind::Convolution, "conv");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::filter_format, "OIX");
 
-    impl::op_t relu_op(1, impl::op_kind::ReLU, "relu");
+    graph::op_t relu_op(1, graph::op_kind::ReLU, "relu");
 
     // prepare logical tensor
-    impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
-            0, {8, 32, 16, 16}, impl::data_type::f32);
-    impl::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
-            1, {32, 32, 1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
-            2, {8, 32, 16, 16}, impl::data_type::f32, impl::layout_type::any);
-    impl::logical_tensor_t relu_dst_lt = utils::logical_tensor_init(
-            3, {8, 32, 16, 16}, impl::data_type::f32);
+    graph::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
+            0, {8, 32, 16, 16}, graph::data_type::f32);
+    graph::logical_tensor_t conv_weight_lt = utils::logical_tensor_init(
+            1, {32, 32, 1, 1}, graph::data_type::f32);
+    graph::logical_tensor_t conv_dst_lt = utils::logical_tensor_init(
+            2, {8, 32, 16, 16}, graph::data_type::f32, graph::layout_type::any);
+    graph::logical_tensor_t relu_dst_lt = utils::logical_tensor_init(
+            3, {8, 32, 16, 16}, graph::data_type::f32);
 
     conv_op.add_input(conv_src_lt);
     conv_op.add_input(conv_weight_lt);
@@ -6060,7 +6102,7 @@ TEST(Execute, ConvReluUnfused) {
     relu_op.add_input(conv_dst_lt);
     relu_op.add_output(relu_dst_lt);
 
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     g.add_op(&conv_op);
     g.add_op(&relu_op);
     g.finalize();
@@ -6069,14 +6111,14 @@ TEST(Execute, ConvReluUnfused) {
     test::vector<float> conv_weight(32 * 32 * 1 * 1, 1);
     test::vector<float> relu_dst(8 * 32 * 16 * 16, 1);
 
-    impl::tensor_t conv_src_ts(conv_src_lt, eng, conv_src.data());
-    impl::tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight.data());
-    impl::tensor_t relu_dst_ts(relu_dst_lt, eng, relu_dst.data());
+    graph::tensor_t conv_src_ts(conv_src_lt, eng, conv_src.data());
+    graph::tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight.data());
+    graph::tensor_t relu_dst_ts(relu_dst_lt, eng, relu_dst.data());
 
     // run unfused graph to compute the reference
     ASSERT_EQ(run_graph(g, {conv_src_ts, conv_weight_ts}, {relu_dst_ts}, *eng,
                       *strm),
-            impl::status::success);
+            graph::status::success);
 
     for (size_t i = 0; i < relu_dst.size(); ++i) {
         ASSERT_FLOAT_EQ(relu_dst[i], 32);

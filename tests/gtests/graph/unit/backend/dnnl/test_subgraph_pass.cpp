@@ -40,6 +40,8 @@ using namespace dnnl::impl::graph;
 using namespace dnnl::impl::graph::op_kind;
 using namespace dnnl::graph::tests::unit::utils;
 
+namespace graph = dnnl::impl::graph;
+
 using op_ptr = std::shared_ptr<dnnl::impl::graph::op_t>;
 
 namespace {
@@ -140,7 +142,7 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_convolution_post_ops);
+            graph::partition_kind::quantized_convolution_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
 
@@ -278,7 +280,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            graph::partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
 
@@ -353,9 +355,9 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
            quant
              | (u8/s8)
     */
-    using dims = impl::dnnl_impl::dims;
+    using dims = graph::dnnl_impl::dims;
 
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 
     int64_t groups = 4;
@@ -377,25 +379,25 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     std::vector<float> scale_wei(1, 1 / 127.f);
     std::vector<int64_t> zp_wei(1, 0);
 
-    impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
+    graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
     dqdata_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
     dqdata_node.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_src});
     dqdata_node.set_attr<std::vector<float>>(op_attr::scales, {scale_src});
     dqdata_node.set_attr<int64_t>(op_attr::axis, 0);
 
-    impl::op_t qweight_node(10, impl::op_kind::Quantize, "qweight_node");
+    graph::op_t qweight_node(10, graph::op_kind::Quantize, "qweight_node");
     qweight_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
     qweight_node.set_attr<std::vector<int64_t>>(op_attr::zps, zp_wei);
     qweight_node.set_attr<std::vector<float>>(op_attr::scales, scale_wei);
     qweight_node.set_attr<int64_t>(op_attr::axis, 0);
 
-    impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
+    graph::op_t dqweight_node(3, graph::op_kind::Dequantize, "dqweight_node");
     dqweight_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
     dqweight_node.set_attr<std::vector<int64_t>>(op_attr::zps, zp_wei);
     dqweight_node.set_attr<std::vector<float>>(op_attr::scales, scale_wei);
     dqweight_node.set_attr<int64_t>(op_attr::axis, 0);
 
-    impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
+    graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
     conv_node.set_attr<dims>(op_attr::strides, dims(2, 1));
     conv_node.set_attr<dims>(op_attr::dilations, dims(2, 1));
     conv_node.set_attr<dims>(op_attr::pads_begin, dims(2, 0));
@@ -404,38 +406,39 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     conv_node.set_attr<std::string>(op_attr::data_format, "NXC");
     conv_node.set_attr<std::string>(op_attr::filter_format, "XIO");
 
-    impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+    graph::op_t relu_node(5, graph::op_kind::ReLU, "relu_node");
 
-    impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
+    graph::op_t qout_node(6, graph::op_kind::Quantize, "qout_node");
     qout_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
     qout_node.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_out});
     qout_node.set_attr<std::vector<float>>(op_attr::scales, {scale_out});
     qout_node.set_attr<int64_t>(op_attr::axis, 0);
 
-    impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
+    graph::op_t dqother_node(8, graph::op_kind::Dequantize, "dqother_node");
     dqother_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
     dqother_node.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_other});
     dqother_node.set_attr<std::vector<float>>(op_attr::scales, {scale_other});
     dqother_node.set_attr<int64_t>(op_attr::axis, 0);
 
-    impl::op_t add_node(9, impl::op_kind::Add, "add_node");
+    graph::op_t add_node(9, graph::op_kind::Add, "add_node");
 
-    logical_tensor_t src_u8 = logical_tensor_init(1, impl::data_type::u8);
-    logical_tensor_t src_f32_dq = logical_tensor_init(2, impl::data_type::f32);
-    logical_tensor_t weight_f32 = logical_tensor_init(20, impl::data_type::f32);
-    logical_tensor_t weight_s8 = logical_tensor_init(4, impl::data_type::s8);
+    logical_tensor_t src_u8 = logical_tensor_init(1, graph::data_type::u8);
+    logical_tensor_t src_f32_dq = logical_tensor_init(2, graph::data_type::f32);
+    logical_tensor_t weight_f32
+            = logical_tensor_init(20, graph::data_type::f32);
+    logical_tensor_t weight_s8 = logical_tensor_init(4, graph::data_type::s8);
     logical_tensor_t weight_f32_dq
-            = logical_tensor_init(5, impl::data_type::f32);
-    logical_tensor_t dst_f32 = logical_tensor_init(7, impl::data_type::f32);
+            = logical_tensor_init(5, graph::data_type::f32);
+    logical_tensor_t dst_f32 = logical_tensor_init(7, graph::data_type::f32);
     logical_tensor_t dst_relu_f32
-            = logical_tensor_init(8, impl::data_type::f32);
-    logical_tensor_t dst_s8 = logical_tensor_init(9, impl::data_type::s8);
-    logical_tensor_t other_s8 = logical_tensor_init(11, impl::data_type::s8);
+            = logical_tensor_init(8, graph::data_type::f32);
+    logical_tensor_t dst_s8 = logical_tensor_init(9, graph::data_type::s8);
+    logical_tensor_t other_s8 = logical_tensor_init(11, graph::data_type::s8);
     logical_tensor_t other_f32_dq
-            = logical_tensor_init(12, impl::data_type::f32);
+            = logical_tensor_init(12, graph::data_type::f32);
     logical_tensor_t dst_add_f32
-            = logical_tensor_init(13, impl::data_type::f32);
-    logical_tensor_t bias_f32 = logical_tensor_init(6, impl::data_type::f32);
+            = logical_tensor_init(13, graph::data_type::f32);
+    logical_tensor_t bias_f32 = logical_tensor_init(6, graph::data_type::f32);
 
     dqdata_node.add_input(src_u8);
     dqdata_node.add_output(src_f32_dq);
@@ -464,7 +467,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     qout_node.add_input(dst_relu_f32);
     qout_node.add_output(dst_s8);
 
-    impl::graph_t g;
+    graph::graph_t g;
     g.add_op(&dqdata_node);
     g.add_op(&qweight_node);
     g.add_op(&dqweight_node);
@@ -482,14 +485,14 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
-    src_u8 = logical_tensor_init(1, src_shape, impl::data_type::u8);
-    weight_f32 = logical_tensor_init(20, weight_shape, impl::data_type::f32);
-    bias_f32 = logical_tensor_init(6, bias_shape, impl::data_type::f32);
-    other_s8 = logical_tensor_init(11, dst_shape, impl::data_type::s8);
-    dst_s8 = logical_tensor_init(9, dst_shape, impl::data_type::s8);
+    src_u8 = logical_tensor_init(1, src_shape, graph::data_type::u8);
+    weight_f32 = logical_tensor_init(20, weight_shape, graph::data_type::f32);
+    bias_f32 = logical_tensor_init(6, bias_shape, graph::data_type::f32);
+    other_s8 = logical_tensor_init(11, dst_shape, graph::data_type::s8);
+    dst_s8 = logical_tensor_init(9, dst_shape, graph::data_type::s8);
 
-    weight_f32.property = impl::property_type::constant;
-    bias_f32.property = impl::property_type::constant;
+    weight_f32.property = graph::property_type::constant;
+    bias_f32.property = graph::property_type::constant;
 
     auto subgraph
             = std::make_shared<dnnl_impl::subgraph_t>(part->get_ops(), p_eng);
@@ -510,20 +513,20 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     // output shape is not must
     ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(subgraph, inputs,
-                      {logical_tensor_init(
-                              9, impl::data_type::s8, impl::layout_type::any)}),
+                      {logical_tensor_init(9, graph::data_type::s8,
+                              graph::layout_type::any)}),
             status::success);
 
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
 
     for (auto &val : subgraph->get_input_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        ASSERT_FALSE(graph::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     for (auto &val : subgraph->get_output_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        ASSERT_FALSE(graph::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     dnnl_impl::lower_down(subgraph);
@@ -567,18 +570,18 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     ASSERT_EQ(subgraph->get_ops().size(), 8U);
 
     // infer shape/type, layout propagation and memory binding
-    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+    ASSERT_EQ(subgraph->infer_shape(), graph::status::success);
 
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
 
     // since we insert Reorder ops during layout propagation, here need
     // do shape inference and type inference again
-    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+    ASSERT_EQ(subgraph->infer_shape(), graph::status::success);
 
     for (auto &cur_op : subgraph->get_ops()) {
         for (auto &val : cur_op->get_input_values()) {
             auto lt = val->get_logical_tensor();
-            impl::logical_tensor_wrapper_t ltw(lt);
+            graph::logical_tensor_wrapper_t ltw(lt);
             ASSERT_FALSE(ltw.is_shape_unknown());
             ASSERT_NE(ltw.layout_type(), layout_type::undef);
             ASSERT_NE(ltw.layout_type(), layout_type::any);
@@ -586,7 +589,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
         }
 
         auto lt = cur_op->get_output_value(0)->get_logical_tensor();
-        impl::logical_tensor_wrapper_t ltw(lt);
+        graph::logical_tensor_wrapper_t ltw(lt);
 
         ASSERT_FALSE(ltw.is_shape_unknown());
         // inserted reorder's logical tensor is not set to new data type
@@ -599,7 +602,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     dnnl_impl::constant_propagation(subgraph);
 
     dnnl_impl::memory_planner_t memory_planner;
-    ASSERT_EQ(memory_planner.run(subgraph), impl::status::success);
+    ASSERT_EQ(memory_planner.run(subgraph), graph::status::success);
 
     ASSERT_GE(memory_planner.total_internal_persistent_size(), 0U);
     ASSERT_GE(memory_planner.total_internal_temporary_size(), 0U);
@@ -613,9 +616,9 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     }
     ASSERT_EQ(unique_offkeys.size(), 2U);
 
-    std::vector<impl::op_t *> topo_ordered_ops;
+    std::vector<graph::op_t *> topo_ordered_ops;
     dnnl::impl::graph::topo_order_visit(
-            subgraph->get_output_ops(), [&](impl::op_t *op) {
+            subgraph->get_output_ops(), [&](graph::op_t *op) {
                 topo_ordered_ops.emplace_back(op);
                 return status::success;
             });
@@ -644,10 +647,10 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 }
 
 struct matmul_params_t {
-    std::vector<impl::dim_t> src_shape;
-    std::vector<impl::dim_t> weight_shape;
-    std::vector<impl::dim_t> bias_shape;
-    std::vector<impl::dim_t> dst_shape;
+    std::vector<graph::dim_t> src_shape;
+    std::vector<graph::dim_t> weight_shape;
+    std::vector<graph::dim_t> bias_shape;
+    std::vector<graph::dim_t> dst_shape;
     bool transpose_a;
     bool transpose_b;
     bool constant_weight;
@@ -673,7 +676,7 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
     const auto &params = GetParam();
 
     graph_t agraph;
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
     std::vector<int64_t> zps {0};
     std::vector<float> scales {0.5f};
@@ -727,7 +730,7 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            graph::partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
 
@@ -737,11 +740,12 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
 
     dnnl_impl::check_with_bias(subgraph);
 
-    int8_data = logical_tensor_init(0, params.src_shape, impl::data_type::u8);
+    int8_data = logical_tensor_init(0, params.src_shape, graph::data_type::u8);
     s8_weight
-            = logical_tensor_init(2, params.weight_shape, impl::data_type::s8);
-    fp32_bias = logical_tensor_init(4, params.bias_shape, impl::data_type::f32);
-    int8_out = logical_tensor_init(7, params.dst_shape, impl::data_type::u8);
+            = logical_tensor_init(2, params.weight_shape, graph::data_type::s8);
+    fp32_bias
+            = logical_tensor_init(4, params.bias_shape, graph::data_type::f32);
+    int8_out = logical_tensor_init(7, params.dst_shape, graph::data_type::u8);
 
     std::vector<logical_tensor_t> inputs = {int8_data, s8_weight, fp32_bias};
     std::vector<logical_tensor_t> outputs = {int8_out};
@@ -769,23 +773,23 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
 
     for (auto &val : subgraph->get_input_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        ASSERT_FALSE(graph::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     for (auto &val : subgraph->get_output_values()) {
         auto lt = val->get_logical_tensor();
         if (lt.id == std::numeric_limits<size_t>::max()) continue;
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        ASSERT_FALSE(graph::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
-    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+    ASSERT_EQ(subgraph->infer_shape(), graph::status::success);
 
     if (params.constant_weight) {
         dnnl_impl::set_weight_bias_constant(subgraph->get_mutable_ops());
         dnnl_impl::constant_propagation(subgraph);
     }
 
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
     ASSERT_EQ(subgraph->get_ops().size(), params.final_subgraph_size);
 }
 
@@ -813,7 +817,7 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
     const auto &params = GetParam();
 
     graph_t agraph;
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
     op_t matmul {0, MatMul, "matmul"};
     matmul.set_attr<bool>(op_attr::transpose_a, params.transpose_a);
@@ -842,7 +846,7 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::matmul_post_ops);
+            graph::partition_kind::matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
 
@@ -852,12 +856,13 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
 
     dnnl_impl::check_with_bias(subgraph);
 
-    fp32_data = logical_tensor_init(0, params.src_shape, impl::data_type::f32);
-    fp32_weight
-            = logical_tensor_init(1, params.weight_shape, impl::data_type::f32);
-    fp32_bias = logical_tensor_init(2, params.bias_shape, impl::data_type::f32);
+    fp32_data = logical_tensor_init(0, params.src_shape, graph::data_type::f32);
+    fp32_weight = logical_tensor_init(
+            1, params.weight_shape, graph::data_type::f32);
+    fp32_bias
+            = logical_tensor_init(2, params.bias_shape, graph::data_type::f32);
     fp32_relu_out
-            = logical_tensor_init(4, params.dst_shape, impl::data_type::f32);
+            = logical_tensor_init(4, params.dst_shape, graph::data_type::f32);
 
     std::vector<logical_tensor_t> inputs = {fp32_data, fp32_weight, fp32_bias};
     std::vector<logical_tensor_t> outputs = {fp32_relu_out};
@@ -877,23 +882,23 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
 
     for (auto &val : subgraph->get_input_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        ASSERT_FALSE(logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     for (auto &val : subgraph->get_output_values()) {
         auto lt = val->get_logical_tensor();
         if (lt.id == std::numeric_limits<size_t>::max()) continue;
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        ASSERT_FALSE(logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
-    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+    ASSERT_EQ(subgraph->infer_shape(), graph::status::success);
 
     if (params.constant_weight) {
         dnnl_impl::set_weight_bias_constant(subgraph->get_mutable_ops());
         dnnl_impl::constant_propagation(subgraph);
     }
 
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
     auto final_subgraph_size = params.final_subgraph_size;
     if (params.transpose_a && p_eng.get_kind() == dnnl::engine::kind::gpu) {
         final_subgraph_size -= 1;
@@ -923,12 +928,12 @@ TEST(SubgraphPass, ExecutionArgsSet) {
     //          |
     //         val5
     ///////////////////////////
-    using value_t = impl::value_t;
+    using value_t = graph::value_t;
     using dtype = dnnl::memory::data_type;
     using ftag = dnnl::memory::format_tag;
     using engine = dnnl::engine;
-    using exec_args = impl::dnnl_impl::exec_args;
-    using execution_args_set = impl::dnnl_impl::execution_args_set_t;
+    using exec_args = graph::dnnl_impl::exec_args;
+    using execution_args_set = graph::dnnl_impl::execution_args_set_t;
 
     value_t *val1 = (value_t *)1;
     value_t *val2 = (value_t *)2;
@@ -936,7 +941,7 @@ TEST(SubgraphPass, ExecutionArgsSet) {
     value_t *val4 = (value_t *)4;
     value_t *val5 = (value_t *)5;
 
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     engine eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
     dnnl::memory mem1({{1, 2, 3, 4}, dtype::f32, ftag::abcd}, eng, nullptr);
     dnnl::memory mem2({{2, 3, 4, 5}, dtype::f32, ftag::abcd}, eng, nullptr);
@@ -1056,21 +1061,21 @@ TEST(SubgraphPass, MemoryPlanning) {
     mul_scales -> mul_scales -> permute -> mul_scales -> permute -> mul_scales
     -> mul_scales
     */
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 
     std::vector<int64_t> shape_NCX {64, 32, 256, 256};
     std::vector<int64_t> shape_NXC {64, 256, 256, 32};
 
-    impl::op_t op1(1, dnnl_impl::op_kind::dnnl_mul_scales, "op1");
-    impl::op_t op2(2, dnnl_impl::op_kind::dnnl_mul_scales, "op2");
-    impl::op_t op3(3, dnnl_impl::op_kind::dnnl_permute, "op3");
-    impl::op_t op4(4, dnnl_impl::op_kind::dnnl_mul_scales, "op4");
-    impl::op_t op5(5, dnnl_impl::op_kind::dnnl_permute, "op5");
-    impl::op_t op6(6, dnnl_impl::op_kind::dnnl_mul_scales, "op6");
-    impl::op_t op7(7, dnnl_impl::op_kind::dnnl_mul_scales, "op7");
-    impl::op_t op8(8, dnnl_impl::op_kind::dnnl_reorder, "op8");
-    impl::op_t op9(9, dnnl_impl::op_kind::dnnl_reorder, "op9");
+    graph::op_t op1(1, dnnl_impl::op_kind::dnnl_mul_scales, "op1");
+    graph::op_t op2(2, dnnl_impl::op_kind::dnnl_mul_scales, "op2");
+    graph::op_t op3(3, dnnl_impl::op_kind::dnnl_permute, "op3");
+    graph::op_t op4(4, dnnl_impl::op_kind::dnnl_mul_scales, "op4");
+    graph::op_t op5(5, dnnl_impl::op_kind::dnnl_permute, "op5");
+    graph::op_t op6(6, dnnl_impl::op_kind::dnnl_mul_scales, "op6");
+    graph::op_t op7(7, dnnl_impl::op_kind::dnnl_mul_scales, "op7");
+    graph::op_t op8(8, dnnl_impl::op_kind::dnnl_reorder, "op8");
+    graph::op_t op9(9, dnnl_impl::op_kind::dnnl_reorder, "op9");
 
     op1.set_attr<std::vector<float>>(op_attr::scales, {0.5});
     op2.set_attr<std::vector<float>>(op_attr::scales, {0.5});
@@ -1079,25 +1084,25 @@ TEST(SubgraphPass, MemoryPlanning) {
     op7.set_attr<std::vector<float>>(op_attr::scales, {0.5});
 
     logical_tensor_t val0
-            = logical_tensor_init(0, shape_NCX, impl::data_type::f32);
+            = logical_tensor_init(0, shape_NCX, graph::data_type::f32);
     logical_tensor_t val1
-            = logical_tensor_init(1, shape_NCX, impl::data_type::f32);
+            = logical_tensor_init(1, shape_NCX, graph::data_type::f32);
     logical_tensor_t val2
-            = logical_tensor_init(2, shape_NCX, impl::data_type::f32);
+            = logical_tensor_init(2, shape_NCX, graph::data_type::f32);
     logical_tensor_t val3
-            = logical_tensor_init(3, shape_NXC, impl::data_type::f32);
+            = logical_tensor_init(3, shape_NXC, graph::data_type::f32);
     logical_tensor_t val4
-            = logical_tensor_init(4, shape_NXC, impl::data_type::f32);
+            = logical_tensor_init(4, shape_NXC, graph::data_type::f32);
     logical_tensor_t val5
-            = logical_tensor_init(5, shape_NCX, impl::data_type::f32);
+            = logical_tensor_init(5, shape_NCX, graph::data_type::f32);
     logical_tensor_t val6
-            = logical_tensor_init(6, shape_NCX, impl::data_type::f32);
+            = logical_tensor_init(6, shape_NCX, graph::data_type::f32);
     logical_tensor_t val7
-            = logical_tensor_init(7, shape_NCX, impl::data_type::f32);
+            = logical_tensor_init(7, shape_NCX, graph::data_type::f32);
     logical_tensor_t val8
-            = logical_tensor_init(8, shape_NCX, impl::data_type::f32);
+            = logical_tensor_init(8, shape_NCX, graph::data_type::f32);
     logical_tensor_t val9
-            = logical_tensor_init(9, shape_NCX, impl::data_type::f32);
+            = logical_tensor_init(9, shape_NCX, graph::data_type::f32);
 
     op1.add_input(val0);
     op1.add_output(val1);
@@ -1118,7 +1123,7 @@ TEST(SubgraphPass, MemoryPlanning) {
     op9.add_input(val8);
     op9.add_output(val9);
 
-    impl::graph_t g;
+    graph::graph_t g;
     g.add_op(&op1);
     g.add_op(&op2);
     g.add_op(&op3);
@@ -1141,7 +1146,7 @@ TEST(SubgraphPass, MemoryPlanning) {
     // the fusion_info_mgr is dummy here
     dnnl_impl::memory_planner_t memory_planner;
 
-    ASSERT_EQ(memory_planner.run(subgraph), impl::status::success);
+    ASSERT_EQ(memory_planner.run(subgraph), graph::status::success);
 
     auto mem_offkeys = memory_planner.get_exec_args_set()
                                .get_mems_use_internal_temporary();
@@ -1153,7 +1158,7 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
           |
          conv (depthwise)
     */
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 
     // N, IC, IH, IW
@@ -1167,23 +1172,23 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     // N, OC, OH, OW
     std::vector<int64_t> dw_dst_shape {4, 4, 2, 2};
 
-    impl::op_t conv {0, impl::op_kind::Convolution, "conv"};
+    graph::op_t conv {0, graph::op_kind::Convolution, "conv"};
     set_conv_dw_base_op_attr(conv);
 
-    impl::op_t depthwise {1, impl::op_kind::Convolution, "depthwise"};
+    graph::op_t depthwise {1, graph::op_kind::Convolution, "depthwise"};
     set_conv_dw_post_op_attr(depthwise, "k3s2p1");
 
-    impl::logical_tensor_t conv_src
-            = logical_tensor_init(0, conv_src_shape, impl::data_type::f32);
-    impl::logical_tensor_t conv_wei
-            = logical_tensor_init(1, conv_wei_shape, impl::data_type::f32);
-    impl::logical_tensor_t conv_dst
-            = logical_tensor_init(2, conv_dst_shape, impl::data_type::f32);
+    graph::logical_tensor_t conv_src
+            = logical_tensor_init(0, conv_src_shape, graph::data_type::f32);
+    graph::logical_tensor_t conv_wei
+            = logical_tensor_init(1, conv_wei_shape, graph::data_type::f32);
+    graph::logical_tensor_t conv_dst
+            = logical_tensor_init(2, conv_dst_shape, graph::data_type::f32);
 
-    impl::logical_tensor_t dw_wei
-            = logical_tensor_init(3, dw_wei_shape, impl::data_type::f32);
-    impl::logical_tensor_t dw_dst
-            = logical_tensor_init(4, dw_dst_shape, impl::data_type::f32);
+    graph::logical_tensor_t dw_wei
+            = logical_tensor_init(3, dw_wei_shape, graph::data_type::f32);
+    graph::logical_tensor_t dw_dst
+            = logical_tensor_init(4, dw_dst_shape, graph::data_type::f32);
 
     conv.add_input(conv_src);
     conv.add_input(conv_wei);
@@ -1193,12 +1198,12 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     depthwise.add_input(dw_wei);
     depthwise.add_output(dw_dst);
 
-    impl::graph_t g;
+    graph::graph_t g;
     g.add_op(&conv);
     g.add_op(&depthwise);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1211,7 +1216,7 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     });
     dnnl_impl::pass_pipeline_t pipeline(vis, true, true);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
-    ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
+    ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
     // fused conv and to_groupped ops
     ASSERT_EQ(subgraph->get_mutable_ops().size(), 2U);
 }
@@ -1224,20 +1229,20 @@ TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
              multiply
                 |
     */
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 
     std::vector<int64_t> src_shape {1, 16, 4, 4};
 
-    impl::op_t sigmoid {0, impl::op_kind::Sigmoid, "sigmoid"};
-    impl::op_t multiply {1, impl::op_kind::Multiply, "multiply"};
+    graph::op_t sigmoid {0, graph::op_kind::Sigmoid, "sigmoid"};
+    graph::op_t multiply {1, graph::op_kind::Multiply, "multiply"};
 
-    impl::logical_tensor_t sigmoid_src
-            = logical_tensor_init(0, src_shape, impl::data_type::f32);
-    impl::logical_tensor_t sigmoid_dst
-            = logical_tensor_init(1, src_shape, impl::data_type::f32);
-    impl::logical_tensor_t multiply_dst
-            = logical_tensor_init(2, src_shape, impl::data_type::f32);
+    graph::logical_tensor_t sigmoid_src
+            = logical_tensor_init(0, src_shape, graph::data_type::f32);
+    graph::logical_tensor_t sigmoid_dst
+            = logical_tensor_init(1, src_shape, graph::data_type::f32);
+    graph::logical_tensor_t multiply_dst
+            = logical_tensor_init(2, src_shape, graph::data_type::f32);
 
     sigmoid.add_input(sigmoid_src);
     sigmoid.add_output(sigmoid_dst);
@@ -1246,12 +1251,12 @@ TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
     multiply.add_input(sigmoid_dst);
     multiply.add_output(multiply_dst);
 
-    impl::graph_t g;
+    graph::graph_t g;
     g.add_op(&sigmoid);
     g.add_op(&multiply);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -1261,7 +1266,7 @@ TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
     dnnl_impl::pass_pipeline_t pipeline(
             dnnl_impl::subgraph_visualizer_t(), true, false);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
-    ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
+    ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
     ASSERT_EQ(subgraph->get_mutable_ops().size(), 1U);
     ASSERT_EQ(subgraph->get_mutable_ops()[0]->get_kind(),
             dnnl_impl::op_kind::dnnl_eltwise);
@@ -1285,7 +1290,7 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
             add
              | (bf16)
     */
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
     graph_t agraph;
     std::vector<int64_t> zps = {0};
@@ -1351,7 +1356,7 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            impl::partition_kind::quantized_matmul_post_ops);
+            graph::partition_kind::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
 
@@ -1362,12 +1367,12 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
 
     dnnl_impl::check_with_bias(subgraph);
 
-    int8_data = logical_tensor_init(0, {16, 8, 8, 8}, impl::data_type::u8);
-    int8_weight = logical_tensor_init(3, {16, 8, 8, 8}, impl::data_type::u8);
-    bf16_div_in = logical_tensor_init(7, {1, 1, 1, 1}, impl::data_type::bf16);
-    bf16_add_in = logical_tensor_init(9, {16, 1, 1, 8}, impl::data_type::bf16);
+    int8_data = logical_tensor_init(0, {16, 8, 8, 8}, graph::data_type::u8);
+    int8_weight = logical_tensor_init(3, {16, 8, 8, 8}, graph::data_type::u8);
+    bf16_div_in = logical_tensor_init(7, {1, 1, 1, 1}, graph::data_type::bf16);
+    bf16_add_in = logical_tensor_init(9, {16, 1, 1, 8}, graph::data_type::bf16);
     bf16_add_out
-            = logical_tensor_init(10, {16, 8, 8, 8}, impl::data_type::bf16);
+            = logical_tensor_init(10, {16, 8, 8, 8}, graph::data_type::bf16);
 
     std::vector<logical_tensor_t> inputs
             = {int8_data, int8_weight, bf16_div_in, bf16_add_in};
@@ -1378,48 +1383,48 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     dnnl_impl::pass_pipeline_t pipeline(
             dnnl_impl::subgraph_visualizer_t(), true, false);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
-    ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
+    ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
 
     // reorder, matmul
     ASSERT_EQ(subgraph->get_ops().size(), 2U);
 
     for (auto &val : subgraph->get_input_values()) {
         auto lt = val->get_logical_tensor();
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        ASSERT_FALSE(graph::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
     for (auto &val : subgraph->get_output_values()) {
         auto lt = val->get_logical_tensor();
         if (lt.id == std::numeric_limits<size_t>::max()) continue;
-        ASSERT_FALSE(impl::logical_tensor_wrapper_t(lt).is_shape_unknown());
+        ASSERT_FALSE(graph::logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
-    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+    ASSERT_EQ(subgraph->infer_shape(), graph::status::success);
 
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
     // reorder, matmul
     ASSERT_EQ(subgraph->get_ops().size(), 2U);
 }
 
 TEST(SubgraphPass, FuseTypecastToQuantize) {
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
     graph_t agraph;
 
     std::vector<int64_t> src_shape = {1, 8, 16};
-    impl::op_t typecast(0, impl::op_kind::TypeCast, "typecast");
-    impl::op_t quantize(1, impl::op_kind::Quantize, "quantize");
+    graph::op_t typecast(0, graph::op_kind::TypeCast, "typecast");
+    graph::op_t quantize(1, graph::op_kind::Quantize, "quantize");
     quantize.set_attr<std::vector<float>>(op_attr::scales, {0.1f});
     quantize.set_attr<std::vector<int64_t>>(op_attr::zps, {10});
     quantize.set_attr<std::string>(op_attr::qtype, "per_tensor");
     quantize.set_attr<int64_t>(op_attr::axis, 0);
 
-    impl::logical_tensor_t src_bf16
-            = logical_tensor_init(0, src_shape, impl::data_type::bf16);
-    impl::logical_tensor_t src_f32
-            = logical_tensor_init(1, src_shape, impl::data_type::f32);
-    impl::logical_tensor_t dst_int8
-            = logical_tensor_init(2, src_shape, impl::data_type::u8);
+    graph::logical_tensor_t src_bf16
+            = logical_tensor_init(0, src_shape, graph::data_type::bf16);
+    graph::logical_tensor_t src_f32
+            = logical_tensor_init(1, src_shape, graph::data_type::f32);
+    graph::logical_tensor_t dst_int8
+            = logical_tensor_init(2, src_shape, graph::data_type::u8);
 
     typecast.add_input(src_bf16);
     typecast.add_output(src_f32);
@@ -1427,8 +1432,8 @@ TEST(SubgraphPass, FuseTypecastToQuantize) {
     quantize.add_input(src_f32);
     quantize.add_output(dst_int8);
 
-    ASSERT_EQ(agraph.add_op(&typecast), impl::status::success);
-    ASSERT_EQ(agraph.add_op(&quantize), impl::status::success);
+    ASSERT_EQ(agraph.add_op(&typecast), graph::status::success);
+    ASSERT_EQ(agraph.add_op(&quantize), graph::status::success);
     agraph.finalize();
     pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
     apass->run(agraph);
@@ -1442,40 +1447,40 @@ TEST(SubgraphPass, FuseTypecastToQuantize) {
     dnnl_impl::pass_pipeline_t pipeline(
             dnnl_impl::subgraph_visualizer_t(), true, false);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
-    ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
+    ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
 
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 }
 
 TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
-    impl::engine_t *eng = get_engine();
+    graph::engine_t *eng = get_engine();
 
     id_generator id_gen;
-    impl::graph_t g(eng->kind());
+    graph::graph_t g(eng->kind());
     construct_convolutional_bottleneck_resblock(&g, id_gen);
     g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 8U);
 
-    impl::pass::pass_base_ptr apass
+    graph::pass::pass_base_ptr apass
             = get_pass("convolutional_bottleneck_resblock_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // prepare inputs/outputs
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
     ASSERT_EQ(partition_inputs.size(), 10U);
     ASSERT_EQ(partition_outputs.size(), 1U);
 
-    std::vector<impl::logical_tensor_t> inputs, outputs;
+    std::vector<graph::logical_tensor_t> inputs, outputs;
     for (auto &lt : partition_inputs) {
         // skip alias inputs
         auto pos = std::find_if(inputs.begin(), inputs.end(),
-                [&](const impl::logical_tensor_t &item) {
+                [&](const graph::logical_tensor_t &item) {
                     return item.id == lt.id;
                 });
         if (pos != inputs.end()) continue;
@@ -1483,7 +1488,7 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
     }
     for (auto &lt : partition_outputs) {
         // set output to be any
-        lt = logical_tensor_init(lt.id, lt.data_type, impl::layout_type::any);
+        lt = logical_tensor_init(lt.id, lt.data_type, graph::layout_type::any);
         outputs.emplace_back(lt);
     }
 
@@ -1494,24 +1499,25 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
 
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
 
-    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::check_with_bias(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::check_with_bias(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), graph::status::success);
     ASSERT_EQ(dnnl_impl::binary_canonicalization(subgraph),
-            impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::insert_permute(subgraph), impl::status::success);
+            graph::status::success);
+    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::insert_permute(subgraph), graph::status::success);
     ASSERT_EQ(dnnl_impl::insert_to_group_for_conv_or_deconv(subgraph),
-            impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+            graph::status::success);
+    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
     ASSERT_EQ(dnnl_impl::common_reorder_elimination(subgraph),
-            impl::status::success);
-    ASSERT_EQ(dnnl_impl::constant_propagation(subgraph), impl::status::success);
+            graph::status::success);
+    ASSERT_EQ(
+            dnnl_impl::constant_propagation(subgraph), graph::status::success);
 
     dnnl_impl::memory_planner_t memory_planner;
-    ASSERT_EQ(memory_planner.run(subgraph), impl::status::success);
+    ASSERT_EQ(memory_planner.run(subgraph), graph::status::success);
 
     dnnl_impl::subgraph_visualizer_t vis(0, [&](const value_t *val) {
         return memory_planner.get_memory_info(val);
@@ -1527,24 +1533,24 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
 }
 
 TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 
     std::vector<int64_t> in_shape {1, 384, 16, 64};
     std::vector<int64_t> out_shape {1, 384, 1024};
 
-    impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
+    graph::op_t op1(1, graph::op_kind::StaticReshape, "op1");
     op1.set_attr<std::vector<int64_t>>(op_attr::shape, out_shape);
     op1.set_attr<bool>(op_attr::special_zero, true);
 
-    auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
+    auto in = logical_tensor_init(0, in_shape, graph::data_type::f32);
     // the output layout is specified to be channel last
     auto out = logical_tensor_init(1, out_shape,
-            std::vector<int64_t> {384 * 1024, 1, 384}, impl::data_type::f32);
+            std::vector<int64_t> {384 * 1024, 1, 384}, graph::data_type::f32);
     op1.add_input(in);
     op1.add_output(out);
 
-    impl::graph_t g;
+    graph::graph_t g;
     g.add_op(&op1);
     g.finalize();
 
@@ -1552,40 +1558,40 @@ TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
             g.get_ops(), p_eng, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
-    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
 
     // A reorder should be inserted before reshape op
     ASSERT_EQ(subgraph->get_ops().size(), 2U);
-    std::vector<impl::op_t *> sorted_ops;
-    impl::topo_order_visit(subgraph->get_output_ops(), [&](impl::op_t *op) {
+    std::vector<graph::op_t *> sorted_ops;
+    graph::topo_order_visit(subgraph->get_output_ops(), [&](graph::op_t *op) {
         sorted_ops.emplace_back(op);
-        return impl::status::success;
+        return graph::status::success;
     });
     ASSERT_EQ(sorted_ops[0]->get_kind(), dnnl_impl::op_kind::dnnl_reorder);
 }
 
 TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 
     std::vector<int64_t> in_shape {1, 384, 16, 64};
     std::vector<int64_t> out_shape {384 * 16, 64};
 
-    impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
+    graph::op_t op1(1, graph::op_kind::StaticReshape, "op1");
     op1.set_attr<std::vector<int64_t>>(op_attr::shape, out_shape);
     op1.set_attr<bool>(op_attr::special_zero, true);
 
     // the input layout is nhwc, which can't be directly reshaped to out_shape
     auto in = logical_tensor_init(0, in_shape,
             std::vector<int64_t> {384 * 16 * 64, 1, 384 * 64, 384},
-            impl::data_type::f32);
+            graph::data_type::f32);
     auto out = logical_tensor_init(
-            1, out_shape, impl::data_type::f32, impl::layout_type::any);
+            1, out_shape, graph::data_type::f32, graph::layout_type::any);
     op1.add_input(in);
     op1.add_output(out);
 
-    impl::graph_t g;
+    graph::graph_t g;
     g.add_op(&op1);
     g.finalize();
 
@@ -1593,37 +1599,37 @@ TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
             g.get_ops(), p_eng, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
-    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
 
     // A reorder should be inserted before reshape op
     ASSERT_EQ(subgraph->get_ops().size(), 2U);
-    std::vector<impl::op_t *> sorted_ops;
-    impl::topo_order_visit(subgraph->get_output_ops(), [&](impl::op_t *op) {
+    std::vector<graph::op_t *> sorted_ops;
+    graph::topo_order_visit(subgraph->get_output_ops(), [&](graph::op_t *op) {
         sorted_ops.emplace_back(op);
-        return impl::status::success;
+        return graph::status::success;
     });
     ASSERT_EQ(sorted_ops[0]->get_kind(), dnnl_impl::op_kind::dnnl_reorder);
 }
 
 TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 
     std::vector<int64_t> in_shape {1, 384, 16, 64};
     std::vector<int64_t> out_shape {384 * 16, 64};
 
-    impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
+    graph::op_t op1(1, graph::op_kind::StaticReshape, "op1");
     op1.set_attr<std::vector<int64_t>>(op_attr::shape, out_shape);
     op1.set_attr<bool>(op_attr::special_zero, true);
 
-    auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
+    auto in = logical_tensor_init(0, in_shape, graph::data_type::f32);
     auto out = logical_tensor_init(
-            1, out_shape, impl::data_type::f32, impl::layout_type::any);
+            1, out_shape, graph::data_type::f32, graph::layout_type::any);
     op1.add_input(in);
     op1.add_output(out);
 
-    impl::graph_t g;
+    graph::graph_t g;
     g.add_op(&op1);
     g.finalize();
 
@@ -1631,32 +1637,32 @@ TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
             g.get_ops(), p_eng, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
-    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
 
     // No reorder
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 }
 
 TEST(LayoutPropagation, Transpose) {
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
 
     std::vector<int64_t> in_shape {1, 384, 16, 64};
     std::vector<int64_t> out_shape {1, 16, 64, 384};
 
-    impl::op_t op1(1, impl::op_kind::StaticTranspose, "op1");
+    graph::op_t op1(1, graph::op_kind::StaticTranspose, "op1");
     op1.set_attr<std::vector<int64_t>>(
             op_attr::order, std::vector<int64_t> {0, 2, 3, 1});
 
-    auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
+    auto in = logical_tensor_init(0, in_shape, graph::data_type::f32);
     // the output layout is specified to be channel last
     auto out = logical_tensor_init(
-            1, out_shape, impl::data_type::f32, impl::layout_type::any);
+            1, out_shape, graph::data_type::f32, graph::layout_type::any);
     op1.add_input(in);
     op1.add_output(out);
 
-    impl::graph_t g;
+    graph::graph_t g;
     g.add_op(&op1);
     g.finalize();
 
@@ -1664,20 +1670,20 @@ TEST(LayoutPropagation, Transpose) {
             g.get_ops(), p_eng, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
-    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
 
     // the output value's layout type should be opaque, and the corresponding md
     // shape should be equal to the out_shape
     auto out_lt
             = subgraph->get_ops()[0]->get_output_value(0)->get_logical_tensor();
-    ASSERT_EQ(out_lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(out_lt.layout_type, graph::layout_type::opaque);
     auto out_md = dnnl_impl::make_dnnl_memory_desc(out_lt);
     ASSERT_EQ(out_md.dims(), out_shape);
 }
 
 TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
-    impl::engine_t *engine = get_engine();
+    graph::engine_t *engine = get_engine();
 
     // prepare fp32 data
     std::vector<int64_t> src_shape = {3, 8, 4};
@@ -1696,57 +1702,57 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
-    impl::op_t dqdata_op(id++, impl::op_kind::Dequantize, "dqdata_op");
+    graph::op_t dqdata_op(id++, graph::op_kind::Dequantize, "dqdata_op");
     dqdata_op.set_attr<std::string>(op_attr::qtype, "per_tensor");
     dqdata_op.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_src});
     dqdata_op.set_attr<std::vector<float>>(op_attr::scales, {scale_src});
     dqdata_op.set_attr<int64_t>(op_attr::axis, 0);
 
-    impl::op_t dqweight_op(id++, impl::op_kind::Dequantize, "dqweight_op");
+    graph::op_t dqweight_op(id++, graph::op_kind::Dequantize, "dqweight_op");
     dqweight_op.set_attr<std::string>(op_attr::qtype, "per_channel");
     dqweight_op.set_attr<std::vector<int64_t>>(op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(op_attr::scales, scale_wei);
     dqweight_op.set_attr<int64_t>(op_attr::axis, 1);
 
-    impl::op_t matmul_op(id++, impl::op_kind::MatMul, "matmul_op");
+    graph::op_t matmul_op(id++, graph::op_kind::MatMul, "matmul_op");
     matmul_op.set_attr<bool>(op_attr::transpose_a, false);
     matmul_op.set_attr<bool>(op_attr::transpose_b, false);
 
-    impl::op_t gelu_op(id++, impl::op_kind::GELU, "gelu_op");
+    graph::op_t gelu_op(id++, graph::op_kind::GELU, "gelu_op");
 
-    impl::op_t tcdata_op {id++, impl::op_kind::TypeCast, "typecast_data"};
-    impl::op_t tcweight_op {id++, impl::op_kind::TypeCast, "typecast_weight"};
-    impl::op_t tcdst_op {id++, impl::op_kind::TypeCast, "typecast_dst"};
+    graph::op_t tcdata_op {id++, graph::op_kind::TypeCast, "typecast_data"};
+    graph::op_t tcweight_op {id++, graph::op_kind::TypeCast, "typecast_weight"};
+    graph::op_t tcdst_op {id++, graph::op_kind::TypeCast, "typecast_dst"};
 
-    impl::op_t qdst_op(id++, impl::op_kind::Quantize, "qdst_op");
+    graph::op_t qdst_op(id++, graph::op_kind::Quantize, "qdst_op");
     qdst_op.set_attr<std::string>(op_attr::qtype, "per_tensor");
     qdst_op.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_dst});
     qdst_op.set_attr<std::vector<float>>(op_attr::scales, {scale_dst});
     qdst_op.set_attr<int64_t>(op_attr::axis, 0);
 
     // prepare logical tensor
-    impl::logical_tensor_t src_u8
-            = logical_tensor_init(id++, src_shape, impl::data_type::u8);
-    impl::logical_tensor_t src_f32_dq
-            = logical_tensor_init(id++, src_shape, impl::data_type::f32);
-    impl::logical_tensor_t src_bf16
-            = logical_tensor_init(id++, src_shape, impl::data_type::bf16);
-    impl::logical_tensor_t weight_s8
-            = logical_tensor_init(id++, weight_shape, impl::data_type::s8);
-    impl::logical_tensor_t weight_bf16
-            = logical_tensor_init(5, weight_shape, impl::data_type::bf16);
-    impl::logical_tensor_t weight_f32_dq
-            = logical_tensor_init(id++, weight_shape, impl::data_type::f32);
-    impl::logical_tensor_t bias_bf16
-            = logical_tensor_init(id++, bias_shape, impl::data_type::bf16);
-    impl::logical_tensor_t dst_bf16
-            = logical_tensor_init(id++, dst_shape, impl::data_type::bf16);
-    impl::logical_tensor_t gelu_bf16
-            = logical_tensor_init(id++, dst_shape, impl::data_type::bf16);
-    impl::logical_tensor_t gelu_f32
-            = logical_tensor_init(id++, dst_shape, impl::data_type::f32);
-    impl::logical_tensor_t dst_u8
-            = logical_tensor_init(id++, dst_shape, impl::data_type::u8);
+    graph::logical_tensor_t src_u8
+            = logical_tensor_init(id++, src_shape, graph::data_type::u8);
+    graph::logical_tensor_t src_f32_dq
+            = logical_tensor_init(id++, src_shape, graph::data_type::f32);
+    graph::logical_tensor_t src_bf16
+            = logical_tensor_init(id++, src_shape, graph::data_type::bf16);
+    graph::logical_tensor_t weight_s8
+            = logical_tensor_init(id++, weight_shape, graph::data_type::s8);
+    graph::logical_tensor_t weight_bf16
+            = logical_tensor_init(5, weight_shape, graph::data_type::bf16);
+    graph::logical_tensor_t weight_f32_dq
+            = logical_tensor_init(id++, weight_shape, graph::data_type::f32);
+    graph::logical_tensor_t bias_bf16
+            = logical_tensor_init(id++, bias_shape, graph::data_type::bf16);
+    graph::logical_tensor_t dst_bf16
+            = logical_tensor_init(id++, dst_shape, graph::data_type::bf16);
+    graph::logical_tensor_t gelu_bf16
+            = logical_tensor_init(id++, dst_shape, graph::data_type::bf16);
+    graph::logical_tensor_t gelu_f32
+            = logical_tensor_init(id++, dst_shape, graph::data_type::f32);
+    graph::logical_tensor_t dst_u8
+            = logical_tensor_init(id++, dst_shape, graph::data_type::u8);
 
     dqdata_op.add_input(src_u8);
     dqdata_op.add_output(src_f32_dq);
@@ -1774,7 +1780,7 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     qdst_op.add_input(gelu_f32);
     qdst_op.add_output(dst_u8);
 
-    impl::graph_t g(engine->kind());
+    graph::graph_t g(engine->kind());
     g.add_op(&dqdata_op);
     g.add_op(&dqweight_op);
     g.add_op(&matmul_op);
@@ -1786,13 +1792,13 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     g.finalize();
 
     pass::pass_base_ptr apass
-            = get_pass(engine->kind() == impl::engine_kind::gpu
+            = get_pass(engine->kind() == graph::engine_kind::gpu
                             ? "int8_bf16_matmul_post_ops_fusion_gpu"
                             : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
 
-    impl::engine_t *g_eng = get_engine();
+    graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             g.get_partitions()[0]->get_ops(), p_eng);
@@ -1804,7 +1810,7 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     });
     dnnl_impl::pass_pipeline_t pipeline(vis, true, true);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
-    ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
+    ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
     // 1 bias scaling, 1 bias expanding, 1 fused matmul, 2 reshape
     ASSERT_EQ(subgraph->get_mutable_ops().size(), 5U);
 }

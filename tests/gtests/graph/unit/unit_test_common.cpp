@@ -21,6 +21,8 @@
 #include "test_allocator.hpp"
 #include "unit/unit_test_common.hpp"
 
+namespace graph = dnnl::impl::graph;
+
 #ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 #include "oneapi/dnnl/dnnl_sycl.hpp"
@@ -33,7 +35,8 @@
 
 #ifdef DNNL_WITH_SYCL
 ::sycl::device &get_device() {
-    static ::sycl::device dev = get_test_engine_kind() == impl::engine_kind::cpu
+    static ::sycl::device dev
+            = get_test_engine_kind() == graph::engine_kind::cpu
             ? ::sycl::device {::sycl::cpu_selector {}}
             : ::sycl::device {::sycl::gpu_selector {}};
     return dev;
@@ -46,7 +49,7 @@
 #endif // DNNL_WITH_SYCL
 
 static dnnl::engine get_dnnl_engine() {
-    if (get_test_engine_kind() == impl::engine_kind::cpu) {
+    if (get_test_engine_kind() == graph::engine_kind::cpu) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
         static dnnl::graph::allocator alloc
                 = dnnl::graph::sycl_interop::make_allocator(
@@ -81,7 +84,7 @@ static dnnl::engine get_dnnl_engine() {
 }
 
 static dnnl::stream get_dnnl_stream() {
-    if (get_test_engine_kind() == impl::engine_kind::cpu) {
+    if (get_test_engine_kind() == graph::engine_kind::cpu) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
         static ::sycl::queue q {get_context(), get_device(),
                 ::sycl::property::queue::in_order {}};
@@ -109,20 +112,20 @@ static dnnl::stream get_dnnl_stream() {
     }
 }
 
-impl::engine_t *get_engine() {
+graph::engine_t *get_engine() {
     return get_dnnl_engine().get();
 }
 
-impl::stream_t *get_stream() {
+graph::stream_t *get_stream() {
     return get_dnnl_stream().get();
 }
 
-static impl::engine_kind_t test_engine_kind;
+static graph::engine_kind_t test_engine_kind;
 
-impl::engine_kind_t get_test_engine_kind() {
+graph::engine_kind_t get_test_engine_kind() {
     return test_engine_kind;
 }
 
-void set_test_engine_kind(impl::engine_kind_t kind) {
+void set_test_engine_kind(graph::engine_kind_t kind) {
     test_engine_kind = kind;
 }

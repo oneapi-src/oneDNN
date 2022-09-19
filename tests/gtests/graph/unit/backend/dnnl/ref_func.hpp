@@ -17,13 +17,11 @@
 #ifndef GRAPH_UNIT_BACKEND_DNNL_REF_FUNC_HPP
 #define GRAPH_UNIT_BACKEND_DNNL_REF_FUNC_HPP
 
-#include <map>
-#include <set>
-#include <string>
-#include <utility>
+#include <cmath>
 #include <vector>
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "graph/unit/unit_test_common.hpp"
 
 static inline test::vector<float> mish_func(
         const test::vector<float> &ref_dst) {

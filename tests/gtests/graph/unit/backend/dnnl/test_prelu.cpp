@@ -14,7 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <functional>
+#include <random>
+
+#include "gtest/gtest.h"
+
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "graph/unit/unit_test_common.hpp"
+#include "graph/unit/utils.hpp"
+
+namespace graph = dnnl::impl::graph;
+namespace utils = dnnl::graph::tests::unit::utils;
 
 struct prelu_params_t {
     dnnl::impl::graph::dims wei_dims;
@@ -27,17 +37,17 @@ public:
     void TestPrelu() {
         const auto params
                 = ::testing::TestWithParam<prelu_params_t>::GetParam();
-        impl::engine_t *eng = get_engine();
+        graph::engine_t *eng = get_engine();
 
-        impl::op_t op(impl::op_kind::PReLU, "prelu");
+        graph::op_t op(graph::op_kind::PReLU, "prelu");
         op.set_attr<std::string>(
-                impl::op_attr::data_format, params.data_format);
-        op.set_attr<bool>(impl::op_attr::per_channel_broadcast,
+                graph::op_attr::data_format, params.data_format);
+        op.set_attr<bool>(graph::op_attr::per_channel_broadcast,
                 params.per_channel_broadcast);
 
         dnnl::impl::graph::dims dims {1, 2, 2, 2};
         test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -1.0, 1.0};
-        std::vector<impl::dim_t> wei_dims = params.wei_dims;
+        std::vector<graph::dim_t> wei_dims = params.wei_dims;
         test::vector<float> wei(product(wei_dims));
         test::vector<float> case1_out_data(product(dims));
         test::vector<float> case2_out_data(product(dims));
@@ -46,50 +56,50 @@ public:
         std::generate(wei.begin(), wei.end(),
                 [&]() { return f32_distribution(generator); });
 
-        impl::logical_tensor_t src_lt
-                = utils::logical_tensor_init(0, dims, impl::data_type::f32);
-        impl::logical_tensor_t wei_lt
-                = utils::logical_tensor_init(1, wei_dims, impl::data_type::f32);
-        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
-                2, dims, impl::data_type::f32, impl::layout_type::any);
+        graph::logical_tensor_t src_lt
+                = utils::logical_tensor_init(0, dims, graph::data_type::f32);
+        graph::logical_tensor_t wei_lt = utils::logical_tensor_init(
+                1, wei_dims, graph::data_type::f32);
+        graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                2, dims, graph::data_type::f32, graph::layout_type::any);
 
         op.add_input(src_lt);
         op.add_input(wei_lt);
         op.add_output(dst_lt);
 
-        impl::graph_t g(eng->kind());
+        graph::graph_t g(eng->kind());
         g.add_op(&op);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass = get_pass("prelu_pass");
+        graph::pass::pass_base_ptr apass = get_pass("prelu_pass");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &wei_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+        std::vector<const graph::logical_tensor_t *> inputs {&src_lt, &wei_lt};
+        std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
 
         p.compile(&cp, inputs, outputs, eng);
 
-        impl::logical_tensor_t lt;
+        graph::logical_tensor_t lt;
         cp.query_logical_tensor(dst_lt.id, &lt);
 
-        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+        ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        impl::tensor_t src_ts(src_lt, eng, src.data());
-        impl::tensor_t wei_ts(wei_lt, eng, wei.data());
-        impl::tensor_t dst_ts1(dst_lt, eng, case1_out_data.data());
-        impl::tensor_t dst_ts2(dst_lt, eng, case2_out_data.data());
+        graph::tensor_t src_ts(src_lt, eng, src.data());
+        graph::tensor_t wei_ts(wei_lt, eng, wei.data());
+        graph::tensor_t dst_ts1(dst_lt, eng, case1_out_data.data());
+        graph::tensor_t dst_ts2(dst_lt, eng, case2_out_data.data());
 
-        impl::stream_t *strm = get_stream();
+        graph::stream_t *strm = get_stream();
 
         ASSERT_EQ(run_graph(g, {src_ts, wei_ts}, {dst_ts1}, *eng, *strm),
-                impl::status::success);
+                graph::status::success);
         cp.execute(strm, {src_ts, wei_ts}, {dst_ts2});
         strm->wait();
 
@@ -110,11 +120,11 @@ public:
     void TestPreluBackprop() {
         const auto params
                 = ::testing::TestWithParam<prelu_bwd_params_t>::GetParam();
-        impl::engine_t *eng = get_engine();
-        impl::stream_t *strm = get_stream();
+        graph::engine_t *eng = get_engine();
+        graph::stream_t *strm = get_stream();
 
-        std::vector<impl::dim_t> data_dims = params.data_dims;
-        std::vector<impl::dim_t> wei_dims = params.wei_dims;
+        std::vector<graph::dim_t> data_dims = params.data_dims;
+        std::vector<graph::dim_t> wei_dims = params.wei_dims;
         test::vector<float> src(product(data_dims));
         test::vector<float> wei(product(wei_dims));
         test::vector<float> diff_dst(product(data_dims));
@@ -131,20 +141,20 @@ public:
         std::generate(diff_dst.begin(), diff_dst.end(),
                 [&]() { return f32_distribution(generator); });
 
-        impl::op_t prelu_op(impl::op_kind::PReLUBackprop, "prelu_bwd");
+        graph::op_t prelu_op(graph::op_kind::PReLUBackprop, "prelu_bwd");
         prelu_op.set_attr<std::string>(
-                impl::op_attr::data_format, params.data_format);
+                graph::op_attr::data_format, params.data_format);
 
-        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
-                0, data_dims, impl::data_type::f32);
-        impl::logical_tensor_t wei_lt
-                = utils::logical_tensor_init(1, wei_dims, impl::data_type::f32);
-        impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
-                2, data_dims, impl::data_type::f32);
-        impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-                3, data_dims, impl::data_type::f32, impl::layout_type::any);
-        impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
-                4, wei_dims, impl::data_type::f32, impl::layout_type::any);
+        graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, data_dims, graph::data_type::f32);
+        graph::logical_tensor_t wei_lt = utils::logical_tensor_init(
+                1, wei_dims, graph::data_type::f32);
+        graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+                2, data_dims, graph::data_type::f32);
+        graph::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+                3, data_dims, graph::data_type::f32, graph::layout_type::any);
+        graph::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
+                4, wei_dims, graph::data_type::f32, graph::layout_type::any);
 
         prelu_op.add_input(src_lt);
         prelu_op.add_input(wei_lt);
@@ -152,42 +162,42 @@ public:
         prelu_op.add_output(diff_src_lt);
         prelu_op.add_output(diff_wei_lt);
 
-        impl::graph_t g(eng->kind());
+        graph::graph_t g(eng->kind());
         g.add_op(&prelu_op);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass = get_pass("prelu_bwd_pass");
+        graph::pass::pass_base_ptr apass = get_pass("prelu_bwd_pass");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
 
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {
+        std::vector<const graph::logical_tensor_t *> inputs {
                 &src_lt, &wei_lt, &diff_dst_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {
+        std::vector<const graph::logical_tensor_t *> outputs {
                 &diff_src_lt, &diff_wei_lt};
 
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), impl::status::success);
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-        impl::tensor_t src_ts(src_lt, eng, src.data());
-        impl::tensor_t wei_ts(wei_lt, eng, wei.data());
-        impl::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
-        impl::tensor_t diff_src_ts1(diff_src_lt, eng, diff_src1.data());
-        impl::tensor_t diff_wei_ts1(diff_wei_lt, eng, diff_wei1.data());
-        impl::tensor_t diff_src_ts2(diff_src_lt, eng, diff_src2.data());
-        impl::tensor_t diff_wei_ts2(diff_wei_lt, eng, diff_wei2.data());
+        graph::tensor_t src_ts(src_lt, eng, src.data());
+        graph::tensor_t wei_ts(wei_lt, eng, wei.data());
+        graph::tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst.data());
+        graph::tensor_t diff_src_ts1(diff_src_lt, eng, diff_src1.data());
+        graph::tensor_t diff_wei_ts1(diff_wei_lt, eng, diff_wei1.data());
+        graph::tensor_t diff_src_ts2(diff_src_lt, eng, diff_src2.data());
+        graph::tensor_t diff_wei_ts2(diff_wei_lt, eng, diff_wei2.data());
 
         ASSERT_EQ(run_graph(g, {src_ts, wei_ts, diff_dst_ts},
                           {diff_src_ts1, diff_wei_ts1}, *eng, *strm),
-                impl::status::success);
+                graph::status::success);
 
         ASSERT_EQ(cp.execute(strm, {src_ts, wei_ts, diff_dst_ts},
                           {diff_src_ts2, diff_wei_ts2}),
-                impl::status::success);
+                graph::status::success);
         strm->wait();
 
         for (size_t i = 0; i < diff_src1.size(); ++i) {

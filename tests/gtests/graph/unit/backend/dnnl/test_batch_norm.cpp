@@ -14,16 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
+#include <memory>
 
-static inline void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic,
-        impl::dim_t ih, impl::dim_t iw, impl::tensor_t *src,
-        impl::tensor_t *dst, impl::tensor_t *scale, impl::tensor_t *shift,
-        impl::tensor_t *mean = nullptr, impl::tensor_t *variance = nullptr,
-        impl::tensor_t *running_mean = nullptr,
-        impl::tensor_t *running_variance = nullptr,
-        impl::tensor_t *batch_mean = nullptr,
-        impl::tensor_t *batch_variance = nullptr, float epsilon = 0.001f,
+#include "gtest/gtest.h"
+
+#include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "graph/unit/unit_test_common.hpp"
+#include "graph/unit/utils.hpp"
+
+namespace graph = dnnl::impl::graph;
+namespace utils = dnnl::graph::tests::unit::utils;
+
+static inline void ref_batchnorm_fwd(graph::dim_t mb, graph::dim_t ic,
+        graph::dim_t ih, graph::dim_t iw, graph::tensor_t *src,
+        graph::tensor_t *dst, graph::tensor_t *scale, graph::tensor_t *shift,
+        graph::tensor_t *mean = nullptr, graph::tensor_t *variance = nullptr,
+        graph::tensor_t *running_mean = nullptr,
+        graph::tensor_t *running_variance = nullptr,
+        graph::tensor_t *batch_mean = nullptr,
+        graph::tensor_t *batch_variance = nullptr, float epsilon = 0.001f,
         float momentum = 0.1f,
         std::function<float(const float)> activation = nullptr,
         bool channel_last = false, bool is_training = false) {
@@ -145,16 +154,16 @@ static inline void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic,
 }
 
 struct batchnorm_params_t {
-    impl::op_kind_t op_kind;
+    graph::op_kind_t op_kind;
     bool with_relu;
-    impl::dim_t N;
-    impl::dim_t IC;
-    impl::dim_t IH;
-    impl::dim_t IW;
+    graph::dim_t N;
+    graph::dim_t IC;
+    graph::dim_t IH;
+    graph::dim_t IW;
     float epsilon;
     std::string data_format;
     std::string backend_name;
-    impl::data_type_t data_type;
+    graph::data_type_t data_type;
 };
 
 class batch_norm_4d_t : public ::testing::TestWithParam<batchnorm_params_t> {
@@ -164,24 +173,24 @@ public:
 
         auto params = ::testing::TestWithParam<batchnorm_params_t>::GetParam();
 
-        impl::op_t batchnorm_op(0, params.op_kind, "batchnorm");
-        batchnorm_op.set_attr(impl::op_attr::epsilon, params.epsilon);
-        batchnorm_op.set_attr(impl::op_attr::data_format, params.data_format);
-        impl::op_t relu_op(1, impl::op_kind::ReLU, "relu");
+        graph::op_t batchnorm_op(0, params.op_kind, "batchnorm");
+        batchnorm_op.set_attr(graph::op_attr::epsilon, params.epsilon);
+        batchnorm_op.set_attr(graph::op_attr::data_format, params.data_format);
+        graph::op_t relu_op(1, graph::op_kind::ReLU, "relu");
 
         bool is_training
-                = params.op_kind == impl::op_kind::BatchNormForwardTraining;
+                = params.op_kind == graph::op_kind::BatchNormForwardTraining;
         const float momentum = 0.1f;
         if (is_training)
-            batchnorm_op.set_attr(impl::op_attr::momentum, momentum);
+            batchnorm_op.set_attr(graph::op_attr::momentum, momentum);
 
-        impl::engine_t *engine = get_engine();
+        graph::engine_t *engine = get_engine();
 
-        SKIP_IF(engine->kind() == impl::engine_kind::gpu && is_training,
+        SKIP_IF(engine->kind() == graph::engine_kind::gpu && is_training,
                 "Skip the case due to regression of sum primitive on GPU");
 
         // Tensor dimensions.
-        const impl::dim_t N = params.N, // batch size
+        const graph::dim_t N = params.N, // batch size
                 IC = params.IC, // channels
                 IH = params.IH, // tensor height
                 IW = params.IW; // tensor width
@@ -204,28 +213,28 @@ public:
         dims variance_dims = {IC};
 
         // prepare logical tensor
-        impl::logical_tensor_t src
-                = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
-        impl::logical_tensor_t scale = utils::logical_tensor_init(
-                1, scale_dims, impl::data_type::f32);
-        impl::logical_tensor_t shift = utils::logical_tensor_init(
-                2, shift_dims, impl::data_type::f32);
-        impl::logical_tensor_t mean = utils::logical_tensor_init(
-                3, mean_dims, impl::data_type::f32);
-        impl::logical_tensor_t variance = utils::logical_tensor_init(
-                4, variance_dims, impl::data_type::f32);
-        impl::logical_tensor_t running_mean = utils::logical_tensor_init(
-                5, mean_dims, impl::data_type::f32);
-        impl::logical_tensor_t running_variance = utils::logical_tensor_init(
-                6, variance_dims, impl::data_type::f32);
-        impl::logical_tensor_t batch_mean = utils::logical_tensor_init(
-                7, mean_dims, impl::data_type::f32);
-        impl::logical_tensor_t batch_variance = utils::logical_tensor_init(
-                8, variance_dims, impl::data_type::f32);
-        impl::logical_tensor_t dst
-                = utils::logical_tensor_init(9, src_dims, impl::data_type::f32);
-        impl::logical_tensor_t relu_dst = utils::logical_tensor_init(
-                10, src_dims, impl::data_type::f32);
+        graph::logical_tensor_t src = utils::logical_tensor_init(
+                0, src_dims, graph::data_type::f32);
+        graph::logical_tensor_t scale = utils::logical_tensor_init(
+                1, scale_dims, graph::data_type::f32);
+        graph::logical_tensor_t shift = utils::logical_tensor_init(
+                2, shift_dims, graph::data_type::f32);
+        graph::logical_tensor_t mean = utils::logical_tensor_init(
+                3, mean_dims, graph::data_type::f32);
+        graph::logical_tensor_t variance = utils::logical_tensor_init(
+                4, variance_dims, graph::data_type::f32);
+        graph::logical_tensor_t running_mean = utils::logical_tensor_init(
+                5, mean_dims, graph::data_type::f32);
+        graph::logical_tensor_t running_variance = utils::logical_tensor_init(
+                6, variance_dims, graph::data_type::f32);
+        graph::logical_tensor_t batch_mean = utils::logical_tensor_init(
+                7, mean_dims, graph::data_type::f32);
+        graph::logical_tensor_t batch_variance = utils::logical_tensor_init(
+                8, variance_dims, graph::data_type::f32);
+        graph::logical_tensor_t dst = utils::logical_tensor_init(
+                9, src_dims, graph::data_type::f32);
+        graph::logical_tensor_t relu_dst = utils::logical_tensor_init(
+                10, src_dims, graph::data_type::f32);
 
         batchnorm_op.add_input(src);
         if (!is_training) {
@@ -249,12 +258,12 @@ public:
         relu_op.add_input(dst);
         relu_op.add_output(relu_dst);
 
-        impl::graph_t g(engine->kind());
+        graph::graph_t g(engine->kind());
         g.add_op(&batchnorm_op);
         if (params.with_relu) g.add_op(&relu_op);
         g.finalize();
 
-        impl::pass::pass_base_ptr apass = params.with_relu
+        graph::pass::pass_base_ptr apass = params.with_relu
                 ? get_pass("bn_relu_fusion")
                 : (is_training ? get_pass("bn_fw_train_pass")
                                : get_pass("bn_pass"));
@@ -263,11 +272,11 @@ public:
         auto part = g.get_partitions()[0];
 
         // compile
-        impl::partition_t p;
+        graph::partition_t p;
         p.init(part);
-        impl::compiled_partition_t cp(p);
+        graph::compiled_partition_t cp(p);
 
-        std::vector<const impl::logical_tensor_t *> inputs {&src};
+        std::vector<const graph::logical_tensor_t *> inputs {&src};
         if (!is_training) {
             inputs.emplace_back(&scale);
             inputs.emplace_back(&shift);
@@ -278,7 +287,7 @@ public:
             inputs.emplace_back(&scale);
             inputs.emplace_back(&shift);
         }
-        std::vector<const impl::logical_tensor_t *> outputs {&dst};
+        std::vector<const graph::logical_tensor_t *> outputs {&dst};
         if (params.with_relu) outputs[0] = &relu_dst;
         if (is_training) {
             outputs.emplace_back(&running_mean);
@@ -287,8 +296,8 @@ public:
             outputs.emplace_back(&batch_variance);
         }
 
-        ASSERT_EQ(
-                p.compile(&cp, inputs, outputs, engine), impl::status::success);
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, engine),
+                graph::status::success);
 
         // Allocate buffers.
         test::vector<float> src_data(static_cast<size_t>(N * IC * IH * IW));
@@ -350,35 +359,35 @@ public:
                     });
         }
 
-        impl::tensor_t src_ts(src, engine, src_data.data());
-        impl::tensor_t scale_ts(scale, engine, scale_data.data());
-        impl::tensor_t shift_ts(shift, engine, shift_data.data());
-        impl::tensor_t mean_ts(mean, engine, mean_data.data());
-        impl::tensor_t variance_ts(variance, engine, variance_data.data());
-        impl::tensor_t running_mean_ts(
+        graph::tensor_t src_ts(src, engine, src_data.data());
+        graph::tensor_t scale_ts(scale, engine, scale_data.data());
+        graph::tensor_t shift_ts(shift, engine, shift_data.data());
+        graph::tensor_t mean_ts(mean, engine, mean_data.data());
+        graph::tensor_t variance_ts(variance, engine, variance_data.data());
+        graph::tensor_t running_mean_ts(
                 running_mean, engine, running_mean_data.data());
-        impl::tensor_t running_variance_ts(
+        graph::tensor_t running_variance_ts(
                 running_variance, engine, running_variance_data.data());
-        impl::tensor_t batch_mean_ts(
+        graph::tensor_t batch_mean_ts(
                 batch_mean, engine, batch_mean_data.data());
-        impl::tensor_t batch_variance_ts(
+        graph::tensor_t batch_variance_ts(
                 batch_variance, engine, batch_variance_data.data());
-        impl::tensor_t dst_ts = params.with_relu
-                ? impl::tensor_t(relu_dst, engine, dst_data.data())
-                : impl::tensor_t(dst, engine, dst_data.data());
-        impl::tensor_t ref_dst_ts = params.with_relu
-                ? impl::tensor_t(relu_dst, engine, ref_dst_data.data())
-                : impl::tensor_t(dst, engine, ref_dst_data.data());
-        impl::tensor_t ref_running_mean_ts(
+        graph::tensor_t dst_ts = params.with_relu
+                ? graph::tensor_t(relu_dst, engine, dst_data.data())
+                : graph::tensor_t(dst, engine, dst_data.data());
+        graph::tensor_t ref_dst_ts = params.with_relu
+                ? graph::tensor_t(relu_dst, engine, ref_dst_data.data())
+                : graph::tensor_t(dst, engine, ref_dst_data.data());
+        graph::tensor_t ref_running_mean_ts(
                 running_mean, engine, ref_running_mean_data.data());
-        impl::tensor_t ref_running_variance_ts(
+        graph::tensor_t ref_running_variance_ts(
                 running_variance, engine, ref_running_variance_data.data());
-        impl::tensor_t ref_batch_mean_ts(
+        graph::tensor_t ref_batch_mean_ts(
                 batch_mean, engine, ref_batch_mean_data.data());
-        impl::tensor_t ref_batch_variance_ts(
+        graph::tensor_t ref_batch_variance_ts(
                 batch_variance, engine, ref_batch_variance_data.data());
 
-        impl::stream_t *strm = get_stream();
+        graph::stream_t *strm = get_stream();
 
         if (!is_training) {
             cp.execute(strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
@@ -400,14 +409,14 @@ public:
                     &shift_ts, &mean_ts, &variance_ts, nullptr, nullptr,
                     nullptr, nullptr, params.epsilon, momentum, activation,
                     params.data_format == "NXC",
-                    params.op_kind == impl::op_kind::BatchNormForwardTraining);
+                    params.op_kind == graph::op_kind::BatchNormForwardTraining);
         } else {
             ref_batchnorm_fwd(N, IC, IH, IW, &src_ts, &ref_dst_ts, &scale_ts,
                     &shift_ts, &mean_ts, &variance_ts, &ref_running_mean_ts,
                     &ref_running_variance_ts, &ref_batch_mean_ts,
                     &ref_batch_variance_ts, params.epsilon, momentum,
                     activation, params.data_format == "NXC",
-                    params.op_kind == impl::op_kind::BatchNormForwardTraining);
+                    params.op_kind == graph::op_kind::BatchNormForwardTraining);
             for (int64_t i = 0; i < IC; ++i) {
                 ASSERT_NEAR(
                         running_mean_data[i], ref_running_mean_data[i], 1.e-6f);
@@ -435,30 +444,32 @@ TEST_P(batch_norm_4d_t, TestBatchnorm) {
 
 INSTANTIATE_TEST_SUITE_P(Execute, batch_norm_4d_t,
         ::testing::Values(
-                batchnorm_params_t {impl::op_kind::BatchNormInference, false, 3,
-                        3, 2, 2, 0.001f, "NCX", "dnnl", impl::data_type::f32},
-                batchnorm_params_t {impl::op_kind::BatchNormInference, true, 3,
-                        3, 2, 2, 0.001f, "NCX", "dnnl", impl::data_type::f32},
-                batchnorm_params_t {impl::op_kind::BatchNormInference, false, 3,
-                        3, 2, 2, 0.001f, "NXC", "dnnl", impl::data_type::f32},
-                batchnorm_params_t {impl::op_kind::BatchNormForwardTraining,
+                batchnorm_params_t {graph::op_kind::BatchNormInference, false,
+                        3, 3, 2, 2, 0.001f, "NCX", "dnnl",
+                        graph::data_type::f32},
+                batchnorm_params_t {graph::op_kind::BatchNormInference, true, 3,
+                        3, 2, 2, 0.001f, "NCX", "dnnl", graph::data_type::f32},
+                batchnorm_params_t {graph::op_kind::BatchNormInference, false,
+                        3, 3, 2, 2, 0.001f, "NXC", "dnnl",
+                        graph::data_type::f32},
+                batchnorm_params_t {graph::op_kind::BatchNormForwardTraining,
                         false, 3, 3, 2, 2, 0.001f, "NCX", "dnnl",
-                        impl::data_type::f32},
-                batchnorm_params_t {impl::op_kind::BatchNormForwardTraining,
+                        graph::data_type::f32},
+                batchnorm_params_t {graph::op_kind::BatchNormForwardTraining,
                         false, 3, 3, 2, 2, 0.001f, "NXC", "dnnl",
-                        impl::data_type::f32}));
+                        graph::data_type::f32}));
 
 TEST(Compile, BatchNormBackpropFp32) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
-    impl::op_t bn_op(impl::op_kind::BatchNormTrainingBackprop);
-    bn_op.set_attr<float>(impl::op_attr::epsilon, 0.0);
-    bn_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    graph::op_t bn_op(graph::op_kind::BatchNormTrainingBackprop);
+    bn_op.set_attr<float>(graph::op_attr::epsilon, 0.0);
+    bn_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
 
-    impl::engine_t *engine = get_engine();
+    graph::engine_t *engine = get_engine();
 
     // Tensor dimensions.
-    const impl::dim_t N = 1, // batch size
+    const graph::dim_t N = 1, // batch size
             IC = 1, // channels
             IH = 2, // tensor height
             IW = 2; // tensor width
@@ -471,22 +482,22 @@ TEST(Compile, BatchNormBackpropFp32) {
     dims variance_dims = {IC};
 
     // prepare logical tensor
-    impl::logical_tensor_t src = utils::logical_tensor_init(
-            0, src_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t scale = utils::logical_tensor_init(
-            1, scale_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t mean = utils::logical_tensor_init(
-            2, mean_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t variance = utils::logical_tensor_init(
-            3, variance_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
-            4, src_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t diff_src = utils::logical_tensor_init(
-            5, src_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t diff_scale = utils::logical_tensor_init(
-            6, scale_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t diff_shift = utils::logical_tensor_init(
-            7, shift_dims, impl::data_type::f32, impl::layout_type::strided);
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, src_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t scale = utils::logical_tensor_init(
+            1, scale_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t mean = utils::logical_tensor_init(
+            2, mean_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t variance = utils::logical_tensor_init(3,
+            variance_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            4, src_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t diff_src = utils::logical_tensor_init(
+            5, src_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t diff_scale = utils::logical_tensor_init(
+            6, scale_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t diff_shift = utils::logical_tensor_init(
+            7, shift_dims, graph::data_type::f32, graph::layout_type::strided);
 
     // Allocate buffers.
     test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
@@ -513,37 +524,37 @@ TEST(Compile, BatchNormBackpropFp32) {
     bn_op.add_output(diff_scale);
     bn_op.add_output(diff_shift);
 
-    impl::graph_t g(engine->kind());
+    graph::graph_t g(engine->kind());
     g.add_op(&bn_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
+    graph::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src, &diff_dst, &mean, &variance, &scale};
-    std::vector<const impl::logical_tensor_t *> outputs {
+    std::vector<const graph::logical_tensor_t *> outputs {
             &diff_src, &diff_scale, &diff_shift};
 
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), impl::status::success);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    impl::tensor_t src_ts(src, engine, src_data.data());
-    impl::tensor_t scale_ts(scale, engine, scale_data.data());
-    impl::tensor_t mean_ts(mean, engine, mean_data.data());
-    impl::tensor_t variance_ts(variance, engine, varience_data.data());
-    impl::tensor_t diff_dst_ts(diff_dst, engine, diff_dst_data.data());
-    impl::tensor_t diff_src_ts(diff_src, engine, diff_src_data.data());
-    impl::tensor_t diff_scale_ts(diff_scale, engine, diff_scale_data.data());
-    impl::tensor_t diff_shift_ts(diff_shift, engine, diff_shift_data.data());
+    graph::tensor_t src_ts(src, engine, src_data.data());
+    graph::tensor_t scale_ts(scale, engine, scale_data.data());
+    graph::tensor_t mean_ts(mean, engine, mean_data.data());
+    graph::tensor_t variance_ts(variance, engine, varience_data.data());
+    graph::tensor_t diff_dst_ts(diff_dst, engine, diff_dst_data.data());
+    graph::tensor_t diff_src_ts(diff_src, engine, diff_src_data.data());
+    graph::tensor_t diff_scale_ts(diff_scale, engine, diff_scale_data.data());
+    graph::tensor_t diff_shift_ts(diff_shift, engine, diff_shift_data.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts, diff_dst_ts, mean_ts, variance_ts, scale_ts},
             {diff_src_ts, diff_scale_ts, diff_shift_ts});
     strm->wait();
@@ -561,14 +572,14 @@ TEST(Compile, BatchNormBackpropFp32) {
 TEST(Compile, BatchNormBackpropFp32WithSingleOutput) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
-    impl::op_t bn_op(impl::op_kind::BatchNormTrainingBackprop);
-    bn_op.set_attr<float>(impl::op_attr::epsilon, 0.0);
-    bn_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    graph::op_t bn_op(graph::op_kind::BatchNormTrainingBackprop);
+    bn_op.set_attr<float>(graph::op_attr::epsilon, 0.0);
+    bn_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
 
-    impl::engine_t *engine = get_engine();
+    graph::engine_t *engine = get_engine();
 
     // Tensor dimensions.
-    const impl::dim_t N = 1, // batch size
+    const graph::dim_t N = 1, // batch size
             IC = 1, // channels
             IH = 2, // tensor height
             IW = 2; // tensor width
@@ -581,16 +592,16 @@ TEST(Compile, BatchNormBackpropFp32WithSingleOutput) {
     dims variance_dims = {IC};
 
     // prepare logical tensor
-    impl::logical_tensor_t src = utils::logical_tensor_init(
-            0, src_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t mean = utils::logical_tensor_init(
-            1, mean_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t variance = utils::logical_tensor_init(
-            2, variance_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
-            3, src_dims, impl::data_type::f32, impl::layout_type::strided);
-    impl::logical_tensor_t diff_src = utils::logical_tensor_init(
-            4, src_dims, impl::data_type::f32, impl::layout_type::strided);
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, src_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t mean = utils::logical_tensor_init(
+            1, mean_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t variance = utils::logical_tensor_init(2,
+            variance_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            3, src_dims, graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t diff_src = utils::logical_tensor_init(
+            4, src_dims, graph::data_type::f32, graph::layout_type::strided);
 
     // Allocate buffers.
     test::vector<float> src_data {1.0f, 2.0f, 3.0f, 4.0f};
@@ -605,33 +616,33 @@ TEST(Compile, BatchNormBackpropFp32WithSingleOutput) {
     bn_op.add_input(variance);
     bn_op.add_output(diff_src);
 
-    impl::graph_t g(engine->kind());
+    graph::graph_t g(engine->kind());
     g.add_op(&bn_op);
     g.finalize();
 
-    impl::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
+    graph::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
-    impl::partition_t p;
+    graph::partition_t p;
     p.init(part);
-    impl::compiled_partition_t cp(p);
+    graph::compiled_partition_t cp(p);
 
-    std::vector<const impl::logical_tensor_t *> inputs {
+    std::vector<const graph::logical_tensor_t *> inputs {
             &src, &diff_dst, &mean, &variance};
-    std::vector<const impl::logical_tensor_t *> outputs {&diff_src};
+    std::vector<const graph::logical_tensor_t *> outputs {&diff_src};
 
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), impl::status::success);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    impl::tensor_t src_ts(src, engine, src_data.data());
-    impl::tensor_t mean_ts(mean, engine, mean_data.data());
-    impl::tensor_t variance_ts(variance, engine, variance_data.data());
-    impl::tensor_t diff_dst_ts(diff_dst, engine, diff_dst_data.data());
-    impl::tensor_t diff_src_ts(diff_src, engine, diff_src_data.data());
+    graph::tensor_t src_ts(src, engine, src_data.data());
+    graph::tensor_t mean_ts(mean, engine, mean_data.data());
+    graph::tensor_t variance_ts(variance, engine, variance_data.data());
+    graph::tensor_t diff_dst_ts(diff_dst, engine, diff_dst_data.data());
+    graph::tensor_t diff_src_ts(diff_src, engine, diff_src_data.data());
 
-    impl::stream_t *strm = get_stream();
+    graph::stream_t *strm = get_stream();
     cp.execute(
             strm, {src_ts, diff_dst_ts, mean_ts, variance_ts}, {diff_src_ts});
     strm->wait();
