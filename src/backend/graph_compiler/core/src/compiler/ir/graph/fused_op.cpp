@@ -1357,12 +1357,12 @@ batchwise_fused_op_t::batchwise_fused_op_t(const std::string &name,
 }
 
 mixed_fuse_op_t::mixed_fuse_op_t(const std::string &name,
-        std::shared_ptr<mixed_parti_t> parti, const sc_graph_t &graph,
+        const std::shared_ptr<mixed_parti_t> &parti, const sc_graph_t &graph,
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     info_.inputs_ = ins;
     info_.outputs_ = outs;
-    parti_ = std::move(parti);
+    parti_ = parti;
     sub_graph_ = copy_graph(graph);
     op_name_ = name;
     attrs_ = attrs;

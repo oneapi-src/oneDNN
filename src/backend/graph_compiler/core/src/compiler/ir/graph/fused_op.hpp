@@ -151,8 +151,8 @@ public:
 class mixed_fuse_op_t : public graph_op_t {
 public:
     mixed_fuse_op_t(const std::string &name,
-            std::shared_ptr<mixed_parti_t> parti, const sc_graph_t &graph,
-            const std::vector<graph_tensor_ptr> &ins,
+            const std::shared_ptr<mixed_parti_t> &parti,
+            const sc_graph_t &graph, const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     sc_graph_t sub_graph_;
     std::shared_ptr<mixed_parti_t> parti_;

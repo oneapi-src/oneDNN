@@ -395,6 +395,10 @@ for_loop for_loop_node_t::fuse(
     iter_end_ = do_cast_and_fold(outer_len).remove_const();
     step_ = make_expr<constant_node>(int64_t(1), var1->dtype_);
 
+    // redirect parent node
+    std::weak_ptr<stmt_base_t> owner = shared_from_this();
+    newbody->attr()["builder.parent_node"] = owner;
+
     body_ = std::move(newbody);
 
     ax->var_ = expr(); // invalidate ax

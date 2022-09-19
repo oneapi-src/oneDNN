@@ -79,14 +79,13 @@ static stmt get_parent_node(stmt node) {
  *  stmt.
  *  @param anchor: tensor should belong to which anchor
  * */
-static for_loop get_parent_loop(stmt anchor) {
+static stmt get_parent_loop_body(stmt anchor) {
     auto node = std::move(anchor);
     while (node->attr().has_key("builder.parent_node")) {
-        if (node.isa<for_loop>()) { return node.static_as<for_loop>(); }
+        if (node.isa<for_loop>()) { return node.static_as<for_loop>()->body_; }
         node = get_parent_node(node);
     }
-    COMPILE_ASSERT(node.isa<for_loop>(), "Loop node is expected")
-    return node.static_as<for_loop>();
+    return node.isa<for_loop>() ? node.static_as<for_loop>()->body_ : node;
 }
 
 static tensor get_real_tensor(const expr &buffer) {
@@ -391,8 +390,8 @@ void mxp_buffer_allocator::tensor_initialize() {
                                 << pad_tsr << " in tsr2anchor map")
                 auto anchor = tsr_anch_map_[pad_tsr];
                 range_list = anchor->fsmap_.get(b2g_map_[pair.second]);
-                decl_body = get_parent_loop(anchor->anchor_position_)
-                                    ->body_.checked_as<stmts>();
+                decl_body = get_parent_loop_body(anchor->anchor_position_)
+                                    .checked_as<stmts>();
             }
             auto ret = padding->get_zero_out_stmt(pad_tsr, range_list);
             decl_body->seq_.insert(decl_body->seq_.begin(), ret);
@@ -406,18 +405,23 @@ fuse_anchor_map_ptr mxp_buffer_allocator::get_real_anchor_for_buffer(
     COMPILE_ASSERT(tsr_anch_map_.find(tsr) != tsr_anch_map_.end(),
             "Could ont find " << tsr << " in tsr2anchor map")
     auto anch = tsr_anch_map_.find(tsr)->second;
-    auto parent_loop = get_parent_loop(anch->anchor_position_);
-    if (parent_loop->attr().has_key(stmt_attr_key::reduce_root_loop)) {
-        auto raw = parent_loop->attr()
-                           .get<std::weak_ptr<stmt_base_t>>(
-                                   stmt_attr_key::reduce_root_loop)
-                           .lock();
-        COMPILE_ASSERT(raw, "reduce_root_loop weak ptr invalidated");
-        parent_loop = stmt(raw).checked_as<for_loop>();
-        anch = binded_mxp_->get_anchor_inside_loop(parent_loop);
-        COMPILE_ASSERT(anch,
-                "No anchor found under reduce root loop, please create it "
-                "otherwise, it may cause correctness issue")
+    auto parent_loop_body = get_parent_loop_body(anch->anchor_position_);
+    if (parent_loop_body->attr().has_key("builder.parent_node")) {
+        auto parent_loop = get_parent_node(parent_loop_body);
+        COMPILE_ASSERT(parent_loop.isa<for_loop>(),
+                "for loop node is expected, but got " << parent_loop)
+        if (parent_loop->attr().has_key(stmt_attr_key::reduce_root_loop)) {
+            auto raw = parent_loop->attr()
+                               .get<std::weak_ptr<stmt_base_t>>(
+                                       stmt_attr_key::reduce_root_loop)
+                               .lock();
+            COMPILE_ASSERT(raw, "reduce_root_loop weak ptr invalidated");
+            anch = binded_mxp_->get_anchor_inside_loop(
+                    stmt(raw).checked_as<for_loop>());
+            COMPILE_ASSERT(anch,
+                    "No anchor found under reduce root loop, please create it "
+                    "otherwise, it may cause correctness issue")
+        }
     }
     return anch;
 }
@@ -446,8 +450,9 @@ void mxp_buffer_allocator::declare_and_shrink_tensor() {
     auto declare_tensor_ = [&](const expr &tsr,
                                    const fuse_anchor_map_ptr &fanchor) {
         // recurrsively find parent fanchor
-        auto parent_loop = get_parent_loop(fanchor->anchor_position_);
-        auto &ss = parent_loop->body_.checked_as<stmts>()->seq_;
+        auto &ss = get_parent_loop_body(fanchor->anchor_position_)
+                           .checked_as<stmts>()
+                           ->seq_;
         ss.emplace(ss.begin(), builder::make_var_tensor_def_unattached(tsr));
     };
     // set shrink info
@@ -865,92 +870,104 @@ static bool try_merge_mixed_parti_parallel(
     if (!check_parti_connectionship(A, B)) return false;
     if (check_parti_ring_risk(A, B, g)) return false;
 
-    auto outer_loops_A = A->get_outer_loops(),
-         outer_loops_B = B->get_outer_loops();
-    if (outer_loops_A.empty() || outer_loops_B.empty()) return false;
+    auto dep = check_parti_dep(A, B, g);
+    COMPILE_ASSERT(
+            dep != parti_dep::inter_dep, "inter-dependency is not expected");
 
-    auto outermost_loop_A = outer_loops_A[0],
-         outermost_loop_B = outer_loops_B[0];
+    auto append_parti = (dep == parti_dep::l_dep_r) ? A : B,
+         target_parti = (dep == parti_dep::l_dep_r) ? B : A;
+
+    auto outer_loops_target = target_parti->get_outer_loops(),
+         outer_loops_append = append_parti->get_outer_loops();
+    if (outer_loops_target.empty() || outer_loops_append.empty()) return false;
+
+    auto outermost_loop_target = outer_loops_target[0],
+         outermost_loop_append = outer_loops_append[0];
 
     // Currently, parallel merge could only depend explict loop attr to ensure
     // op dependency.
-    if (!outermost_loop_A->attr().get_or_else(
+    if (!outermost_loop_target->attr().get_or_else(
                 stmt_attr_key::parallel_merge_loop, false)
-            || !outermost_loop_B->attr().get_or_else(
+            || !outermost_loop_append->attr().get_or_else(
                     stmt_attr_key::parallel_merge_loop, false)) {
         return false;
     } else {
-        COMPILE_ASSERT(outermost_loop_A->kind_ == for_type::PARALLEL
-                        && (outermost_loop_A->num_threads_ > 0),
+        COMPILE_ASSERT(outermost_loop_target->kind_ == for_type::PARALLEL
+                        && (outermost_loop_target->num_threads_ > 0),
                 "parallel loop with num threads larger than 1 are expected")
-        COMPILE_ASSERT(outermost_loop_B->kind_ == for_type::PARALLEL
-                        && (outermost_loop_B->num_threads_ > 0),
+        COMPILE_ASSERT(outermost_loop_append->kind_ == for_type::PARALLEL
+                        && (outermost_loop_append->num_threads_ > 0),
                 "parallel loop with num threads larger than 1 are expected")
     }
-    if (outermost_loop_A->iter_begin_.isa<constant_c>()
-            && outermost_loop_A->iter_end_.isa<constant_c>()
-            && outermost_loop_A->step_.isa<constant_c>()
-            && outermost_loop_B->iter_begin_.isa<constant_c>()
-            && outermost_loop_B->iter_end_.isa<constant_c>()
-            && outermost_loop_B->step_.isa<constant_c>()) {
-        auto A_begin = get_expr_as_int(outermost_loop_A->iter_begin_),
-             A_end = get_expr_as_int(outermost_loop_A->iter_end_),
-             A_step = get_expr_as_int(outermost_loop_A->step_),
-             B_begin = get_expr_as_int(outermost_loop_B->iter_begin_),
-             B_end = get_expr_as_int(outermost_loop_B->iter_end_),
-             B_step = get_expr_as_int(outermost_loop_B->step_);
-        auto A_thread = outermost_loop_A->num_threads_,
-             B_thread = outermost_loop_B->num_threads_;
-        if (!(A_begin == B_begin && A_end == B_end && A_step == B_step
-                    && A_thread == B_thread))
+    if (outermost_loop_target->iter_begin_.isa<constant_c>()
+            && outermost_loop_target->iter_end_.isa<constant_c>()
+            && outermost_loop_target->step_.isa<constant_c>()
+            && outermost_loop_append->iter_begin_.isa<constant_c>()
+            && outermost_loop_append->iter_end_.isa<constant_c>()
+            && outermost_loop_append->step_.isa<constant_c>()) {
+        auto target_begin = get_expr_as_int(outermost_loop_target->iter_begin_),
+             target_end = get_expr_as_int(outermost_loop_target->iter_end_),
+             target_step = get_expr_as_int(outermost_loop_target->step_),
+             append_begin = get_expr_as_int(outermost_loop_append->iter_begin_),
+             append_end = get_expr_as_int(outermost_loop_append->iter_end_),
+             append_step = get_expr_as_int(outermost_loop_append->step_);
+        auto target_thread = outermost_loop_target->num_threads_,
+             append_thread = outermost_loop_append->num_threads_;
+        if (!(target_begin == append_begin && target_end == append_end
+                    && target_step == append_step
+                    && target_thread == append_thread))
             return false;
     } else {
         return false;
     }
 
     // evaluate two partition by cost model
-    float score_A = A->evaluate_perf(), score_B = B->evaluate_perf();
+    float score_target = target_parti->evaluate_perf(),
+          score_append = append_parti->evaluate_perf();
 
     SC_MODULE_INFO << "parallel merging two partition:";
-    SC_MODULE_INFO << A->func_;
-    SC_MODULE_INFO << B->func_;
+    SC_MODULE_INFO << target_parti->func_;
+    SC_MODULE_INFO << append_parti->func_;
 
     /* * * * * * * * * * * * * * * * *
      * Step 1: Merge func_
      * * * * * * * * * * * * * * * * */
     std::unordered_map<expr, expr> expr_map;
-    expr_map[outermost_loop_A->var_] = outermost_loop_B->var_;
+    expr_map[outermost_loop_append->var_] = outermost_loop_target->var_;
 
-    auto common_fanchor = A->get_anchor_inside_loop(outermost_loop_A);
-    auto common_other_fanchor = B->get_anchor_inside_loop(outermost_loop_B);
+    auto common_fanchor
+            = target_parti->get_anchor_inside_loop(outermost_loop_target);
+    auto common_other_fanchor
+            = append_parti->get_anchor_inside_loop(outermost_loop_append);
     // create common anchor if necessary
     if (!common_fanchor) {
         auto s = builder::make_stmts_unattached({}).checked_as<stmts>();
-        set_parent_node(s, outermost_loop_A);
-        outermost_loop_A->body_.checked_as<stmts>()->seq_.emplace_back(s);
+        set_parent_node(s, outermost_loop_target);
+        outermost_loop_target->body_.checked_as<stmts>()->seq_.emplace_back(s);
         // dummy fsmap, the tensor belongs to this scope will not be shrinked
         fslice_map fsmap;
         common_fanchor = std::make_shared<fuse_anchor_map_t>(s, fsmap);
-        A->fanchors_.emplace_back(common_fanchor);
+        target_parti->fanchors_.emplace_back(common_fanchor);
     } else if (common_other_fanchor) {
         common_fanchor->merge(common_other_fanchor);
     }
 
-    common_fanchor->commit_stmt(outermost_loop_B->body_);
+    common_fanchor->commit_stmt(outermost_loop_append->body_);
     // redirect parent node
-    set_parent_node(outermost_loop_B->body_, common_fanchor->anchor_position_);
+    set_parent_node(
+            outermost_loop_append->body_, common_fanchor->anchor_position_);
 
     /* * * * * * * * * * * * * * * * *
      * Step 2: Merge fanchor_
      * * * * * * * * * * * * * * * * */
-    A->fanchors_.insert(
-            A->fanchors_.end(), B->fanchors_.begin(), B->fanchors_.end());
+    target_parti->fanchors_.insert(target_parti->fanchors_.end(),
+            append_parti->fanchors_.begin(), append_parti->fanchors_.end());
 
     /* * * * * * * * * * * * * * * * *
      * Step 3: Merge buffer_
      * * * * * * * * * * * * * * * * */
     std::unordered_map<expr, expr> buffer_map;
-    A->buf_alloc_.merge(B->buf_alloc_, buffer_map,
+    target_parti->buf_alloc_.merge(append_parti->buf_alloc_, buffer_map,
             std::make_pair(common_fanchor, common_other_fanchor));
 
     /* * * * * * * * * * * * * * * * *
@@ -959,35 +976,38 @@ static bool try_merge_mixed_parti_parallel(
     expr_map.insert(buffer_map.begin(), buffer_map.end());
     mxp_replacer_t expr_reper(expr_map);
     // 1. func->body
-    expr_reper.replace_func(A->func_);
+    expr_reper.replace_func(target_parti->func_);
     // 2. fanchor->fsmap->slice_range
-    expr_reper.replace_anchor(A->fanchors_);
+    expr_reper.replace_anchor(target_parti->fanchors_);
 
     /* * * * * * * * * * * * * * * * *
      * Step 5: Merge op_anchor_map_
      * * * * * * * * * * * * * * * * */
-    A->op_anchor_map_.insert(
-            B->op_anchor_map_.begin(), B->op_anchor_map_.end());
+    target_parti->op_anchor_map_.insert(append_parti->op_anchor_map_.begin(),
+            append_parti->op_anchor_map_.end());
 
     // call base merge
-    A->fusion_partition_t::merge(
-            static_cast<fusion_partition_t *>(B)->shared_from_this());
+    target_parti->fusion_partition_t::merge(
+            static_cast<fusion_partition_t *>(append_parti)
+                    ->shared_from_this());
 
     // Merge commited ops
-    A->committed_ops_.insert(A->committed_ops_.end(), B->committed_ops_.begin(),
-            B->committed_ops_.end());
+    target_parti->committed_ops_.insert(target_parti->committed_ops_.end(),
+            append_parti->committed_ops_.begin(),
+            append_parti->committed_ops_.end());
 
-    A->func_->name_ += "_parallel_merge_" + B->func_->name_;
+    target_parti->func_->name_
+            += "_parallel_merge_" + append_parti->func_->name_;
 
     SC_MODULE_INFO << "parallel merging result:";
-    SC_MODULE_INFO << A->func_;
+    SC_MODULE_INFO << target_parti->func_;
 
     // clear merged parti
-    B->clear();
+    append_parti->clear();
 
-    float score_C = A->evaluate_perf();
+    float score_C = target_parti->evaluate_perf();
 
-    if (score_C < std::max(score_A, score_B)) {
+    if (score_C < std::max(score_target, score_append)) {
         SC_MODULE_WARN << "Merging these two partition may cause performance "
                           "drop, no fall-back strategy found";
     }
