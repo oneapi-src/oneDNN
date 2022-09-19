@@ -586,9 +586,6 @@ enum class algorithm {
     lrn_within_channel = dnnl_lrn_within_channel,
     /// Max pooling
     pooling_max = dnnl_pooling_max,
-    /// Average pooling exclude padding,
-    /// alias for #dnnl::algorithm::pooling_avg_exclude_padding
-    pooling_avg = dnnl_pooling_avg,
     /// Average pooling include padding
     pooling_avg_include_padding = dnnl_pooling_avg_include_padding,
     /// Average pooling exclude padding
@@ -11999,8 +11996,7 @@ struct pooling_forward : public primitive {
         /// @param aalgorithm Pooling algorithm kind: either
         ///     #dnnl::algorithm::pooling_max,
         ///     #dnnl::algorithm::pooling_avg_include_padding,
-        ///     or #dnnl::algorithm::pooling_avg (same as
-        ///     #dnnl::algorithm::pooling_avg_exclude_padding).
+        ///     or #dnnl::algorithm::pooling_avg_exclude_padding.
         /// @param src_desc Source memory descriptor.
         /// @param dst_desc Destination memory descriptor.
         /// @param strides Vector of strides for spatial dimension.
@@ -12125,8 +12121,7 @@ struct pooling_backward : public primitive {
         /// @param aalgorithm Pooling algorithm kind: either
         ///     #dnnl::algorithm::pooling_max,
         ///     #dnnl::algorithm::pooling_avg_include_padding,
-        ///     or #dnnl::algorithm::pooling_avg (same as
-        ///     #dnnl::algorithm::pooling_avg_exclude_padding).
+        ///     or #dnnl::algorithm::pooling_avg_exclude_padding.
         /// @param diff_src_desc Diff source memory descriptor.
         /// @param diff_dst_desc Diff destination memory descriptor.
         /// @param strides Vector of strides for spatial dimension.

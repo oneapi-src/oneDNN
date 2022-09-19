@@ -99,7 +99,6 @@ const alg_kind_t eltwise_clip_v2_use_dst_for_bwd
         = dnnl_eltwise_clip_v2_use_dst_for_bwd;
 const alg_kind_t eltwise_round = dnnl_eltwise_round;
 const alg_kind_t pooling_max = dnnl_pooling_max;
-const alg_kind_t pooling_avg = dnnl_pooling_avg;
 const alg_kind_t pooling_avg_include_padding = dnnl_pooling_avg_include_padding;
 const alg_kind_t pooling_avg_exclude_padding = dnnl_pooling_avg_exclude_padding;
 const alg_kind_t lrn_across_channels = dnnl_lrn_across_channels;

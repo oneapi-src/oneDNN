@@ -1709,8 +1709,7 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_primitive_desc_create(
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind Pooling algorithm kind: either #dnnl_pooling_max,
-///     #dnnl_pooling_avg_include_padding, or #dnnl_pooling_avg (same as
-///     #dnnl_pooling_avg_exclude_padding).
+///     #dnnl_pooling_avg_include_padding, or #dnnl_pooling_avg_exclude_padding.
 /// @param src_desc Source memory descriptor.
 /// @param dst_desc Destination memory descriptor.
 /// @param strides Array of strides for spatial dimension.
@@ -1744,8 +1743,7 @@ dnnl_status_t DNNL_API dnnl_pooling_forward_primitive_desc_create(
 /// @param primitive_desc Output primitive descriptor.
 /// @param engine Engine to use.
 /// @param alg_kind Pooling algorithm kind: either #dnnl_pooling_max,
-///     #dnnl_pooling_avg_include_padding, or #dnnl_pooling_avg (same as
-///     #dnnl_pooling_avg_exclude_padding).
+///     #dnnl_pooling_avg_include_padding, or #dnnl_pooling_avg_exclude_padding.
 /// @param diff_src_desc Diff source memory descriptor.
 /// @param diff_dst_desc Diff destination memory descriptor.
 /// @param strides Array of strides for spatial dimension.

@@ -1503,8 +1503,6 @@ typedef enum {
     dnnl_pooling_avg_include_padding = 0x2ff,
     /// Average pooling exclude padding
     dnnl_pooling_avg_exclude_padding = 0x3ff,
-    /// Average pooling (alias for #dnnl_pooling_avg_exclude_padding)
-    dnnl_pooling_avg = dnnl_pooling_avg_exclude_padding,
     /// Local response normalization (LRN) across multiple channels
     dnnl_lrn_across_channels = 0xaff,
     /// LRN within a single channel

@@ -1153,7 +1153,6 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_pooling_max) return "pooling_max";
     if (v == dnnl_pooling_avg_include_padding) return "pooling_avg_include_padding";
     if (v == dnnl_pooling_avg_exclude_padding) return "pooling_avg_exclude_padding";
-    if (v == dnnl_pooling_avg) return "pooling_avg";
     if (v == dnnl_lrn_across_channels) return "lrn_across_channels";
     if (v == dnnl_lrn_within_channel) return "lrn_within_channel";
     if (v == dnnl_vanilla_rnn) return "vanilla_rnn";
