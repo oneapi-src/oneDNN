@@ -246,17 +246,17 @@ protected:
 
         auto conv_primitive_desc = with_bias
                 ? convolution_forward::primitive_desc(eng,
-                        prop_kind::forward_scoring, p.aalgorithm, c_src_desc,
+                        prop_kind::forward_inference, p.aalgorithm, c_src_desc,
                         c_weights_desc, c_bias_desc, c_dst_desc, strides,
                         dilations, padL, padR, attr)
                 : convolution_forward::primitive_desc(eng,
-                        prop_kind::forward_scoring, p.aalgorithm, c_src_desc,
+                        prop_kind::forward_inference, p.aalgorithm, c_src_desc,
                         c_weights_desc, c_dst_desc, strides, dilations, padL,
                         padR, attr);
 
         ASSERT_EQ(conv_primitive_desc.get_algorithm(), p.aalgorithm);
         ASSERT_EQ(conv_primitive_desc.get_prop_kind(),
-                prop_kind::forward_scoring);
+                prop_kind::forward_inference);
         ASSERT_EQ(conv_primitive_desc.get_strides(), strides);
         ASSERT_EQ(conv_primitive_desc.get_dilations(), dilations);
         ASSERT_EQ(conv_primitive_desc.get_padding_l(), padL);

@@ -50,7 +50,6 @@ namespace prop_kind {
 const prop_kind_t undef = dnnl_prop_kind_undef;
 const prop_kind_t forward_training = dnnl_forward_training;
 const prop_kind_t forward_inference = dnnl_forward_inference;
-const prop_kind_t forward_scoring = dnnl_forward_scoring;
 const prop_kind_t forward = dnnl_forward;
 const prop_kind_t backward = dnnl_backward;
 const prop_kind_t backward_data = dnnl_backward_data;

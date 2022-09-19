@@ -1362,8 +1362,6 @@ typedef enum {
     /// perform only computations that are necessary for inference and omit
     /// computations that are necessary only for backward propagation.
     dnnl_forward_inference = 96,
-    /// Forward data propagation (alias for @c dnnl_forward_inference).
-    dnnl_forward_scoring = dnnl_forward_inference,
     /// Forward data propagation (alias for @c dnnl_forward_training).
     dnnl_forward = dnnl_forward_training,
     /// Backward propagation (with respect to all parameters).

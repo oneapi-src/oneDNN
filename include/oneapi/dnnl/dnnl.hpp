@@ -489,9 +489,6 @@ enum class prop_kind {
     /// computations that are necessary only for backward propagation.
     forward_inference = dnnl_forward_inference,
     /// Forward data propagation,
-    /// alias for #dnnl::prop_kind::forward_inference.
-    forward_scoring = dnnl_forward_scoring,
-    /// Forward data propagation,
     /// alias for #dnnl::prop_kind::forward_training.
     forward = dnnl_forward,
     /// Backward propagation (with respect to all parameters).

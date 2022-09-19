@@ -1079,7 +1079,6 @@ const char *dnnl_prop_kind2str(dnnl_prop_kind_t v) {
     if (v == dnnl_prop_kind_undef) return "undef";
     if (v == dnnl_forward_training) return "forward_training";
     if (v == dnnl_forward_inference) return "forward_inference";
-    if (v == dnnl_forward_scoring) return "forward_scoring";
     if (v == dnnl_forward) return "forward";
     if (v == dnnl_backward) return "backward";
     if (v == dnnl_backward_data) return "backward_data";
