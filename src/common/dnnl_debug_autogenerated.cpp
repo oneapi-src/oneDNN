@@ -1202,7 +1202,6 @@ const char *dnnl_rnn_direction2str(dnnl_rnn_direction_t v) {
     if (v == dnnl_unidirectional_right2left) return "unidirectional_right2left";
     if (v == dnnl_bidirectional_concat) return "bidirectional_concat";
     if (v == dnnl_bidirectional_sum) return "bidirectional_sum";
-    if (v == dnnl_unidirectional) return "unidirectional";
     assert(!"unknown rnn_direction");
     return "unknown rnn_direction";
 }

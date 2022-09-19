@@ -799,8 +799,6 @@ enum class rnn_direction {
     /// Bidirectional execution of RNN primitive with summation of the
     /// results.
     bidirectional_sum = dnnl_bidirectional_sum,
-    /// Alias for #dnnl::rnn_direction::unidirectional_left2right
-    unidirectional = dnnl_unidirectional,
 };
 
 /// Converts RNN direction enum value from C++ API to C API type.

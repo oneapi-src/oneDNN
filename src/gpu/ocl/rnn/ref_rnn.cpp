@@ -227,7 +227,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("R2L", dnnl_unidirectional_right2left);
     kernel_ctx.define_int("CONCAT", dnnl_bidirectional_concat);
     kernel_ctx.define_int("SUM", dnnl_bidirectional_sum);
-    kernel_ctx.define_int("UNIDEF", dnnl_unidirectional);
     kernel_ctx.define_int("DIRECTION_KIND", conf.direction_kind);
 
     kernel_ctx.define_int("BATCH", conf.batch);

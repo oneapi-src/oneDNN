@@ -1913,8 +1913,6 @@ typedef enum {
     /// Bidirectional execution of RNN primitive with summation of the
     /// results.
     dnnl_bidirectional_sum,
-    /// Alias for #dnnl_unidirectional_left2right.
-    dnnl_unidirectional = dnnl_unidirectional_left2right,
 } dnnl_rnn_direction_t;
 
 /// @} dnnl_api_rnn
