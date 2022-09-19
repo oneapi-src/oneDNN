@@ -4297,14 +4297,15 @@ struct reorder : public primitive {
         /// @param dst_engine Engine on which the destination memory object
         ///     will be located.
         /// @param dst_md Destination memory descriptor.
-        /// @param attr Primitive attributes to use (optional).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is allowed
         ///     to fail without throwing an exception. In this case an empty
         ///     object will be produced. This flag is optional and defaults to
         ///     false.
         primitive_desc(const engine &src_engine, const memory::desc &src_md,
                 const engine &dst_engine, const memory::desc &dst_md,
-                const primitive_attr &attr = primitive_attr(),
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
             dnnl_primitive_desc_t result;
             dnnl_status_t status = dnnl_reorder_primitive_desc_create(&result,
@@ -4323,13 +4324,14 @@ struct reorder : public primitive {
         ///     memory descriptor and engine.
         /// @param dst Destination memory object. It is used to obtain the
         ///     destination memory descriptor and engine.
-        /// @param attr Primitive attributes to use (optional).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is allowed
         ///     to fail without throwing an exception. In this case an empty
         ///     object will be produced. This flag is optional and defaults to
         ///     false.
         primitive_desc(const memory &src, const memory &dst,
-                const primitive_attr &attr = primitive_attr(),
+                const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
             dnnl_primitive_desc_t result;
             auto src_md = src.get_desc();
@@ -4446,10 +4448,11 @@ struct concat : public primitive {
         ///     dimension with this index. Note that order of dimensions does
         ///     not depend on memory format.
         /// @param srcs Vector of source memory descriptors.
-        /// @param attr Primitive attributes to use (optional).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         primitive_desc(const engine &aengine, const memory::desc &dst,
                 int concat_dimension, const std::vector<memory::desc> &srcs,
-                const primitive_attr &attr = primitive_attr()) {
+                const primitive_attr &attr = default_attr()) {
             auto c_srcs = convert_to_c(srcs);
 
             dnnl_primitive_desc_t result;
@@ -4473,10 +4476,11 @@ struct concat : public primitive {
         ///     dimension with this index. Note that order of dimensions does
         ///     not depend on memory format.
         /// @param srcs Vector of source memory descriptors.
-        /// @param attr Primitive attributes to use (optional).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         primitive_desc(const engine &aengine, int concat_dimension,
                 const std::vector<memory::desc> &srcs,
-                const primitive_attr &attr = primitive_attr()) {
+                const primitive_attr &attr = default_attr()) {
             auto c_api_srcs = convert_to_c(srcs);
 
             dnnl_primitive_desc_t result;
@@ -4543,11 +4547,12 @@ struct sum : public primitive {
         /// @param scales Vector of scales to multiply data in each source
         ///     memory by.
         /// @param srcs Vector of source memory descriptors.
-        /// @param attr Primitive attributes to use (optional).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         primitive_desc(const engine &aengine, const memory::desc &dst,
                 const std::vector<float> &scales,
                 const std::vector<memory::desc> &srcs,
-                const primitive_attr &attr = primitive_attr()) {
+                const primitive_attr &attr = default_attr()) {
             validate_container_size(scales,
                     "counts of scales and sources are not equal",
                     (int)srcs.size(), (int)srcs.size());
@@ -4573,10 +4578,11 @@ struct sum : public primitive {
         /// @param scales Vector of scales by which to multiply data in each
         ///     source memory object.
         /// @param srcs Vector of source memory descriptors.
-        /// @param attr Primitive attributes to use (optional).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
         primitive_desc(const engine &aengine, const std::vector<float> &scales,
                 const std::vector<memory::desc> &srcs,
-                const primitive_attr &attr = primitive_attr()) {
+                const primitive_attr &attr = default_attr()) {
             validate_container_size(scales,
                     "counts of scales and sources are not equal",
                     (int)srcs.size(), (int)srcs.size());
