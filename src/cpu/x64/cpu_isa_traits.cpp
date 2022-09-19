@@ -100,7 +100,7 @@ struct isa_info_t {
             case avx2: return dnnl_cpu_isa_avx2;
             case avx: return dnnl_cpu_isa_avx;
             case sse41: return dnnl_cpu_isa_sse41;
-            default: return dnnl_cpu_isa_all;
+            default: return dnnl_cpu_isa_default;
         }
     }
 

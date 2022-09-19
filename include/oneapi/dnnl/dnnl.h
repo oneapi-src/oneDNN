@@ -3688,7 +3688,7 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 /// @sa @ref dev_guide_cpu_dispatcher_control for more details
 ///
 /// @param isa Maximal ISA the library should dispatch to. Pass
-///     #dnnl_cpu_isa_all/#dnnl::cpu_isa::all to remove ISA restrictions
+///     #dnnl_cpu_isa_default/#dnnl::cpu_isa::default to remove ISA restrictions
 ///     (except for ISAs with initial support in the library).
 /// @returns #dnnl_success/#dnnl::status::success on success and a
 ///     #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the @p isa

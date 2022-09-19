@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,10 +42,10 @@ TEST(isa_test_t, TestISA) {
     const auto cur_internal_isa = get_max_cpu_isa_mask(test_flag);
 
     const std::set<cpu_isa> &compatible_isa = compatible_cpu_isa(cur_isa);
-    const std::set<cpu_isa> &all_isa = cpu_isa_all();
+    const std::set<cpu_isa> &isa_list = cpu_isa_list();
 
     std::set<cpu_isa> incompatible_isa;
-    std::set_difference(all_isa.cbegin(), all_isa.cend(),
+    std::set_difference(isa_list.cbegin(), isa_list.cend(),
             compatible_isa.cbegin(), compatible_isa.cend(),
             std::inserter(incompatible_isa, incompatible_isa.begin()));
 

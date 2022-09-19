@@ -2500,8 +2500,8 @@ typedef struct {
 
 /// CPU instruction set flags
 typedef enum {
-    /// Any ISA (excepting those listed as initial support)
-    dnnl_cpu_isa_all = 0x0,
+    /// Library choice of ISA (excepting those listed as initial support)
+    dnnl_cpu_isa_default = 0x0,
 
     /// Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
     dnnl_cpu_isa_sse41 = 0x1,

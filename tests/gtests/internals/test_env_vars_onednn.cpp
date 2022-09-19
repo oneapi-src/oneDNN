@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,13 +53,13 @@ TEST(onednn_max_cpu_isa_env_var_test, TestEnvVars) {
     // Expect set values only for X64...
     EXPECT_EQ(got, dnnl_cpu_isa_sse41);
 
-    auto st = dnnl_set_max_cpu_isa(dnnl_cpu_isa_all);
+    auto st = dnnl_set_max_cpu_isa(dnnl_cpu_isa_default);
     EXPECT_EQ(st, dnnl_invalid_arguments);
     auto func_got = dnnl_get_effective_cpu_isa();
     EXPECT_EQ(func_got, dnnl_cpu_isa_sse41);
 #else
     // ... while rest should return isa_all
-    EXPECT_EQ(got, dnnl_cpu_isa_all);
+    EXPECT_EQ(got, dnnl_cpu_isa_default);
 #endif
 }
 #endif // DNNL_X64

@@ -78,7 +78,7 @@ struct isa_info_t {
             case sve_128:
                 return static_cast<dnnl_cpu_isa_t>(dnnl_cpu_isa_sve_128);
             case asimd: return static_cast<dnnl_cpu_isa_t>(dnnl_cpu_isa_asimd);
-            default: return dnnl_cpu_isa_all;
+            default: return dnnl_cpu_isa_default;
         }
     }
 

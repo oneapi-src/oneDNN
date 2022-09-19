@@ -206,8 +206,8 @@ struct palette_config_t {
 
 template <>
 struct cpu_isa_traits<isa_all> {
-    static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_all;
-    static constexpr const char *user_option_env = "all";
+    static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_default;
+    static constexpr const char *user_option_env = "default";
 };
 
 template <>

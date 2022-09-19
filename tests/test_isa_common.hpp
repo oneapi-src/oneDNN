@@ -55,7 +55,7 @@ inline impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
         HANDLE_ISA(avx2_vnni);
         HANDLE_ISA(avx512_core_fp16);
         default:
-            assert(input_isa == cpu_isa::all);
+            assert(input_isa == cpu_isa::isa_default);
             return impl::cpu::x64::cpu_isa_t::isa_all;
             break;
     }
@@ -104,13 +104,14 @@ hints_masked_internal_cpu_isa(cpu_isa_hints hints) {
     }
 }
 
-inline const std::set<cpu_isa> &cpu_isa_all() {
-    static const std::set<cpu_isa> isa_all {cpu_isa::sse41, cpu_isa::avx,
+inline const std::set<cpu_isa> &cpu_isa_list() {
+    static const std::set<cpu_isa> isa_list {cpu_isa::sse41, cpu_isa::avx,
             cpu_isa::avx2, cpu_isa::avx2_vnni, cpu_isa::avx512_core,
             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core_bf16,
-            cpu_isa::avx512_core_fp16, cpu_isa::avx512_core_amx, cpu_isa::all};
+            cpu_isa::avx512_core_fp16, cpu_isa::avx512_core_amx,
+            cpu_isa::isa_default};
 
-    return isa_all;
+    return isa_list;
 }
 
 inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
@@ -144,8 +145,8 @@ inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
                             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core,
                             cpu_isa::avx2_vnni, cpu_isa::avx2, cpu_isa::avx,
                             cpu_isa::sse41}},
-            {cpu_isa::all,
-                    {cpu_isa::all, cpu_isa::avx512_core_amx,
+            {cpu_isa::isa_default,
+                    {cpu_isa::isa_default, cpu_isa::avx512_core_amx,
                             cpu_isa::avx512_core_fp16,
                             cpu_isa::avx512_core_bf16,
                             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core,
@@ -180,11 +181,12 @@ inline bool mayiuse(dnnl_cpu_isa_t isa, bool soft = false) {
 }
 
 inline cpu_isa get_max_cpu_isa(bool soft = false) {
-    for (auto it = cpu_isa_all().crbegin(); it != cpu_isa_all().crend(); it++) {
+    for (auto it = cpu_isa_list().crbegin(); it != cpu_isa_list().crend();
+            it++) {
         if (mayiuse(*it, soft)) return *it;
     }
 
-    return cpu_isa::all;
+    return cpu_isa::isa_default;
 }
 
 inline impl::cpu::x64::cpu_isa_t get_max_cpu_isa_mask(bool soft = false) {

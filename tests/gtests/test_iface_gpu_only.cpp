@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,8 +36,8 @@ TEST(iface_gpu_only, gemm) {
 }
 
 TEST(iface_gpu_only, isa) {
-    ASSERT_EQ(dnnl_set_max_cpu_isa(dnnl_cpu_isa_all), dnnl_runtime_error);
-    ASSERT_EQ(dnnl_get_effective_cpu_isa(), dnnl_cpu_isa_all);
+    ASSERT_EQ(dnnl_set_max_cpu_isa(dnnl_cpu_isa_default), dnnl_runtime_error);
+    ASSERT_EQ(dnnl_get_effective_cpu_isa(), dnnl_cpu_isa_default);
     ASSERT_EQ(
             dnnl_set_cpu_isa_hints(dnnl_cpu_isa_no_hints), dnnl_runtime_error);
     ASSERT_EQ(dnnl_get_cpu_isa_hints(), dnnl_cpu_isa_no_hints);

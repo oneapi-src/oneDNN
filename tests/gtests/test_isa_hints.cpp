@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ TEST(isa_hints_test_t, TestISAHints) {
 
     std::map<cpu_isa_t, bool> compat_before_hint;
 
-    for (auto isa : cpu_isa_all()) {
+    for (auto isa : cpu_isa_list()) {
         const auto &internal_isa_set = masked_internal_cpu_isa(isa);
         for (auto internal_isa : internal_isa_set) {
             compat_before_hint[internal_isa] = mayiuse(internal_isa, test_flag);
@@ -57,7 +57,7 @@ TEST(isa_hints_test_t, TestISAHints) {
 
     ASSERT_TRUE(st == status::success);
 
-    for (auto isa : cpu_isa_all()) {
+    for (auto isa : cpu_isa_list()) {
         const auto &internal_isa_set = masked_internal_cpu_isa(isa);
         for (auto internal_isa : internal_isa_set) {
             // ISA specific hint will not change the non-hint-complying ISA

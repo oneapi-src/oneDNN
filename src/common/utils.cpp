@@ -286,7 +286,7 @@ dnnl_status_t dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa) {
 }
 
 dnnl_cpu_isa_t dnnl_get_effective_cpu_isa() {
-    auto isa = dnnl_cpu_isa_all;
+    auto isa = dnnl_cpu_isa_default;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     isa = dnnl::impl::cpu::platform::get_effective_cpu_isa();
 #endif

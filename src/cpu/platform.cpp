@@ -67,7 +67,7 @@ dnnl_cpu_isa_t get_effective_cpu_isa() {
 #elif DNNL_AARCH64
     return aarch64::get_effective_cpu_isa();
 #else
-    return dnnl_cpu_isa_all;
+    return dnnl_cpu_isa_default;
 #endif
 }
 
