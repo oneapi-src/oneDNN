@@ -118,7 +118,7 @@ void jit_avx512_common_lrn_kernel_bwd_t<d_type>::load_tail(int tail_value,
     for (int i = 0; i < tail_value; ++i) {
         if (d_type == bf16) {
             this->movzx(this->imm_addr64_, word[src + src_mem_offset]);
-            this->movq(tmp_xreg, this->imm_addr64_);
+            this->vmovq(tmp_xreg, this->imm_addr64_);
             this->vpslld(tmp_xreg, tmp_xreg, 0x10);
         } else if (d_type == f16) {
             this->vxorps(tmp_xreg, tmp_xreg, tmp_xreg);

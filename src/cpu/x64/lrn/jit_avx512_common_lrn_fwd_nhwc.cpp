@@ -92,11 +92,11 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::set_up_ker_params() {
 #undef GET_OFF
 
     this->mov(this->imm_addr64_, float2int(this->alpha_));
-    this->movq(this->xalpha_, this->imm_addr64_);
+    this->vmovq(this->xalpha_, this->imm_addr64_);
     this->vbroadcastss(this->zalpha_, this->xalpha_);
 
     this->mov(this->imm_addr64_, float2int(this->k_));
-    this->movq(this->xk_, this->imm_addr64_);
+    this->vmovq(this->xk_, this->imm_addr64_);
     this->vbroadcastss(this->zk_, this->xk_);
 }
 

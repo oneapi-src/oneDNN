@@ -563,12 +563,12 @@ void jit_brgemm_amx_uker_base_t::apply_alpha_beta_to_vector(
 
     if (apply_beta && !use_vadd_for_beta) {
         mov(reg_tmp_gpr, float2int(static_cast<float>(brg.beta)));
-        movq(Xmm(zmm_beta.getIdx()), reg_tmp_gpr);
+        vmovq(Xmm(zmm_beta.getIdx()), reg_tmp_gpr);
         vbroadcastss(zmm_beta, Xmm(zmm_beta.getIdx()));
     }
     if (apply_alpha) {
         mov(reg_tmp_gpr, float2int(static_cast<float>(brg.alpha)));
-        movq(Xmm(zmm_alpha.getIdx()), reg_tmp_gpr);
+        vmovq(Xmm(zmm_alpha.getIdx()), reg_tmp_gpr);
         vbroadcastss(zmm_alpha, Xmm(zmm_alpha.getIdx()));
     }
     if (dq2ps_required) vcvtdq2ps(zmm, zmm);

@@ -745,11 +745,11 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nhwc_across_t &J) {
     if (pk_ != prop_kind::forward_inference)
         this->mov(scratch_, this->ptr[this->param1 + 16]);
     this->mov(this->imm_addr64_, float2int(this->alpha_));
-    this->movq(xalpha_, this->imm_addr64_);
+    this->vmovq(xalpha_, this->imm_addr64_);
     this->vbroadcastss(valpha_, xalpha_);
 
     this->mov(this->imm_addr64_, float2int(this->k_));
-    this->movq(xk_, this->imm_addr64_);
+    this->vmovq(xk_, this->imm_addr64_);
     this->vbroadcastss(yk_, xk_);
 
     this->vxorps(ysum, ysum, ysum);
