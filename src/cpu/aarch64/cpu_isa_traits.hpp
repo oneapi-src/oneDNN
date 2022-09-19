@@ -66,7 +66,7 @@ enum cpu_isa_bit_t : unsigned {
 };
 
 enum cpu_isa_t : unsigned {
-    isa_any = 0u,
+    isa_undef = 0u,
     asimd = asimd_bit,
     sve_128 = sve_128_bit | asimd,
     sve_256 = sve_256_bit | sve_128,
@@ -190,7 +190,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
             return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_384;
         case sve_512:
             return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_512;
-        case isa_any: return true;
+        case isa_undef: return true;
         case isa_all: return false;
     }
     return false;
@@ -215,7 +215,7 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
 #include "common/z_magic.hpp"
 /* clang-format off */
 #define JIT_IMPL_NAME_HELPER(prefix, isa, suffix_if_any) \
-    ((isa) == isa_any ? prefix STRINGIFY(any) : \
+    ((isa) == isa_undef ? prefix STRINGIFY(any) : \
     ((isa) == asimd ? prefix STRINGIFY(asimd) : \
     ((isa) == sve_128 ? prefix STRINGIFY(sve_128) : \
     ((isa) == sve_256 ? prefix STRINGIFY(sve_256) : \

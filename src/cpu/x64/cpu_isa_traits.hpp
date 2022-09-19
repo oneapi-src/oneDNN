@@ -102,7 +102,7 @@ static bool is_hints_bit_set(cpu_isa_bit_t hint_bit, bool soft) {
 } // namespace cpu_isa_hints_utils
 
 enum cpu_isa_t : unsigned {
-    isa_any = 0u,
+    isa_undef = 0u,
     sse41 = sse41_bit,
     avx = avx_bit | sse41,
     avx2 = avx2_bit | avx,
@@ -340,7 +340,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
         case avx512_core_amx:
             return mayiuse(amx_int8, soft) && mayiuse(amx_bf16, soft)
                     && mayiuse(avx512_core_fp16, soft);
-        case isa_any: return true;
+        case isa_undef: return true;
         case isa_all: return false;
     }
     return false;
@@ -356,7 +356,7 @@ static inline bool isa_has_bf16(cpu_isa_t isa) {
 #include "common/z_magic.hpp"
 /* clang-format off */
 #define JIT_IMPL_NAME_HELPER(prefix, isa, suffix_if_any) \
-    ((isa) == isa_any ? prefix STRINGIFY(any) : \
+    ((isa) == isa_undef ? prefix STRINGIFY(undef) : \
     (isa) == sse41 ? prefix STRINGIFY(sse41) : \
     (isa) == avx ? prefix STRINGIFY(avx) : \
     (isa) == avx2 ? prefix STRINGIFY(avx2) : \

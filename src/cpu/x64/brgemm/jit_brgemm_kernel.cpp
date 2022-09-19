@@ -46,8 +46,8 @@ struct jit_brgemm_kernel_t : public jit_generator {
         , postops_injector_(nullptr) {
 
         // The implementation uses is_superset(), is_subset() utilities.
-        // So avoid isa_all, isa_any in these comparisions.
-        assert(!utils::one_of(brg.isa_impl, isa_all, isa_any));
+        // So avoid isa_all, isa_undef in these comparisions.
+        assert(!utils::one_of(brg.isa_impl, isa_all, isa_undef));
         const int is_ldb2_tail = brg.ldb2_tail ? 1 : 0;
         const int is_ldb_tail = brg.ldb_tail ? 1 : 0;
         is_ldb_loop_ = brg.ldb2 + is_ldb2_tail + is_ldb_tail > 1;

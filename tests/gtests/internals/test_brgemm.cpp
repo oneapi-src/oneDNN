@@ -188,7 +188,7 @@ private:
         char palette[64];
         char tile_buffer[1024];
         x64::brgemm_t desc;
-        auto res = brgemm_desc_init(&desc, x64::cpu_isa_t::isa_any,
+        auto res = brgemm_desc_init(&desc, x64::cpu_isa_t::isa_undef,
                 p.batch_kind, p.dt_a, p.dt_b, p.tr_a(), p.tr_b(), p.layout,
                 p.alpha, p.beta, p.lda, p.ldb, p.ldc, p.M, p.N, p.K);
         if (res != dnnl_success) return res;

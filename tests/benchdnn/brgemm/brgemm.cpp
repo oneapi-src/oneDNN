@@ -336,15 +336,15 @@ int doit(const prb_t *prb, res_t *res) {
     brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_addr;
     brgemm_layout_t layout = brgemm_layout_t::brgemm_row_major;
 
-    // Pass `isa_any` for now since internal work with it or rather isa bits
+    // Pass `isa_undef` for now since internal work with it or rather isa bits
     // than isa values directly which causes misalignment between public enum
     // and internal values.
     // TODO: re-consider enabling isa values.
-    const auto isa_any = cpu_isa_t::isa_any;
+    const auto isa_undef = cpu_isa_t::isa_undef;
 
     // Create BRGeMM descriptor, analogous to primitive descriptor creation
-    const auto status_init = brgemm_desc_init(&brgemm_desc, isa_any, batch_kind,
-            prb->src_dt(), prb->wei_dt(), false /* transA */,
+    const auto status_init = brgemm_desc_init(&brgemm_desc, isa_undef,
+            batch_kind, prb->src_dt(), prb->wei_dt(), false /* transA */,
             false /* transB */, layout, prb->alpha, prb->beta, prb->get_lda(),
             prb->get_ldb(), prb->get_ldc(use_dst_as_acc), prb->m, prb->n,
             prb->k, nullptr /* strides */);

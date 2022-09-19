@@ -104,7 +104,7 @@ static isa_info_t get_isa_info_t(void) {
     HANDLE_CASE(sve_128);
     HANDLE_CASE(asimd);
 #undef HANDLE_CASE
-    return isa_info_t(isa_any);
+    return isa_info_t(isa_undef);
 }
 
 const char *get_isa_info() {
@@ -130,7 +130,7 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
     using namespace dnnl::impl;
     using namespace dnnl::impl::cpu;
 
-    cpu_isa_t isa_to_set = isa_any;
+    cpu_isa_t isa_to_set = isa_undef;
 #define HANDLE_CASE(cpu_isa) \
     case cpu_isa_traits<cpu_isa>::user_option_val: isa_to_set = cpu_isa; break;
     switch (isa) {
@@ -141,7 +141,7 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
         HANDLE_CASE(sve_512);
         default: return invalid_arguments;
     }
-    assert(isa_to_set != isa_any);
+    assert(isa_to_set != isa_undef);
 #undef HANDLE_CASE
 
     if (max_cpu_isa().set(isa_to_set))

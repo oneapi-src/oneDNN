@@ -45,7 +45,7 @@ static cpu_isa_t get_supported_isa(bool is_plain) {
     if (mayiuse(avx)) return avx;
     if (mayiuse(sse41)) return sse41;
 
-    return isa_any;
+    return isa_undef;
 }
 
 static bool impl_supports_datatype(data_type_t data_type) {

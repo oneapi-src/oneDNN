@@ -248,7 +248,7 @@ struct diff_src_brgemm_conf_t {
     dim_t LDA = 0, LDB = 0, LDC = 0;
 
 #if DNNL_X64
-    x64::cpu_isa_t isa = x64::isa_any;
+    x64::cpu_isa_t isa = x64::isa_undef;
 #endif
 
     brgemm_rnn_execute_loop_order_t loop_order
@@ -269,7 +269,7 @@ struct diff_wei_brgemm_conf_t {
     bool global_transpose = false;
 
 #if DNNL_X64
-    x64::cpu_isa_t isa = x64::isa_any;
+    x64::cpu_isa_t isa = x64::isa_undef;
 #endif
 
     brgemm_rnn_execute_loop_order_t loop_order

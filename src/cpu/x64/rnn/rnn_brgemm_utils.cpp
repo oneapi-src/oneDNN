@@ -75,7 +75,7 @@ x64::cpu_isa_t brgemm_calc_isa(dim_t K1, dim_t K2, bool is_int8, bool is_bf16) {
         return x64::avx512_core_bf16;
     }
 
-    return x64::isa_any;
+    return x64::isa_undef;
 }
 
 std::pair<dim_t, dim_t> brgemm_calc_k_block(dim_t K1, dim_t K2, dim_t M,

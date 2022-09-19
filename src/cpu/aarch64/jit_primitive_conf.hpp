@@ -509,7 +509,7 @@ struct jit_shuffle_conf_t {
     dim_t c_split_size = 0;
     dim_t sp_split_size = 0;
 
-    cpu_isa_t isa = isa_any;
+    cpu_isa_t isa = isa_undef;
 };
 
 struct jit_shuffle_call_s {

@@ -153,8 +153,8 @@ struct brgemm_t {
     // isa_user to store the user provided isa value
     // isa_impl to store actual implementation. This can change until the kernel
     // is created, as calls to set_attr can affect this variable. Ex: bf32
-    impl::cpu::x64::cpu_isa_t isa_user = isa_any;
-    impl::cpu::x64::cpu_isa_t isa_impl = isa_any;
+    impl::cpu::x64::cpu_isa_t isa_user = isa_undef;
+    impl::cpu::x64::cpu_isa_t isa_impl = isa_undef;
 
     int LDA2 {0}, LDB2 {0}, LDC2_M {0}, LDC2_N {0};
     bool is_blocked = false;

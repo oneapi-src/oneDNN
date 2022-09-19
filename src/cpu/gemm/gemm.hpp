@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +80,7 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
     JIT_IMPL_NAME_HELPER(IGEMM_S8U8S32_IMPL_STR ":", \
             mayiuse(avx512_core_vnni) \
                     ? avx512_core_vnni \
-                    : (mayiuse(avx512_core) ? avx512_core : isa_any), \
+                    : (mayiuse(avx512_core) ? avx512_core : isa_undef), \
             "")
 #else
 #define IGEMM_S8U8S32_ISA_STR IGEMM_S8U8S32_IMPL_STR

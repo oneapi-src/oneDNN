@@ -81,7 +81,7 @@ static cpu_isa_t get_supported_isa() {
     if (mayiuse(avx2)) return avx2;
     if (mayiuse(sse41)) return sse41;
 
-    return isa_any;
+    return isa_undef;
 }
 
 static bool data_format_supported(

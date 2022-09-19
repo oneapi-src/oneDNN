@@ -202,10 +202,10 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
                 false, brg->is_int8, brg->is_bf16, brg->is_f32, brg->is_f16))
         return status::unimplemented;
 
-    brg->isa_impl = utils::map(true, isa_any, brg->is_f32, avx512_core,
+    brg->isa_impl = utils::map(true, isa_undef, brg->is_f32, avx512_core,
             brg->is_int8, avx512_core_vnni, brg->is_bf16, avx512_core_bf16,
             brg->is_f16, avx512_core_fp16);
-    if (brg->isa_impl == isa_any
+    if (brg->isa_impl == isa_undef
             || !(is_superset(isa, brg->isa_impl) && mayiuse(brg->isa_impl)))
         return status::unimplemented;
 

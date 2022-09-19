@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ class jit_avx512_core_gemv_s8x8s32_kern : public jit_generator {
     void update_c(int, Xbyak::Reg64, int, Xbyak::Opmask);
     void generate() override ATTRIBUTE_OPTIMIZE;
 
-    cpu_isa_t isa = isa_any;
+    cpu_isa_t isa = isa_undef;
     ver_t ver = ver_t::undef;
 
     // Assumes unroll_{m,n} are a power of 2.

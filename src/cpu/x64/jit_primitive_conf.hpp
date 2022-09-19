@@ -736,7 +736,7 @@ struct jit_resampling_conf_t {
     jit_memory_tag_kind_t tag_kind = jit_memory_tag_kind_t::undef;
     alg_kind_t alg = alg_kind::undef;
 
-    cpu_isa_t isa = isa_any;
+    cpu_isa_t isa = isa_undef;
 
     post_ops_t post_ops = post_ops_t();
     bool with_postops = false;
@@ -948,7 +948,7 @@ struct jit_shuffle_conf_t {
     dim_t c_split_size = 0;
     dim_t sp_split_size = 0;
 
-    cpu_isa_t isa = isa_any;
+    cpu_isa_t isa = isa_undef;
 };
 
 struct jit_shuffle_call_s {
@@ -992,7 +992,7 @@ struct jit_binary_conf_t {
     dim_t outer_dims = 1;
     int src1_stride = 1;
     int not_bcasted_sp_dims = 0;
-    cpu_isa_t isa = isa_any;
+    cpu_isa_t isa = isa_undef;
 
     data_type_t src0_type = data_type::undef;
     data_type_t src1_type = data_type::undef;
@@ -1019,7 +1019,7 @@ struct jit_reduction_conf_t {
     std::size_t acc_dt_size = 0;
 
     alg_kind_t alg = alg_kind::undef;
-    cpu_isa_t isa = isa_any;
+    cpu_isa_t isa = isa_undef;
 
     dim_t idle_size = 0;
     dim_t reduce_size = 0;

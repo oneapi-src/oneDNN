@@ -27,7 +27,7 @@ namespace x64 {
 ///
 /// @param brg Output BRGEMM descriptor
 /// @param isa Target ISA of BRGEMM kernel
-///     If isa is equal to 'isa_any' maximum supported ISA on current
+///     If isa is equal to 'isa_undef' maximum supported ISA on current
 ///     hardware will be used for BRGEMM kernel generation
 /// @param type Type of batch
 /// @param dt_a Data type of A matrix, can be
@@ -73,7 +73,7 @@ status_t DNNL_API brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 ///
 /// @param brg Output BRGEMM descriptor
 /// @param isa Target ISA of BRGEMM kernel
-///     If isa is equal to 'isa_any' maximum supported ISA on current
+///     If isa is equal to 'isa_undef' maximum supported ISA on current
 ///     hardware will be used for BRGEMM kernel generation
 /// @param type Type of batch
 /// @param dt_a Data type of A matrix can be: f32, u8, bf16, f16

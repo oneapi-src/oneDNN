@@ -41,7 +41,7 @@ cpu_isa_t get_supported_isa() {
     else if (mayiuse(sse41))
         return sse41;
 
-    return isa_any;
+    return isa_undef;
 }
 
 static int get_vlen(const cpu_isa_t &isa) noexcept {
