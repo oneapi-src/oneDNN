@@ -126,7 +126,7 @@ protected:
                 }
                 ASSERT_TRUE(in_md);
 
-                const dnnl::impl::memory_desc_wrapper in_d(in_md.data);
+                const dnnl::impl::memory_desc_wrapper in_d(in_md.get());
                 bool abx2any = in_d.matches_one_of_tag(dnnl_a, dnnl_ab,
                         dnnl_abc, dnnl_abcd, dnnl_abcde, dnnl_abcdef,
                         dnnl_abcdefg, dnnl_abcdefgh, dnnl_abcdefghij,

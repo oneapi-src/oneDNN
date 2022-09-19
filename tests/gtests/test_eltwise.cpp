@@ -259,8 +259,8 @@ void check_eltwise_bwd(const eltwise_test_params_t &p, const memory::desc &md,
 
     const memory::desc data_d = src.get_desc();
     const memory::desc diff_data_d = diff_src.get_desc();
-    const dnnl::impl::memory_desc_wrapper data_mdw(data_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
+    const dnnl::impl::memory_desc_wrapper data_mdw(data_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.get());
 
     float eps_f = 0;
     if (p.alg_kind == algorithm::eltwise_soft_relu) {

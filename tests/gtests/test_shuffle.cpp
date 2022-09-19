@@ -45,8 +45,8 @@ void check_shuffle(const shuffle_test_params_t &p, const memory &input,
     auto dims = in_d.data.dims;
     auto ndims = in_d.data.ndims;
 
-    const dnnl::impl::memory_desc_wrapper input_mdw(in_d.data);
-    const dnnl::impl::memory_desc_wrapper output_mdw(out_d.data);
+    const dnnl::impl::memory_desc_wrapper input_mdw(in_d.get());
+    const dnnl::impl::memory_desc_wrapper output_mdw(out_d.get());
 
     const int axis = p.axis;
     memory::dim inner_size = 1, outer_size = 1;

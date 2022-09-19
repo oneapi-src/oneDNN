@@ -357,7 +357,7 @@ protected:
             auto b_ndims = desc.data.ndims;
             auto n_elems = std::accumulate(b_dims, b_dims + b_ndims, size_t(1),
                     std::multiplies<dnnl_dim_t>());
-            const dnnl::impl::memory_desc_wrapper mdw(desc.data);
+            const dnnl::impl::memory_desc_wrapper mdw(desc.get());
             {
                 auto b_ptr = map_memory<float>(b);
                 for (size_t i = 0; i < n_elems; i++)

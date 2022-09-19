@@ -84,7 +84,7 @@ private:
         auto dst_data = map_memory<const dst_data_t>(dst);
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
-        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
         std::vector<mapped_ptr_t<const src_data_t>> mapped_srcs;
         mapped_srcs.reserve(srcs.size());

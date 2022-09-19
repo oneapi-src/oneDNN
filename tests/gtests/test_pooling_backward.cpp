@@ -69,8 +69,8 @@ void check_pool_fwd(
 
     const memory::desc src_d = src.get_desc();
     const memory::desc dst_d = dst.get_desc();
-    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
     auto pd = p.test_pd;
     auto padded_c = src_d.data.padded_dims[1];
@@ -163,9 +163,9 @@ void check_pool_bwd(const pool_bwd_test_params_t &p, const memory &diff_src,
     const memory::desc diff_dst_d = diff_dst.get_desc();
     const memory::desc ws_d = ws.get_desc();
 
-    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
-    const dnnl::impl::memory_desc_wrapper ws_mdw(ws_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.get());
+    const dnnl::impl::memory_desc_wrapper ws_mdw(ws_d.get());
 
     auto pd = p.test_pd;
     if (pd.mb * pd.c * pd.id * pd.ih * pd.iw == 0) return;

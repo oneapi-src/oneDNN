@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -201,7 +201,7 @@ inline memory make_memory(const memory::desc &memory_desc,
         void *handle = DNNL_MEMORY_ALLOCATE) {
     dnnl_memory_t c_memory;
     error::wrap_c_api(
-            dnnl_ocl_interop_memory_create(&c_memory, &memory_desc.data,
+            dnnl_ocl_interop_memory_create(&c_memory, memory_desc.get(),
                     aengine.get(), convert_to_c(kind), handle),
             "could not create a memory");
     return memory(c_memory);

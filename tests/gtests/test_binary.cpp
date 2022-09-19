@@ -142,7 +142,7 @@ protected:
             auto desc_B = memory::desc(dims_B, src1_dt, p.srcs_format[1]);
             auto desc_C = memory::desc(p.dims, dst_dt, p.dst_format);
 
-            const dnnl::impl::memory_desc_wrapper mdw_desc_A(desc_A.data);
+            const dnnl::impl::memory_desc_wrapper mdw_desc_A(desc_A.get());
             const bool has_zero_dim = mdw_desc_A.has_zero_dim();
 
             // default pd ctor

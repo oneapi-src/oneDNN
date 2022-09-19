@@ -311,7 +311,7 @@ void check_zero_tail(int set_zero_flag, const memory &src) {
     const int ndims = src_d.data.ndims;
     const auto *dims = src_d.data.dims;
     const auto *pdims = src_d.data.padded_dims;
-    const dnnl::impl::memory_desc_wrapper mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper mdw(src_d.get());
 
     memory::dim idx[DNNL_MAX_NDIMS] = {}, str[DNNL_MAX_NDIMS] = {};
     memory::dim nelems = 1;
@@ -461,8 +461,8 @@ static void compare_data(
     /* Note: size_t incompatible with MSVC++ */
     auto ref_desc = ref.get_desc();
     auto dst_desc = dst.get_desc();
-    const dnnl::impl::memory_desc_wrapper mdw_ref(ref_desc.data);
-    const dnnl::impl::memory_desc_wrapper mdw_dst(dst_desc.data);
+    const dnnl::impl::memory_desc_wrapper mdw_ref(ref_desc.get());
+    const dnnl::impl::memory_desc_wrapper mdw_dst(dst_desc.get());
 
     ASSERT_TRUE(ref_desc.data.ndims == dst_desc.data.ndims);
 

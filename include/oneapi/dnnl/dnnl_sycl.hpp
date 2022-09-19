@@ -268,7 +268,7 @@ inline memory make_memory(const memory::desc &memory_desc,
         void *handle = DNNL_MEMORY_ALLOCATE) {
     dnnl_memory_t c_memory;
     error::wrap_c_api(
-            dnnl_sycl_interop_memory_create(&c_memory, &memory_desc.data,
+            dnnl_sycl_interop_memory_create(&c_memory, memory_desc.get(),
                     aengine.get(), convert_to_c(kind), handle),
             "could not create a memory");
     return memory(c_memory);

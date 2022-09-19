@@ -103,9 +103,9 @@ void check_pool_fwd(const pool_test_params_t &p, const memory &src,
     const memory::desc dst_d = dst.get_desc();
     const memory::desc ws_d = ws.get_desc();
 
-    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
-    const dnnl::impl::memory_desc_wrapper ws_mdw(ws_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
+    const dnnl::impl::memory_desc_wrapper ws_mdw(ws_d.get());
 
     auto pd = p.test_pd;
     size_t padded_c = src_d.data.padded_dims[1];

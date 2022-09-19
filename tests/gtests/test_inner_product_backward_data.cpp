@@ -39,9 +39,9 @@ void compute_ref_inner_product_bwd_data(int ndims,
     const memory::desc diff_dst_d = diff_dst.get_desc();
     const memory::desc weights_d = weights.get_desc();
     const memory::desc diff_src_d = diff_src.get_desc();
-    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
-    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.get());
+    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.get());
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;

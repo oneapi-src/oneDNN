@@ -33,8 +33,8 @@ void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
 
     const memory::desc bias_d = diff_bias.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
-    const dnnl::impl::memory_desc_wrapper diff_bias_mdw(bias_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_bias_mdw(bias_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(dst_d.get());
 
     auto padded_oc = dst_d.data.padded_dims[1];
 
@@ -68,9 +68,9 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
     const memory::desc src_d = src.get_desc();
     const memory::desc weights_d = diff_weights.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
-    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_weights_mdw(weights_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_weights_mdw(weights_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(dst_d.get());
 
     auto padded_ic = src_d.data.padded_dims[1];
     auto padded_oc = dst_d.data.padded_dims[1];

@@ -413,9 +413,12 @@ protected:
                 ? weights.get_desc()
                 : memory::desc();
 
-        const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
-        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
-        const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+        const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
+        ;
+        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
+        ;
+        const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.get());
+        ;
 
         const size_t bias_off = use_weights_bias && !weights_mdw.has_zero_dim()
                 ? weights_mdw.off_l(bp.c, true)
@@ -549,13 +552,13 @@ protected:
                 ? diff_bias.get_desc()
                 : use_weights_bias ? diff_weights.get_desc() : memory::desc();
 
-        const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
-        const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
-        const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-        const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+        const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
+        const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.get());
+        const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.get());
+        const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.get());
         const dnnl::impl::memory_desc_wrapper diff_weights_mdw(
                 diff_weights_d.data);
-        const dnnl::impl::memory_desc_wrapper diff_bias_mdw(diff_bias_d.data);
+        const dnnl::impl::memory_desc_wrapper diff_bias_mdw(diff_bias_d.get());
 
         const size_t diff_bias_off
                 = use_weights_bias && !diff_weights_mdw.has_zero_dim()

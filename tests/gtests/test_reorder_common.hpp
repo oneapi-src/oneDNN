@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,8 +40,8 @@ inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
     const size_t nelems = std::accumulate(
             dims, dims + ndims, size_t(1), std::multiplies<size_t>());
 
-    const dnnl::impl::memory_desc_wrapper mdw_i(md_i.data);
-    const dnnl::impl::memory_desc_wrapper mdw_o(md_o.data);
+    const dnnl::impl::memory_desc_wrapper mdw_i(md_i.get());
+    const dnnl::impl::memory_desc_wrapper mdw_o(md_o.get());
     for (size_t i = 0; i < nelems; ++i) {
         data_i_t s_raw = src_data[mdw_i.off_l(i, false)];
         data_o_t s = static_cast<data_o_t>(s_raw);
@@ -164,7 +164,7 @@ protected:
         auto dst = test::make_memory(r_pd.dst_desc(), eng_o);
 
         /* initialize input data */
-        const dnnl::impl::memory_desc_wrapper mdw_i(md_i.data);
+        const dnnl::impl::memory_desc_wrapper mdw_i(md_i.get());
         {
             auto src_data = map_memory<data_i_t>(src);
             for (size_t i = 0; i < nelems; ++i)

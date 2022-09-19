@@ -75,9 +75,9 @@ void check_lrn_bwd(const lrn_test_params_t &p, const memory &src,
     const memory::desc src_d = src.get_desc();
     const memory::desc diff_dst_d = diff_dst.get_desc();
     const memory::desc diff_src_d = diff_src.get_desc();
-    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.get());
 
     auto off = [=](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
         return ((n * padded_c + c) * H + h) * W + w;

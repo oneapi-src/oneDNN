@@ -39,7 +39,7 @@ class concat_test_t : public ::testing::TestWithParam<concat_test_params_t> {
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
         const auto dst_pdims = dst_d.data.padded_dims;
-        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
         memory::dim acc_concat_dim = 0;
         const auto ndims = dst_d.data.ndims;
@@ -49,7 +49,7 @@ class concat_test_t : public ::testing::TestWithParam<concat_test_params_t> {
             const auto &src_d = srcs[num].get_desc();
             const auto src_dims = src_d.data.dims;
             const auto src_pdims = src_d.data.padded_dims;
-            const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+            const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
 
             auto N = src_dims[0];
             auto C = src_dims[1];

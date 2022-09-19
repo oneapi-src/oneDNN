@@ -66,8 +66,8 @@ void compute_ref_resampling_fwd(const resampling_test_params_t &p,
     const memory::desc src_d = src_m.get_desc();
     const memory::desc dst_d = dst_m.get_desc();
 
-    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
     auto pd = p.test_pd;
     auto padded_c = src_mdw.padded_dims()[1];
@@ -131,8 +131,8 @@ void compute_ref_resampling_bwd(const resampling_test_params_t &p,
     const memory::desc diff_src_d = diff_src_m.get_desc();
     const memory::desc diff_dst_d = diff_dst_m.get_desc();
 
-    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
-    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.get());
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.get());
 
     auto pd = p.test_pd;
     auto padded_c = diff_src_mdw.padded_dims()[1];

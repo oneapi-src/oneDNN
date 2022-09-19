@@ -2469,6 +2469,8 @@ struct memory : public handle<dnnl_memory_t> {
         /// The underlying C API data structure.
         dnnl_memory_desc_t data;
 
+        const dnnl_memory_desc_t *get() const { return &data; }
+
         /// Constructs a zero (empty) memory descriptor. Such a memory
         /// descriptor can be used to indicate absence of an argument.
         desc() : data() {}
@@ -2692,7 +2694,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns Whether this and the other memory descriptors have
         ///     the same format tag, dimensions, strides, blocking, etc.
         bool operator==(const desc &other) const {
-            return dnnl_memory_desc_equal(&data, &other.data) != 0;
+            return dnnl_memory_desc_equal(get(), other.get()) != 0;
         }
 
         /// An inequality operator.
@@ -3147,7 +3149,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// @param src1_desc Memory descriptor of a second operand.
     void append_binary(algorithm aalgorithm, const memory::desc &src1_desc) {
         error::wrap_c_api(dnnl_post_ops_append_binary(get(),
-                                  convert_to_c(aalgorithm), &src1_desc.data),
+                                  convert_to_c(aalgorithm), src1_desc.get()),
                 "could not append a binary post-op");
     }
 
@@ -4243,7 +4245,7 @@ protected:
     }
 
     const dnnl_memory_desc_t *optional_arg(const memory::desc *md) {
-        return md ? &md->data : nullptr;
+        return md ? md->get() : nullptr;
     }
 
     const dnnl_dim_t *optional_arg(const memory::dims *dims) {
@@ -4301,7 +4303,7 @@ struct reorder : public primitive {
                 bool allow_empty = false) {
             dnnl_primitive_desc_t result;
             dnnl_status_t status = dnnl_reorder_primitive_desc_create(&result,
-                    &src_md.data, src_engine.get(), &dst_md.data,
+                    src_md.get(), src_engine.get(), dst_md.get(),
                     dst_engine.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -4329,7 +4331,7 @@ struct reorder : public primitive {
             auto src_md = src.get_desc();
             auto dst_md = dst.get_desc();
             dnnl_status_t status = dnnl_reorder_primitive_desc_create(&result,
-                    &src_md.data, src.get_engine().get(), &dst_md.data,
+                    src_md.get(), src.get_engine().get(), dst_md.get(),
                     dst.get_engine().get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -4417,7 +4419,7 @@ inline std::vector<dnnl_memory_desc_t> convert_to_c(
     std::vector<dnnl_memory_desc_t> c_mems;
     c_mems.reserve(mems.size());
     for (const auto &s : mems)
-        c_mems.push_back(s.data);
+        c_mems.push_back(*s.get());
     return c_mems;
 }
 /// @endcond
@@ -4450,7 +4452,7 @@ struct concat : public primitive {
             dnnl_primitive_desc_t result;
             error::wrap_c_api(
                     dnnl_concat_primitive_desc_create(&result, aengine.get(),
-                            &dst.data, (int)c_srcs.size(), concat_dimension,
+                            dst.get(), (int)c_srcs.size(), concat_dimension,
                             c_srcs.data(), attr.get()),
                     "could not create a primitive descriptor for a concat "
                     "primitive");
@@ -4554,7 +4556,7 @@ struct sum : public primitive {
             dnnl_primitive_desc_t result;
             error::wrap_c_api(
                     dnnl_sum_primitive_desc_create(&result, aengine.get(),
-                            &dst.data, (int)c_api_srcs.size(), scales.data(),
+                            dst.get(), (int)c_api_srcs.size(), scales.data(),
                             c_api_srcs.data(), attr.get()),
                     "could not create a primitive descriptor for a sum "
                     "primitive");
@@ -4920,9 +4922,9 @@ struct convolution_forward : public primitive {
             dnnl_status_t status
                     = dnnl_convolution_forward_primitive_desc_create(&pd,
                             aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &weights_desc.data, optional_arg(bias_desc),
-                            &dst_desc.data, &strides[0], optional_arg(dilates),
+                            convert_to_c(aalgorithm), src_desc.get(),
+                            weights_desc.get(), optional_arg(bias_desc),
+                            dst_desc.get(), &strides[0], optional_arg(dilates),
                             &padding_l[0], &padding_r[0], attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -5112,8 +5114,8 @@ struct convolution_backward_data : public primitive {
             dnnl_status_t status
                     = dnnl_convolution_backward_data_primitive_desc_create(&pd,
                             aengine.get(), convert_to_c(aalgorithm),
-                            &diff_src_desc.data, &weights_desc.data,
-                            &diff_dst_desc.data, &strides[0],
+                            diff_src_desc.get(), weights_desc.get(),
+                            diff_dst_desc.get(), &strides[0],
                             optional_arg(dilates), &padding_l[0], &padding_r[0],
                             hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
@@ -5418,8 +5420,8 @@ struct convolution_backward_weights : public primitive {
             dnnl_status_t status
                     = dnnl_convolution_backward_weights_primitive_desc_create(
                             &pd, aengine.get(), convert_to_c(aalgorithm),
-                            &src_desc.data, &diff_weights_desc.data,
-                            optional_arg(diff_bias_desc), &diff_dst_desc.data,
+                            src_desc.get(), diff_weights_desc.get(),
+                            optional_arg(diff_bias_desc), diff_dst_desc.get(),
                             &strides[0], optional_arg(dilates), &padding_l[0],
                             &padding_r[0], hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
@@ -5714,9 +5716,9 @@ struct deconvolution_forward : public primitive {
             dnnl_status_t status
                     = dnnl_deconvolution_forward_primitive_desc_create(&pd,
                             aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            convert_to_c(aalgorithm), &src_desc.data,
-                            &weights_desc.data, optional_arg(bias_desc),
-                            &dst_desc.data, &strides[0], optional_arg(dilates),
+                            convert_to_c(aalgorithm), src_desc.get(),
+                            weights_desc.get(), optional_arg(bias_desc),
+                            dst_desc.get(), &strides[0], optional_arg(dilates),
                             &padding_l[0], &padding_r[0], attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -5904,8 +5906,8 @@ struct deconvolution_backward_data : public primitive {
             dnnl_status_t status
                     = dnnl_deconvolution_backward_data_primitive_desc_create(
                             &pd, aengine.get(), convert_to_c(aalgorithm),
-                            &diff_src_desc.data, &weights_desc.data,
-                            &diff_dst_desc.data, &strides[0],
+                            diff_src_desc.get(), weights_desc.get(),
+                            diff_dst_desc.get(), &strides[0],
                             optional_arg(dilates), &padding_l[0], &padding_r[0],
                             hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
@@ -6203,8 +6205,8 @@ struct deconvolution_backward_weights : public primitive {
             dnnl_status_t status
                     = dnnl_deconvolution_backward_weights_primitive_desc_create(
                             &pd, aengine.get(), convert_to_c(aalgorithm),
-                            &src_desc.data, &diff_weights_desc.data,
-                            optional_arg(diff_bias_desc), &diff_dst_desc.data,
+                            src_desc.get(), diff_weights_desc.get(),
+                            optional_arg(diff_bias_desc), diff_dst_desc.get(),
                             &strides[0], optional_arg(dilates), &padding_l[0],
                             &padding_r[0], hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
@@ -6281,7 +6283,7 @@ struct lrn_forward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_lrn_forward_primitive_desc_create(&pd,
                     aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    convert_to_c(aalgorithm), &data_desc.data, local_size,
+                    convert_to_c(aalgorithm), data_desc.get(), local_size,
                     alpha, beta, k, attr.get());
 
             if (!allow_empty)
@@ -6389,7 +6391,7 @@ struct lrn_backward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_lrn_backward_primitive_desc_create(&pd,
                     aengine.get(), convert_to_c(aalgorithm),
-                    &diff_data_desc.data, &data_desc.data, local_size, alpha,
+                    diff_data_desc.get(), data_desc.get(), local_size, alpha,
                     beta, k, hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
@@ -6595,7 +6597,7 @@ struct eltwise_forward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_eltwise_forward_primitive_desc_create(
                     &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    dnnl::convert_to_c(aalgorithm), &data_desc.data,
+                    dnnl::convert_to_c(aalgorithm), data_desc.get(),
                     alpha ? *alpha : 0.0f, beta ? *beta : 0.0f, attr.get());
 
             if (!allow_empty)
@@ -6756,7 +6758,7 @@ struct eltwise_backward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_eltwise_backward_primitive_desc_create(
                     &pd, aengine.get(), dnnl::convert_to_c(aalgorithm),
-                    &diff_data_desc.data, &data_desc.data,
+                    diff_data_desc.get(), data_desc.get(),
                     alpha ? *alpha : 0.0f, beta ? *beta : 0.0f,
                     hint_fwd_pd.get(), attr.get());
 
@@ -6830,8 +6832,8 @@ struct softmax_forward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_softmax_forward_primitive_desc_create(
                     &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    dnnl::convert_to_c(aalgorithm), &src_desc.data,
-                    &dst_desc.data, axis, attr.get());
+                    dnnl::convert_to_c(aalgorithm), src_desc.get(),
+                    dst_desc.get(), axis, attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -6921,7 +6923,7 @@ struct softmax_backward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_softmax_backward_primitive_desc_create(
                     &pd, aengine.get(), dnnl::convert_to_c(aalgorithm),
-                    &diff_src_desc.data, &diff_dst_desc.data, &dst_desc.data,
+                    diff_src_desc.get(), diff_dst_desc.get(), dst_desc.get(),
                     axis, hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
@@ -7038,7 +7040,7 @@ struct batch_normalization_forward : public primitive {
             dnnl_status_t status
                     = dnnl_batch_normalization_forward_primitive_desc_create(
                             &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            &data_desc.data, epsilon, convert_to_c(flags),
+                            data_desc.get(), epsilon, convert_to_c(flags),
                             attr.get());
 
             if (!allow_empty)
@@ -7165,7 +7167,7 @@ struct batch_normalization_backward : public primitive {
             dnnl_status_t status
                     = dnnl_batch_normalization_backward_primitive_desc_create(
                             &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            &diff_data_desc.data, &data_desc.data, epsilon,
+                            diff_data_desc.get(), data_desc.get(), epsilon,
                             convert_to_c(flags), hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
@@ -7398,7 +7400,7 @@ struct layer_normalization_forward : public primitive {
             dnnl_status_t status
                     = dnnl_layer_normalization_forward_primitive_desc_create(
                             &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            &src_desc.data, &dst_desc.data,
+                            src_desc.get(), dst_desc.get(),
                             optional_arg(stat_desc), epsilon,
                             convert_to_c(flags), attr.get());
 
@@ -7572,8 +7574,8 @@ struct layer_normalization_backward : public primitive {
             dnnl_status_t status
                     = dnnl_layer_normalization_backward_primitive_desc_create(
                             &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            &diff_src_desc.data, &diff_dst_desc.data,
-                            &src_desc.data, optional_arg(stat_desc), epsilon,
+                            diff_src_desc.get(), diff_dst_desc.get(),
+                            src_desc.get(), optional_arg(stat_desc), epsilon,
                             convert_to_c(flags), hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
@@ -7712,8 +7714,8 @@ struct inner_product_forward : public primitive {
             dnnl_status_t status
                     = dnnl_inner_product_forward_primitive_desc_create(&pd,
                             aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            &src_desc.data, &weights_desc.data,
-                            optional_arg(bias_desc), &dst_desc.data,
+                            src_desc.get(), weights_desc.get(),
+                            optional_arg(bias_desc), dst_desc.get(),
                             attr.get());
 
             if (!allow_empty)
@@ -7779,8 +7781,8 @@ struct inner_product_backward_data : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
                     = dnnl_inner_product_backward_data_primitive_desc_create(
-                            &pd, aengine.get(), &diff_src_desc.data,
-                            &weights_desc.data, &diff_dst_desc.data,
+                            &pd, aengine.get(), diff_src_desc.get(),
+                            weights_desc.get(), diff_dst_desc.get(),
                             hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
@@ -7939,9 +7941,9 @@ struct inner_product_backward_weights : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
                     = dnnl_inner_product_backward_weights_primitive_desc_create(
-                            &pd, aengine.get(), &src_desc.data,
-                            &diff_weights_desc.data,
-                            optional_arg(diff_bias_desc), &diff_dst_desc.data,
+                            &pd, aengine.get(), src_desc.get(),
+                            diff_weights_desc.get(),
+                            optional_arg(diff_bias_desc), diff_dst_desc.get(),
                             hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
@@ -8241,10 +8243,10 @@ protected:
                 status = dnnl_vanilla_rnn_forward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
                         dnnl::convert_to_c(activation),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, &weights_layer_desc.data,
-                        &weights_iter_desc.data, &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), weights_layer_desc.get(),
+                        weights_iter_desc.get(), bias_desc.get(),
+                        dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), alpha, beta, attr.get());
                 msg = "could not create a primitive descriptor for a vanilla "
                       "RNN forward propagation primitive";
@@ -8252,12 +8254,12 @@ protected:
             case algorithm::vanilla_lstm:
                 status = dnnl_lstm_forward_primitive_desc_create_v3(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, optional_arg(src_iter_c_desc),
-                        &weights_layer_desc.data, &weights_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), optional_arg(src_iter_c_desc),
+                        weights_layer_desc.get(), weights_iter_desc.get(),
                         optional_arg(weights_peephole_desc),
-                        optional_arg(weights_projection_desc), &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        optional_arg(weights_projection_desc), bias_desc.get(),
+                        dst_layer_desc.get(), dst_iter_desc.get(),
                         optional_arg(dst_iter_c_desc), convert_to_c(flags),
                         attr.get());
                 msg = "could not create a primitive descriptor for an LSTM "
@@ -8266,10 +8268,10 @@ protected:
             case algorithm::vanilla_gru:
                 status = dnnl_gru_forward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, &weights_layer_desc.data,
-                        &weights_iter_desc.data, &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), weights_layer_desc.get(),
+                        weights_iter_desc.get(), bias_desc.get(),
+                        dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), attr.get());
                 msg = "could not create a primitive descriptor for a GRU "
                       "forward propagation primitive";
@@ -8277,10 +8279,10 @@ protected:
             case algorithm::lbr_gru:
                 status = dnnl_lbr_gru_forward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, &weights_layer_desc.data,
-                        &weights_iter_desc.data, &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), weights_layer_desc.get(),
+                        weights_iter_desc.get(), bias_desc.get(),
+                        dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), attr.get());
                 msg = "could not create a primitive descriptor for an LBR GRU "
                       "forward propagation primitive";
@@ -8288,22 +8290,22 @@ protected:
             case algorithm::vanilla_augru:
                 status = dnnl_augru_forward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, optional_arg(attention_desc),
-                        &weights_layer_desc.data, &weights_iter_desc.data,
-                        &bias_desc.data, &dst_layer_desc.data,
-                        &dst_iter_desc.data, convert_to_c(flags), attr.get());
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), optional_arg(attention_desc),
+                        weights_layer_desc.get(), weights_iter_desc.get(),
+                        bias_desc.get(), dst_layer_desc.get(),
+                        dst_iter_desc.get(), convert_to_c(flags), attr.get());
                 msg = "could not create a primitive descriptor for an AUGRU "
                       "forward propagation primitive";
                 break;
             case algorithm::lbr_augru:
                 status = dnnl_lbr_augru_forward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, optional_arg(attention_desc),
-                        &weights_layer_desc.data, &weights_iter_desc.data,
-                        &bias_desc.data, &dst_layer_desc.data,
-                        &dst_iter_desc.data, convert_to_c(flags), attr.get());
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), optional_arg(attention_desc),
+                        weights_layer_desc.get(), weights_iter_desc.get(),
+                        bias_desc.get(), dst_layer_desc.get(),
+                        dst_iter_desc.get(), convert_to_c(flags), attr.get());
                 msg = "could not create a primitive descriptor for an LBR "
                       "AUGRU forward propagation primitive";
                 break;
@@ -8353,14 +8355,14 @@ protected:
                 status = dnnl_vanilla_rnn_backward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
                         dnnl::convert_to_c(activation),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, &weights_layer_desc.data,
-                        &weights_iter_desc.data, &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
-                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,
-                        &diff_weights_layer_desc.data,
-                        &diff_weights_iter_desc.data, &diff_bias_desc.data,
-                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), weights_layer_desc.get(),
+                        weights_iter_desc.get(), bias_desc.get(),
+                        dst_layer_desc.get(), dst_iter_desc.get(),
+                        diff_src_layer_desc.get(), diff_src_iter_desc.get(),
+                        diff_weights_layer_desc.get(),
+                        diff_weights_iter_desc.get(), diff_bias_desc.get(),
+                        diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), alpha, beta, hint_fwd_pd.get(),
                         attr.get());
                 msg = "could not create a primitive descriptor for a vanilla "
@@ -8369,21 +8371,21 @@ protected:
             case algorithm::vanilla_lstm:
                 status = dnnl_lstm_backward_primitive_desc_create_v3(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, optional_arg(src_iter_c_desc),
-                        &weights_layer_desc.data, &weights_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), optional_arg(src_iter_c_desc),
+                        weights_layer_desc.get(), weights_iter_desc.get(),
                         optional_arg(weights_peephole_desc),
-                        optional_arg(weights_projection_desc), &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        optional_arg(weights_projection_desc), bias_desc.get(),
+                        dst_layer_desc.get(), dst_iter_desc.get(),
                         optional_arg(dst_iter_c_desc),
-                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,
+                        diff_src_layer_desc.get(), diff_src_iter_desc.get(),
                         optional_arg(diff_src_iter_c_desc),
-                        &diff_weights_layer_desc.data,
-                        &diff_weights_iter_desc.data,
+                        diff_weights_layer_desc.get(),
+                        diff_weights_iter_desc.get(),
                         optional_arg(diff_weights_peephole_desc),
                         optional_arg(diff_weights_projection_desc),
-                        &diff_bias_desc.data, &diff_dst_layer_desc.data,
-                        &diff_dst_iter_desc.data,
+                        diff_bias_desc.get(), diff_dst_layer_desc.get(),
+                        diff_dst_iter_desc.get(),
                         optional_arg(diff_dst_iter_c_desc), convert_to_c(flags),
                         hint_fwd_pd.get(), attr.get());
                 msg = "could not create a primitive descriptor for an LSTM "
@@ -8392,14 +8394,14 @@ protected:
             case algorithm::vanilla_gru:
                 status = dnnl_gru_backward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, &weights_layer_desc.data,
-                        &weights_iter_desc.data, &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
-                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,
-                        &diff_weights_layer_desc.data,
-                        &diff_weights_iter_desc.data, &diff_bias_desc.data,
-                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), weights_layer_desc.get(),
+                        weights_iter_desc.get(), bias_desc.get(),
+                        dst_layer_desc.get(), dst_iter_desc.get(),
+                        diff_src_layer_desc.get(), diff_src_iter_desc.get(),
+                        diff_weights_layer_desc.get(),
+                        diff_weights_iter_desc.get(), diff_bias_desc.get(),
+                        diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
                 msg = "could not create a primitive descriptor for a GRU "
                       "backward propagation primitive";
@@ -8407,14 +8409,14 @@ protected:
             case algorithm::lbr_gru:
                 status = dnnl_lbr_gru_backward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, &weights_layer_desc.data,
-                        &weights_iter_desc.data, &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
-                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,
-                        &diff_weights_layer_desc.data,
-                        &diff_weights_iter_desc.data, &diff_bias_desc.data,
-                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), weights_layer_desc.get(),
+                        weights_iter_desc.get(), bias_desc.get(),
+                        dst_layer_desc.get(), dst_iter_desc.get(),
+                        diff_src_layer_desc.get(), diff_src_iter_desc.get(),
+                        diff_weights_layer_desc.get(),
+                        diff_weights_iter_desc.get(), diff_bias_desc.get(),
+                        diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
                 msg = "could not create a primitive descriptor for an LBR GRU "
                       "backward propagation primitive";
@@ -8422,16 +8424,16 @@ protected:
             case algorithm::vanilla_augru:
                 status = dnnl_augru_backward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, optional_arg(attention_desc),
-                        &weights_layer_desc.data, &weights_iter_desc.data,
-                        &bias_desc.data, &dst_layer_desc.data,
-                        &dst_iter_desc.data, &diff_src_layer_desc.data,
-                        &diff_src_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), optional_arg(attention_desc),
+                        weights_layer_desc.get(), weights_iter_desc.get(),
+                        bias_desc.get(), dst_layer_desc.get(),
+                        dst_iter_desc.get(), diff_src_layer_desc.get(),
+                        diff_src_iter_desc.get(),
                         optional_arg(diff_attention_desc),
-                        &diff_weights_layer_desc.data,
-                        &diff_weights_iter_desc.data, &diff_bias_desc.data,
-                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        diff_weights_layer_desc.get(),
+                        diff_weights_iter_desc.get(), diff_bias_desc.get(),
+                        diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
                 msg = "could not create a primitive descriptor for an AUGRU "
                       "backward propagation primitive";
@@ -8439,16 +8441,16 @@ protected:
             case algorithm::lbr_augru:
                 status = dnnl_lbr_augru_backward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
-                        dnnl::convert_to_c(direction), &src_layer_desc.data,
-                        &src_iter_desc.data, optional_arg(attention_desc),
-                        &weights_layer_desc.data, &weights_iter_desc.data,
-                        &bias_desc.data, &dst_layer_desc.data,
-                        &dst_iter_desc.data, &diff_src_layer_desc.data,
-                        &diff_src_iter_desc.data,
+                        dnnl::convert_to_c(direction), src_layer_desc.get(),
+                        src_iter_desc.get(), optional_arg(attention_desc),
+                        weights_layer_desc.get(), weights_iter_desc.get(),
+                        bias_desc.get(), dst_layer_desc.get(),
+                        dst_iter_desc.get(), diff_src_layer_desc.get(),
+                        diff_src_iter_desc.get(),
                         optional_arg(diff_attention_desc),
-                        &diff_weights_layer_desc.data,
-                        &diff_weights_iter_desc.data, &diff_bias_desc.data,
-                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        diff_weights_layer_desc.get(),
+                        diff_weights_iter_desc.get(), diff_bias_desc.get(),
+                        diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
                 msg = "could not create a primitive descriptor for an LBR "
                       "AUGRU backward propagation primitive";
@@ -11200,7 +11202,7 @@ struct shuffle_forward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_shuffle_forward_primitive_desc_create(
                     &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    &data_desc.data, axis, group_size, attr.get());
+                    data_desc.get(), axis, group_size, attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -11285,7 +11287,7 @@ struct shuffle_backward : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_shuffle_backward_primitive_desc_create(
-                    &pd, aengine.get(), &diff_data_desc.data, axis, group_size,
+                    &pd, aengine.get(), diff_data_desc.get(), axis, group_size,
                     hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
@@ -11377,8 +11379,8 @@ struct binary : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_binary_primitive_desc_create(&pd,
-                    aengine.get(), dnnl::convert_to_c(aalgorithm), &src0.data,
-                    &src1.data, &dst.data, attr.get());
+                    aengine.get(), dnnl::convert_to_c(aalgorithm), src0.get(),
+                    src1.get(), dst.get(), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -11517,8 +11519,8 @@ struct matmul : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_matmul_primitive_desc_create(&pd,
-                    aengine.get(), &src_desc.data, &weights_desc.data,
-                    optional_arg(bias_desc), &dst_desc.data, attr.get());
+                    aengine.get(), src_desc.get(), weights_desc.get(),
+                    optional_arg(bias_desc), dst_desc.get(), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -11681,7 +11683,7 @@ struct resampling_forward : public primitive {
                     = dnnl_resampling_forward_primitive_desc_create(&pd,
                             aengine.get(), dnnl::convert_to_c(aprop_kind),
                             convert_to_c(aalgorithm), optional_arg(factors),
-                            &src_desc.data, optional_arg(dst_desc), attr.get());
+                            src_desc.get(), optional_arg(dst_desc), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -11804,8 +11806,8 @@ struct resampling_backward : public primitive {
             dnnl_status_t status
                     = dnnl_resampling_backward_primitive_desc_create(&pd,
                             aengine.get(), convert_to_c(aalgorithm),
-                            optional_arg(factors), &diff_src_desc.data,
-                            &diff_dst_desc.data, hint_fwd_pd.get(), attr.get());
+                            optional_arg(factors), diff_src_desc.get(),
+                            diff_dst_desc.get(), hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -11900,7 +11902,7 @@ struct pooling_forward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_pooling_forward_primitive_desc_create(
                     &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    convert_to_c(aalgorithm), &src_desc.data, &dst_desc.data,
+                    convert_to_c(aalgorithm), src_desc.get(), dst_desc.get(),
                     &strides[0], &kernel[0], &dilation[0], &padding_l[0],
                     &padding_r[0], attr.get());
 
@@ -12030,7 +12032,7 @@ struct pooling_backward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_pooling_backward_primitive_desc_create(
                     &pd, aengine.get(), convert_to_c(aalgorithm),
-                    &diff_src_desc.data, &diff_dst_desc.data, &strides[0],
+                    diff_src_desc.get(), diff_dst_desc.get(), &strides[0],
                     &kernel[0], &dilation[0], &padding_l[0], &padding_r[0],
                     hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
@@ -12141,7 +12143,7 @@ struct prelu_forward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_prelu_forward_primitive_desc_create(&pd,
                     aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    &data_desc.data, &weight_desc.data, attr.get());
+                    data_desc.get(), weight_desc.get(), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -12223,8 +12225,8 @@ struct prelu_backward : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_prelu_backward_primitive_desc_create(
-                    &pd, aengine.get(), &data_desc.data, &weight_desc.data,
-                    &diff_data_desc.data, &diff_weights_desc.data,
+                    &pd, aengine.get(), data_desc.get(), weight_desc.get(),
+                    diff_data_desc.get(), diff_weights_desc.get(),
                     hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
@@ -12324,8 +12326,8 @@ struct reduction : public primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_reduction_primitive_desc_create(&pd,
-                    aengine.get(), convert_to_c(aalgorithm), &src_desc.data,
-                    &dst_desc.data, p, eps, attr.get());
+                    aengine.get(), convert_to_c(aalgorithm), src_desc.get(),
+                    dst_desc.get(), p, eps, attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,

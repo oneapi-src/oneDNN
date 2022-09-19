@@ -39,8 +39,8 @@ void compute_bias_fwd(const test_convolution_sizes_t &c,
 
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
-    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.data);
-    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.get());
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
     dnnl::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
             [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,
@@ -62,8 +62,8 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
 
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
-    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.data);
-    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.get());
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
     dnnl::impl::parallel_nd(
             c.ng, c.oc / c.ng, [&](memory::dim g, memory::dim oc) {
@@ -87,10 +87,10 @@ void transpose_wei(const test_convolution_sizes_t &c,
 
     auto weights_data = map_memory<data_t>(weights);
     const memory::desc weights_d = weights.get_desc();
-    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.get());
     auto weights_tr_data = map_memory<data_t>(weights_tr);
     const memory::desc weights_tr_d = weights_tr.get_desc();
-    const dnnl::impl::memory_desc_wrapper weights_tr_mdw(weights_tr_d.data);
+    const dnnl::impl::memory_desc_wrapper weights_tr_mdw(weights_tr_d.get());
 
     dnnl::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
             [&](memory::dim g, memory::dim oc, memory::dim ic, memory::dim kh,

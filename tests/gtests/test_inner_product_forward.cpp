@@ -41,10 +41,10 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
     const memory::desc weights_d = weights.get_desc();
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
-    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.data);
-    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.get());
+    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.get());
+    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.get());
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.get());
 
     auto padded_ic = src_mdw.padded_dims()[1];
 
