@@ -17,11 +17,13 @@
 #include <assert.h>
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 #include "reduce.hpp"
+#include "util/bf16.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
@@ -30,6 +32,7 @@
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
+#include <util/variant.hpp>
 
 namespace sc {
 
@@ -37,6 +40,37 @@ static inline any_map_t add_key(const any_map_t &attrs, int rd_op_) {
     auto ret = attrs;
     ret["rd_op"] = rd_op_;
     return ret;
+}
+
+static variant<float, int64_t> numeric_limits_maximum(sc_data_etype type_code) {
+    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
+        return std::numeric_limits<float>::infinity();
+    } else if (type_code == sc_data_etype::S8) {
+        return int64_t(127);
+    } else if (type_code == sc_data_etype::S32) {
+        return int64_t(std::numeric_limits<int32_t>::max());
+    } else if (type_code == sc_data_etype::U8) {
+        return int64_t(255);
+    } else if (type_code == sc_data_etype::U32) {
+        return int64_t(std::numeric_limits<uint32_t>::max());
+    } else {
+        COMPILE_ASSERT(0, "unsupported data_etype");
+    }
+}
+
+static variant<float, int64_t> numeric_limits_minimum(sc_data_etype type_code) {
+    if (type_code == sc_data_etype::F32 || type_code == sc_data_etype::BF16) {
+        return -std::numeric_limits<float>::infinity();
+    } else if (type_code == sc_data_etype::U8
+            || type_code == sc_data_etype::U32) {
+        return int64_t(0);
+    } else if (type_code == sc_data_etype::S8) {
+        return int64_t(-128);
+    } else if (type_code == sc_data_etype::S32) {
+        return int64_t(std::numeric_limits<int32_t>::min());
+    } else {
+        COMPILE_ASSERT(0, "unsupported data_etype");
+    }
 }
 
 reduce_sum_op_t::reduce_sum_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -439,16 +473,48 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
             = builder::make_var(sc_data_type_t(dtype.type_code_, vx_info.lanes),
                     "reduce_" + fusion_create_var_idx());
     stmt asnode;
+    variant<float, int64_t> init_value;
+    bool is_int = utils::is_one_of(dtype.type_code_, sc_data_etype::U8,
+            sc_data_etype::U32, sc_data_etype::S8, sc_data_etype::S32);
+    if (rd_op == reduce_operator::mul) {
+        if (is_int) {
+            init_value = int64_t(1);
+        } else {
+            init_value = 1.f;
+        }
+    } else if (rd_op == reduce_operator::add) {
+        if (is_int) {
+            init_value = int64_t(0);
+        } else {
+            init_value = 0.f;
+        }
+    } else if (rd_op == reduce_operator::min) {
+        init_value = numeric_limits_maximum(dtype.type_code_);
+    } else {
+        COMPILE_ASSERT(rd_op == reduce_operator::max, "wrong reduce kind");
+        init_value = numeric_limits_minimum(dtype.type_code_);
+    }
+
     if (dtype.type_code_ == sc_data_etype::F32) {
-        float init_value = rd_op == reduce_operator::mul ? 1 : 0;
         asnode = make_stmt<assign_node_t>(reduce_value,
-                make_expr<constant_node>(init_value,
+                make_expr<constant_node>(init_value.get<float>(),
+                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+    } else if (dtype.type_code_ == sc_data_etype::BF16) {
+        asnode = make_stmt<assign_node_t>(reduce_value,
+                make_expr<constant_node>(bf16_t(init_value.get<float>()),
+                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+    } else if (dtype.type_code_ == sc_data_etype::U8
+            || dtype.type_code_ == sc_data_etype::U32) {
+        asnode = make_stmt<assign_node_t>(reduce_value,
+                make_expr<constant_node>(uint64_t(init_value.get<int64_t>()),
+                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+    } else if (dtype.type_code_ == sc_data_etype::S8
+            || dtype.type_code_ == sc_data_etype::S32) {
+        asnode = make_stmt<assign_node_t>(reduce_value,
+                make_expr<constant_node>(init_value.get<int64_t>(),
                         sc_data_type_t(dtype.type_code_, vx_info.lanes)));
     } else {
-        uint64_t init_value = rd_op == reduce_operator::mul ? 1 : 0;
-        asnode = make_stmt<assign_node_t>(reduce_value,
-                make_expr<constant_node>(init_value,
-                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+        COMPILE_ASSERT(0, "unsupported dtype.");
     }
     auto define_reduce
             = make_stmt<define_node_t>(reduce_value, linkage::local, expr());

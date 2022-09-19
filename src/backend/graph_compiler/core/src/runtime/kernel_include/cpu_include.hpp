@@ -85,6 +85,7 @@ extern "C" void sc_global_aligned_free(void *ptr, size_t align) noexcept;
     inline T sc_sqrt(T v1) { return std::sqrt(v1); }
 #define DEF_RSQRT(T) \
     inline T sc_rsqrt(T v1) { return 1.0 / std::sqrt(v1); }
+#define inf INFINITY
 
 #define DEF_FMADD(T) \
     inline T sc_fmadd(T v1, T v2, T v3) { return v1 * v2 + v3; }
