@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -207,6 +207,10 @@ struct EmulationImplementation {
         bool dstQ = isQW(dst);
         bool s0Q = isQW(src0);
         bool s0D = isDW(src0);
+        bool isDF = (src0.getType() == DataType::df
+                && dst.getType() == DataType::df);
+        bool unaligned = (mod.getExecSize() > 1 && src0.getHS() != 0
+                && src0.getOffset() != dst.getOffset());
 
         if ((dstQ && s0D) && strategy.emulate64) {
             if (src0.getNeg()) stub();
@@ -219,7 +223,8 @@ struct EmulationImplementation {
             } else {
                 g.asr(mod, dstHi, dstLo, uint16_t(31));
             }
-        } else if ((dstQ || s0Q) && strategy.emulate64) {
+        } else if ((isDF && unaligned && g.hardware >= ngen::HW::XeHP)
+                || ((dstQ || s0Q) && (strategy.emulate64))) {
             if (dstQ != s0Q) stub();
 
             auto mod2x = mod;
