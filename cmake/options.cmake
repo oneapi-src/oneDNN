@@ -48,6 +48,12 @@ option(DNNL_ENABLE_CPU_ISA_HINTS
     "enables control of CPU ISA specific hints by oneDNN via DNNL_CPU_ISA_HINTS
     environment variable and dnnl_set_cpu_isa_hints() function" ON)
 
+option(ONEDNN_BUILD_GRAPH "builds graph component (experimental)" OFF)
+
+option(ONEDNN_ENABLE_GRAPH_DUMP "enables control of dumping graph artifacts via
+    ONEDNN_GRAPH_DUMP environment variable. The option and feature are valid only
+    when ONEDNN_BUILD_GRAPH is ON" OFF)
+
 # =============================
 # Building properties and scope
 # =============================
