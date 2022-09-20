@@ -79,11 +79,14 @@ bool match_node_attributes(op_t *op, pb_node_t *node) {
     return true;
 }
 
-node_inputs_matcher_t::node_inputs_matcher_t(op_t *op, pb_node_t *node,
+node_inputs_matcher_t::node_inputs_matcher_t(const binding_t &b,
         match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map)
-    : op_ {op}, node_ {node}, ctx_ {ctx}, updated_op_map_ {matched_op_map} {
-
+    : op_ {b.bind_op}
+    , node_ {b.bind_node}
+    , bind_ {b}
+    , ctx_ {ctx}
+    , updated_op_map_ {matched_op_map} {
     node_inputs_ = node_->get_inputs();
 }
 
@@ -144,21 +147,31 @@ bool node_inputs_matcher_t::match_input_by_offset(
 
 bool node_inputs_matcher_t::match_commutative_inputs() {
     // commutative ops need to consider switching inputs
-    size_t matched_op_input_offset = op_->num_inputs(); // init with illegal
+    std::unordered_set<size_t> verified_node_input_ports = {},
+                               verified_op_input_ports = {};
+    if (bind_.bind_kind == BIND_IN) {
+        verified_node_input_ports.insert(bind_.bind_port);
+        verified_op_input_ports.insert(bind_.bind_op_port);
+    }
+
     for (size_t node_input_offset = 0; node_input_offset < node_inputs_.size();
             ++node_input_offset) {
+        if (verified_node_input_ports.find(
+                    node_inputs_[node_input_offset].first)
+                != verified_node_input_ports.end())
+            continue;
         for (size_t op_input_offset = 0; op_input_offset < op_->num_inputs();
                 ++op_input_offset) {
-            if (op_input_offset == matched_op_input_offset) {
-                matched_op_input_offset = op_->num_inputs();
-                continue;
-            }
-            if (match_input_by_offset(op_input_offset, node_input_offset)) {
-                matched_op_input_offset = op_input_offset;
+            if (verified_op_input_ports.find(op_input_offset)
+                            == verified_op_input_ports.end()
+                    && match_input_by_offset(
+                            op_input_offset, node_input_offset)) {
+                verified_op_input_ports.insert(op_input_offset);
                 break;
             }
+            // none of the op's inputs can match to the node's current input
+            if (op_input_offset == op_->num_inputs() - 1) return false;
         }
-        if (matched_op_input_offset == op_->num_inputs()) return false;
     }
     return true;
 }
@@ -185,9 +198,9 @@ bool node_inputs_matcher_t::match_variadic_inputs() {
     return true;
 }
 
-bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *ctx,
+bool match_node_inputs(const binding_t &b, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
-    node_inputs_matcher_t node_inputs_matcher(op, node, ctx, matched_op_map);
+    node_inputs_matcher_t node_inputs_matcher(b, ctx, matched_op_map);
 
     if (node_inputs_matcher.check_recursion_termination()) return true;
 
@@ -416,8 +429,7 @@ bool match_node(const binding_t &b, match_context_t *ctx,
 
     if (!match_node_attributes(b.bind_op, b.bind_node)) return false;
 
-    if (!match_node_inputs(b.bind_op, b.bind_node, ctx, matched_op_map))
-        return false;
+    if (!match_node_inputs(b, ctx, matched_op_map)) return false;
 
     if (check_cyclic(b.bind_op, matched_op_map)) return false;
 
@@ -683,8 +695,10 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
                 // alternation is restricted to have only 1 in port
                 if (local_ctx.in_port_map.size() != 1) return false;
                 op_t *current_op = local_ctx.in_port_map[0].first;
-                return match_node_inputs(
-                        current_op, bind_arg.bind_node, ctx, matched_op_map);
+                size_t current_port = local_ctx.in_port_map[0].second;
+                binding_t current_bind(BIND_OUT, current_op, current_port,
+                        bind_arg.bind_node, bind_arg.bind_port);
+                return match_node_inputs(current_bind, ctx, matched_op_map);
             }
         }
     }
@@ -823,8 +837,11 @@ bool repetition_matcher_t::match_next_op(const binding_t &bind_arg) {
                 "repetition is restricted to have only 1 output");
         if (bind_arg.bind_node->get_outputs().size() == 1) {
             op_t *current_op = rep_global_ctx_.in_port_map[pmap_.second].first;
-            if (!match_node_inputs(
-                        current_op, rep_node_, parent_ctx_, updated_op_map_))
+            size_t current_port
+                    = rep_global_ctx_.in_port_map[pmap_.second].second;
+            binding_t current_bind(BIND_OUT, current_op, current_port,
+                    rep_node_, bind_arg.bind_port);
+            if (!match_node_inputs(current_bind, parent_ctx_, updated_op_map_))
                 return false;
         }
     }
