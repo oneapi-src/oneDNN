@@ -142,7 +142,7 @@ dnnl_status_t DNNL_API dnnl_primitive_desc_query(
 ///          needed.
 /// @returns NULL in case of any error.
 ///
-const dnnl_memory_desc_t DNNL_API *dnnl_primitive_desc_query_md(
+const_dnnl_memory_desc_t DNNL_API dnnl_primitive_desc_query_md(
         const_dnnl_primitive_desc_t primitive_desc, dnnl_query_t what,
         int index);
 
@@ -743,7 +743,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_dw(
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_post_ops_append_binary(dnnl_post_ops_t post_ops,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src1_desc);
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src1_desc);
 
 /// Returns the parameters of a binary post-op.
 ///
@@ -757,7 +757,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_binary(dnnl_post_ops_t post_ops,
 ///     post-op.
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_binary(
         const_dnnl_post_ops_t post_ops, int index, dnnl_alg_kind_t *alg_kind,
-        const dnnl_memory_desc_t **src1_desc);
+        const_dnnl_memory_desc_t *src1_desc);
 
 /// Appends a prelu forward post-op.
 ///
@@ -868,7 +868,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_init_by_tag(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_desc_init_submemory(
         dnnl_memory_desc_t *memory_desc,
-        const dnnl_memory_desc_t *parent_memory_desc, const dnnl_dims_t dims,
+        const_dnnl_memory_desc_t parent_memory_desc, const dnnl_dims_t dims,
         const dnnl_dims_t offsets);
 
 /// Initializes a memory descriptor by reshaping an existing one. The new
@@ -912,7 +912,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_init_submemory(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_desc_reshape(
         dnnl_memory_desc_t *out_memory_desc,
-        const dnnl_memory_desc_t *in_memory_desc, int ndims,
+        const_dnnl_memory_desc_t in_memory_desc, int ndims,
         const dnnl_dims_t dims);
 
 /// Initializes a memory descriptor by permuting axes in an existing one.
@@ -957,7 +957,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_reshape(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_desc_permute_axes(
         dnnl_memory_desc_t *out_memory_desc,
-        const dnnl_memory_desc_t *in_memory_desc, const int *permutation);
+        const_dnnl_memory_desc_t in_memory_desc, const int *permutation);
 
 /// Queries a memory descriptor for various pieces of information.
 ///
@@ -1006,7 +1006,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_permute_axes(
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_desc_query(
-        const dnnl_memory_desc_t *memory_desc, dnnl_query_t what, void *result);
+        const_dnnl_memory_desc_t memory_desc, dnnl_query_t what, void *result);
 
 /// Compares two memory descriptors.
 ///
@@ -1018,15 +1018,14 @@ dnnl_status_t DNNL_API dnnl_memory_desc_query(
 /// @returns 1 if the descriptors are the same.
 /// @returns 0 if the descriptors are different.
 int DNNL_API dnnl_memory_desc_equal(
-        const dnnl_memory_desc_t *lhs, const dnnl_memory_desc_t *rhs);
+        const_dnnl_memory_desc_t lhs, const_dnnl_memory_desc_t rhs);
 
 /// Returns the size of a memory descriptor.
 ///
 /// @param memory_desc Memory descriptor.
 /// @returns The number of bytes required for memory described by a memory
 ///     descriptor.
-size_t DNNL_API dnnl_memory_desc_get_size(
-        const dnnl_memory_desc_t *memory_desc);
+size_t DNNL_API dnnl_memory_desc_get_size(const_dnnl_memory_desc_t memory_desc);
 
 /// Returns the size of data type.
 ///
@@ -1055,7 +1054,7 @@ size_t DNNL_API dnnl_data_type_size(dnnl_data_type_t data_type);
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_create(dnnl_memory_t *memory,
-        const dnnl_memory_desc_t *memory_desc, dnnl_engine_t engine,
+        const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
         void *handle);
 
 /// Returns the memory descriptor for a memory object.
@@ -1065,7 +1064,7 @@ dnnl_status_t DNNL_API dnnl_memory_create(dnnl_memory_t *memory,
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_get_memory_desc(
-        const_dnnl_memory_t memory, const dnnl_memory_desc_t **memory_desc);
+        const_dnnl_memory_t memory, const_dnnl_memory_desc_t *memory_desc);
 
 /// Returns the engine of a memory object.
 ///
@@ -1169,8 +1168,8 @@ dnnl_status_t DNNL_API dnnl_memory_destroy(dnnl_memory_t memory);
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_reorder_primitive_desc_create(
         dnnl_primitive_desc_t *reorder_primitive_desc,
-        const dnnl_memory_desc_t *src_desc, dnnl_engine_t src_engine,
-        const dnnl_memory_desc_t *dst_desc, dnnl_engine_t dst_engine,
+        const_dnnl_memory_desc_t src_desc, dnnl_engine_t src_engine,
+        const_dnnl_memory_desc_t dst_desc, dnnl_engine_t dst_engine,
         const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_reorder
@@ -1194,8 +1193,8 @@ dnnl_status_t DNNL_API dnnl_reorder_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_concat_primitive_desc_create(
         dnnl_primitive_desc_t *concat_primitive_desc, dnnl_engine_t engine,
-        const dnnl_memory_desc_t *dst_desc, int n, int concat_dimension,
-        const dnnl_memory_desc_t *src_descs, const_dnnl_primitive_attr_t attr);
+        const_dnnl_memory_desc_t dst_desc, int n, int concat_dimension,
+        const_dnnl_memory_desc_t src_descs, const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_concat
 
@@ -1216,8 +1215,8 @@ dnnl_status_t DNNL_API dnnl_concat_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
         dnnl_primitive_desc_t *sum_primitive_desc, dnnl_engine_t engine,
-        const dnnl_memory_desc_t *dst_desc, int n, const float *scales,
-        const dnnl_memory_desc_t *src_descs, const_dnnl_primitive_attr_t attr);
+        const_dnnl_memory_desc_t dst_desc, int n, const float *scales,
+        const_dnnl_memory_desc_t src_descs, const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_sum
 
@@ -1250,8 +1249,8 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_binary_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src0_desc,
-        const dnnl_memory_desc_t *src1_desc, const dnnl_memory_desc_t *dst_desc,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src0_desc,
+        const_dnnl_memory_desc_t src1_desc, const_dnnl_memory_desc_t dst_desc,
         const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_binary
@@ -1299,9 +1298,9 @@ dnnl_status_t DNNL_API dnnl_binary_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_convolution_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
+        const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t weights_desc,
+        const_dnnl_memory_desc_t bias_desc, const_dnnl_memory_desc_t dst_desc,
         const dnnl_dims_t strides, const dnnl_dims_t dilates,
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
         const_dnnl_primitive_attr_t attr);
@@ -1342,9 +1341,9 @@ dnnl_status_t DNNL_API dnnl_convolution_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_convolution_backward_data_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t weights_desc,
+        const_dnnl_memory_desc_t diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t dilates, const dnnl_dims_t padding_l,
         const dnnl_dims_t padding_r, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
@@ -1387,10 +1386,10 @@ dnnl_status_t DNNL_API dnnl_convolution_backward_data_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_convolution_backward_weights_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *diff_weights_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t diff_weights_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t dilates, const dnnl_dims_t padding_l,
         const dnnl_dims_t padding_r, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
@@ -1439,9 +1438,9 @@ dnnl_status_t DNNL_API dnnl_convolution_backward_weights_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_deconvolution_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
+        const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t weights_desc,
+        const_dnnl_memory_desc_t bias_desc, const_dnnl_memory_desc_t dst_desc,
         const dnnl_dims_t strides, const dnnl_dims_t dilates,
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
         const_dnnl_primitive_attr_t attr);
@@ -1481,9 +1480,9 @@ dnnl_status_t DNNL_API dnnl_deconvolution_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_deconvolution_backward_data_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t weights_desc,
+        const_dnnl_memory_desc_t diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t dilates, const dnnl_dims_t padding_l,
         const dnnl_dims_t padding_r, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
@@ -1527,10 +1526,10 @@ dnnl_status_t DNNL_API dnnl_deconvolution_backward_data_primitive_desc_create(
 dnnl_status_t DNNL_API
 dnnl_deconvolution_backward_weights_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *diff_weights_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t diff_weights_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t dilates, const dnnl_dims_t padding_l,
         const dnnl_dims_t padding_r, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
@@ -1554,7 +1553,7 @@ dnnl_deconvolution_backward_weights_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_shuffle_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *data_desc,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t data_desc,
         int axis, dnnl_dim_t group_size, const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a shuffle backward propagation primitive
@@ -1571,7 +1570,7 @@ dnnl_status_t DNNL_API dnnl_shuffle_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_shuffle_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        const dnnl_memory_desc_t *diff_data_desc, int axis,
+        const_dnnl_memory_desc_t diff_data_desc, int axis,
         dnnl_dim_t group_size, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -1598,7 +1597,7 @@ dnnl_status_t DNNL_API dnnl_shuffle_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_eltwise_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *data_desc, float alpha, float beta,
+        const_dnnl_memory_desc_t data_desc, float alpha, float beta,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for an eltwise backward propagation
@@ -1620,8 +1619,8 @@ dnnl_status_t DNNL_API dnnl_eltwise_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_eltwise_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_data_desc,
-        const dnnl_memory_desc_t *data_desc, float alpha, float beta,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_data_desc,
+        const_dnnl_memory_desc_t data_desc, float alpha, float beta,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -1647,7 +1646,7 @@ dnnl_status_t DNNL_API dnnl_eltwise_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_softmax_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *src_desc, const dnnl_memory_desc_t *dst_desc,
+        const_dnnl_memory_desc_t src_desc, const_dnnl_memory_desc_t dst_desc,
         int softmax_axis, const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a softmax backward propagation primitive.
@@ -1667,9 +1666,9 @@ dnnl_status_t DNNL_API dnnl_softmax_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_softmax_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *diff_dst_desc,
-        const dnnl_memory_desc_t *dst_desc, int softmax_axis,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
+        const_dnnl_memory_desc_t dst_desc, int softmax_axis,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -1710,7 +1709,7 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_pooling_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *src_desc, const dnnl_memory_desc_t *dst_desc,
+        const_dnnl_memory_desc_t src_desc, const_dnnl_memory_desc_t dst_desc,
         const dnnl_dims_t strides, const dnnl_dims_t kernel,
         const dnnl_dims_t dilation, const dnnl_dims_t padding_l,
         const dnnl_dims_t padding_r, const_dnnl_primitive_attr_t attr);
@@ -1746,8 +1745,8 @@ dnnl_status_t DNNL_API dnnl_pooling_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_pooling_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *diff_dst_desc, const dnnl_dims_t strides,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t kernel, const dnnl_dims_t dilation,
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
         const_dnnl_primitive_desc_t hint_forward_primitive_desc,
@@ -1776,8 +1775,8 @@ dnnl_status_t DNNL_API dnnl_pooling_backward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_prelu_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *data_desc,
-        const dnnl_memory_desc_t *weights_desc,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t data_desc,
+        const_dnnl_memory_desc_t weights_desc,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a PReLU (leaky ReLU with trainable
@@ -1801,10 +1800,10 @@ dnnl_status_t DNNL_API dnnl_prelu_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_prelu_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        const dnnl_memory_desc_t *data_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *diff_data_desc,
-        const dnnl_memory_desc_t *diff_weights_desc,
+        const_dnnl_memory_desc_t data_desc,
+        const_dnnl_memory_desc_t weights_desc,
+        const_dnnl_memory_desc_t diff_data_desc,
+        const_dnnl_memory_desc_t diff_weights_desc,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -1832,7 +1831,7 @@ dnnl_status_t DNNL_API dnnl_prelu_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lrn_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const dnnl_memory_desc_t *data_desc, dnnl_dim_t local_size, float alpha,
+        const_dnnl_memory_desc_t data_desc, dnnl_dim_t local_size, float alpha,
         float beta, float k, const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for an LRN backward propagation primitive.
@@ -1854,8 +1853,8 @@ dnnl_status_t DNNL_API dnnl_lrn_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_lrn_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *diff_data_desc,
-        const dnnl_memory_desc_t *data_desc, dnnl_dim_t local_size, float alpha,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_data_desc,
+        const_dnnl_memory_desc_t data_desc, dnnl_dim_t local_size, float alpha,
         float beta, float k, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -1883,7 +1882,7 @@ dnnl_status_t DNNL_API dnnl_lrn_backward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_batch_normalization_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *data_desc,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t data_desc,
         float epsilon, unsigned flags, const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a batch normalization backward
@@ -1909,8 +1908,8 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_batch_normalization_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *diff_data_desc,
-        const dnnl_memory_desc_t *data_desc, float epsilon, unsigned flags,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t diff_data_desc,
+        const_dnnl_memory_desc_t data_desc, float epsilon, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -1944,8 +1943,8 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_backward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_layer_normalization_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *dst_desc, const dnnl_memory_desc_t *stat_desc,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t dst_desc, const_dnnl_memory_desc_t stat_desc,
         float epsilon, unsigned flags, const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a layer normalization backward
@@ -1977,9 +1976,9 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_layer_normalization_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *diff_dst_desc,
-        const dnnl_memory_desc_t *src_desc, const dnnl_memory_desc_t *stat_desc,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
+        const_dnnl_memory_desc_t src_desc, const_dnnl_memory_desc_t stat_desc,
         float epsilon, unsigned flags, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -2010,9 +2009,9 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_backward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_inner_product_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t weights_desc,
+        const_dnnl_memory_desc_t bias_desc, const_dnnl_memory_desc_t dst_desc,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for an inner product backward propagation
@@ -2034,9 +2033,9 @@ dnnl_status_t DNNL_API dnnl_inner_product_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_inner_product_backward_data_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *diff_dst_desc,
+        const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t weights_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -2063,10 +2062,10 @@ dnnl_status_t DNNL_API dnnl_inner_product_backward_data_primitive_desc_create(
 dnnl_status_t DNNL_API
 dnnl_inner_product_backward_weights_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *diff_weights_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_desc,
+        const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t diff_weights_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -2282,13 +2281,13 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, const dnnl_alg_kind_t activation,
         const dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags, float alpha,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc, unsigned flags, float alpha,
         float beta, const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for vanilla RNN backward propagation
@@ -2349,20 +2348,20 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, const dnnl_alg_kind_t activation,
         const dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *diff_src_layer_desc,
-        const dnnl_memory_desc_t *diff_src_iter_desc,
-        const dnnl_memory_desc_t *diff_weights_layer_desc,
-        const dnnl_memory_desc_t *diff_weights_iter_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t diff_src_layer_desc,
+        const_dnnl_memory_desc_t diff_src_iter_desc,
+        const_dnnl_memory_desc_t diff_weights_layer_desc,
+        const_dnnl_memory_desc_t diff_weights_iter_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_layer_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_desc, unsigned flags,
         float alpha, float beta, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -2414,15 +2413,15 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *src_iter_c_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t src_iter_c_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t dst_iter_c_desc, unsigned flags,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for an LSTM (with or without peephole)
@@ -2475,16 +2474,16 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v2(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *src_iter_c_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *weights_peephole_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t src_iter_c_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t weights_peephole_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t dst_iter_c_desc, unsigned flags,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for an LSTM (with or without peephole and
@@ -2544,17 +2543,17 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v2(
 dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v3(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *src_iter_c_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *weights_peephole_desc,
-        const dnnl_memory_desc_t *weights_projection_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t src_iter_c_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t weights_peephole_desc,
+        const_dnnl_memory_desc_t weights_projection_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t dst_iter_c_desc, unsigned flags,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for an LSTM backward propagation primitive.
@@ -2624,24 +2623,24 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v3(
 dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *src_iter_c_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc,
-        const dnnl_memory_desc_t *diff_src_layer_desc,
-        const dnnl_memory_desc_t *diff_src_iter_desc,
-        const dnnl_memory_desc_t *diff_src_iter_c_desc,
-        const dnnl_memory_desc_t *diff_weights_layer_desc,
-        const dnnl_memory_desc_t *diff_weights_iter_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t src_iter_c_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t dst_iter_c_desc,
+        const_dnnl_memory_desc_t diff_src_layer_desc,
+        const_dnnl_memory_desc_t diff_src_iter_desc,
+        const_dnnl_memory_desc_t diff_src_iter_c_desc,
+        const_dnnl_memory_desc_t diff_weights_layer_desc,
+        const_dnnl_memory_desc_t diff_weights_iter_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_layer_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_c_desc, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -2716,26 +2715,26 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create_v2(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *src_iter_c_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *weights_peephole_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc,
-        const dnnl_memory_desc_t *diff_src_layer_desc,
-        const dnnl_memory_desc_t *diff_src_iter_desc,
-        const dnnl_memory_desc_t *diff_src_iter_c_desc,
-        const dnnl_memory_desc_t *diff_weights_layer_desc,
-        const dnnl_memory_desc_t *diff_weights_iter_desc,
-        const dnnl_memory_desc_t *diff_weights_peephole_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t src_iter_c_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t weights_peephole_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t dst_iter_c_desc,
+        const_dnnl_memory_desc_t diff_src_layer_desc,
+        const_dnnl_memory_desc_t diff_src_iter_desc,
+        const_dnnl_memory_desc_t diff_src_iter_c_desc,
+        const_dnnl_memory_desc_t diff_weights_layer_desc,
+        const_dnnl_memory_desc_t diff_weights_iter_desc,
+        const_dnnl_memory_desc_t diff_weights_peephole_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_layer_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_c_desc, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -2819,28 +2818,28 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create_v2(
 dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create_v3(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *src_iter_c_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *weights_peephole_desc,
-        const dnnl_memory_desc_t *weights_projection_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *dst_iter_c_desc,
-        const dnnl_memory_desc_t *diff_src_layer_desc,
-        const dnnl_memory_desc_t *diff_src_iter_desc,
-        const dnnl_memory_desc_t *diff_src_iter_c_desc,
-        const dnnl_memory_desc_t *diff_weights_layer_desc,
-        const dnnl_memory_desc_t *diff_weights_iter_desc,
-        const dnnl_memory_desc_t *diff_weights_peephole_desc,
-        const dnnl_memory_desc_t *diff_weights_projection_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t src_iter_c_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t weights_peephole_desc,
+        const_dnnl_memory_desc_t weights_projection_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t dst_iter_c_desc,
+        const_dnnl_memory_desc_t diff_src_layer_desc,
+        const_dnnl_memory_desc_t diff_src_iter_desc,
+        const_dnnl_memory_desc_t diff_src_iter_c_desc,
+        const_dnnl_memory_desc_t diff_weights_layer_desc,
+        const_dnnl_memory_desc_t diff_weights_iter_desc,
+        const_dnnl_memory_desc_t diff_weights_peephole_desc,
+        const_dnnl_memory_desc_t diff_weights_projection_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_layer_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_c_desc, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -2883,13 +2882,13 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create_v3(
 dnnl_status_t DNNL_API dnnl_gru_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc, unsigned flags,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for GRU backward propagation primitive.
@@ -2944,20 +2943,20 @@ dnnl_status_t DNNL_API dnnl_gru_forward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_gru_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *diff_src_layer_desc,
-        const dnnl_memory_desc_t *diff_src_iter_desc,
-        const dnnl_memory_desc_t *diff_weights_layer_desc,
-        const dnnl_memory_desc_t *diff_weights_iter_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t diff_src_layer_desc,
+        const_dnnl_memory_desc_t diff_src_iter_desc,
+        const_dnnl_memory_desc_t diff_weights_layer_desc,
+        const_dnnl_memory_desc_t diff_weights_iter_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_layer_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_desc, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -2996,13 +2995,13 @@ dnnl_status_t DNNL_API dnnl_gru_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lbr_gru_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc, unsigned flags,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for LBR GRU backward propagation primitive.
@@ -3057,20 +3056,20 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_forward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lbr_gru_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *diff_src_layer_desc,
-        const dnnl_memory_desc_t *diff_src_iter_desc,
-        const dnnl_memory_desc_t *diff_weights_layer_desc,
-        const dnnl_memory_desc_t *diff_weights_iter_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t diff_src_layer_desc,
+        const_dnnl_memory_desc_t diff_src_iter_desc,
+        const_dnnl_memory_desc_t diff_weights_layer_desc,
+        const_dnnl_memory_desc_t diff_weights_iter_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_layer_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_desc, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -3114,14 +3113,14 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_augru_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *attention_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t attention_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc, unsigned flags,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for AUGRU backward propagation primitive.
@@ -3178,22 +3177,22 @@ dnnl_status_t DNNL_API dnnl_augru_forward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_augru_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *attention_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *diff_src_layer_desc,
-        const dnnl_memory_desc_t *diff_src_iter_desc,
-        const dnnl_memory_desc_t *diff_attention_desc,
-        const dnnl_memory_desc_t *diff_weights_layer_desc,
-        const dnnl_memory_desc_t *diff_weights_iter_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t attention_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t diff_src_layer_desc,
+        const_dnnl_memory_desc_t diff_src_iter_desc,
+        const_dnnl_memory_desc_t diff_attention_desc,
+        const_dnnl_memory_desc_t diff_weights_layer_desc,
+        const_dnnl_memory_desc_t diff_weights_iter_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_layer_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_desc, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -3233,14 +3232,14 @@ dnnl_status_t DNNL_API dnnl_augru_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lbr_augru_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *attention_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t attention_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc, unsigned flags,
         const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for LBR AUGRU backward propagation primitive.
@@ -3297,22 +3296,22 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_forward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lbr_augru_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const dnnl_memory_desc_t *src_layer_desc,
-        const dnnl_memory_desc_t *src_iter_desc,
-        const dnnl_memory_desc_t *attention_desc,
-        const dnnl_memory_desc_t *weights_layer_desc,
-        const dnnl_memory_desc_t *weights_iter_desc,
-        const dnnl_memory_desc_t *bias_desc,
-        const dnnl_memory_desc_t *dst_layer_desc,
-        const dnnl_memory_desc_t *dst_iter_desc,
-        const dnnl_memory_desc_t *diff_src_layer_desc,
-        const dnnl_memory_desc_t *diff_src_iter_desc,
-        const dnnl_memory_desc_t *diff_attention_desc,
-        const dnnl_memory_desc_t *diff_weights_layer_desc,
-        const dnnl_memory_desc_t *diff_weights_iter_desc,
-        const dnnl_memory_desc_t *diff_bias_desc,
-        const dnnl_memory_desc_t *diff_dst_layer_desc,
-        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+        const_dnnl_memory_desc_t src_layer_desc,
+        const_dnnl_memory_desc_t src_iter_desc,
+        const_dnnl_memory_desc_t attention_desc,
+        const_dnnl_memory_desc_t weights_layer_desc,
+        const_dnnl_memory_desc_t weights_iter_desc,
+        const_dnnl_memory_desc_t bias_desc,
+        const_dnnl_memory_desc_t dst_layer_desc,
+        const_dnnl_memory_desc_t dst_iter_desc,
+        const_dnnl_memory_desc_t diff_src_layer_desc,
+        const_dnnl_memory_desc_t diff_src_iter_desc,
+        const_dnnl_memory_desc_t diff_attention_desc,
+        const_dnnl_memory_desc_t diff_weights_layer_desc,
+        const_dnnl_memory_desc_t diff_weights_iter_desc,
+        const_dnnl_memory_desc_t diff_bias_desc,
+        const_dnnl_memory_desc_t diff_dst_layer_desc,
+        const_dnnl_memory_desc_t diff_dst_iter_desc, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -3336,9 +3335,9 @@ dnnl_status_t DNNL_API dnnl_lbr_augru_backward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_matmul_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *weights_desc,
-        const dnnl_memory_desc_t *bias_desc, const dnnl_memory_desc_t *dst_desc,
+        const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t weights_desc,
+        const_dnnl_memory_desc_t bias_desc, const_dnnl_memory_desc_t dst_desc,
         const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_matmul
@@ -3368,8 +3367,8 @@ dnnl_status_t DNNL_API dnnl_matmul_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_resampling_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const float *factors, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *dst_desc, const_dnnl_primitive_attr_t attr);
+        const float *factors, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t dst_desc, const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a resampling backward propagation
 ///     primitive.
@@ -3390,8 +3389,8 @@ dnnl_status_t DNNL_API dnnl_resampling_forward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_resampling_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_alg_kind_t alg_kind, const float *factors,
-        const dnnl_memory_desc_t *diff_src_desc,
-        const dnnl_memory_desc_t *diff_dst_desc,
+        const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -3422,8 +3421,8 @@ dnnl_status_t DNNL_API dnnl_resampling_backward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_reduction_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
-        const dnnl_memory_desc_t *dst_desc, float p, float eps,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t dst_desc, float p, float eps,
         const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_reduction

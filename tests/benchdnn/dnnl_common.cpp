@@ -814,7 +814,7 @@ static int check_total_size(
     return res->state == FAILED ? FAIL : OK;
 }
 
-static size_t get_md_size(const dnnl_memory_desc_t *md,
+static size_t get_md_size(const_dnnl_memory_desc_t md,
         bool add_ref_size = false, bool add_ref_out_size = false) {
     const auto mem_size = dnnl_memory_desc_get_size(md);
     // runtime mem size is not defined

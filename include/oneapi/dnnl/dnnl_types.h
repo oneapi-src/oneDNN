@@ -1868,6 +1868,9 @@ typedef struct {
     dnnl_memory_extra_desc_t extra;
 } dnnl_memory_desc_t;
 
+/// A memory descriptor handle.
+typedef const dnnl_memory_desc_t *const_dnnl_memory_desc_t;
+
 /// @struct dnnl_memory
 /// An opaque structure to describe a memory.
 struct dnnl_memory;
@@ -2303,7 +2306,7 @@ typedef struct {
 /// dnnl_query_*_f32                | float *
 /// dnnl_query_*_f64                | double *
 /// dnnl_query_*_str                | const char **
-/// dnnl_query_*_md                 | const #dnnl_memory_desc_t **
+/// dnnl_query_*_md                 | #const_dnnl_memory_desc_t *
 /// dnnl_query_*_pd                 | #const_dnnl_primitive_desc_t *
 /// dnnl_query_cache_blob_id        | const uint8_t **
 /// dnnl_query_strides              | const #dnnl_dims_t **

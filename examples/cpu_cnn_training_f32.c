@@ -101,14 +101,14 @@ static void init_data_memory(uint32_t dim, const dnnl_dim_t *dims,
 }
 
 dnnl_status_t prepare_reorder(dnnl_memory_t *user_memory, // in
-        const dnnl_memory_desc_t *prim_memory_md, // in
+        const_dnnl_memory_desc_t prim_memory_md, // in
         dnnl_engine_t prim_engine, // in: primitive's engine
         int dir_is_user_to_prim, // in: user -> prim or prim -> user
         dnnl_memory_t *prim_memory, // out: primitive's memory created
         dnnl_primitive_t *reorder, // out: reorder primitive created
         uint32_t *net_index, // primitive index in net (inc if reorder created)
         dnnl_primitive_t *net, args_t *net_args) { // net params
-    const dnnl_memory_desc_t *user_memory_md;
+    const_dnnl_memory_desc_t user_memory_md;
     dnnl_memory_get_memory_desc(*user_memory, &user_memory_md);
 
     dnnl_engine_t user_mem_engine;
@@ -228,7 +228,7 @@ void simple_net() {
             conv_internal_dst_memory;
 
     // create memory for dst data, we don't need to reorder it to user data
-    const dnnl_memory_desc_t *conv_dst_md
+    const_dnnl_memory_desc_t conv_dst_md
             = dnnl_primitive_desc_query_md(conv_pd, dnnl_query_dst_md, 0);
     CHECK(dnnl_memory_create(&conv_internal_dst_memory, conv_dst_md, engine,
             DNNL_MEMORY_ALLOCATE));
@@ -237,13 +237,13 @@ void simple_net() {
     // if required
     dnnl_primitive_t conv_reorder_src, conv_reorder_weights;
 
-    const dnnl_memory_desc_t *conv_src_md
+    const_dnnl_memory_desc_t conv_src_md
             = dnnl_primitive_desc_query_md(conv_pd, dnnl_query_src_md, 0);
     CHECK(prepare_reorder(&conv_user_src_memory, conv_src_md, engine, 1,
             &conv_internal_src_memory, &conv_reorder_src, &n_fwd, net_fwd,
             net_fwd_args));
 
-    const dnnl_memory_desc_t *conv_weights_md
+    const_dnnl_memory_desc_t conv_weights_md
             = dnnl_primitive_desc_query_md(conv_pd, dnnl_query_weights_md, 0);
     CHECK(prepare_reorder(&conv_user_weights_memory, conv_weights_md, engine, 1,
             &conv_internal_weights_memory, &conv_reorder_weights, &n_fwd,
@@ -276,7 +276,7 @@ void simple_net() {
 
     // keep memory format of source same as the format of convolution
     // output in order to avoid reorder
-    const dnnl_memory_desc_t *relu_src_md = conv_dst_md;
+    const_dnnl_memory_desc_t relu_src_md = conv_dst_md;
 
     // create a relu primitive descriptor
     dnnl_primitive_desc_t relu_pd;
@@ -286,7 +286,7 @@ void simple_net() {
 
     // create relu dst memory
     dnnl_memory_t relu_dst_memory;
-    const dnnl_memory_desc_t *relu_dst_md
+    const_dnnl_memory_desc_t relu_dst_md
             = dnnl_primitive_desc_query_md(relu_pd, dnnl_query_dst_md, 0);
     CHECK(dnnl_memory_create(
             &relu_dst_memory, relu_dst_md, engine, DNNL_MEMORY_ALLOCATE));
@@ -314,7 +314,7 @@ void simple_net() {
 
     // create lrn src memory descriptor using dst memory descriptor
     //  from previous primitive
-    const dnnl_memory_desc_t *lrn_src_md = relu_dst_md;
+    const_dnnl_memory_desc_t lrn_src_md = relu_dst_md;
 
     // create a lrn primitive descriptor
     dnnl_primitive_desc_t lrn_pd;
@@ -325,14 +325,14 @@ void simple_net() {
     // create primitives for lrn dst and workspace memory
     dnnl_memory_t lrn_dst_memory, lrn_ws_memory;
 
-    const dnnl_memory_desc_t *lrn_dst_md
+    const_dnnl_memory_desc_t lrn_dst_md
             = dnnl_primitive_desc_query_md(lrn_pd, dnnl_query_dst_md, 0);
     CHECK(dnnl_memory_create(
             &lrn_dst_memory, lrn_dst_md, engine, DNNL_MEMORY_ALLOCATE));
 
     // create workspace only in training and only for forward primitive
     // query lrn_pd for workspace, this memory will be shared with forward lrn
-    const dnnl_memory_desc_t *lrn_ws_md
+    const_dnnl_memory_desc_t lrn_ws_md
             = dnnl_primitive_desc_query_md(lrn_pd, dnnl_query_workspace_md, 0);
     CHECK(dnnl_memory_create(
             &lrn_ws_memory, lrn_ws_md, engine, DNNL_MEMORY_ALLOCATE));
@@ -371,7 +371,7 @@ void simple_net() {
     {
         // create pooling src memory descriptor using dst descriptor
         //  from previous primitive
-        const dnnl_memory_desc_t *pool_src_md = lrn_dst_md;
+        const_dnnl_memory_desc_t pool_src_md = lrn_dst_md;
 
         // create descriptors for dst pooling data
         dnnl_memory_desc_t pool_dst_md;
@@ -386,7 +386,7 @@ void simple_net() {
 
     // create memory for workspace
     dnnl_memory_t pool_ws_memory;
-    const dnnl_memory_desc_t *pool_ws_md
+    const_dnnl_memory_desc_t pool_ws_md
             = dnnl_primitive_desc_query_md(pool_pd, dnnl_query_workspace_md, 0);
     CHECK(dnnl_memory_create(
             &pool_ws_memory, pool_ws_md, engine, DNNL_MEMORY_ALLOCATE));
@@ -395,7 +395,7 @@ void simple_net() {
     // if required
     dnnl_primitive_t pool_reorder_dst;
     dnnl_memory_t pool_internal_dst_memory;
-    const dnnl_memory_desc_t *pool_dst_md
+    const_dnnl_memory_desc_t pool_dst_md
             = dnnl_primitive_desc_query_md(pool_pd, dnnl_query_dst_md, 0);
     n_fwd += 1; // tentative workaround: preserve space for pooling that should
             // happen before the reorder
@@ -437,10 +437,10 @@ void simple_net() {
 
     // Pooling Backward
     // pooling diff src memory descriptor
-    const dnnl_memory_desc_t *pool_diff_src_md = lrn_dst_md;
+    const_dnnl_memory_desc_t pool_diff_src_md = lrn_dst_md;
 
     // pooling diff dst memory descriptor
-    const dnnl_memory_desc_t *pool_diff_dst_md = pool_dst_md;
+    const_dnnl_memory_desc_t pool_diff_dst_md = pool_dst_md;
 
     // backward primitive descriptor needs to hint forward descriptor
     dnnl_primitive_desc_t pool_bwd_pd;
@@ -479,7 +479,7 @@ void simple_net() {
     n_bwd++;
 
     // Backward lrn
-    const dnnl_memory_desc_t *lrn_diff_dst_md = pool_diff_src_md;
+    const_dnnl_memory_desc_t lrn_diff_dst_md = pool_diff_src_md;
 
     // create backward lrn descriptor
     dnnl_primitive_desc_t lrn_bwd_pd;
@@ -489,7 +489,7 @@ void simple_net() {
 
     // create memory for lrn diff src
     dnnl_memory_t lrn_diff_src_memory;
-    const dnnl_memory_desc_t *lrn_diff_src_md = dnnl_primitive_desc_query_md(
+    const_dnnl_memory_desc_t lrn_diff_src_md = dnnl_primitive_desc_query_md(
             lrn_bwd_pd, dnnl_query_diff_src_md, 0);
     CHECK(dnnl_memory_create(&lrn_diff_src_memory, lrn_diff_src_md, engine,
             DNNL_MEMORY_ALLOCATE));
@@ -508,7 +508,7 @@ void simple_net() {
     n_bwd++;
 
     // Backward relu
-    const dnnl_memory_desc_t *relu_diff_dst_md = lrn_diff_src_md;
+    const_dnnl_memory_desc_t relu_diff_dst_md = lrn_diff_src_md;
 
     // create backward relu descriptor
     dnnl_primitive_desc_t relu_bwd_pd;
@@ -518,7 +518,7 @@ void simple_net() {
 
     // create memory for relu diff src
     dnnl_memory_t relu_diff_src_memory;
-    const dnnl_memory_desc_t *relu_diff_src_md = dnnl_primitive_desc_query_md(
+    const_dnnl_memory_desc_t relu_diff_src_md = dnnl_primitive_desc_query_md(
             relu_bwd_pd, dnnl_query_diff_src_md, 0);
     CHECK(dnnl_memory_create(&relu_diff_src_memory, relu_diff_src_md, engine,
             DNNL_MEMORY_ALLOCATE));
@@ -581,7 +581,7 @@ void simple_net() {
     // format chosen by backward convolution
     dnnl_primitive_t conv_bwd_reorder_src;
     dnnl_memory_t conv_bwd_internal_src_memory;
-    const dnnl_memory_desc_t *conv_diff_src_md = dnnl_primitive_desc_query_md(
+    const_dnnl_memory_desc_t conv_diff_src_md = dnnl_primitive_desc_query_md(
             conv_bwd_weights_pd, dnnl_query_src_md, 0);
     CHECK(prepare_reorder(&conv_src_memory, conv_diff_src_md, engine, 1,
             &conv_bwd_internal_src_memory, &conv_bwd_reorder_src, &n_bwd,
@@ -595,7 +595,7 @@ void simple_net() {
     // and format preferred by conv_diff_weights
     dnnl_primitive_t conv_reorder_diff_dst;
     dnnl_memory_t conv_internal_diff_dst_memory;
-    const dnnl_memory_desc_t *conv_diff_dst_md = dnnl_primitive_desc_query_md(
+    const_dnnl_memory_desc_t conv_diff_dst_md = dnnl_primitive_desc_query_md(
             conv_bwd_weights_pd, dnnl_query_diff_dst_md, 0);
 
     CHECK(prepare_reorder(&relu_diff_src_memory, conv_diff_dst_md, engine, 1,
@@ -609,7 +609,7 @@ void simple_net() {
     // create reorder primitives for conv diff weights memory
     dnnl_primitive_t conv_reorder_diff_weights;
     dnnl_memory_t conv_internal_diff_weights_memory;
-    const dnnl_memory_desc_t *conv_diff_weights_md
+    const_dnnl_memory_desc_t conv_diff_weights_md
             = dnnl_primitive_desc_query_md(
                     conv_bwd_weights_pd, dnnl_query_diff_weights_md, 0);
     n_bwd += 1; // tentative workaround: preserve space for conv_bwd_weights
@@ -626,7 +626,7 @@ void simple_net() {
 
     // create memory for diff bias memory
     dnnl_memory_t conv_diff_bias_memory;
-    const dnnl_memory_desc_t *conv_diff_bias_md = dnnl_primitive_desc_query_md(
+    const_dnnl_memory_desc_t conv_diff_bias_md = dnnl_primitive_desc_query_md(
             conv_bwd_weights_pd, dnnl_query_diff_weights_md, 1);
     CHECK(dnnl_memory_create(&conv_diff_bias_memory, conv_diff_bias_md, engine,
             DNNL_MEMORY_ALLOCATE));

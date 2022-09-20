@@ -2490,7 +2490,7 @@ struct memory : public handle<dnnl_memory_t> {
 
         // This function mimics `handle::get()` and will be removed once
         // `desc` is inherited from `handle`.
-        const dnnl_memory_desc_t *get() const { return &data; }
+        const_dnnl_memory_desc_t get() const { return &data; }
 
         /// Constructs a zero (empty) memory descriptor. Such a memory
         /// descriptor can be used to indicate absence of an argument.
@@ -2887,7 +2887,7 @@ struct memory : public handle<dnnl_memory_t> {
 
     /// Returns the associated memory descriptor.
     desc get_desc() const {
-        const dnnl_memory_desc_t *cdesc;
+        const_dnnl_memory_desc_t cdesc;
         error::wrap_c_api(dnnl_memory_get_memory_desc(get(), &cdesc),
                 "could not get a memory descriptor from a memory object");
         return desc(*cdesc);
@@ -3295,7 +3295,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void get_params_binary(
             int index, algorithm &aalgorithm, memory::desc &src1_desc) const {
         dnnl_alg_kind_t c_alg;
-        const dnnl_memory_desc_t *data;
+        const_dnnl_memory_desc_t data;
         error::wrap_c_api(
                 dnnl_post_ops_get_params_binary(get(), index, &c_alg, &data),
                 "could not get parameters of a binary post-op");
@@ -3968,7 +3968,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
 
         const bool is_backward = get_prop_kind() != prop_kind::forward_training
                 && get_prop_kind() != prop_kind::forward_inference;
-        const dnnl_memory_desc_t *md = dnnl_primitive_desc_query_md(get(),
+        const_dnnl_memory_desc_t md = dnnl_primitive_desc_query_md(get(),
                 is_backward ? dnnl_query_diff_dst_md : dnnl_query_dst_md, 0);
 
         return status == dnnl_success
@@ -4055,7 +4055,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
             DNNL_THROW_ERROR(dnnl_invalid_arguments,
                     "memory descriptor query is invalid");
 
-        const dnnl_memory_desc_t *cdesc = dnnl_primitive_desc_query_md(
+        const_dnnl_memory_desc_t cdesc = dnnl_primitive_desc_query_md(
                 get(), dnnl::convert_to_c(what), idx);
         return cdesc ? memory::desc(*cdesc) : memory::desc();
     }
@@ -4256,7 +4256,7 @@ protected:
     memory::dims query_dims(query what) const {
         const bool is_backward = get_prop_kind() != prop_kind::forward_training
                 && get_prop_kind() != prop_kind::forward_inference;
-        const dnnl_memory_desc_t *md = dnnl_primitive_desc_query_md(get(),
+        const_dnnl_memory_desc_t md = dnnl_primitive_desc_query_md(get(),
                 is_backward ? dnnl_query_diff_dst_md : dnnl_query_dst_md, 0);
 
         const int nspatial_dims = md ? md->ndims - 2 : 0;
@@ -4378,7 +4378,7 @@ protected:
         return attr;
     }
 
-    const dnnl_memory_desc_t *optional_arg(const memory::desc *md) {
+    const_dnnl_memory_desc_t optional_arg(const memory::desc *md) {
         return md ? md->get() : nullptr;
     }
 

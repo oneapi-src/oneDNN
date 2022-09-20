@@ -245,7 +245,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
     dnnl_memory_desc_t stat_d {};
-    const dnnl_memory_desc_t *stat_d_ptr = nullptr;
+    const_dnnl_memory_desc_t stat_d_ptr = nullptr;
     if (prb->stat_tag != tag::undef) {
         stat_d = dnn_mem_t::init_md(
                 prb->ndims - 1, prb->dims.data(), dnnl_f32, prb->stat_tag);

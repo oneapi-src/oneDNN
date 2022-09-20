@@ -95,7 +95,7 @@ static inline const char *engine_kind2str_upper(dnnl_engine_kind_t kind) {
 static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
     dnnl_engine_t eng;
     dnnl_engine_kind_t eng_kind;
-    const dnnl_memory_desc_t *md;
+    const_dnnl_memory_desc_t md;
 
     if (!handle) COMPLAIN_EXAMPLE_ERROR_AND_EXIT("%s", "handle is NULL.");
 
@@ -133,7 +133,7 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
 static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
     dnnl_engine_t eng;
     dnnl_engine_kind_t eng_kind;
-    const dnnl_memory_desc_t *md;
+    const_dnnl_memory_desc_t md;
 
     if (!handle) COMPLAIN_EXAMPLE_ERROR_AND_EXIT("%s", "handle is NULL.");
 
