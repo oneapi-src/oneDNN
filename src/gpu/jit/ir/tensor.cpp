@@ -90,15 +90,8 @@ layout_t::layout_t(const memory_desc_wrapper &mdw, bool do_normalize)
     // Sort outer blocks by their stride.
     std::sort(blocks_.begin() + blocking.inner_nblks, blocks_.end(),
             [](const block_t &a, const block_t &b) {
-                if (a.is_equal(b)) return false;
-                if (a.stride == b.stride) {
-                    bool a1 = (a.block == 1);
-                    bool b1 = (b.block == 1);
-                    ir_assert(a1 || b1);
-                    if (a1 && b1) return a.dim_idx > b.dim_idx;
-                    return a1;
-                }
-                return a.stride < b.stride;
+                return a.stride < b.stride
+                        || (a.stride == b.stride && a.block < b.block);
             });
 
     if (do_normalize) blocks_ = normalize_blocks(ndims_, blocks_);
