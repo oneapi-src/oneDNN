@@ -42,6 +42,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         : kind_(kind)
         , runtime_kind_(runtime_kind)
         , index_(index)
+        , allocator_(nullptr) // no default allocator
         , counter_(1) {}
 
     /** get kind of the current engine */
@@ -118,6 +119,10 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     virtual bool mayiuse_f16_accumulator_with_f16() const { return false; }
 
+    /** only used in graph implementation **/
+    void *get_allocator() const { return allocator_; };
+    void set_allocator(void *allocator) { allocator_ = allocator; }
+
     void retain() { counter_++; }
 
     void release() {
@@ -128,6 +133,9 @@ protected:
     dnnl::impl::engine_kind_t kind_;
     dnnl::impl::runtime_kind_t runtime_kind_;
     size_t index_;
+
+    /** only used in graph implementation **/
+    void *allocator_;
 
     virtual ~dnnl_engine() = default;
 
