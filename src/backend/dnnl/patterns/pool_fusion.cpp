@@ -58,6 +58,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
                                     impl::op_kind::Divide,
                                     impl::op_kind::Subtract},
                             "pbinary");
+                    pbinary->allow_internal_inputs();
                     pbinary_subgraph->create_input_port(0, pbinary, 0);
                     pbinary_subgraph->create_output_port(0, pbinary, 0);
                     pgraph->append_repetition(pbinary_subgraph, {0, 0}, 1,
