@@ -42,7 +42,9 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
         bool is_input_plain, reorder_callback_type &on_insert_reorder) {
     // if we don't need to keep plain format for input op and input op tensor is
     // currently not blocking, copy the blocking format
-    if (!is_input_plain && !cur_op->is_dynamic() && in->uses_.size() == 1
+    // If the output has multiply uses, choose one format for all that now to
+    // minimize the number of reorder, mainly for bottleneck.
+    if (!is_input_plain && !cur_op->is_dynamic()
             && in->producer_owner_->isa<input_op>()
             && in->details_.get_format().is_plain()
             && !in->producer_owner_->attrs_.get_or_else("keep_plain", false)) {
