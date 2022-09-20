@@ -2570,6 +2570,11 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     CHECK(init_jcp(jcp, jcp.isa, cd, src_md, diff_weights_md, diff_dst_md,
             diff_bias_md, attr, nthreads));
 
+    jcp.max_batch = jcp.od * jcp.oh;
+    jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
+    jcp.use_uker = true;
+    jcp.var_bs = true;
+
     // Process some 1x1 convolutions with small iw as 1d (h=1, w = h*w)
     // convolutions to make brgemm K dimension bigger for better utilization of
     // AMX tiles
@@ -2582,7 +2587,13 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
         jcp.ih = 1;
         jcp.ow *= jcp.oh;
         jcp.oh = 1;
+        jcp.max_batch = jcp.od;
     }
+    // TODO: sometimes we can call brgemm kernel with bs = 0 to do initialization
+    // review this condition
+    if (jcp.max_batch == 1
+            && everyone_is(0, jcp.f_pad, jcp.back_pad, jcp.t_pad, jcp.b_pad))
+        jcp.var_bs = false;
 
     jcp.has_vnni = true; // Needed for transpose routines
 
@@ -2743,8 +2754,6 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
 
     balance_bwd_w(jcp);
 
-    jcp.max_batch = jcp.od * jcp.oh;
-
     if (one_of(jcp.harness, harness_2d_reduction, harness_3d_reduction)) {
         jcp.K = jcp.tr_ow;
     }
@@ -2797,11 +2806,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     od_block_limit = div_up(jcp.od, div_up(jcp.od, od_block_limit));
     jcp.od_block = utils::saturate(1, jcp.od, od_block_limit);
 
-    jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
-    jcp.use_uker = true;
-    jcp.var_bs = true;
-
-    jcp.use_interleave_stores = true;
+    jcp.use_interleave_stores = false;
     jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_output1;
     jcp.amx_tile_load_xx = false;
 

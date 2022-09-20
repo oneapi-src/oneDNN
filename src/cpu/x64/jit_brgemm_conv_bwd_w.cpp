@@ -66,7 +66,6 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
     if (status != status::success) return status;
     copy2jit_jcp();
 
-    assert(jcp_.var_bs);
     bs_c = jcp_.var_bs ? 1 : (jcp_.max_batch + 1);
     batchsizes.resize(bs_c + 1);
     for (int i = 0; i <= bs_c; i++)
@@ -118,10 +117,10 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
 
                 brgemm_attr_t brgattr;
                 brgattr.use_uker = jcp_.use_uker;
-                brgattr.var_bs = jcp_.var_bs;
                 brgattr.use_interleave_stores = jcp_.use_interleave_stores;
                 brgattr.hint_prefetching = jcp_.hint_prefetching;
-                brgattr.max_bs = bs;
+                brgattr.var_bs = jcp_.var_bs;
+                brgattr.max_bs = jcp_.max_batch;
                 brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
                         ? brgemm_bd_loop_innermost
                         : brgemm_ld_loop_innermost;
@@ -772,8 +771,8 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
     }
 };
 
-void brgemm_convolution_bwd_weights_t::call_brgemm_kernel(thread_info_t &btc,
-        int brg_idx, int batch_size, void *ptr_C, void *ptr_D) const {
+void brgemm_convolution_bwd_weights_t::call_brgemm_kernel(
+        thread_info_t &btc, int brg_idx, int batch_size, void *ptr_C) const {
 
     const auto brg_ker = brg_kernels_[brg_idx].get();
     assert(brg_ker != nullptr);
@@ -855,7 +854,6 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
                                    diff_weights_d, g, oc_b, ic_b, kw)
                                               : wht_blk_off(diff_weights_d, g,
                                                       oc_b, ic_b, kh, kw));
-        void *ptr_D = ptr_C;
         bool M_tail = (icb_end < ic_b + jcp.nb_ic_blocking);
         bool N_tail = (ocb_end < oc_b + jcp.nb_oc_blocking);
 
@@ -870,7 +868,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
                     + ohb * jcp.typesize_in * jcp.tr_ow * jcp.oc_block;
         }
 
-        call_brgemm_kernel(*ti, brg_idx, bs, ptr_C, ptr_D);
+        call_brgemm_kernel(*ti, brg_idx, bs, ptr_C);
     };
 
     if (ti->just_init_output(start, end, diff_wei, diff_bias)) return;
@@ -1032,7 +1030,6 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
                 : diff_wei
                         + wht_blk_off(
                                 diff_weights_d, g, oc_b, ic_b, kd, kh, kw);
-        void *ptr_D = ptr_C;
         bool M_tail = (icb_end < ic_b + jcp.nb_ic_blocking);
         bool N_tail = (ocb_end < oc_b + jcp.nb_oc_blocking);
 
@@ -1054,7 +1051,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
             }
         }
 
-        call_brgemm_kernel(*ti, brg_idx, bs, ptr_C, ptr_D);
+        call_brgemm_kernel(*ti, brg_idx, bs, ptr_C);
     };
 
     if (ti->just_init_output(start, end, diff_wei, diff_bias)) return;

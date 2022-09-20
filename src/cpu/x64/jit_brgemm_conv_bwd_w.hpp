@@ -187,8 +187,8 @@ private:
     std::vector<S_t> brg_kernel_palettes_;
 
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
-    void call_brgemm_kernel(thread_info_t &btc, int brg_idx, int batch_size,
-            void *ptr_C, void *ptr_D) const;
+    void call_brgemm_kernel(
+            thread_info_t &btc, int brg_idx, int batch_size, void *ptr_C) const;
     inline dim_t wei_offset_int(
             int g, int oc_b, int ic_b, int kd, int kh, int kw) const {
         const auto &jcp = pd()->jcp_;
