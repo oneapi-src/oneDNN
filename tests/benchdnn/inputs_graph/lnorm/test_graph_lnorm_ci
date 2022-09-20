@@ -1,3 +1,7 @@
 # main op
 --reset
 --dir=FWD_I,BWD_DW --dt=f32 --inplace=false,true --flags=,S --tag=abx 64x128x28x28
+
+# lnorm + quant
+--reset
+--dir=FWD_I --dt=f32:u8,f32:s8  --flags=,S  --attr-oscale=common:10 --tag=abx 64x128x28x28

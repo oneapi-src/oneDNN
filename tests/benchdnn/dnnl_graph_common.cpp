@@ -969,7 +969,8 @@ bool is_dequantize_required_for(const attr_t::post_ops_t::entry_t &e) {
             && is_low_precision({convert_dt(e.binary.src1_dt)});
 }
 
-fill_status_t insert_typecast_after(size_t src_id, bool as_constant) {
+fill_status_t insert_typecast_after(
+        size_t src_id, const dt dst_dt, bool as_constant) {
     graph_t &graph = graph_t::get();
 
     const auto ptype = as_constant
@@ -980,7 +981,6 @@ fill_status_t insert_typecast_after(size_t src_id, bool as_constant) {
     const auto src_lt = graph.get_lt(src_id);
 
     const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
-    const auto dst_dt = dnnl::graph::logical_tensor::data_type::f32;
 
     // create lt for dst
     if (src_lt.get_layout_type()
@@ -995,7 +995,7 @@ fill_status_t insert_typecast_after(size_t src_id, bool as_constant) {
     dnnl::graph::op tc_op(
             op_id, dnnl::graph::op::kind::TypeCast, graph.stringify_id(op_id));
 
-    graph.append(op_id, tc_op, {src_id}, {dst_id}, false);
+    graph.append(op_id, tc_op, {src_id}, {dst_id});
 
     return fill_status::DONE;
 }

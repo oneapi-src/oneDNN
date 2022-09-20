@@ -31,6 +31,15 @@ static std::vector<int64_t> get_stat_dims(
             lnorm_dims.begin(), lnorm_dims.begin() + (lnorm_dims.size() - 1));
 }
 
+static std::vector<dnnl::graph::logical_tensor::data_type> collect_data_types(
+        const ::lnorm::prb_t *prb) {
+    std::vector<dnnl::graph::logical_tensor::data_type> dts;
+    for (const auto dt : prb->dt) {
+        dts.push_back(convert_dt(dt));
+    }
+    return dts;
+}
+
 static int check_known_skipped_case_graph(
         const ::lnorm::prb_t *prb, res_t *res) noexcept {
 
@@ -58,10 +67,29 @@ static int check_known_skipped_case_graph(
     return OK;
 }
 
+static quant_data_t get_qdata_for(const ::lnorm::prb_t *prb) {
+    const auto q_dt = convert_dt(prb->dt[1]);
+    const auto scales = get_scales(prb->attr.oscale, prb->scales, prb->c);
+    //oscale is set to the quant's attr with reciprocal for each scale in graph side
+    std::vector<float> scales_update;
+    scales_update.resize(scales.size());
+    std::transform(scales.begin(), scales.end(), scales_update.begin(),
+            [](float val) { return 1.f / val; });
+    const std::vector<int64_t> zps(scales.size(), 0L);
+    const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
+            ? "per_tensor"
+            : "per_channel";
+    return quant_data_t(q_dt, scales_update, zps, q_type, 0, prb->tag[1]);
+}
+
 fill_status_t append_graph_with_block(const ::lnorm::prb_t *prb) {
     using graph_dt = dnnl::graph::logical_tensor::data_type;
     using graph_lt = dnnl::graph::logical_tensor::layout_type;
     graph_t &graph = graph_t::get();
+
+    const auto orig_dts = collect_data_types(prb);
+    const auto with_tc = with_typecast(orig_dts)
+            || with_typecast_after(orig_dts[0], orig_dts[1]);
 
     const auto connect_to_previous_block = graph.has_blocks();
 
@@ -136,6 +164,23 @@ fill_status_t append_graph_with_block(const ::lnorm::prb_t *prb) {
     if (prb->dir & FLAG_FWD) lnorm_op.set_attr("keep_stats", prb->dir == FWD_D);
 
     graph.append(op_id, lnorm_op, src_ids, dst_ids);
+
+    fill_status_t status;
+    // add typecast op after lnorm
+    if (with_tc) {
+        //The typecast in lnorm's fusion pattern only support bf16<-->f32.
+        graph_dt dst_dt = orig_dts[0] == graph_dt::bf16 ? graph_dt::f32
+                                                        : graph_dt::bf16;
+        status = insert_typecast_after(graph.get_cur_block_out_id(), dst_dt);
+        BENCHDNNEXT_VERIFY(status);
+    }
+
+    // if required - add quantize op
+    if (is_low_precision({orig_dts[1]})) {
+        status = insert_quant_after(
+                graph.get_cur_block_out_id(), get_qdata_for(prb));
+        BENCHDNNEXT_VERIFY(status);
+    }
 
     graph.close_block();
 

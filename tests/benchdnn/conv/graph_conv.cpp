@@ -156,7 +156,7 @@ fill_status_t append_graph_with_block(const ::conv::prb_t *prb) {
     const auto orig_dts = collect_data_types(prb);
     const auto with_dq = is_low_precision(orig_dts);
     const auto with_tc = with_typecast(orig_dts);
-    const auto with_tc_after = with_typecast_after(orig_dts);
+    const auto with_tc_after = with_typecast_after(orig_dts[0], orig_dts[2]);
     const auto connect_to_previous_block = !with_dq && graph.has_blocks();
 
     // handle main op
@@ -286,7 +286,8 @@ fill_status_t append_graph_with_block(const ::conv::prb_t *prb) {
 
     // add typecast op after conv
     if (with_tc_after) {
-        status = insert_typecast_after(graph.get_cur_block_out_id());
+        status = insert_typecast_after(
+                graph.get_cur_block_out_id(), orig_dts[2]);
         BENCHDNNEXT_VERIFY(status);
     }
 

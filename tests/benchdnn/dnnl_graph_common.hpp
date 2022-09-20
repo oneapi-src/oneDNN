@@ -326,8 +326,8 @@ fill_status_t append_graph_with_swish(
 
 std::pair<fill_status_t, size_t> insert_typecast_before(
         size_t dst_id, bool as_constant = false);
-fill_status_t insert_typecast_after(size_t src_id, bool as_constant = false);
-
+fill_status_t insert_typecast_after(
+        size_t src_id, const dt dst_dt, bool as_constant = false);
 fill_status_t insert_dequant_before(
         size_t lt_id, const quant_data_t &qdata, bool as_constant = false);
 fill_status_t insert_quant_after(size_t lt_id, const quant_data_t &qdata);
