@@ -38,7 +38,7 @@ namespace impl {
 namespace graph {
 
 // forward declaration
-// void register_dnnl_backend();
+void register_dnnl_backend();
 void register_fake_backend();
 
 class backend {
@@ -195,7 +195,7 @@ private:
 
     inline void invoke_backend_registration() {
         std::call_once(register_flag_, []() {
-            // register_dnnl_backend();
+            register_dnnl_backend();
             register_fake_backend();
         });
     }
