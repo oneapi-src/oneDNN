@@ -20,78 +20,81 @@
 namespace dnnl {
 namespace impl {
 
-static inline void memcpy_4(void * __restrict d, const void * __restrict s) {
-        int *di, *si;
-        di = (int *)(d);
-        si = (int *)(s);
-        di[0] = si[0];
+static inline void memcpy_4(void *__restrict d, const void *__restrict s) {
+    int *di, *si;
+    di = (int *)(d);
+    si = (int *)(s);
+    di[0] = si[0];
 }
 
-static inline void memcpy_14(void * __restrict d, const void * __restrict s) {
-        int *di, *si;
-        di = (int *)(d);
-        si = (int *)(s);
-        di[0] = si[0];
-        di[1] = si[1];
-        di[2] = si[2];
-        *(short *) &di[3] = *(short *) &si[3];
+static inline void memcpy_14(void *__restrict d, const void *__restrict s) {
+    int *di, *si;
+    di = (int *)(d);
+    si = (int *)(s);
+    di[0] = si[0];
+    di[1] = si[1];
+    di[2] = si[2];
+    *(short *)&di[3] = *(short *)&si[3];
 }
 
-static inline void memcpy_16(void * __restrict d, const void * __restrict s) {
-        int *di, *si;
-        di = (int *)(d);
-        si = (int *)(s);
-        di[0] = si[0];
-        di[1] = si[1];
-        di[2] = si[2];
-        di[3] = si[3];
+static inline void memcpy_16(void *__restrict d, const void *__restrict s) {
+    int *di, *si;
+    di = (int *)(d);
+    si = (int *)(s);
+    di[0] = si[0];
+    di[1] = si[1];
+    di[2] = si[2];
+    di[3] = si[3];
 }
 
-static inline void memcpy_32(void * __restrict d, const void * __restrict s) {
-        int *di, *si;
-        di = (int *)(d);
-        si = (int *)(s);
-        di[0] = si[0];
-        di[1] = si[1];
-        di[2] = si[2];
-        di[3] = si[3];
-        di[4] = si[4];
-        di[5] = si[5];
-        di[6] = si[6];
-        di[7] = si[7];
+static inline void memcpy_32(void *__restrict d, const void *__restrict s) {
+    int *di, *si;
+    di = (int *)(d);
+    si = (int *)(s);
+    di[0] = si[0];
+    di[1] = si[1];
+    di[2] = si[2];
+    di[3] = si[3];
+    di[4] = si[4];
+    di[5] = si[5];
+    di[6] = si[6];
+    di[7] = si[7];
 }
 
-static inline void memcpy_64(void * __restrict d, const void * __restrict s) {
-        int *di, *si;
-        di = (int *)(d);
-        si = (int *)(s);
-        di[0] = si[0];
-        di[1] = si[1];
-        di[2] = si[2];
-        di[3] = si[3];
-        di[4] = si[4];
-        di[5] = si[5];
-        di[6] = si[6];
-        di[7] = si[7];
-        di[8] = si[8];
-        di[9] = si[9];
-        di[10] = si[10];
-        di[11] = si[11];
-        di[12] = si[12];
-        di[13] = si[13];
-        di[14] = si[14];
-        di[15] = si[15];
+static inline void memcpy_64(void *__restrict d, const void *__restrict s) {
+    int *di, *si;
+    di = (int *)(d);
+    si = (int *)(s);
+    di[0] = si[0];
+    di[1] = si[1];
+    di[2] = si[2];
+    di[3] = si[3];
+    di[4] = si[4];
+    di[5] = si[5];
+    di[6] = si[6];
+    di[7] = si[7];
+    di[8] = si[8];
+    di[9] = si[9];
+    di[10] = si[10];
+    di[11] = si[11];
+    di[12] = si[12];
+    di[13] = si[13];
+    di[14] = si[14];
+    di[15] = si[15];
 }
 
-static inline void memcpy_n(void * __restrict d, const void * __restrict s, int n) {
-	int i, *di, *si;
-	int8_t *dc, *sc;
-        di = (int *)(d);
-        si = (int *)(s);
-	for (i=0; i<(n>>2); ++i) di[i] = si[i];
-	dc = (int8_t *) &di[n>>3];
-	sc = (int8_t *) &si[n>>3];
-	for (i=0; i<(n&3); ++i) dc[i] = sc[i];
+static inline void memcpy_n(
+        void *__restrict d, const void *__restrict s, int n) {
+    int i, *di, *si;
+    int8_t *dc, *sc;
+    di = (int *)(d);
+    si = (int *)(s);
+    for (i = 0; i < (n >> 2); ++i)
+        di[i] = si[i];
+    dc = (int8_t *)&di[n >> 3];
+    sc = (int8_t *)&si[n >> 3];
+    for (i = 0; i < (n & 3); ++i)
+        dc[i] = sc[i];
 }
 
 uint64_t mker;
@@ -103,36 +106,42 @@ typedef __vector signed char vec_st;
 
 int pack_N16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
     int i, j;
-    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell, chunk4count, k8, m4, m16;
+    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
+            chunk4count, k8, m4, m16;
     int m_cap = (m + 3) & ~3;
     int k_cap = (k + 1) & ~1;
-    krows = (k+1) >> 1;
-    mrows = (m+3) >> 2;
+    krows = (k + 1) >> 1;
+    mrows = (m + 3) >> 2;
     block4 = 4 * krows;
     block2 = 2 * krows;
-    k8 = (k>>3)<<3;
-    m4 = (m>>2)<<2;
-    m16 = (m>>4)<<4;
+    k8 = (k >> 3) << 3;
+    m4 = (m >> 2) << 2;
+    m16 = (m >> 4) << 4;
 
     // MAIN BLOCK
-    for (j=0; j<m16; j+=4) {
-        for (i=0; i<k8; i+=8) {
-            kcell = i>>1; // 0, 1, 2, 3
-            mcell = j>>2;
-            short *dest = &ap[32 * ((mcell>>2) * krows + kcell) + 8*(mcell & 3)];
+    for (j = 0; j < m16; j += 4) {
+        for (i = 0; i < k8; i += 8) {
+            kcell = i >> 1; // 0, 1, 2, 3
+            mcell = j >> 2;
+            short *dest = &ap[32 * ((mcell >> 2) * krows + kcell)
+                    + 8 * (mcell & 3)];
 
-	    vec_t V0, V1, V2, V3;
+            vec_t V0, V1, V2, V3;
             vec_t D01A, D01B, D23A, D23B;
             vec_t D0, D1, D2, D3;
-            vec_t swizA = { 0,  1,  2,  3, 16, 17, 18, 19,  4,  5,  6,  7, 20, 21, 22, 23};
-            vec_t swizB = { 8,  9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31};
-            vec_t swizL = { 0,  1,  2,  3,  4,  5,  6,  7, 16, 17, 18, 19, 20, 21, 22, 23};
-            vec_t swizR = { 8,  9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31};
+            vec_t swizA
+                    = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
+            vec_t swizB = {8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29,
+                    30, 31};
+            vec_t swizL
+                    = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
+            vec_t swizR = {8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29,
+                    30, 31};
 
-            V0 = *(vec_t *) &a[lda*(j+0) + i];
-            V1 = *(vec_t *) &a[lda*(j+1) + i];
-            V2 = *(vec_t *) &a[lda*(j+2) + i];
-            V3 = *(vec_t *) &a[lda*(j+3) + i];
+            V0 = *(vec_t *)&a[lda * (j + 0) + i];
+            V1 = *(vec_t *)&a[lda * (j + 1) + i];
+            V2 = *(vec_t *)&a[lda * (j + 2) + i];
+            V3 = *(vec_t *)&a[lda * (j + 3) + i];
 
             D01A = vec_perm(V0, V1, swizA);
             D01B = vec_perm(V0, V1, swizB);
@@ -143,124 +152,118 @@ int pack_N16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
             D2 = vec_perm(D01B, D23B, swizL);
             D3 = vec_perm(D01B, D23B, swizR);
 
-            *(vec_t *) &dest[ 0] = D0;
-            *(vec_t *) &dest[32] = D1;
-            *(vec_t *) &dest[64] = D2;
-            *(vec_t *) &dest[96] = D3;
+            *(vec_t *)&dest[0] = D0;
+            *(vec_t *)&dest[32] = D1;
+            *(vec_t *)&dest[64] = D2;
+            *(vec_t *)&dest[96] = D3;
         }
     }
 
-    for (j=m16; j<m4; ++j) {
-        for (i=0; i<k8; ++i) {
-            kcell = i>>1;
-            mcell = j>>2;
+    for (j = m16; j < m4; ++j) {
+        for (i = 0; i < k8; ++i) {
+            kcell = i >> 1;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = (chunk4count * block4);
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&1;
-            moff = j&3;
-            ap[8*cell + 2*moff+koff] = a[lda*j+i];
+            koff = i & 1;
+            moff = j & 3;
+            ap[8 * cell + 2 * moff + koff] = a[lda * j + i];
         }
     }
 
     // HIGH EDGE IN M DIRECTION
-    for (j=m4; j<m_cap; ++j) {
-        for (i=0; i<k8; ++i) {
-            kcell = i>>1;
-            mcell = j>>2;
+    for (j = m4; j < m_cap; ++j) {
+        for (i = 0; i < k8; ++i) {
+            kcell = i >> 1;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = (chunk4count * block4);
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&1;
-            moff = j&3;
-	    if (j < m) ap[8*cell + 2*moff+koff] = a[lda*j+i];
-	    else       ap[8*cell + 2*moff+koff] = 0;
+            koff = i & 1;
+            moff = j & 3;
+            if (j < m)
+                ap[8 * cell + 2 * moff + koff] = a[lda * j + i];
+            else
+                ap[8 * cell + 2 * moff + koff] = 0;
         }
     }
 
     // HIGH EDGE IN K DIRECTION
-    for (j=0; j<m4; ++j) {
-        for (i=k8; i<k_cap; ++i) {
-            kcell = i>>1;
-            mcell = j>>2;
+    for (j = 0; j < m4; ++j) {
+        for (i = k8; i < k_cap; ++i) {
+            kcell = i >> 1;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = (chunk4count * block4);
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&1;
-            moff = j&3;
-            if (i < k) ap[8*cell + 2*moff+koff] = a[lda*j+i];
-	    else       ap[8*cell + 2*moff+koff] = 0;
+            koff = i & 1;
+            moff = j & 3;
+            if (i < k)
+                ap[8 * cell + 2 * moff + koff] = a[lda * j + i];
+            else
+                ap[8 * cell + 2 * moff + koff] = 0;
         }
     }
 
     // UPPER CORNER (HIGH M, HIGH K)
-    for (j=m4; j<m_cap; ++j) {
-        for (i=k8; i<k_cap; ++i) {
-            kcell = i>>1;
-            mcell = j>>2;
+    for (j = m4; j < m_cap; ++j) {
+        for (i = k8; i < k_cap; ++i) {
+            kcell = i >> 1;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = (chunk4count * block4);
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&1;
-            moff = j&3;
-            if (j < m && i < k) ap[8*cell + 2*moff+koff] = a[lda*j+i];
-	    else                ap[8*cell + 2*moff+koff] = 0;           
+            koff = i & 1;
+            moff = j & 3;
+            if (j < m && i < k)
+                ap[8 * cell + 2 * moff + koff] = a[lda * j + i];
+            else
+                ap[8 * cell + 2 * moff + koff] = 0;
         }
     }
     return 0;
@@ -268,35 +271,38 @@ int pack_N16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
 
 int pack_T16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
     int i, j;
-    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell, chunk4count, k4, m8, m16;
+    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
+            chunk4count, k4, m8, m16;
     int m_cap = (m + 3) & ~3;
     int k_cap = (k + 1) & ~1;
-    krows = (k+1) >> 1;
-    mrows = (m+3) >> 2;
+    krows = (k + 1) >> 1;
+    mrows = (m + 3) >> 2;
     block4 = 4 * krows;
     block2 = 2 * krows;
-    k4 = (k>>2)<<2;
-    m16 = (m>>4)<<4;
-    m8 = (m>>3)<<3;
+    k4 = (k >> 2) << 2;
+    m16 = (m >> 4) << 4;
+    m8 = (m >> 3) << 3;
 
     // MAIN BLOCK
-    for (i=0; i<k4; i+=4) {
-        for (j=0; j<m16; j+=16) {
-	    short *src = &a[lda*i + j];
-	    short *dst = &ap[2 * j * krows + 16 * i];
+    for (i = 0; i < k4; i += 4) {
+        for (j = 0; j < m16; j += 16) {
+            short *src = &a[lda * i + j];
+            short *dst = &ap[2 * j * krows + 16 * i];
             vec_t V0, V1, V2, V3, V4, V5, V6, V7;
             vec_t D0, D1, D2, D3, D4, D5, D6, D7;
-            vec_t swizL = { 0,  1, 16, 17,  2,  3, 18, 19,  4,  5, 20, 21,  6,  7, 22, 23};
-            vec_t swizR = { 8,  9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31};
+            vec_t swizL
+                    = {0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23};
+            vec_t swizR = {8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15,
+                    30, 31};
 
-            V0 = *(vec_t *) &src[0];
-            V1 = *(vec_t *) &src[lda];
-            V2 = *(vec_t *) &src[8];
-            V3 = *(vec_t *) &src[lda + 8];
-            V4 = *(vec_t *) &src[2*lda];
-            V5 = *(vec_t *) &src[3*lda];
-            V6 = *(vec_t *) &src[2*lda + 8];
-            V7 = *(vec_t *) &src[3*lda + 8];
+            V0 = *(vec_t *)&src[0];
+            V1 = *(vec_t *)&src[lda];
+            V2 = *(vec_t *)&src[8];
+            V3 = *(vec_t *)&src[lda + 8];
+            V4 = *(vec_t *)&src[2 * lda];
+            V5 = *(vec_t *)&src[3 * lda];
+            V6 = *(vec_t *)&src[2 * lda + 8];
+            V7 = *(vec_t *)&src[3 * lda + 8];
             D0 = vec_perm(V0, V1, swizL);
             D1 = vec_perm(V0, V1, swizR);
             D2 = vec_perm(V2, V3, swizL);
@@ -306,128 +312,122 @@ int pack_T16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
             D6 = vec_perm(V6, V7, swizL);
             D7 = vec_perm(V6, V7, swizR);
 
-	    *(vec_t *) &dst[ 0] = D0;
-	    *(vec_t *) &dst[ 8] = D1;
-	    *(vec_t *) &dst[16] = D2;
-	    *(vec_t *) &dst[24] = D3;
-	    *(vec_t *) &dst[32] = D4;
-	    *(vec_t *) &dst[40] = D5;
-	    *(vec_t *) &dst[48] = D6;
-	    *(vec_t *) &dst[56] = D7;
+            *(vec_t *)&dst[0] = D0;
+            *(vec_t *)&dst[8] = D1;
+            *(vec_t *)&dst[16] = D2;
+            *(vec_t *)&dst[24] = D3;
+            *(vec_t *)&dst[32] = D4;
+            *(vec_t *)&dst[40] = D5;
+            *(vec_t *)&dst[48] = D6;
+            *(vec_t *)&dst[56] = D7;
         }
     }
 
-    for (i=0; i<k4; ++i) {
-        for (j=m16; j<m8; ++j) {
-            kcell = i>>1;
-            mcell = j>>2;
+    for (i = 0; i < k4; ++i) {
+        for (j = m16; j < m8; ++j) {
+            kcell = i >> 1;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = chunk4count * block4;
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&1;
-            moff = j&3;
-            ap[8*cell + 2*moff+koff] = a[lda*i+j];
+            koff = i & 1;
+            moff = j & 3;
+            ap[8 * cell + 2 * moff + koff] = a[lda * i + j];
         }
     }
 
     // HIGH EDGE IN M DIRECTION
-    for (i=0; i<k4; ++i) {
-        for (j=m8; j<m_cap; ++j) {
-            kcell = i>>1;
-            mcell = j>>2;
+    for (i = 0; i < k4; ++i) {
+        for (j = m8; j < m_cap; ++j) {
+            kcell = i >> 1;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = chunk4count * block4;
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&1;
-            moff = j&3;
-            if (j < m) ap[8*cell + 2*moff+koff] = a[lda*i+j];
-	    else       ap[8*cell + 2*moff+koff] = 0;
+            koff = i & 1;
+            moff = j & 3;
+            if (j < m)
+                ap[8 * cell + 2 * moff + koff] = a[lda * i + j];
+            else
+                ap[8 * cell + 2 * moff + koff] = 0;
         }
     }
 
     // HIGH EDGE IN K DIRECTION
-    for (i=k4; i<k_cap; ++i) {
-        for (j=0; j<m8; ++j) {
-            kcell = i>>1;
-            mcell = j>>2;
+    for (i = k4; i < k_cap; ++i) {
+        for (j = 0; j < m8; ++j) {
+            kcell = i >> 1;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = chunk4count * block4;
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&1;
-            moff = j&3;
-            if (i < k) ap[8*cell + 2*moff+koff] = a[lda*i+j];
-	    else       ap[8*cell + 2*moff+koff] = 0;          
+            koff = i & 1;
+            moff = j & 3;
+            if (i < k)
+                ap[8 * cell + 2 * moff + koff] = a[lda * i + j];
+            else
+                ap[8 * cell + 2 * moff + koff] = 0;
         }
     }
 
     // UPPER CORNER (HIGH M, HIGH K)
-    for (i=k4; i<k_cap; ++i) {
-        for (j=m8; j<m_cap; ++j) {
-            kcell = i>>1;
-            mcell = j>>2;
+    for (i = k4; i < k_cap; ++i) {
+        for (j = m8; j < m_cap; ++j) {
+            kcell = i >> 1;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = chunk4count * block4;
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&1;
-            moff = j&3;
-            if (i < k && j < m) ap[8*cell + 2*moff+koff] = a[lda*i+j];
-	    else                ap[8*cell + 2*moff+koff] = 0;           
+            koff = i & 1;
+            moff = j & 3;
+            if (i < k && j < m)
+                ap[8 * cell + 2 * moff + koff] = a[lda * i + j];
+            else
+                ap[8 * cell + 2 * moff + koff] = 0;
         }
     }
     return 0;
@@ -438,30 +438,32 @@ int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
     int kcell, cell, koff, noff, krows, k4, n8, n16;
     int n_cap = (n + 3) & ~3;
     int k_cap = (k + 1) & ~1;
-    krows = (k+1) >> 1;
-    k4 = (k>>2)<<2;
-    n8 = (n>>3)<<3;
-    n16 = (n>>4)<<4;
+    krows = (k + 1) >> 1;
+    k4 = (k >> 2) << 2;
+    n8 = (n >> 3) << 3;
+    n16 = (n >> 4) << 4;
 
     // MAIN BLOCK
-    for (i=0; i<k4; i+=4) {
-        for (j=0; j<n16; j+=16) {
+    for (i = 0; i < k4; i += 4) {
+        for (j = 0; j < n16; j += 16) {
             short *src = &b[ldb * i + j];
-	    short *dst0145 = &bp[2 * j * krows + 8 * i];
-	    short *dst2367 = &bp[2 * (j+8) * krows + 8 * i];
+            short *dst0145 = &bp[2 * j * krows + 8 * i];
+            short *dst2367 = &bp[2 * (j + 8) * krows + 8 * i];
             vec_t V0, V1, V2, V3, V4, V5, V6, V7;
             vec_t D0, D1, D2, D3, D4, D5, D6, D7;
-            vec_t swizL = { 0,  1, 16, 17,  2,  3, 18, 19,  4,  5, 20, 21,  6,  7, 22, 23};
-            vec_t swizR = { 8,  9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31};
+            vec_t swizL
+                    = {0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23};
+            vec_t swizR = {8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15,
+                    30, 31};
 
-            V0 = *(vec_t *) &src[0];
-            V1 = *(vec_t *) &src[ldb];
-            V2 = *(vec_t *) &src[8];
-            V3 = *(vec_t *) &src[ldb + 8];
-            V4 = *(vec_t *) &src[2*ldb];
-            V5 = *(vec_t *) &src[3*ldb];
-            V6 = *(vec_t *) &src[2*ldb + 8];
-            V7 = *(vec_t *) &src[3*ldb + 8];
+            V0 = *(vec_t *)&src[0];
+            V1 = *(vec_t *)&src[ldb];
+            V2 = *(vec_t *)&src[8];
+            V3 = *(vec_t *)&src[ldb + 8];
+            V4 = *(vec_t *)&src[2 * ldb];
+            V5 = *(vec_t *)&src[3 * ldb];
+            V6 = *(vec_t *)&src[2 * ldb + 8];
+            V7 = *(vec_t *)&src[3 * ldb + 8];
             D0 = vec_perm(V0, V1, swizL);
             D1 = vec_perm(V0, V1, swizR);
             D2 = vec_perm(V2, V3, swizL);
@@ -471,87 +473,95 @@ int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
             D6 = vec_perm(V6, V7, swizL);
             D7 = vec_perm(V6, V7, swizR);
 
-	    *(vec_t *) &dst0145[0] = D0;
-	    *(vec_t *) &dst0145[8] = D1;
-	    *(vec_t *) &dst2367[0] = D2;
-	    *(vec_t *) &dst2367[8] = D3;
-	    *(vec_t *) &dst0145[16] = D4;
-	    *(vec_t *) &dst0145[24] = D5;
-	    *(vec_t *) &dst2367[16] = D6;
-	    *(vec_t *) &dst2367[24] = D7;
+            *(vec_t *)&dst0145[0] = D0;
+            *(vec_t *)&dst0145[8] = D1;
+            *(vec_t *)&dst2367[0] = D2;
+            *(vec_t *)&dst2367[8] = D3;
+            *(vec_t *)&dst0145[16] = D4;
+            *(vec_t *)&dst0145[24] = D5;
+            *(vec_t *)&dst2367[16] = D6;
+            *(vec_t *)&dst2367[24] = D7;
         }
-        for (j=n16; j<n8; j+=8) {
+        for (j = n16; j < n8; j += 8) {
             int columns_done = ((j & (~7)) >> 3) << 1;
-	    short *dst = &bp[8*(columns_done*krows + (i & (~1)))];
+            short *dst = &bp[8 * (columns_done * krows + (i & (~1)))];
             vec_t V0, V1, V2, V3;
             vec_t D0, D1, D2, D3;
-            vec_t swizL = { 0,  1, 16, 17,  2,  3, 18, 19,  4,  5, 20, 21,  6,  7, 22, 23};
-            vec_t swizR = { 8,  9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31};
+            vec_t swizL
+                    = {0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23};
+            vec_t swizR = {8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15,
+                    30, 31};
 
-            V0 = *(vec_t *) &b[ldb*(i+0) + j];
-            V1 = *(vec_t *) &b[ldb*(i+1) + j];
-            V2 = *(vec_t *) &b[ldb*(i+2) + j];
-            V3 = *(vec_t *) &b[ldb*(i+3) + j];
+            V0 = *(vec_t *)&b[ldb * (i + 0) + j];
+            V1 = *(vec_t *)&b[ldb * (i + 1) + j];
+            V2 = *(vec_t *)&b[ldb * (i + 2) + j];
+            V3 = *(vec_t *)&b[ldb * (i + 3) + j];
             D0 = vec_perm(V0, V1, swizL);
             D1 = vec_perm(V0, V1, swizR);
             D2 = vec_perm(V2, V3, swizL);
             D3 = vec_perm(V2, V3, swizR);
 
-	    *(vec_t *) &dst[0] = D0;
-	    *(vec_t *) &dst[8] = D1;
-	    *(vec_t *) &dst[16] = D2;
-	    *(vec_t *) &dst[24] = D3;
+            *(vec_t *)&dst[0] = D0;
+            *(vec_t *)&dst[8] = D1;
+            *(vec_t *)&dst[16] = D2;
+            *(vec_t *)&dst[24] = D3;
         }
     }
 
     // HIGH EDGE IN N DIRECTION
-    for (i=0; i<k4; ++i) {
-        for (j=n8; j<n_cap; ++j) {
-            kcell = i>>1;
+    for (i = 0; i < k4; ++i) {
+        for (j = n8; j < n_cap; ++j) {
+            kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&1;
-            noff = j&3;
-            if (j < n) bp[8*cell + 2*noff+koff] = b[ldb*i+j];
-	    else       bp[8*cell + 2*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 1;
+            noff = j & 3;
+            if (j < n)
+                bp[8 * cell + 2 * noff + koff] = b[ldb * i + j];
+            else
+                bp[8 * cell + 2 * noff + koff] = 0;
         }
     }
 
     // HIGH EDGE IN K DIRECTION
-    for (i=k4; i<k_cap; ++i) {
-        for (j=0; j<n8; ++j) {
-            kcell = i>>1;
+    for (i = k4; i < k_cap; ++i) {
+        for (j = 0; j < n8; ++j) {
+            kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&1;
-            noff = j&3;
-            if (i < k) bp[8*cell + 2*noff+koff] = b[ldb*i+j];
-	    else       bp[8*cell + 2*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 1;
+            noff = j & 3;
+            if (i < k)
+                bp[8 * cell + 2 * noff + koff] = b[ldb * i + j];
+            else
+                bp[8 * cell + 2 * noff + koff] = 0;
         }
     }
 
     // UPPER CORNER (HIGH N, HIGH K)
-    for (i=k4; i<k_cap; ++i) {
-        for (j=n8; j<n_cap; ++j) {
-            kcell = i>>1;
+    for (i = k4; i < k_cap; ++i) {
+        for (j = n8; j < n_cap; ++j) {
+            kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&1;
-            noff = j&3;
-            if (i < k && j < n) bp[8*cell + 2*noff+koff] = b[ldb*i+j];
-	    else                bp[8*cell + 2*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 1;
+            noff = j & 3;
+            if (i < k && j < n)
+                bp[8 * cell + 2 * noff + koff] = b[ldb * i + j];
+            else
+                bp[8 * cell + 2 * noff + koff] = 0;
         }
     }
     return 0;
@@ -562,38 +572,42 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
     int kcell, cell, koff, noff, krows, k8, k16, n4, n8;
     int n_cap = (n + 3) & ~3;
     int k_cap = (k + 1) & ~1;
-    krows = (k+1) >> 1;
-    k8 = (k>>3)<<3;
-    k16 = (k>>4)<<4;
-    n4 = (n>>2)<<2;
-    n8 = (n>>3)<<3;
+    krows = (k + 1) >> 1;
+    k8 = (k >> 3) << 3;
+    k16 = (k >> 4) << 4;
+    n4 = (n >> 2) << 2;
+    n8 = (n >> 3) << 3;
 
     // MAIN BLOCK
-    for (j=0; j<n8; j+=4) {
-        for (i=0; i<k16; i+=16) {
-            kcell = i>>1; // 0, 1, 2, 3
+    for (j = 0; j < n8; j += 4) {
+        for (i = 0; i < k16; i += 16) {
+            kcell = i >> 1; // 0, 1, 2, 3
             int columns_done = ((j & (~7)) >> 3) << 1;
             int j_hiflag = (j & 4) >> 2;
-            koff = i&1;
-            noff = j&3;
-	    short *dst = &bp[8*(columns_done*krows + kcell*2 + j_hiflag)];
+            koff = i & 1;
+            noff = j & 3;
+            short *dst = &bp[8 * (columns_done * krows + kcell * 2 + j_hiflag)];
 
-	    vec_t V0, V1, V2, V3, V4, V5, V6, V7;
+            vec_t V0, V1, V2, V3, V4, V5, V6, V7;
             vec_t D01A, D01B, D23A, D23B, D45A, D45B, D67A, D67B;
             vec_t D0, D1, D2, D3, D4, D5, D6, D7;
-            vec_t swizA = { 0,  1,  2,  3, 16, 17, 18, 19,  4,  5,  6,  7, 20, 21, 22, 23};
-            vec_t swizB = { 8,  9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31};
-            vec_t swizL = { 0,  1,  2,  3,  4,  5,  6,  7, 16, 17, 18, 19, 20, 21, 22, 23};
-            vec_t swizR = { 8,  9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31};
+            vec_t swizA
+                    = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
+            vec_t swizB = {8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29,
+                    30, 31};
+            vec_t swizL
+                    = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
+            vec_t swizR = {8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29,
+                    30, 31};
 
-            V0 = *(vec_t *) &b[ldb*(j+0) + i];
-            V1 = *(vec_t *) &b[ldb*(j+1) + i];
-            V2 = *(vec_t *) &b[ldb*(j+2) + i];
-            V3 = *(vec_t *) &b[ldb*(j+3) + i];
-            V4 = *(vec_t *) &b[ldb*(j+0) + i + 8];
-            V5 = *(vec_t *) &b[ldb*(j+1) + i + 8];
-            V6 = *(vec_t *) &b[ldb*(j+2) + i + 8];
-            V7 = *(vec_t *) &b[ldb*(j+3) + i + 8];
+            V0 = *(vec_t *)&b[ldb * (j + 0) + i];
+            V1 = *(vec_t *)&b[ldb * (j + 1) + i];
+            V2 = *(vec_t *)&b[ldb * (j + 2) + i];
+            V3 = *(vec_t *)&b[ldb * (j + 3) + i];
+            V4 = *(vec_t *)&b[ldb * (j + 0) + i + 8];
+            V5 = *(vec_t *)&b[ldb * (j + 1) + i + 8];
+            V6 = *(vec_t *)&b[ldb * (j + 2) + i + 8];
+            V7 = *(vec_t *)&b[ldb * (j + 3) + i + 8];
 
             D01A = vec_perm(V0, V1, swizA);
             D01B = vec_perm(V0, V1, swizB);
@@ -612,35 +626,39 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
             D6 = vec_perm(D45B, D67B, swizL);
             D7 = vec_perm(D45B, D67B, swizR);
 
-            *(vec_t *) &dst[ 0] = D0;
-            *(vec_t *) &dst[16] = D1;
-            *(vec_t *) &dst[32] = D2;
-            *(vec_t *) &dst[48] = D3;
-            *(vec_t *) &dst[64] = D4;
-            *(vec_t *) &dst[80] = D5;
-            *(vec_t *) &dst[96] = D6;
-            *(vec_t *) &dst[112] = D7;
+            *(vec_t *)&dst[0] = D0;
+            *(vec_t *)&dst[16] = D1;
+            *(vec_t *)&dst[32] = D2;
+            *(vec_t *)&dst[48] = D3;
+            *(vec_t *)&dst[64] = D4;
+            *(vec_t *)&dst[80] = D5;
+            *(vec_t *)&dst[96] = D6;
+            *(vec_t *)&dst[112] = D7;
         }
-        for (i=k16; i<k8; i+=8) {
-            kcell = i>>1; // 0, 1, 2, 3
+        for (i = k16; i < k8; i += 8) {
+            kcell = i >> 1; // 0, 1, 2, 3
             int columns_done = ((j & (~7)) >> 3) << 1;
             int j_hiflag = (j & 4) >> 2;
-            koff = i&1;
-            noff = j&3;
-	    short *dst = &bp[8*(columns_done*krows + kcell*2 + j_hiflag)];
+            koff = i & 1;
+            noff = j & 3;
+            short *dst = &bp[8 * (columns_done * krows + kcell * 2 + j_hiflag)];
 
-	    vec_t V0, V1, V2, V3;
+            vec_t V0, V1, V2, V3;
             vec_t D01A, D01B, D23A, D23B;
             vec_t D0, D1, D2, D3;
-            vec_t swizA = { 0,  1,  2,  3, 16, 17, 18, 19,  4,  5,  6,  7, 20, 21, 22, 23};
-            vec_t swizB = { 8,  9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31};
-            vec_t swizL = { 0,  1,  2,  3,  4,  5,  6,  7, 16, 17, 18, 19, 20, 21, 22, 23};
-            vec_t swizR = { 8,  9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31};
+            vec_t swizA
+                    = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
+            vec_t swizB = {8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29,
+                    30, 31};
+            vec_t swizL
+                    = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
+            vec_t swizR = {8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29,
+                    30, 31};
 
-            V0 = *(vec_t *) &b[ldb*(j+0) + i];
-            V1 = *(vec_t *) &b[ldb*(j+1) + i];
-            V2 = *(vec_t *) &b[ldb*(j+2) + i];
-            V3 = *(vec_t *) &b[ldb*(j+3) + i];
+            V0 = *(vec_t *)&b[ldb * (j + 0) + i];
+            V1 = *(vec_t *)&b[ldb * (j + 1) + i];
+            V2 = *(vec_t *)&b[ldb * (j + 2) + i];
+            V3 = *(vec_t *)&b[ldb * (j + 3) + i];
 
             D01A = vec_perm(V0, V1, swizA);
             D01B = vec_perm(V0, V1, swizB);
@@ -651,75 +669,81 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
             D2 = vec_perm(D01B, D23B, swizL);
             D3 = vec_perm(D01B, D23B, swizR);
 
-            *(vec_t *) &dst[ 0] = D0;
-            *(vec_t *) &dst[16] = D1;
-            *(vec_t *) &dst[32] = D2;
-            *(vec_t *) &dst[48] = D3;
+            *(vec_t *)&dst[0] = D0;
+            *(vec_t *)&dst[16] = D1;
+            *(vec_t *)&dst[32] = D2;
+            *(vec_t *)&dst[48] = D3;
         }
     }
 
-    for (j=n8; j<n4; ++j) {
-        for (i=0; i<k8; ++i) {
-            kcell = i>>1;
+    for (j = n8; j < n4; ++j) {
+        for (i = 0; i < k8; ++i) {
+            kcell = i >> 1;
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&1;
-            noff = j&3;
-            bp[8*cell + 2*noff+koff] = b[ldb*j+i];
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 1;
+            noff = j & 3;
+            bp[8 * cell + 2 * noff + koff] = b[ldb * j + i];
         }
     }
 
     // HIGH EDGE IN N DIRECTION
-    for (j=n4; j<n_cap; ++j) {
-        for (i=0; i<k8; ++i) {
-            kcell = i>>1;
+    for (j = n4; j < n_cap; ++j) {
+        for (i = 0; i < k8; ++i) {
+            kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&1;
-            noff = j&3;
-            if (j < n) bp[8*cell + 2*noff+koff] = b[ldb*j+i];
-	    else       bp[8*cell + 2*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 1;
+            noff = j & 3;
+            if (j < n)
+                bp[8 * cell + 2 * noff + koff] = b[ldb * j + i];
+            else
+                bp[8 * cell + 2 * noff + koff] = 0;
         }
     }
 
     // HIGH EDGE IN K DIRECTION
-    for (j=0; j<n4; ++j) {
-        for (i=k8; i<k_cap; ++i) {
-            kcell = i>>1;
+    for (j = 0; j < n4; ++j) {
+        for (i = k8; i < k_cap; ++i) {
+            kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&1;
-            noff = j&3;
-            if (i < k) bp[8*cell + 2*noff+koff] = b[ldb*j+i];
-	    else       bp[8*cell + 2*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 1;
+            noff = j & 3;
+            if (i < k)
+                bp[8 * cell + 2 * noff + koff] = b[ldb * j + i];
+            else
+                bp[8 * cell + 2 * noff + koff] = 0;
         }
     }
 
     // UPPER CORNER (HIGH N, HIGH K)
-    for (j=n4; j<n_cap; ++j) {
-        for (i=k8; i<k_cap; ++i) {
-            kcell = i>>1;
+    for (j = n4; j < n_cap; ++j) {
+        for (i = k8; i < k_cap; ++i) {
+            kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&1;
-            noff = j&3;
-            if (j < n && i < k) bp[8*cell + 2*noff+koff] = b[ldb*j+i];
-	    else                bp[8*cell + 2*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 1;
+            noff = j & 3;
+            if (j < n && i < k)
+                bp[8 * cell + 2 * noff + koff] = b[ldb * j + i];
+            else
+                bp[8 * cell + 2 * noff + koff] = 0;
         }
     }
     return 0;
@@ -729,133 +753,135 @@ int pack_T16_8bit(dim_t k, dim_t m, const int8_t *a, dim_t lda, int8_t *ap) {
     int i, j;
     int m_cap = (m + 3) & ~3;
     int k_cap = (k + 3) & ~3;
-    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell, chunk4count, m16, k4;
-    m16 = (m>>4)<<4;
-    k4 = (k>>2)<<2;
-    krows = (k+3) >> 2;
-    mrows = (m+3) >> 2;
+    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
+            chunk4count, m16, k4;
+    m16 = (m >> 4) << 4;
+    k4 = (k >> 2) << 2;
+    krows = (k + 3) >> 2;
+    mrows = (m + 3) >> 2;
     block4 = 4 * krows;
     block2 = 2 * krows;
 
     // MAIN BLOCK
-    for (i=0; i<k4; i+=4) {
-        for (j=0; j<m16; j+=16) {
+    for (i = 0; i < k4; i += 4) {
+        for (j = 0; j < m16; j += 16) {
             vec_t V0, V1, V2, V3;
             vec_t D01A, D01B, D23A, D23B;
             vec_t D0, D1, D2, D3;
-            vec_t swizA = { 0, 16,  1, 17,  2, 18,  3, 19,  4, 20,  5, 21,  6, 22,  7, 23};
-            vec_t swizB = { 8, 24,  9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
-            vec_t swizL = { 0,  1, 16, 17,  2,  3, 18, 19,  4,  5, 20, 21,  6,  7, 22, 23};
-            vec_t swizR = { 8,  9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31};
-	    int8_t *dest;
+            vec_t swizA
+                    = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23};
+            vec_t swizB = {8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30,
+                    15, 31};
+            vec_t swizL
+                    = {0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23};
+            vec_t swizR = {8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15,
+                    30, 31};
+            int8_t *dest;
 
-	    V0 = *(vec_t *) &a[lda*(i+0) + j];
-	    V1 = *(vec_t *) &a[lda*(i+1) + j];
-	    V2 = *(vec_t *) &a[lda*(i+2) + j];
-	    V3 = *(vec_t *) &a[lda*(i+3) + j];
+            V0 = *(vec_t *)&a[lda * (i + 0) + j];
+            V1 = *(vec_t *)&a[lda * (i + 1) + j];
+            V2 = *(vec_t *)&a[lda * (i + 2) + j];
+            V3 = *(vec_t *)&a[lda * (i + 3) + j];
 
-	    D01A = vec_perm(V0, V1, swizA);
-	    D01B = vec_perm(V0, V1, swizB);
-	    D23A = vec_perm(V2, V3, swizA);
-	    D23B = vec_perm(V2, V3, swizB);
-            D0 = vec_perm(D01A, D23A, swizL); 
+            D01A = vec_perm(V0, V1, swizA);
+            D01B = vec_perm(V0, V1, swizB);
+            D23A = vec_perm(V2, V3, swizA);
+            D23B = vec_perm(V2, V3, swizB);
+            D0 = vec_perm(D01A, D23A, swizL);
             D1 = vec_perm(D01A, D23A, swizR);
             D2 = vec_perm(D01B, D23B, swizL);
             D3 = vec_perm(D01B, D23B, swizR);
 
-            dest = &ap[16 * (((j>>4) * block4) + i)];
+            dest = &ap[16 * (((j >> 4) * block4) + i)];
 
-	    *(vec_t *) &dest[ 0] = D0;
-	    *(vec_t *) &dest[16] = D1;
-	    *(vec_t *) &dest[32] = D2;
-	    *(vec_t *) &dest[48] = D3;
+            *(vec_t *)&dest[0] = D0;
+            *(vec_t *)&dest[16] = D1;
+            *(vec_t *)&dest[32] = D2;
+            *(vec_t *)&dest[48] = D3;
         }
     }
 
     // HIGH EDGE IN M DIRECTION
-    for (i=0; i<k4; ++i) {
-        for (j=m16; j<m_cap; ++j) {
-            kcell = i>>2;
-            mcell = j>>2;
+    for (i = 0; i < k4; ++i) {
+        for (j = m16; j < m_cap; ++j) {
+            kcell = i >> 2;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = chunk4count * block4;
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&3;
-            moff = j&3;
-            if (j < m) ap[16*cell + 4*moff+koff] = a[lda*i+j];
-	    else       ap[16*cell + 4*moff+koff] = 0;
+            koff = i & 3;
+            moff = j & 3;
+            if (j < m)
+                ap[16 * cell + 4 * moff + koff] = a[lda * i + j];
+            else
+                ap[16 * cell + 4 * moff + koff] = 0;
         }
     }
 
     // HIGH EDGE IN K DIRECTION
-    for (i=k4; i<k_cap; ++i) {
-        for (j=0; j<m16; ++j) {
-            kcell = i>>2;
-            mcell = j>>2;
+    for (i = k4; i < k_cap; ++i) {
+        for (j = 0; j < m16; ++j) {
+            kcell = i >> 2;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = chunk4count * block4;
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&3;
-            moff = j&3;
-            if (i < k) ap[16*cell + 4*moff+koff] = a[lda*i+j];
-	    else       ap[16*cell + 4*moff+koff] = 0;
+            koff = i & 3;
+            moff = j & 3;
+            if (i < k)
+                ap[16 * cell + 4 * moff + koff] = a[lda * i + j];
+            else
+                ap[16 * cell + 4 * moff + koff] = 0;
         }
     }
 
     // UPPER CORNER (HIGH M, HIGH K)
-    for (i=k4; i<k_cap; ++i) {
-        for (j=m16; j<m_cap; ++j) {
-            kcell = i>>2;
-            mcell = j>>2;
+    for (i = k4; i < k_cap; ++i) {
+        for (j = m16; j < m_cap; ++j) {
+            kcell = i >> 2;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = chunk4count * block4;
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&3;
-            moff = j&3;
-            if (i < k && j < m) ap[16*cell + 4*moff+koff] = a[lda*i+j];
-	    else                ap[16*cell + 4*moff+koff] = 0;
+            koff = i & 3;
+            moff = j & 3;
+            if (i < k && j < m)
+                ap[16 * cell + 4 * moff + koff] = a[lda * i + j];
+            else
+                ap[16 * cell + 4 * moff + koff] = 0;
         }
     }
 
@@ -867,89 +893,97 @@ int pack_N8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
     int kcell, cell, koff, noff, krows, k8, n8;
     int n_cap = (n + 3) & ~3;
     int k_cap = (k + 3) & ~3;
-    krows = (k+3) >> 2;
-    k8 = k>>3;
-    n8 = n>>3;
+    krows = (k + 3) >> 2;
+    k8 = k >> 3;
+    n8 = n >> 3;
 
     // MAIN BLOCK
-    for (j=0; j<(n8<<3); j+=8) {
-        for (i=0; i<(k8<<3); i+=8) {
+    for (j = 0; j < (n8 << 3); j += 8) {
+        for (i = 0; i < (k8 << 3); i += 8) {
             vec_t V0, V1, V2, V3;
             vec_t D0, D1, D2, D3;
-            vec_t swizA = {  0,  1,  2,  3,  8,  9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27};
-            vec_t swizB = {  4,  5,  6,  7, 12, 13, 14, 15, 20, 21, 22, 23, 28, 29, 30, 31};
-	    const uint8_t *src = &b[ldb*j+i];
-	    uint8_t *dest = &bp[16 * (krows * (j >> 2) + (i >> 1))];
+            vec_t swizA = {
+                    0, 1, 2, 3, 8, 9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27};
+            vec_t swizB = {
+                    4, 5, 6, 7, 12, 13, 14, 15, 20, 21, 22, 23, 28, 29, 30, 31};
+            const uint8_t *src = &b[ldb * j + i];
+            uint8_t *dest = &bp[16 * (krows * (j >> 2) + (i >> 1))];
 
-	    *(signed long long *) &V0[0] = *(signed long long *) &src[ldb*0];
-	    *(signed long long *) &V0[8] = *(signed long long *) &src[ldb*1];
-	    *(signed long long *) &V1[0] = *(signed long long *) &src[ldb*2];
-	    *(signed long long *) &V1[8] = *(signed long long *) &src[ldb*3];
-	    *(signed long long *) &V2[0] = *(signed long long *) &src[ldb*4];
-	    *(signed long long *) &V2[8] = *(signed long long *) &src[ldb*5];
-	    *(signed long long *) &V3[0] = *(signed long long *) &src[ldb*6];
-	    *(signed long long *) &V3[8] = *(signed long long *) &src[ldb*7];
+            *(signed long long *)&V0[0] = *(signed long long *)&src[ldb * 0];
+            *(signed long long *)&V0[8] = *(signed long long *)&src[ldb * 1];
+            *(signed long long *)&V1[0] = *(signed long long *)&src[ldb * 2];
+            *(signed long long *)&V1[8] = *(signed long long *)&src[ldb * 3];
+            *(signed long long *)&V2[0] = *(signed long long *)&src[ldb * 4];
+            *(signed long long *)&V2[8] = *(signed long long *)&src[ldb * 5];
+            *(signed long long *)&V3[0] = *(signed long long *)&src[ldb * 6];
+            *(signed long long *)&V3[8] = *(signed long long *)&src[ldb * 7];
 
-            D0 = vec_perm(V0, V1, swizA); 
+            D0 = vec_perm(V0, V1, swizA);
             D1 = vec_perm(V2, V3, swizA);
             D2 = vec_perm(V0, V1, swizB);
             D3 = vec_perm(V2, V3, swizB);
 
-	    *(vec_t *) &dest[ 0] = D0;
-	    *(vec_t *) &dest[16] = D1;
-	    *(vec_t *) &dest[32] = D2;
-	    *(vec_t *) &dest[48] = D3;
+            *(vec_t *)&dest[0] = D0;
+            *(vec_t *)&dest[16] = D1;
+            *(vec_t *)&dest[32] = D2;
+            *(vec_t *)&dest[48] = D3;
         }
     }
 
     // HIGH EDGE IN N DIRECTION
-    for (j=(n8<<3); j<n_cap; ++j) {
-        for (i=0; i<(k8<<3); ++i) {
-            kcell = i>>2;
+    for (j = (n8 << 3); j < n_cap; ++j) {
+        for (i = 0; i < (k8 << 3); ++i) {
+            kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&3;
-            noff = j&3;
-            if (j < n) bp[16*cell + 4*noff+koff] = b[ldb*j+i];
-	    else       bp[16*cell + 4*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 3;
+            noff = j & 3;
+            if (j < n)
+                bp[16 * cell + 4 * noff + koff] = b[ldb * j + i];
+            else
+                bp[16 * cell + 4 * noff + koff] = 0;
         }
     }
 
     // HIGH EDGE IN K DIRECTION
-    for (j=0; j<(n8<<3); ++j) {
-        for (i=(k8<<3); i<k_cap; ++i) {
-            kcell = i>>2;
+    for (j = 0; j < (n8 << 3); ++j) {
+        for (i = (k8 << 3); i < k_cap; ++i) {
+            kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&3;
-            noff = j&3;
-            if (i < k) bp[16*cell + 4*noff+koff] = b[ldb*j+i];
-	    else       bp[16*cell + 4*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 3;
+            noff = j & 3;
+            if (i < k)
+                bp[16 * cell + 4 * noff + koff] = b[ldb * j + i];
+            else
+                bp[16 * cell + 4 * noff + koff] = 0;
         }
     }
 
     // UPPER CORNER (HIGH N, HIGH K)
-    for (j=(n8<<3); j<n_cap; ++j) {
-        for (i=(k8<<3); i<k_cap; ++i) {
-            kcell = i>>2;
+    for (j = (n8 << 3); j < n_cap; ++j) {
+        for (i = (k8 << 3); i < k_cap; ++i) {
+            kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&3;
-            noff = j&3;
-            if (j < n && i < k) bp[16*cell + 4*noff+koff] = b[ldb*j+i];
-	    else                bp[16*cell + 4*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 3;
+            noff = j & 3;
+            if (j < n && i < k)
+                bp[16 * cell + 4 * noff + koff] = b[ldb * j + i];
+            else
+                bp[16 * cell + 4 * noff + koff] = 0;
         }
     }
 
@@ -960,213 +994,215 @@ int pack_N16_8bit(dim_t k, dim_t m, const int8_t *a, dim_t lda, int8_t *ap) {
     int i, j;
     int m_cap = (m + 3) & ~3;
     int k_cap = (k + 3) & ~3;
-    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell, chunk4count, m16, k4, k16;
-    m16 = (m>>4)<<4;
-    k4 = (k>>2)<<2;
-    k16 = (k>>4)<<4;
-    krows = (k+3) >> 2;
-    mrows = (m+3) >> 2;
+    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
+            chunk4count, m16, k4, k16;
+    m16 = (m >> 4) << 4;
+    k4 = (k >> 2) << 2;
+    k16 = (k >> 4) << 4;
+    krows = (k + 3) >> 2;
+    mrows = (m + 3) >> 2;
     block4 = 4 * krows;
     block2 = 2 * krows;
 
     // MAIN BLOCK
-    for (j=0; j<m16; j+=16) {
-        for (i=0; i<k16; i+=16) {
+    for (j = 0; j < m16; j += 16) {
+        for (i = 0; i < k16; i += 16) {
             vec_t V0, V1, V2, V3;
             vec_t D01A, D01B, D23A, D23B;
             vec_t D0, D1, D2, D3;
-            vec_t swizA = { 0,  1,  2,  3,  4,  5,  6,  7, 16, 17, 18, 19, 20, 21, 22, 23};
-            vec_t swizB = { 8,  9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31};
-            vec_t swizL = { 0,  1,  2,  3,  8,  9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27};
-            vec_t swizR = { 4,  5,  6,  7, 12, 13, 14, 15, 20, 21, 22, 23, 28, 29, 30, 31};
+            vec_t swizA
+                    = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
+            vec_t swizB = {8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29,
+                    30, 31};
+            vec_t swizL = {
+                    0, 1, 2, 3, 8, 9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27};
+            vec_t swizR = {
+                    4, 5, 6, 7, 12, 13, 14, 15, 20, 21, 22, 23, 28, 29, 30, 31};
 
-	    const int8_t *src = &a[lda*j+i];
-	    int8_t *dest = &ap[j * (krows << 2) + (i << 4)];
+            const int8_t *src = &a[lda * j + i];
+            int8_t *dest = &ap[j * (krows << 2) + (i << 4)];
 
-            V0 = *(vec_t *) &src[0 * lda];
-            V1 = *(vec_t *) &src[1 * lda];
-            V2 = *(vec_t *) &src[2 * lda];
-            V3 = *(vec_t *) &src[3 * lda];
-	    D01A = vec_perm(V0, V1, swizA);
-	    D01B = vec_perm(V0, V1, swizB);
-	    D23A = vec_perm(V2, V3, swizA);
-	    D23B = vec_perm(V2, V3, swizB);
-            D0 = vec_perm(D01A, D23A, swizL); 
+            V0 = *(vec_t *)&src[0 * lda];
+            V1 = *(vec_t *)&src[1 * lda];
+            V2 = *(vec_t *)&src[2 * lda];
+            V3 = *(vec_t *)&src[3 * lda];
+            D01A = vec_perm(V0, V1, swizA);
+            D01B = vec_perm(V0, V1, swizB);
+            D23A = vec_perm(V2, V3, swizA);
+            D23B = vec_perm(V2, V3, swizB);
+            D0 = vec_perm(D01A, D23A, swizL);
             D1 = vec_perm(D01A, D23A, swizR);
             D2 = vec_perm(D01B, D23B, swizL);
             D3 = vec_perm(D01B, D23B, swizR);
-            *(vec_t *) &dest[  0] = D0;
-            *(vec_t *) &dest[ 64] = D1;
-            *(vec_t *) &dest[128] = D2;
-            *(vec_t *) &dest[192] = D3;
+            *(vec_t *)&dest[0] = D0;
+            *(vec_t *)&dest[64] = D1;
+            *(vec_t *)&dest[128] = D2;
+            *(vec_t *)&dest[192] = D3;
 
-            V0 = *(vec_t *) &src[4 * lda];
-            V1 = *(vec_t *) &src[5 * lda];
-            V2 = *(vec_t *) &src[6 * lda];
-            V3 = *(vec_t *) &src[7 * lda];
-	    D01A = vec_perm(V0, V1, swizA);
-	    D01B = vec_perm(V0, V1, swizB);
-	    D23A = vec_perm(V2, V3, swizA);
-	    D23B = vec_perm(V2, V3, swizB);
-            D0 = vec_perm(D01A, D23A, swizL); 
+            V0 = *(vec_t *)&src[4 * lda];
+            V1 = *(vec_t *)&src[5 * lda];
+            V2 = *(vec_t *)&src[6 * lda];
+            V3 = *(vec_t *)&src[7 * lda];
+            D01A = vec_perm(V0, V1, swizA);
+            D01B = vec_perm(V0, V1, swizB);
+            D23A = vec_perm(V2, V3, swizA);
+            D23B = vec_perm(V2, V3, swizB);
+            D0 = vec_perm(D01A, D23A, swizL);
             D1 = vec_perm(D01A, D23A, swizR);
             D2 = vec_perm(D01B, D23B, swizL);
             D3 = vec_perm(D01B, D23B, swizR);
-            *(vec_t *) &dest[ 16] = D0;
-            *(vec_t *) &dest[ 80] = D1;
-            *(vec_t *) &dest[144] = D2;
-            *(vec_t *) &dest[208] = D3;
+            *(vec_t *)&dest[16] = D0;
+            *(vec_t *)&dest[80] = D1;
+            *(vec_t *)&dest[144] = D2;
+            *(vec_t *)&dest[208] = D3;
 
-            V0 = *(vec_t *) &src[ 8 * lda];
-            V1 = *(vec_t *) &src[ 9 * lda];
-            V2 = *(vec_t *) &src[10 * lda];
-            V3 = *(vec_t *) &src[11 * lda];
-	    D01A = vec_perm(V0, V1, swizA);
-	    D01B = vec_perm(V0, V1, swizB);
-	    D23A = vec_perm(V2, V3, swizA);
-	    D23B = vec_perm(V2, V3, swizB);
-            D0 = vec_perm(D01A, D23A, swizL); 
+            V0 = *(vec_t *)&src[8 * lda];
+            V1 = *(vec_t *)&src[9 * lda];
+            V2 = *(vec_t *)&src[10 * lda];
+            V3 = *(vec_t *)&src[11 * lda];
+            D01A = vec_perm(V0, V1, swizA);
+            D01B = vec_perm(V0, V1, swizB);
+            D23A = vec_perm(V2, V3, swizA);
+            D23B = vec_perm(V2, V3, swizB);
+            D0 = vec_perm(D01A, D23A, swizL);
             D1 = vec_perm(D01A, D23A, swizR);
             D2 = vec_perm(D01B, D23B, swizL);
             D3 = vec_perm(D01B, D23B, swizR);
-            *(vec_t *) &dest[ 32] = D0;
-            *(vec_t *) &dest[ 96] = D1;
-            *(vec_t *) &dest[160] = D2;
-            *(vec_t *) &dest[224] = D3;
+            *(vec_t *)&dest[32] = D0;
+            *(vec_t *)&dest[96] = D1;
+            *(vec_t *)&dest[160] = D2;
+            *(vec_t *)&dest[224] = D3;
 
-            V0 = *(vec_t *) &src[12 * lda];
-            V1 = *(vec_t *) &src[13 * lda];
-            V2 = *(vec_t *) &src[14 * lda];
-            V3 = *(vec_t *) &src[15 * lda];
-	    D01A = vec_perm(V0, V1, swizA);
-	    D01B = vec_perm(V0, V1, swizB);
-	    D23A = vec_perm(V2, V3, swizA);
-	    D23B = vec_perm(V2, V3, swizB);
-            D0 = vec_perm(D01A, D23A, swizL); 
+            V0 = *(vec_t *)&src[12 * lda];
+            V1 = *(vec_t *)&src[13 * lda];
+            V2 = *(vec_t *)&src[14 * lda];
+            V3 = *(vec_t *)&src[15 * lda];
+            D01A = vec_perm(V0, V1, swizA);
+            D01B = vec_perm(V0, V1, swizB);
+            D23A = vec_perm(V2, V3, swizA);
+            D23B = vec_perm(V2, V3, swizB);
+            D0 = vec_perm(D01A, D23A, swizL);
             D1 = vec_perm(D01A, D23A, swizR);
             D2 = vec_perm(D01B, D23B, swizL);
             D3 = vec_perm(D01B, D23B, swizR);
-            *(vec_t *) &dest[ 48] = D0;
-            *(vec_t *) &dest[112] = D1;
-            *(vec_t *) &dest[176] = D2;
-            *(vec_t *) &dest[240] = D3;
+            *(vec_t *)&dest[48] = D0;
+            *(vec_t *)&dest[112] = D1;
+            *(vec_t *)&dest[176] = D2;
+            *(vec_t *)&dest[240] = D3;
         }
-        for (i=k16; i<k4; i+=4) {
+        for (i = k16; i < k4; i += 4) {
             vec_t D0, D1, D2, D3;
-	    const int8_t *src = &a[lda*j+i];
-	    int8_t *dest = &ap[j * (krows << 2) + (i << 4)];
+            const int8_t *src = &a[lda * j + i];
+            int8_t *dest = &ap[j * (krows << 2) + (i << 4)];
 
-            *(int *) &D0[ 0] = *(int *) &src[ 0 * lda];
-            *(int *) &D0[ 4] = *(int *) &src[ 1 * lda];
-            *(int *) &D0[ 8] = *(int *) &src[ 2 * lda];
-            *(int *) &D0[12] = *(int *) &src[ 3 * lda];
-            *(int *) &D1[ 0] = *(int *) &src[ 4 * lda];
-            *(int *) &D1[ 4] = *(int *) &src[ 5 * lda];
-            *(int *) &D1[ 8] = *(int *) &src[ 6 * lda];
-            *(int *) &D1[12] = *(int *) &src[ 7 * lda];
-            *(int *) &D2[ 0] = *(int *) &src[ 8 * lda];
-            *(int *) &D2[ 4] = *(int *) &src[ 9 * lda];
-            *(int *) &D2[ 8] = *(int *) &src[10 * lda];
-            *(int *) &D2[12] = *(int *) &src[11 * lda];
-            *(int *) &D3[ 0] = *(int *) &src[12 * lda];
-            *(int *) &D3[ 4] = *(int *) &src[13 * lda];
-            *(int *) &D3[ 8] = *(int *) &src[14 * lda];
-            *(int *) &D3[12] = *(int *) &src[15 * lda];
+            *(int *)&D0[0] = *(int *)&src[0 * lda];
+            *(int *)&D0[4] = *(int *)&src[1 * lda];
+            *(int *)&D0[8] = *(int *)&src[2 * lda];
+            *(int *)&D0[12] = *(int *)&src[3 * lda];
+            *(int *)&D1[0] = *(int *)&src[4 * lda];
+            *(int *)&D1[4] = *(int *)&src[5 * lda];
+            *(int *)&D1[8] = *(int *)&src[6 * lda];
+            *(int *)&D1[12] = *(int *)&src[7 * lda];
+            *(int *)&D2[0] = *(int *)&src[8 * lda];
+            *(int *)&D2[4] = *(int *)&src[9 * lda];
+            *(int *)&D2[8] = *(int *)&src[10 * lda];
+            *(int *)&D2[12] = *(int *)&src[11 * lda];
+            *(int *)&D3[0] = *(int *)&src[12 * lda];
+            *(int *)&D3[4] = *(int *)&src[13 * lda];
+            *(int *)&D3[8] = *(int *)&src[14 * lda];
+            *(int *)&D3[12] = *(int *)&src[15 * lda];
 
-            *(vec_t *) &dest[ 0] = D0;
-            *(vec_t *) &dest[16] = D1;
-            *(vec_t *) &dest[32] = D2;
-            *(vec_t *) &dest[48] = D3;
+            *(vec_t *)&dest[0] = D0;
+            *(vec_t *)&dest[16] = D1;
+            *(vec_t *)&dest[32] = D2;
+            *(vec_t *)&dest[48] = D3;
         }
     }
 
     // HIGH EDGE IN M DIRECTION
-    for (j=m16; j<m_cap; ++j) {
-        for (i=0; i<k4; ++i) {
-            kcell = i>>2;
-            mcell = j>>2;
+    for (j = m16; j < m_cap; ++j) {
+        for (i = 0; i < k4; ++i) {
+            kcell = i >> 2;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-    
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = (chunk4count * block4);
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&3;
-            moff = j&3;
-            if (j < m) ap[16*cell + 4*moff+koff] = a[lda*j+i];
-	    else       ap[16*cell + 4*moff+koff] = 0;
+            koff = i & 3;
+            moff = j & 3;
+            if (j < m)
+                ap[16 * cell + 4 * moff + koff] = a[lda * j + i];
+            else
+                ap[16 * cell + 4 * moff + koff] = 0;
         }
     }
 
     // HIGH EDGE IN K DIRECTION
-    for (j=0; j<m16; ++j) {
-        for (i=k4; i<k_cap; ++i) {
-            kcell = i>>2;
-            mcell = j>>2;
+    for (j = 0; j < m16; ++j) {
+        for (i = k4; i < k_cap; ++i) {
+            kcell = i >> 2;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-    
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = (chunk4count * block4);
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&3;
-            moff = j&3;
-            if (i < k) ap[16*cell + 4*moff+koff] = a[lda*j+i];
-	    else       ap[16*cell + 4*moff+koff] = 0;
+            koff = i & 3;
+            moff = j & 3;
+            if (i < k)
+                ap[16 * cell + 4 * moff + koff] = a[lda * j + i];
+            else
+                ap[16 * cell + 4 * moff + koff] = 0;
         }
     }
 
     // UPPER CORNER (HIGH M, HIGH K)
-    for (j=m16; j<m_cap; ++j) {
-        for (i=k4; i<k_cap; ++i) {
-            kcell = i>>2;
-            mcell = j>>2;
+    for (j = m16; j < m_cap; ++j) {
+        for (i = k4; i < k_cap; ++i) {
+            kcell = i >> 2;
+            mcell = j >> 2;
             chunk4count = mcell >> 2;
-    
-            if (mcell < (mrows & ~3)) cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
+
+            if (mcell < (mrows & ~3))
+                cell = (chunk4count * block4) + (4 * kcell) + (mcell & 3);
             else {
                 cell = (chunk4count * block4);
                 if (m_cap & 8) {
                     switch (mcell & 3) {
-                    case 0:
-                    case 1:
-                        cell += 2 * kcell + (mcell & 1);
-                        break;
-                    case 2:
-                        cell += block2 + kcell;
-                        break;
+                        case 0:
+                        case 1: cell += 2 * kcell + (mcell & 1); break;
+                        case 2: cell += block2 + kcell; break;
                     }
-                }
-                else if (m_cap & 4) cell += kcell;
+                } else if (m_cap & 4)
+                    cell += kcell;
             }
-            koff = i&3;
-            moff = j&3;
-            if (j < m && i < k) ap[16*cell + 4*moff+koff] = a[lda*j+i];
-	    else                ap[16*cell + 4*moff+koff] = 0;
+            koff = i & 3;
+            moff = j & 3;
+            if (j < m && i < k)
+                ap[16 * cell + 4 * moff + koff] = a[lda * j + i];
+            else
+                ap[16 * cell + 4 * moff + koff] = 0;
         }
     }
 
@@ -1178,97 +1214,115 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
     int kcell, cell, koff, noff, krows, k8, n8;
     int n_cap = (n + 3) & ~3;
     int k_cap = (k + 3) & ~3;
-    krows = (k+3) >> 2;
-    k8 = (k>>3)<<3;
-    n8 = (n>>3)<<3;
+    krows = (k + 3) >> 2;
+    k8 = (k >> 3) << 3;
+    n8 = (n >> 3) << 3;
 
     // MAIN BLOCK
-    for (i=0; i<k8; i+=8) { 
-        for (j=0; j<n8; j+=8) {
+    for (i = 0; i < k8; i += 8) {
+        for (j = 0; j < n8; j += 8) {
             vec_t V0, V1, V2, V3;
             vec_t D01A, D01B, D23A, D23B;
             vec_t D0, D1, D2, D3;
-            vec_t swizA = { 0, 16,  1, 17,  2, 18,  3, 19,  4, 20,  5, 21,  6, 22,  7, 23};
-            vec_t swizB = { 8, 24,  9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
-            vec_t swizL = { 0,  1, 16, 17,  2,  3, 18, 19,  4,  5, 20, 21,  6,  7, 22, 23};
-            vec_t swizR = { 8,  9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31};
-	    uint8_t *dest;
+            vec_t swizA
+                    = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23};
+            vec_t swizB = {8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30,
+                    15, 31};
+            vec_t swizL
+                    = {0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23};
+            vec_t swizR = {8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15,
+                    30, 31};
+            uint8_t *dest;
 
-	    *(signed long long *) &V0[0] = *(signed long long *) &b[ldb*(i+0) + j];
-	    *(signed long long *) &V1[0] = *(signed long long *) &b[ldb*(i+1) + j];
-	    *(signed long long *) &V2[0] = *(signed long long *) &b[ldb*(i+2) + j];
-	    *(signed long long *) &V3[0] = *(signed long long *) &b[ldb*(i+3) + j];
-	    *(signed long long *) &V0[8] = *(signed long long *) &b[ldb*(i+4) + j];
-	    *(signed long long *) &V1[8] = *(signed long long *) &b[ldb*(i+5) + j];
-	    *(signed long long *) &V2[8] = *(signed long long *) &b[ldb*(i+6) + j];
-	    *(signed long long *) &V3[8] = *(signed long long *) &b[ldb*(i+7) + j];
+            *(signed long long *)&V0[0]
+                    = *(signed long long *)&b[ldb * (i + 0) + j];
+            *(signed long long *)&V1[0]
+                    = *(signed long long *)&b[ldb * (i + 1) + j];
+            *(signed long long *)&V2[0]
+                    = *(signed long long *)&b[ldb * (i + 2) + j];
+            *(signed long long *)&V3[0]
+                    = *(signed long long *)&b[ldb * (i + 3) + j];
+            *(signed long long *)&V0[8]
+                    = *(signed long long *)&b[ldb * (i + 4) + j];
+            *(signed long long *)&V1[8]
+                    = *(signed long long *)&b[ldb * (i + 5) + j];
+            *(signed long long *)&V2[8]
+                    = *(signed long long *)&b[ldb * (i + 6) + j];
+            *(signed long long *)&V3[8]
+                    = *(signed long long *)&b[ldb * (i + 7) + j];
 
-	    D01A = vec_perm(V0, V1, swizA);
-	    D01B = vec_perm(V0, V1, swizB);
-	    D23A = vec_perm(V2, V3, swizA);
-	    D23B = vec_perm(V2, V3, swizB);
-            D0 = vec_perm(D01A, D23A, swizL); 
+            D01A = vec_perm(V0, V1, swizA);
+            D01B = vec_perm(V0, V1, swizB);
+            D23A = vec_perm(V2, V3, swizA);
+            D23B = vec_perm(V2, V3, swizB);
+            D0 = vec_perm(D01A, D23A, swizL);
             D1 = vec_perm(D01A, D23A, swizR);
             D2 = vec_perm(D01B, D23B, swizL);
             D3 = vec_perm(D01B, D23B, swizR);
 
             dest = &bp[16 * ((j >> 2) * krows + (i >> 1))];
 
-	    *(vec_t *) &dest[ 0] = D0;
-	    *(vec_t *) &dest[16] = D1;
-	    *(vec_t *) &dest[32] = D2;
-	    *(vec_t *) &dest[48] = D3;
+            *(vec_t *)&dest[0] = D0;
+            *(vec_t *)&dest[16] = D1;
+            *(vec_t *)&dest[32] = D2;
+            *(vec_t *)&dest[48] = D3;
         }
     }
 
     // HIGH EDGE IN N DIRECTION
-    for (i=0; i<k8; ++i) {
-        for (j=n8; j<n_cap; ++j) {
-            kcell = i>>2;
+    for (i = 0; i < k8; ++i) {
+        for (j = n8; j < n_cap; ++j) {
+            kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
-                int columns_done = ((j & (~7)) >> 3) << 1;
+            int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&3;
-            noff = j&3;
-            if (j < n) bp[16*cell + 4*noff+koff] = b[ldb*i+j];
-	    else       bp[16*cell + 4*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 3;
+            noff = j & 3;
+            if (j < n)
+                bp[16 * cell + 4 * noff + koff] = b[ldb * i + j];
+            else
+                bp[16 * cell + 4 * noff + koff] = 0;
         }
     }
 
     // HIGH EDGE IN K DIRECTION
-    for (i=k8; i<k_cap; ++i) {
-        for (j=0; j<n8; ++j) {
-            kcell = i>>2;
+    for (i = k8; i < k_cap; ++i) {
+        for (j = 0; j < n8; ++j) {
+            kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&3;
-            noff = j&3;
-            if (i < k) bp[16*cell + 4*noff+koff] = b[ldb*i+j];
-	    else       bp[16*cell + 4*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 3;
+            noff = j & 3;
+            if (i < k)
+                bp[16 * cell + 4 * noff + koff] = b[ldb * i + j];
+            else
+                bp[16 * cell + 4 * noff + koff] = 0;
         }
     }
 
     // UPPER CORNER (HIGH N, HIGH K)
-    for (i=k8; i<k_cap; ++i) {
-        for (j=n8; j<n_cap; ++j) {
-            kcell = i>>2;
+    for (i = k8; i < k_cap; ++i) {
+        for (j = n8; j < n_cap; ++j) {
+            kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
             int maingroup = (j & (~7)) < (n & (~7));
             int columns_done = ((j & (~7)) >> 3) << 1;
             int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
             int j_hiflag = (j & 4) >> 2;
-            cell = columns_done*krows+kcell*groupwidth+j_hiflag;
-            koff = i&3;
-            noff = j&3;
-            if (i < k && j < n) bp[16*cell + 4*noff+koff] = b[ldb*i+j];
-	    else                bp[16*cell + 4*noff+koff] = 0;
+            cell = columns_done * krows + kcell * groupwidth + j_hiflag;
+            koff = i & 3;
+            noff = j & 3;
+            if (i < k && j < n)
+                bp[16 * cell + 4 * noff + koff] = b[ldb * i + j];
+            else
+                bp[16 * cell + 4 * noff + koff] = 0;
         }
     }
 
