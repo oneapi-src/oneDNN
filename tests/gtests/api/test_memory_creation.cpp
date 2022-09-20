@@ -238,7 +238,6 @@ TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
         && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 TEST(memory_test_cpp, TestSetDataHandleCPU) {
     engine eng = engine(engine::kind::cpu, 0);
-    stream str = make_stream(eng);
 
     const memory::dim N = 1, C = 5, W = 7, H = 7;
     memory::desc data_md(
@@ -247,7 +246,7 @@ TEST(memory_test_cpp, TestSetDataHandleCPU) {
 
     float *p = (float *)malloc(mem.get_desc().get_size());
     ASSERT_TRUE(p != nullptr);
-    mem.set_data_handle(p, str);
+    mem.set_data_handle(p);
 
     ASSERT_TRUE(N == 1);
     ASSERT_TRUE(C < 16);
