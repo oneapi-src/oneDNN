@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2022 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,4 @@
 # limitations under the License.
 #===============================================================================
 
-if (ONEDNN_BUILD_GRAPH)
-    add_subdirectory(interface)
-    add_subdirectory(backend)
-    add_subdirectory(utils)
-endif()
+add_subdirectory(fake)

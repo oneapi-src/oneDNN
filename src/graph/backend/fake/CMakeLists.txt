@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2022 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,12 @@
 # limitations under the License.
 #===============================================================================
 
-if (ONEDNN_BUILD_GRAPH)
-    add_subdirectory(interface)
-    add_subdirectory(backend)
-    add_subdirectory(utils)
-endif()
+file(GLOB SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
+    )
+
+set(OBJ_LIB ${DNNL_LIBRARY_NAME}_graph_backend_fake)
+add_library(${OBJ_LIB} OBJECT ${SOURCES})
+
+set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)
