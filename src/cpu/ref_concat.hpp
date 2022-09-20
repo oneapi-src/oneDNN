@@ -47,7 +47,7 @@ struct ref_concat_t : public primitive_t {
             status_t status = cpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);
-                status = dnnl_memory_desc_init_by_strides(&tent_dst_md_,
+                status = memory_desc_init_by_strides(tent_dst_md_,
                         dst_md_.ndims, dst_md_.dims, dst_md_.data_type,
                         nullptr);
                 if (status != status::success) return status::unimplemented;

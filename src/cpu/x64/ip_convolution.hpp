@@ -43,7 +43,7 @@ status_t reshape_dst(memory_desc_t *o_md, const memory_desc_t *i_md) {
     for (int d = 0; d < ndims; ++d)
         reduce[d] = i_md->dims[d];
 
-    return dnnl_memory_desc_reshape(o_md, i_md, ndims, reduce);
+    return memory_desc_reshape(*o_md, *i_md, ndims, reduce);
 }
 
 status_t maybe_reshape_weights(memory_desc_t *o_md, const memory_desc_t *i_md,
@@ -61,7 +61,7 @@ status_t maybe_reshape_weights(memory_desc_t *o_md, const memory_desc_t *i_md,
             reduce[d + with_groups] = i_md->dims[d];
     }
 
-    return dnnl_memory_desc_reshape(o_md, i_md, ndims, reduce);
+    return memory_desc_reshape(*o_md, *i_md, ndims, reduce);
 }
 
 status_t check_conv_ip(convolution_pd_t *self) {

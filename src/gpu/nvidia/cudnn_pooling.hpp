@@ -43,8 +43,8 @@ struct cudnn_pooling_common_t {
         const auto dst_size = dst_wrap.nelems();
         const dims_t ws_size = {(dim_t)(src_size + dst_size)};
 
-        dnnl_memory_desc_init_by_tag(
-                &ws_md, 1, ws_size, src_wrap.data_type(), format_tag::x);
+        memory_desc_init_by_tag(
+                ws_md, 1, ws_size, src_wrap.data_type(), format_tag::x);
     }
 
     status_t init_mem_by_tag(format_tag_t tag, memory_desc_t &md) {

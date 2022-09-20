@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,10 +93,10 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
             dims_t strides_src = {d[3] * d[2] * d[1], d[3] * d[2], d[3], 1};
             dims_t strides_dst = {d[3] * d[2] * d[1], d[3], d[1] * d[3], 1};
 
-            CHECK(dnnl_memory_desc_init_by_strides(
-                    &fake_src, 4, d, md_src->data_type, strides_src));
-            CHECK(dnnl_memory_desc_init_by_strides(
-                    &fake_dst, 4, d, md_src->data_type, strides_dst));
+            CHECK(memory_desc_init_by_strides(
+                    fake_src, 4, d, md_src->data_type, strides_src));
+            CHECK(memory_desc_init_by_strides(
+                    fake_dst, 4, d, md_src->data_type, strides_dst));
 
             CHECK(reorder_primitive_desc_create(
                     reorder_pd_, engine, &fake_src, &fake_dst));

@@ -128,8 +128,8 @@ protected:
         const dim_t bits_per_byte = 8;
         const dims_t ws_sz = {(dim_t)utils::div_up(
                 data_nelems * bits_per_element, bits_per_byte)};
-        dnnl_memory_desc_init_by_tag(
-                &ws_md_, 1, ws_sz, impl::data_type::u8, format_tag::x);
+        memory_desc_init_by_tag(
+                ws_md_, 1, ws_sz, impl::data_type::u8, format_tag::x);
     }
 
 private:

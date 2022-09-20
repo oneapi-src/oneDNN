@@ -247,14 +247,14 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                 reduction_bias_md.dims[1] = diff_bias_md_.dims[0];
                 reduction_bias_md.dims[2] = 1;
                 bool use_blocked = OC() % 16 == 0;
-                CHECK(dnnl_memory_desc_init_by_tag(&reduction_bias_md,
+                CHECK(memory_desc_init_by_tag(reduction_bias_md,
                         reduction_bias_md.ndims, reduction_bias_md.dims,
                         diff_bias_md_.data_type,
                         use_blocked ? format_tag::aBc16b : format_tag::abc));
                 reduction_dst_md = *diff_dst_md();
                 reduction_dst_md.ndims = 3;
                 reduction_dst_md.dims[2] = 1;
-                CHECK(dnnl_memory_desc_init_by_tag(&reduction_dst_md,
+                CHECK(memory_desc_init_by_tag(reduction_dst_md,
                         reduction_dst_md.ndims, reduction_dst_md.dims,
                         diff_dst_md_.data_type,
                         use_blocked ? format_tag::aBc16b : format_tag::abc));

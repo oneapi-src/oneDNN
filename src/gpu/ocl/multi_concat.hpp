@@ -70,8 +70,8 @@ struct multi_concat_t : public gpu_primitive_t {
                 }
                 dims[concat_dim_] = batch_width;
                 offsets[concat_dim_] = concat_dim_offset;
-                status = dnnl_memory_desc_init_submemory(
-                        &dst_chunk_mds_[i], dst_md(), dims, offsets);
+                status = memory_desc_init_submemory(
+                        dst_chunk_mds_[i], *dst_md(), dims, offsets);
                 if (status != status::success) {
                     concat_pds_.clear();
                     dst_chunk_mds_.clear();

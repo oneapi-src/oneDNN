@@ -72,7 +72,7 @@ struct miopen_lrn_fwd_t : public primitive_t {
             const size_t dst_size = memory_desc_wrapper(dst_md()).size();
             const size_t ws_size = miopen_ws_size + dst_size;
             dims_t dims = {(dim_t)ws_size};
-            return dnnl_memory_desc_init_by_tag(&ws_md_, ws_size ? 1 : 0, dims,
+            return memory_desc_init_by_tag(ws_md_, ws_size ? 1 : 0, dims,
                     data_type::u8, format_tag::a);
         }
 
@@ -137,7 +137,7 @@ struct miopen_lrn_bwd_t : public primitive_t {
             const size_t ws_size = miopen_ws_size + dst_size;
 
             dims_t dims = {(dim_t)ws_size};
-            return dnnl_memory_desc_init_by_tag(&ws_md_, ws_size ? 1 : 0, dims,
+            return memory_desc_init_by_tag(ws_md_, ws_size ? 1 : 0, dims,
                     data_type::u8, format_tag::a);
         }
 

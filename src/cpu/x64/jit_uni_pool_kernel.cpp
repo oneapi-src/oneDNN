@@ -193,8 +193,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
         // used to initialize binary post-ops
         if (ppd->is_fwd() && jpp.with_binary) {
-            CHECK(dnnl_memory_desc_init_by_tag(&jpp.tmp_md, ndims,
-                    dst_d.md_->dims, data_type::f32, blocked_fmt_tag));
+            CHECK(memory_desc_init_by_tag(jpp.tmp_md, ndims, dst_d.md_->dims,
+                    data_type::f32, blocked_fmt_tag));
         }
     } else {
         jpp.is_bf16 = (src_d.data_type() == data_type::bf16

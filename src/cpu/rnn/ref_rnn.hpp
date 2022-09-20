@@ -439,16 +439,15 @@ struct _ref_rnn_common_t : public primitive_t {
                 const auto bf16_tag = rnn_.n_block == 64
                         ? format_tag::ldgOI64o2i
                         : format_tag::ldgOI32o2i;
-                dnnl_memory_desc_init_by_tag(&weights_layer_md,
+                memory_desc_init_by_tag(weights_layer_md,
                         weights_layer_d.ndims(), weights_layer_d.dims(),
                         data_type::bf16, bf16_tag);
                 CHECK(reorder_primitive_desc_create(bf32_wei_layer_reorder_pd_,
                         engine, weights_layer_d.md_, &weights_layer_md,
                         nullptr));
 
-                dnnl_memory_desc_init_by_tag(&weights_iter_md,
-                        weights_iter_d.ndims(), weights_iter_d.dims(),
-                        data_type::bf16, bf16_tag);
+                memory_desc_init_by_tag(weights_iter_md, weights_iter_d.ndims(),
+                        weights_iter_d.dims(), data_type::bf16, bf16_tag);
                 CHECK(reorder_primitive_desc_create(bf32_wei_iter_reorder_pd_,
                         engine, weights_iter_d.md_, &weights_iter_md, nullptr));
             }
@@ -473,7 +472,7 @@ struct _ref_rnn_common_t : public primitive_t {
                 // initialize the workspace if needed
                 if (rnn_.is_training) {
                     dims_t ws_dims = {(dim_t)ws_sz};
-                    dnnl_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
+                    memory_desc_init_by_tag(this->ws_md_, 1, ws_dims,
                             data_type::u8, format_tag::x);
                 }
             }

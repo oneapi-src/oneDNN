@@ -63,12 +63,12 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     bd.data_scaleshift_desc = zero_md();
     if (flags & (dnnl_use_scale | dnnl_use_shift)) {
         dims_t scaleshift_dims = {data_desc->dims[1]};
-        dnnl_memory_desc_init_by_tag(&bd.data_scaleshift_desc, 1,
-                scaleshift_dims, data_type::f32, dnnl_x);
+        memory_desc_init_by_tag(bd.data_scaleshift_desc, 1, scaleshift_dims,
+                data_type::f32, dnnl_x);
     } else {
         dims_t scaleshift_dims = {2, data_desc->dims[1]};
-        dnnl_memory_desc_init_by_tag(&bd.data_scaleshift_desc, 2,
-                scaleshift_dims, data_type::f32, dnnl_nc);
+        memory_desc_init_by_tag(bd.data_scaleshift_desc, 2, scaleshift_dims,
+                data_type::f32, dnnl_nc);
     }
 
     bd.diff_data_scaleshift_desc = zero_md();
@@ -80,8 +80,8 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     }
 
     dims_t stats_dims = {data_desc->dims[1]};
-    dnnl_memory_desc_init_by_tag(
-            &bd.stat_desc, 1, stats_dims, data_type::f32, dnnl_x);
+    memory_desc_init_by_tag(
+            bd.stat_desc, 1, stats_dims, data_type::f32, dnnl_x);
     bd.batch_norm_epsilon = epsilon;
 
     unsigned bnorm_flags = dnnl_use_global_stats | dnnl_use_scaleshift

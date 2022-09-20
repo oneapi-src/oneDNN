@@ -90,18 +90,17 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     const auto data_tag
             = (src_dw_tag == format_tag::undef) ? format_tag::any : src_dw_tag;
 
-    dnnl_memory_desc_init_by_tag(
-            &src_md, ndims, src_dw_md.dims, src_dw_md.data_type, data_tag);
+    memory_desc_init_by_tag(
+            src_md, ndims, src_dw_md.dims, src_dw_md.data_type, data_tag);
 
-    dnnl_memory_desc_init_by_tag(
-            &weights_md, ndims + 1, weights_tz, dw_po.wei_dt, format_tag::any);
+    memory_desc_init_by_tag(
+            weights_md, ndims + 1, weights_tz, dw_po.wei_dt, format_tag::any);
 
     if (with_bias)
-        dnnl_memory_desc_init_by_tag(
-                &bias_md, 1, bias_tz, dw_po.bias_dt, format_tag::a);
+        memory_desc_init_by_tag(
+                bias_md, 1, bias_tz, dw_po.bias_dt, format_tag::a);
 
-    dnnl_memory_desc_init_by_tag(
-            &dst_md, ndims, dst_tz, dw_po.dst_dt, data_tag);
+    memory_desc_init_by_tag(dst_md, ndims, dst_tz, dw_po.dst_dt, data_tag);
 
     CHECK(conv_desc_init(&cd_dw, prop_kind::forward_inference,
             alg_kind::convolution_auto, &src_md, &weights_md,

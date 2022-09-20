@@ -1180,8 +1180,8 @@ inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
                         break;
                 }
             }
-            dnnl_memory_desc_init_by_tag(&weight_mem_desc, weight_ndims,
-                    weight_dims, data_type_t::dnnl_f32, weights_tag);
+            memory_desc_init_by_tag(weight_mem_desc, weight_ndims, weight_dims,
+                    data_type_t::dnnl_f32, weights_tag);
             const memory_desc_wrapper weight_mdw(weight_mem_desc);
             const auto mdi = memory_desc_info_t::create(weight_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
@@ -1192,7 +1192,7 @@ inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
         } else {
             memory_desc_t empty_mem_desc;
             dnnl_dims_t empty_dims = {1, 1, 1, 1};
-            dnnl_memory_desc_init_by_tag(&empty_mem_desc, 4, empty_dims,
+            memory_desc_init_by_tag(empty_mem_desc, 4, empty_dims,
                     data_type_t::dnnl_s8, format_tag_t::dnnl_nchw);
             const memory_desc_wrapper src1_mdw(empty_mem_desc);
             const auto mdi = memory_desc_info_t::create(src1_mdw);

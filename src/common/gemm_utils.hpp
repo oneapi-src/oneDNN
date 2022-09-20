@@ -79,13 +79,13 @@ static inline void init_2d_desc(memory_desc_t *md_2d,
     if (transpose_dims) {
         dnnl_dims_t dims_2d = {p_dim1, p_dims[0]};
         dnnl_dims_t strides_2d = {stride1, strides[0]};
-        dnnl_memory_desc_init_by_strides(
-                md_2d, 2, dims_2d, md_nd->data_type, strides_2d);
+        memory_desc_init_by_strides(
+                *md_2d, 2, dims_2d, md_nd->data_type, strides_2d);
     } else {
         dnnl_dims_t dims_2d = {p_dims[0], p_dim1};
         dnnl_dims_t strides_2d = {strides[0], stride1};
-        dnnl_memory_desc_init_by_strides(
-                md_2d, 2, dims_2d, md_nd->data_type, strides_2d);
+        memory_desc_init_by_strides(
+                *md_2d, 2, dims_2d, md_nd->data_type, strides_2d);
     }
 }
 
@@ -94,10 +94,10 @@ static inline void create_2d_desc(memory_desc_t *md_2d, int d0, int d1,
     dnnl_dims_t dims_2d = {d0, d1};
     if (trans == transpose::notrans) {
         dnnl_dims_t strides_2d = {ld, 1};
-        dnnl_memory_desc_init_by_strides(md_2d, 2, dims_2d, dt, strides_2d);
+        memory_desc_init_by_strides(*md_2d, 2, dims_2d, dt, strides_2d);
     } else {
         dnnl_dims_t strides_2d = {1, ld};
-        dnnl_memory_desc_init_by_strides(md_2d, 2, dims_2d, dt, strides_2d);
+        memory_desc_init_by_strides(*md_2d, 2, dims_2d, dt, strides_2d);
     }
 }
 

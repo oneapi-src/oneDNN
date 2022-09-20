@@ -163,8 +163,8 @@ struct primitive_desc_t : public c_compatible {
     void init_scratchpad_md() {
         auto size = scratchpad_size(scratchpad_mode::user);
         dims_t dims = {size};
-        dnnl_memory_desc_init_by_tag(
-                &scratchpad_md_, size ? 1 : 0, dims, data_type::u8, dnnl_x);
+        memory_desc_init_by_tag(
+                scratchpad_md_, size ? 1 : 0, dims, data_type::u8, dnnl_x);
     }
 
     /** returns the scratchpad size for the given scratchpad mode. */

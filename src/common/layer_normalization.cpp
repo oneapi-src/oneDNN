@@ -76,19 +76,19 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     if (stat_desc)
         ld.stat_desc = *stat_desc;
     else
-        CHECK(dnnl_memory_desc_init_by_tag(&ld.stat_desc, ld.src_desc.ndims - 1,
+        CHECK(memory_desc_init_by_tag(ld.stat_desc, ld.src_desc.ndims - 1,
                 ld.src_desc.dims, data_type::f32, format_tag::any));
 
     int ndims = src_desc->ndims;
     ld.data_scaleshift_desc = zero_md();
     if (flags & (dnnl_use_scale | dnnl_use_shift)) {
         dims_t scaleshift_dims = {src_desc->dims[ndims - 1]};
-        dnnl_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 1,
-                scaleshift_dims, data_type::f32, dnnl_x);
+        memory_desc_init_by_tag(ld.data_scaleshift_desc, 1, scaleshift_dims,
+                data_type::f32, dnnl_x);
     } else {
         dims_t scaleshift_dims = {2, src_desc->dims[ndims - 1]};
-        dnnl_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 2,
-                scaleshift_dims, data_type::f32, dnnl_nc);
+        memory_desc_init_by_tag(ld.data_scaleshift_desc, 2, scaleshift_dims,
+                data_type::f32, dnnl_nc);
     }
     if (ld.prop_kind == backward) {
         ld.diff_data_scaleshift_desc = ld.data_scaleshift_desc;

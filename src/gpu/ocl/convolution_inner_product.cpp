@@ -50,14 +50,14 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
 
     int max_dims = adjust_dims(dims, dst_md, conf.ndims);
 
-    dnnl_memory_desc_init_by_tag(
-            &conv_dst_md, max_dims, dims, dst_md->data_type, format_tag::any);
+    memory_desc_init_by_tag(
+            conv_dst_md, max_dims, dims, dst_md->data_type, format_tag::any);
 
     auto init_md = [&](memory_desc_t &out_md, const memory_desc_t *in_md) {
         max_dims = adjust_dims(dims, in_md, conf.ndims);
         if (in_md->format_kind == format_kind::any) {
-            dnnl_memory_desc_init_by_tag(
-                    &out_md, max_dims, dims, in_md->data_type, format_tag::any);
+            memory_desc_init_by_tag(
+                    out_md, max_dims, dims, in_md->data_type, format_tag::any);
         } else {
             out_md = *in_md;
             out_md.ndims = max_dims;
@@ -93,8 +93,8 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
     auto wei_conv = *cpd_->weights_md();
     auto dst_conv = *cpd_->dst_md();
 
-    dnnl_memory_desc_init_by_tag(&ip_dst_md, conv_dst_md.ndims,
-            conv_dst_md.dims, dst_md->data_type,
+    memory_desc_init_by_tag(ip_dst_md, conv_dst_md.ndims, conv_dst_md.dims,
+            dst_md->data_type,
             utils::pick(conv_dst_md.ndims - 2, format_tag::nc, format_tag::ncw,
                     format_tag::nchw, format_tag::ncdhw));
 

@@ -1287,11 +1287,11 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     const auto tag = rnn.n_block == 64 ? format_tag::ldgOI64o2i
                                        : format_tag::ldgOI32o2i;
     memory_desc_t wei_layer_desc;
-    dnnl_memory_desc_init_by_tag(&wei_layer_desc, weights_layer_md->ndims,
+    memory_desc_init_by_tag(wei_layer_desc, weights_layer_md->ndims,
             weights_layer_md->dims, data_type::bf16, tag);
 
     memory_desc_t wei_iter_desc;
-    dnnl_memory_desc_init_by_tag(&wei_iter_desc, weights_iter_md->ndims,
+    memory_desc_init_by_tag(wei_iter_desc, weights_iter_md->ndims,
             weights_iter_md->dims, data_type::bf16, tag);
 
 #if DNNL_X64

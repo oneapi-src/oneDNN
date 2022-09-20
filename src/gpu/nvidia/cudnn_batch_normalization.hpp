@@ -52,8 +52,8 @@ struct cudnn_batch_normalization_common_t {
         const dims_t ws_size
                 = {(dim_t)(y_size * pd->fuse_norm_relu() + mean_invvar_size)};
 
-        dnnl_memory_desc_init_by_tag(
-                &ws_md, 1, ws_size, wrap.data_type(), format_tag::x);
+        memory_desc_init_by_tag(
+                ws_md, 1, ws_size, wrap.data_type(), format_tag::x);
     }
 };
 

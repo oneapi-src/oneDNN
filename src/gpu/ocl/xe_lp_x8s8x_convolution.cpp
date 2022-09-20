@@ -51,13 +51,13 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
     // XXX: try reduce number of spatial dims when iw/ow/kw=1,
     // memory tags will be selected based on the number of input dimensions
     bool use_reshaped_mem = ndims > 3;
-    if (dnnl_memory_desc_reshape(&r_src, src, src->ndims - 1, src->dims)
+    if (memory_desc_reshape(r_src, *src, src->ndims - 1, src->dims)
             != status::success)
         use_reshaped_mem = false;
-    if (dnnl_memory_desc_reshape(&r_dst, dst, dst->ndims - 1, dst->dims)
+    if (memory_desc_reshape(r_dst, *dst, dst->ndims - 1, dst->dims)
             != status::success)
         use_reshaped_mem = false;
-    if (dnnl_memory_desc_reshape(&r_wei, wei, wei->ndims - 1, wei->dims)
+    if (memory_desc_reshape(r_wei, *wei, wei->ndims - 1, wei->dims)
             != status::success)
         use_reshaped_mem = false;
 

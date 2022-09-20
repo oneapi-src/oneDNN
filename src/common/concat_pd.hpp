@@ -138,8 +138,8 @@ protected:
             offsets[concat_dim_] = current_concat_dim_offset;
 
             memory_desc_t src_img_d;
-            status_t status = dnnl_memory_desc_init_submemory(
-                    &src_img_d, force_dst_md, dims, offsets);
+            status_t status = memory_desc_init_submemory(
+                    src_img_d, *force_dst_md, dims, offsets);
             if (status != status::success) {
                 src_image_mds_.clear();
                 return status;
@@ -183,8 +183,8 @@ protected:
                 dims[concat_dim_] = dim;
 
                 memory_desc_t src_img_d;
-                status_t status = dnnl_memory_desc_init_submemory(
-                        &src_img_d, &dst_md_, dims, offsets);
+                status_t status = memory_desc_init_submemory(
+                        src_img_d, dst_md_, dims, offsets);
                 if (status != status::success) {
                     desired_format_ok = false;
                     break;

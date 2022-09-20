@@ -35,7 +35,7 @@ status_t weights_axes_permutation(
         perm[d] = d;
     nstl::swap(perm[0 + with_groups], perm[1 + with_groups]);
 
-    return dnnl_memory_desc_permute_axes(o_md, i_md, perm);
+    return memory_desc_permute_axes(*o_md, *i_md, perm);
 }
 
 status_t fwd_conv_desc_create(

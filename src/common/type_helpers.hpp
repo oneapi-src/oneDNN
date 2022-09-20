@@ -27,6 +27,7 @@
 #include "c_types_map.hpp"
 #include "dnnl_traits.hpp"
 #include "math_utils.hpp"
+#include "memory_desc.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
@@ -714,14 +715,14 @@ inline bool memory_desc_strides_check(
 
 inline status_t memory_desc_init_by_strides(
         memory_desc_t &md, const dims_t strides) {
-    return dnnl_memory_desc_init_by_strides(
-            &md, md.ndims, md.dims, md.data_type, strides);
+    return memory_desc_init_by_strides(
+            md, md.ndims, md.dims, md.data_type, strides);
 }
 
 inline status_t memory_desc_init_by_tag(
         memory_desc_t &md, format_tag_t tag, const dims_t strides = nullptr) {
-    status_t status = dnnl_memory_desc_init_by_tag(
-            &md, md.ndims, md.dims, md.data_type, tag);
+    status_t status
+            = memory_desc_init_by_tag(md, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success || strides == nullptr) return status;
 
     if (!memory_desc_strides_check(md, strides))
@@ -806,9 +807,9 @@ inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
 /** returns true if memory desc @p md corresponds to the given format tag and
  * strides.
  * If strides are not passed (or passed as nullptr) the dense structure is
- * assumed (i.e. the one that dnnl_memory_desc_init_by_tag() returns).
+ * assumed (i.e. the one that memory_desc_init_by_tag() returns).
  * Strides might contain `0` value, indicating the stride must match the one
- * that dnnl_memory_desc_init_by_tag() returns.
+ * that memory_desc_init_by_tag() returns.
  * Strides might contain `-1` values, that would be ignored during the
  * comparison. For instance, this can be used if a stride along minibatch
  * doesn't matter. */
@@ -817,8 +818,8 @@ inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
     if (md.format_kind != types::format_tag_to_kind(tag)) return false;
 
     memory_desc_t md_gold;
-    status_t status = dnnl_memory_desc_init_by_tag(
-            &md_gold, md.ndims, md.dims, md.data_type, tag);
+    status_t status = memory_desc_init_by_tag(
+            md_gold, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success) return false;
 
     if (md.format_kind != format_kind::blocked)

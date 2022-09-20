@@ -244,7 +244,7 @@ int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
         if (!found_swap) break;
     }
 
-    // dnnl_memory_desc_permute_axes applies the inverse of the permutation
+    // memory_desc_permute_axes applies the inverse of the permutation
     // so we need to invert our permutation to get what we want
     std::vector<int> invperm(ndims);
     for (dim_t d = 0; d < ndims; ++d)
@@ -252,7 +252,7 @@ int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
 
     // Apply the inverse permutation to each dimension axis
     for (size_t i = 0; i < mds.size(); i++) {
-        dnnl_memory_desc_permute_axes(permuted_mds[i], mds[i], invperm.data());
+        memory_desc_permute_axes(*permuted_mds[i], *mds[i], invperm.data());
     }
 
     return reordered_dims;

@@ -590,8 +590,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     // initialize the workspace_pd if needed
     if (rnn_conf.use_workspace) {
         dims_t ws_dims = {(dim_t)ws_sz};
-        dnnl_memory_desc_init_by_tag(
-                &this->ws_md_, 1, ws_dims, data_type::u8, x);
+        memory_desc_init_by_tag(this->ws_md_, 1, ws_dims, data_type::u8, x);
     }
 
     rnn_conf.acc_data_type = acc_data_t;

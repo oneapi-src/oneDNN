@@ -46,8 +46,8 @@ struct miopen_pooling_common_t {
         const size_t ws_size = src_size + dst_size + ws_size_miopen;
         dims_t dims = {(dim_t)ws_size};
 
-        dnnl_memory_desc_init_by_tag(
-                &ws_md, ws_size ? 1 : 0, dims, data_type::u8, format_tag::a);
+        memory_desc_init_by_tag(
+                ws_md, ws_size ? 1 : 0, dims, data_type::u8, format_tag::a);
     }
 };
 

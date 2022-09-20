@@ -59,7 +59,7 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init(engine_t *engine) {
 
     if (desc()->prop_kind == forward_training) {
         dims_t ws_dims = {MB(), C(), H(), 2 * W()};
-        dnnl_memory_desc_init_by_tag(&ws_md_, 4, ws_dims, d_type, fmt_tag);
+        memory_desc_init_by_tag(ws_md_, 4, ws_dims, d_type, fmt_tag);
     }
 
     return success;
@@ -95,7 +95,7 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init(engine_t *engine) {
     const dims_t ws_dims = {MB(), C(), H(), 2 * W()};
     const auto fmt_tag
             = data_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
-    dnnl_memory_desc_init_by_tag(&ws_md_, 4, ws_dims, d_type, fmt_tag);
+    memory_desc_init_by_tag(ws_md_, 4, ws_dims, d_type, fmt_tag);
     if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
     const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels

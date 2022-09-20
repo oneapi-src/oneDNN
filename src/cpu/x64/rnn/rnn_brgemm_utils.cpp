@@ -295,12 +295,12 @@ void rnn_brgemm_base_t::init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
         memory_desc_t wei_layer_desc;
         const auto tag = rnn.n_block == 64 ? format_tag::ldgOI64o2i
                                            : format_tag::ldgOI32o2i;
-        dnnl_memory_desc_init_by_tag(
-                &wei_layer_desc, 5, wei_layer_dims, data_type::bf16, tag);
+        memory_desc_init_by_tag(
+                wei_layer_desc, 5, wei_layer_dims, data_type::bf16, tag);
 
         memory_desc_t wei_iter_desc;
-        dnnl_memory_desc_init_by_tag(
-                &wei_iter_desc, 5, wei_iter_dims, data_type::bf16, tag);
+        memory_desc_init_by_tag(
+                wei_iter_desc, 5, wei_iter_dims, data_type::bf16, tag);
 
         scratchpad.book(key_rnn_bf32_wei_layer_trans,
                 memory_desc_wrapper(wei_layer_desc).size(), 64);

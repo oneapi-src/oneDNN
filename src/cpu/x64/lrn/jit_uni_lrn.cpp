@@ -211,7 +211,7 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
     if (desc()->prop_kind == forward_training && status == success) {
         dims_t ws_dims = {MB(), C(), H(), 2 * W()};
-        dnnl_memory_desc_init_by_tag(&ws_md_, 4, ws_dims, d_type, dat_tag_);
+        memory_desc_init_by_tag(ws_md_, 4, ws_dims, d_type, dat_tag_);
     }
 
     return status;
@@ -351,7 +351,7 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             *src_md(), nChw16c, nChw8c, nchw, nhwc);
 
     const dims_t ws_dims = {MB(), C(), H(), 2 * W()};
-    dnnl_memory_desc_init_by_tag(&ws_md_, 4, ws_dims, d_type, dat_tag_);
+    memory_desc_init_by_tag(ws_md_, 4, ws_dims, d_type, dat_tag_);
 
     if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
