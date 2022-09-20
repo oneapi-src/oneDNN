@@ -40,7 +40,8 @@ struct licm_analysis_data_t {
 static bool expr_can_hoist(const expr_c &s) {
     return s.isa<var_c>() || s.isa<cast_c>() || (s.instanceof <binary_c>())
             || (s.instanceof <cmp_c>()) || (s.instanceof <logic_c>())
-            || s.isa<select_c>() || s.isa<constant_c>() || s.isa<ssa_phi_c>();
+            || s.isa<select_c>() || s.isa<constant_c>() || s.isa<ssa_phi_c>()
+            || s.isa<intrin_call>();
 }
 
 static bool stmt_can_hoist(const stmt_c &s) {

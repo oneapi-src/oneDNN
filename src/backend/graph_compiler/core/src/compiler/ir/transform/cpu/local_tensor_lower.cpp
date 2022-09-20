@@ -126,7 +126,8 @@ public:
                     assert((*itr).isa<tensor>());
                     auto tsr = (*itr).static_as<tensor>();
                     the_call = builder::make_if_else_unattached(
-                            tsr->dims_[0] > UINT64_C(0), the_call, stmt());
+                            tsr->dims_[0] > UINT64_C(0),
+                            builder::make_stmts_unattached({the_call}), stmt());
                 }
 
                 // if the last stmt is ret, should insert before it.
