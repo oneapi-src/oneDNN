@@ -2304,7 +2304,6 @@ typedef struct {
 /// dnnl_query_*_f64                | double *
 /// dnnl_query_*_str                | const char **
 /// dnnl_query_*_md                 | const #dnnl_memory_desc_t **
-/// dnnl_query_*_\<op\>_d           | const dnnl_\<op\>_desc_t **
 /// dnnl_query_*_pd                 | #const_dnnl_primitive_desc_t *
 /// dnnl_query_cache_blob_id        | const uint8_t **
 /// dnnl_query_strides              | const #dnnl_dims_t **
