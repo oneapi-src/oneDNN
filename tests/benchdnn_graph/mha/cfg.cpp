@@ -100,7 +100,6 @@ void mha_graph_prb_t::add_arith_op(bool add_op, dnnl::graph::op::kind op_kind,
 }
 void mha_graph_prb_t::add_reducesum_op(const mha_graph_spec_t &spec,
         const std::string src, const std::string dst) {
-    if (spec.dims[0] == 1) return;
     using op = dnnl::graph::op;
     auto op_id = ops_.size();
     ops_.emplace_back(op(op_id, op::kind::ReduceSum, {tensor_descs_[src]},
