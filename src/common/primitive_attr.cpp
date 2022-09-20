@@ -263,7 +263,7 @@ status_t post_ops_t::append_binary(
             binary_div, binary_sub, binary_ge, binary_gt, binary_le, binary_lt,
             binary_eq, binary_ne);
     if (!alg_ok) return invalid_arguments;
-    if (!memory_desc_sanity_check(user_src1_desc)) return invalid_arguments;
+    if (!memory_desc_sanity_check(*user_src1_desc)) return invalid_arguments;
 
     // Additional check to restrict run-time dimension usage until supported.
     for (int d = 0; d < user_src1_desc->ndims; ++d) {

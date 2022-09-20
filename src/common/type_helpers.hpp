@@ -897,10 +897,9 @@ inline bool memory_desc_sanity_check(int ndims, const dims_t dims,
     return true;
 }
 
-inline bool memory_desc_sanity_check(const memory_desc_t *md) {
-    if (md == nullptr) return false;
+inline bool memory_desc_sanity_check(const memory_desc_t &md) {
     return memory_desc_sanity_check(
-            md->ndims, md->dims, md->data_type, format_kind::undef);
+            md.ndims, md.dims, md.data_type, format_kind::undef);
 }
 
 inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {

@@ -17,6 +17,7 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 #include "common/c_types_map.hpp"
+#include "common/memory_desc.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
@@ -25,58 +26,21 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 
-status_t dnnl_memory_desc_query(
-        const memory_desc_t *md, query_t what, void *result) {
-    const bool is_blocked = md->format_kind == format_kind::blocked;
+namespace dnnl {
+namespace impl {
 
-    switch (what) {
-        case query::ndims_s32: *(int32_t *)result = md->ndims; break;
-        case query::dims: *(const dims_t **)result = &md->dims; break;
-        case query::data_type: *(data_type_t *)result = md->data_type; break;
-        case query::submemory_offset_s64: *(dim_t *)result = md->offset0; break;
-        case query::padded_dims:
-            *(const dims_t **)result = &md->padded_dims;
-            break;
-        case query::padded_offsets:
-            *(const dims_t **)result = &md->padded_offsets;
-            break;
-        case query::format_kind:
-            *(format_kind_t *)result = md->format_kind;
-            break;
-        case query::strides:
-            if (!is_blocked) return status::invalid_arguments;
-            *(const dims_t **)result = &md->format_desc.blocking.strides;
-            break;
-        case query::inner_nblks_s32:
-            if (!is_blocked) return status::invalid_arguments;
-            *(int32_t *)result = md->format_desc.blocking.inner_nblks;
-            break;
-        case query::inner_blks:
-            if (!is_blocked) return status::invalid_arguments;
-            *(const dims_t **)result = &md->format_desc.blocking.inner_blks;
-            break;
-        case query::inner_idxs:
-            if (!is_blocked) return status::invalid_arguments;
-            *(const dims_t **)result = &md->format_desc.blocking.inner_idxs;
-            break;
-        default: return status::unimplemented;
-    }
-    return status::success;
-}
-
-status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
+status_t memory_desc_init_by_tag(memory_desc_t &memory_desc, int ndims,
         const dims_t dims, data_type_t data_type, format_tag_t tag) {
-    if (any_null(memory_desc)) return invalid_arguments;
     if (ndims == 0 || tag == format_tag::undef) {
-        *memory_desc = types::zero_md();
+        memory_desc = types::zero_md();
         return success;
     }
 
     format_kind_t format_kind = types::format_tag_to_kind(tag);
 
     /* memory_desc != 0 */
-    bool args_ok = !any_null(memory_desc)
-            && memory_desc_sanity_check(ndims, dims, data_type, format_kind);
+    bool args_ok
+            = memory_desc_sanity_check(ndims, dims, data_type, format_kind);
     if (!args_ok) return invalid_arguments;
 
     auto md = memory_desc_t();
@@ -98,23 +62,21 @@ status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
         status = invalid_arguments;
     }
 
-    if (status == success) *memory_desc = md;
+    if (status == success) memory_desc = md;
 
     return status;
 }
 
-status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
+status_t memory_desc_init_by_strides(memory_desc_t &memory_desc, int ndims,
         const dims_t dims, data_type_t data_type, const dims_t strides) {
-    if (any_null(memory_desc)) return invalid_arguments;
     if (ndims == 0) {
-        *memory_desc = types::zero_md();
+        memory_desc = types::zero_md();
         return success;
     }
 
     /* memory_desc != 0 */
-    bool args_ok = !any_null(memory_desc)
-            && memory_desc_sanity_check(
-                    ndims, dims, data_type, format_kind::undef);
+    bool args_ok = memory_desc_sanity_check(
+            ndims, dims, data_type, format_kind::undef);
     if (!args_ok) return invalid_arguments;
 
     auto md = memory_desc_t();
@@ -141,18 +103,17 @@ status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
 
     array_copy(md.format_desc.blocking.strides, strides, md.ndims);
 
-    *memory_desc = md;
+    memory_desc = md;
 
     return success;
 }
 
-status_t dnnl_memory_desc_init_submemory(memory_desc_t *md,
-        const memory_desc_t *parent_md, const dims_t dims,
+status_t memory_desc_init_submemory(memory_desc_t &memory_desc,
+        const memory_desc_t &parent_memory_desc, const dims_t dims,
         const dims_t offsets) {
-    if (any_null(md, parent_md) || !memory_desc_sanity_check(parent_md))
-        return invalid_arguments;
+    if (!memory_desc_sanity_check(parent_memory_desc)) return invalid_arguments;
 
-    const memory_desc_wrapper src_d(parent_md);
+    const memory_desc_wrapper src_d(parent_memory_desc);
     if (src_d.has_runtime_dims_or_strides()) return unimplemented;
 
     for (int d = 0; d < src_d.ndims(); ++d) {
@@ -169,7 +130,7 @@ status_t dnnl_memory_desc_init_submemory(memory_desc_t *md,
     dims_t blocks;
     src_d.compute_blocks(blocks);
 
-    memory_desc_t dst_d = *parent_md;
+    memory_desc_t dst_d = parent_memory_desc;
     auto &dst_d_blk = dst_d.format_desc.blocking;
 
     /* TODO: put this into memory_desc_wrapper */
@@ -192,19 +153,13 @@ status_t dnnl_memory_desc_init_submemory(memory_desc_t *md,
                 offsets[d] / blocks[d] * dst_d_blk.strides[d];
     }
 
-    *md = dst_d;
+    memory_desc = dst_d;
 
     return success;
 }
 
-int dnnl_memory_desc_equal(const memory_desc_t *lhs, const memory_desc_t *rhs) {
-    if (lhs == rhs) return 1;
-    if (any_null(lhs, rhs)) return 0;
-    return memory_desc_wrapper(*lhs) == memory_desc_wrapper(*rhs);
-}
-
-status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
-        const memory_desc_t *in_md, int ndims, const dims_t dims) {
+status_t memory_desc_reshape(memory_desc_t &out_memory_desc,
+        const memory_desc_t &in_memory_desc, int ndims, const dims_t dims) {
     auto volume = [](const dim_t *dims, int ndims) -> dim_t {
         dim_t prod = 1;
         for (int i = 0; i < ndims; ++i) {
@@ -214,41 +169,43 @@ status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
         return prod;
     };
 
-    if (any_null(out_md, in_md) || !memory_desc_sanity_check(in_md)
-            || !memory_desc_sanity_check(
-                    ndims, dims, in_md->data_type, in_md->format_kind)
-            || !one_of(
-                    in_md->format_kind, format_kind::any, format_kind::blocked)
-            || types::is_zero_md(in_md)
-            || volume(in_md->dims, in_md->ndims) != volume(dims, ndims)
-            || memory_desc_wrapper(in_md).has_runtime_dims_or_strides()
-            || in_md->extra.flags != 0)
+    if (!memory_desc_sanity_check(in_memory_desc)
+            || !memory_desc_sanity_check(ndims, dims, in_memory_desc.data_type,
+                    in_memory_desc.format_kind)
+            || !one_of(in_memory_desc.format_kind, format_kind::any,
+                    format_kind::blocked)
+            || types::is_zero_md(&in_memory_desc)
+            || volume(in_memory_desc.dims, in_memory_desc.ndims)
+                    != volume(dims, ndims)
+            || memory_desc_wrapper(in_memory_desc).has_runtime_dims_or_strides()
+            || in_memory_desc.extra.flags != 0)
         return invalid_arguments;
 
-    if (in_md->format_kind == format_kind::any)
-        return dnnl_memory_desc_init_by_tag(
-                out_md, ndims, dims, in_md->data_type, format_tag::any);
+    if (in_memory_desc.format_kind == format_kind::any)
+        return memory_desc_init_by_tag(out_memory_desc, ndims, dims,
+                in_memory_desc.data_type, format_tag::any);
 
-    assert(in_md->format_kind == format_kind::blocked);
-    assert(in_md->extra.flags == 0);
+    assert(in_memory_desc.format_kind == format_kind::blocked);
+    assert(in_memory_desc.extra.flags == 0);
 
     // temporary output
-    auto md = *in_md;
+    auto md = in_memory_desc;
 
     md.ndims = ndims;
     array_copy(md.dims, dims, md.ndims);
 
-    const int i_ndims = in_md->ndims;
+    const int i_ndims = in_memory_desc.ndims;
     const int o_ndims = md.ndims;
 
-    const auto &i_dims = in_md->dims, &i_pdims = in_md->padded_dims;
+    const auto &i_dims = in_memory_desc.dims,
+               &i_pdims = in_memory_desc.padded_dims;
     const auto &o_dims = md.dims;
 
-    const auto &i_bd = in_md->format_desc.blocking;
+    const auto &i_bd = in_memory_desc.format_desc.blocking;
     auto &o_bd = md.format_desc.blocking;
 
     dims_t blocks = {0};
-    memory_desc_wrapper(in_md).compute_blocks(blocks);
+    memory_desc_wrapper(in_memory_desc).compute_blocks(blocks);
 
     enum class action_t { REMOVE_1, ADD_1, KEEP_DIM, REARRANGE_DIMS, FAIL };
 
@@ -356,9 +313,10 @@ status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
             assert(i_group_begin + 1 == i_group_end);
             assert(o_group_begin + 1 == o_group_end);
 
-            md.padded_dims[o_group_begin] = in_md->padded_dims[i_group_begin];
+            md.padded_dims[o_group_begin]
+                    = in_memory_desc.padded_dims[i_group_begin];
             md.padded_offsets[o_group_begin]
-                    = in_md->padded_offsets[i_group_begin];
+                    = in_memory_desc.padded_offsets[i_group_begin];
             o_bd.strides[o_group_begin] = i_bd.strides[i_group_begin];
             for (int d = 0; d < i_bd.inner_nblks; ++d)
                 if (i_bd.inner_idxs[d] == i_group_begin)
@@ -373,9 +331,10 @@ status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
             for (int d = 0; d < i_bd.inner_nblks; ++d)
                 if (i_bd.inner_idxs[d] == i_group_begin)
                     return invalid_arguments;
-            if (in_md->padded_dims[i_group_begin] != i_dims[i_group_begin])
+            if (in_memory_desc.padded_dims[i_group_begin]
+                    != i_dims[i_group_begin])
                 return invalid_arguments;
-            if (in_md->padded_offsets[i_group_begin] != 0)
+            if (in_memory_desc.padded_offsets[i_group_begin] != 0)
                 return invalid_arguments;
 
             // oK, fill output md according to
@@ -397,36 +356,38 @@ status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
         o_group_end = o_group_begin;
     }
 
-    *out_md = md;
+    out_memory_desc = md;
     return success;
 }
 
-status_t dnnl_memory_desc_permute_axes(
-        memory_desc_t *out_md, const memory_desc_t *in_md, const int *perm) {
-    if (any_null(out_md, in_md) || !memory_desc_sanity_check(in_md)
-            || !one_of(
-                    in_md->format_kind, format_kind::any, format_kind::blocked)
-            || types::is_zero_md(in_md)
-            || memory_desc_wrapper(in_md).has_runtime_dims_or_strides()
-            || in_md->extra.flags != 0)
+status_t memory_desc_permute_axes(memory_desc_t &out_memory_desc,
+        const memory_desc_t &in_memory_desc, const int *perm) {
+    if (!memory_desc_sanity_check(in_memory_desc)
+            || !one_of(in_memory_desc.format_kind, format_kind::any,
+                    format_kind::blocked)
+            || types::is_zero_md(&in_memory_desc)
+            || memory_desc_wrapper(in_memory_desc).has_runtime_dims_or_strides()
+            || in_memory_desc.extra.flags != 0)
         return invalid_arguments;
 
     // verify that perm is indeed a permutation of [0 .. ndims)
     unsigned occurrence_mask = 0;
-    for (int d = 0; d < in_md->ndims; ++d)
-        if (0 <= perm[d] && perm[d] < in_md->ndims)
+    for (int d = 0; d < in_memory_desc.ndims; ++d)
+        if (0 <= perm[d] && perm[d] < in_memory_desc.ndims)
             occurrence_mask |= (1u << perm[d]);
-    if (occurrence_mask + 1 != (1u << in_md->ndims)) return invalid_arguments;
+    if (occurrence_mask + 1 != (1u << in_memory_desc.ndims))
+        return invalid_arguments;
 
-    *out_md = *in_md;
-    for (int d = 0; d < in_md->ndims; ++d) {
+    out_memory_desc = in_memory_desc;
+    for (int d = 0; d < in_memory_desc.ndims; ++d) {
         if (perm[d] == d) continue;
-        out_md->dims[perm[d]] = in_md->dims[d];
-        out_md->padded_dims[perm[d]] = in_md->padded_dims[d];
-        out_md->padded_offsets[perm[d]] = in_md->padded_offsets[d];
-        if (in_md->format_kind == format_kind::blocked) {
-            const auto &i_bd = in_md->format_desc.blocking;
-            auto &o_bd = out_md->format_desc.blocking;
+        out_memory_desc.dims[perm[d]] = in_memory_desc.dims[d];
+        out_memory_desc.padded_dims[perm[d]] = in_memory_desc.padded_dims[d];
+        out_memory_desc.padded_offsets[perm[d]]
+                = in_memory_desc.padded_offsets[d];
+        if (in_memory_desc.format_kind == format_kind::blocked) {
+            const auto &i_bd = in_memory_desc.format_desc.blocking;
+            auto &o_bd = out_memory_desc.format_desc.blocking;
 
             o_bd.strides[perm[d]] = i_bd.strides[d];
             for (int blk = 0; blk < i_bd.inner_nblks; ++blk)
@@ -437,6 +398,49 @@ status_t dnnl_memory_desc_permute_axes(
     return success;
 }
 
+} // namespace impl
+} // namespace dnnl
+
+// API
+status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
+        const dims_t dims, data_type_t data_type, format_tag_t tag) {
+    if (any_null(memory_desc)) return invalid_arguments;
+    return memory_desc_init_by_tag(*memory_desc, ndims, dims, data_type, tag);
+}
+
+status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
+        const dims_t dims, data_type_t data_type, const dims_t strides) {
+    if (any_null(memory_desc)) return invalid_arguments;
+    return memory_desc_init_by_strides(
+            *memory_desc, ndims, dims, data_type, strides);
+}
+
+status_t dnnl_memory_desc_init_submemory(memory_desc_t *memory_desc,
+        const memory_desc_t *parent_memory_desc, const dims_t dims,
+        const dims_t offsets) {
+    if (any_null(memory_desc, parent_memory_desc)) return invalid_arguments;
+    return memory_desc_init_submemory(
+            *memory_desc, *parent_memory_desc, dims, offsets);
+}
+
+status_t dnnl_memory_desc_reshape(memory_desc_t *out_memory_desc,
+        const memory_desc_t *in_memory_desc, int ndims, const dims_t dims) {
+    if (any_null(out_memory_desc, in_memory_desc)) return invalid_arguments;
+    return memory_desc_reshape(*out_memory_desc, *in_memory_desc, ndims, dims);
+}
+
+status_t dnnl_memory_desc_permute_axes(memory_desc_t *out_memory_desc,
+        const memory_desc_t *in_memory_desc, const int *perm) {
+    if (any_null(out_memory_desc, in_memory_desc)) return invalid_arguments;
+    return memory_desc_permute_axes(*out_memory_desc, *in_memory_desc, perm);
+}
+
+int dnnl_memory_desc_equal(const memory_desc_t *lhs, const memory_desc_t *rhs) {
+    if (lhs == rhs) return 1;
+    if (any_null(lhs, rhs)) return 0;
+    return memory_desc_wrapper(*lhs) == memory_desc_wrapper(*rhs);
+}
+
 size_t dnnl_memory_desc_get_size(const memory_desc_t *md) {
     if (md == nullptr) return 0;
     return memory_desc_wrapper(*md).size();
@@ -444,4 +448,43 @@ size_t dnnl_memory_desc_get_size(const memory_desc_t *md) {
 
 size_t dnnl_data_type_size(dnnl_data_type_t data_type) {
     return types::data_type_size(data_type);
+}
+
+status_t dnnl_memory_desc_query(
+        const memory_desc_t *md, query_t what, void *result) {
+    const bool is_blocked = md->format_kind == format_kind::blocked;
+
+    switch (what) {
+        case query::ndims_s32: *(int32_t *)result = md->ndims; break;
+        case query::dims: *(const dims_t **)result = &md->dims; break;
+        case query::data_type: *(data_type_t *)result = md->data_type; break;
+        case query::submemory_offset_s64: *(dim_t *)result = md->offset0; break;
+        case query::padded_dims:
+            *(const dims_t **)result = &md->padded_dims;
+            break;
+        case query::padded_offsets:
+            *(const dims_t **)result = &md->padded_offsets;
+            break;
+        case query::format_kind:
+            *(format_kind_t *)result = md->format_kind;
+            break;
+        case query::strides:
+            if (!is_blocked) return status::invalid_arguments;
+            *(const dims_t **)result = &md->format_desc.blocking.strides;
+            break;
+        case query::inner_nblks_s32:
+            if (!is_blocked) return status::invalid_arguments;
+            *(int32_t *)result = md->format_desc.blocking.inner_nblks;
+            break;
+        case query::inner_blks:
+            if (!is_blocked) return status::invalid_arguments;
+            *(const dims_t **)result = &md->format_desc.blocking.inner_blks;
+            break;
+        case query::inner_idxs:
+            if (!is_blocked) return status::invalid_arguments;
+            *(const dims_t **)result = &md->format_desc.blocking.inner_idxs;
+            break;
+        default: return status::unimplemented;
+    }
+    return status::success;
 }
