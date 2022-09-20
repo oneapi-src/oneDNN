@@ -117,6 +117,42 @@ if(DNNL_WITH_SYCL)
     add_subdirectory(sycl)
 endif()
 
+if(ONEDNN_BUILD_GRAPH)
+    message(STATUS "Graph component is enabled")
+    if (DNNL_GPU_RUNTIME STREQUAL "OCL")
+        message(FATAL_ERROR "Graph component doesn't support OCL GPU runtime")
+    endif()
+
+    if (NOT DNNL_GPU_VENDOR STREQUAL "INTEL")
+        message(FATAL_ERROR "Graph component doesn't support ${DNNL_GPU_VENDOR} GPU")
+    endif()
+
+    if (NOT DNNL_ENABLE_PRIMITIVE STREQUAL "ALL")
+        message(FATAL_ERROR "Graph component doesn't support selecting primitives")
+    endif()
+
+    if (NOT DNNL_ENABLE_WORKLOAD STREQUAL "TRAINING")
+        message(FATAL_ERROR "Graph component doesn't support selecting workloads")
+    endif()
+
+    add_definitions_with_host_compiler(-DBUILD_GRAPH)
+
+    if(ONEDNN_ENABLE_GRAPH_DUMP)
+        message(STATUS "Graph artifacts dump is enabled")
+        add_definitions_with_host_compiler(-DDNNL_ENABLE_GRAPH_DUMP)
+    endif()
+
+    add_subdirectory(graph)
+else()
+    # If graph component is not built, remove the headers from build and installation.
+    list(REMOVE_ITEM HEADERS_SUBDIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/dnnl_graph.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/dnnl_graph.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/dnnl_graph_types.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/dnnl_graph_sycl.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/dnnl_graph_sycl.hpp")
+endif()
+
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
 add_library(${DNNL_LIBRARY_NAME} ${DNNL_LIBRARY_TYPE}
     ${VERSION_RESOURCE_FILE} ${HEADERS_ROOT} ${HEADERS_SUBDIR} ${LIB_DEPS})
