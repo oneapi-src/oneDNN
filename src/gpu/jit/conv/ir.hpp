@@ -460,7 +460,7 @@ struct mem_usage_guard_t {
         : usage(other.usage), peak_usage(other.peak_usage), size(other.size) {
         other.usage = nullptr;
         other.peak_usage = nullptr;
-        size = 0;
+        other.size = 0;
     }
 
     mem_usage_guard_t &operator=(mem_usage_guard_t &&other) {
