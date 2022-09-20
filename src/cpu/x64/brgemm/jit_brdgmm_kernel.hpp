@@ -117,21 +117,21 @@ private:
 
     bool with_binary_non_scalar_bcast_ = false;
 
-    inline int M() { return brg.bcast_dim; };
-    inline int N() { return brg.load_dim; };
-    inline int m_vlen_blk() { return brg.bd_block; };
-    inline int nb_m_vlen_blk() { return brg.bdb; };
-    inline int m_vlen_tail() { return brg.bdb_tail; };
-    inline int m_blocking() { return brg.bd_block2; };
-    inline int nb_m_blocking() { return brg.bdb2; };
-    inline int m_blocking_tail() { return brg.bdb2_tail; };
+    inline int M() { return brg.bcast_dim; }
+    inline int N() { return brg.load_dim; }
+    inline int m_vlen_blk() { return brg.bd_block; }
+    inline int nb_m_vlen_blk() { return brg.bdb; }
+    inline int m_vlen_tail() { return brg.bdb_tail; }
+    inline int m_blocking() { return brg.bd_block2; }
+    inline int nb_m_blocking() { return brg.bdb2; }
+    inline int m_blocking_tail() { return brg.bdb2_tail; }
 
-    inline int n_vlen_blk() { return brg.ld_block; };
-    inline int nb_n_vlen_blk() { return brg.ldb; };
-    inline int n_vlen_tail() { return brg.ldb_tail; };
-    inline int n_blocking() { return brg.ld_block2; };
-    inline int nb_n_blocking() { return brg.ldb2; };
-    inline int n_blocking_tail() { return brg.ldb2_tail; };
+    inline int n_vlen_blk() { return brg.ld_block; }
+    inline int nb_n_vlen_blk() { return brg.ldb; }
+    inline int n_vlen_tail() { return brg.ldb_tail; }
+    inline int n_blocking() { return brg.ld_block2; }
+    inline int nb_n_blocking() { return brg.ldb2; }
+    inline int n_blocking_tail() { return brg.ldb2_tail; }
 
     bool is_fma_embd() { return brg.is_f32; }
     bool is_fast_vnni_int8() { return is_fast_vnni_int8(brg); }
