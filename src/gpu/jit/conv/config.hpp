@@ -509,10 +509,18 @@ public:
         return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
     }
     bool is_small_ic() const {
-        return ic * (int)types::data_type_size(src_data_type) <= 16;
+        int size = (int)types::data_type_size(src_data_type);
+        if (size >= 4)
+            return ic <= 8;
+        else
+            return ic * size <= 16;
     }
     bool is_small_oc() const {
-        return oc * (int)types::data_type_size(dst_data_type) <= 16;
+        int size = (int)types::data_type_size(src_data_type);
+        if (size >= 4)
+            return oc <= 8;
+        else
+            return oc * size <= 16;
     }
     bool is_dw_large_mb() const { return is_dw && mb >= 16; }
     bool is_mixed_int8() const {
