@@ -827,12 +827,14 @@ struct jit_brgemm_conv_conf_t {
 
     int od_block, oh_block, nb_od,
             nb_oh; // blocking  - included in parallelization
+    int id_block, ih_block, nb_id, nb_ih;
     dim_t inp_buffer_size, inp_buffer_mask_size;
     conv_brgemm_exec_type_t exec_type;
 
-    int id, ih, iw, od, oh, ow, os, idp, ihp, iwp, icp;
+    int id, ih, iw, od, oh, ow, os, is, idp, ihp, iwp, icp, odp, ohp, owp, ocp;
     int f_pad, l_pad, t_pad;
     int back_pad, r_pad, b_pad;
+    int l_ovf, r_ovf, t_ovf, b_ovf, f_ovf, back_ovf;
     int kd, kh, kw;
     int ext_kd, ext_kh, ext_kw;
     int kd_block, kh_block, kw_block, kd_block_pad, kh_block_pad, kw_block_pad;
@@ -845,15 +847,18 @@ struct jit_brgemm_conv_conf_t {
     bool with_binary;
 
     bool is_fused_conv;
+    bool is_is_blocking;
     bool is_os_blocking;
     bool is_rtus;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
-    int nb_iw, iw_block;
+    int nb_iw, iw_block, iw_tail;
     int nb_ow, ow_block, ow_tail;
+    int nb_is, is_block;
     int nb_os, os_block;
     int nb_oc_blocking;
     int nb_ic_blocking;
+    int nb_is_blocking;
     int nb_os_blocking;
 
     data_type_t src_dt;
@@ -873,7 +878,7 @@ struct jit_brgemm_conv_conf_t {
     dim_t comp_a_buffer_size;
     dim_t s8s8_comp_buffer_size;
 
-    int is_oc_scale;
+    int is_ic_scale, is_oc_scale;
 
     int LDA, LDB, LDC, LDD;
     int M, N, K, M_tail, N_tail, K_tail;
@@ -890,12 +895,12 @@ struct jit_brgemm_conv_conf_t {
     int amx_buf_size_per_thread;
 
     bool wei_plain;
-    bool is_ic_padded;
+    bool is_ic_padded, is_oc_padded;
     int kw_sets, kh_sets;
     bool copy_block_only;
     bool amx_tile_load_xx;
     int use_M_mask;
-    int oskip;
+    int oskip, iskip;
     bool brgemm_bd_loop_innermost;
 
     bool use_uker;

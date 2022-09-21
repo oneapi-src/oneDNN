@@ -50,6 +50,7 @@
 #include "cpu/x64/jit_brgemm_1x1_conv.hpp"
 #include "cpu/x64/jit_brgemm_conv.hpp"
 #include "cpu/x64/jit_brgemm_conv_bwd.hpp"
+#include "cpu/x64/jit_brgemm_conv_bwd_strided.hpp"
 #include "cpu/x64/jit_brgemm_conv_bwd_w.hpp"
 #include "cpu/x64/jit_sse41_1x1_convolution.hpp"
 #include "cpu/x64/jit_sse41_convolution.hpp"
@@ -199,6 +200,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
         {{backward_data, f32, bf16, bf16}, REG_BWD_D_PK({
             CPU_INSTANCE_X64(ip_convolution_bwd_data_t)
             CPU_INSTANCE_AMX(brgemm_convolution_bwd_t<avx512_core_amx>)
+            CPU_INSTANCE_AMX(brgemm_convolution_bwd_strided_t<avx512_core_amx>)
             CPU_INSTANCE_AMX(jit_avx512_core_amx_convolution_bwd_data_t<f32, bf16, bf16>)
             CPU_INSTANCE_AVX512(brgemm_convolution_bwd_t<avx512_core_bf16>)
             CPU_INSTANCE_AVX512(jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16, f32>)
@@ -212,6 +214,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
         {{backward_data, bf16, bf16, bf16}, REG_BWD_D_PK({
             CPU_INSTANCE_X64(ip_convolution_bwd_data_t)
             CPU_INSTANCE_AMX(brgemm_convolution_bwd_t<avx512_core_amx>)
+            CPU_INSTANCE_AMX(brgemm_convolution_bwd_strided_t<avx512_core_amx>)
             CPU_INSTANCE_AMX(jit_avx512_core_amx_convolution_bwd_data_t<bf16, bf16, bf16>)
             CPU_INSTANCE_AVX512(brgemm_convolution_bwd_t<avx512_core_bf16>)
             CPU_INSTANCE_AVX512(jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16, bf16>)
