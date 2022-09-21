@@ -47,11 +47,16 @@ enum class inner_blk_t {
     _8b,
     _16a,
     _16b,
+    _16c,
     _32a,
     _32b,
     _32c,
     _32d,
     _32e,
+    _48b,
+    _48c,
+    _64b,
+    _64c,
 
     _4a4b,
     _4b4a,
@@ -73,14 +78,30 @@ enum class inner_blk_t {
     _32a32b,
     _16a2b,
     _16a4b,
+    _16b2a,
+    _16b4a,
     _16b2c,
     _16b4c,
+    _16c2b,
+    _16c4b,
     _32d4c,
     _32e2c,
     _32e4c,
+    _32b2a,
+    _32b4a,
+    _32c2b,
+    _32c4b,
     _64e2c,
     _64e4c,
     _32c2e,
+    _48c2b,
+    _48c4b,
+    _48b2a,
+    _48b4a,
+    _64b2a,
+    _64b4a,
+    _64c2b,
+    _64c4b,
 
     _2c8b4c,
     _8a16b2a,
@@ -361,6 +382,127 @@ DECL_TRAITS(aCB16b16c4b, _BC, _16b16c4b, 3);
 DECL_TRAITS(aCB16b32c4b, _BC, _16b32c4b, 3);
 DECL_TRAITS(aCB16b48c4b, _BC, _16b48c4b, 3);
 DECL_TRAITS(aCB16b64c4b, _BC, _16b64c4b, 3);
+
+DECL_TRAITS(aCdefB16b32c2b, _BC, _16b32c2b, 5);
+DECL_TRAITS(aCdefB16b32c4b, _BC, _16b32c4b, 5);
+DECL_TRAITS(aCdefB16b48c2b, _BC, _16b48c2b, 5);
+DECL_TRAITS(aCdefB16b48c4b, _BC, _16b48c4b, 5);
+DECL_TRAITS(aCdefB16b64c2b, _BC, _16b64c2b, 5);
+DECL_TRAITS(aCdefB16b64c4b, _BC, _16b64c4b, 5);
+DECL_TRAITS(BcdeA16a32b2a, _AB, _16a32b2a, 5);
+DECL_TRAITS(BcdeA16a32b4a, _AB, _16a32b4a, 5);
+DECL_TRAITS(BcdeA16a48b2a, _AB, _16a48b2a, 5);
+DECL_TRAITS(BcdeA16a48b4a, _AB, _16a48b4a, 5);
+DECL_TRAITS(BcdeA16a64b2a, _AB, _16a64b2a, 5);
+DECL_TRAITS(BcdeA16a64b4a, _AB, _16a64b4a, 5);
+DECL_TRAITS(aCdefb32c, _C, _32c, 5);
+DECL_TRAITS(aCdefB32c2b, _BC, _32c2b, 5);
+DECL_TRAITS(aCdefB32c4b, _BC, _32c4b, 5);
+DECL_TRAITS(aCdefb48c, _C, _48c, 5);
+DECL_TRAITS(aCdefB48c2b, _BC, _48c2b, 5);
+DECL_TRAITS(aCdefB48c4b, _BC, _48c4b, 5);
+DECL_TRAITS(aCdefb64c, _C, _64c, 5);
+DECL_TRAITS(aCdefB64c2b, _BC, _64c2b, 5);
+DECL_TRAITS(aCdefB64c4b, _BC, _64c4b, 5);
+DECL_TRAITS(Bcdea32b, _B, _32b, 5);
+DECL_TRAITS(BcdeA32b2a, _AB, _32b2a, 5);
+DECL_TRAITS(BcdeA32b4a, _AB, _32b4a, 5);
+DECL_TRAITS(Bcdea48b, _B, _48b, 5);
+DECL_TRAITS(BcdeA48b2a, _AB, _48b2a, 5);
+DECL_TRAITS(BcdeA48b4a, _AB, _48b4a, 5);
+DECL_TRAITS(Bcdea64b, _B, _64b, 5);
+DECL_TRAITS(BcdeA64b2a, _AB, _64b2a, 5);
+DECL_TRAITS(BcdeA64b4a, _AB, _64b4a, 5);
+DECL_TRAITS(Bca32b, _B, _32b, 3);
+DECL_TRAITS(BcA32b2a, _AB, _32b2a, 3);
+DECL_TRAITS(BcA32b4a, _AB, _32b4a, 3);
+DECL_TRAITS(Bca48b, _B, _48b, 3);
+DECL_TRAITS(BcA48b2a, _AB, _48b2a, 3);
+DECL_TRAITS(BcA48b4a, _AB, _48b4a, 3);
+DECL_TRAITS(Bca64b, _B, _64b, 3);
+DECL_TRAITS(BcA64b2a, _AB, _64b2a, 3);
+DECL_TRAITS(BcA64b4a, _AB, _64b4a, 3);
+DECL_TRAITS(aCdb32c, _C, _32c, 4);
+DECL_TRAITS(aCdB32c2b, _BC, _32c2b, 4);
+DECL_TRAITS(aCdB32c4b, _BC, _32c4b, 4);
+DECL_TRAITS(aCdb48c, _C, _48c, 4);
+DECL_TRAITS(aCdB48c2b, _BC, _48c2b, 4);
+DECL_TRAITS(aCdB48c4b, _BC, _48c4b, 4);
+DECL_TRAITS(aCdb64c, _C, _64c, 4);
+DECL_TRAITS(aCdB64c2b, _BC, _64c2b, 4);
+DECL_TRAITS(aCdB64c4b, _BC, _64c4b, 4);
+DECL_TRAITS(BcA16a16b2a, _AB, _16a16b2a, 3);
+DECL_TRAITS(BcA16a16b4a, _AB, _16a16b4a, 3);
+DECL_TRAITS(BcdA16a16b2a, _AB, _16a16b2a, 4);
+DECL_TRAITS(BcdA16a16b4a, _AB, _16a16b4a, 4);
+DECL_TRAITS(BcdeA16a16b2a, _AB, _16a16b2a, 5);
+DECL_TRAITS(BcdeA16a16b4a, _AB, _16a16b4a, 5);
+DECL_TRAITS(aCdB16b16c2b, _BC, _16b16c2b, 4);
+DECL_TRAITS(aCdB16b16c4b, _BC, _16b16c4b, 4);
+DECL_TRAITS(aCdeB16b16c2b, _BC, _16b16c2b, 5);
+DECL_TRAITS(aCdeB16b16c4b, _BC, _16b16c4b, 5);
+DECL_TRAITS(aCdefB16b16c2b, _BC, _16b16c2b, 5);
+DECL_TRAITS(aCdefB16b16c4b, _BC, _16b16c4b, 5);
+DECL_TRAITS(BcA16a32b2a, _AB, _16a32b2a, 3);
+DECL_TRAITS(BcA16a32b4a, _AB, _16a32b4a, 3);
+DECL_TRAITS(BcA16a48b2a, _AB, _16a48b2a, 3);
+DECL_TRAITS(BcA16a48b4a, _AB, _16a48b4a, 3);
+DECL_TRAITS(BcA16a64b2a, _AB, _16a64b2a, 3);
+DECL_TRAITS(BcA16a64b4a, _AB, _16a64b4a, 3);
+DECL_TRAITS(aCdB16b32c2b, _BC, _16b32c2b, 4);
+DECL_TRAITS(aCdB16b32c4b, _BC, _16b32c4b, 4);
+DECL_TRAITS(aCdB16b48c2b, _BC, _16b48c2b, 4);
+DECL_TRAITS(aCdB16b48c4b, _BC, _16b48c4b, 4);
+DECL_TRAITS(aCdB16b64c2b, _BC, _16b64c2b, 4);
+DECL_TRAITS(aCdB16b64c4b, _BC, _16b64c4b, 4);
+DECL_TRAITS(BcdA16a32b2a, _AB, _16a32b2a, 4);
+DECL_TRAITS(BcdA16a32b4a, _AB, _16a32b4a, 4);
+DECL_TRAITS(BcdA16a48b2a, _AB, _16a48b2a, 4);
+DECL_TRAITS(BcdA16a48b4a, _AB, _16a48b4a, 4);
+DECL_TRAITS(BcdA16a64b2a, _AB, _16a64b2a, 4);
+DECL_TRAITS(BcdA16a64b4a, _AB, _16a64b4a, 4);
+DECL_TRAITS(aCdeB16b32c2b, _BC, _16b32c2b, 5);
+DECL_TRAITS(aCdeB16b32c4b, _BC, _16b32c4b, 5);
+DECL_TRAITS(aCdeB16b48c2b, _BC, _16b48c2b, 5);
+DECL_TRAITS(aCdeB16b48c4b, _BC, _16b48c4b, 5);
+DECL_TRAITS(aCdeB16b64c2b, _BC, _16b64c2b, 5);
+DECL_TRAITS(aCdeB16b64c4b, _BC, _16b64c4b, 5);
+DECL_TRAITS(Bca16b, _B, _16b, 3);
+DECL_TRAITS(BcA16b2a, _AB, _16b2a, 3);
+DECL_TRAITS(BcA16b4a, _AB, _16b4a, 3);
+DECL_TRAITS(Bcda16b, _B, _16b, 4);
+DECL_TRAITS(BcdA16b2a, _AB, _16b2a, 4);
+DECL_TRAITS(BcdA16b4a, _AB, _16b4a, 4);
+DECL_TRAITS(Bcdea16b, _B, _16b, 5);
+DECL_TRAITS(BcdeA16b2a, _AB, _16b2a, 5);
+DECL_TRAITS(BcdeA16b4a, _AB, _16b4a, 5);
+DECL_TRAITS(aCdb16c, _C, _16c, 4);
+DECL_TRAITS(aCdB16c2b, _BC, _16c2b, 4);
+DECL_TRAITS(aCdB16c4b, _BC, _16c4b, 4);
+DECL_TRAITS(aCdeb16c, _C, _16c, 5);
+DECL_TRAITS(aCdeB16c2b, _BC, _16c2b, 5);
+DECL_TRAITS(aCdeB16c4b, _BC, _16c4b, 5);
+DECL_TRAITS(aCdefb16c, _C, _16c, 6);
+DECL_TRAITS(aCdefB16c2b, _BC, _16c2b, 6);
+DECL_TRAITS(aCdefB16c4b, _BC, _16c4b, 6);
+DECL_TRAITS(Bcda32b, _B, _32b, 4);
+DECL_TRAITS(BcdA32b2a, _AB, _32b2a, 4);
+DECL_TRAITS(BcdA32b4a, _AB, _32b4a, 4);
+DECL_TRAITS(Bcda48b, _B, _48b, 4);
+DECL_TRAITS(BcdA48b2a, _AB, _48b2a, 4);
+DECL_TRAITS(BcdA48b4a, _AB, _48b4a, 4);
+DECL_TRAITS(Bcda64b, _B, _64b, 4);
+DECL_TRAITS(BcdA64b2a, _AB, _64b2a, 4);
+DECL_TRAITS(BcdA64b4a, _AB, _64b4a, 4);
+DECL_TRAITS(aCdeb32c, _C, _32c, 5);
+DECL_TRAITS(aCdeB32c2b, _BC, _32c2b, 5);
+DECL_TRAITS(aCdeB32c4b, _BC, _32c4b, 5);
+DECL_TRAITS(aCdeb48c, _C, _48c, 5);
+DECL_TRAITS(aCdeB48c2b, _BC, _48c2b, 5);
+DECL_TRAITS(aCdeB48c4b, _BC, _48c4b, 5);
+DECL_TRAITS(aCdeb64c, _C, _64c, 5);
+DECL_TRAITS(aCdeB64c2b, _BC, _64c2b, 5);
+DECL_TRAITS(aCdeB64c4b, _BC, _64c4b, 5);
 
 DECL_TRAITS(Abc16a, _A, _16a, 3);
 DECL_TRAITS(ABc16a16b, _AB, _16a16b, 3);
