@@ -75,6 +75,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.use_mb_c_block = true;
         conf.vect_dt_n = 8;
         conf.nvect = 2;
+        if (!pd->attr()->post_ops_.has_default_values()) { conf.nvect = 1; }
         conf.chunks_per_c_block = c_block_size / conf.sub_group_size;
         conf.chunks_per_mb_block
                 = conf.vect_dt_n * conf.nvect / conf.chunks_per_c_block;
@@ -82,6 +83,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.use_only_c_block = true;
         conf.vect_dt_n = 1;
         conf.nvect = 2;
+        if (!pd->attr()->post_ops_.has_default_values()) { conf.nvect = 1; }
         conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
         conf.chunks_per_mb_block = 1;
     } else {
