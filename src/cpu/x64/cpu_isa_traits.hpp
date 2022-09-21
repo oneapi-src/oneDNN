@@ -147,6 +147,11 @@ dnnl_cpu_isa_t get_effective_cpu_isa();
 
 static inline bool compare_isa(
         cpu_isa_t isa_1, cpu_isa_cmp_t cmp, cpu_isa_t isa_2) {
+    assert(isa_1 != isa_all);
+    assert(isa_2 != isa_all);
+    // Comparison with `isa_all` is illegal.
+    if (utils::one_of(isa_all, isa_1, isa_2)) return false;
+
     // By default, comparison between ISA ignores ISA specific hints
     unsigned mask_1
             = static_cast<unsigned>(isa_1) & ~cpu_isa_hints_utils::hints_mask;

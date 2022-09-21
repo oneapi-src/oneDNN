@@ -2515,7 +2515,7 @@ public:
      * the max_cpu_isa argument */
     jit_generator(const char *name, void *code_ptr = nullptr,
             size_t code_size = MAX_CODE_SIZE, bool use_autogrow = true,
-            cpu_isa_t max_cpu_isa = isa_all)
+            cpu_isa_t max_cpu_isa = get_max_cpu_isa())
         : Xbyak::MmapAllocator(name)
         , Xbyak::CodeGenerator(code_size,
                   (code_ptr == nullptr && use_autogrow) ? Xbyak::AutoGrow
