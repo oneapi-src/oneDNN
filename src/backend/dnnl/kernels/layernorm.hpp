@@ -36,8 +36,9 @@
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
-#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/lower.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/transform.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
@@ -82,8 +83,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(
                 pipeline, fuse_post_typecast_to_softmax_or_layernorm);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_static_quant);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_static_dequant);
         BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);

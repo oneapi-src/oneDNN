@@ -29,8 +29,9 @@
 
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
-#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/lower.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/transform.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
@@ -71,10 +72,6 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_static_quant);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_static_dequant);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_quant);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_dequant);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);

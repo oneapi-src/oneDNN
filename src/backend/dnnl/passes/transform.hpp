@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_DNNL_PASSES_LOWER_DOWN_HPP
-#define BACKEND_DNNL_PASSES_LOWER_DOWN_HPP
+#ifndef BACKEND_DNNL_PASSES_TRANSFORM_HPP
+#define BACKEND_DNNL_PASSES_TRANSFORM_HPP
 
 #include <memory>
 #include <vector>
@@ -28,8 +28,6 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
-
-impl::status_t split_squared_difference(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t check_with_bias(std::shared_ptr<subgraph_t> &sg);
 
@@ -164,14 +162,6 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t split_static_quant(std::shared_ptr<subgraph_t> &sg);
-
-impl::status_t split_static_dequant(std::shared_ptr<subgraph_t> &sg);
-
-impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg);
-
-impl::status_t split_dynamic_dequant(std::shared_ptr<subgraph_t> &sg);
-
 impl::status_t fuse_static_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_static_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
@@ -183,8 +173,6 @@ impl::status_t fuse_dynamic_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
 impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t softmax_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
-
-impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg);
 
 /// A simple common reorder elimination pass which can perform the following
 /// optimization if two reorder ops are equal:

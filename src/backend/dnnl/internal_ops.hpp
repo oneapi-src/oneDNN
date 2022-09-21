@@ -78,7 +78,7 @@ namespace op_kind {
     X(dnnl_convtranspose_bwd_data, Dnnl_convtranspose_bwd_data) \
     X(dnnl_convtranspose_bwd_weights, Dnnl_convtranspose_bwd_weights)
 
-enum {
+enum kind_t {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,
 #define X(s, v) k##v,
     INTERNAL_OPS

@@ -40,8 +40,9 @@
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
-#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/lower.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/transform.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
@@ -100,8 +101,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_reciprocal_mul_to_div);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, split_squared_difference);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);

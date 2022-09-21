@@ -116,8 +116,6 @@ impl::status_t insert_unsqueeze_and_squeeze_for_prelu_bwd(
 impl::status_t insert_unsqueeze_and_squeeze_for_reduction(
         std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg);
-
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

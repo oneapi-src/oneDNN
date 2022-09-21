@@ -41,8 +41,9 @@
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
-#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/lower.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/transform.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
@@ -94,13 +95,6 @@ public:
         // TODO(xx) The implementation of these two passes relay on a non-fully
         // lowered subgraph. We need to improve them.
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_concat);
-
-        // Indirectly lower down (1 to N mapping)
-        BACKEND_DNNL_ADD_PASS(pipeline, split_squared_difference);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_static_quant);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_static_dequant);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_quant);
-        BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_dequant);
 
         // Fusion and canonicalization passes begin
         BACKEND_DNNL_ADD_PASS(pipeline, move_scalar_div_behind_matmul);
@@ -163,7 +157,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_data_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_weights_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, batchnorm_bwd_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_maxpool_forward);
         BACKEND_DNNL_ADD_PASS(pipeline, pool_fwd_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, pool_bwd_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_shuffle);

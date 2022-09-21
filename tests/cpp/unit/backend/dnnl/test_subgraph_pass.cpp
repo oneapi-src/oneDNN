@@ -30,8 +30,9 @@
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
-#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/lower.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/transform.hpp"
 
 #include "cpp/unit/unit_test_common.hpp"
 #include "cpp/unit/utils.hpp"
@@ -162,8 +163,6 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     dnnl_impl::subgraph_validator_t validator;
     validator.run(subgraph); // validate and set default param
 
-    dnnl_impl::split_static_quant(subgraph);
-    dnnl_impl::split_static_dequant(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 11);
     auto conv_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
@@ -291,8 +290,6 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     dnnl_impl::subgraph_validator_t validator;
     validator.run(subgraph); // validate and set default param
 
-    dnnl_impl::split_static_quant(subgraph);
-    dnnl_impl::split_static_dequant(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 8);
     auto matmul_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
@@ -538,8 +535,6 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
-    dnnl_impl::split_static_quant(subgraph);
-    dnnl_impl::split_static_dequant(subgraph);
     dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
     dnnl_impl::fold_mul_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
@@ -756,8 +751,6 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     dnnl_impl::subgraph_validator_t validator;
     validator.run(subgraph); // validate and set default param
 
-    dnnl_impl::split_static_quant(subgraph);
-    dnnl_impl::split_static_dequant(subgraph);
     dnnl_impl::fuse_to_int8_matmul(subgraph);
     dnnl_impl::fold_mul_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);

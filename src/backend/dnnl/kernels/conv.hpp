@@ -40,8 +40,9 @@
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
-#include "backend/dnnl/passes/lower_down.hpp"
+#include "backend/dnnl/passes/lower.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
+#include "backend/dnnl/passes/transform.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
@@ -277,8 +278,6 @@ public:
         if (!quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding);
         } else {
-            BACKEND_DNNL_ADD_PASS(pipeline, split_static_quant);
-            BACKEND_DNNL_ADD_PASS(pipeline, split_static_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
             BACKEND_DNNL_ADD_PASS(
