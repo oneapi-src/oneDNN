@@ -157,7 +157,7 @@ struct flex_rewrite {
         for (auto &aop : dgraph.ops_) {
             auto kind = opstr2kind(aop.kind_);
             size_t in0, in1, out0;
-            int64_t n, c, axis, sum, group, in_size, out_size, use_oi = 0;
+            int64_t n, c, axis, sum, groups, in_size, out_size, use_oi = 0;
             dims_t strides, kernel, pads, dilations, spatial_dims,
                     output_padding;
             dims_t dims, x, y, oi;
@@ -182,10 +182,10 @@ struct flex_rewrite {
             } else {
                 filter_format = "XIO";
             }
-            if (aop.attrs_.find("group") != aop.attrs_.end()) {
-                group = aop.attrs_["group"].get_s64();
+            if (aop.attrs_.find("groups") != aop.attrs_.end()) {
+                groups = aop.attrs_["groups"].get_s64();
             } else {
-                group = 1;
+                groups = 1;
             }
             switch (kind) {
                 // infer_identity_output_shape
@@ -357,7 +357,7 @@ struct flex_rewrite {
                         x.push_back((padded - dialated) / strides[i] + 1);
                     }
                     merge_ncx(data_format, gi[aop.out_lts_[0].id_], n,
-                            oi[use_oi] * group, x);
+                            oi[use_oi], x);
                     break;
                 // infer_conv_bprop_data_output_shape
                 case dnnl::graph::op::kind::ConvolutionBackpropData:
@@ -394,7 +394,7 @@ struct flex_rewrite {
                                 + dialated + padded);
                     }
                     merge_ncx(data_format, gi[aop.out_lts_[0].id_], n,
-                            oi[use_oi] * group, x);
+                            oi[use_oi] * groups, x);
                     break;
                 // infer_conv_bprop_filters_output_shape
                 case dnnl::graph::op::kind::ConvolutionBackpropFilters:
