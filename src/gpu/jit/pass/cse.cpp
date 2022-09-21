@@ -122,7 +122,7 @@ private:
             return it->second->cost();
         }
         if (is_const(e)) return 0;
-        if (e.is<cast_t>()) return 0;
+        if (e.is<cast_t>()) return e.type().is_bool();
         if (auto *op = e.as_ptr<binary_op_t>()) {
             return expr_cost(op->a) + expr_cost(op->b) + 1;
         }
@@ -302,7 +302,6 @@ public:
     }
 
     void register_expr(const expr_t &e, const ir_path_t &path) {
-        if (e.type().is_bool()) return; // Ignore booleans.
         auto ret = cse_exprs_.insert({e, cse_expr_t(e, e, path)});
         ir_assert(ret.second) << e;
         MAYBE_UNUSED(ret);
@@ -317,7 +316,8 @@ public:
     expr_t get_or_assign_var(const expr_t &e) {
         auto &cse_expr = find_cse_expr(e);
         if (cse_expr.cse_var.is_empty()) {
-            cse_expr.cse_var = ir_ctx_.create_tmp_var(e.type());
+            cse_expr.cse_var = ir_ctx_.create_tmp_var(
+                    e.type().is_bool() ? type_t::u16() : e.type());
             ir_trace() << "cse_pass: assigning var: " << e << " -> "
                        << cse_expr.cse_var << std::endl;
         }
@@ -334,7 +334,6 @@ public:
 
     void add_usage(
             const expr_t &e, const ir_path_t &path, bool do_increment = true) {
-        if (e.type().is_bool()) return; // Ignore booleans.
         return find_cse_expr(e).add_usage(path, do_increment);
     }
 
@@ -357,9 +356,11 @@ public:
     }
 
     bool should_assign_var(const expr_t &e) const {
-        if (!has(e)) return false;
+        if (!has(e) || e.is<var_t>() || e.is<ptr_t>() || e.is<cast_t>()
+                || is_const(e))
+            return false;
         auto &cse_expr = find_cse_expr(e);
-        if (cse_expr.refs <= 1) return false;
+        if (cse_expr.refs <= (e.type().is_bool() ? 2 : 1)) return false;
         if (skip_exprs_.count(cse_expr.orig_expr) != 0) return false;
         return true;
     }
@@ -546,7 +547,7 @@ public:
     ~cse_verifier_t() override { ir_assert(to_check_.empty()); }
 
     void _visit(const binary_op_t &obj) override { visit_expr(obj); }
-    void _visit(const shuffle_t &obj) override { return visit_expr(obj); }
+    void _visit(const shuffle_t &obj) override { visit_expr(obj); }
     void _visit(const unary_op_t &obj) override { visit_expr(obj); }
 
 #define HANDLE_IR_OBJECT(type) \
@@ -647,7 +648,9 @@ private:
         if (ctx_.has(obj) && ctx_.has_var(obj)) {
             auto &var = ctx_.get_var(obj);
             auto ret = seen_vars_.insert(var);
-            if (ret.second) lets_.push_back(let_t::make(var, obj));
+            if (ret.second)
+                lets_.push_back(let_t::make(var,
+                        obj.type.is_bool() ? cast(obj, type_t::u16()) : obj));
         }
     }
 
@@ -668,7 +671,9 @@ public:
     object_t _mutate(const binary_op_t &obj) override {
         return mutate_expr(obj);
     }
-    object_t _mutate(const shuffle_t &obj) override { return mutate_expr(obj); }
+    object_t _mutate(const shuffle_t &obj) override {
+        return cast(mutate_expr(obj), obj.type);
+    }
     object_t _mutate(const unary_op_t &obj) override {
         return mutate_expr(obj);
     }
@@ -692,6 +697,7 @@ private:
             auto var = ctx_.get_or_assign_var(new_obj);
             auto &path = ctx_.get_path(new_obj);
             if (!has_var) to_update_[path.back()].push_back(new_obj);
+            if (obj.type.is_bool()) var = cast(var, obj.type);
             return std::move(var);
         }
         return new_obj;
@@ -699,6 +705,10 @@ private:
 
     template <typename T>
     object_t mutate_stmt(const T &obj) {
+        // skip if it contains dp4a tenrary op, as there are issues mutating it
+        if (std::is_same<T, store_t>::value
+                && count_objects<ternary_op_t>(obj) > 0)
+            return obj;
         auto new_obj = ir_mutator_t::_mutate(obj);
         auto it = to_update_.find(obj);
         if (it == to_update_.end()) return new_obj;
