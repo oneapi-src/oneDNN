@@ -1,4 +1,5 @@
 --in-shapes=1:1x1x512x1024 --op-attrs=0:filter_format:XIO --case=op/conv_2d.json
+--in-shapes=0:2x512x28x28+1:1024x128x1x1 --op-attrs=0:groups:4 --case=op/conv_2d.json
 --in-shapes=,0:1x512x28x28,0:2x512x28x28,0:3x512x28x28 --op-attrs=,0:strides:4x4,0:strides:4x4*pads_begin:1x1 
 --case=op/conv_2d.json
 --reset
