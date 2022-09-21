@@ -73,7 +73,7 @@ TEST_P(memory_map_test_c_t, MapNullMemory) {
     dnnl_memory_desc_t mem_d;
     dnnl_memory_t mem;
 
-    DNNL_CHECK(dnnl_memory_desc_init_by_tag(
+    DNNL_CHECK(dnnl_memory_desc_create_with_tag(
             &mem_d, ndims, dims, dnnl_f32, dnnl_nchw));
     DNNL_CHECK(dnnl_memory_create(&mem, &mem_d, engine, nullptr));
 
@@ -94,7 +94,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
     const dnnl_dims_t dims = {N};
 
     dnnl_memory_desc_t mem_d;
-    DNNL_CHECK(dnnl_memory_desc_init_by_tag(
+    DNNL_CHECK(dnnl_memory_desc_create_with_tag(
             &mem_d, ndims, dims, dnnl_f32, dnnl_x));
 
     // Create and fill mem_ref to use as a reference

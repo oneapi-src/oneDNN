@@ -57,7 +57,7 @@ void test1() {
     const dnnl_memory_desc_t *c_md_tmp;
     dnnl_memory_t m;
 
-    CHECK(dnnl_memory_desc_init_by_tag(&md, 1, dims, dnnl_f32, dnnl_x));
+    CHECK(dnnl_memory_desc_create_with_tag(&md, 1, dims, dnnl_f32, dnnl_x));
     CHECK(dnnl_memory_create(&m, &md, engine, NULL));
 
     void *req = NULL;
@@ -141,36 +141,36 @@ void test2() {
 
     // src
     {
-        CHECK(dnnl_memory_desc_init_by_tag(
+        CHECK(dnnl_memory_desc_create_with_tag(
                 &c3_src_md, 4, c3_src_sizes, dnnl_f32, dnnl_nChw8c));
         CHECK(dnnl_memory_create(&c3_src, &c3_src_md, engine, src));
     }
 
     // weights
     {
-        CHECK(dnnl_memory_desc_init_by_tag(&c3_weights_md, 4 + (groups != 1),
-                c3_weights_sizes + (groups == 1), dnnl_f32,
+        CHECK(dnnl_memory_desc_create_with_tag(&c3_weights_md,
+                4 + (groups != 1), c3_weights_sizes + (groups == 1), dnnl_f32,
                 groups == 1 ? dnnl_OIhw8i8o : dnnl_gOIhw8i8o));
         CHECK(dnnl_memory_create(&c3_weights, &c3_weights_md, engine, weights));
     }
 
     // bias
     {
-        CHECK(dnnl_memory_desc_init_by_tag(
+        CHECK(dnnl_memory_desc_create_with_tag(
                 &c3_bias_md, 1, c3_bias_sizes, dnnl_f32, dnnl_x));
         CHECK(dnnl_memory_create(&c3_bias, &c3_bias_md, engine, bias));
     }
 
     // c3_dst
     {
-        CHECK(dnnl_memory_desc_init_by_tag(
+        CHECK(dnnl_memory_desc_create_with_tag(
                 &c3_dst_md, 4, c3_dst_sizes, dnnl_f32, dnnl_nChw8c));
         CHECK(dnnl_memory_create(&c3_dst, &c3_dst_md, engine, dst));
     }
 
     // out
     {
-        CHECK(dnnl_memory_desc_init_by_tag(
+        CHECK(dnnl_memory_desc_create_with_tag(
                 &out_md, 4, c3_dst_sizes, dnnl_f32, dnnl_nchw));
         CHECK(dnnl_memory_create(&out, &out_md, engine, out_mem));
     }
@@ -289,7 +289,7 @@ void test3() {
 
     // src, dst
     {
-        CHECK(dnnl_memory_desc_init_by_tag(
+        CHECK(dnnl_memory_desc_create_with_tag(
                 &l2_data_md, ndims, l2_data_sizes, dnnl_f32, dnnl_nchw));
         CHECK(dnnl_memory_create(&l2_src, &l2_data_md, engine, src));
         CHECK(dnnl_memory_create(&l2_dst, &l2_data_md, engine, dst));

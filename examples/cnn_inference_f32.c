@@ -109,7 +109,7 @@ static void init_data_memory(uint32_t dim, const dnnl_dim_t *dims,
         dnnl_format_tag_t user_tag, dnnl_engine_t engine, float *data,
         dnnl_memory_t *memory) {
     dnnl_memory_desc_t user_md;
-    CHECK(dnnl_memory_desc_init_by_tag(
+    CHECK(dnnl_memory_desc_create_with_tag(
             &user_md, dim, dims, dnnl_f32, user_tag));
     CHECK(dnnl_memory_create(memory, &user_md, engine, DNNL_MEMORY_ALLOCATE));
     write_to_dnnl_memory(data, *memory);
@@ -218,14 +218,14 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     // create data descriptors for convolution w/ no specified format
 
     dnnl_memory_desc_t conv_src_md, conv_weights_md, conv_bias_md, conv_dst_md;
-    CHECK(dnnl_memory_desc_init_by_tag(&conv_src_md, ndims, conv_user_src_sizes,
-            dnnl_f32, dnnl_format_tag_any));
-    CHECK(dnnl_memory_desc_init_by_tag(&conv_weights_md, ndims,
+    CHECK(dnnl_memory_desc_create_with_tag(&conv_src_md, ndims,
+            conv_user_src_sizes, dnnl_f32, dnnl_format_tag_any));
+    CHECK(dnnl_memory_desc_create_with_tag(&conv_weights_md, ndims,
             conv_user_weights_sizes, dnnl_f32, dnnl_format_tag_any));
-    CHECK(dnnl_memory_desc_init_by_tag(
+    CHECK(dnnl_memory_desc_create_with_tag(
             &conv_bias_md, 1, conv_bias_sizes, dnnl_f32, dnnl_x));
-    CHECK(dnnl_memory_desc_init_by_tag(&conv_dst_md, ndims, conv_user_dst_sizes,
-            dnnl_f32, dnnl_format_tag_any));
+    CHECK(dnnl_memory_desc_create_with_tag(&conv_dst_md, ndims,
+            conv_user_dst_sizes, dnnl_f32, dnnl_format_tag_any));
 
     // create a convolution
     dnnl_primitive_desc_t conv_pd;
@@ -368,8 +368,8 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
 
     // create descriptors for dst pooling data
     dnnl_memory_desc_t pool_dst_any_md;
-    CHECK(dnnl_memory_desc_init_by_tag(&pool_dst_any_md, ndims, pool_dst_sizes,
-            dnnl_f32, dnnl_format_tag_any));
+    CHECK(dnnl_memory_desc_create_with_tag(&pool_dst_any_md, ndims,
+            pool_dst_sizes, dnnl_f32, dnnl_format_tag_any));
 
     // create memory for user data
     dnnl_memory_t pool_user_dst_memory;

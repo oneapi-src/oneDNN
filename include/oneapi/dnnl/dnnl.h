@@ -813,7 +813,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
 
 /// Destroys a memory descriptor.
 ///
-/// @param memory Memory descriptor to destroy.
+/// @param memory_desc Memory descriptor to destroy.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_desc_destroy(
@@ -829,7 +829,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_destroy(
 dnnl_status_t DNNL_API dnnl_memory_desc_clone(dnnl_memory_desc_t **memory_desc,
         const_dnnl_memory_desc_t existing_memory_desc);
 
-/// Initializes a memory descriptor using dimensions and strides.
+/// Creates a memory descriptor using dimensions and strides.
 ///
 /// @note
 ///     As always, the logical order of dimensions corresponds to the `abc...`
@@ -844,11 +844,11 @@ dnnl_status_t DNNL_API dnnl_memory_desc_clone(dnnl_memory_desc_t **memory_desc,
 /// @param strides Strides in each dimension.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_desc_init_by_strides(
+dnnl_status_t DNNL_API dnnl_memory_desc_create_with_strides(
         dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t data_type, const dnnl_dims_t strides);
 
-/// Initializes a memory descriptor using dimensions and memory format tag.
+/// Creates a memory descriptor using dimensions and memory format tag.
 ///
 /// @note
 ///     As always, the logical order of dimensions corresponds to the `abc...`
@@ -866,11 +866,11 @@ dnnl_status_t DNNL_API dnnl_memory_desc_init_by_strides(
 ///     #dnnl_format_kind_any.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_desc_init_by_tag(
+dnnl_status_t DNNL_API dnnl_memory_desc_create_with_tag(
         dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t data_type, dnnl_format_tag_t tag);
 
-/// Initializes a memory descriptor for a region inside an area
+/// Creates a memory descriptor for a region inside an area
 /// described by an existing memory descriptor.
 ///
 /// @warning
@@ -884,14 +884,14 @@ dnnl_status_t DNNL_API dnnl_memory_desc_init_by_tag(
 ///     memory object in each dimension
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_desc_init_submemory(
+dnnl_status_t DNNL_API dnnl_memory_desc_create_submemory(
         dnnl_memory_desc_t *memory_desc,
         const_dnnl_memory_desc_t parent_memory_desc, const dnnl_dims_t dims,
         const dnnl_dims_t offsets);
 
-/// Initializes a memory descriptor by reshaping an existing one. The new
+/// Creates a memory descriptor by reshaping an existing one. The new
 /// memory descriptor inherits the data type. This operation is valid only for
-/// memory descriptors that have format_kind set to #dnnl_blocked or
+/// memory descriptors that have format_kind #dnnl_blocked or
 /// #dnnl_format_kind_any.
 ///
 /// The operation ensures the transformation of the physical memory format
@@ -933,7 +933,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_reshape(
         const_dnnl_memory_desc_t in_memory_desc, int ndims,
         const dnnl_dims_t dims);
 
-/// Initializes a memory descriptor by permuting axes in an existing one.
+/// Creates a memory descriptor by permuting axes in an existing one.
 ///
 /// The physical memory layout representation is adjusted accordingly to
 /// maintain the consistency between the logical and physical parts of the
@@ -958,9 +958,9 @@ dnnl_status_t DNNL_API dnnl_memory_desc_reshape(
 ///     dnnl_dims_t in_dims = {2, 3}, out_dims = {3, 2};
 ///     dnnl_format_tag_t in_tag = dnnl_ab, out_tag = dnnl_ba;
 ///
-///     dnnl_memory_desc_init_by_tag(
+///     dnnl_memory_desc_create_with_tag(
 ///             &in_md, 2, in_dims, data_type, in_tag);
-///     dnnl_memory_desc_init_by_tag(
+///     dnnl_memory_desc_create_with_tag(
 ///             &expect_out_md, 2, out_dims, data_type, out_tag);
 ///
 ///     dnnl_memory_desc_permute_axes(&out_md, in_md, permutation);

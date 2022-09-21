@@ -58,7 +58,7 @@ TEST_P(memory_test_c_t, OutOfMemory) {
     dnnl_dim_t sz = std::numeric_limits<memory::dim>::max();
     dnnl_dims_t dims = {sz};
     dnnl_memory_desc_t md;
-    DNNL_CHECK(dnnl_memory_desc_init_by_tag(&md, 1, dims, dnnl_u8, dnnl_x));
+    DNNL_CHECK(dnnl_memory_desc_create_with_tag(&md, 1, dims, dnnl_u8, dnnl_x));
 
     dnnl_memory_t mem;
     dnnl_status_t s

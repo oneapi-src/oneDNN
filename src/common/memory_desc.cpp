@@ -402,20 +402,21 @@ status_t memory_desc_permute_axes(memory_desc_t &out_memory_desc,
 } // namespace dnnl
 
 // API
-status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
+status_t dnnl_memory_desc_create_with_tag(memory_desc_t *memory_desc, int ndims,
         const dims_t dims, data_type_t data_type, format_tag_t tag) {
     if (any_null(memory_desc)) return invalid_arguments;
     return memory_desc_init_by_tag(*memory_desc, ndims, dims, data_type, tag);
 }
 
-status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
-        const dims_t dims, data_type_t data_type, const dims_t strides) {
+status_t dnnl_memory_desc_create_with_strides(memory_desc_t *memory_desc,
+        int ndims, const dims_t dims, data_type_t data_type,
+        const dims_t strides) {
     if (any_null(memory_desc)) return invalid_arguments;
     return memory_desc_init_by_strides(
             *memory_desc, ndims, dims, data_type, strides);
 }
 
-status_t dnnl_memory_desc_init_submemory(memory_desc_t *memory_desc,
+status_t dnnl_memory_desc_create_submemory(memory_desc_t *memory_desc,
         const memory_desc_t *parent_memory_desc, const dims_t dims,
         const dims_t offsets) {
     if (any_null(memory_desc, parent_memory_desc)) return invalid_arguments;

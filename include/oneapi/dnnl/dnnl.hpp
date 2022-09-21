@@ -2515,7 +2515,7 @@ struct memory : public handle<dnnl_memory_t> {
                 bool allow_empty = false)
             : data() {
             validate_dims(adims);
-            dnnl_status_t status = dnnl_memory_desc_init_by_tag(&data,
+            dnnl_status_t status = dnnl_memory_desc_create_with_tag(&data,
                     (int)adims.size(), adims.data(), convert_to_c(adata_type),
                     convert_to_c(aformat_tag));
             if (!allow_empty)
@@ -2544,7 +2544,7 @@ struct memory : public handle<dnnl_memory_t> {
             : data() {
             validate_dims(adims);
             if (!strides.empty()) validate_dims(strides, (int)adims.size());
-            dnnl_status_t status = dnnl_memory_desc_init_by_strides(&data,
+            dnnl_status_t status = dnnl_memory_desc_create_with_strides(&data,
                     (int)adims.size(), adims.data(), convert_to_c(adata_type),
                     strides.empty() ? nullptr : &strides[0]);
             if (!allow_empty)
@@ -2574,7 +2574,7 @@ struct memory : public handle<dnnl_memory_t> {
             validate_dims(adims, get_ndims());
             validate_dims(offsets, get_ndims());
             dnnl_memory_desc_t sub_md = dnnl_memory_desc_t();
-            dnnl_status_t status = dnnl_memory_desc_init_submemory(
+            dnnl_status_t status = dnnl_memory_desc_create_submemory(
                     &sub_md, &data, adims.data(), offsets.data());
             if (!allow_empty)
                 error::wrap_c_api(status, "could not construct a sub-memory");

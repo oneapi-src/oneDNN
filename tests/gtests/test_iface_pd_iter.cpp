@@ -38,7 +38,7 @@ protected:
 TEST_F(pd_iter_test_t, TestReLUImpls) {
     dnnl_memory_desc_t dense_md;
     dnnl_dims_t dims = {4, 16, 16, 16};
-    ASSERT_EQ(dnnl_memory_desc_init_by_tag(
+    ASSERT_EQ(dnnl_memory_desc_create_with_tag(
                       &dense_md, 4, dims, dnnl_f32, dnnl_nchw),
             ok);
 
@@ -69,11 +69,11 @@ TEST_F(pd_iter_test_t, UnsupportedPrimitives) {
     dnnl_memory_desc_t mds[2];
 
     dnnl_dims_t dims = {1, 16, 16, 16};
-    ASSERT_EQ(
-            dnnl_memory_desc_init_by_tag(&mds[0], 4, dims, dnnl_f32, dnnl_nchw),
+    ASSERT_EQ(dnnl_memory_desc_create_with_tag(
+                      &mds[0], 4, dims, dnnl_f32, dnnl_nchw),
             ok);
-    ASSERT_EQ(
-            dnnl_memory_desc_init_by_tag(&mds[1], 4, dims, dnnl_f32, dnnl_nchw),
+    ASSERT_EQ(dnnl_memory_desc_create_with_tag(
+                      &mds[1], 4, dims, dnnl_f32, dnnl_nchw),
             ok);
 
     dnnl_primitive_desc_t reorder_pd;

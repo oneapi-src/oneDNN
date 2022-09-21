@@ -60,8 +60,8 @@ dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
 
 dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
         const dnnl_dims_t strides, dnnl_engine_t engine) {
-    auto status
-            = dnnl_memory_desc_init_by_strides(&md_, ndims, dims, dt, strides);
+    auto status = dnnl_memory_desc_create_with_strides(
+            &md_, ndims, dims, dt, strides);
     (void)status;
     assert(status == dnnl_success);
     if (ndims > 0) active_ = (initialize(engine) == OK);
@@ -342,7 +342,8 @@ dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(const dnnl_memory_desc_t &md,
 
     dnnl_memory_desc_t ret;
     dnnl_dims_t dims = {(dnnl_dim_t)sz};
-    DNN_SAFE_V(dnnl_memory_desc_init_by_tag(&ret, 1, dims, dnnl_u8, dnnl_x));
+    DNN_SAFE_V(
+            dnnl_memory_desc_create_with_tag(&ret, 1, dims, dnnl_u8, dnnl_x));
     return ret;
 }
 
@@ -354,7 +355,7 @@ dnnl_memory_desc_t dnn_mem_t::init_md(int ndims, const dnnl_dims_t dims,
     // Ignore tag_ in case strides_ are explicitly provided
     if (use_strides) {
         std::vector<dnnl_dim_t> strides(strides_);
-        DNN_SAFE_V(dnnl_memory_desc_init_by_strides(
+        DNN_SAFE_V(dnnl_memory_desc_create_with_strides(
                 &md, ndims, dims, data_type, strides.data()));
         return md;
     }
@@ -364,7 +365,7 @@ dnnl_memory_desc_t dnn_mem_t::init_md(int ndims, const dnnl_dims_t dims,
         dnnl_format_tag_t enum_tag = (tag == tag::undef || ndims == 0)
                 ? dnnl_format_tag_undef
                 : dnnl_format_tag_any;
-        DNN_SAFE_V(dnnl_memory_desc_init_by_tag(
+        DNN_SAFE_V(dnnl_memory_desc_create_with_tag(
                 &md, ndims, dims, data_type, enum_tag));
         return md;
     }

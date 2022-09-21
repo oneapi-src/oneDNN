@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ protected:
         DNNL_CHECK(dnnl_engine_create(&engine, dnnl_gpu, 0));
         DNNL_CHECK(dnnl_ocl_interop_engine_get_context(engine, &ocl_ctx));
 
-        DNNL_CHECK(dnnl_memory_desc_init_by_tag(
+        DNNL_CHECK(dnnl_memory_desc_create_with_tag(
                 &memory_d, dim, dims, dnnl_f32, dnnl_nchw));
         DNNL_CHECK(dnnl_memory_create(
                 &memory, &memory_d, engine, DNNL_MEMORY_NONE));

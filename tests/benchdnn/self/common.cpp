@@ -322,7 +322,7 @@ static int check_tags() {
         }
 
         md_from_str = dnn_mem_t::init_md(ndims, dims, dnnl_f32, str_tag);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(
+        DNN_SAFE(dnnl_memory_desc_create_with_tag(
                          &md_from_tag, ndims, dims, dnnl_f32, format_tag),
                 CRIT);
         int eq = dnnl_memory_desc_equal(&md_from_tag, &md_from_str);
