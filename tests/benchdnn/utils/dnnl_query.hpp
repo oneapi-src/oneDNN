@@ -50,4 +50,18 @@ const_dnnl_primitive_desc_t query_pd(dnnl_primitive_t prim);
 
 dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine);
 
+int query_md_ndims(const_dnnl_memory_desc_t md);
+int query_md_inner_nblks(const_dnnl_memory_desc_t md);
+
+dnnl_dim_t query_md_submemory_offset(const_dnnl_memory_desc_t md);
+dnnl_data_type_t query_md_data_type(const_dnnl_memory_desc_t md);
+dnnl_format_kind_t query_md_format_kind(const_dnnl_memory_desc_t md);
+
+const dnnl_dims_t &query_md_dims(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_padded_dims(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_padded_offsets(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_strides(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_inner_blks(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_inner_idxs(const_dnnl_memory_desc_t md);
+
 #endif

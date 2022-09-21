@@ -95,25 +95,17 @@ struct dnn_mem_t {
     }
 
     // Queries from memory descriptor.
-    int ndims() const { return md_.ndims; }
-    // Can't merge two below because compiler doesn't like conversion from
-    // pointer to reference type.
-    const dnnl_dims_t &dims() const { return md_.dims; }
-    const dnnl_dims_t &padded_dims() const { return md_.padded_dims; }
-    dnnl_data_type_t dt() const { return md_.data_type; }
-    const dnnl_dims_t &padded_offsets() const { return md_.padded_offsets; }
-    dnnl_dim_t offset0() const { return md_.offset0; }
-    dnnl_format_kind_t format_kind() const { return md_.format_kind; }
-    const dnnl_dims_t &strides() const {
-        return md_.format_desc.blocking.strides;
-    }
-    int inner_nblks() const { return md_.format_desc.blocking.inner_nblks; }
-    const dnnl_dims_t &inner_blks() const {
-        return md_.format_desc.blocking.inner_blks;
-    }
-    const dnnl_dims_t &inner_idxs() const {
-        return md_.format_desc.blocking.inner_idxs;
-    }
+    int ndims() const;
+    const dnnl_dims_t &dims() const;
+    const dnnl_dims_t &padded_dims() const;
+    dnnl_data_type_t dt() const;
+    const dnnl_dims_t &padded_offsets() const;
+    dnnl_dim_t offset0() const;
+    dnnl_format_kind_t format_kind() const;
+    const dnnl_dims_t &strides() const;
+    int inner_nblks() const;
+    const dnnl_dims_t &inner_blks() const;
+    const dnnl_dims_t &inner_idxs() const;
 
     size_t sizeof_dt() const;
 

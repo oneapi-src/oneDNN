@@ -649,6 +649,53 @@ int dnn_mem_t::cleanup() {
     return OK;
 }
 
+// Queries from memory descriptor.
+int dnn_mem_t::ndims() const {
+    return query_md_ndims(&md_);
+}
+
+// Can't merge two below because compiler doesn't like conversion from
+// pointer to reference type.
+const dnnl_dims_t &dnn_mem_t::dims() const {
+    return query_md_dims(&md_);
+}
+
+const dnnl_dims_t &dnn_mem_t::padded_dims() const {
+    return query_md_padded_dims(&md_);
+}
+
+dnnl_data_type_t dnn_mem_t::dt() const {
+    return query_md_data_type(&md_);
+}
+
+const dnnl_dims_t &dnn_mem_t::padded_offsets() const {
+    return query_md_padded_offsets(&md_);
+}
+
+dnnl_dim_t dnn_mem_t::offset0() const {
+    return query_md_submemory_offset(&md_);
+}
+
+dnnl_format_kind_t dnn_mem_t::format_kind() const {
+    return query_md_format_kind(&md_);
+}
+
+const dnnl_dims_t &dnn_mem_t::strides() const {
+    return query_md_strides(&md_);
+}
+
+int dnn_mem_t::inner_nblks() const {
+    return query_md_inner_nblks(&md_);
+}
+
+const dnnl_dims_t &dnn_mem_t::inner_blks() const {
+    return query_md_inner_blks(&md_);
+}
+
+const dnnl_dims_t &dnn_mem_t::inner_idxs() const {
+    return query_md_inner_idxs(&md_);
+}
+
 // Returns physical offset by logical one. logical offset is represented by a
 // scalar l_offset. If is_pos_padded is true, l_offset represents logical
 // offset in already padded area.
