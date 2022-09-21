@@ -1,0 +1,5 @@
+# Blocked format with tail processing in compensation
+--reset
+--sdt=s8 --ddt=s8 --oflag=zp_comp:3
+--stag=aBxC16b4c --dtag=xcab
+2x2x32x1x3 1x15x32x1 2x17x32x5

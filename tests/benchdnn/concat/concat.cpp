@@ -98,15 +98,17 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_arg_scale(prb->attr, res);
 
     // ref concat is reorder-based, hence, inherits some reorder limitations.
-    // bf16 reorder on cpu supports only bf16/f32 src_dt/dst_dt
-    bool valid_bf16_input = IMPLICATION(prb->sdt == dnnl_bf16,
-            prb->dtag == tag::undef || prb->ddt == dnnl_f32
-                    || prb->ddt == dnnl_bf16);
-    bool valid_bf16_output
-            = IMPLICATION(prb->ddt == dnnl_bf16 && prb->dtag != tag::undef,
-                    (prb->sdt == dnnl_f32 || prb->sdt == dnnl_bf16));
+    // bf16, f16 reorders on cpu supports only [bf16, f16]<->f32
+    bool valid_xf16_input
+            = IMPLICATION(prb->sdt == dnnl_bf16 || prb->sdt == dnnl_f16,
+                    prb->dtag == tag::undef || prb->ddt == dnnl_f32
+                            || prb->ddt == prb->sdt);
+    bool valid_xf16_output
+            = IMPLICATION((prb->ddt == dnnl_bf16 || prb->ddt == dnnl_f16)
+                            && prb->dtag != tag::undef,
+                    (prb->sdt == dnnl_f32 || prb->sdt == prb->ddt));
 
-    if (is_cpu() && (!valid_bf16_input || !valid_bf16_output)) {
+    if (is_cpu() && (!valid_xf16_input || !valid_xf16_output)) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }

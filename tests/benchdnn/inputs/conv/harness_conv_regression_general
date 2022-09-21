@@ -311,3 +311,15 @@ ic32ih13oc13oh13kh1ph0n"sum_injector_with_out_of_scope_references"
 --reset
 --cfg=bf16bf16f32
 g1ic64ih31iw1oc64oh32ow1kh3kw3ph0pw0n"brgemm_conv_generate_kernels"
+
+# compensation for padding area when bdb_tail < bottom_vpad
+--reset
+--cfg=s8s8f32
+mb1ic8iw9973oc256ow9973kw9pw2n"brgconv_compensation_bdb_tail"
+
+# test compensation w/ padding in brgemm conv
+--reset
+--cfg=s8s8s8
+mb1_ic1oc1_ih1kh1ph1_iw1kw1_n"brgemm_conv_comp_pad:1"
+--cfg=u8s8u8 --attr-zero-points=src0:common:1*
+g3mb2_ic6oc96_ih12oh8kh1sh2dh1ph2_iw11ow7kw4sw1dw1pw1_n"brgemm_conv_comp_pad:2"

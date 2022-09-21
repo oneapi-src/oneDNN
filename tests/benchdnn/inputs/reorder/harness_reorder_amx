@@ -90,6 +90,7 @@
     --stag=OwI16o2i 64x3x7 32x3x3
 
 # Matmul blocked B layouts
+--sdt=f32,bf16 --ddt=bf16
 --stag=ab,ba --dtag=BA16a16b2a,BA16a32b2a,BA16a48b2a,BA16a64b2a 89x73
 --stag=abc,acb --dtag=aCB16b16c2b,aCB16b32c2b,aCB16b48c2b,aCB16b64c2b 57x89x73
 
@@ -121,5 +122,6 @@
     --stag=OwI16o2i 64x3x7 32x3x3
 
 # Matmul blocked B layouts
+--sdt=bf16 --ddt=f32,bf16
 --dtag=ab,ba --stag=BA16a16b2a,BA16a32b2a,BA16a48b2a,BA16a64b2a 89x73
 --dtag=abc,acb --stag=aCB16b16c2b,aCB16b32c2b,aCB16b48c2b,aCB16b64c2b 57x89x73

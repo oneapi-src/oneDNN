@@ -83,3 +83,6 @@
 
 # Compensation
 --batch=harness_reorder_compensation
+
+# Regression
+--batch=harness_reorder_regression
