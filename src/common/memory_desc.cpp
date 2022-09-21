@@ -488,3 +488,14 @@ status_t dnnl_memory_desc_query(
     }
     return status::success;
 }
+
+status_t dnnl_memory_desc_destroy(memory_desc_t *memory_desc) {
+    delete memory_desc;
+    return success;
+}
+
+status_t dnnl_memory_desc_clone(memory_desc_t **memory_desc,
+        const memory_desc_t *existing_memory_desc) {
+    (*memory_desc) = new memory_desc_t(*existing_memory_desc);
+    return success;
+}

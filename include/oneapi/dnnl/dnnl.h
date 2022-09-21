@@ -811,6 +811,24 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
 /// @addtogroup dnnl_api_memory
 /// @{
 
+/// Destroys a memory descriptor.
+///
+/// @param memory Memory descriptor to destroy.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_desc_destroy(
+        dnnl_memory_desc_t *memory_desc);
+
+/// Clones a memory descriptor. The resulting memory descriptor must be
+/// destroyed separately.
+///
+/// @param memory_desc Output memory descriptor.
+/// @param existing_memory_desc Memory descriptor to clone.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_desc_clone(dnnl_memory_desc_t **memory_desc,
+        const_dnnl_memory_desc_t existing_memory_desc);
+
 /// Initializes a memory descriptor using dimensions and strides.
 ///
 /// @note
