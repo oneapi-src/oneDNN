@@ -203,11 +203,11 @@ std::ostream &operator<<(std::ostream &ss, format_kind_t format_kind) {
 
 std::string flags2str(unsigned flags) {
     std::string s;
-    if (flags & dnnl_use_global_stats) s += "G";
-    if (flags & dnnl_use_scaleshift) s += "S";
-    if (flags & dnnl_use_scale) s += "C";
-    if (flags & dnnl_use_shift) s += "H";
-    if (flags & dnnl_fuse_norm_relu) s += "R";
+    if (flags & normalization_flags::use_global_stats) s += "G";
+    if (flags & normalization_flags::use_scale) s += "C";
+    if (flags & normalization_flags::use_shift) s += "H";
+    if (flags & normalization_flags::fuse_norm_relu) s += "R";
+    if (flags & normalization_flags::fuse_norm_add_relu) s += "A";
     return s;
 }
 

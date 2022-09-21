@@ -64,9 +64,9 @@ void check_correctness(const settings_t &s) {
 
 static const std::string help_flags
         = "FLAGS    (Default: not specified)\n    Specifies normalization "
-          "flags. `FLAGS` values are:\n    * `G` for global_stats.\n    * `S` "
-          "for scaleshift.\n    * `C` for scale.\n    * `H` for shift.\n    * "
-          "`R` for fuse_norm_relu.\n    * `A` for fuse_norm_add_relu.\n";
+          "flags. `FLAGS` values are:\n    * `G` for global_stats.\n    * `C` "
+          "for scale.\n    * `H` for shift.\n    * `R` for fuse_norm_relu.\n   "
+          " * `A` for fuse_norm_add_relu.\n";
 
 static const std::string help_check_alg
         = "CHECK_ALG\n    Dev debug setting to validate output for different "

@@ -63,11 +63,12 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
     const memory::dims src_dims = {T, N, C};
 
     // Scale/shift tensor dimensions.
-    memory::dims scale_shift_dims = {2, C};
+    memory::dims scaleshift_dims = {C};
 
     // Allocate buffer.
     std::vector<float> src_data(product(src_dims));
-    std::vector<float> scale_shift_data(product(scale_shift_dims));
+    std::vector<float> scale_data(product(scaleshift_dims));
+    std::vector<float> shift_data(product(scaleshift_dims));
 
     // Initialize src tensor.
     std::generate(src_data.begin(), src_data.end(), []() {
@@ -75,37 +76,37 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
         return std::cos(i++ / 10.f);
     });
 
-    auto mid = scale_shift_data.begin() + C;
-
     // Initialize scale.
-    std::generate(scale_shift_data.begin(), mid, []() {
+    std::generate(scale_data.begin(), scale_data.end(), []() {
         static int i = 0;
         return std::sin(i++ * 2.f);
     });
 
     // Initialize shift.
-    std::generate(mid, scale_shift_data.end(), []() {
+    std::generate(shift_data.begin(), shift_data.end(), []() {
         static int i = 0;
-        return std::tanh(float(i++));
+        return std::tan(float(i++));
     });
 
-    // Create src memory descriptor and memory object.
+    // Create src memory descriptor and memory objects.
     auto src_md = memory::desc(src_dims, dt::f32, tag::tnc);
     auto dst_md = memory::desc(src_dims, dt::f32, tag::tnc);
-    auto src_mem = memory(src_md, engine);
+    auto scaleshift_md = memory::desc(scaleshift_dims, dt::f32, tag::x);
 
-    // Create scale/shift memory object.
-    auto scale_shift_mem = memory({scale_shift_dims, dt::f32, tag::nc}, engine);
+    auto src_mem = memory(src_md, engine);
+    auto scale_mem = memory(scaleshift_md, engine);
+    auto shift_mem = memory(scaleshift_md, engine);
 
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), src_mem);
-    write_to_dnnl_memory(scale_shift_data.data(), scale_shift_mem);
+    write_to_dnnl_memory(scale_data.data(), scale_mem);
+    write_to_dnnl_memory(shift_data.data(), shift_mem);
 
     // Create primitive descriptor.
     const float epsilon = 1.e-10f;
     auto lnorm_pd = layer_normalization_forward::primitive_desc(engine,
             prop_kind::forward_training, src_md, dst_md, epsilon,
-            normalization_flags::use_scale_shift);
+            normalization_flags::use_scale | normalization_flags::use_shift);
 
     // Use the memory descriptors from the primitive to create memory objects
     // required for the primitive: mean, variance, scale/shift.
@@ -120,7 +121,8 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
     lnorm_args.insert({DNNL_ARG_SRC, src_mem});
     lnorm_args.insert({DNNL_ARG_MEAN, mean_mem});
     lnorm_args.insert({DNNL_ARG_VARIANCE, variance_mem});
-    lnorm_args.insert({DNNL_ARG_SCALE_SHIFT, scale_shift_mem});
+    lnorm_args.insert({DNNL_ARG_SCALE, scale_mem});
+    lnorm_args.insert({DNNL_ARG_SHIFT, shift_mem});
     lnorm_args.insert({DNNL_ARG_DST, src_mem});
 
     // Primitive execution: layer normalization.

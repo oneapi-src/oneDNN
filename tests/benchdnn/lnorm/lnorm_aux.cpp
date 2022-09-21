@@ -22,7 +22,7 @@ namespace lnorm {
 
 flags_t str2flags(const char *str) {
     flags_t flags = bnorm::str2flags(str);
-    assert(flags <= (GLOB_STATS | USE_SCALESHIFT | USE_SCALE | USE_SHIFT));
+    assert(flags <= (GLOB_STATS | USE_SCALE | USE_SHIFT));
     return flags;
 }
 

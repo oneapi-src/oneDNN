@@ -694,12 +694,15 @@ enum class normalization_flags : unsigned {
     /// propagation.
     use_global_stats = dnnl_use_global_stats,
 
-    /// Use scale and shift parameters. If specified, the user is expected to
-    /// pass scale and shift as inputs on forward propagation. On backward
-    /// propagation of type #dnnl::prop_kind::backward, the library computes
-    /// their derivatives. If not specified, the scale and shift parameters
-    /// are not used by the library in any way.
-    use_scale_shift = dnnl_use_scaleshift,
+    /// Use scale parameter. If specified, the user is expected to pass scale as
+    /// input on forward propagation. On backward propagation of type
+    /// #dnnl::prop_kind::backward, the library computes its derivative.
+    use_scale = dnnl_use_scale,
+
+    /// Use shift parameter. If specified, the user is expected to pass shift as
+    /// input on forward propagation. On backward propagation of type
+    /// #dnnl::prop_kind::backward, the library computes its derivative.
+    use_shift = dnnl_use_shift,
 
     /// Fuse normalization with ReLU. On training, normalization will require
     /// the workspace to implement backward propagation. On inference, the
@@ -711,16 +714,6 @@ enum class normalization_flags : unsigned {
     /// On training, normalization will require the workspace to implement
     /// backward propagation. On inference, the workspace is not required.
     fuse_norm_add_relu = dnnl_fuse_norm_add_relu,
-
-    /// Use scale parameter. If specified, the user is expected to pass scale as
-    /// input on forward propagation. On backward propagation of type
-    /// #dnnl::prop_kind::backward, the library computes its derivative.
-    use_scale = dnnl_use_scale,
-
-    /// Use shift parameter. If specified, the user is expected to pass shift as
-    /// input on forward propagation. On backward propagation of type
-    /// #dnnl::prop_kind::backward, the library computes its derivative.
-    use_shift = dnnl_use_shift,
 };
 
 /// Converts normalization flags enum value from C++ API to C API type.

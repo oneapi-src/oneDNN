@@ -195,14 +195,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
     conf.dispatch.generate();
 
-    conf.use_scaleshift = pd->use_scaleshift();
     conf.use_scale = pd->use_scale();
     conf.use_shift = pd->use_shift();
-
-    const memory_desc_wrapper ss_d(pd->weights_md());
-    conf.shift_off = pd->use_scaleshift() && !ss_d.has_zero_dim()
-            ? pd->norm_axis()
-            : 0;
 
     conf.calculate_stats = !pd->stats_are_src();
     conf.save_stats = pd->is_training();
@@ -217,10 +211,8 @@ static status_t init_kernel_ctx_common(
 
     kernel_ctx.define_int("C", conf.norm_axis);
     kernel_ctx.define_int("NDIMS", conf.ndims);
-    kernel_ctx.define_int("USE_SCALESHIFT", conf.use_scaleshift);
     kernel_ctx.define_int("USE_SCALE", conf.use_scale);
     kernel_ctx.define_int("USE_SHIFT", conf.use_shift);
-    kernel_ctx.define_int("SHIFT_OFF", conf.shift_off);
     kernel_ctx.define_int("CALCULATE_STATS", conf.calculate_stats);
     kernel_ctx.define_int("SAVE_STATS", conf.save_stats);
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
@@ -273,10 +265,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     auto &variance = pd()->stats_are_src() ? CTX_IN_STORAGE(DNNL_ARG_VARIANCE)
                                            : CTX_OUT_STORAGE(DNNL_ARG_VARIANCE);
 
-    auto &scale = CTX_IN_STORAGE(
-            conf.use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto &shift = CTX_IN_STORAGE(
-            conf.use_scaleshift ? DNNL_ARG_SCALE_SHIFT : DNNL_ARG_SHIFT);
+    auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
+    auto &shift = CTX_IN_STORAGE(DNNL_ARG_SHIFT);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     compute::kernel_arg_list_t arg_list;
@@ -323,18 +313,14 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
     auto &variance = CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
-    auto &scale = CTX_IN_STORAGE(
-            conf.use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
 
     auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
-    auto &diff_scale = CTX_OUT_STORAGE(
-            conf.use_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
-    auto &diff_shift
-            = CTX_OUT_STORAGE(conf.use_scaleshift ? DNNL_ARG_DIFF_SCALE_SHIFT
-                                                  : DNNL_ARG_DIFF_SHIFT);
+    auto &diff_scale = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE);
+    auto &diff_shift = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SHIFT);
 
-    if (conf.use_scaleshift || conf.use_scale || conf.use_shift) {
+    if (conf.use_scale || conf.use_shift) {
         std::unique_ptr<memory_storage_t> temp_reduce;
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, src);

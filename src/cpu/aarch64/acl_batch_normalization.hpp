@@ -53,22 +53,15 @@ struct acl_batch_normalization_resource_t : public resource_t {
             const batch_normalization_pd_t *pd) {
         if (!acl_obj_) return status::out_of_memory;
 
-        // We need to set up ACL shift/scale tensors if they are together in
-        // one tensor of size 2xC (use_scaleshift) or in two (potentialy)
-        // separate tensors (use_shift/use_scale). Mathematically,
-        // scaleshift => scale AND shift
-        bool shift_or_scaleshift = (pd->use_scaleshift() || pd->use_shift());
-        bool scale_or_scaleshift = (pd->use_scaleshift() || pd->use_scale());
-
         // Init Compute Library tensors based on info from descriptor
         acl_obj_->src_tensor.allocator()->init(abp.data_info);
         acl_obj_->dst_tensor.allocator()->init(abp.data_info);
 
         acl_obj_->mean_tensor.allocator()->init(abp.stats_info);
         acl_obj_->var_tensor.allocator()->init(abp.stats_info);
-        if (shift_or_scaleshift)
+        if (pd->use_shift())
             acl_obj_->beta_tensor.allocator()->init(abp.stats_info);
-        if (scale_or_scaleshift)
+        if (pd->use_scale())
             acl_obj_->gamma_tensor.allocator()->init(abp.stats_info);
 
         // clang-format off
@@ -77,8 +70,8 @@ struct acl_batch_normalization_resource_t : public resource_t {
             &acl_obj_->dst_tensor,
             &acl_obj_->mean_tensor,
             &acl_obj_->var_tensor,
-            shift_or_scaleshift ? &acl_obj_->beta_tensor : nullptr,
-            scale_or_scaleshift ? &acl_obj_->gamma_tensor : nullptr,
+            pd->use_shift() ? &acl_obj_->beta_tensor : nullptr,
+            pd->use_scale() ? &acl_obj_->gamma_tensor : nullptr,
             pd->desc()->batch_norm_epsilon,
             abp.act_info);
         // clang-format on
@@ -233,14 +226,10 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
         status_t validate() { return validate(abp.act_info); }
 
         status_t validate(arm_compute::ActivationLayerInfo &act_info) {
-            // Mathematically scaleshift => scale AND shift
-            bool shift_or_scaleshift = (use_scaleshift() || use_shift());
-            bool scale_or_scaleshift = (use_scaleshift() || use_scale());
             ACL_CHECK_VALID(arm_compute::NEBatchNormalizationLayer::validate(
                     &abp.data_info, &abp.data_info, &abp.stats_info,
-                    &abp.stats_info,
-                    shift_or_scaleshift ? &abp.stats_info : nullptr,
-                    scale_or_scaleshift ? &abp.stats_info : nullptr,
+                    &abp.stats_info, use_shift() ? &abp.stats_info : nullptr,
+                    use_scale() ? &abp.stats_info : nullptr,
                     desc()->batch_norm_epsilon, act_info));
             return status::success;
         }

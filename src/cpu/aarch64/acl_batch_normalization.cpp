@@ -46,28 +46,15 @@ status_t acl_batch_normalization_fwd_t::execute_forward(
     acl_obj.var_tensor.allocator()->import_memory(
             const_cast<float *>(variance));
 
-    // scaleshift means scale and shift are together in one tensor (of size 2xC)
-    // otherwise they are in two (potentially) separate tensors
-    if (pd()->use_scaleshift()) {
-        // First C elements of scaleshift are scale (beta)
-        auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE_SHIFT);
+    if (pd()->use_scale()) {
+        auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);
         acl_obj.gamma_tensor.allocator()->import_memory(
                 const_cast<float *>(scale));
-        // Second C elements of scaleshift are shift (gamma)
-        auto shift = &scale[acl_obj.gamma_tensor.info()->dimension(0)];
+    }
+    if (pd()->use_shift()) {
+        auto shift = CTX_IN_MEM(const float *, DNNL_ARG_SHIFT);
         acl_obj.beta_tensor.allocator()->import_memory(
                 const_cast<float *>(shift));
-    } else {
-        if (pd()->use_scale()) {
-            auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);
-            acl_obj.gamma_tensor.allocator()->import_memory(
-                    const_cast<float *>(scale));
-        }
-        if (pd()->use_shift()) {
-            auto shift = CTX_IN_MEM(const float *, DNNL_ARG_SHIFT);
-            acl_obj.beta_tensor.allocator()->import_memory(
-                    const_cast<float *>(shift));
-        }
     }
 
     acl_obj.bnorm.run();

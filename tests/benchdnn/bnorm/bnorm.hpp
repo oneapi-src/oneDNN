@@ -44,7 +44,6 @@ const char *check_alg2str(check_alg_t alg);
 using flags_t = unsigned;
 const flags_t NONE = dnnl_normalization_flags_none;
 const flags_t GLOB_STATS = dnnl_use_global_stats;
-const flags_t USE_SCALESHIFT = dnnl_use_scaleshift;
 const flags_t USE_SCALE = dnnl_use_scale;
 const flags_t USE_SHIFT = dnnl_use_shift;
 const flags_t FUSE_NORM_RELU = dnnl_fuse_norm_relu;
@@ -127,7 +126,6 @@ struct prb_t : public desc_t {
                 && !(dir & FLAG_INF);
     }
 
-    bool use_ss() const { return flags & USE_SCALESHIFT; }
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
     bool fuse_relu() const {

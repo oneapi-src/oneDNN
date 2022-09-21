@@ -94,14 +94,14 @@ protected:
         using flags = normalization_flags;
         Forward(training);
         Forward(training, flags::use_global_stats);
-        Forward(training, flags::use_scale_shift);
         Forward(training, flags::use_scale);
         Forward(training, flags::use_shift);
         Forward(training, flags::use_scale | flags::use_shift);
-        Forward(training, flags::use_scale_shift | flags::use_global_stats);
+        Forward(training,
+                flags::use_scale | flags::use_shift | flags::use_global_stats);
         Forward(inference);
         Forward(inference, flags::use_global_stats);
-        Forward(inference, flags::use_scale_shift);
+        Forward(inference, flags::use_scale | flags::use_shift);
 
         if (!impl::utils::one_of(p.dst_dt, memory::data_type::f16,
                     memory::data_type::s8, memory::data_type::u8)) {
@@ -110,12 +110,12 @@ protected:
 
             Backward(prop_kind::backward_data);
             Backward(prop_kind::backward_data, flags::use_global_stats);
-            Backward(prop_kind::backward, flags::use_scale_shift);
             Backward(prop_kind::backward, flags::use_scale);
             Backward(prop_kind::backward, flags::use_shift);
             Backward(prop_kind::backward, flags::use_scale | flags::use_shift);
             Backward(prop_kind::backward,
-                    flags::use_scale_shift | flags::use_global_stats);
+                    flags::use_scale | flags::use_shift
+                            | flags::use_global_stats);
         }
     }
 
@@ -123,8 +123,6 @@ protected:
             normalization_flags flags = normalization_flags::none) {
         fwd_iface_test_stat_any(pk, flags);
 
-        bool useScaleShift
-                = (bool)(flags & normalization_flags::use_scale_shift);
         bool useScale = (bool)(flags & normalization_flags::use_scale);
         bool useShift = (bool)(flags & normalization_flags::use_shift);
         bool useGlobalStats
@@ -144,9 +142,6 @@ protected:
                 == lnorm_fwd_pd.mean_desc());
         ASSERT_TRUE(lnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_VARIANCE)
                 == lnorm_fwd_pd.variance_desc());
-        ASSERT_TRUE(
-                lnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_SCALE_SHIFT)
-                == lnorm_fwd_pd.weights_desc());
         if (p.src_tag != memory::format_tag::any) {
             ASSERT_TRUE(*src_md == lnorm_fwd_pd.src_desc());
         }
@@ -158,7 +153,7 @@ protected:
         src = std::make_shared<test_memory>(lnorm_fwd_pd.src_desc(), eng);
         dst = std::make_shared<test_memory>(lnorm_fwd_pd.dst_desc(), eng);
 
-        if (useScaleShift || useScale)
+        if (useScale)
             weights = test::make_memory(lnorm_fwd_pd.weights_desc(), eng);
         if (useShift)
             bias = test::make_memory(lnorm_fwd_pd.weights_desc(), eng);
@@ -169,23 +164,20 @@ protected:
 
         fill<float>(src->get());
         fill<float>(dst->get());
-        if (useScaleShift || useScale) fill<float>(weights);
+        if (useScale) fill<float>(weights);
         if (useShift) fill<float>(bias);
         if (useGlobalStats) {
             fill<float>(mean);
             fill<float>(variance);
         }
 
-        execlnormFwd(
-                isTraining, useGlobalStats, useScaleShift, useScale, useShift);
+        execlnormFwd(isTraining, useGlobalStats, useScale, useShift);
     }
 
     void Backward(prop_kind pk,
             normalization_flags flags = normalization_flags::none) {
         bwd_iface_test_stat_any(pk, flags);
 
-        bool useScaleShift
-                = (bool)(flags & normalization_flags::use_scale_shift);
         bool useScale = (bool)(flags & normalization_flags::use_scale);
         bool useShift = (bool)(flags & normalization_flags::use_shift);
 
@@ -209,12 +201,6 @@ protected:
                 == lnorm_bwd_pd.mean_desc());
         ASSERT_TRUE(lnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_VARIANCE)
                 == lnorm_bwd_pd.variance_desc());
-        ASSERT_TRUE(
-                lnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_SCALE_SHIFT)
-                == lnorm_bwd_pd.weights_desc());
-        ASSERT_TRUE(lnorm_bwd_pd.query_md(
-                            query::exec_arg_md, DNNL_ARG_DIFF_SCALE_SHIFT)
-                == lnorm_bwd_pd.diff_weights_desc());
         if (p.diff_src_tag != memory::format_tag::any) {
             ASSERT_TRUE(*diff_src_md == lnorm_bwd_pd.diff_src_desc());
         }
@@ -228,11 +214,11 @@ protected:
         diff_dst = std::make_shared<test_memory>(
                 lnorm_bwd_pd.diff_dst_desc(), eng);
 
-        if (useScaleShift || useScale)
+        if (useScale)
             weights = test::make_memory(lnorm_bwd_pd.weights_desc(), eng);
         if (useShift)
             bias = test::make_memory(lnorm_bwd_pd.weights_desc(), eng);
-        if (useScaleShift || useScale)
+        if (useScale)
             diff_weights
                     = test::make_memory(lnorm_bwd_pd.diff_weights_desc(), eng);
         if (useShift)
@@ -241,24 +227,23 @@ protected:
         mean = test::make_memory(*stat_d, eng);
         variance = test::make_memory(*stat_d, eng);
 
-        if (useScaleShift || useScale) fill<float>(weights);
+        if (useScale) fill<float>(weights);
         if (useShift) fill<float>(bias);
         fill<float>(diff_src->get());
         fill<float>(diff_dst->get());
         fill<float>(mean);
         fill<float>(variance);
 
-        execlnormBwd(useScaleShift, useScale, useShift, pk);
+        execlnormBwd(useScale, useShift, pk);
     }
 
-    void execlnormFwd(bool isTraining, bool useGlobalStats, bool useScaleShift,
-            bool useScale, bool useShift) {
+    void execlnormFwd(bool isTraining, bool useGlobalStats, bool useScale,
+            bool useShift) {
         std::unordered_map<int, memory> args = {
                 {DNNL_ARG_SRC, src->get()},
                 {DNNL_ARG_DST, dst->get()},
         };
 
-        if (useScaleShift) args.insert({DNNL_ARG_SCALE_SHIFT, weights});
         if (useScale) args.insert({DNNL_ARG_SCALE, weights});
         if (useShift) args.insert({DNNL_ARG_SHIFT, bias});
 
@@ -272,8 +257,7 @@ protected:
         strm.wait();
     }
 
-    void execlnormBwd(
-            bool useScaleShift, bool useScale, bool useShift, prop_kind pk) {
+    void execlnormBwd(bool useScale, bool useShift, prop_kind pk) {
         std::unordered_map<int, memory> args = {
                 {DNNL_ARG_SRC, src->get()},
                 {DNNL_ARG_DIFF_DST, dst->get()},
@@ -281,12 +265,6 @@ protected:
                 {DNNL_ARG_VARIANCE, variance},
                 {DNNL_ARG_DIFF_SRC, diff_src->get()},
         };
-
-        if (useScaleShift) {
-            args.insert({DNNL_ARG_SCALE_SHIFT, weights});
-            if (pk == prop_kind::backward)
-                args.insert({DNNL_ARG_DIFF_SCALE_SHIFT, diff_weights});
-        }
 
         if (useScale) {
             args.insert({DNNL_ARG_SCALE, weights});

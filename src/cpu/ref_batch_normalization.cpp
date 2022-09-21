@@ -66,18 +66,9 @@ status_t ref_batch_normalization_fwd_t<d_type>::execute_forward(
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper ss_d(pd()->weights_md());
 
-    const auto use_ss = pd()->use_scaleshift();
-    const auto use_scale = pd()->use_scale();
-    const auto use_shift = pd()->use_shift();
-
-    const size_t shift_off
-            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
-
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto scale = CTX_IN_MEM(const acc_data_t *,
-            use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto shift = use_shift ? CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT)
-                           : use_ss ? &scale[shift_off] : nullptr;
+    auto scale = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE);
+    auto shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT);
 
     auto mean = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
@@ -106,14 +97,6 @@ status_t ref_batch_normalization_fwd_t<d_type>::execute_forward(
     const auto fuse_norm_relu = pd()->fuse_norm_relu();
     const auto save_stats = pd()->is_training();
     const auto is_training = pd()->is_training();
-
-    const auto ss_off = [&use_scale, &use_shift, &use_ss](
-                                const memory_desc_wrapper &md, dim_t c) {
-        dim_t offset = 0;
-        if (use_ss) offset = md.off(0, c);
-        if (use_scale || use_shift) offset = md.off(c);
-        return offset;
-    };
 
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) {
@@ -156,8 +139,8 @@ status_t ref_batch_normalization_fwd_t<d_type>::execute_forward(
         }
 
         acc_data_t sqrt_variance = sqrtf(v_variance + eps);
-        acc_data_t sm = (scale ? scale[ss_off(ss_d, c)] : 1.0f) / sqrt_variance;
-        acc_data_t sv = shift ? shift[ss_off(ss_d, c)] : 0;
+        acc_data_t sm = (scale ? scale[ss_d.off(c)] : 1.0f) / sqrt_variance;
+        acc_data_t sv = shift ? shift[ss_d.off(c)] : 0;
 
         for_(dim_t n = 0; n < N; ++n)
         for_(dim_t d = 0; d < D; ++d)
@@ -205,10 +188,6 @@ status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(
     const memory_desc_wrapper ss_d(pd()->weights_md());
     const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
 
-    const auto use_ss = pd()->use_scaleshift();
-    const auto use_scale = pd()->use_scale();
-    const auto use_shift = pd()->use_shift();
-
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
     auto variance = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
@@ -218,18 +197,12 @@ status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(
     auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
-    const size_t diff_shift_off
-            = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
-
-    auto scale = CTX_IN_MEM(
-            acc_data_t *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto diff_scale = CTX_OUT_CLEAN_MEM(acc_data_t *,
-            use_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-            status);
+    auto scale = CTX_IN_MEM(acc_data_t *, DNNL_ARG_SCALE);
+    auto diff_scale
+            = CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE, status);
     CHECK(status);
-    auto diff_shift = use_shift
-            ? CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+    auto diff_shift
+            = CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT, status);
     CHECK(status);
 
     const auto ndims = data_d.ndims();
@@ -243,24 +216,16 @@ status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(
     const auto calculate_diff_stats = !pd()->use_global_stats();
     const auto fuse_norm_relu = pd()->fuse_norm_relu();
 
-    const auto ss_off = [&use_scale, &use_shift, &use_ss](
-                                const memory_desc_wrapper &md, dim_t c) {
-        dim_t offset = 0;
-        if (use_ss) offset = md.off(0, c);
-        if (use_scale || use_shift) offset = md.off(c);
-        return offset;
-    };
-
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) {
         if (diff_scale) {
             for (dim_t c = 0; c < C; ++c) {
-                diff_scale[ss_off(diff_ss_d, c)] = 0.0f;
+                diff_scale[diff_ss_d.off(c)] = 0.0f;
             }
         }
         if (diff_shift) {
             for (dim_t c = 0; c < C; ++c) {
-                diff_shift[ss_off(diff_ss_d, c)] = 0.0f;
+                diff_shift[diff_ss_d.off(c)] = 0.0f;
             }
         }
         return status::success;
@@ -271,7 +236,7 @@ status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(
         acc_data_t v_variance = variance[c];
         acc_data_t sqrt_variance
                 = static_cast<acc_data_t>(1.0f / sqrtf(v_variance + eps));
-        acc_data_t gamma = scale ? scale[ss_off(ss_d, c)] : 1.0f;
+        acc_data_t gamma = scale ? scale[ss_d.off(c)] : 1.0f;
         acc_data_t diff_gamma = 0;
         acc_data_t diff_beta = 0;
 
@@ -291,8 +256,8 @@ status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(
         }
         diff_gamma *= sqrt_variance;
 
-        if (diff_scale) diff_scale[ss_off(diff_ss_d, c)] = diff_gamma;
-        if (diff_shift) diff_shift[ss_off(diff_ss_d, c)] = diff_beta;
+        if (diff_scale) diff_scale[diff_ss_d.off(c)] = diff_gamma;
+        if (diff_shift) diff_shift[diff_ss_d.off(c)] = diff_beta;
 
         for_(dim_t n = 0; n < N; ++n)
         for_(dim_t d = 0; d < D; ++d)

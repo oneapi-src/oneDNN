@@ -872,7 +872,7 @@ struct jit_bnorm_t : public jit_generator {
                 uni_vaddps(vsqrtvar, vsqrtvar, veps);
                 uni_vsqrtps(vsqrtvar, vsqrtvar);
 
-                if (bdesc_->use_scale() || bdesc_->use_scaleshift()) {
+                if (bdesc_->use_scale()) {
                     uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
                     uni_vdivps(vscale, vgamma, vsqrtvar, vtmp);
                 } else {
@@ -890,7 +890,7 @@ struct jit_bnorm_t : public jit_generator {
                     const Vmm vscale = Vmm(idx + num_ch_blks);
                     uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
 
-                    if (bdesc_->use_shift() || bdesc_->use_scaleshift()) {
+                    if (bdesc_->use_shift()) {
                         uni_vmovups_maybe_tail(vbeta, beta_ptr(coff));
                     }
 
@@ -899,7 +899,7 @@ struct jit_bnorm_t : public jit_generator {
 
                     uni_vsubps(vdata, vdata, vmean);
 
-                    if (bdesc_->use_shift() || bdesc_->use_scaleshift()) {
+                    if (bdesc_->use_shift()) {
                         // --flags=S,CH,H
                         uni_vfmadd213ps(vdata, vscale, vbeta);
                     } else {
@@ -1180,10 +1180,6 @@ struct jit_bnorm_t : public jit_generator {
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
             uni_vsqrtps(vsqrtvar, vsqrtvar);
 
-            if (bdesc_->use_scaleshift()) {
-                uni_vmovups_maybe_tail(vgamma, gamma_ptr());
-                uni_vmovups_maybe_tail(vbeta, beta_ptr());
-            }
             if (bdesc_->use_scale()) {
                 uni_vmovups_maybe_tail(vgamma, gamma_ptr());
             }
@@ -1191,12 +1187,8 @@ struct jit_bnorm_t : public jit_generator {
                 uni_vmovups_maybe_tail(vbeta, beta_ptr());
             }
 
-            Vmm vscale = (bdesc_->use_scaleshift() || bdesc_->use_scale())
-                    ? vgamma
-                    : vone;
-            Vmm vdiv = (bdesc_->use_scaleshift() || bdesc_->use_scale())
-                    ? vgamma
-                    : vsqrtvar;
+            Vmm vscale = (bdesc_->use_scale()) ? vgamma : vone;
+            Vmm vdiv = (bdesc_->use_scale()) ? vgamma : vsqrtvar;
 
             if (isa == sse41) {
                 movups(vtmp, vscale);
@@ -1215,9 +1207,8 @@ struct jit_bnorm_t : public jit_generator {
                 const size_t offt = i * vlen_spat_data_;
                 uni_vmovups_spat_data(v, vmmword[reg_src + reg_soff + offt]);
                 uni_vsubps(v, v, vmean);
-                if (bdesc_->use_scaleshift()
-                        || (bdesc_->use_scale() && bdesc_->use_shift())) {
-                    // --flags=S,CH
+                if ((bdesc_->use_scale() && bdesc_->use_shift())) {
+                    // --flags=CH
                     uni_vfmadd213ps(v, vgamma, vbeta);
                 } else if (bdesc_->use_scale()) {
                     // --flags=C
@@ -1553,7 +1544,7 @@ struct jit_bnorm_t : public jit_generator {
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
             uni_vsqrtps(vsqrtvar, vsqrtvar);
             uni_vdivps(vsqrtvar, vone, vsqrtvar, vtmp);
-            if (bdesc_->use_scaleshift() || bdesc_->use_scale())
+            if (bdesc_->use_scale())
                 uni_vmovups_maybe_tail(vgamma, gamma_ptr());
             uni_vmovups_maybe_tail(vdiff_gamma, diff_gamma_ptr());
             uni_vmovups_maybe_tail(vdiff_beta, diff_beta_ptr());
@@ -1588,9 +1579,7 @@ struct jit_bnorm_t : public jit_generator {
                     uni_vaddps(v, v, t);
                 }
                 uni_vmulps(v, v, vsqrtvar);
-                if (bdesc_->use_scaleshift() || bdesc_->use_scale()) {
-                    uni_vmulps(v, v, vgamma);
-                }
+                if (bdesc_->use_scale()) { uni_vmulps(v, v, vgamma); }
                 if (stream_store_allowed) {
                     uni_vmovntps(vmmword[reg_diff_src + reg_soff + offt], v);
                 } else {
@@ -1679,7 +1668,7 @@ struct jit_bnorm_t : public jit_generator {
                     const Vmm vsqrtvar_ch = Vmm(idx);
                     uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
 
-                    if (bdesc_->use_scaleshift() || bdesc_->use_scale())
+                    if (bdesc_->use_scale())
                         uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
 
                     uni_vmovups_spat_data(vdiff_data,
@@ -1705,7 +1694,7 @@ struct jit_bnorm_t : public jit_generator {
 
                     uni_vmulps(vdiff_data, vdiff_data, vsqrtvar_ch);
 
-                    if (bdesc_->use_scaleshift() || bdesc_->use_scale()) {
+                    if (bdesc_->use_scale()) {
                         uni_vmulps(vdiff_data, vdiff_data, vgamma);
                     }
 
@@ -2183,21 +2172,17 @@ private:
     };
 
     static bool use_tmp_stats(const batch_normalization_pd_t *bdesc) {
-        return true && !bdesc->stats_is_src()
+        return !bdesc->stats_is_src()
                 && bdesc->desc()->prop_kind == prop_kind::forward_inference;
     }
 
     static bool use_tmp_diff_scale(const batch_normalization_pd_t *bdesc) {
-        return false
-                || (bdesc->is_bwd() && !bdesc->use_scaleshift()
-                        && !bdesc->use_scale())
+        return (bdesc->is_bwd() && !bdesc->use_scale())
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
     static bool use_tmp_diff_shift(const batch_normalization_pd_t *bdesc) {
-        return false
-                || (bdesc->is_bwd() && !bdesc->use_scaleshift()
-                        && !bdesc->use_shift())
+        return (bdesc->is_bwd() && !bdesc->use_shift())
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
@@ -2285,22 +2270,9 @@ template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
 
-    const memory_desc_wrapper ss_d(pd()->weights_md());
-
-    const auto use_ss = pd()->use_scaleshift();
-    const auto use_sc = pd()->use_scale();
-    const auto use_sh = pd()->use_shift();
-
-    const size_t shift_off
-            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
-
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto scale = CTX_IN_MEM(
-            const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto shift = use_sh ? CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT)
-                        : use_ss ? &CTX_IN_MEM(const acc_data_t *,
-                                  DNNL_ARG_SCALE_SHIFT)[shift_off]
-                                 : nullptr;
+    auto scale = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE);
+    auto shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT);
 
     auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(
                         CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN))
@@ -2414,28 +2386,16 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
-
-    const auto use_ss = pd()->use_scaleshift();
-    const auto use_sc = pd()->use_scale();
-    const auto use_sh = pd()->use_shift();
-
-    const size_t diff_shift_off
-            = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
-
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
     auto var = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
-    auto scale = CTX_IN_MEM(
-            const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE);
     auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
     auto diff_src = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_SRC);
-    auto diff_scale = CTX_OUT_MEM(acc_data_t *,
-            use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
-    auto diff_shift = use_sh ? CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT)
-                             : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+    auto diff_scale = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE);
+    auto diff_shift = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 

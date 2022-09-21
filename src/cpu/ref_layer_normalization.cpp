@@ -31,23 +31,14 @@ namespace cpu {
 
 status_t ref_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    const auto use_ss = pd()->use_scaleshift();
-    const auto use_scale = pd()->use_scale();
-    const auto use_shift = pd()->use_shift();
-
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper stat_d(pd()->stat_md());
-    const memory_desc_wrapper ss_d(pd()->weights_md());
-
-    const size_t shift_off
-            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
+    const memory_desc_wrapper sc_d(pd()->weights_md());
 
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto scale = CTX_IN_MEM(
-            const float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto shift = use_shift ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
-                           : use_ss ? &scale[shift_off] : nullptr;
+    auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);
+    auto shift = CTX_IN_MEM(const float *, DNNL_ARG_SHIFT);
     auto mean = pd()->stats_are_src()
             ? const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
             : CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
@@ -64,14 +55,6 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     const float eps = pd()->desc()->layer_norm_epsilon;
     const bool save_stats = pd()->is_training();
     const bool calculate_stats = !pd()->stats_are_src();
-
-    const auto ss_off = [&use_scale, &use_shift, &use_ss](
-                                const memory_desc_wrapper &md, dim_t c) {
-        dim_t offset = 0;
-        if (use_ss) offset = md.off(0, c);
-        if (use_scale || use_shift) offset = md.off(c);
-        return offset;
-    };
 
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) {
@@ -108,9 +91,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
 
         float sqrt_variance = sqrtf(v_variance + eps);
         for (dim_t c = 0; c < C; ++c) {
-            const float sm
-                    = (scale ? scale[ss_off(ss_d, c)] : 1.f) / sqrt_variance;
-            const float sv = shift ? shift[ss_off(ss_d, c)] : 0;
+            const float sm = (scale ? scale[sc_d.off(c)] : 1.f) / sqrt_variance;
+            const float sv = shift ? shift[sc_d.off(c)] : 0;
             const auto s_off = src_d.off_l(n * C + c);
             const auto d_off = dst_d.off_l(n * C + c);
             float s = io::load_float_value(src_d.data_type(), src, s_off);
@@ -137,10 +119,9 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     const memory_desc_wrapper stat_d(pd()->stat_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
-    const memory_desc_wrapper ss_d(pd()->weights_md());
-    const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
+    const memory_desc_wrapper sc_d(pd()->weights_md());
+    const memory_desc_wrapper diff_sc_d(pd()->diff_weights_md());
 
-    const auto use_ss = pd()->use_scaleshift();
     const auto use_scale = pd()->use_scale();
     const auto use_shift = pd()->use_shift();
 
@@ -148,46 +129,32 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     auto mean = CTX_IN_MEM(const float *, DNNL_ARG_MEAN);
     auto variance = CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE);
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
-    auto scale = CTX_IN_MEM(
-            float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(float *, DNNL_ARG_SCALE);
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
-    const size_t diff_shift_off
-            = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
-
     auto diff_scale = use_scale
             ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SCALE, status)
-            : use_ss ? CTX_OUT_CLEAN_MEM(
-                      float *, DNNL_ARG_DIFF_SCALE_SHIFT, status)
-                     : nullptr;
+            : nullptr;
     CHECK(status);
     auto diff_shift = use_shift
             ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+            : nullptr;
     CHECK(status);
 
     const dim_t N = pd()->across_axis();
     const dim_t C = pd()->norm_axis();
 
-    const auto ss_off = [&use_scale, &use_shift, &use_ss](
-                                const memory_desc_wrapper &md, dim_t c) {
-        dim_t offset = 0;
-        if (use_ss) offset = md.off(0, c);
-        if (use_scale || use_shift) offset = md.off(c);
-        return offset;
-    };
-
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) {
         if (diff_scale) {
             for (dim_t c = 0; c < C; ++c) {
-                diff_scale[ss_off(diff_ss_d, c)] = 0;
+                diff_scale[diff_sc_d.off(c)] = 0;
             }
         }
         if (diff_shift) {
             for (dim_t c = 0; c < C; ++c) {
-                diff_shift[ss_off(diff_ss_d, c)] = 0;
+                diff_shift[diff_sc_d.off(c)] = 0;
             }
         }
         return status::success;
@@ -213,8 +180,8 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
                 diff_beta += dd;
             }
 
-            if (diff_scale) diff_scale[ss_off(diff_ss_d, c)] = diff_gamma;
-            if (diff_shift) diff_shift[ss_off(diff_ss_d, c)] = diff_beta;
+            if (diff_scale) diff_scale[diff_sc_d.off(c)] = diff_gamma;
+            if (diff_shift) diff_shift[diff_sc_d.off(c)] = diff_beta;
         });
     }
 
@@ -225,7 +192,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
         float dd_gamma_x = 0.f;
         if (calculate_diff_stats) {
             for (dim_t c = 0; c < C; ++c) {
-                float gamma = scale ? scale[ss_off(ss_d, c)] : 1.f;
+                float gamma = scale ? scale[sc_d.off(c)] : 1.f;
                 const auto src_off = src_d.off_l(n * C + c);
                 const auto diff_dst_off = diff_dst_d.off_l(n * C + c);
                 float s = io::load_float_value(src_d.data_type(), src, src_off);
@@ -238,7 +205,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
         }
 
         for (dim_t c = 0; c < C; ++c) {
-            float gamma = scale ? scale[ss_off(ss_d, c)] : 1;
+            float gamma = scale ? scale[sc_d.off(c)] : 1;
             const auto src_off = src_d.off_l(n * C + c);
             const auto diff_dst_off = diff_dst_d.off_l(n * C + c);
             const auto diff_src_off = diff_src_d.off_l(n * C + c);

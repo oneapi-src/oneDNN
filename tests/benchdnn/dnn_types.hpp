@@ -83,7 +83,6 @@ enum data_kind_t {
     SRC_1,
     MEAN,
     VAR,
-    SS,
     SC,
     SH,
     // rnn

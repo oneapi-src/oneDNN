@@ -1197,6 +1197,16 @@ const format_tag_t gOdhwI16i64o4i = dnnl_gOdhwI16i64o4i;
 const format_tag_t hwioG16g = dnnl_hwioG16g;
 } // namespace format_tag
 
+using normalization_flags_t = dnnl_normalization_flags_t;
+namespace normalization_flags {
+const normalization_flags_t none = dnnl_normalization_flags_none;
+const normalization_flags_t use_global_stats = dnnl_use_global_stats;
+const normalization_flags_t use_scale = dnnl_use_scale;
+const normalization_flags_t use_shift = dnnl_use_shift;
+const normalization_flags_t fuse_norm_relu = dnnl_fuse_norm_relu;
+const normalization_flags_t fuse_norm_add_relu = dnnl_fuse_norm_add_relu;
+} // namespace normalization_flags
+
 using engine_kind_t = dnnl_engine_kind_t;
 namespace engine_kind {
 const engine_kind_t any_engine = dnnl_any_engine;

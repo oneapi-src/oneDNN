@@ -60,10 +60,7 @@ struct cudnn_batch_normalization_common_t {
 struct cudnn_batch_normalization_fwd_t : public primitive_t {
     using primitive_t::primitive_t;
     struct pd_t : public batch_normalization_fwd_pd_t {
-        pd_t(const batch_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using batch_normalization_fwd_pd_t::batch_normalization_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_batch_normalization_fwd_t);
 
@@ -71,17 +68,23 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
             using namespace data_type;
             using namespace types;
 
+            const auto norm_flags_supported
+                    = normalization_flags::use_global_stats
+                    | normalization_flags::fuse_norm_relu
+                    | normalization_flags::use_scale
+                    | normalization_flags::use_shift;
+            if ((~norm_flags_supported & desc()->flags) != 0)
+                return status::unimplemented;
+
             auto src_dt = src_md()->data_type;
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = true && is_fwd() && utils::one_of(src_dt, f16, f32, s8)
+            bool ok = is_fwd() && utils::one_of(src_dt, f16, f32, s8)
                     && attr()->has_default_values(attr_skip_mask)
                     && IMPLICATION(!attr()->has_default_values(),
                             attr()->post_ops_.len() == 1 && with_relu_post_op())
                     && IMPLICATION(utils::one_of(src_dt, s8, f16),
                             !is_training() && stats_is_src())
-                    /* separate scale and shift are not supported */
-                    && !use_scale() && !use_shift()
                     && src_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;
 
@@ -96,24 +99,7 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
                 bnorm_impl_.reset(new cudnn_batch_normalization_fwd_impl_t());
             }
 
-            if (!is_training() && !use_global_stats() && !use_scaleshift()) {
-                executor_.reset(new bnorm_exec_fwd_inf_t());
-            } else if (!is_training() && use_scaleshift()
-                    && !use_global_stats()) {
-                executor_.reset(new bnorm_exec_fwd_inf_ss_t());
-            } else if (!use_scaleshift() && !use_global_stats()) {
-                executor_.reset(new bnorm_exec_fwd_t());
-            } else if (use_scaleshift() && !use_global_stats()) {
-                executor_.reset(new bnorm_exec_fwd_ss_t);
-            } else if (!use_scaleshift() && use_global_stats()) {
-                // Same for training and inference
-                executor_.reset(new bnorm_exec_fwd_inf_stats_t());
-            } else if (use_scaleshift() && use_global_stats()) {
-                // Same for training and inference
-                executor_.reset(new bnorm_exec_fwd_inf_ss_stats_t());
-            } else {
-                return status::unimplemented;
-            }
+            executor_.reset(new bnorm_exec_fwd_t());
 
             return bnorm_impl_->init(this);
         }
@@ -143,17 +129,23 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
             using namespace data_type;
             using namespace types;
 
-            bool ok = true && is_bwd() && set_default_formats_common()
+            const auto norm_flags_supported
+                    = normalization_flags::fuse_norm_relu
+                    | normalization_flags::use_scale
+                    | normalization_flags::use_shift;
+            if ((~norm_flags_supported & desc()->flags) != 0)
+                return status::unimplemented;
+
+            bool ok = is_bwd()
                     && IMPLICATION(
                             desc()->prop_kind == prop_kind::backward_data,
-                            !use_scaleshift())
+                            !use_scale())
                     && (utils::everyone_is(
                             f32, src_md()->data_type, diff_src_md()->data_type))
-                    && attr()->has_default_values() && !use_global_stats()
+                    && attr()->has_default_values()
+                    && set_default_formats_common()
                     && src_md()->format_desc.blocking.inner_nblks == 0
-                    && diff_src_md()->format_desc.blocking.inner_nblks == 0
-                    /* separate scale and shift are not supported */
-                    && !use_scale() && !use_shift();
+                    && diff_src_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;
 
             cudnn_batch_normalization_common_t::init_ws(this, ws_md_);
@@ -166,17 +158,7 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
                 bnorm_impl_.reset(new cudnn_batch_normalization_bwd_impl_t());
             }
 
-            bool is_bwd_d = desc()->prop_kind == prop_kind::backward_data;
-            if (!is_bwd_d && use_scaleshift() && !use_global_stats()) {
-                executor_.reset(new bnorm_exec_bwd_dw_ss_t);
-            } else if (is_bwd_d && use_scaleshift() && !use_global_stats()) {
-                executor_.reset(new bnorm_exec_bwd_d_ss_t);
-            } else if (!use_scaleshift() && !use_global_stats()) {
-                // Same for bwd_d and bwd_dw
-                executor_.reset(new bnorm_exec_bwd_t());
-            } else {
-                return status::unimplemented;
-            }
+            executor_.reset(new bnorm_exec_bwd_t());
 
             return bnorm_impl_->init(this);
         }

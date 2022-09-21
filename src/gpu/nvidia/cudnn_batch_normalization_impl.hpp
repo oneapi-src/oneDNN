@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,9 +49,9 @@ struct bnorm_fwd_args_t : public bnorm_args_t {
 
 struct bnorm_bwd_args_t : public bnorm_args_t {
     bnorm_bwd_args_t(void *x, void *dx, void *dy, void *mean, void *var,
-            void *scale, void *bias, void *diff_scale, void *diff_bias,
-            void *wkspace, void *relu_dx)
-        : bnorm_args_t(x, mean, var, scale, bias)
+            void *scale, void *diff_scale, void *diff_bias, void *wkspace,
+            void *relu_dx)
+        : bnorm_args_t(x, mean, var, scale, nullptr)
         , dx_(dx)
         , dy_(dy)
         , diff_scale_(diff_scale)
@@ -83,6 +83,9 @@ struct cudnn_batch_normalization_impl_base_t {
 
     bool is_bwd_d() const { return is_bwd_data_; }
     bool is_training() const { return is_training_; }
+    bool use_global_stats() const { return use_global_stats_; }
+    bool use_scale() const { return use_scale_; }
+    bool use_shift() const { return use_shift_; }
     bool fuse_norm_relu() const { return fuse_norm_relu_; }
     std::size_t dt_size() const { return dt_size_; }
     std::size_t mean_var_size_bytes() { return mean_var_size_bytes_; }
@@ -95,9 +98,11 @@ protected:
         if (ndims_ > 5) { return status::invalid_arguments; }
 
         memory_desc_wrapper wrap(pd->src_md());
+        use_scale_ = pd->use_scale();
+        use_shift_ = pd->use_shift();
         fuse_norm_relu_ = pd->fuse_norm_relu();
         is_training_ = pd->is_training();
-        with_global_stats_ = pd->use_global_stats();
+        use_global_stats_ = pd->use_global_stats();
         is_bwd_data_ = pd->desc()->prop_kind == prop_kind::backward_data;
         dt_size_ = types::data_type_size(wrap.data_type());
         nchannels_ = pd->C();
@@ -166,9 +171,11 @@ protected:
     double factor_ = 1.0;
     double eps_ = CUDNN_BN_MIN_EPSILON;
     float var_scaling_factor_ = 0.f;
+    bool use_scale_ = false;
+    bool use_shift_ = false;
     bool fuse_norm_relu_ = false;
     bool with_relu_postop_ = false;
-    bool with_global_stats_ = false;
+    bool use_global_stats_ = false;
     bool is_training_ = false;
     bool is_bwd_data_ = false;
     std::size_t y_prime_size_;

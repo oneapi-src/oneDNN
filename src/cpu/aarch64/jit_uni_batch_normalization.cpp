@@ -58,9 +58,9 @@ struct jit_bnorm_t : public jit_generator {
         size_t S_s, S_tail;
         size_t is_cblk_tail;
         acc_data_t chan_size, eps, one;
-        const acc_data_t *scale_shift;
+        const acc_data_t *scale;
         const acc_data_t *mean, *var;
-        const acc_data_t *diff_scale_shift;
+        const acc_data_t *diff_scale;
         const void *src, *dst;
         const void *diff_src, *diff_dst;
         const acc_data_t *rbuf1, *rbuf2;
@@ -85,15 +85,15 @@ struct jit_bnorm_t : public jit_generator {
 
     XReg reg_param = abi_param1;
 
-    XReg reg_scale_shift = x3;
+    XReg reg_scale = x3;
     XReg reg_rbuf1 = x1;
     XReg reg_rbuf2 = x2;
     XReg reg_coff_max_fwd_copy = reg_rbuf2;
 
     XReg reg_mean = x5;
     XReg reg_var = reg_param;
-    XReg reg_diff_scale_shift = x7;
-    XReg reg_coff_max_bwd_copy = reg_diff_scale_shift;
+    XReg reg_diff_scale = x7;
+    XReg reg_coff_max_bwd_copy = reg_diff_scale;
 
     XReg reg_coff = x8;
     XReg reg_coff_max = x9;
@@ -165,7 +165,7 @@ struct jit_bnorm_t : public jit_generator {
         stack_off_dst = 24,
         stack_off_diff_src = 32,
         stack_off_diff_dst = 40,
-        stack_off_diff_scale_shift = 48,
+        stack_off_diff_scale = 48,
         stack_off_ws = 56,
         stack_off_barrier = 64,
         stack_off_spat_size_loc = 72,
@@ -225,11 +225,9 @@ struct jit_bnorm_t : public jit_generator {
         lsl(reg_coff_max, reg_coff_max, 2);
 
         LDR_PARAM(reg_mean, mean, mb_stride_Bc);
-        LDR_PARAM(reg_scale_shift, scale_shift, mean);
+        LDR_PARAM(reg_scale, scale, mean);
 
-        ldr(W_TMP_1,
-                pre_ptr(X_DEFAULT_ADDR,
-                        PARAM_OFF_DIFF(chan_size, scale_shift)));
+        ldr(W_TMP_1, pre_ptr(X_DEFAULT_ADDR, PARAM_OFF_DIFF(chan_size, scale)));
         ldr(W_TMP_2, pre_ptr(X_DEFAULT_ADDR, PARAM_OFF_DIFF(one, chan_size)));
         ldr(W_TMP_3, pre_ptr(X_DEFAULT_ADDR, PARAM_OFF_DIFF(eps, one)));
 
@@ -288,10 +286,9 @@ struct jit_bnorm_t : public jit_generator {
             mov(reg_var, X_TMP_0);
         } else {
             ldr(X_TMP_0,
-                    pre_ptr(X_DEFAULT_ADDR,
-                            PARAM_OFF(diff_scale_shift) - tmpSize));
-            STR_PARAM_TMP(stack_off_diff_scale_shift, tmpStack);
-            LDR_PARAM_TMP(var, diff_scale_shift);
+                    pre_ptr(X_DEFAULT_ADDR, PARAM_OFF(diff_scale) - tmpSize));
+            STR_PARAM_TMP(stack_off_diff_scale, tmpStack);
+            LDR_PARAM_TMP(var, diff_scale);
             mov(reg_var, X_TMP_0);
         }
 #undef LDR_PARAM
@@ -544,19 +541,19 @@ struct jit_bnorm_t : public jit_generator {
     XReg var_ptr(size_t offt = 0) { return xreg_addr(reg_var, reg_coff, offt); }
 
     XReg diff_gamma_ptr(size_t offt = 0) {
-        return xreg_addr(reg_diff_scale_shift, reg_coff, offt);
+        return xreg_addr(reg_diff_scale, reg_coff, offt);
     }
 
     XReg diff_beta_ptr(size_t offt = 0) {
-        return xreg_addr(reg_diff_scale_shift, reg_coff, offt + chan_data_offt);
+        return xreg_addr(reg_diff_scale, reg_coff, offt + chan_data_offt);
     }
 
     XReg gamma_ptr(size_t offt = 0) {
-        return xreg_addr(reg_scale_shift, reg_coff, offt);
+        return xreg_addr(reg_scale, reg_coff, offt);
     }
 
     XReg beta_ptr(size_t offt = 0) {
-        return xreg_addr(reg_scale_shift, reg_coff, offt + chan_data_offt);
+        return xreg_addr(reg_scale, reg_coff, offt + chan_data_offt);
     }
 
     template <typename init_t, typename body_t, typename fini_t>
@@ -765,13 +762,12 @@ struct jit_bnorm_t : public jit_generator {
                     fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
                     uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
 
-                    if (bdesc_->use_scaleshift()) {
+                    if (bdesc_->use_scale()) {
                         uni_load_maybe_tail(vgamma, gamma_ptr(coff));
-                        uni_load_maybe_tail(vbeta, beta_ptr(coff));
                     }
 
-                    TReg vscale = bdesc_->use_scaleshift() ? vgamma : vone;
-                    TReg vdiv = bdesc_->use_scaleshift() ? vgamma : vsqrtvar;
+                    TReg vscale = bdesc_->use_scale() ? vgamma : vone;
+                    TReg vdiv = bdesc_->use_scale() ? vgamma : vsqrtvar;
 
                     uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s, t_tmp0.s, P_ALL_ONE);
 
@@ -781,8 +777,8 @@ struct jit_bnorm_t : public jit_generator {
 
                     uni_fsub(TRegS(idx), TRegS(idx), vmean.s);
 
-                    if (bdesc_->use_scaleshift()) { // --flags=S
-                        uni_fmad(TRegS(idx), vgamma.s, vbeta.s, t_tmp0.s);
+                    if (bdesc_->use_scale()) { // --flags=S
+                        fmul(TRegS(idx), TRegS(idx), vgamma.s);
                     } else {
                         fmul(TRegS(idx), TRegS(idx), vsqrtvar.s);
                     }
@@ -1116,13 +1112,12 @@ struct jit_bnorm_t : public jit_generator {
             fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
             uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
 
-            if (bdesc_->use_scaleshift()) {
+            if (bdesc_->use_scale()) {
                 uni_load_maybe_tail(vgamma, gamma_ptr());
-                uni_load_maybe_tail(vbeta, beta_ptr());
             }
 
-            TReg vscale = bdesc_->use_scaleshift() ? vgamma : vone;
-            TReg vdiv = bdesc_->use_scaleshift() ? vgamma : vsqrtvar;
+            TReg vscale = bdesc_->use_scale() ? vgamma : vone;
+            TReg vdiv = bdesc_->use_scale() ? vgamma : vsqrtvar;
 
             uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s, t_tmp0.s, P_ALL_ONE);
 
@@ -1148,8 +1143,8 @@ struct jit_bnorm_t : public jit_generator {
                                         X_TMP_1);
                             prfm(PLDL2KEEP, ptr(X_TMP_0));
                             uni_fsub(v.s, v.s, vmean.s);
-                            if (bdesc_->use_scaleshift()) {
-                                uni_fmad(v.s, vgamma.s, vbeta.s, t_tmp0.s);
+                            if (bdesc_->use_scale()) {
+                                fmul(v.s, v.s, vgamma.s);
                             } else {
                                 fmul(v.s, v.s, vsqrtvar.s);
                             }
@@ -1485,8 +1480,8 @@ struct jit_bnorm_t : public jit_generator {
 
         // comeback
         mov(reg_coff_max, reg_coff_max_bwd_copy);
-        add_imm(X_TMP_0, X_SP, (int)stack_off_diff_scale_shift, X_TMP_1);
-        ldr(reg_diff_scale_shift, ptr(X_TMP_0));
+        add_imm(X_TMP_0, X_SP, (int)stack_off_diff_scale, X_TMP_1);
+        ldr(reg_diff_scale, ptr(X_TMP_0));
 
         sub(reg_src, reg_src, reg_coff_max);
         sub(reg_diff_dst, reg_diff_dst, reg_coff_max);
@@ -1507,8 +1502,7 @@ struct jit_bnorm_t : public jit_generator {
             fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
             uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
             uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, P_ALL_ONE);
-            if (bdesc_->use_scaleshift())
-                uni_load_maybe_tail(vgamma, gamma_ptr());
+            if (bdesc_->use_scale()) uni_load_maybe_tail(vgamma, gamma_ptr());
             uni_load_maybe_tail(vdiff_gamma, diff_gamma_ptr());
             uni_load_maybe_tail(vdiff_beta, diff_beta_ptr());
             fmul(vdiff_gamma.s, vdiff_gamma.s, vsqrtvar.s);
@@ -1547,7 +1541,7 @@ struct jit_bnorm_t : public jit_generator {
                                 fadd(v.s, v.s, t.s);
                             }
                             fmul(v.s, v.s, vsqrtvar.s);
-                            if (bdesc_->use_scaleshift()) {
+                            if (bdesc_->use_scale()) {
                                 fmul(v.s, v.s, vgamma.s);
                             }
                             if (stream_store_allowed) {
@@ -1626,13 +1620,12 @@ struct jit_bnorm_t : public jit_generator {
                     uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s,
                             P_ALL_ONE);
 
-                    if (bdesc_->use_scaleshift())
+                    if (bdesc_->use_scale())
                         uni_load_maybe_tail(vgamma, gamma_ptr(coff));
 
                     add_imm(X_TMP_0, X_SP, (int)stack_off_ws_off_copy, X_TMP_1);
                     str(reg_ws, ptr(X_TMP_0));
-                    add_imm(X_TMP_0, X_SP, (int)stack_off_diff_scale_shift,
-                            X_TMP_1);
+                    add_imm(X_TMP_0, X_SP, (int)stack_off_diff_scale, X_TMP_1);
                     ldr(reg_ws, ptr(X_TMP_0));
                     add(X_TMP_0, reg_ws, reg_coff);
                     if (coff) add_imm(X_TMP_0, X_TMP_0, coff, X_TMP_1);
@@ -1674,7 +1667,7 @@ struct jit_bnorm_t : public jit_generator {
 
                     fmul(TRegS(idx), TRegS(idx), vsqrtvar.s);
 
-                    if (bdesc_->use_scaleshift()) {
+                    if (bdesc_->use_scale()) {
                         fmul(TRegS(idx), TRegS(idx), vgamma.s);
                     }
 
@@ -1750,8 +1743,8 @@ struct jit_bnorm_t : public jit_generator {
 
         // comeback
         mov(reg_coff_max, reg_coff_max_bwd_copy);
-        add_imm(X_TMP_0, X_SP, (int)stack_off_diff_scale_shift, X_TMP_1);
-        ldr(reg_diff_scale_shift, ptr(X_TMP_0));
+        add_imm(X_TMP_0, X_SP, (int)stack_off_diff_scale, X_TMP_1);
+        ldr(reg_diff_scale, ptr(X_TMP_0));
 
         sub(reg_diff_dst, reg_diff_dst, reg_coff_max);
         if (!bdesc_->use_global_stats()) sub(reg_src, reg_src, reg_coff_max);
@@ -1832,8 +1825,8 @@ struct jit_bnorm_t : public jit_generator {
             ldr(reg_diff_dst, ptr(X_TMP_0));
         }
 
-        add_imm(X_TMP_0, X_SP, (int)stack_off_diff_scale_shift, X_TMP_1);
-        ldr(reg_diff_scale_shift, ptr(X_TMP_0));
+        add_imm(X_TMP_0, X_SP, (int)stack_off_diff_scale, X_TMP_1);
+        ldr(reg_diff_scale, ptr(X_TMP_0));
 
         Label no_sh_reduction;
         barrier();
@@ -2026,7 +2019,7 @@ struct driver_t : public c_compatible {
         dim_t C_PADDED = get_c_padded(bdesc);
 
         int sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
-        int pbuf_sz = use_tmp_diff_scale_shift(bdesc) * 2 * C_PADDED;
+        int pbuf_sz = use_tmp_diff_scale(bdesc) * 2 * C_PADDED;
         int rbuf_sz
                 = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * dnnl_get_max_threads();
 
@@ -2041,8 +2034,8 @@ struct driver_t : public c_compatible {
     }
 
     void exec(int ithr, int nthr, const void *src, void *diff_src, void *dst,
-            const void *diff_dst, const acc_data_t *scale_shift,
-            acc_data_t *diff_scale_shift, const acc_data_t *mean,
+            const void *diff_dst, const acc_data_t *scale,
+            acc_data_t *diff_scale, const acc_data_t *mean,
             const acc_data_t *var, const uint8_t *ws,
             const memory_tracking::grantor_t &scratchpad) {
         auto sbuf = scratchpad.get<acc_data_t>(key_bnorm_tmp_stats);
@@ -2131,10 +2124,8 @@ struct driver_t : public c_compatible {
             p.coff_max = C_blks_thr * simd_w;
             p.mean = (use_tmp_stats(bdesc_) ? sbuf : mean) + coff_base;
             p.var = (use_tmp_stats(bdesc_) ? sbuf + C_PADDED : var) + coff_base;
-            p.scale_shift = scale_shift + coff_base;
-            p.diff_scale_shift
-                    = (use_tmp_diff_scale_shift(bdesc_) ? pbuf
-                                                        : diff_scale_shift)
+            p.scale = scale + coff_base;
+            p.diff_scale = (use_tmp_diff_scale(bdesc_) ? pbuf : diff_scale)
                     + coff_base;
 
             p.soff_max = dt_size_ * N_thr * img_size;
@@ -2186,9 +2177,8 @@ private:
                 && bdesc->desc()->prop_kind == prop_kind::forward_inference;
     }
 
-    static bool use_tmp_diff_scale_shift(
-            const batch_normalization_pd_t *bdesc) {
-        return false || (bdesc->is_bwd() && !bdesc->use_scaleshift())
+    static bool use_tmp_diff_scale(const batch_normalization_pd_t *bdesc) {
+        return false || (bdesc->is_bwd() && !bdesc->use_scale())
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
@@ -2271,7 +2261,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto scale_shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE);
 
     auto mean = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
@@ -2294,7 +2284,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
     bnorm_driver_->init_barriers(scratchpad);
 
     parallel(0, [&](const int ithr, const int nthr) {
-        bnorm_driver_->exec(ithr, nthr, src, nullptr, dst, nullptr, scale_shift,
+        bnorm_driver_->exec(ithr, nthr, src, nullptr, dst, nullptr, scale,
                 nullptr, mean, var, ws, scratchpad);
     });
 
@@ -2384,13 +2374,13 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
     auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
     auto var = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
-    auto scale_shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE);
     auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
-    auto diff_scale_shift = CTX_OUT_CLEAN_MEM(
-            acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT, status);
+    auto diff_scale
+            = CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE, status);
     CHECK(status);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
@@ -2398,8 +2388,8 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
     bnorm_driver_->init_barriers(scratchpad);
 
     parallel(0, [&](const int ithr, const int nthr) {
-        bnorm_driver_->exec(ithr, nthr, src, diff_src, nullptr, diff_dst,
-                scale_shift, diff_scale_shift, mean, var, ws, scratchpad);
+        bnorm_driver_->exec(ithr, nthr, src, diff_src, nullptr, diff_dst, scale,
+                diff_scale, mean, var, ws, scratchpad);
     });
 
     return status::success;

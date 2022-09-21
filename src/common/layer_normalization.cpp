@@ -38,8 +38,9 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     bool args_ok = !any_null(lnorm_desc, src_desc) && 2 <= src_desc->ndims
             && src_desc->ndims <= 5
             && (flags
-                       & ~(dnnl_use_global_stats | dnnl_use_scaleshift
-                               | dnnl_use_scale | dnnl_use_shift))
+                       & ~(normalization_flags::use_global_stats
+                               | normalization_flags::use_scale
+                               | normalization_flags::use_shift))
                     == 0;
     if (!args_ok) return invalid_arguments;
 
@@ -81,7 +82,9 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
 
     int ndims = src_desc->ndims;
     ld.data_scaleshift_desc = zero_md();
-    if (flags & (dnnl_use_scale | dnnl_use_shift)) {
+    if (flags
+            & (normalization_flags::use_scale
+                    | normalization_flags::use_shift)) {
         dims_t scaleshift_dims = {src_desc->dims[ndims - 1]};
         memory_desc_init_by_tag(ld.data_scaleshift_desc, 1, scaleshift_dims,
                 data_type::f32, dnnl_x);
@@ -95,11 +98,6 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     }
 
     ld.layer_norm_epsilon = epsilon;
-
-    // dnnl_use_scaleshift can't be mixed with dnnl_use_scale or dnnl_use_shift
-    if ((flags & dnnl_use_scaleshift)
-            && (flags & (dnnl_use_scale | dnnl_use_shift)))
-        return invalid_arguments;
 
     ld.flags = flags;
 

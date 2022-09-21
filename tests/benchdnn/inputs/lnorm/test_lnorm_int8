@@ -7,5 +7,5 @@
 
 --dir=FWD_I
 --attr-oscale=common:128*
---flags=,S,G,GS
+--flags=,CH,G,GCH
 --batch=option_set_all

@@ -9,15 +9,14 @@
 
 --tag=aBx8b
 --mb=17
---flags=,GSR
+--flags=,GCHR
 --batch=set_nd
 
 --tag=aBx16b
 --mb=64
 --flags=  --batch=shapes_googlenet_v2
 --flags=G --batch=shapes_densenet_121
---flags=S --batch=shapes_resnet_50
---flags=C,H --batch=shapes_resnet_50
+--flags=C,H,CH --batch=shapes_resnet_50
 --flags=R --batch=shapes_googlenet_v3
 
 # inference
@@ -27,7 +26,7 @@
 ## f32
 --dt=f32
 
---flags=,G,S
+--flags=,G,CH
 --mb=1,17
 --tag=aBx16b
 --attr-post-ops=,relu,relu:0.05
@@ -38,7 +37,7 @@
 --attr-post-ops=
 --flags=  --batch=shapes_googlenet_v2
 --flags=G --batch=shapes_densenet_121
---flags=S --batch=shapes_resnet_50
+--flags=CH --batch=shapes_resnet_50
 
 --flags=
 --mb=1

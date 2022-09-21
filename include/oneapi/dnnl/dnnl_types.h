@@ -1606,18 +1606,22 @@ typedef enum {
     ///   - on backward propagation compute full derivative wrt data
     dnnl_use_global_stats = 0x1U,
 
-    /// Use scale and shift parameters
+    /// Use scale parameter
     ///
     /// If specified:
-    ///  - on forward propagation use scale and shift (aka scale and bias) for
-    ///    the normalization results
+    ///  - on forward propagation use scale for the normalization results
     ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
-    ///    diff wrt scale and shift (hence one extra output used)
+    ///    diff wrt scale (hence one extra output used)
+    dnnl_use_scale = 0x2U,
+
+    /// Use shift parameter
     ///
-    /// If no specified:
-    ///  - on backward propagation prop_kind == #dnnl_backward_data has the
-    ///    same behavior as prop_kind == #dnnl_backward
-    dnnl_use_scaleshift = 0x2U,
+    /// If specified:
+    ///  - on forward propagation use shift (aka bias) for the normalization
+    ///    results
+    ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
+    ///    diff wrt shift (hence one extra output used)
+    dnnl_use_shift = 0x4U,
 
     /// Fuse with ReLU
     ///
@@ -1630,24 +1634,7 @@ typedef enum {
     ///    fused with ReLU using post ops API with zero negative slope.
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass)
-    dnnl_fuse_norm_relu = 0x4U,
-
-    /// Use scale parameter
-    ///
-    /// If specified:
-    ///  - on forward propagation use scale for the normalization results
-    ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
-    ///    diff wrt scale (hence one extra output used)
-    dnnl_use_scale = 0x8U,
-
-    /// Use shift parameter
-    ///
-    /// If specified:
-    ///  - on forward propagation use shift (aka bias) for the normalization
-    ///    results
-    ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
-    ///    diff wrt shift (hence one extra output used)
-    dnnl_use_shift = 0x10U,
+    dnnl_fuse_norm_relu = 0x8U,
 
     /// Fuse with Add and then fuse with ReLU
     ///
@@ -1661,7 +1648,7 @@ typedef enum {
     ///  - on backward propagation save the result of backward ReLU operation
     ///    with input tensor and workspace from forward pass to extra output
     ///    tensor and then perform backward normalization.
-    dnnl_fuse_norm_add_relu = 0x20U,
+    dnnl_fuse_norm_add_relu = 0x10U,
 
 } dnnl_normalization_flags_t;
 
@@ -1970,9 +1957,6 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// A special mnemonic for primitives that have a single weights
 /// argument. Alias for #DNNL_ARG_WEIGHTS_0.
 #define DNNL_ARG_WEIGHTS DNNL_ARG_WEIGHTS_0
-/// A special mnemonic for scale and shift argument of normalization
-/// primitives. Alias for #DNNL_ARG_WEIGHTS_0.
-#define DNNL_ARG_SCALE_SHIFT DNNL_ARG_WEIGHTS_0
 /// A special mnemonic for RNN weights applied to the layer input. An
 /// alias for #DNNL_ARG_WEIGHTS_0.
 #define DNNL_ARG_WEIGHTS_LAYER DNNL_ARG_WEIGHTS_0
@@ -2067,9 +2051,6 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// A special mnemonic for primitives that have a single diff weights
 /// argument. Alias for #DNNL_ARG_DIFF_WEIGHTS_0.
 #define DNNL_ARG_DIFF_WEIGHTS DNNL_ARG_DIFF_WEIGHTS_0
-/// A special mnemonic for diff of scale and shift argument of normalization
-/// primitives. Alias for #DNNL_ARG_DIFF_WEIGHTS_0.
-#define DNNL_ARG_DIFF_SCALE_SHIFT DNNL_ARG_DIFF_WEIGHTS_0
 /// A special mnemonic for diff of RNN weights applied to the layer input. An
 /// alias for #DNNL_ARG_DIFF_WEIGHTS_0.
 #define DNNL_ARG_DIFF_WEIGHTS_LAYER DNNL_ARG_DIFF_WEIGHTS_0

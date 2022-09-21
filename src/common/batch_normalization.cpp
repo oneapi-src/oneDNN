@@ -43,6 +43,12 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
                     !memory_desc_wrapper(data_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
+    unsigned bnorm_flags = normalization_flags::use_global_stats
+            | normalization_flags::fuse_norm_relu
+            | normalization_flags::fuse_norm_add_relu
+            | normalization_flags::use_scale | normalization_flags::use_shift;
+    if ((~bnorm_flags & flags) != 0) return invalid_arguments;
+
     auto bd = batch_normalization_desc_t();
     bd.primitive_kind = primitive_kind::batch_normalization;
     bd.prop_kind = prop_kind;
@@ -61,21 +67,19 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
         bd.diff_data_desc = *diff_data_desc;
 
     bd.data_scaleshift_desc = zero_md();
-    if (flags & (dnnl_use_scale | dnnl_use_shift)) {
+    if (flags
+            & (normalization_flags::use_scale
+                    | normalization_flags::use_shift)) {
         dims_t scaleshift_dims = {data_desc->dims[1]};
         memory_desc_init_by_tag(bd.data_scaleshift_desc, 1, scaleshift_dims,
                 data_type::f32, dnnl_x);
-    } else {
-        dims_t scaleshift_dims = {2, data_desc->dims[1]};
-        memory_desc_init_by_tag(bd.data_scaleshift_desc, 2, scaleshift_dims,
-                data_type::f32, dnnl_nc);
     }
 
     bd.diff_data_scaleshift_desc = zero_md();
     if (bd.prop_kind == backward
             && (flags
-                    & (dnnl_use_scaleshift | dnnl_use_scale
-                            | dnnl_use_shift))) {
+                    & (normalization_flags::use_scale
+                            | normalization_flags::use_shift))) {
         bd.diff_data_scaleshift_desc = bd.data_scaleshift_desc;
     }
 
@@ -83,15 +87,6 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     memory_desc_init_by_tag(
             bd.stat_desc, 1, stats_dims, data_type::f32, dnnl_x);
     bd.batch_norm_epsilon = epsilon;
-
-    unsigned bnorm_flags = dnnl_use_global_stats | dnnl_use_scaleshift
-            | dnnl_fuse_norm_relu | dnnl_fuse_norm_add_relu | dnnl_use_scale
-            | dnnl_use_shift;
-    if ((~bnorm_flags & flags) != 0) return invalid_arguments;
-    // dnnl_use_scaleshift can't be mixed with dnnl_use_scale or dnnl_use_shift
-    if ((flags & dnnl_use_scaleshift)
-            && (flags & (dnnl_use_scale | dnnl_use_shift)))
-        return invalid_arguments;
 
     bd.flags = flags;
 

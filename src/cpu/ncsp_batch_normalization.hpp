@@ -162,10 +162,8 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
                     key_bnorm_reduction, 2 * C() * nthr_);
             const auto pk_is_bwd = desc()->prop_kind == prop_kind::backward;
             size_t ss_size = 0;
-            if ((!use_scaleshift() && !use_scale()) || !pk_is_bwd)
-                ss_size += C();
-            if ((!use_scaleshift() && !use_shift()) || !pk_is_bwd)
-                ss_size += C();
+            if (!use_scale() || !pk_is_bwd) ss_size += C();
+            if (!use_shift() || !pk_is_bwd) ss_size += C();
 
             if (ss_size)
                 scratchpad.template book<acc_data_t>(

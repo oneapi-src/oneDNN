@@ -898,10 +898,10 @@ struct jit_bnorm_fwd_t : public jit_generator {
         } else
             vdivps(vsqrtvar_, vone_, vsqrtvar_);
 
-        if (bdesc_->use_scaleshift() || bdesc_->use_scale())
+        if (bdesc_->use_scale())
             jit_tail_.uni_vmovups_maybe_tail(
                     vgamma_, vmmword[reg_ptr_scale_ + reg_off_c_]);
-        if (bdesc_->use_scaleshift() || bdesc_->use_shift())
+        if (bdesc_->use_shift())
             jit_tail_.uni_vmovups_maybe_tail(
                     vbeta_, vmmword[reg_ptr_shift_ + reg_off_c_]);
     }
@@ -911,8 +911,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         uni_vsubps(v_, v_, vmean_);
         uni_vmulps(v_, v_, vsqrtvar_);
 
-        if (bdesc_->use_scaleshift()
-                || (bdesc_->use_scale() && bdesc_->use_shift()))
+        if (bdesc_->use_scale() && bdesc_->use_shift())
             uni_vfmadd213ps(v_, vgamma_, vbeta_);
         else if (bdesc_->use_scale())
             uni_vmulps(v_, v_, vgamma_);
@@ -1148,7 +1147,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
         } else
             vdivps(vsqrtvar_, vone_, vsqrtvar_);
 
-        if (bdesc_->use_scaleshift() || bdesc_->use_scale()) {
+        if (bdesc_->use_scale()) {
             mov(reg_ptr_c_, ptr[PARAM_ADDR(scale)]);
             jit_tail_.uni_vmovups_maybe_tail(
                     vgamma_, vmmword[reg_ptr_c_ + reg_off_c_]);
@@ -1179,8 +1178,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
             uni_vsubps(v_, v_, vtmp_);
         }
 
-        if (bdesc_->use_scaleshift() || bdesc_->use_scale())
-            uni_vmulps(v_, v_, vgamma_);
+        if (bdesc_->use_scale()) uni_vmulps(v_, v_, vgamma_);
         uni_vmulps(v_, v_, vsqrtvar_);
 
         if (stream_store_allowed) {
@@ -1751,8 +1749,7 @@ public:
             if (normalize_only(bdesc_)) {
                 // blocks have to fit in a 4rth of L1 so that they don't get evicted
                 // There are at most 6 tensors: src, dst, mean, var, scale, shift
-                dim_t n_tensors = 2 + bdesc_->use_scale() + bdesc_->use_shift()
-                        + 2 * bdesc_->use_scaleshift();
+                dim_t n_tensors = 2 + bdesc_->use_scale() + bdesc_->use_shift();
                 C_blk_step_ = utils::saturate<dim_t>(1, C_blks_,
                         platform::get_per_core_cache_size(1)
                                 / get_vlen<isa>(jit_memory_tag_kind_t::nspc)
@@ -2136,21 +2133,17 @@ public:
 
 private:
     static bool use_tmp_stats(const batch_normalization_pd_t *bdesc) {
-        return true && !bdesc->stats_is_src()
+        return !bdesc->stats_is_src()
                 && bdesc->desc()->prop_kind == prop_kind::forward_inference;
     }
 
     static bool use_tmp_diff_scale(const batch_normalization_pd_t *bdesc) {
-        return false
-                || (bdesc->is_bwd() && !bdesc->use_scaleshift()
-                        && !bdesc->use_scale())
+        return (bdesc->is_bwd() && !bdesc->use_scale())
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
     static bool use_tmp_diff_shift(const batch_normalization_pd_t *bdesc) {
-        return false
-                || (bdesc->is_bwd() && !bdesc->use_scaleshift()
-                        && !bdesc->use_shift())
+        return (bdesc->is_bwd() && !bdesc->use_shift())
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
@@ -2160,8 +2153,8 @@ private:
             // stay on 1 socket if possible, this is why we divide
             // work in chunks fitting in L2
 
-            dim_t n_stats_ss_tensors = bdesc_->use_scale() + bdesc_->use_shift()
-                    + 2 * bdesc_->use_scaleshift();
+            dim_t n_stats_ss_tensors
+                    = bdesc_->use_scale() + bdesc_->use_shift();
             dim_t size_stats_ss_tensors = n_stats_ss_tensors
                     * get_c_padded(bdesc_) * sizeof(acc_data_t);
 
@@ -2335,22 +2328,9 @@ template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
 
-    const memory_desc_wrapper ss_d(pd()->weights_md());
-
-    const auto use_ss = pd()->use_scaleshift();
-    const auto use_sc = pd()->use_scale();
-    const auto use_sh = pd()->use_shift();
-
-    const size_t shift_off
-            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
-
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto scale = CTX_IN_MEM(
-            const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto shift = use_sh ? CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT)
-                        : use_ss ? &CTX_IN_MEM(const acc_data_t *,
-                                  DNNL_ARG_SCALE_SHIFT)[shift_off]
-                                 : nullptr;
+    auto scale = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE);
+    auto shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT);
 
     auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(
                         CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN))
@@ -2458,28 +2438,16 @@ template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
 
-    const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
-
-    const auto use_ss = pd()->use_scaleshift();
-    const auto use_sc = pd()->use_scale();
-    const auto use_sh = pd()->use_shift();
-
-    const size_t diff_shift_off
-            = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
-
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
     auto var = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
-    auto scale = CTX_IN_MEM(
-            const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE);
     auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
     auto diff_src = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_SRC);
-    auto diff_scale = CTX_OUT_MEM(acc_data_t *,
-            use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
-    auto diff_shift = use_sh ? CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT)
-                             : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+    auto diff_scale = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE);
+    auto diff_shift = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 

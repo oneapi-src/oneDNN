@@ -61,14 +61,19 @@ struct layer_normalization_pd_t : public primitive_desc_t {
     }
     dim_t norm_axis() const { return desc_.src_desc.dims[ndims() - 1]; }
 
-    bool stats_are_src() const { return desc_.flags & dnnl_use_global_stats; }
+    bool stats_are_src() const {
+        return desc_.flags & normalization_flags::use_global_stats;
+    }
     bool stats_are_tmp() const { return !(stats_are_src() || is_training()); }
 
-    bool use_scaleshift() const { return desc_.flags & dnnl_use_scaleshift; }
-    bool use_scale() const { return desc_.flags & dnnl_use_scale; }
-    bool use_shift() const { return desc_.flags & dnnl_use_shift; }
+    bool use_scale() const {
+        return desc_.flags & normalization_flags::use_scale;
+    }
+    bool use_shift() const {
+        return desc_.flags & normalization_flags::use_shift;
+    }
     bool use_global_stats() const {
-        return desc_.flags & dnnl_use_global_stats;
+        return desc_.flags & normalization_flags::use_global_stats;
     }
 
     bool is_fwd() const {
@@ -157,9 +162,6 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
             return arg_usage_t::unused;
         }
 
-        if (arg == DNNL_ARG_SCALE_SHIFT && use_scaleshift())
-            return arg_usage_t::input;
-
         if (arg == DNNL_ARG_SCALE && use_scale()) return arg_usage_t::input;
         if (arg == DNNL_ARG_SHIFT && use_shift()) return arg_usage_t::input;
 
@@ -173,7 +175,6 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
             case DNNL_ARG_MEAN: return stats_are_src() ? src_md(1) : dst_md(1);
             case DNNL_ARG_VARIANCE:
                 return stats_are_src() ? src_md(2) : dst_md(2);
-            case DNNL_ARG_SCALE_SHIFT:
             case DNNL_ARG_SCALE:
             case DNNL_ARG_SHIFT: return weights_md(0);
             default: return layer_normalization_pd_t::arg_md(arg);
@@ -198,8 +199,7 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     }
 
     int n_inputs() const override {
-        return 1 + 2 * stats_are_src() + use_scaleshift() + use_scale()
-                + use_shift();
+        return 1 + 2 * stats_are_src() + use_scale() + use_shift();
     }
     int n_outputs() const override {
         return 1 + 2 * (!stats_are_src()) * is_training();
@@ -223,7 +223,7 @@ protected:
     }
 
     bool check_scale_shift_data_type() const {
-        return IMPLICATION(use_scaleshift() || use_scale() || use_shift(),
+        return IMPLICATION(use_scale() || use_shift(),
                 weights_md()->data_type == data_type::f32);
     }
 
@@ -244,15 +244,11 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
                     DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == DNNL_ARG_SCALE_SHIFT && use_scaleshift())
-            return arg_usage_t::input;
         if (arg == DNNL_ARG_SCALE && use_scale()) return arg_usage_t::input;
         if (arg == DNNL_ARG_SHIFT && use_shift()) return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
 
-        if (arg == DNNL_ARG_DIFF_SCALE_SHIFT && use_scaleshift())
-            return arg_usage_t::output;
         if (arg == DNNL_ARG_DIFF_SCALE && use_scale())
             return arg_usage_t::output;
         if (arg == DNNL_ARG_DIFF_SHIFT && use_shift())
@@ -266,12 +262,10 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_MEAN: return src_md(1);
             case DNNL_ARG_VARIANCE: return src_md(2);
-            case DNNL_ARG_SCALE_SHIFT:
             case DNNL_ARG_SCALE:
             case DNNL_ARG_SHIFT: return weights_md(0);
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
             case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
-            case DNNL_ARG_DIFF_SCALE_SHIFT:
             case DNNL_ARG_DIFF_SCALE:
             case DNNL_ARG_DIFF_SHIFT: return diff_weights_md(0);
             default: return layer_normalization_pd_t::arg_md(arg);
@@ -295,13 +289,11 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
         return index == 0 ? &diff_scaleshift_md_ : &glob_zero_md;
     }
 
-    int n_inputs() const override {
-        return 4 + use_scaleshift() + use_scale() + use_shift();
-    }
+    int n_inputs() const override { return 4 + use_scale() + use_shift(); }
     int n_outputs() const override {
         return 1
                 + (desc_.prop_kind == prop_kind::backward)
-                * (use_scale() + use_shift() + use_scaleshift());
+                * (use_scale() + use_shift());
     }
 
 protected:
@@ -330,7 +322,7 @@ protected:
     }
 
     bool check_scale_shift_data_type() const {
-        return IMPLICATION(use_scaleshift() || use_scale() || use_shift(),
+        return IMPLICATION(use_scale() || use_shift(),
                 utils::everyone_is(data_type::f32, weights_md()->data_type,
                         diff_weights_md()->data_type));
     }

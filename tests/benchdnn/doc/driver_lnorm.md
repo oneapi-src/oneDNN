@@ -16,10 +16,9 @@ where *lnorm-knobs* are:
             to `any`. Refer to [tags](knobs_tag.md) for details.
  - `--stat_tag={tn [default], ...}` -- physical mean and variance memory format.
             Refer to [tags](knobs_tag.md) for details.
- - `--flags=[|G|S|C|H]` -- layer normalization flags, default `none`; where
+ - `--flags=[|G|C|H]` -- layer normalization flags, default `none`; where
             multiple simultaneous flags are supported.
             `G` is dnnl_use_global_stats;
-            `S` is dnnl_use_scaleshift;
             `C` is dnnl_use_scale;
             `H` is dnnl_use_shift;
             Refer to [layer normalization primitive](https://oneapi-src.github.io/oneDNN/dev_guide_layer_normalization.html)
@@ -53,17 +52,17 @@ Run a named problem with single precision src/dst, iterating by:
 1) Src/dst memory formats
 2) Statistics memory formats
 3) forward training, backward by data and weights prop_kinds,
-4) all flag combinations:
+4) some flag combinations:
 ``` sh
     ./benchdnn --lnorm --dt=f32 --tag=tnc,ntc --stat_tag=tn,nt \
-               --dir=FWD_D,BWD_DW --flags=GS,S 8x32x1024
+               --dir=FWD_D,BWD_DW --flags=GCH,CH 8x32x1024
 ```
 
 Run the same problem as previous but with different data types for source and
 destination:
 ``` sh
     ./benchdnn --lnorm --dt=bf16:f32 --tag=tnc,ntc --stat_tag=tn,nt \
-               --dir=FWD_D,BWD_DW --flags=GS,S 8x32x1024
+               --dir=FWD_D,BWD_DW --flags=GCH,CH 8x32x1024
 ```
 
 More examples with different driver options can be found at

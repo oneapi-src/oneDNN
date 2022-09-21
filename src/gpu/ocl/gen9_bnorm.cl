@@ -835,10 +835,6 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
             sqrt_variance[IC_BLOCK_SGROUPS / VECT_SIZE];
     for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
         const int sg_idx = sg * 16 * VECT_SIZE;
-#if USE_SCALESHIFT == 1
-        sm[sg] = LOAD_VECT_FLOAT(&scaleshift[sg_idx]);
-        sv[sg] = LOAD_VECT_FLOAT(&scaleshift[IC + sg_idx]);
-#else
 #if USE_SCALE == 1
         sm[sg] = LOAD_VECT_FLOAT(&scaleshift[sg_idx]);
 #else
@@ -848,7 +844,6 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         sv[sg] = LOAD_VECT_FLOAT(&shift[sg_idx]);
 #else
         sv[sg] = (VECT_FLOAT_T)0.0f;
-#endif
 #endif
         v_mean[sg] = LOAD_VECT_FLOAT(&mean[sg_idx]);
         v_variance[sg] = LOAD_VECT_FLOAT(&variance[sg_idx]);
@@ -861,10 +856,6 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
             sqrt_variance_tail[IC_TAIL_SGROUPS];
     for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
         const int sg_idx = (IC_VECT_SGROUPS + sg) * 16;
-#if USE_SCALESHIFT == 1
-        sm_tail[sg] = LOAD_FLOAT_1x16(&scaleshift[sg_idx]);
-        sv_tail[sg] = LOAD_FLOAT_1x16(&scaleshift[IC + sg_idx]);
-#else
 #if USE_SCALE == 1
         sm_tail[sg] = LOAD_FLOAT_1x16(&scaleshift[sg_idx]);
 #else
@@ -874,7 +865,6 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         sv_tail[sg] = LOAD_FLOAT_1x16(&shift[sg_idx]);
 #else
         sv_tail[sg] = 0.0f;
-#endif
 #endif
         v_mean_tail[sg] = LOAD_FLOAT_1x16(&mean[sg_idx]);
         v_variance_tail[sg] = LOAD_FLOAT_1x16(&variance[sg_idx]);
@@ -1024,10 +1014,6 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
 
     float8 blockD0;
 
-#if USE_SCALESHIFT == 1
-    float sm = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, c);
-    float sv = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, IC + c);
-#else
 #if USE_SCALE == 1
     float sm = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, c);
 #else
@@ -1037,7 +1023,6 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
     float sv = MAYBE_LAST_IC_LOAD_FLOAT_1x16(shift, c);
 #else
     float sv = 0.0f;
-#endif
 #endif
 
     float v_mean, v_variance;
@@ -1462,7 +1447,7 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
 
 NAMED_KERNEL_ATTR(REDUCE)
 __kernel void gen9_reduce_stats(__global float *temp_reduce,
-        __global float *diff_scaleshift, __global float *diff_shift,
+        __global float *diff_scale, __global float *diff_shift,
         __global float *variance, float eps) {
 
     __local float local_gamma[16 * REDUCE_IC_SUB_GROUPS];
@@ -1503,14 +1488,12 @@ __kernel void gen9_reduce_stats(__global float *temp_reduce,
         if (!is_last_ic_block || (is_last_ic_block && simd_id < 8))
 #endif
         {
-            diff_scaleshift[c] = diff_gamma * sqrt_variance;
-#if DIFF_SCALESHIFT == 1
-            diff_scaleshift[IC + c] = diff_beta;
-#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+            diff_scale[c] = diff_gamma * sqrt_variance;
+#if DIFF_SHIFT == 1
             diff_shift[c] = diff_beta;
 #else
-            diff_scaleshift[IC + IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
-#endif // #if DIFF_SCALESHIFT == 1
+            diff_shift[IC + IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
+#endif // #if DIFF_SHIFT == 1
         }
     }
 }
@@ -1521,7 +1504,7 @@ KERNEL_ATTR
 __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
-        __global DATA_T *diff_src, __global float *diff_scaleshift,
+        __global DATA_T *diff_src, __global float *diff_scale,
         __global float *diff_shift, float eps, __global DATA_T *diff_src_add) {
 
     const int c = GWS_GET_IC();
@@ -1529,7 +1512,7 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 
     variance += ic_block_offset;
     mean += ic_block_offset;
-    diff_scaleshift += ic_block_offset;
+    diff_scale += ic_block_offset;
     diff_shift += ic_block_offset;
     scaleshift += ic_block_offset;
 
@@ -1544,17 +1527,15 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         v_variance[sg] = LOAD_VECT_FLOAT(&variance[sg_idx]);
 #if CALCULATE_DIFF_STATS == 1
         v_mean[sg] = LOAD_VECT_FLOAT(&mean[sg_idx]);
-        diff_gamma[sg] = LOAD_VECT_FLOAT(&diff_scaleshift[sg_idx]);
-#if DIFF_SCALESHIFT == 1
-        diff_beta[sg] = LOAD_VECT_FLOAT(&diff_scaleshift[IC + sg_idx]);
-#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+        diff_gamma[sg] = LOAD_VECT_FLOAT(&diff_scale[sg_idx]);
+#if DIFF_SHIFT == 1
         diff_beta[sg] = LOAD_VECT_FLOAT(&diff_shift[sg_idx]);
 #else
         diff_beta[sg] = LOAD_VECT_FLOAT(
-                &diff_scaleshift[IC + REDUCE_STAT_NBLOCKS * IC + sg_idx]);
-#endif // #if DIFF_SCALESHIFT == 1
+                &diff_shift[IC + REDUCE_STAT_NBLOCKS * IC + sg_idx]);
+#endif // #if DIFF_SHIFT == 1
 #endif // #if CALCULATE_DIFF_STATS == 1
-#if USE_SCALESHIFT == 1 || USE_SCALE == 1
+#if USE_SCALE == 1
         gamma[sg] = LOAD_VECT_FLOAT(&scaleshift[sg_idx]);
 #else
         gamma[sg] = (VECT_FLOAT_T)1.0f;
@@ -1572,17 +1553,15 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 
 #if CALCULATE_DIFF_STATS == 1
         v_mean_tail[sg] = LOAD_FLOAT_1x16(&mean[sg_idx]);
-        diff_gamma_tail[sg] = LOAD_FLOAT_1x16(&diff_scaleshift[sg_idx]);
-#if DIFF_SCALESHIFT == 1
-        diff_beta_tail[sg] = LOAD_FLOAT_1x16(&diff_scaleshift[IC + sg_idx]);
-#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+        diff_gamma_tail[sg] = LOAD_FLOAT_1x16(&diff_scale[sg_idx]);
+#if DIFF_SHIFT == 1
         diff_beta_tail[sg] = LOAD_FLOAT_1x16(&diff_shift[sg_idx]);
 #else
         diff_beta_tail[sg] = LOAD_FLOAT_1x16(
-                &diff_scaleshift[IC + REDUCE_STAT_NBLOCKS * IC + sg_idx]);
-#endif // #if DIFF_SCALESHIFT == 1
+                &diff_shift[IC + REDUCE_STAT_NBLOCKS * IC + sg_idx]);
+#endif // #if DIFF_SHIFT == 1
 #endif // #if CALCULATE_DIFF_STATS == 1
-#if USE_SCALESHIFT == 1 || USE_SCALE == 1
+#if USE_SCALE == 1
         gamma_tail[sg] = LOAD_FLOAT_1x16(&scaleshift[sg_idx]);
 #else
         gamma_tail[sg] = 1.0f;
@@ -1700,7 +1679,7 @@ KERNEL_ATTR
 __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
-        __global DATA_T *diff_src, __global float *diff_scaleshift,
+        __global DATA_T *diff_src, __global float *diff_scale,
         __global float *diff_shift, float eps, __global DATA_T *diff_src_add) {
 
     const int c = GWS_GET_IC();
@@ -1712,23 +1691,20 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
     const float v_variance = MAYBE_LAST_IC_LOAD_FLOAT_1x16(variance, c);
 #if CALCULATE_DIFF_STATS == 1
     const float v_mean = MAYBE_LAST_IC_LOAD_FLOAT_1x16(mean, c);
-    const float diff_gamma = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_scaleshift, c);
-#if DIFF_SCALESHIFT == 1
-    const float diff_beta
-            = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_scaleshift, IC + c);
-#elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
+    const float diff_gamma = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_scale, c);
+#if DIFF_SHIFT == 1
     const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_shift, c);
 #else
     const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(
-            diff_scaleshift, IC + REDUCE_STAT_NBLOCKS * IC + c);
-#endif // #if DIFF_SCALESHIFT == 1
+            diff_shift, IC + REDUCE_STAT_NBLOCKS * IC + c);
+#endif // #if DIFF_SHIFT == 1
 #endif // #if CALCULATE_DIFF_STATS == 1
 
-#if USE_SCALESHIFT == 1 || USE_SCALE == 1
+#if USE_SCALE == 1
     const float gamma = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, c);
 #else
     const float gamma = 1;
-#endif // #if USE_SCALESHIFT == 1 || USE_SCALE == 1
+#endif // #if USE_SCALE == 1
 
     const int sp_block_idx = GWS_GET_SP();
 #if USE_NHWC

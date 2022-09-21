@@ -66,7 +66,6 @@ status_t simple_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
 
 status_t simple_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    const bool use_ss = pd()->use_scaleshift();
     const bool use_scale = pd()->use_scale();
     const bool use_shift = pd()->use_shift();
 
@@ -74,14 +73,8 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
     const auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
-    const memory_desc_wrapper ss_d(pd()->weights_md());
-    const size_t shift_off
-            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
-
-    auto scale = CTX_IN_MEM(
-            const float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto shift = use_shift ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
-                           : use_ss ? &scale[shift_off] : nullptr;
+    auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);
+    auto shift = CTX_IN_MEM(const float *, DNNL_ARG_SHIFT);
 
     float *mean, *variance;
     if (pd()->use_tmp_stats()) {
@@ -123,7 +116,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
         float *const __restrict mean_ptr = &mean[N_start];
         float *const __restrict var_ptr = &variance[N_start];
         const size_t block_size = N_end - N_start;
-        // Note: manual unrolling for use_scaleshift due to clang issue.
+        // Note: manual unrolling for scale and shift due to clang issue.
         //       see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
         for (size_t offset = 0; offset < block_size; offset++) {
             float v_mean = 0, v_variance = 0;
@@ -150,7 +143,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
             }
 
             const float inv_sqrtvar = 1.f / sqrtf(v_variance + eps);
-            if (use_ss || (use_scale && use_shift)) {
+            if (use_scale && use_shift) {
                 PRAGMA_OMP_SIMD()
                 for (dim_t c = 0; c < C; ++c) {
                     const float sm = scale[c] * inv_sqrtvar;
@@ -236,29 +229,17 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
 
-    const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
-
-    const bool use_ss = pd()->use_scaleshift();
     const bool use_scale = pd()->use_scale();
-    const bool use_shift = pd()->use_shift();
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
-    auto scale = CTX_IN_MEM(
-            float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(float *, DNNL_ARG_SCALE);
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
 
-    const size_t diff_shift_off
-            = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
-
-    auto diff_scale = CTX_OUT_CLEAN_MEM(float *,
-            use_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-            status);
+    auto diff_scale = CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SCALE, status);
     CHECK(status);
-    auto diff_shift = use_shift
-            ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+    auto diff_shift = CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status);
     CHECK(status);
 
     const float *mean, *variance;
@@ -286,7 +267,6 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
         diff_scale = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
     if (diff_shift == nullptr) {
         diff_shift = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
-        if (diff_shift == diff_scale) diff_shift = &diff_shift[diff_shift_off];
     }
 
     const int max_nthr = pd()->nthr_;
@@ -360,14 +340,14 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
         const float *mean_ptr = &mean[N_start];
         float *const inv_sqrtvar_ptr = &inv_sqrtvar[N_start];
 
-        // Note: manual unrolling for use_ss due to clang issue.
+        // Note: manual unrolling for scale and shift due to clang issue.
         //       see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
         float dd_gamma, dd_gamma_x;
         for (size_t offset = 0; offset < block_size; offset++) {
             // reduce gamma
             dd_gamma = dd_gamma_x = 0;
             if (calculate_diff_stats) {
-                if (use_ss || use_scale) {
+                if (use_scale) {
                     PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
                     for (dim_t c = 0; c < C; c++) {
                         const size_t off = c + C * offset;
@@ -392,7 +372,7 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
             }
 
             // calculate diff_dst
-            if (use_ss || use_scale) {
+            if (use_scale) {
                 PRAGMA_OMP_SIMD()
                 for (dim_t c = 0; c < C; c++) {
                     const size_t off = c + C * offset;

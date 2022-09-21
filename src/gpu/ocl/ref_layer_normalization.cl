@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
     int local_id = get_sub_group_local_id();
     for (int c = 0; c < C; c += SUB_GROUP_SIZE) {
         float sm = (scale ? scale[c + local_id] : 1.0f) / sqrt_variance;
-        float sv = shift ? shift[SHIFT_OFF + c + local_id] : 0.0f;
+        float sv = shift ? shift[c + local_id] : 0.0f;
 
         x[NDIMS - 1] = c + local_id;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -164,7 +164,7 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
     float sqrt_variance = sqrt(v_variance + eps);
     for (int c = 0; c < C; ++c) {
         float sm = (scale ? scale[c] : 1.0f) / sqrt_variance;
-        float sv = shift ? shift[SHIFT_OFF + c] : 0.0f;
+        float sv = shift ? shift[c] : 0.0f;
 
         x[NDIMS - 1] = c;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -184,7 +184,7 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif
 
 #if IS_BWD
-#if USE_SCALESHIFT || USE_SCALE || USE_SHIFT
+#if USE_SCALE || USE_SHIFT
 #if VECTORIZE_BWD_SCALESHIFT
 
 #if VECTOR_SIZE_SCALESHIFT == 1
@@ -257,10 +257,10 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
 #endif
 
     const int result_offset = n_chunk_idx * C + c;
-    if (USE_SCALE || USE_SCALESHIFT)
+    if (USE_SCALE)
         intel_sub_group_block_write((__global uint *)&diff_scale[result_offset],
                 as_uint(diff_gamma));
-    if (USE_SHIFT || USE_SCALESHIFT)
+    if (USE_SHIFT)
         intel_sub_group_block_write((__global uint *)&diff_shift[result_offset],
                 as_uint(diff_beta));
 }
@@ -284,7 +284,7 @@ __kernel void ref_lnorm_bwd_scaleshift_final(__global float *tmp_reduce_mem,
     }
 
     if (diff_scale) diff_scale[c] = diff_gamma;
-    if (diff_shift) diff_shift[SHIFT_OFF + c] = diff_beta;
+    if (diff_shift) diff_shift[c] = diff_beta;
 }
 
 #else // VECTORIZE_BWD_SCALESHIFT
@@ -327,10 +327,10 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
         }
     }
     if (diff_scale) diff_scale[c] = diff_gamma;
-    if (diff_shift) diff_shift[SHIFT_OFF + c] = diff_beta;
+    if (diff_shift) diff_shift[c] = diff_beta;
 }
 #endif // VECTORIZE_BWD_SCALESHIFT
-#endif // USE_SCALESHIFT || USE_SCALE || USE_SHIFT
+#endif // USE_SCALE || USE_SHIFT
 
 #if VECTORIZE_BWD
 

@@ -165,7 +165,7 @@ struct jit_bnorm_base_t : public jit_generator {
         uni_vaddps(vsqrtvar, vsqrtvar, veps);
         uni_vsqrtps(vsqrtvar, vsqrtvar);
 
-        if (pd_->use_scaleshift() || (pd_->use_scale() && pd_->use_shift())) {
+        if (pd_->use_scale() && pd_->use_shift()) {
             load_scale(vscale, offt, need_tail);
             uni_vdivps(vscale, vscale, vsqrtvar);
             load_shift(vshift, offt, need_tail);
@@ -729,22 +729,9 @@ template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
 
-    const memory_desc_wrapper ss_d(pd()->weights_md());
-
-    const auto use_ss = pd()->use_scaleshift();
-    const auto use_sc = pd()->use_scale();
-    const auto use_sh = pd()->use_shift();
-
-    const size_t shift_off
-            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
-
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto scale = CTX_IN_MEM(
-            const float *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto shift = use_sh ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
-                        : use_ss ? &CTX_IN_MEM(const float *,
-                                  DNNL_ARG_SCALE_SHIFT)[shift_off]
-                                 : nullptr;
+    auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);
+    auto shift = CTX_IN_MEM(const float *, DNNL_ARG_SHIFT);
     auto mean = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN));
     auto var
             = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE));

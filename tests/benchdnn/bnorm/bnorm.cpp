@@ -35,9 +35,8 @@
 namespace bnorm {
 
 static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
-        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss,
+        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc,
         dnn_mem_t &sh) {
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fill_src_add = prb->fuse_add_relu();
@@ -48,13 +47,8 @@ static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
 
         const float sc_value = 1 << (c % 7);
         const float sh_value = ((c % 3) - 1) * sc_value;
-        if (use_sc || use_sh) {
-            ss.set_elem(c, use_sc ? sc_value : 1.0f);
-            sh.set_elem(c, use_sh ? sh_value : 0.0f);
-        } else {
-            ss.set_elem(c, use_ss ? sc_value : 1.0f);
-            ss.set_elem(prb->ic + c, use_ss ? sh_value : 0.0f);
-        }
+        sc.set_elem(c, use_sc ? sc_value : 1.0f);
+        sh.set_elem(c, use_sh ? sh_value : 0.0f);
     });
 
     benchdnn_parallel_nd(prb->ic, prb->mb, prb->id, prb->ih, prb->iw,
@@ -76,7 +70,7 @@ static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
 }
 
 static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
-        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss,
+        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc,
         dnn_mem_t &sh) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
@@ -124,7 +118,6 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
     BENCHDNN_PRINT(6, "check_alg: %s, density = %g, flex_bits = " IFMT "\n",
             check_alg2str(alg), density, flex_bits);
 
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fill_src_add = prb->fuse_add_relu();
@@ -180,24 +173,19 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
 
         const float sc_value = 1.f / 8 * (1 << (c % 7));
         const float sh_value = ((c % 3) - 1) * sc_value / 64;
-        if (use_sc || use_sh) {
-            ((float *)ss)[c] = use_sc ? sc_value : 1.0f;
-            ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
-        } else {
-            ((float *)ss)[c] = use_ss ? sc_value : 1.0f;
-            ((float *)ss)[prb->ic + c] = use_ss ? sh_value : 0.0f;
-        }
+        ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
+        ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
     });
 
     return OK;
 }
 
 static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &src_add,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc, dnn_mem_t &sh) {
     if (prb->flags & GLOB_STATS)
-        return prepare_fwd_with_stats(prb, src, src_add, mean, var, ss, sh);
+        return prepare_fwd_with_stats(prb, src, src_add, mean, var, sc, sh);
     else
-        return prepare_fwd_no_stats(prb, src, src_add, mean, var, ss, sh);
+        return prepare_fwd_no_stats(prb, src, src_add, mean, var, sc, sh);
 }
 
 static int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
@@ -340,9 +328,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
-    if (prb->use_ss() && (prb->use_sc() || prb->use_sh()))
-        res->state = SKIPPED, res->reason = INVALID_CASE;
-
     // See `skip_invalid_inplace` for details.
     if (prb->inplace) {
         skip_invalid_inplace(res, prb->dt, prb->dt, prb->tag, prb->tag);
@@ -353,8 +338,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     // Since bwd testing is done using results from forward which are random
-    // fp32 values, diff_ss starts fluctuating, so we check norm for both data
-    // and SS, SC and SH.
+    // fp32 values, diff_scale starts fluctuating, so we check norm for both
+    // data, SC, and SH.
     const bool compare_with_norm = (prb->dir & FLAG_BWD);
     cmp.set_norm_validation_mode(compare_with_norm);
 
@@ -362,7 +347,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
     float trh = trh_coeff
             * ((kind == SRC || kind == DST || kind == SRC_1) ? 5e-7 : 0);
-    if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
+    if ((kind == SC || kind == SH) && prb->dir & FLAG_BWD)
         trh = trh_coeff * 5e-6;
 
 #ifdef DNNL_EXPERIMENTAL
@@ -401,21 +386,14 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const auto bnorm_add_check =
             [&, kind, prb](
                     const compare::compare_t::driver_check_func_args_t &args) {
-                const bool has_shift = prb->use_sh() || prb->use_ss();
-                if (!((prb->dir & FLAG_FWD) && kind == DST && has_shift))
+                if (!((prb->dir & FLAG_FWD) && kind == DST && prb->use_sh()))
                     return false;
 
-                const auto &ss = ref_args.find(DNNL_ARG_SCALE_SHIFT);
                 const auto &sh = ref_args.find(DNNL_ARG_SHIFT);
-                const bool shift_only = prb->use_sh();
-                const float *sh_ptr
-                        = shift_only ? (const float *)sh : (const float *)ss;
-
                 const auto &dst = ref_args.find(DNNL_ARG_DST);
                 const int64_t c = dst.get_scale_idx(
                         args.idx, 1 << 1 /* channel_mask */);
-                const int64_t c_idx = c + (shift_only ? 0 : prb->ic);
-                const float beta = sh_ptr[c_idx];
+                const float beta = sh.get_elem(c);
                 // Using an empirically derived threshold, check if
                 // cancellation error in `|Y| = |a*X - (-b)|` is huge.
                 const float abs_exp = fabsf(args.exp);
@@ -446,7 +424,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_fpd = query_pd(prim);
 
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fuse_add_relu = prb->fuse_add_relu();
@@ -454,7 +431,8 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &data_md = query_md(const_fpd, DNNL_ARG_SRC);
     const auto &mean_md = query_md(const_fpd, DNNL_ARG_MEAN);
     const auto &var_md = query_md(const_fpd, DNNL_ARG_VARIANCE);
-    const auto &ss_md = query_md(const_fpd, DNNL_ARG_SCALE_SHIFT);
+    const auto &sc_md = query_md(const_fpd, DNNL_ARG_SCALE);
+    const auto &sh_md = query_md(const_fpd, DNNL_ARG_SHIFT);
     const auto &ws_md = query_md(const_fpd, DNNL_ARG_WORKSPACE);
     const auto &scratchpad_md = query_md(const_fpd, DNNL_ARG_SCRATCHPAD);
 
@@ -485,15 +463,15 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t var_fp(1, dims1d, fp, tag::abx, ref_engine);
     dnn_mem_t var_dt(var_md, test_engine);
 
-    dnn_mem_t ss_fp(ss_md, fp, tag::abx, ref_engine);
-    dnn_mem_t ss_dt(ss_md, test_engine);
-    dnn_mem_t d_ss_fp(ss_md, fp, tag::abx, ref_engine);
-    dnn_mem_t d_ss_dt(ss_md, test_engine);
+    dnn_mem_t sc_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t sc_dt(sc_md, test_engine);
+    dnn_mem_t d_sc_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t d_sc_dt(sc_md, test_engine);
 
-    dnn_mem_t sh_fp(ss_md, fp, use_sh ? tag::x : tag::axb, ref_engine);
-    dnn_mem_t sh_dt(ss_md, test_engine);
-    dnn_mem_t d_sh_fp(ss_md, fp, use_sh ? tag::x : tag::axb, ref_engine);
-    dnn_mem_t d_sh_dt(ss_md, test_engine);
+    dnn_mem_t sh_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t sh_dt(sh_md, test_engine);
+    dnn_mem_t d_sh_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t d_sh_dt(sh_md, test_engine);
 
     dnn_mem_t ws_fp(data_md, dnnl_u8, tag, ref_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
@@ -502,7 +480,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
-    if (prepare_fwd(prb, src_fp, src_add_fp, mean_fp, var_fp, ss_fp, sh_fp)
+    if (prepare_fwd(prb, src_fp, src_add_fp, mean_fp, var_fp, sc_fp, sh_fp)
             != OK) {
         return res->state = MISTRUSTED, OK;
     }
@@ -513,7 +491,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
     }
-    if (use_ss || use_sc) { SAFE(ss_dt.reorder(ss_fp), WARN); }
+    if (use_sc) { SAFE(sc_dt.reorder(sc_fp), WARN); }
     if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
 
     args_t args, ref_args;
@@ -522,7 +500,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_SRC_1, src_add_dt);
     args.set(DNNL_ARG_MEAN, mean_dt);
     args.set(DNNL_ARG_VARIANCE, var_dt);
-    args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_dt);
+    args.set(DNNL_ARG_SCALE, sc_dt);
     args.set(DNNL_ARG_SHIFT, sh_dt);
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
@@ -538,7 +516,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SRC_1, src_add_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
-            ref_args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_SCALE, sc_fp);
             ref_args.set(DNNL_ARG_SHIFT, sh_fp);
             ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
@@ -588,12 +566,11 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
-        args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_dt);
+        args.set(DNNL_ARG_SCALE, sc_dt);
         args.set(DNNL_ARG_SHIFT, sh_dt);
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
-        args.set(use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-                d_ss_dt);
+        args.set(DNNL_ARG_DIFF_SCALE, d_sc_dt);
         args.set(DNNL_ARG_DIFF_SHIFT, d_sh_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         // Since DIFF_SRC_1 is the second output it can be in blocked format
@@ -607,7 +584,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SRC_1, src_add_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
-            ref_args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_SCALE, sc_fp);
             ref_args.set(DNNL_ARG_SHIFT, sh_fp);
             ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
@@ -615,14 +592,11 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_fp);
-            ref_args.set(
-                    use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-                    d_ss_fp);
+            ref_args.set(DNNL_ARG_DIFF_SCALE, d_sc_fp);
             ref_args.set(DNNL_ARG_DIFF_SHIFT, d_sh_fp);
 
             std::vector<data_kind_t> kinds {SRC};
-            if ((use_ss || use_sc) && (prb->dir & FLAG_WEI))
-                kinds.push_back(use_sc ? SC : SS);
+            if (use_sc && (prb->dir & FLAG_WEI)) kinds.push_back(SC);
             if (use_sh && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
             if (fuse_add_relu) kinds.push_back(SRC_1);
 

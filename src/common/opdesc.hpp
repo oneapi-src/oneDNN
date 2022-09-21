@@ -273,10 +273,7 @@ struct batch_normalization_desc_t {
     // Source and destination gradient memory descriptor.
     memory_desc_t diff_data_desc;
     // Scale and shift data and gradient memory descriptors.
-    //
-    // Scaleshift memory descriptor uses 2D #dnnl_nc format[2,Channels]. 1-st
-    // dimension contains gamma parameter, 2-nd dimension contains beta
-    // parameter.
+    // Scaleshift memory descriptor uses 1D #dnnl_x format[Channels].
     memory_desc_t data_scaleshift_desc;
     memory_desc_t diff_data_scaleshift_desc;
     // Statistics memory descriptor.
@@ -301,12 +298,9 @@ struct layer_normalization_desc_t {
     // Source gradient memory descriptor.
     memory_desc_t diff_src_desc;
     // Scale and shift data and gradient memory descriptors.
-    //
-    // Scaleshift memory descriptor uses 2D #dnnl_ab
-    // format[2, normalized_dim] where 1-st dimension contains gamma parameter,
-    // 2-nd dimension contains beta parameter. Normalized_dim is equal to the
-    // last logical dimension of the data tensor across which normalization is
-    // performed.
+    // Scaleshift memory descriptor uses 1D #dnnl_x format[normalized_dim].
+    // Normalized_dim is equal to the last logical dimension of the source
+    // tensor across which normalization is performed.
     memory_desc_t data_scaleshift_desc;
     memory_desc_t diff_data_scaleshift_desc;
     // Mean and variance data memory descriptors.

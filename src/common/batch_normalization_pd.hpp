@@ -60,16 +60,23 @@ struct batch_normalization_pd_t : public primitive_desc_t {
 
     int ndims() const { return desc_.data_desc.ndims; }
 
-    bool stats_is_src() const { return desc_.flags & dnnl_use_global_stats; }
-    bool use_scaleshift() const { return desc_.flags & dnnl_use_scaleshift; }
-    bool use_scale() const { return desc_.flags & dnnl_use_scale; }
-    bool use_shift() const { return desc_.flags & dnnl_use_shift; }
-    bool use_global_stats() const {
-        return desc_.flags & dnnl_use_global_stats;
+    bool stats_is_src() const {
+        return desc_.flags & normalization_flags::use_global_stats;
     }
-    bool fuse_norm_relu() const { return desc_.flags & dnnl_fuse_norm_relu; }
+    bool use_scale() const {
+        return desc_.flags & normalization_flags::use_scale;
+    }
+    bool use_shift() const {
+        return desc_.flags & normalization_flags::use_shift;
+    }
+    bool use_global_stats() const {
+        return desc_.flags & normalization_flags::use_global_stats;
+    }
+    bool fuse_norm_relu() const {
+        return desc_.flags & normalization_flags::fuse_norm_relu;
+    }
     bool fuse_norm_add_relu() const {
-        return desc_.flags & dnnl_fuse_norm_add_relu;
+        return desc_.flags & normalization_flags::fuse_norm_add_relu;
     }
     bool with_relu_post_op(bool require_nslope_zero = true) const {
         const auto &p = this->attr()->post_ops_;
@@ -152,9 +159,6 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
             return arg_usage_t::unused;
         }
 
-        if (arg == DNNL_ARG_SCALE_SHIFT && use_scaleshift())
-            return arg_usage_t::input;
-
         if (arg == DNNL_ARG_SCALE && use_scale()) return arg_usage_t::input;
         if (arg == DNNL_ARG_SHIFT && use_shift()) return arg_usage_t::input;
 
@@ -172,7 +176,6 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
             case DNNL_ARG_MEAN: return stats_is_src() ? src_md(1) : dst_md(1);
             case DNNL_ARG_VARIANCE:
                 return stats_is_src() ? src_md(2) : dst_md(2);
-            case DNNL_ARG_SCALE_SHIFT:
             case DNNL_ARG_SCALE:
             case DNNL_ARG_SHIFT: return weights_md(0);
             default: return batch_normalization_pd_t::arg_md(arg);
@@ -205,8 +208,8 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
     }
 
     int n_inputs() const override {
-        return 1 + 2 * stats_is_src() + use_scaleshift() + use_scale()
-                + use_shift() + fuse_norm_add_relu();
+        return 1 + 2 * stats_is_src() + use_scale() + use_shift()
+                + fuse_norm_add_relu();
     }
     int n_outputs() const override {
         return 1 + !types::is_zero_md(workspace_md())
@@ -220,7 +223,7 @@ protected:
         : batch_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
 
     bool check_scale_shift_data_type() const {
-        return IMPLICATION(use_scaleshift() || use_scale() || use_shift(),
+        return IMPLICATION(use_scale() || use_shift(),
                 weights_md()->data_type == data_type::f32);
     }
 };
@@ -234,8 +237,6 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
                     DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == DNNL_ARG_SCALE_SHIFT && use_scaleshift())
-            return arg_usage_t::input;
         if (arg == DNNL_ARG_SCALE && use_scale()) return arg_usage_t::input;
         if (arg == DNNL_ARG_SHIFT && use_shift()) return arg_usage_t::input;
 
@@ -246,8 +247,6 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
         if (arg == DNNL_ARG_DIFF_SRC_1 && fuse_norm_add_relu())
             return arg_usage_t::output;
 
-        if (arg == DNNL_ARG_DIFF_SCALE_SHIFT && use_scaleshift())
-            return arg_usage_t::output;
         if (arg == DNNL_ARG_DIFF_SCALE && use_scale())
             return arg_usage_t::output;
         if (arg == DNNL_ARG_DIFF_SHIFT && use_shift())
@@ -260,13 +259,11 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_MEAN: return src_md(1);
             case DNNL_ARG_VARIANCE: return src_md(2);
-            case DNNL_ARG_SCALE_SHIFT:
             case DNNL_ARG_SCALE:
             case DNNL_ARG_SHIFT: return weights_md(0);
             case DNNL_ARG_DIFF_SRC_1:
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
             case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
-            case DNNL_ARG_DIFF_SCALE_SHIFT:
             case DNNL_ARG_DIFF_SCALE:
             case DNNL_ARG_DIFF_SHIFT: return diff_weights_md(0);
             default: return batch_normalization_pd_t::arg_md(arg);
@@ -297,13 +294,13 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
     const memory_desc_t *stat_md() const { return src_md(1); }
 
     int n_inputs() const override {
-        return 4 + (!types::is_zero_md(workspace_md())) + use_scaleshift()
-                + use_scale() + use_shift();
+        return 4 + (!types::is_zero_md(workspace_md())) + use_scale()
+                + use_shift();
     }
     int n_outputs() const override {
         return 1 + fuse_norm_add_relu()
                 + (!types::is_zero_md(diff_weights_md()))
-                * (use_scaleshift() + use_scale() + use_shift());
+                * (use_scale() + use_shift());
     }
 
 protected:
@@ -326,7 +323,7 @@ protected:
     }
 
     bool check_scale_shift_data_type() const {
-        return IMPLICATION(use_scaleshift() || use_scale() || use_shift(),
+        return IMPLICATION(use_scale() || use_shift(),
                 utils::everyone_is(data_type::f32, weights_md()->data_type,
                         diff_weights_md()->data_type));
     }

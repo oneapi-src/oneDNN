@@ -125,7 +125,6 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.is_forward = pd->is_fwd();
     conf.is_backward = !pd->is_fwd();
 
-    conf.use_scaleshift = pd->use_scaleshift();
     conf.use_scale = pd->use_scale();
     conf.use_shift = pd->use_shift();
     conf.save_stats = pd->is_training();
@@ -136,8 +135,6 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.with_relu = pd->with_relu_post_op();
     conf.eps = bd.batch_norm_epsilon;
     conf.calculate_diff_stats = !pd->use_global_stats();
-    conf.diff_scaleshift
-            = (pd->use_scaleshift() && bd.prop_kind == prop_kind::backward);
     conf.diff_scale = (pd->use_scale() && bd.prop_kind == prop_kind::backward);
     conf.diff_shift = (pd->use_shift() && bd.prop_kind == prop_kind::backward);
 
@@ -315,11 +312,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("FUSE_BN_RELU", conf.fuse_norm_relu);
     kernel_ctx.define_int("FUSE_BN_ADD_RELU", conf.fuse_norm_add_relu);
     kernel_ctx.define_int("CALCULATE_STATS", conf.calculate_stats);
-    kernel_ctx.define_int("USE_SCALESHIFT", conf.use_scaleshift);
     kernel_ctx.define_int("USE_SCALE", conf.use_scale);
     kernel_ctx.define_int("USE_SHIFT", conf.use_shift);
     kernel_ctx.define_int("CALCULATE_DIFF_STATS", conf.calculate_diff_stats);
-    kernel_ctx.define_int("DIFF_SCALESHIFT", conf.diff_scaleshift);
     kernel_ctx.define_int("DIFF_SCALE", conf.diff_scale);
     kernel_ctx.define_int("DIFF_SHIFT", conf.diff_shift);
     kernel_ctx.define_int("REDUCE_IC_SUB_GROUPS", conf.stat_ic / 16);
@@ -387,8 +382,7 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
             : CTX_OUT_CLEAN_STORAGE(DNNL_ARG_VARIANCE, status);
     CHECK(status);
 
-    auto &scaleshift = CTX_IN_STORAGE(
-            conf.use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
     auto &shift = CTX_IN_STORAGE(DNNL_ARG_SHIFT);
 
     auto &dst = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
@@ -484,7 +478,7 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
     arg_list.set(1, mean);
     arg_list.set(2, variance);
     arg_list.set(3, dst);
-    arg_list.set(4, scaleshift);
+    arg_list.set(4, scale);
     arg_list.set(5, shift);
     arg_list.set(6, ws);
     arg_list.set(7, conf.eps);
@@ -524,8 +518,7 @@ status_t gen9_batch_normalization_bwd_t::execute_backward(
     auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
     auto &variance = CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
-    auto &scaleshift = CTX_IN_STORAGE(
-            conf.use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
     auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
 
     auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
@@ -533,9 +526,7 @@ status_t gen9_batch_normalization_bwd_t::execute_backward(
     auto &diff_src_add = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC_1, status);
     CHECK(status);
 
-    auto &diff_scaleshift_ = CTX_OUT_CLEAN_STORAGE(
-            conf.diff_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-            status);
+    auto &diff_scale_ = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SCALE, status);
     CHECK(status);
     auto &diff_shift_ = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SHIFT, status);
     CHECK(status);
@@ -544,12 +535,8 @@ status_t gen9_batch_normalization_bwd_t::execute_backward(
     temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
             key_bnorm_reduction);
 
-    auto &diff_scaleshift = (!conf.diff_scaleshift && !conf.diff_scale)
-            ? *temp_reduce
-            : diff_scaleshift_;
-    auto &diff_shift = (!conf.diff_scaleshift && !conf.diff_shift)
-            ? *temp_reduce
-            : diff_shift_;
+    auto &diff_scale = !conf.diff_scale ? *temp_reduce : diff_scale_;
+    auto &diff_shift = !conf.diff_shift ? *temp_reduce : diff_shift_;
 
     compute::kernel_arg_list_t calc_stats_arg_list;
     calc_stats_arg_list.set(0, src);
@@ -565,7 +552,7 @@ status_t gen9_batch_normalization_bwd_t::execute_backward(
 
     compute::kernel_arg_list_t reduce_stats_arg_list;
     reduce_stats_arg_list.set(0, *temp_reduce);
-    reduce_stats_arg_list.set(1, diff_scaleshift);
+    reduce_stats_arg_list.set(1, diff_scale);
     reduce_stats_arg_list.set(2, diff_shift);
     reduce_stats_arg_list.set(3, variance);
     reduce_stats_arg_list.set(4, conf.eps);
@@ -580,10 +567,10 @@ status_t gen9_batch_normalization_bwd_t::execute_backward(
     arg_list.set(1, mean);
     arg_list.set(2, variance);
     arg_list.set(3, diff_dst);
-    arg_list.set(4, scaleshift);
+    arg_list.set(4, scale);
     arg_list.set(5, ws);
     arg_list.set(6, diff_src);
-    arg_list.set(7, diff_scaleshift);
+    arg_list.set(7, diff_scale);
     arg_list.set(8, diff_shift);
     arg_list.set(9, conf.eps);
     arg_list.set(10, diff_src_add);

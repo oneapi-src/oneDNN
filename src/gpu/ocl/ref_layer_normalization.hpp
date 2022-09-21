@@ -138,8 +138,7 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
         CHECK(status);
 
         create_kernel(engine, &kernel_, "ref_lnorm_bwd", kernel_ctx);
-        if (pd()->conf.use_scaleshift || pd()->conf.use_scale
-                || pd()->conf.use_shift) {
+        if (pd()->conf.use_scale || pd()->conf.use_shift) {
             create_kernel(engine, &kernel_scaleshift_,
                     "ref_lnorm_bwd_scaleshift", kernel_ctx);
             if (!kernel_scaleshift_) return status::runtime_error;

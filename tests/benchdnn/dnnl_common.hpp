@@ -641,7 +641,6 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
             case BIA: arg = DNNL_ARG_DIFF_BIAS; break;
             case MEAN: arg = DNNL_ARG_MEAN; break;
             case VAR: arg = DNNL_ARG_VARIANCE; break;
-            case SS: arg = DNNL_ARG_DIFF_SCALE_SHIFT; break;
             case SC: arg = DNNL_ARG_DIFF_SCALE; break;
             case SH: arg = DNNL_ARG_DIFF_SHIFT; break;
             case DST_ITER: arg = DNNL_ARG_DST_ITER; break;

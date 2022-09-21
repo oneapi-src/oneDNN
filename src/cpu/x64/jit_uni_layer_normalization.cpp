@@ -77,7 +77,6 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         , C_(pd_->norm_axis())
         , axis_simd_full_(C_ / simd_w_)
         , axis_simd_tail_(C_ % simd_w_)
-        , use_scaleshift_(pd_->use_scaleshift())
         , use_scale_(pd_->use_scale())
         , use_shift_(pd_->use_shift())
         , save_stats_(pd_->is_training())
@@ -125,7 +124,6 @@ protected:
     const dim_t C_;
     const dim_t axis_simd_full_;
     const dim_t axis_simd_tail_;
-    const bool use_scaleshift_;
     const bool use_scale_;
     const bool use_shift_;
     const bool save_stats_;
@@ -255,16 +253,16 @@ protected:
     }
 
     void calculate_dst(size_t offt_elems, bool tail = false) {
-        if (use_scaleshift_ || use_scale_) {
+        if (use_scale_) {
             io_[f32]->load(scale_ptr(offt_elems), vmm_scale, tail);
         }
-        if (use_scaleshift_ || use_shift_) {
+        if (use_shift_) {
             io_[f32]->load(shift_ptr(offt_elems), vmm_shift, tail);
         }
         io_[src_d_.data_type()]->load(src_ptr(offt_elems), vmm_dst, tail);
         uni_vsubps(vmm_dst, vmm_dst, vmm_mean);
         uni_vmulps(vmm_dst, vmm_dst, vmm_inv_sqrtvar);
-        if (use_scaleshift_ || (use_scale_ && use_shift_))
+        if (use_scale_ && use_shift_)
             uni_vfmadd213ps(vmm_dst, vmm_scale, vmm_shift);
         else {
             if (use_scale_) uni_vmulps(vmm_dst, vmm_dst, vmm_scale);
@@ -700,7 +698,6 @@ struct jit_diff_data_base_kernel_t : diff_data_kernel_t, public jit_generator {
         , C_(pd_->norm_axis())
         , axis_simd_full_(C_ / simd_w_)
         , axis_simd_tail_(C_ % simd_w_)
-        , use_scaleshift_(pd_->use_scaleshift())
         , use_scale_(pd_->use_scale())
         , use_shift_(pd_->use_shift())
         , calculate_diff_stats_(!pd_->stats_are_src()) {
@@ -743,7 +740,6 @@ protected:
     const dim_t C_;
     const dim_t axis_simd_full_;
     const dim_t axis_simd_tail_;
-    const bool use_scaleshift_;
     const bool use_scale_;
     const bool use_shift_;
     const bool calculate_diff_stats_;
@@ -799,7 +795,7 @@ protected:
     void compute_dd_scales(size_t offt_elems, bool tail = false) {
         Vmm vmm_ddst = vmm_dsrc;
         io_[d_dst_d_.data_type()]->load(d_dst_ptr(offt_elems), vmm_ddst, tail);
-        if (use_scaleshift_ || use_scale_) {
+        if (use_scale_) {
             io_[f32]->load(scale_ptr(offt_elems), vmm_scale, tail);
             uni_vmulps(vmm_ddst, vmm_ddst, vmm_scale);
         }
@@ -813,7 +809,7 @@ protected:
     void compute_diff_src(size_t offt_elems, bool tail = false) {
         Vmm vmm_ddst = vmm_dsrc;
         io_[d_dst_d_.data_type()]->load(d_dst_ptr(offt_elems), vmm_ddst, tail);
-        if (use_scaleshift_ || use_scale_) {
+        if (use_scale_) {
             io_[f32]->load(scale_ptr(offt_elems), vmm_scale, tail);
             uni_vmulps(vmm_dsrc, vmm_dsrc, vmm_scale);
         }
@@ -956,22 +952,12 @@ diff_data_kernel_t *diff_data_kernel_t::create(
 
 status_t jit_uni_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    const bool use_ss = pd()->use_scaleshift();
-    const bool use_scale = pd()->use_scale();
-    const bool use_shift = pd()->use_shift();
-
     auto scratchpad = ctx.get_scratchpad_grantor();
     const auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
-    const memory_desc_wrapper ss_d(pd()->weights_md());
-    const size_t shift_off
-            = use_ss && !ss_d.has_zero_dim() ? ss_d.off(1, 0) : 0;
-
-    auto scale = CTX_IN_MEM(
-            const float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
-    auto shift = use_shift ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
-                           : use_ss ? &scale[shift_off] : nullptr;
+    auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);
+    auto shift = CTX_IN_MEM(const float *, DNNL_ARG_SHIFT);
 
     float *mean, *variance;
     if (pd()->use_tmp_stats()) {
@@ -1014,29 +1000,15 @@ status_t jit_uni_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     status_t status = status::success;
 
-    const memory_desc_wrapper diff_ss_d(pd()->diff_weights_md());
-
-    const bool use_ss = pd()->use_scaleshift();
-    const bool use_scale = pd()->use_scale();
-    const bool use_shift = pd()->use_shift();
-
     auto scratchpad = ctx.get_scratchpad_grantor();
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
-    auto scale = CTX_IN_MEM(
-            float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    auto scale = CTX_IN_MEM(float *, DNNL_ARG_SCALE);
     auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
 
-    const size_t diff_shift_off
-            = use_ss && !diff_ss_d.has_zero_dim() ? diff_ss_d.off(1, 0) : 0;
-
-    auto diff_scale = CTX_OUT_CLEAN_MEM(float *,
-            use_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-            status);
+    auto diff_scale = CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SCALE, status);
     CHECK(status);
-    auto diff_shift = use_shift
-            ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+    auto diff_shift = CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status);
     CHECK(status);
 
     const float *mean, *variance;
@@ -1064,7 +1036,6 @@ status_t jit_uni_layer_normalization_bwd_t::execute_backward(
         diff_scale = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
     if (diff_shift == nullptr) {
         diff_shift = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
-        if (diff_shift == diff_scale) diff_shift = &diff_shift[diff_shift_off];
     }
 
     const int max_nthr = pd()->nthr_;
