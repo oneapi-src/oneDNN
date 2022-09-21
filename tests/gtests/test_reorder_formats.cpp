@@ -145,10 +145,10 @@ protected:
                             if (out_md) break;
                         }
                         ASSERT_TRUE(out_md);
-                        if (in_md.data.ndims != out_md.data.ndims) continue;
+                        if (in_md.get_ndims() != out_md.get_ndims()) continue;
 
                         const dnnl::impl::memory_desc_wrapper out_d(
-                                out_md.data);
+                                out_md.get());
                         bool any2abx = out_d.matches_one_of_tag(dnnl_a, dnnl_ab,
                                 dnnl_abc, dnnl_abcd, dnnl_abcde, dnnl_abcdef,
                                 dnnl_abcdefg, dnnl_abcdefgh, dnnl_abcdefghij,
@@ -159,7 +159,8 @@ protected:
                         // reorder use cases.
                         if (!abx2any && !any2abx) continue;
 
-                        out_md.data.extra = i_extra;
+                        const_cast<dnnl_memory_desc_t *>(out_md.get())->extra
+                                = i_extra;
 
                         catch_expected_failures(
                                 [=]() { TestFormat(in_md, out_md); }, false,

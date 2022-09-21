@@ -144,9 +144,8 @@ protected:
 
     void TestFormat(const md &src_md, const md &wei_md, const md &dst_md,
             const std::vector<dt> &i_cfg) const {
-        ip_fwd::desc ip_fwd_desc(
-                prop_kind::forward_training, src_md, wei_md, dst_md);
-        ip_fwd::primitive_desc ip_fwd_pd(ip_fwd_desc, e, true);
+        ip_fwd::primitive_desc ip_fwd_pd(e, prop_kind::forward_training, src_md,
+                wei_md, dst_md, {}, true);
         if (ip_fwd_pd) {
             // Filter-out reference implementation since it doesn't have any
             // format restrictions and too slow.
@@ -169,8 +168,8 @@ protected:
         // int8 is not supported on backward;
         if (i_cfg[1] == dt::s8) return;
 
-        ip_bwd_d::desc ip_bwd_d_desc(src_md, wei_md, dst_md);
-        ip_bwd_d::primitive_desc ip_bwd_d_pd(ip_bwd_d_desc, e, ip_fwd_pd, true);
+        ip_bwd_d::primitive_desc ip_bwd_d_pd(
+                e, src_md, wei_md, dst_md, ip_fwd_pd, {}, true);
         if (ip_bwd_d_pd) {
             // Filter-out reference implementation since it doesn't have any
             // format restrictions and too slow.
@@ -188,8 +187,8 @@ protected:
             strm.wait();
         }
 
-        ip_bwd_w::desc ip_bwd_w_desc(src_md, wei_md, dst_md);
-        ip_bwd_w::primitive_desc ip_bwd_w_pd(ip_bwd_w_desc, e, ip_fwd_pd, true);
+        ip_bwd_w::primitive_desc ip_bwd_w_pd(
+                e, src_md, wei_md, dst_md, ip_fwd_pd, {}, true);
         if (ip_bwd_w_pd) {
             // Filter-out reference implementation since it doesn't have any
             // format restrictions and too slow.

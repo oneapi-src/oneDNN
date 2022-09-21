@@ -19,7 +19,7 @@
 namespace dnnl {
 namespace impl {
 
-status_t memory_desc_init_by_tag(memory_desc_t &memory_desc, int ndims,
+status_t DNNL_API memory_desc_init_by_tag(memory_desc_t &memory_desc, int ndims,
         const dims_t dims, data_type_t data_type, format_tag_t tag);
 
 status_t memory_desc_init_by_strides(memory_desc_t &memory_desc, int ndims,
