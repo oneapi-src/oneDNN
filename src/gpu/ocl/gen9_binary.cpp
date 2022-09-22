@@ -133,8 +133,12 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
         } else if (conf.isXa16b) {
             conf.nvect = 8;
             int channel_blk = 16;
+            const int vect_dim_size = 16;
+            const int padded_channels = padded_dims[1];
             conf.mb_block = dst_d.md_->format_desc.blocking.inner_blks[0];
-            if (padded_dims[1] < 256) { channel_blk = 1; }
+            while (padded_channels % (vect_dim_size * channel_blk) != 0) {
+                channel_blk /= 2;
+            }
             dim_t blocks[MAX_NDIMS] = {8, channel_blk, 1, 1, 1, 1};
             for (int i = 0; i < MAX_NDIMS; ++i) {
                 auto dim_str = utils::format("D%d", i);
@@ -142,7 +146,8 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
                     conf.dispatch.define_dim(
                             dim_str, i, padded_dims[i], blocks[i]);
                     if (i == 1) {
-                        CHECK(conf.dispatch.vectorize_dim(dim_str, 16));
+                        CHECK(conf.dispatch.vectorize_dim(
+                                dim_str, vect_dim_size));
                     }
                 } else {
                     conf.dispatch.define_dim(dim_str, 1);
