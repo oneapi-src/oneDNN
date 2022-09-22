@@ -43,7 +43,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args));
 
     DNN_SAFE_STATUS(dnnl_reduction_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg2alg_kind(prb->alg), &src_desc, &dst_desc,
+            init_pd_args.engine, alg2alg_kind(prb->alg), src_desc, dst_desc,
             prb->p, prb->eps, dnnl_attr));
 
     return dnnl_success;

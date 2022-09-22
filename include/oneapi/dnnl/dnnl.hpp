@@ -222,6 +222,13 @@ public:
 
 /// @cond DO_NOT_DOCUMENT_THIS
 template <>
+struct handle_traits<dnnl_memory_desc_t> {
+    static dnnl_status_t destructor(dnnl_memory_desc_t p) {
+        return dnnl_memory_desc_destroy(p);
+    }
+};
+
+template <>
 struct handle_traits<dnnl_memory_t> {
     static dnnl_status_t destructor(dnnl_memory_t p) {
         return dnnl_memory_destroy(p);
@@ -2477,16 +2484,21 @@ struct memory : public handle<dnnl_memory_t> {
     };
 
     /// A memory descriptor.
-    struct desc {
-        friend struct memory;
+    struct desc : public handle<dnnl_memory_desc_t> {
+        using handle<dnnl_memory_desc_t>::handle;
 
-        // This function mimics `handle::get()` and will be removed once
-        // `desc` is inherited from `handle`.
-        const_dnnl_memory_desc_t get() const { return &data; }
+        friend struct memory;
 
         /// Constructs a zero (empty) memory descriptor. Such a memory
         /// descriptor can be used to indicate absence of an argument.
-        desc() : data() {}
+        desc() {
+            dnnl_memory_desc_t zero_md = nullptr;
+            error::wrap_c_api(
+                    dnnl_memory_desc_create_with_tag(&zero_md, 0, nullptr,
+                            dnnl_data_type_undef, dnnl_format_tag_undef),
+                    "could not create a zero memory descriptor");
+            reset(zero_md);
+        }
 
         /// Constructs a memory descriptor.
         ///
@@ -2504,16 +2516,17 @@ struct memory : public handle<dnnl_memory_t> {
         ///     zero memory descriptor will be constructed. This flag is
         ///     optional and defaults to false.
         desc(const dims &adims, data_type adata_type, format_tag aformat_tag,
-                bool allow_empty = false)
-            : data() {
+                bool allow_empty = false) {
             validate_dims(adims);
-            dnnl_status_t status = dnnl_memory_desc_create_with_tag(&data,
+            dnnl_memory_desc_t md = nullptr;
+            dnnl_status_t status = dnnl_memory_desc_create_with_tag(&md,
                     (int)adims.size(), adims.data(), convert_to_c(adata_type),
                     convert_to_c(aformat_tag));
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not construct a memory descriptor using a "
                         "format tag");
+            reset(md);
         }
 
         /// Constructs a memory descriptor by strides.
@@ -2532,23 +2545,26 @@ struct memory : public handle<dnnl_memory_t> {
         ///     zero memory descriptor will be constructed. This flag is
         ///     optional and defaults to false.
         desc(const dims &adims, data_type adata_type, const dims &strides,
-                bool allow_empty = false)
-            : data() {
+                bool allow_empty = false) {
             validate_dims(adims);
             if (!strides.empty()) validate_dims(strides, (int)adims.size());
-            dnnl_status_t status = dnnl_memory_desc_create_with_strides(&data,
+            dnnl_memory_desc_t md = nullptr;
+            dnnl_status_t status = dnnl_memory_desc_create_with_strides(&md,
                     (int)adims.size(), adims.data(), convert_to_c(adata_type),
                     strides.empty() ? nullptr : &strides[0]);
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not construct a memory descriptor using "
                         "strides");
+            reset(md);
         }
 
-        /// Constructs a memory descriptor from a C API data structure.
+        /// Construct a memory descriptor from a C API ::dnnl_memory_desc_t
+        /// handle. The resulting handle is not weak and the C handle will be
+        /// destroyed during the destruction of the C++ object.
         ///
-        /// @param data A C API ::dnnl_memory_desc_t structure.
-        desc(const dnnl_memory_desc_t &data) : data(data) {}
+        /// @param md The C API memory descriptor.
+        desc(dnnl_memory_desc_t md) : handle<dnnl_memory_desc_t>(md) {}
 
         /// Constructs a memory descriptor for a region inside an area
         /// described by this memory descriptor.
@@ -2565,7 +2581,7 @@ struct memory : public handle<dnnl_memory_t> {
                 bool allow_empty = false) const {
             validate_dims(adims, get_ndims());
             validate_dims(offsets, get_ndims());
-            dnnl_memory_desc_t sub_md = dnnl_memory_desc_t();
+            dnnl_memory_desc_t sub_md = nullptr;
             dnnl_status_t status = dnnl_memory_desc_create_submemory(
                     &sub_md, get(), adims.data(), offsets.data());
             if (!allow_empty)
@@ -2619,9 +2635,9 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns A new memory descriptor with new dimensions.
         desc reshape(const dims &adims, bool allow_empty = false) const {
             if (get_ndims()) validate_dims(adims, 1);
-            dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
+            dnnl_memory_desc_t out_md = nullptr;
             dnnl_status_t status = dnnl_memory_desc_reshape(
-                    &out_md, &data, (int)adims.size(), adims.data());
+                    &out_md, get(), (int)adims.size(), adims.data());
             if (!allow_empty)
                 error::wrap_c_api(
                         status, "could not reshape a memory descriptor");
@@ -2668,7 +2684,7 @@ struct memory : public handle<dnnl_memory_t> {
         desc permute_axes(const std::vector<int> &permutation,
                 bool allow_empty = false) const {
             validate_dims(permutation, get_ndims());
-            dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
+            dnnl_memory_desc_t out_md = nullptr;
             dnnl_status_t status = dnnl_memory_desc_permute_axes(
                     &out_md, get(), permutation.data());
             if (!allow_empty)
@@ -2809,11 +2825,6 @@ struct memory : public handle<dnnl_memory_t> {
         ///     different memory.
         bool operator!=(const desc &other) const { return !operator==(other); }
 
-        /// Checks whether the object is not empty.
-        ///
-        /// @returns Whether the object is not empty.
-        explicit operator bool() const { return get_ndims() != 0; }
-
     private:
         memory::dim query_s32(query what) const {
             memory::dim res;
@@ -2830,9 +2841,6 @@ struct memory : public handle<dnnl_memory_t> {
                     ? memory::dims(*c_dims, *c_dims + get_ndims())
                     : memory::dims {};
         }
-
-        /// The underlying C API data structure.
-        dnnl_memory_desc_t data;
     };
 
     /// Default constructor.
@@ -2882,7 +2890,10 @@ struct memory : public handle<dnnl_memory_t> {
         const_dnnl_memory_desc_t cdesc;
         error::wrap_c_api(dnnl_memory_get_memory_desc(get(), &cdesc),
                 "could not get a memory descriptor from a memory object");
-        return desc(*cdesc);
+        dnnl_memory_desc_t cloned_md = nullptr;
+        error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md, cdesc),
+                "could not clone a memory descriptor");
+        return desc(cloned_md);
     }
 
     /// Returns the associated engine.
@@ -3287,12 +3298,15 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void get_params_binary(
             int index, algorithm &aalgorithm, memory::desc &src1_desc) const {
         dnnl_alg_kind_t c_alg;
-        const_dnnl_memory_desc_t data;
+        const_dnnl_memory_desc_t cdesc;
         error::wrap_c_api(
-                dnnl_post_ops_get_params_binary(get(), index, &c_alg, &data),
+                dnnl_post_ops_get_params_binary(get(), index, &c_alg, &cdesc),
                 "could not get parameters of a binary post-op");
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
-        src1_desc = memory::desc(*data);
+        dnnl_memory_desc_t cloned_md = nullptr;
+        error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md, cdesc),
+                "could not clone a memory descriptor");
+        src1_desc = memory::desc(cloned_md);
     }
 
     /// Appends a prelu forward post-op.
@@ -3963,8 +3977,13 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
         const_dnnl_memory_desc_t md = dnnl_primitive_desc_query_md(get(),
                 is_backward ? dnnl_query_diff_dst_md : dnnl_query_dst_md, 0);
 
+        int ndims;
+        error::wrap_c_api(
+                dnnl_memory_desc_query(md, dnnl_query_ndims_s32, &ndims),
+                "could not query ndims from a memory descriptor");
+
         return status == dnnl_success
-                ? std::vector<float>(factors, factors + (md->ndims - 2))
+                ? std::vector<float>(factors, factors + (ndims - 2))
                 : std::vector<float> {};
     }
 
@@ -4049,7 +4068,13 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
 
         const_dnnl_memory_desc_t cdesc = dnnl_primitive_desc_query_md(
                 get(), dnnl::convert_to_c(what), idx);
-        return cdesc ? memory::desc(*cdesc) : memory::desc();
+        if (!cdesc) return memory::desc();
+
+        dnnl_memory_desc_t cloned_md = nullptr;
+        error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md, cdesc),
+                "could not clone a memory descriptor");
+
+        return memory::desc(cloned_md);
     }
 
     /// Returns a source memory descriptor.
@@ -4251,7 +4276,14 @@ protected:
         const_dnnl_memory_desc_t md = dnnl_primitive_desc_query_md(get(),
                 is_backward ? dnnl_query_diff_dst_md : dnnl_query_dst_md, 0);
 
-        const int nspatial_dims = md ? md->ndims - 2 : 0;
+        int nspatial_dims = 0;
+        if (md) {
+            memory::dim ndims;
+            error::wrap_c_api(
+                    dnnl_memory_desc_query(md, dnnl_query_ndims_s32, &ndims),
+                    "could not query ndims from a memory descriptor");
+            nspatial_dims = ndims - 2;
+        }
 
         dnnl_dims_t *c_dims;
         dnnl_status_t status = dnnl_primitive_desc_query(
@@ -4540,13 +4572,13 @@ struct reorder : public primitive {
 /// @{
 
 /// @cond DO_NOT_DOCUMENT_THIS
-inline std::vector<dnnl_memory_desc_t> convert_to_c(
-        const std::vector<memory::desc> &mems) {
-    std::vector<dnnl_memory_desc_t> c_mems;
-    c_mems.reserve(mems.size());
-    for (const auto &s : mems)
-        c_mems.push_back(*s.get());
-    return c_mems;
+inline std::vector<const_dnnl_memory_desc_t> convert_to_c(
+        const std::vector<memory::desc> &mds) {
+    std::vector<const_dnnl_memory_desc_t> c_mds;
+    c_mds.reserve(mds.size());
+    for (const auto &md : mds)
+        c_mds.push_back(md.get());
+    return c_mds;
 }
 /// @endcond
 

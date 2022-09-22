@@ -227,7 +227,9 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         rnn_packed_desc_t &rnn_pdata = weights_md.format_desc.rnn_packed_desc;
         switch (weights_type) {
             case weights_type_t::iter:
-                rnn_pdata.format = rnn.is_fwd ? dnnl_ldigo_p : dnnl_ldgoi_p;
+                rnn_pdata.format = rnn.is_fwd
+                        ? rnn_packed_memory_format_t::ldigo_p
+                        : rnn_packed_memory_format_t::ldgoi_p;
                 rnn_pdata.ldb = rnn.ws_states_iter_ld;
                 rnn_pdata.n = rnn.mb;
                 rnn_pdata.n_parts = rnn.n_parts_weights_iter;
@@ -239,7 +241,9 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                 rnn_pdata.size = rnn.weights_iter_pack_size;
                 break;
             case weights_type_t::layer:
-                rnn_pdata.format = rnn.is_fwd ? dnnl_ldigo_p : dnnl_ldgoi_p;
+                rnn_pdata.format = rnn.is_fwd
+                        ? rnn_packed_memory_format_t::ldigo_p
+                        : rnn_packed_memory_format_t::ldgoi_p;
                 rnn_pdata.ldb = rnn.ws_states_layer_ld;
                 rnn_pdata.n
                         = rnn.merge_gemm_layer ? rnn.n_iter * rnn.mb : rnn.mb;
@@ -253,7 +257,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                 break;
             case weights_type_t::projection:
                 // TODO: add ldoi_p for bwd?
-                rnn_pdata.format = dnnl_ldio_p;
+                rnn_pdata.format = rnn_packed_memory_format_t::ldio_p;
                 rnn_pdata.ldb = rnn.proj_ht_ld;
                 rnn_pdata.n = rnn.mb;
                 rnn_pdata.n_parts = rnn.n_parts_weights_projection;

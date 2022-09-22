@@ -75,7 +75,8 @@ TEST_P(memory_map_test_c_t, MapNullMemory) {
 
     DNNL_CHECK(dnnl_memory_desc_create_with_tag(
             &mem_d, ndims, dims, dnnl_f32, dnnl_nchw));
-    DNNL_CHECK(dnnl_memory_create(&mem, &mem_d, engine, nullptr));
+    DNNL_CHECK(dnnl_memory_create(&mem, mem_d, engine, nullptr));
+    DNNL_CHECK(dnnl_memory_desc_destroy(mem_d));
 
     void *mapped_ptr;
     DNNL_CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
@@ -100,7 +101,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
     // Create and fill mem_ref to use as a reference
     dnnl_memory_t mem_ref;
     DNNL_CHECK(
-            dnnl_memory_create(&mem_ref, &mem_d, engine, DNNL_MEMORY_ALLOCATE));
+            dnnl_memory_create(&mem_ref, mem_d, engine, DNNL_MEMORY_ALLOCATE));
 
     float buffer_ref[N];
     std::iota(buffer_ref, buffer_ref + N, 1);
@@ -114,12 +115,12 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
 
     // Create memory for the tested engine
     dnnl_memory_t mem;
-    DNNL_CHECK(dnnl_memory_create(&mem, &mem_d, engine, DNNL_MEMORY_ALLOCATE));
+    DNNL_CHECK(dnnl_memory_create(&mem, mem_d, engine, DNNL_MEMORY_ALLOCATE));
 
     // Reorder mem_ref to memory
     dnnl_primitive_desc_t reorder_pd;
     DNNL_CHECK(dnnl_reorder_primitive_desc_create(
-            &reorder_pd, &mem_d, engine, &mem_d, engine, nullptr));
+            &reorder_pd, mem_d, engine, mem_d, engine, nullptr));
 
     dnnl_primitive_t reorder;
     DNNL_CHECK(dnnl_primitive_create(&reorder, reorder_pd));
@@ -143,6 +144,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
     DNNL_CHECK(dnnl_primitive_destroy(reorder));
     DNNL_CHECK(dnnl_primitive_desc_destroy(reorder_pd));
 
+    DNNL_CHECK(dnnl_memory_desc_destroy(mem_d));
     DNNL_CHECK(dnnl_memory_destroy(mem));
     DNNL_CHECK(dnnl_memory_destroy(mem_ref));
 }

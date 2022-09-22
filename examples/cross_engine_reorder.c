@@ -81,9 +81,9 @@ void cross_engine_reorder() {
 
     dnnl_memory_t m_cpu, m_gpu;
     CHECK(dnnl_memory_create(
-            &m_cpu, &m_cpu_md, engine_cpu, DNNL_MEMORY_ALLOCATE));
+            &m_cpu, m_cpu_md, engine_cpu, DNNL_MEMORY_ALLOCATE));
     CHECK(dnnl_memory_create(
-            &m_gpu, &m_gpu_md, engine_gpu, DNNL_MEMORY_ALLOCATE));
+            &m_gpu, m_gpu_md, engine_gpu, DNNL_MEMORY_ALLOCATE));
 
     fill(m_cpu, 4, tz);
     if (find_negative(m_cpu, 4, tz) == 0)
@@ -93,14 +93,14 @@ void cross_engine_reorder() {
     /* reorder cpu -> gpu */
     dnnl_primitive_desc_t r1_pd;
     CHECK(dnnl_reorder_primitive_desc_create(
-            &r1_pd, &m_cpu_md, engine_cpu, &m_gpu_md, engine_gpu, NULL));
+            &r1_pd, m_cpu_md, engine_cpu, m_gpu_md, engine_gpu, NULL));
     dnnl_primitive_t r1;
     CHECK(dnnl_primitive_create(&r1, r1_pd));
 
     /* relu gpu */
     dnnl_primitive_desc_t relu_pd;
     CHECK(dnnl_eltwise_forward_primitive_desc_create(&relu_pd, engine_gpu,
-            dnnl_forward, dnnl_eltwise_relu, &m_gpu_md, 0.0f, 0.0f, NULL));
+            dnnl_forward, dnnl_eltwise_relu, m_gpu_md, 0.0f, 0.0f, NULL));
 
     dnnl_primitive_t relu;
     CHECK(dnnl_primitive_create(&relu, relu_pd));
@@ -108,7 +108,7 @@ void cross_engine_reorder() {
     /* reorder gpu -> cpu */
     dnnl_primitive_desc_t r2_pd;
     CHECK(dnnl_reorder_primitive_desc_create(
-            &r2_pd, &m_gpu_md, engine_gpu, &m_cpu_md, engine_cpu, NULL));
+            &r2_pd, m_gpu_md, engine_gpu, m_cpu_md, engine_cpu, NULL));
     dnnl_primitive_t r2;
     CHECK(dnnl_primitive_create(&r2, r2_pd));
 
@@ -142,6 +142,8 @@ void cross_engine_reorder() {
     dnnl_primitive_destroy(r2);
     dnnl_memory_destroy(m_cpu);
     dnnl_memory_destroy(m_gpu);
+    dnnl_memory_desc_destroy(m_cpu_md);
+    dnnl_memory_desc_destroy(m_gpu_md);
 
     dnnl_stream_destroy(stream_gpu);
 

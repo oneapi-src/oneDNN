@@ -29,10 +29,10 @@ dnnl_alg_kind_t query_alg_kind(const_dnnl_primitive_desc_t pd);
 std::string query_impl_info(const_dnnl_primitive_desc_t pd);
 
 // General interface of quering memory desc.
-const dnnl_memory_desc_t &query_md(
+const_dnnl_memory_desc_t query_md(
         const_dnnl_primitive_desc_t pd, dnnl_query_t what, int index = 0);
 // Particular interface of quering through execution argument and its index.
-const dnnl_memory_desc_t &query_md(
+const_dnnl_memory_desc_t query_md(
         const_dnnl_primitive_desc_t pd, int index = 0);
 
 dnnl_engine_t query_engine(const_dnnl_primitive_desc_t pd,

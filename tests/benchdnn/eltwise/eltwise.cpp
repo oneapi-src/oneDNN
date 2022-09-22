@@ -50,15 +50,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                                         : dnnl_forward_training;
 
         DNN_SAFE_STATUS(dnnl_eltwise_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, alg, &data_d,
+                &init_pd_args.pd, init_pd_args.engine, prop, alg, data_d,
                 prb->alpha, prb->beta, dnnl_attr));
     } else {
         auto diff_data_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt, tag::any);
 
         DNN_SAFE_STATUS(dnnl_eltwise_backward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, alg, &diff_data_d,
-                &data_d, prb->alpha, prb->beta, init_pd_args.hint, dnnl_attr));
+                &init_pd_args.pd, init_pd_args.engine, alg, diff_data_d, data_d,
+                prb->alpha, prb->beta, init_pd_args.hint, dnnl_attr));
     }
 
     return dnnl_success;

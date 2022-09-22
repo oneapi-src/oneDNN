@@ -169,14 +169,6 @@ const scratchpad_mode_t library = dnnl_scratchpad_mode_library;
 const scratchpad_mode_t user = dnnl_scratchpad_mode_user;
 } // namespace scratchpad_mode
 
-using rnn_packed_format_t = dnnl_rnn_packed_memory_format_t;
-namespace rnn_packed_format {
-const rnn_packed_format_t undef = dnnl_packed_format_undef;
-const rnn_packed_format_t ldigo_p = dnnl_ldigo_p;
-const rnn_packed_format_t ldgoi_p = dnnl_ldgoi_p;
-const rnn_packed_format_t ldio_p = dnnl_ldio_p;
-} // namespace rnn_packed_format
-
 using format_kind_t = dnnl_format_kind_t;
 namespace format_kind {
 const format_kind_t undef = dnnl_format_kind_undef;
@@ -1201,20 +1193,6 @@ const format_tag_t gOdhwI16i64o4i = dnnl_gOdhwI16i64o4i;
 const format_tag_t hwioG16g = dnnl_hwioG16g;
 } // namespace format_tag
 
-using memory_extra_flags_t = dnnl_memory_extra_flags_t;
-namespace memory_extra_flags {
-const memory_extra_flags_t none = dnnl_memory_extra_flag_none;
-const memory_extra_flags_t compensation_conv_s8s8
-        = dnnl_memory_extra_flag_compensation_conv_s8s8;
-const memory_extra_flags_t scale_adjust = dnnl_memory_extra_flag_scale_adjust;
-const memory_extra_flags_t rnn_u8s8_compensation
-        = dnnl_memory_extra_flag_rnn_u8s8_compensation;
-const memory_extra_flags_t rnn_s8s8_compensation
-        = dnnl_memory_extra_flag_rnn_s8s8_compensation;
-const memory_extra_flags_t compensation_conv_asymmetric_src
-        = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
-} // namespace memory_extra_flags
-
 using engine_kind_t = dnnl_engine_kind_t;
 namespace engine_kind {
 const engine_kind_t any_engine = dnnl_any_engine;
@@ -1345,17 +1323,12 @@ const query_t zero_pad_d = internal_only_start;
 const query_t preferred_gpu_threads_per_eu = (query_t)(internal_only_start + 1);
 } // namespace query
 
-using blocking_desc_t = dnnl_blocking_desc_t;
-using rnn_packed_desc_t = dnnl_rnn_packed_desc_t;
-using wino_desc_t = dnnl_wino_desc_t;
-using memory_extra_desc_t = dnnl_memory_extra_desc_t;
-using memory_desc_t = dnnl_memory_desc_t;
-
 using rnn_direction_t = dnnl_rnn_direction_t;
 
 using engine_t = dnnl_engine;
 using primitive_attr_t = dnnl_primitive_attr;
 using post_ops_t = dnnl_post_ops;
+using memory_desc_t = dnnl_memory_desc;
 using memory_t = dnnl_memory;
 
 using stream_flags_t = dnnl_stream_flags_t;

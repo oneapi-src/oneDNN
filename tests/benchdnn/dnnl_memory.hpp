@@ -25,6 +25,7 @@
 
 #include "common.hpp"
 #include "utils/dims.hpp"
+#include "utils/wrapper.hpp"
 
 #define dnnl_mem_default_value 0xFF
 
@@ -41,9 +42,9 @@ struct dnn_mem_t {
     };
 
     dnn_mem_t() { map(); }
-    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
+    dnn_mem_t(const_dnnl_memory_desc_t md, dnnl_engine_t engine,
             const handle_info_t &handle_info = handle_info_t::allocate());
-    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
+    dnn_mem_t(const_dnnl_memory_desc_t md, dnnl_data_type_t dt,
             const std::string &tag, dnnl_engine_t engine);
 
     dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
@@ -109,7 +110,7 @@ struct dnn_mem_t {
 
     size_t sizeof_dt() const;
 
-    void set_dt(dnnl_data_type_t dt) { md_.data_type = dt; }
+    void set_dt(dnnl_data_type_t dt);
 
     template <typename T>
     explicit operator T *() const {
@@ -167,12 +168,12 @@ struct dnn_mem_t {
             bool *was_padded = nullptr);
     // Increases memory descriptor size to catch potential buffer overreads and
     // overwrites. The padded area is filled with a canary value.
-    static dnnl_memory_desc_t pad_memory_desc(const dnnl_memory_desc_t &md,
+    static dnnl_memory_desc_t pad_memory_desc(const_dnnl_memory_desc_t md,
             dnnl_engine_kind_t engine_kind, bool *was_padded = nullptr);
     // Initializes memory descriptor from sporadic tag or strides.
-    static dnnl_memory_desc_t init_md(int ndims, const dnnl_dims_t dims,
-            dnnl_data_type_t data_type, const std::string &tag,
-            const dims_t &strides_ = {});
+    static benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> init_md(int ndims,
+            const dnnl_dims_t dims, dnnl_data_type_t data_type,
+            const std::string &tag, const dims_t &strides_ = {});
 
     /* fields */
     dnnl_memory_desc_t md_ {};
@@ -203,6 +204,8 @@ private:
 
     int cleanup();
 };
+
+dnnl_memory_desc_t clone_md(const_dnnl_memory_desc_t md);
 
 // Checks that zero padding is preserved.
 int check_zero_padding(const dnn_mem_t &mem, int arg, res_t *res = nullptr,

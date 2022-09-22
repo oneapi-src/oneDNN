@@ -119,13 +119,16 @@ typedef enum {
 /// int ndims = 5; // 5D tensor
 /// dnnl_dims_t dims = {batch, channels, depth, height, width};
 /// dnnl_memory_desc_t data_in_ncdhw;
-/// dnnl_memory_desc_init_by_tag(
+/// dnnl_memory_desc_create_with_tag(
 ///      &data_in_ncdhw, 5, dims, dnnl_f32, dnnl_ncdhw);
 ///
 /// // note that in both cases dims passed are the same
 /// dnnl_memory_desc_t data_in_ndhwc;
-/// dnnl_memory_desc_init_by_tag(
+/// dnnl_memory_desc_create_with_tag(
 ///      &data_in_ndhwc, 5, dims, dnnl_f32, dnnl_ndhwc);
+///
+/// dnnl_memory_desc_destroy(data_in_ncdhw);
+/// dnnl_memory_desc_destroy(data_in_ndhwc);
 /// ~~~
 ///
 /// Memory format tags can be further divided into two categories:
@@ -1707,165 +1710,15 @@ typedef int64_t dnnl_dim_t;
 /// A type to describe tensor dimensions.
 typedef dnnl_dim_t dnnl_dims_t[DNNL_MAX_NDIMS];
 
-/// Generic description of blocked data layout for most memory formats.
-///
-/// @sa @ref dev_guide_understanding_memory_formats
-typedef struct {
-    /// The strides between the outermost blocks.
-    /// In case of plain (non-blocked) formats the strides between dimensions.
-    dnnl_dims_t strides;
-    // Innermost section
-    // ASSUMPTION: the innermost blocks are always dense
-    /// The number of innermost blocks, e.g. 3 in case of `OIhw_4i16o4i_`
-    int inner_nblks;
-    /// The size of the blocks, e.g. `{4, 16, 4}` in case of `OIhw_4i16o4i`
-    dnnl_dims_t inner_blks;
-    /// The logical indices of the blocks, e.g. `{1, 0, 1}` in case of
-    /// `4i16o4i`, because `i` is the 1st dim and `o` is the 0st dim
-    dnnl_dims_t inner_idxs;
-} dnnl_blocking_desc_t;
-
-/// Winograd-specific formats
-typedef enum {
-    /// Undefined memory format, used for empty memory descriptors.
-    dnnl_wino_undef = 0,
-    // Tensors of weights for 2x3 winograd convolutions.
-    dnnl_wino_wei_aaOIoi, ///< Internal weights format for 2x3 Winograd
-    dnnl_wino_wei_aaOio, ///< Internal weights format for 2x3 Winograd
-    dnnl_wino_wei_aaOBiOo, ///< Internal weights format for 2x3 Winograd
-    // Tensor of weights for 4x3 convolution.
-    dnnl_wino_wei_OBaaIBOIio ///< Internal weights format for 4x3 Winograd
-} dnnl_wino_memory_format_t;
-
-/// Description of tensor of weights for winograd 2x3 convolution.
-typedef struct {
-    dnnl_wino_memory_format_t wino_format;
-    int r;
-    int alpha;
-    int ic;
-    int oc;
-    int ic_block;
-    int oc_block;
-    int ic2_block;
-    int oc2_block;
-    float adj_scale;
-    size_t size;
-} dnnl_wino_desc_t;
-
-typedef enum {
-    dnnl_packed_format_undef = 0,
-    dnnl_ldigo_p,
-    dnnl_ldgoi_p,
-    dnnl_ldio_p
-} dnnl_rnn_packed_memory_format_t;
-
-/// Maximum number of parts of RNN weights tensor that require separate
-/// computation.
-#define DNNL_RNN_MAX_N_PARTS 4
-
-/// Description of tensor of packed weights for rnn.
-typedef struct {
-    dnnl_rnn_packed_memory_format_t format;
-    int n_parts;
-    int n;
-    int ldb;
-    int parts[DNNL_RNN_MAX_N_PARTS];
-    size_t part_pack_size[DNNL_RNN_MAX_N_PARTS];
-    unsigned pack_part[DNNL_RNN_MAX_N_PARTS];
-    size_t offset_compensation;
-    size_t size;
-    char reserved[200];
-} dnnl_rnn_packed_desc_t;
-
-/// Flags for memory special features
-typedef enum {
-    dnnl_memory_extra_flag_none = 0x0U,
-    /// Indicates the weights have an additional buffer, that depends on the
-    /// @p compensation_mask.
-    ///
-    /// For instance, in 4D case with the compensation mask equals (1 << 0)
-    /// the additional buffer would consist of OC values:
-    /// O[oc : 0,OC] =
-    ///  -128 * SUM(ic : 0,IC; kh : 0,KH; kw : 0,KW){ weights(oc, ic, kh, kw) }
-    dnnl_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
-    dnnl_memory_extra_flag_scale_adjust = 0x2U,
-    dnnl_memory_extra_flag_rnn_u8s8_compensation = 0x4U,
-    dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation
-    = dnnl_memory_extra_flag_rnn_u8s8_compensation,
-    dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 0x8U,
-    dnnl_memory_extra_flag_rnn_s8s8_compensation = 0x16U,
-} dnnl_memory_extra_flags_t;
-
-/// Description of extra information stored in memory
-typedef struct {
-    /// The flags contain arbitrary extra information, such as compensation.
-    /// @sa dnnl_memory_extra_flags_t
-    uint64_t flags;
-    /// Compensation mask
-    int compensation_mask;
-    /// Scale applied to the data
-    float scale_adjust;
-    /// Compensation mask for asymmetric quantization
-    int asymm_compensation_mask;
-    /// For future backwards compatibility
-    char reserved[60];
-} dnnl_memory_extra_desc_t;
-
-/// Memory descriptor. The description is based on a number of dimensions,
-/// dimensions themselves, plus information about elements type and memory
-/// format. Additionally, contains format-specific descriptions of the data
-/// layout.
-typedef struct {
-    /// Number of dimensions
-    int ndims;
-    /// Dimensions in the following order:
-    /// - CNN data tensors: mini-batch, channel, spatial
-    ///   (<code>{N, C, [[D,] H,] W}</code>)
-    /// - CNN weight tensors: group (optional), output channel, input channel,
-    ///   spatial (<code>{[G,] O, I, [[D,] H,] W}</code>)
-    /// - RNN data tensors: time, mini-batch, channels (<code>{T, N, C}</code>)
-    ///   or layers, directions, states, mini-batch, channels (<code>{L, D, S, N, C}</code>)
-    /// - RNN weight tensor: layers, directions, input channel, gates, output channels
-    ///   (<code>{L, D, I, G, O}</code>).
-    ///
-    /// @note
-    ///    The order of dimensions does not depend on the memory format, so
-    ///    whether the data is laid out in #dnnl_nchw or #dnnl_nhwc
-    ///    the dims for 4D CN data tensor would be <code>{N, C, H, W}</code>.
-    dnnl_dims_t dims;
-
-    /// Data type of the tensor elements.
-    dnnl_data_type_t data_type;
-
-    /// Size of the data including padding in each dimension.
-    dnnl_dims_t padded_dims;
-
-    /// Per-dimension offset from the padding to actual data, the top-level
-    /// tensor with offsets applied must lie within the padding area.
-    dnnl_dims_t padded_offsets;
-
-    /// Offset from memory origin to the current block, non-zero only in
-    /// a description of a memory sub-block.
-    dnnl_dim_t offset0;
-
-    /// Memory format kind.
-    dnnl_format_kind_t format_kind;
-    union {
-        /// Description of the data layout for memory formats that use
-        /// blocking.
-        dnnl_blocking_desc_t blocking;
-        /// Tensor of weights for integer 8bit winograd convolution.
-        dnnl_wino_desc_t wino_desc;
-        /// Tensor of packed weights for RNN.
-        dnnl_rnn_packed_desc_t rnn_packed_desc;
-        // ... other descriptions possible
-    } format_desc;
-
-    dnnl_memory_extra_desc_t extra;
-} dnnl_memory_desc_t;
+/// @struct dnnl_memory_desc
+/// An opaque structure to describe a memory descriptor.
+struct dnnl_memory_desc;
 
 /// A memory descriptor handle.
-typedef const dnnl_memory_desc_t *const_dnnl_memory_desc_t;
+typedef struct dnnl_memory_desc *dnnl_memory_desc_t;
+
+/// A memory descriptor handle.
+typedef const struct dnnl_memory_desc *const_dnnl_memory_desc_t;
 
 /// @struct dnnl_memory
 /// An opaque structure to describe a memory.

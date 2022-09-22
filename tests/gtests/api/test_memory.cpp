@@ -60,11 +60,16 @@ TEST_P(memory_test_c_t, OutOfMemory) {
     dnnl_memory_desc_t md;
     DNNL_CHECK(dnnl_memory_desc_create_with_tag(&md, 1, dims, dnnl_u8, dnnl_x));
 
+    dnnl_data_type_t data_type;
+    DNNL_CHECK(dnnl_memory_desc_query(md, dnnl_query_data_type, &data_type));
+    ASSERT_EQ(dnnl_data_type_size(data_type), sizeof(uint8_t));
+
     dnnl_memory_t mem;
     dnnl_status_t s
-            = dnnl_memory_create(&mem, &md, engine, DNNL_MEMORY_ALLOCATE);
-    ASSERT_EQ(dnnl_data_type_size(md.data_type), sizeof(uint8_t));
+            = dnnl_memory_create(&mem, md, engine, DNNL_MEMORY_ALLOCATE);
     ASSERT_EQ(s, dnnl_out_of_memory);
+
+    DNNL_CHECK(dnnl_memory_desc_destroy(md));
 }
 
 TEST_P(memory_test_cpp_t, OutOfMemory) {

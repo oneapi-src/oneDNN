@@ -33,15 +33,16 @@ namespace concat {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    std::vector<dnnl_memory_desc_t> src_d(prb->n_inputs());
+    std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d_wrappers(
+            prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const dims_t &i_vdims = prb->vdims[i_input];
-        src_d[i_input] = dnn_mem_t::init_md(
+        src_d_wrappers[i_input] = dnn_mem_t::init_md(
                 prb->ndims, i_vdims.data(), prb->sdt, prb->stag[i_input]);
     }
 
-    dnnl_memory_desc_t dst_d {};
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dst_d {};
     if (prb->dtag != tag::undef) {
         dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dst_dims.data(), prb->ddt, prb->dtag);
@@ -50,10 +51,14 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
+    std::vector<dnnl_memory_desc_t> src_d(
+            src_d_wrappers.begin(), src_d_wrappers.end());
     init_pd_args.is_iterator_supported = false;
-    return dnnl_concat_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, prb->dtag != tag::undef ? &dst_d : nullptr,
-            prb->n_inputs(), prb->axis, src_d.data(), dnnl_attr);
+    DNN_SAFE_STATUS(dnnl_concat_primitive_desc_create(&init_pd_args.pd,
+            init_pd_args.engine, dst_d, prb->n_inputs(), prb->axis,
+            src_d.data(), dnnl_attr));
+
+    return dnnl_success;
 }
 
 int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,

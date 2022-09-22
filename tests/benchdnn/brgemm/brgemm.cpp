@@ -23,6 +23,9 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+// TODO: refactor the driver to avoid using extra flags of a memory descriptor.
+#include "src/common/memory_desc.hpp"
+
 #include "tests/test_isa_common.hpp"
 
 #include "utils/parallel.hpp"
@@ -187,11 +190,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
         }
     });
 
-    const bool swap_dt
-            = kind == DST && cfg.get_orig_dt(kind) != cfg.get_dt(kind);
-    if (swap_dt) mem_dt.set_dt(cfg.get_dt(kind));
     SAFE(mem_dt.reorder(mem_fp), WARN);
-    if (swap_dt) mem_dt.set_dt(cfg.get_orig_dt(kind));
 
     return OK;
 }
@@ -291,29 +290,30 @@ int doit(const prb_t *prb, res_t *res) {
     BENCHDNN_PRINT(6, "wtag: %s\n", wtag.c_str());
     auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(), wtag);
 
-    const size_t wei_offset_s8s8 = dnnl_memory_desc_get_size(&wei_md);
+    const size_t wei_offset_s8s8 = dnnl_memory_desc_get_size(wei_md);
     // Prepare and assign extra for wei_md when s8s8 compensation, or source
     // zero point reduction values are needed.
-    dnnl_memory_extra_desc_t wei_md_extra {};
-    wei_md_extra.flags = dnnl_memory_extra_flag_none;
+    dnnl::impl::memory_extra_desc_t wei_md_extra {};
+    wei_md_extra.flags = dnnl::impl::memory_extra_flags::none;
     if (prb->get_dt(SRC) == dnnl_s8 && prb->get_dt(WEI) == dnnl_s8) {
-        wei_md_extra.flags |= dnnl_memory_extra_flag_compensation_conv_s8s8;
+        wei_md_extra.flags
+                |= dnnl::impl::memory_extra_flags::compensation_conv_s8s8;
         wei_md_extra.compensation_mask = 2; // N dimension
     }
-    wei_md.extra = wei_md_extra;
+    static_cast<dnnl_memory_desc_t>(wei_md)->extra = wei_md_extra;
 
     const size_t wei_offset_zp = wei_offset_s8s8
-            + (wei_md_extra.flags != dnnl_memory_extra_flag_none
+            + (wei_md_extra.flags != dnnl::impl::memory_extra_flags::none
                             ? prb->get_ldb() * sizeof(int32_t)
                             : 0);
 
     const bool need_src_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     if (need_src_comp) {
-        wei_md_extra.flags
-                |= dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
+        wei_md_extra.flags |= dnnl::impl::memory_extra_flags::
+                compensation_conv_asymmetric_src;
         wei_md_extra.asymm_compensation_mask = 2; // N dimension
     }
-    wei_md.extra = wei_md_extra;
+    static_cast<dnnl_memory_desc_t>(wei_md)->extra = wei_md_extra;
 
     // Same as dst_md but with a pre-defined data type according to doc.
     auto acc_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
@@ -321,7 +321,7 @@ int doit(const prb_t *prb, res_t *res) {
     auto dst_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
             prb->dst_dt(), prb->dtag, dst_strides);
 
-    dnnl_memory_desc_t bia_md {};
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_md {};
     if (prb->bia_dt != dnnl_data_type_undef) {
         const dnnl_dims_t bia_dims = {1, prb->n};
         bia_md = dnn_mem_t::init_md(
@@ -361,7 +361,7 @@ int doit(const prb_t *prb, res_t *res) {
             create_dnnl_attr(prb->attr, attr_args));
 
     SAFE(check_dnnl_status(brgemm_desc_set_postops(&brgemm_desc, dnnl_attr,
-                                   &dst_md, prb->get_ldd(), prb->bia_dt),
+                                   dst_md, prb->get_ldd(), prb->bia_dt),
                  prb, res),
             WARN);
     if (res->state == SKIPPED) return OK;

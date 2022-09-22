@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ extern "C" {
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create(dnnl_memory_t *memory,
-        const dnnl_memory_desc_t *memory_desc, dnnl_engine_t engine,
+        const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
         dnnl_ocl_interop_memory_kind_t memory_kind, void *handle);
 
 /// Returns the memory allocation kind associated with a memory object.

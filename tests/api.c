@@ -54,11 +54,11 @@ void test1() {
     real_t data[LENGTH_100];
 
     dnnl_memory_desc_t md;
-    const dnnl_memory_desc_t *c_md_tmp;
+    const_dnnl_memory_desc_t c_md_tmp;
     dnnl_memory_t m;
 
     CHECK(dnnl_memory_desc_create_with_tag(&md, 1, dims, dnnl_f32, dnnl_x));
-    CHECK(dnnl_memory_create(&m, &md, engine, NULL));
+    CHECK(dnnl_memory_create(&m, md, engine, NULL));
 
     void *req = NULL;
 
@@ -71,12 +71,13 @@ void test1() {
     CHECK_TRUE(req == data);
 #endif
 
-    CHECK_TRUE(dnnl_memory_desc_get_size(&md) == LENGTH_100 * sizeof(data[0]));
+    CHECK_TRUE(dnnl_memory_desc_get_size(md) == LENGTH_100 * sizeof(data[0]));
 
     CHECK(dnnl_memory_get_memory_desc(m, &c_md_tmp));
-    CHECK_TRUE(dnnl_memory_desc_equal(&md, c_md_tmp));
+    CHECK_TRUE(dnnl_memory_desc_equal(md, c_md_tmp));
 
     CHECK(dnnl_memory_destroy(m));
+    CHECK(dnnl_memory_desc_destroy(md));
 
     CHECK(dnnl_engine_destroy(engine));
 }
@@ -143,7 +144,7 @@ void test2() {
     {
         CHECK(dnnl_memory_desc_create_with_tag(
                 &c3_src_md, 4, c3_src_sizes, dnnl_f32, dnnl_nChw8c));
-        CHECK(dnnl_memory_create(&c3_src, &c3_src_md, engine, src));
+        CHECK(dnnl_memory_create(&c3_src, c3_src_md, engine, src));
     }
 
     // weights
@@ -151,28 +152,28 @@ void test2() {
         CHECK(dnnl_memory_desc_create_with_tag(&c3_weights_md,
                 4 + (groups != 1), c3_weights_sizes + (groups == 1), dnnl_f32,
                 groups == 1 ? dnnl_OIhw8i8o : dnnl_gOIhw8i8o));
-        CHECK(dnnl_memory_create(&c3_weights, &c3_weights_md, engine, weights));
+        CHECK(dnnl_memory_create(&c3_weights, c3_weights_md, engine, weights));
     }
 
     // bias
     {
         CHECK(dnnl_memory_desc_create_with_tag(
                 &c3_bias_md, 1, c3_bias_sizes, dnnl_f32, dnnl_x));
-        CHECK(dnnl_memory_create(&c3_bias, &c3_bias_md, engine, bias));
+        CHECK(dnnl_memory_create(&c3_bias, c3_bias_md, engine, bias));
     }
 
     // c3_dst
     {
         CHECK(dnnl_memory_desc_create_with_tag(
                 &c3_dst_md, 4, c3_dst_sizes, dnnl_f32, dnnl_nChw8c));
-        CHECK(dnnl_memory_create(&c3_dst, &c3_dst_md, engine, dst));
+        CHECK(dnnl_memory_create(&c3_dst, c3_dst_md, engine, dst));
     }
 
     // out
     {
         CHECK(dnnl_memory_desc_create_with_tag(
                 &out_md, 4, c3_dst_sizes, dnnl_f32, dnnl_nchw));
-        CHECK(dnnl_memory_create(&out, &out_md, engine, out_mem));
+        CHECK(dnnl_memory_create(&out, out_md, engine, out_mem));
     }
 
     /* create a convolution primitive descriptor */
@@ -180,29 +181,29 @@ void test2() {
     dnnl_primitive_t c3;
 
     CHECK(dnnl_convolution_forward_primitive_desc_create(&c3_pd, engine,
-            dnnl_forward_training, dnnl_convolution_direct, &c3_src_md,
-            &c3_weights_md, &c3_bias_md, &c3_dst_md, strides, dilation, padding,
+            dnnl_forward_training, dnnl_convolution_direct, c3_src_md,
+            c3_weights_md, c3_bias_md, c3_dst_md, strides, dilation, padding,
             NULL, NULL));
 
-    CHECK_TRUE(dnnl_memory_desc_equal(&c3_src_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(c3_src_md,
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_src_md, 0)));
-    CHECK_TRUE(dnnl_memory_desc_equal(&c3_weights_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(c3_weights_md,
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_weights_md, 0)));
-    CHECK_TRUE(dnnl_memory_desc_equal(&c3_bias_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(c3_bias_md,
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_weights_md, 1)));
-    CHECK_TRUE(dnnl_memory_desc_equal(&c3_dst_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(c3_dst_md,
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_dst_md, 0)));
 
-    CHECK_TRUE(dnnl_memory_desc_equal(&c3_src_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(c3_src_md,
             dnnl_primitive_desc_query_md(
                     c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_SRC)));
-    CHECK_TRUE(dnnl_memory_desc_equal(&c3_weights_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(c3_weights_md,
             dnnl_primitive_desc_query_md(
                     c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_WEIGHTS)));
-    CHECK_TRUE(dnnl_memory_desc_equal(&c3_bias_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(c3_bias_md,
             dnnl_primitive_desc_query_md(
                     c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_BIAS)));
-    CHECK_TRUE(dnnl_memory_desc_equal(&c3_dst_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(c3_dst_md,
             dnnl_primitive_desc_query_md(
                     c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_DST)));
 
@@ -222,7 +223,7 @@ void test2() {
     /* create a reorder primitive descriptor */
     dnnl_primitive_desc_t r_pd;
     CHECK(dnnl_reorder_primitive_desc_create(
-            &r_pd, &c3_dst_md, engine, &out_md, engine, NULL));
+            &r_pd, c3_dst_md, engine, out_md, engine, NULL));
 
     /* create a reorder and execute it */
     dnnl_primitive_t r;
@@ -246,6 +247,12 @@ void test2() {
     CHECK(dnnl_memory_destroy(out));
     CHECK(dnnl_stream_destroy(stream));
     CHECK(dnnl_engine_destroy(engine));
+
+    CHECK(dnnl_memory_desc_destroy(c3_src_md));
+    CHECK(dnnl_memory_desc_destroy(c3_weights_md));
+    CHECK(dnnl_memory_desc_destroy(c3_bias_md));
+    CHECK(dnnl_memory_desc_destroy(c3_dst_md));
+    CHECK(dnnl_memory_desc_destroy(out_md));
 
     const dnnl_dim_t N = c3_dst_sizes[0], C = c3_dst_sizes[1],
                      H = c3_dst_sizes[2], W = c3_dst_sizes[3];
@@ -291,8 +298,8 @@ void test3() {
     {
         CHECK(dnnl_memory_desc_create_with_tag(
                 &l2_data_md, ndims, l2_data_sizes, dnnl_f32, dnnl_nchw));
-        CHECK(dnnl_memory_create(&l2_src, &l2_data_md, engine, src));
-        CHECK(dnnl_memory_create(&l2_dst, &l2_data_md, engine, dst));
+        CHECK(dnnl_memory_create(&l2_src, l2_data_md, engine, src));
+        CHECK(dnnl_memory_create(&l2_dst, l2_data_md, engine, dst));
     }
 
     /* create an lrn */
@@ -300,12 +307,12 @@ void test3() {
     dnnl_primitive_t l2;
 
     CHECK(dnnl_lrn_forward_primitive_desc_create(&l2_pd, engine,
-            dnnl_forward_inference, dnnl_lrn_across_channels, &l2_data_md, 5,
+            dnnl_forward_inference, dnnl_lrn_across_channels, l2_data_md, 5,
             1e-4, 0.75, 1.0, NULL));
 
-    CHECK_TRUE(dnnl_memory_desc_equal(&l2_data_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(l2_data_md,
             dnnl_primitive_desc_query_md(l2_pd, dnnl_query_src_md, 0)));
-    CHECK_TRUE(dnnl_memory_desc_equal(&l2_data_md,
+    CHECK_TRUE(dnnl_memory_desc_equal(l2_data_md,
             dnnl_primitive_desc_query_md(l2_pd, dnnl_query_dst_md, 0)));
     CHECK_TRUE(dnnl_primitive_desc_query_s32(
                        l2_pd, dnnl_query_num_of_inputs_s32, 0)
@@ -331,6 +338,8 @@ void test3() {
     CHECK(dnnl_memory_destroy(l2_dst));
     CHECK(dnnl_stream_destroy(stream));
     CHECK(dnnl_engine_destroy(engine));
+
+    CHECK(dnnl_memory_desc_destroy(l2_data_md));
 
     const dnnl_dim_t N = l2_data_sizes[0], C = l2_data_sizes[1],
                      H = l2_data_sizes[2], W = l2_data_sizes[3];

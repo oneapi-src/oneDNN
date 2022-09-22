@@ -1446,8 +1446,8 @@ status_t jit_avx512_core_f32_wino_conv_4x3_fwd_kernel::init_conf(
 
         expect_wei_md.format_kind = format_kind::wino;
         expect_wei_md.data_type = data_type::f32;
-        dnnl_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
-        wd.wino_format = dnnl_wino_wei_OBaaIBOIio;
+        wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
+        wd.wino_format = wino_memory_format_t::wino_wei_OBaaIBOIio;
         wd.r = 3;
         wd.alpha = 6;
 

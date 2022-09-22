@@ -872,12 +872,11 @@ int attr_args_t::prepare_post_ops_mds(
             for (auto d = 0; d < ndims; ++d)
                 rhs_tensor_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
 
-            dnnl_memory_desc_t rhs_tensor_desc;
-            rhs_tensor_desc = dnn_mem_t::init_md(ndims, rhs_tensor_dims,
+            auto rhs_tensor_desc = dnn_mem_t::init_md(ndims, rhs_tensor_dims,
                     po_rhs_tensor_entry.dt, po_rhs_tensor_entry.tag);
             mds.emplace((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                 | po_rhs_tensor_entry.arg_attr_mask),
-                    rhs_tensor_desc);
+                    std::move(rhs_tensor_desc));
         }
     }
 
@@ -981,9 +980,9 @@ dnnl_primitive_attr_t create_dnnl_attr(
             } else if (e.is_binary_kind()) {
                 const auto &src1_md = attr_args.get_md(
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
-                assert(src1_md.ndims != 0);
+                assert(query_md_ndims(src1_md) != 0);
                 DNN_SAFE_V(dnnl_post_ops_append_binary(
-                        ops, e.binary.alg, &src1_md));
+                        ops, e.binary.alg, src1_md));
             } else if (e.is_prelu_kind()) {
                 const auto &policy = e.prelu.policy;
                 const auto mask = attr_t::get_default_mask(policy);

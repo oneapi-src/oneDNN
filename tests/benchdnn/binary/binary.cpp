@@ -88,7 +88,8 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    std::vector<dnnl_memory_desc_t> src_d(prb->n_inputs());
+    std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d(
+            prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const dims_t &i_vdims = prb->vdims[i_input];
@@ -107,7 +108,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args));
 
     DNN_SAFE_STATUS(dnnl_binary_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg, &src_d[0], &src_d[1], &dst_d, dnnl_attr));
+            init_pd_args.engine, alg, src_d[0], src_d[1], dst_d, dnnl_attr));
 
     return dnnl_success;
 }

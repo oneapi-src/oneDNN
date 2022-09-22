@@ -37,13 +37,14 @@ struct reorder_desc_t {
 struct concat_desc_t {
     concat_desc_t() = default;
     concat_desc_t(primitive_kind_t primitive_kind, const memory_desc_t *dst_md,
-            dim_t n, dim_t concat_dimension, const memory_desc_t *src_mds)
+            dim_t n, dim_t concat_dimension,
+            const memory_desc_t *const *src_mds)
         : primitive_kind(primitive_kind)
         , dst_md(dst_md)
         , n(n)
         , concat_dimension(concat_dimension) {
         for (dim_t i = 0; i < n; i++)
-            this->src_mds.push_back(&src_mds[i]);
+            this->src_mds.push_back(src_mds[i]);
     }
 
     primitive_kind_t primitive_kind;
@@ -56,10 +57,10 @@ struct concat_desc_t {
 struct sum_desc_t {
     sum_desc_t() = default;
     sum_desc_t(primitive_kind_t primitive_kind, const memory_desc_t *dst_md,
-            dim_t n, const float *scales, const memory_desc_t *src_mds)
+            dim_t n, const float *scales, const memory_desc_t *const *src_mds)
         : primitive_kind(primitive_kind), dst_md(dst_md), n(n), scales(scales) {
         for (dim_t i = 0; i < n; i++)
-            this->src_mds.push_back(&src_mds[i]);
+            this->src_mds.push_back(src_mds[i]);
     }
 
     primitive_kind_t primitive_kind;

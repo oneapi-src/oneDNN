@@ -87,15 +87,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_lrn_forward_primitive_desc_create(&init_pd_args.pd,
-                init_pd_args.engine, prop, alg, &data_d, prb->ls, prb->alpha,
+                init_pd_args.engine, prop, alg, data_d, prb->ls, prb->alpha,
                 prb->beta, prb->k, dnnl_attr));
     } else {
         auto diff_data_d
                 = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
         DNN_SAFE_STATUS(dnnl_lrn_backward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, alg, &diff_data_d,
-                &data_d, prb->ls, prb->alpha, prb->beta, prb->k,
-                init_pd_args.hint, dnnl_attr));
+                &init_pd_args.pd, init_pd_args.engine, alg, diff_data_d, data_d,
+                prb->ls, prb->alpha, prb->beta, prb->k, init_pd_args.hint,
+                dnnl_attr));
     }
 
     return dnnl_success;

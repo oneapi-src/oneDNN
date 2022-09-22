@@ -73,8 +73,7 @@ struct memory_desc_proxy_t {
             const memory::dims &padded_dims)
         : md(dims, memory::data_type::f32, strides) {
         for (int d = 0; d < md.get_ndims(); ++d)
-            const_cast<dnnl_memory_desc_t *>(md.get())->padded_dims[d]
-                    = padded_dims[d];
+            md.get()->padded_dims[d] = padded_dims[d];
     }
 };
 

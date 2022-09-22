@@ -398,42 +398,140 @@ status_t memory_desc_permute_axes(memory_desc_t &out_memory_desc,
     return success;
 }
 
+// This is only used by internal API that is used for testing only.
+status_t memory_desc_init_by_string_tag(memory_desc_t &md, int ndims,
+        const dims_t dims, data_type_t data_type, const std::string &tag) {
+    // Copy to temporary to handle dims == md->dims case.
+    dims_t tmp_dims;
+    std::copy(dims, dims + ndims, tmp_dims);
+
+    md.ndims = ndims;
+    if (ndims < 0 || ndims > DNNL_MAX_NDIMS) return invalid_arguments;
+
+    std::copy(tmp_dims, tmp_dims + ndims, md.dims);
+    md.data_type = data_type;
+    md.format_kind = format_kind::blocked;
+
+    // Parse dimensions and their block sizes starting from the innermost one.
+    std::vector<std::pair<int, int>> dim_blocks;
+    int pos = (int)tag.size() - 1;
+    int ndims_from_tag = -1;
+    while (pos >= 0) {
+        int pos0 = pos;
+
+        --pos;
+        while (pos >= 0 && std::isdigit(tag[pos]))
+            pos--;
+
+        int dim_idx = std::tolower(tag[pos0]) - 'a';
+        if (dim_idx >= ndims) return invalid_arguments;
+        ndims_from_tag = std::max(dim_idx + 1, ndims_from_tag);
+        int block_str_len = pos0 - pos - 1;
+        int block = (block_str_len == 0)
+                ? 1
+                : std::stoi(tag.substr(pos + 1, block_str_len));
+        dim_blocks.emplace_back(dim_idx, block);
+    }
+    if (ndims_from_tag != ndims) return invalid_arguments;
+
+    auto &blk = md.format_desc.blocking;
+
+    // Compute strides and fill inner block sizes/indices.
+    dim_t stride = 1;
+    dims_t full_inner_blks;
+    std::fill(full_inner_blks, full_inner_blks + ndims, 1);
+    for (auto &p : dim_blocks) {
+        int dim_idx = p.first;
+        int block = p.second;
+        if (block == 1) {
+            assert(blk.strides[dim_idx] == 0);
+            blk.strides[dim_idx] = stride;
+
+            dim_t fib = full_inner_blks[dim_idx];
+            dim_t padded_dim = md.dims[dim_idx] == DNNL_RUNTIME_DIM_VAL
+                    ? DNNL_RUNTIME_DIM_VAL
+                    : (md.dims[dim_idx] + fib - 1) / fib * fib;
+            md.padded_dims[dim_idx] = padded_dim;
+            if (padded_dim == DNNL_RUNTIME_DIM_VAL)
+                stride = DNNL_RUNTIME_DIM_VAL;
+            else
+                stride *= (padded_dim / fib);
+        } else {
+            full_inner_blks[dim_idx] *= block;
+            blk.inner_blks[blk.inner_nblks] = block;
+            blk.inner_idxs[blk.inner_nblks] = dim_idx;
+            blk.inner_nblks++;
+            stride *= block;
+        }
+    }
+
+    // Inner block sizes/indices are stored from the outermost to the innermost
+    // so need to reverse them.
+    std::reverse(blk.inner_blks, blk.inner_blks + blk.inner_nblks);
+    std::reverse(blk.inner_idxs, blk.inner_idxs + blk.inner_nblks);
+
+    return success;
+}
+
 } // namespace impl
 } // namespace dnnl
 
 // API
-status_t dnnl_memory_desc_create_with_tag(memory_desc_t *memory_desc, int ndims,
-        const dims_t dims, data_type_t data_type, format_tag_t tag) {
+status_t dnnl_memory_desc_create_with_tag(memory_desc_t **memory_desc,
+        int ndims, const dims_t dims, data_type_t data_type, format_tag_t tag) {
     if (any_null(memory_desc)) return invalid_arguments;
-    return memory_desc_init_by_tag(*memory_desc, ndims, dims, data_type, tag);
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_init_by_tag(*md, ndims, dims, data_type, tag));
+    (*memory_desc) = md.release();
+    return success;
 }
 
-status_t dnnl_memory_desc_create_with_strides(memory_desc_t *memory_desc,
+status_t dnnl_memory_desc_create_with_strides(memory_desc_t **memory_desc,
         int ndims, const dims_t dims, data_type_t data_type,
         const dims_t strides) {
     if (any_null(memory_desc)) return invalid_arguments;
-    return memory_desc_init_by_strides(
-            *memory_desc, ndims, dims, data_type, strides);
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_init_by_strides(*md, ndims, dims, data_type, strides));
+    (*memory_desc) = md.release();
+    return success;
 }
 
-status_t dnnl_memory_desc_create_submemory(memory_desc_t *memory_desc,
+status_t dnnl_memory_desc_create_submemory(memory_desc_t **memory_desc,
         const memory_desc_t *parent_memory_desc, const dims_t dims,
         const dims_t offsets) {
     if (any_null(memory_desc, parent_memory_desc)) return invalid_arguments;
-    return memory_desc_init_submemory(
-            *memory_desc, *parent_memory_desc, dims, offsets);
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_init_submemory(*md, *parent_memory_desc, dims, offsets));
+    (*memory_desc) = md.release();
+    return success;
 }
 
-status_t dnnl_memory_desc_reshape(memory_desc_t *out_memory_desc,
+status_t dnnl_memory_desc_reshape(memory_desc_t **out_memory_desc,
         const memory_desc_t *in_memory_desc, int ndims, const dims_t dims) {
     if (any_null(out_memory_desc, in_memory_desc)) return invalid_arguments;
-    return memory_desc_reshape(*out_memory_desc, *in_memory_desc, ndims, dims);
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_reshape(*md, *in_memory_desc, ndims, dims));
+    (*out_memory_desc) = md.release();
+    return success;
 }
 
-status_t dnnl_memory_desc_permute_axes(memory_desc_t *out_memory_desc,
+status_t dnnl_memory_desc_permute_axes(memory_desc_t **out_memory_desc,
         const memory_desc_t *in_memory_desc, const int *perm) {
     if (any_null(out_memory_desc, in_memory_desc)) return invalid_arguments;
-    return memory_desc_permute_axes(*out_memory_desc, *in_memory_desc, perm);
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_permute_axes(*md, *in_memory_desc, perm));
+    (*out_memory_desc) = md.release();
+    return success;
 }
 
 int dnnl_memory_desc_equal(const memory_desc_t *lhs, const memory_desc_t *rhs) {
@@ -498,5 +596,25 @@ status_t dnnl_memory_desc_destroy(memory_desc_t *memory_desc) {
 status_t dnnl_memory_desc_clone(memory_desc_t **memory_desc,
         const memory_desc_t *existing_memory_desc) {
     (*memory_desc) = new memory_desc_t(*existing_memory_desc);
+    return success;
+}
+
+// This is an internal API that is used only for testing in benchdnn.
+extern "C" status_t DNNL_API dnnl_memory_desc_create_with_string_tag(
+        memory_desc_t **memory_desc, int ndims, const dims_t dims,
+        data_type_t data_type, const char *tag) {
+    if (any_null(memory_desc)) return invalid_arguments;
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_init_by_string_tag(*md, ndims, dims, data_type, tag));
+    (*memory_desc) = md.release();
+    return success;
+}
+
+extern "C" status_t DNNL_API dnnl_memory_desc_set_data_type(
+        memory_desc_t *memory_desc, data_type_t data_type) {
+    if (any_null(memory_desc)) return invalid_arguments;
+    memory_desc->data_type = data_type;
     return success;
 }

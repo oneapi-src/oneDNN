@@ -111,7 +111,8 @@ static void init_data_memory(uint32_t dim, const dnnl_dim_t *dims,
     dnnl_memory_desc_t user_md;
     CHECK(dnnl_memory_desc_create_with_tag(
             &user_md, dim, dims, dnnl_f32, user_tag));
-    CHECK(dnnl_memory_create(memory, &user_md, engine, DNNL_MEMORY_ALLOCATE));
+    CHECK(dnnl_memory_create(memory, user_md, engine, DNNL_MEMORY_ALLOCATE));
+    CHECK(dnnl_memory_desc_destroy(user_md));
     write_to_dnnl_memory(data, *memory);
 }
 
@@ -230,9 +231,9 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     // create a convolution
     dnnl_primitive_desc_t conv_pd;
     CHECK(dnnl_convolution_forward_primitive_desc_create(&conv_pd, engine,
-            dnnl_forward, dnnl_convolution_direct, &conv_src_md,
-            &conv_weights_md, &conv_bias_md, &conv_dst_md, conv_strides,
-            conv_dilation, conv_padding, conv_padding, NULL));
+            dnnl_forward, dnnl_convolution_direct, conv_src_md, conv_weights_md,
+            conv_bias_md, conv_dst_md, conv_strides, conv_dilation,
+            conv_padding, conv_padding, NULL));
 
     dnnl_memory_t conv_internal_src_memory, conv_internal_weights_memory,
             conv_internal_dst_memory;
@@ -379,7 +380,7 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     // create a pooling
     dnnl_primitive_desc_t pool_pd;
     CHECK(dnnl_pooling_forward_primitive_desc_create(&pool_pd, engine,
-            dnnl_forward, dnnl_pooling_max, pool_src_md, &pool_dst_any_md,
+            dnnl_forward, dnnl_pooling_max, pool_src_md, pool_dst_any_md,
             pool_strides, pool_kernel, pool_dilation, pool_padding,
             pool_padding, NULL));
 
@@ -441,6 +442,12 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
 
     free(net_src);
     free(net_dst);
+
+    dnnl_memory_desc_destroy(conv_src_md);
+    dnnl_memory_desc_destroy(conv_weights_md);
+    dnnl_memory_desc_destroy(conv_bias_md);
+    dnnl_memory_desc_destroy(conv_dst_md);
+    dnnl_memory_desc_destroy(pool_dst_any_md);
 
     dnnl_memory_destroy(conv_user_src_memory);
     dnnl_memory_destroy(conv_user_weights_memory);

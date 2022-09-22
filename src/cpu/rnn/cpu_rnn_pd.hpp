@@ -93,7 +93,7 @@ protected:
         if (weights_layer_md_.format_kind == format_kind::rnn_packed)
             ok = ok
                     && (weights_layer_md_.format_desc.rnn_packed_desc.format
-                            == dnnl_ldigo_p);
+                            == rnn_packed_memory_format_t::ldigo_p);
         else
             ok = ok
                     && (rnn_utils::is_ldigo(&weights_layer_md_)
@@ -102,7 +102,7 @@ protected:
         if (weights_iter_md_.format_kind == format_kind::rnn_packed)
             ok = ok
                     && (weights_iter_md_.format_desc.rnn_packed_desc.format
-                            == dnnl_ldigo_p);
+                            == rnn_packed_memory_format_t::ldigo_p);
         else
             ok = ok
                     && (rnn_utils::is_ldigo(&weights_iter_md_)
@@ -117,7 +117,7 @@ protected:
                 ok = ok
                         && (weights_projection_md_.format_desc.rnn_packed_desc
                                         .format
-                                == dnnl_ldio_p);
+                                == rnn_packed_memory_format_t::ldio_p);
             else
                 ok = ok
                         && (rnn_utils::is_ldio(&weights_projection_md_)
@@ -248,7 +248,7 @@ protected:
                     if (weights_md.format_kind == format_kind::rnn_packed)
                         return ok
                                 && weights_md.format_desc.rnn_packed_desc.format
-                                == dnnl_ldgoi_p;
+                                == rnn_packed_memory_format_t::ldgoi_p;
                     else if (is_brgemm)
                         return ok && rnn_utils::is_ldgoi_blocked(&weights_md);
                     else

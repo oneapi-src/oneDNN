@@ -38,7 +38,8 @@ protected:
         DNNL_CHECK(dnnl_memory_desc_create_with_tag(
                 &memory_d, dim, dims, dnnl_f32, dnnl_nchw));
         DNNL_CHECK(dnnl_memory_create(
-                &memory, &memory_d, engine, DNNL_MEMORY_NONE));
+                &memory, memory_d, engine, DNNL_MEMORY_NONE));
+        DNNL_CHECK(dnnl_memory_desc_destroy(memory_d));
     }
 
     void TearDown() override {

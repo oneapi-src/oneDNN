@@ -498,10 +498,10 @@ std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
 }
 
 bool check_md_consistency_with_tag(
-        const dnnl_memory_desc_t &md, const std::string &tag) {
-    dnnl_memory_desc_t md_new_tag;
-    md_new_tag = dnn_mem_t::init_md(md.ndims, md.dims, md.data_type, tag);
-    return dnnl_memory_desc_equal(&md_new_tag, &md);
+        const_dnnl_memory_desc_t md, const std::string &tag) {
+    auto md_new_tag = dnn_mem_t::init_md(
+            query_md_ndims(md), query_md_dims(md), query_md_data_type(md), tag);
+    return dnnl_memory_desc_equal(md_new_tag, md);
 }
 
 void skip_start(res_t *res) {
@@ -871,14 +871,14 @@ static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
         for_(const auto query : query_in_mds)
         for (int idx = 0; idx < n_idx; ++idx) {
             const auto &md = query_md(const_pd, query, idx);
-            total_mem_size += get_md_size(&md, add_ref_size);
+            total_mem_size += get_md_size(md, add_ref_size);
         }
     } else {
         const bool add_ref_out_size = true;
         for_(const auto query : query_out_mds)
         for (int idx = 0; idx < n_idx; ++idx) {
             const auto &md = query_md(const_pd, query, idx);
-            total_mem_size += get_md_size(&md, add_ref_size, add_ref_out_size);
+            total_mem_size += get_md_size(md, add_ref_size, add_ref_out_size);
         }
     }
 
@@ -888,7 +888,7 @@ static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
 int check_mem_size(const dnnl_memory_desc_t &md, res_t *res) {
     if (!mem_check) return OK;
 
-    size_t total_mem_size = dnnl_memory_desc_get_size(&md);
+    size_t total_mem_size = dnnl_memory_desc_get_size(md);
 
     return check_total_size(total_mem_size, 0, res);
 }
@@ -904,7 +904,7 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
 
     // Depending on scratchpad mode, either of sizes will be 0.
     const auto &scratchpad = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-    size_t scratchpad_size = get_md_size(&scratchpad, add_ref_size);
+    size_t scratchpad_size = get_md_size(scratchpad, add_ref_size);
     scratchpad_size += query_mem_consumption(const_pd);
     total_mem_size += scratchpad_size;
 
@@ -922,7 +922,7 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
         const auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
         if (kind == dnnl_sum) {
             const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
-            res->ibytes += get_md_size(&dst_md);
+            res->ibytes += get_md_size(dst_md);
         }
     }
     return OK;
@@ -1039,9 +1039,10 @@ float reorder_rescale_factor() {
 }
 
 dims_t md2dims(const dnnl_memory_desc_t &md) {
-    dims_t dims(md.ndims, 0);
-    for (int d = 0; d < md.ndims; ++d)
-        dims[d] = md.dims[d];
+    auto ndims = query_md_ndims(md);
+    dims_t dims(ndims, 0);
+    for (int d = 0; d < ndims; ++d)
+        dims[d] = query_md_dims(md)[d];
     return dims;
 }
 

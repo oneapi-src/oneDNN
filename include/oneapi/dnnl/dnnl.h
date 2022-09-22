@@ -816,8 +816,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
 /// @param memory_desc Memory descriptor to destroy.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_desc_destroy(
-        dnnl_memory_desc_t *memory_desc);
+dnnl_status_t DNNL_API dnnl_memory_desc_destroy(dnnl_memory_desc_t memory_desc);
 
 /// Clones a memory descriptor. The resulting memory descriptor must be
 /// destroyed separately.
@@ -826,7 +825,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_destroy(
 /// @param existing_memory_desc Memory descriptor to clone.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_desc_clone(dnnl_memory_desc_t **memory_desc,
+dnnl_status_t DNNL_API dnnl_memory_desc_clone(dnnl_memory_desc_t *memory_desc,
         const_dnnl_memory_desc_t existing_memory_desc);
 
 /// Creates a memory descriptor using dimensions and strides.
@@ -894,6 +893,8 @@ dnnl_status_t DNNL_API dnnl_memory_desc_create_submemory(
 /// memory descriptors that have format_kind #dnnl_blocked or
 /// #dnnl_format_kind_any.
 ///
+/// The resulting memory descriptor must be destroyed separately.
+///
 /// The operation ensures the transformation of the physical memory format
 /// corresponds to the transformation of the logical dimensions. If such
 /// transformation is impossible, the function returns #dnnl_invalid_arguments.
@@ -939,6 +940,8 @@ dnnl_status_t DNNL_API dnnl_memory_desc_reshape(
 /// maintain the consistency between the logical and physical parts of the
 /// memory descriptor.
 ///
+/// The resulting memory descriptor must be destroyed separately.
+///
 /// The new memory descriptor inherits the data type. This operation is valid
 /// only for memory descriptors that have format_kind set to #dnnl_blocked or
 /// #dnnl_format_kind_any.
@@ -964,7 +967,11 @@ dnnl_status_t DNNL_API dnnl_memory_desc_reshape(
 ///             &expect_out_md, 2, out_dims, data_type, out_tag);
 ///
 ///     dnnl_memory_desc_permute_axes(&out_md, in_md, permutation);
-///     assert(dnnl_memory_desc_equal(&out_md, &expect_out_md));
+///     assert(dnnl_memory_desc_equal(out_md, expect_out_md));
+///
+///     dnnl_memory_desc_destroy(in_md);
+///     dnnl_memory_desc_destroy(out_md);
+///     dnnl_memory_desc_destroy(expect_out_md);
 /// @endcode
 ///
 /// @param out_memory_desc Output memory descriptor.
@@ -1212,7 +1219,8 @@ dnnl_status_t DNNL_API dnnl_reorder_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_concat_primitive_desc_create(
         dnnl_primitive_desc_t *concat_primitive_desc, dnnl_engine_t engine,
         const_dnnl_memory_desc_t dst_desc, int n, int concat_dimension,
-        const_dnnl_memory_desc_t src_descs, const_dnnl_primitive_attr_t attr);
+        const_dnnl_memory_desc_t const *src_descs,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_concat
 
@@ -1234,7 +1242,8 @@ dnnl_status_t DNNL_API dnnl_concat_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
         dnnl_primitive_desc_t *sum_primitive_desc, dnnl_engine_t engine,
         const_dnnl_memory_desc_t dst_desc, int n, const float *scales,
-        const_dnnl_memory_desc_t src_descs, const_dnnl_primitive_attr_t attr);
+        const_dnnl_memory_desc_t const *src_descs,
+        const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_sum
 

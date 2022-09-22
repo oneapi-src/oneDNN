@@ -85,7 +85,7 @@ protected:
     sum_desc_t desc_;
 
     sum_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
-            const float *scales, const memory_desc_t *src_mds)
+            const float *scales, const memory_desc_t *const *src_mds)
         : primitive_desc_t(attr, primitive_kind::sum)
         , n_(n)
         , dst_md_(*dst_md)
@@ -95,7 +95,7 @@ protected:
             scales_.push_back(scales[i]);
         src_mds_.reserve(n_);
         for (int i = 0; i < n_; ++i)
-            src_mds_.push_back(src_mds[i]);
+            src_mds_.push_back(*src_mds[i]);
 
         init_desc();
     }
@@ -171,7 +171,7 @@ private:
 #define DECLARE_SUM_PD_t(impl_name, ...) \
     static status_t create(sum_pd_t **sum_pd, engine_t *engine, \
             const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
-            const float *scales, const memory_desc_t *src_mds) { \
+            const float *scales, const memory_desc_t *const *src_mds) { \
         using namespace status; \
         auto _pd = new pd_t(attr, dst_md, n, scales, src_mds); \
         if (_pd == nullptr) return out_of_memory; \

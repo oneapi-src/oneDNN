@@ -37,34 +37,34 @@ namespace impl {
 
 status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         engine_t *engine, const memory_desc_t *dst_md, int n, int concat_dim,
-        const memory_desc_t *src_mds, const primitive_attr_t *attr) {
+        const memory_desc_t *const *src_mds, const primitive_attr_t *attr) {
 
     bool args_ok = !any_null(src_mds) && n > 0;
     if (!args_ok) return invalid_arguments;
 
     if (attr == nullptr) attr = &default_attr();
 
-    const int ndims = src_mds[0].ndims;
-    const dims_t &dims = src_mds[0].dims;
-    const data_type_t dt = src_mds[0].data_type;
+    const int ndims = src_mds[0]->ndims;
+    const dims_t &dims = src_mds[0]->dims;
+    const data_type_t dt = src_mds[0]->data_type;
     if (memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides())
         return unimplemented;
 
     int concat_dim_sz = dims[concat_dim];
     if (memory_desc_wrapper(src_mds[0]).format_any()) return invalid_arguments;
     for (int i = 1; i < n; ++i) {
-        if (src_mds[i].ndims != ndims
-                || memory_desc_wrapper(src_mds[i]).format_any())
+        const memory_desc_t &src_md = *src_mds[i];
+        if (src_md.ndims != ndims || memory_desc_wrapper(src_md).format_any())
             return invalid_arguments;
-        if (memory_desc_wrapper(src_mds[i]).has_runtime_dims_or_strides())
+        if (memory_desc_wrapper(src_md).has_runtime_dims_or_strides())
             return unimplemented;
 
         for (int d = 0; d < ndims; ++d) {
             if (d == concat_dim) continue;
-            if (src_mds[i].dims[d] != dims[d]) return invalid_arguments;
+            if (src_md.dims[d] != dims[d]) return invalid_arguments;
         }
-        if (src_mds[i].data_type != dt) return invalid_arguments;
-        concat_dim_sz += src_mds[i].dims[concat_dim];
+        if (src_md.data_type != dt) return invalid_arguments;
+        concat_dim_sz += src_md.dims[concat_dim];
     }
 
     memory_desc_t dummy_dst_md;
@@ -77,7 +77,7 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
                 return invalid_arguments;
         }
     } else {
-        dummy_dst_md = src_mds[0];
+        dummy_dst_md = *src_mds[0];
         dummy_dst_md.dims[concat_dim] = concat_dim_sz;
         dummy_dst_md.format_kind = format_kind::any;
         dst_md = &dummy_dst_md;
@@ -102,13 +102,23 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
     return unimplemented;
 }
 
+status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
+        engine_t *engine, const memory_desc_t *dst_md, int n, int concat_dim,
+        const memory_desc_t *src_mds, const primitive_attr_t *attr) {
+    std::vector<const memory_desc_t *> src_mds_ptrs(n);
+    for (int i = 0; i < n; i++)
+        src_mds_ptrs[i] = &src_mds[i];
+    return concat_primitive_desc_create(
+            pd, engine, dst_md, n, concat_dim, src_mds_ptrs.data(), attr);
+}
+
 } // namespace impl
 } // namespace dnnl
 
 status_t dnnl_concat_primitive_desc_create(
         primitive_desc_iface_t **concat_pd_iface, engine_t *engine,
         const memory_desc_t *dst_md, int n, int concat_dim,
-        const memory_desc_t *src_mds, const primitive_attr_t *attr) {
+        const memory_desc_t *const *src_mds, const primitive_attr_t *attr) {
     if (any_null(concat_pd_iface)) return invalid_arguments;
 
     std::shared_ptr<primitive_desc_t> pd;

@@ -35,7 +35,7 @@ struct ref_concat_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_concat_pd_t {
         pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
-                int concat_dim, const memory_desc_t *src_mds)
+                int concat_dim, const memory_desc_t *const *src_mds)
             : gpu_concat_pd_t(attr, dst_md, n, concat_dim, src_mds)
             , tent_dst_md_(types::zero_md()) {}
 

@@ -305,10 +305,6 @@ static int check_str2post_ops() {
 }
 
 static int check_tags() {
-    dnnl_memory_desc_t md_from_tag;
-    dnnl_memory_desc_t md_from_str;
-
-    dnnl_dims_t dims = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47};
     for (int tag_ = dnnl_format_tag_undef; tag_ != dnnl_format_tag_last;
             tag_++) {
         dnnl_format_tag_t format_tag = (dnnl_format_tag_t)tag_;
@@ -320,13 +316,18 @@ static int check_tags() {
                 break;
             }
         }
+        const dnnl_dims_t dims
+                = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47};
+        auto md_from_str = dnn_mem_t::init_md(ndims, dims, dnnl_f32, str_tag);
 
-        md_from_str = dnn_mem_t::init_md(ndims, dims, dnnl_f32, str_tag);
+        dnnl_memory_desc_t md_from_tag;
         DNN_SAFE(dnnl_memory_desc_create_with_tag(
                          &md_from_tag, ndims, dims, dnnl_f32, format_tag),
                 CRIT);
-        int eq = dnnl_memory_desc_equal(&md_from_tag, &md_from_str);
+        int eq = dnnl_memory_desc_equal(md_from_tag, md_from_str);
         SELF_CHECK_EQ(eq, 1);
+
+        DNN_SAFE(dnnl_memory_desc_destroy(md_from_tag), CRIT);
     }
 
     return OK;

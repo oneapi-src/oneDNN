@@ -65,8 +65,10 @@ struct wino_reorder_t : public primitive_t {
                     && od.data_type() == type_o
                     && od.format_kind() == format_kind::wino
                     && utils::one_of(od.wino_desc().wino_format,
-                            dnnl_wino_wei_aaOIoi, dnnl_wino_wei_aaOio,
-                            dnnl_wino_wei_aaOBiOo, dnnl_wino_wei_OBaaIBOIio)
+                            wino_memory_format_t::wino_wei_aaOIoi,
+                            wino_memory_format_t::wino_wei_aaOio,
+                            wino_memory_format_t::wino_wei_aaOBiOo,
+                            wino_memory_format_t::wino_wei_OBaaIBOIio)
                     && (id.matches_tag(utils::pick(id.ndims() - 4,
                                 format_tag::oihw, format_tag::goihw))
                             || id.matches_tag(utils::pick(id.ndims() - 4,
@@ -140,7 +142,7 @@ struct wino_reorder_t : public primitive_t {
         nb_oc_ = oc_ / oc_block_;
         nb_ic_ = ic_ / ic_block_;
         ic2_block_ = 1;
-        if (wino_format_ == dnnl_wino_wei_OBaaIBOIio)
+        if (wino_format_ == wino_memory_format_t::wino_wei_OBaaIBOIio)
             ic2_block_ = dst_d.wino_desc().ic2_block;
         oc2_block_ = dst_d.wino_desc().oc2_block;
         assert(nb_ic_ % ic2_block_ == 0 && nb_oc_ % oc2_block_ == 0);
@@ -181,10 +183,11 @@ private:
                 {0.f, 0.f, 1.f}};
 
         float *__restrict g;
-        if (utils::one_of(wino_format_, dnnl_wino_wei_aaOIoi,
-                    dnnl_wino_wei_aaOio, dnnl_wino_wei_aaOBiOo))
+        if (utils::one_of(wino_format_, wino_memory_format_t::wino_wei_aaOIoi,
+                    wino_memory_format_t::wino_wei_aaOio,
+                    wino_memory_format_t::wino_wei_aaOBiOo))
             g = (float *)G_2x2_3x3;
-        else if (wino_format_ == dnnl_wino_wei_OBaaIBOIio)
+        else if (wino_format_ == wino_memory_format_t::wino_wei_OBaaIBOIio)
             g = (float *)G_4x4_3x3;
         else {
             assert(!"Unknown winograd weights target layout");
@@ -433,14 +436,16 @@ private:
 
         /* reorder to winograd domain */
         switch (wino_format_) {
-            case dnnl_wino_wei_aaOIoi:
+            case wino_memory_format_t::wino_wei_aaOIoi:
                 reorder_to_aaOIoi(output, tmp_wei);
                 break;
-            case dnnl_wino_wei_aaOio: reorder_to_aaOio(output, tmp_wei); break;
-            case dnnl_wino_wei_aaOBiOo:
+            case wino_memory_format_t::wino_wei_aaOio:
+                reorder_to_aaOio(output, tmp_wei);
+                break;
+            case wino_memory_format_t::wino_wei_aaOBiOo:
                 reorder_to_aaOBiOo(output, tmp_wei);
                 break;
-            case dnnl_wino_wei_OBaaIBOIio:
+            case wino_memory_format_t::wino_wei_OBaaIBOIio:
                 reorder_to_OBaaIBOIio(output, tmp_wei);
                 break;
             default: assert(!"Unknown wino format"); break;
@@ -455,7 +460,7 @@ private:
     dim_t oc_block_, ic_block_, oc2_block_, ic2_block_;
     float adj_scale_;
     dim_t nb_oc_, nb_ic_;
-    dnnl_wino_memory_format_t wino_format_;
+    wino_memory_format_t wino_format_;
     int size_wino_wei_;
     int size_wspace_thr_;
     int work_amount_;

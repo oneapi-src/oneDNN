@@ -370,30 +370,31 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         case FWD_D:
         case FWD_B:
         case FWD_I:
+            if (prb->dir != FWD_B) bia_d.reset(nullptr);
             DNN_SAFE_STATUS(dnnl_deconvolution_forward_primitive_desc_create(
                     &init_pd_args.pd, init_pd_args.engine,
                     prb->dir == FWD_I ? dnnl_forward_inference
                                       : dnnl_forward_training,
-                    alg, &src_d, &wei_d, prb->dir == FWD_B ? &bia_d : nullptr,
-                    &dst_d, prb->strides().data(), prb->dilations().data(),
-                    prb->padding().data(), prb->padding_r().data(), dnnl_attr));
+                    alg, src_d, wei_d, bia_d, dst_d, prb->strides().data(),
+                    prb->dilations().data(), prb->padding().data(),
+                    prb->padding_r().data(), dnnl_attr));
             break;
         case BWD_D:
             DNN_SAFE_STATUS(
                     dnnl_deconvolution_backward_data_primitive_desc_create(
-                            &init_pd_args.pd, init_pd_args.engine, alg, &src_d,
-                            &wei_d, &dst_d, prb->strides().data(),
+                            &init_pd_args.pd, init_pd_args.engine, alg, src_d,
+                            wei_d, dst_d, prb->strides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
                             dnnl_attr));
             break;
         case BWD_W:
         case BWD_WB:
+            if (prb->dir == BWD_W) bia_d.reset(nullptr);
             DNN_SAFE_STATUS(
                     dnnl_deconvolution_backward_weights_primitive_desc_create(
-                            &init_pd_args.pd, init_pd_args.engine, alg, &src_d,
-                            &wei_d, prb->dir == BWD_W ? nullptr : &bia_d,
-                            &dst_d, prb->strides().data(),
+                            &init_pd_args.pd, init_pd_args.engine, alg, src_d,
+                            wei_d, bia_d, dst_d, prb->strides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
                             dnnl_attr));
@@ -502,10 +503,13 @@ int doit(const prb_t *prb, res_t *res) {
             ? query_md(const_pd, DNNL_ARG_DIFF_DST)
             : query_md(const_pd, DNNL_ARG_DST);
     const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-    auto wei_tr_md = wei_md;
+
+    dnnl_dims_t wei_tr_dims {};
+    dnnl_dim_t wei_ndims = query_md_ndims(wei_md);
+    std::copy(query_md_dims(wei_md), query_md_dims(wei_md) + wei_ndims,
+            wei_tr_dims);
 
     const bool with_groups = true;
-    auto &wei_tr_dims = wei_tr_md.dims;
     std::swap(wei_tr_dims[with_groups + 0], wei_tr_dims[with_groups + 1]);
 
     const auto fp = dnnl_f32;
@@ -538,7 +542,7 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t src_fp(src_md, fp, src_tag, ref_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, ref_engine);
     dnn_mem_t dst_fp(dst_md, fp, src_tag, ref_engine);
-    dnn_mem_t wei_tr_fp(wei_tr_md, fp, wei_tag, ref_engine);
+    dnn_mem_t wei_tr_fp(wei_ndims, wei_tr_dims, fp, wei_tag, ref_engine);
     dnn_mem_t bia_fp(bia_md, fp, tag::x, ref_engine);
     dnn_mem_t scratchpad_fp;
 

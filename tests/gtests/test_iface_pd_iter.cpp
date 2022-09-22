@@ -44,7 +44,7 @@ TEST_F(pd_iter_test_t, TestReLUImpls) {
 
     dnnl_primitive_desc_t pd;
     dnnl_status_t rc = dnnl_eltwise_forward_primitive_desc_create(&pd, engine,
-            dnnl_forward_inference, dnnl_eltwise_relu, &dense_md, 0., 0.,
+            dnnl_forward_inference, dnnl_eltwise_relu, dense_md, 0., 0.,
             nullptr);
     ASSERT_EQ(rc, ok); /* there should be at least one impl */
 
@@ -61,6 +61,8 @@ TEST_F(pd_iter_test_t, TestReLUImpls) {
     rc = dnnl_primitive_desc_destroy(pd);
     ASSERT_EQ(rc, ok);
     rc = dnnl_primitive_destroy(p);
+    ASSERT_EQ(rc, ok);
+    rc = dnnl_memory_desc_destroy(dense_md);
     ASSERT_EQ(rc, ok);
 }
 
@@ -81,13 +83,13 @@ TEST_F(pd_iter_test_t, UnsupportedPrimitives) {
     dnnl_primitive_desc_t sum_pd;
 
     ASSERT_EQ(dnnl_reorder_primitive_desc_create(
-                      &reorder_pd, &mds[0], engine, &mds[1], engine, nullptr),
+                      &reorder_pd, mds[0], engine, mds[1], engine, nullptr),
             ok);
     ASSERT_EQ(dnnl_concat_primitive_desc_create(
                       &concat_pd, engine, nullptr, 2, 0, mds, nullptr),
             ok);
     ASSERT_EQ(dnnl_sum_primitive_desc_create(
-                      &sum_pd, engine, &mds[0], 2, scales, mds, nullptr),
+                      &sum_pd, engine, mds[0], 2, scales, mds, nullptr),
             ok);
 
     ASSERT_EQ(
@@ -98,6 +100,9 @@ TEST_F(pd_iter_test_t, UnsupportedPrimitives) {
     ASSERT_EQ(dnnl_primitive_desc_destroy(reorder_pd), ok);
     ASSERT_EQ(dnnl_primitive_desc_destroy(concat_pd), ok);
     ASSERT_EQ(dnnl_primitive_desc_destroy(sum_pd), ok);
+
+    ASSERT_EQ(dnnl_memory_desc_destroy(mds[0]), ok);
+    ASSERT_EQ(dnnl_memory_desc_destroy(mds[1]), ok);
 }
 
 TEST(pd_next_impl, TestEltwiseImpl) {

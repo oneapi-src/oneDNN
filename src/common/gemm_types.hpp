@@ -18,8 +18,8 @@
 #define COMMON_GEMM_TYPES_HPP
 
 #include <assert.h>
-
 #include "common/c_types_map.hpp"
+#include "common/memory_desc.hpp"
 
 namespace dnnl {
 namespace impl {

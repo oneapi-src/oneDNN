@@ -54,8 +54,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                                         : dnnl_forward_training;
 
         DNN_SAFE_STATUS(dnnl_softmax_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, alg_kind, &src_d,
-                &dst_d, prb->axis, dnnl_attr));
+                &init_pd_args.pd, init_pd_args.engine, prop, alg_kind, src_d,
+                dst_d, prb->axis, dnnl_attr));
     } else {
         // Re-create dst_md with source tag if dst was not specified, immitating
         // default value.
@@ -70,8 +70,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 prb->ndims, prb->dims.data(), prb->ddt, tag::any);
 
         DNN_SAFE_STATUS(dnnl_softmax_backward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, alg_kind, &diff_src_d,
-                &diff_dst_d, &dst_d, prb->axis, init_pd_args.hint, dnnl_attr));
+                &init_pd_args.pd, init_pd_args.engine, alg_kind, diff_src_d,
+                diff_dst_d, dst_d, prb->axis, init_pd_args.hint, dnnl_attr));
     }
 
     return dnnl_success;

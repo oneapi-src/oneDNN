@@ -195,8 +195,7 @@ TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
     SKIP_IF(true, "Test does not support SYCL and GPU only.");
 #endif
 
-    dnnl_memory_desc_t md;
-    memset(&md, 0xcc, sizeof(md));
+    dnnl::impl::memory_desc_t md {};
 
     md.ndims = 2;
     md.data_type = dnnl_f32;
@@ -208,7 +207,7 @@ TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
     md.padded_offsets[0] = 0;
     md.padded_offsets[1] = 0;
 
-    md.extra.flags = dnnl_memory_extra_flag_none;
+    md.extra.flags = dnnl::impl::memory_extra_flags::none;
 
     md.format_kind = dnnl_blocked;
     md.format_desc.blocking.inner_nblks = 1;

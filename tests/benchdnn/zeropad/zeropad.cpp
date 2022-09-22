@@ -150,8 +150,8 @@ int doit(const prb_t *prb, res_t *res) {
                 prb->ndims, prb->dims.data(), prb->dt, tag::abx);
         // Fill output bytes for perf_report.
         res->ibytes = 0; // Since we don't read any data from padding.
-        res->obytes = dnnl_memory_desc_get_size(&data_md)
-                - dnnl_memory_desc_get_size(&plain_data_md);
+        res->obytes = dnnl_memory_desc_get_size(data_md)
+                - dnnl_memory_desc_get_size(plain_data_md);
     }
 
     measure_perf(default_thr_ctx, res, perf_func_, args);

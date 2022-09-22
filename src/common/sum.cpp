@@ -38,7 +38,7 @@ namespace impl {
 
 status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
         const memory_desc_t *dst_md, int n, const float *scales,
-        const memory_desc_t *src_mds, const primitive_attr_t *attr,
+        const memory_desc_t *const *src_mds, const primitive_attr_t *attr,
         engine_t *engine) {
 
     bool args_ok = !any_null(sum_pd_iface, src_mds, scales) && n > 0;
@@ -46,20 +46,20 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
 
     if (attr == nullptr) attr = &default_attr();
 
-    const int ndims = src_mds[0].ndims;
-    const dims_t &dims = src_mds[0].dims;
+    const int ndims = src_mds[0]->ndims;
+    const dims_t &dims = src_mds[0]->dims;
     if (memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides())
         return unimplemented;
 
     if (memory_desc_wrapper(src_mds[0]).format_any()) return invalid_arguments;
     for (int i = 1; i < n; ++i) {
-        if (src_mds[i].ndims != ndims
-                || memory_desc_wrapper(src_mds[i]).format_any())
+        const memory_desc_t &src_md = *src_mds[i];
+        if (src_md.ndims != ndims || memory_desc_wrapper(src_md).format_any())
             return invalid_arguments;
-        if (memory_desc_wrapper(src_mds[i]).has_runtime_dims_or_strides())
+        if (memory_desc_wrapper(src_md).has_runtime_dims_or_strides())
             return unimplemented;
         for (int d = 0; d < ndims; ++d) {
-            if (src_mds[i].dims[d] != dims[d]) return invalid_arguments;
+            if (src_md.dims[d] != dims[d]) return invalid_arguments;
         }
     }
 
@@ -72,7 +72,7 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
             if (dst_md->dims[d] != dims[d]) return invalid_arguments;
         }
     } else {
-        dummy_dst_md = src_mds[0];
+        dummy_dst_md = *src_mds[0];
         dummy_dst_md.format_kind = format_kind::any;
         dst_md = &dummy_dst_md;
     }
@@ -105,7 +105,7 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
 
 status_t dnnl_sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
         engine_t *engine, const memory_desc_t *dst_md, int n,
-        const float *scales, const memory_desc_t *src_mds,
+        const float *scales, const memory_desc_t *const *src_mds,
         const primitive_attr_t *attr) {
     return sum_primitive_desc_create(
             sum_pd_iface, dst_md, n, scales, src_mds, attr, engine);

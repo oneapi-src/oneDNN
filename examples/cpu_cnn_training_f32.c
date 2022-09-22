@@ -96,7 +96,8 @@ static void init_data_memory(uint32_t dim, const dnnl_dim_t *dims,
     dnnl_memory_desc_t user_md;
     CHECK(dnnl_memory_desc_create_with_tag(
             &user_md, dim, dims, dnnl_f32, user_tag));
-    CHECK(dnnl_memory_create(memory, &user_md, engine, DNNL_MEMORY_ALLOCATE));
+    CHECK(dnnl_memory_create(memory, user_md, engine, DNNL_MEMORY_ALLOCATE));
+    CHECK(dnnl_memory_desc_destroy(user_md));
     write_to_dnnl_memory(data, *memory);
 }
 
@@ -219,9 +220,14 @@ void simple_net() {
                 conv_user_dst_sizes, dnnl_f32, dnnl_format_tag_any));
 
         CHECK(dnnl_convolution_forward_primitive_desc_create(&conv_pd, engine,
-                dnnl_forward, dnnl_convolution_direct, &conv_src_md,
-                &conv_weights_md, &conv_bias_md, &conv_dst_md, conv_strides,
+                dnnl_forward, dnnl_convolution_direct, conv_src_md,
+                conv_weights_md, conv_bias_md, conv_dst_md, conv_strides,
                 conv_dilation, conv_padding, conv_padding, NULL));
+
+        CHECK(dnnl_memory_desc_destroy(conv_src_md));
+        CHECK(dnnl_memory_desc_destroy(conv_weights_md));
+        CHECK(dnnl_memory_desc_destroy(conv_bias_md));
+        CHECK(dnnl_memory_desc_destroy(conv_dst_md));
     }
 
     dnnl_memory_t conv_internal_src_memory, conv_internal_weights_memory,
@@ -379,9 +385,10 @@ void simple_net() {
                 dnnl_f32, dnnl_format_tag_any));
 
         CHECK(dnnl_pooling_forward_primitive_desc_create(&pool_pd, engine,
-                dnnl_forward, dnnl_pooling_max, pool_src_md, &pool_dst_md,
+                dnnl_forward, dnnl_pooling_max, pool_src_md, pool_dst_md,
                 pool_strides, pool_kernel, pool_dilation, pool_padding,
                 pool_padding, NULL));
+        CHECK(dnnl_memory_desc_destroy(pool_dst_md));
     }
 
     // create memory for workspace
@@ -568,9 +575,14 @@ void simple_net() {
         // create backward convolution descriptor
         CHECK(dnnl_convolution_backward_weights_primitive_desc_create(
                 &conv_bwd_weights_pd, engine, dnnl_convolution_direct,
-                &conv_diff_src_md, &conv_diff_weights_md, &conv_diff_bias_md,
-                &conv_diff_dst_md, conv_strides, conv_dilation, conv_padding,
+                conv_diff_src_md, conv_diff_weights_md, conv_diff_bias_md,
+                conv_diff_dst_md, conv_strides, conv_dilation, conv_padding,
                 conv_padding, conv_pd, NULL));
+
+        CHECK(dnnl_memory_desc_destroy(conv_diff_src_md));
+        CHECK(dnnl_memory_desc_destroy(conv_diff_weights_md));
+        CHECK(dnnl_memory_desc_destroy(conv_diff_bias_md));
+        CHECK(dnnl_memory_desc_destroy(conv_diff_dst_md));
     }
 
     // for best performance convolution backward might chose

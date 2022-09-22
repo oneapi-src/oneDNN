@@ -41,12 +41,12 @@ std::string query_impl_info(const_dnnl_primitive_desc_t pd) {
     return s;
 }
 
-const dnnl_memory_desc_t &query_md(
+const_dnnl_memory_desc_t query_md(
         const_dnnl_primitive_desc_t pd, dnnl_query_t what, int index) {
-    return *dnnl_primitive_desc_query_md(pd, what, index);
+    return dnnl_primitive_desc_query_md(pd, what, index);
 }
 
-const dnnl_memory_desc_t &query_md(const_dnnl_primitive_desc_t pd, int index) {
+const_dnnl_memory_desc_t query_md(const_dnnl_primitive_desc_t pd, int index) {
     return query_md(pd, dnnl_query_exec_arg_md, index);
 }
 
@@ -102,38 +102,45 @@ dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine) {
 }
 
 int query_md_ndims(const_dnnl_memory_desc_t md) {
-    int ndims;
+    int ndims = 0;
+    if (!md) return ndims;
     dnnl_memory_desc_query(md, dnnl_query_ndims_s32, &ndims);
     return ndims;
 }
 
 int query_md_inner_nblks(const_dnnl_memory_desc_t md) {
-    int inner_nblks;
+    int inner_nblks = 0;
+    if (!md) return inner_nblks;
     dnnl_memory_desc_query(md, dnnl_query_inner_nblks_s32, &inner_nblks);
     return inner_nblks;
 }
 
 dnnl_dim_t query_md_submemory_offset(const_dnnl_memory_desc_t md) {
-    dnnl_dim_t submemory_offset;
+    dnnl_dim_t submemory_offset = 0;
+    if (!md) return submemory_offset;
     dnnl_memory_desc_query(
             md, dnnl_query_submemory_offset_s64, &submemory_offset);
     return submemory_offset;
 }
 
 dnnl_data_type_t query_md_data_type(const_dnnl_memory_desc_t md) {
-    dnnl_data_type_t dt;
+    dnnl_data_type_t dt = dnnl_data_type_undef;
+    if (!md) return dt;
     dnnl_memory_desc_query(md, dnnl_query_data_type, &dt);
     return dt;
 }
 
 dnnl_format_kind_t query_md_format_kind(const_dnnl_memory_desc_t md) {
-    dnnl_format_kind_t format_kind;
+    dnnl_format_kind_t format_kind = dnnl_format_kind_undef;
+    if (!md) return format_kind;
     dnnl_memory_desc_query(md, dnnl_query_format_kind, &format_kind);
     return format_kind;
 }
 
 static const dnnl_dims_t &query_md_array_member(
         const_dnnl_memory_desc_t md, dnnl_query_t what) {
+    static const dnnl_dims_t dummy {};
+    if (!md) return dummy;
     const dnnl_dims_t *res;
     dnnl_memory_desc_query(md, what, &res);
     return *res;

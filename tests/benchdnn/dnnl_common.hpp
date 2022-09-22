@@ -313,76 +313,6 @@ private:
     std::vector<std::pair<int, const dnn_mem_t *>> args_;
 };
 
-template <typename T>
-struct dnnl_api_traits;
-//{
-//    static void destroy(T t) {}
-//};
-
-template <>
-struct dnnl_api_traits<dnnl_primitive_t> {
-    static void destroy(dnnl_primitive_t t) {
-        DNN_SAFE_V(dnnl_primitive_destroy(t));
-    }
-};
-
-template <>
-struct dnnl_api_traits<dnnl_primitive_desc_t> {
-    static void destroy(dnnl_primitive_desc_t t) {
-        DNN_SAFE_V(dnnl_primitive_desc_destroy(t));
-    }
-};
-
-template <>
-struct dnnl_api_traits<dnnl_primitive_attr_t> {
-    static void destroy(dnnl_primitive_attr_t t) {
-        DNN_SAFE_V(dnnl_primitive_attr_destroy(t));
-    }
-};
-
-// Generic class providing RAII support for DNNL objects in benchdnn
-template <typename T>
-struct benchdnn_dnnl_wrapper_t {
-    benchdnn_dnnl_wrapper_t(T t = nullptr) : t_(t) {
-        static_assert(std::is_pointer<T>::value, "T is not a pointer type.");
-    }
-
-    benchdnn_dnnl_wrapper_t(benchdnn_dnnl_wrapper_t &&rhs) {
-        T t = rhs.release();
-        t_ = t;
-    }
-
-    ~benchdnn_dnnl_wrapper_t() { do_destroy(); }
-
-    T release() {
-        T tmp = t_;
-        t_ = nullptr;
-        return tmp;
-    }
-
-    void reset(T t) {
-        do_destroy();
-        t_ = t;
-    }
-
-    operator T() const { return t_; }
-
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(benchdnn_dnnl_wrapper_t);
-
-private:
-    T t_;
-
-    void do_destroy() {
-        if (t_) { dnnl_api_traits<T>::destroy(t_); }
-    }
-};
-
-// Constructs a wrapper object (providing RAII support)
-template <typename T>
-benchdnn_dnnl_wrapper_t<T> make_benchdnn_dnnl_wrapper(T t) {
-    return benchdnn_dnnl_wrapper_t<T>(t);
-}
-
 template <typename prb_t>
 struct init_pd_args_t {
     init_pd_args_t(res_t *res, dnnl_engine_t engine, const prb_t *prb,
@@ -757,7 +687,7 @@ std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
         const size_t dst_off);
 
 bool check_md_consistency_with_tag(
-        const dnnl_memory_desc_t &md, const std::string &tag);
+        const_dnnl_memory_desc_t md, const std::string &tag);
 
 memory_kind_ext_t str2memory_kind(const char *str);
 

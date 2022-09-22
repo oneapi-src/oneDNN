@@ -788,8 +788,9 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
                                     and set weights wino_blocking */
     expect_wei_md.format_kind = format_kind::wino;
     expect_wei_md.data_type = data_type::f32;
-    dnnl_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
-    wd.wino_format = jcp.small_mb ? dnnl_wino_wei_aaOio : dnnl_wino_wei_aaOBiOo;
+    wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
+    wd.wino_format = jcp.small_mb ? wino_memory_format_t::wino_wei_aaOio
+                                  : wino_memory_format_t::wino_wei_aaOBiOo;
     wd.r = jcp.r;
     wd.alpha = jcp.alpha;
     wd.ic = jcp.ic;

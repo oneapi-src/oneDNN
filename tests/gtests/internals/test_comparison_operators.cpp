@@ -166,7 +166,7 @@ TEST(comparison_operators_t, TestRNNDesc) {
 TEST(comparison_operators_t, TestSumDesc) {
     float scales[2] = {NAN, 2.5f};
     dnnl::impl::memory_desc_t md {};
-    dnnl_memory_desc_t mds[2] = {};
+    dnnl_memory_desc_t mds[2] = {&md, &md};
 
     dnnl::impl::sum_desc_t sum_desc(
             dnnl::impl::primitive_kind::sum, &md, 2, scales, mds);

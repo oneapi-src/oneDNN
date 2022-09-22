@@ -86,15 +86,16 @@ protected:
         tag in_tag, out_tag;
         md in_md, out_md;
 
-        auto flag_comp = dnnl_memory_extra_flag_compensation_conv_s8s8;
-        dnnl_memory_extra_desc_t none {}, conv_s8s8 {}, gconv_s8s8 {};
+        auto flag_comp = dnnl::impl::memory_extra_flags::compensation_conv_s8s8;
+        dnnl::impl::memory_extra_desc_t none {}, conv_s8s8 {}, gconv_s8s8 {};
         gconv_s8s8.flags = conv_s8s8.flags = flag_comp;
         conv_s8s8.compensation_mask = (1 << 0);
         gconv_s8s8.compensation_mask = (1 << 0) + (1 << 1);
 
-        auto flag_zp = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
-        dnnl_memory_extra_desc_t conv_zp {}, gconv_zp {}, conv_s8s8_zp {},
-                gconv_s8s8_zp {};
+        auto flag_zp = dnnl::impl::memory_extra_flags::
+                compensation_conv_asymmetric_src;
+        dnnl::impl::memory_extra_desc_t conv_zp {}, gconv_zp {},
+                conv_s8s8_zp {}, gconv_s8s8_zp {};
 
         // test zero_point compensation for {s8, u8}
         gconv_zp.flags = conv_zp.flags = conv_s8s8_zp.flags
@@ -108,7 +109,7 @@ protected:
         gconv_s8s8_zp.asymm_compensation_mask = gconv_zp.asymm_compensation_mask
                 = (1 << 0) + (1 << 1);
 
-        std::vector<dnnl_memory_extra_desc_t> extra {none, conv_s8s8,
+        std::vector<dnnl::impl::memory_extra_desc_t> extra {none, conv_s8s8,
                 gconv_s8s8, conv_zp, gconv_zp, conv_s8s8_zp, gconv_s8s8_zp};
 
         for (unsigned i_dt = start_dt; i_dt < end_dt; i_dt++) {
@@ -159,8 +160,7 @@ protected:
                         // reorder use cases.
                         if (!abx2any && !any2abx) continue;
 
-                        const_cast<dnnl_memory_desc_t *>(out_md.get())->extra
-                                = i_extra;
+                        out_md.get()->extra = i_extra;
 
                         catch_expected_failures(
                                 [=]() { TestFormat(in_md, out_md); }, false,

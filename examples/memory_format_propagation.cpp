@@ -142,7 +142,7 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
     auto conv_dst_md = memory::desc({N, OC, H, W}, memory::data_type::f32,
             memory::format_tag::any // let convolution choose memory format
     );
-    auto pool_dst_md = conv_dst_md; // shape does not change
+    const auto &pool_dst_md = conv_dst_md; // shape does not change
     // [Create placeholder memory descriptors]
 
     /// @page memory_format_propagation_cpp

@@ -32,7 +32,7 @@ namespace cpu {
 struct ref_concat_t : public primitive_t {
     struct pd_t : public cpu_concat_pd_t {
         pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
-                int concat_dim, const memory_desc_t *src_mds)
+                int concat_dim, const memory_desc_t *const *src_mds)
             : cpu_concat_pd_t(attr, dst_md, n, concat_dim, src_mds)
             , tent_dst_md_(types::zero_md()) {}
         pd_t(const pd_t &rhs) = default;

@@ -82,7 +82,7 @@ protected:
     concat_desc_t desc_;
 
     concat_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md,
-            int n, int concat_dim, const memory_desc_t *src_mds)
+            int n, int concat_dim, const memory_desc_t *const *src_mds)
         : primitive_desc_t(attr, primitive_kind::concat)
         , n_(n)
         , concat_dim_(concat_dim)
@@ -90,7 +90,7 @@ protected:
         , original_dst_(*dst_md) {
         src_mds_.reserve(n_);
         for (int i = 0; i < n_; ++i)
-            src_mds_.push_back(src_mds[i]);
+            src_mds_.push_back(*src_mds[i]);
 
         init_desc();
     }
@@ -232,7 +232,7 @@ private:
 #define DECLARE_CONCAT_PD_t(impl_name, ...) \
     static status_t create(concat_pd_t **concat_pd, engine_t *engine, \
             const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
-            int concat_dim, const memory_desc_t *src_mds) { \
+            int concat_dim, const memory_desc_t *const *src_mds) { \
         using namespace status; \
         auto _pd = new pd_t(attr, dst_md, n, concat_dim, src_mds); \
         if (_pd == nullptr) return out_of_memory; \

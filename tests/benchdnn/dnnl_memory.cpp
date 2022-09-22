@@ -40,21 +40,33 @@
 #include "utils/dnnl_query.hpp"
 #include "utils/parallel.hpp"
 
-dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
+extern "C" dnnl_status_t dnnl_memory_desc_create_with_string_tag(
+        dnnl_memory_desc_t *, int, const dnnl_dims_t, dnnl_data_type_t,
+        const char *);
+
+extern "C" dnnl_status_t dnnl_memory_desc_set_data_type(
+        dnnl_memory_desc_t memory_desc, dnnl_data_type_t data_type);
+
+dnn_mem_t::dnn_mem_t(const_dnnl_memory_desc_t md, dnnl_engine_t engine,
         const handle_info_t &handle_info) {
-    md_ = md;
+    auto status = dnnl_memory_desc_clone(&md_, md);
+    (void)status;
+    assert(status == dnnl_success);
     if (ndims() > 0) active_ = (initialize(engine, handle_info) == OK);
 }
 
-dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
+dnn_mem_t::dnn_mem_t(const_dnnl_memory_desc_t md, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine) {
-    md_ = dnn_mem_t::init_md(md.ndims, md.dims, dt, tag);
+    auto md_wrapper = dnn_mem_t::init_md(
+            query_md_ndims(md), query_md_dims(md), dt, tag);
+    md_ = md_wrapper.release();
     if (ndims() > 0) active_ = (initialize(engine) == OK);
 }
 
 dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine) {
-    md_ = dnn_mem_t::init_md(ndims, dims, dt, tag);
+    auto md_wrapper = dnn_mem_t::init_md(ndims, dims, dt, tag);
+    md_ = md_wrapper.release();
     if (ndims > 0) active_ = (initialize(engine) == OK);
 }
 
@@ -105,7 +117,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
                     || dst.engine_kind() == dnnl_gpu)) {
 
         dnnl_status_t status = dnnl_reorder_primitive_desc_create(
-                &r_pd_, &src.md_, cpu_engine, &dst.md_, cpu_engine, attr);
+                &r_pd_, src.md_, cpu_engine, dst.md_, cpu_engine, attr);
         if (status == dnnl_success) {
             // Create CPU memory objects wrapping mapped pointers of source and
             // destination
@@ -118,8 +130,8 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
 #endif
 
     if (!r_pd_) {
-        DNN_SAFE(dnnl_reorder_primitive_desc_create(&r_pd_, &src.md_,
-                         src.engine(), &dst.md_, dst.engine(), attr),
+        DNN_SAFE(dnnl_reorder_primitive_desc_create(&r_pd_, src.md_,
+                         src.engine(), dst.md_, dst.engine(), attr),
                 WARN);
     }
     auto r_pd = make_benchdnn_dnnl_wrapper(r_pd_);
@@ -142,7 +154,7 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
 }
 
 size_t dnn_mem_t::size() const {
-    return dnnl_memory_desc_get_size(&md_);
+    return dnnl_memory_desc_get_size(md_);
 }
 
 size_t dnn_mem_t::sizeof_dt() const {
@@ -200,7 +212,7 @@ static int init_memory(
         dnnl_ocl_interop_memory_kind_t mem_kind;
         DNN_SAFE(dnnl_ocl_interop_memory_get_memory_kind(mem, &mem_kind), CRIT);
         DNN_SAFE(dnnl_ocl_interop_memory_create(
-                         ret, &md, engine, mem_kind, handle),
+                         ret, md, engine, mem_kind, handle),
                 CRIT);
 #endif
     } else if (is_sycl) {
@@ -209,7 +221,7 @@ static int init_memory(
         DNN_SAFE(
                 dnnl_sycl_interop_memory_get_memory_kind(mem, &mem_kind), CRIT);
         DNN_SAFE(dnnl_sycl_interop_memory_create(
-                         ret, &md, engine, mem_kind, handle),
+                         ret, md, engine, mem_kind, handle),
                 CRIT);
 #endif
     }
@@ -330,15 +342,15 @@ size_t dnn_mem_t::pad_memory_size(
     return sz + pad_size;
 }
 
-dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(const dnnl_memory_desc_t &md,
+dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(const_dnnl_memory_desc_t md,
         dnnl_engine_kind_t engine_kind, bool *was_padded) {
     if (was_padded) *was_padded = false;
-    size_t old_sz = dnnl_memory_desc_get_size(&md);
+    size_t old_sz = dnnl_memory_desc_get_size(md);
     if (old_sz == 0 || !is_bench_mode(CORR) || engine_kind == dnnl_cpu)
-        return md;
+        return nullptr;
 
     size_t sz = pad_memory_size(old_sz, engine_kind, was_padded);
-    if (sz == old_sz) return md;
+    if (sz == old_sz) return nullptr;
 
     dnnl_memory_desc_t ret;
     dnnl_dims_t dims = {(dnnl_dim_t)sz};
@@ -347,9 +359,9 @@ dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(const dnnl_memory_desc_t &md,
     return ret;
 }
 
-dnnl_memory_desc_t dnn_mem_t::init_md(int ndims, const dnnl_dims_t dims,
-        dnnl_data_type_t data_type, const std::string &tag_,
-        const dims_t &strides_) {
+benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dnn_mem_t::init_md(int ndims,
+        const dnnl_dims_t dims, dnnl_data_type_t data_type,
+        const std::string &tag_, const dims_t &strides_) {
     dnnl_memory_desc_t md {};
     const bool use_strides = !strides_.empty();
     // Ignore tag_ in case strides_ are explicitly provided
@@ -370,74 +382,8 @@ dnnl_memory_desc_t dnn_mem_t::init_md(int ndims, const dnnl_dims_t dims,
         return md;
     }
 
-    // Copy to temporary to handle dims == md->dims case.
-    dnnl_dims_t tmp_dims;
-    std::copy(dims, dims + ndims, tmp_dims);
-
-    md.ndims = ndims;
-    if (ndims < 0 || ndims > DNNL_MAX_NDIMS) SAFE_V(FAIL);
-
-    std::copy(tmp_dims, tmp_dims + ndims, md.dims);
-    md.data_type = data_type;
-    md.format_kind = dnnl_blocked;
-
-    // Parse dimensions and their block sizes starting from the innermost one.
-    std::vector<std::pair<int, int>> dim_blocks;
-    int pos = (int)tag.size() - 1;
-    int ndims_from_tag = -1;
-    while (pos >= 0) {
-        int pos0 = pos;
-
-        --pos;
-        while (pos >= 0 && std::isdigit(tag[pos]))
-            pos--;
-
-        int dim_idx = std::tolower(tag[pos0]) - 'a';
-        if (dim_idx >= ndims) SAFE_V(FAIL);
-        ndims_from_tag = MAX2(dim_idx + 1, ndims_from_tag);
-        int block_str_len = pos0 - pos - 1;
-        int block = (block_str_len == 0)
-                ? 1
-                : std::stoi(tag.substr(pos + 1, block_str_len));
-        dim_blocks.emplace_back(dim_idx, block);
-    }
-    if (ndims_from_tag != ndims) SAFE_V(FAIL);
-
-    auto &blk = md.format_desc.blocking;
-
-    // Compute strides and fill inner block sizes/indices.
-    dnnl_dim_t stride = 1;
-    dnnl_dims_t full_inner_blks;
-    std::fill(full_inner_blks, full_inner_blks + ndims, 1);
-    for (auto &p : dim_blocks) {
-        int dim_idx = p.first;
-        int block = p.second;
-        if (block == 1) {
-            assert(blk.strides[dim_idx] == 0);
-            blk.strides[dim_idx] = stride;
-
-            dnnl_dim_t fib = full_inner_blks[dim_idx];
-            dnnl_dim_t padded_dim = md.dims[dim_idx] == DNNL_RUNTIME_DIM_VAL
-                    ? DNNL_RUNTIME_DIM_VAL
-                    : (md.dims[dim_idx] + fib - 1) / fib * fib;
-            md.padded_dims[dim_idx] = padded_dim;
-            if (padded_dim == DNNL_RUNTIME_DIM_VAL)
-                stride = DNNL_RUNTIME_DIM_VAL;
-            else
-                stride *= (padded_dim / fib);
-        } else {
-            full_inner_blks[dim_idx] *= block;
-            blk.inner_blks[blk.inner_nblks] = block;
-            blk.inner_idxs[blk.inner_nblks] = dim_idx;
-            blk.inner_nblks++;
-            stride *= block;
-        }
-    }
-
-    // Inner block sizes/indices are stored from the outermost to the innermost
-    // so need to reverse them.
-    std::reverse(blk.inner_blks, blk.inner_blks + blk.inner_nblks);
-    std::reverse(blk.inner_idxs, blk.inner_idxs + blk.inner_nblks);
+    DNN_SAFE_V(dnnl_memory_desc_create_with_string_tag(
+            &md, ndims, dims, data_type, tag.data()));
 
     return md;
 }
@@ -446,13 +392,15 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
 #ifdef DNNL_WITH_SYCL
     if (handle_info.is_host_ptr) {
         // Ignore memory_kind with host pointers and force USM.
-        DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine_,
+        DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, md_, engine_,
                          dnnl_sycl_interop_usm, handle_info.ptr),
                 CRIT);
         return OK;
     }
 
     auto md_padded = pad_memory_desc(md_, engine_kind_, &is_canary_protected_);
+    if (!md_padded) md_padded = md_;
+
     switch (memory_kind) {
         case memory_kind_ext_t::usm:
         case memory_kind_ext_t::buffer: {
@@ -460,7 +408,7 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
                     = (memory_kind == memory_kind_ext_t::usm
                                     ? dnnl_sycl_interop_usm
                                     : dnnl_sycl_interop_buffer);
-            DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, &md_padded,
+            DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, md_padded,
                              engine_, mem_kind, handle_info.ptr),
                     CRIT);
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
@@ -470,7 +418,7 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
         case memory_kind_ext_t::usm_shared: {
             SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
             is_data_owner_ = true;
-            size_t sz = dnnl_memory_desc_get_size(&md_padded);
+            size_t sz = dnnl_memory_desc_get_size(md_padded);
             auto eng = dnnl::engine(engine_, true);
             auto dev = dnnl::sycl_interop::get_device(eng);
             auto ctx = dnnl::sycl_interop::get_context(eng);
@@ -481,7 +429,7 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
             }
             DNN_SAFE((sz > 0 && !data_) ? dnnl_out_of_memory : dnnl_success,
                     CRIT);
-            DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, &md_padded,
+            DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, md_padded,
                              engine_, dnnl_sycl_interop_usm, data_),
                     CRIT);
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
@@ -489,6 +437,8 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
         }
         default: assert(!"not expected");
     }
+    if (md_padded != md_) DNN_SAFE(dnnl_memory_desc_destroy(md_padded), CRIT);
+
 #else
     (void)handle_info;
 #endif
@@ -500,7 +450,7 @@ int dnn_mem_t::initialize_memory_create_opencl(
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (handle_info.is_host_ptr) {
         // Ignore memory_kind with host pointers and force USM.
-        DNN_SAFE(dnnl_ocl_interop_memory_create(&m_, &md_, engine_,
+        DNN_SAFE(dnnl_ocl_interop_memory_create(&m_, md_, engine_,
                          dnnl_ocl_interop_usm, handle_info.ptr),
                 CRIT);
         return OK;
@@ -509,6 +459,8 @@ int dnn_mem_t::initialize_memory_create_opencl(
     SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
 
     auto md_padded = pad_memory_desc(md_, engine_kind_, &is_canary_protected_);
+    if (!md_padded) md_padded = md_;
+
     switch (memory_kind) {
         case memory_kind_ext_t::usm:
         case memory_kind_ext_t::buffer: {
@@ -516,7 +468,7 @@ int dnn_mem_t::initialize_memory_create_opencl(
                     = (memory_kind == memory_kind_ext_t::usm
                                     ? dnnl_ocl_interop_usm
                                     : dnnl_ocl_interop_buffer);
-            DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, &md_padded,
+            DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, md_padded,
                              engine_, mem_kind, handle_info.ptr),
                     CRIT);
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
@@ -525,7 +477,7 @@ int dnn_mem_t::initialize_memory_create_opencl(
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared: {
             is_data_owner_ = true;
-            size_t sz = dnnl_memory_desc_get_size(&md_padded);
+            size_t sz = dnnl_memory_desc_get_size(md_padded);
             if (memory_kind == memory_kind_ext_t::usm_device) {
                 data_ = dnnl::impl::gpu::ocl::usm::malloc_device(engine_, sz);
             } else {
@@ -533,7 +485,7 @@ int dnn_mem_t::initialize_memory_create_opencl(
             }
             DNN_SAFE((sz > 0 && !data_) ? dnnl_out_of_memory : dnnl_success,
                     CRIT);
-            DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, &md_padded,
+            DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, md_padded,
                              engine_, dnnl_ocl_interop_usm, data_),
                     CRIT);
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
@@ -541,6 +493,7 @@ int dnn_mem_t::initialize_memory_create_opencl(
         }
         default: assert(!"not expected");
     }
+    if (md_padded != md_) DNN_SAFE(dnnl_memory_desc_destroy(md_padded), CRIT);
 #else
     (void)handle_info;
 #endif
@@ -561,10 +514,10 @@ int dnn_mem_t::initialize_memory_create(const handle_info_t &handle_info) {
         // Allocate memory for native runtime directly.
         is_data_owner_ = true;
         const size_t alignment = 2 * 1024 * 1024;
-        size_t sz = dnnl_memory_desc_get_size(&md_);
+        size_t sz = dnnl_memory_desc_get_size(md_);
         data_ = zmalloc(sz, alignment);
         DNN_SAFE(!data_ ? dnnl_out_of_memory : dnnl_success, CRIT);
-        DNN_SAFE(dnnl_memory_create(&m_, &md_, engine_, data_), CRIT);
+        DNN_SAFE(dnnl_memory_create(&m_, md_, engine_, data_), CRIT);
     } else if (is_sycl) {
         SAFE(initialize_memory_create_sycl(handle_info), CRIT);
     } else if (is_opencl) {
@@ -572,7 +525,7 @@ int dnn_mem_t::initialize_memory_create(const handle_info_t &handle_info) {
     } else {
         is_data_owner_ = false;
         data_ = nullptr;
-        DNN_SAFE(dnnl_memory_create(&m_, &md_, engine_, handle_info.ptr), CRIT);
+        DNN_SAFE(dnnl_memory_create(&m_, md_, engine_, handle_info.ptr), CRIT);
     }
     return OK;
 }
@@ -585,7 +538,7 @@ int dnn_mem_t::initialize(
 
     SAFE(initialize_memory_create(handle_info), CRIT);
 
-    size_t sz = dnnl_memory_desc_get_size(&md_);
+    size_t sz = dnnl_memory_desc_get_size(md_);
     if (is_canary_protected_) sz = pad_memory_size(sz, engine_kind_);
 
     // Do not fill a memory if its size is zero. Moreover, memset expects
@@ -636,6 +589,7 @@ static int cleanup_opencl(const dnnl_engine_t &engine, void *data) {
 int dnn_mem_t::cleanup() {
     if (!active_) return OK;
     unmap();
+    DNN_SAFE(dnnl_memory_desc_destroy(md_), CRIT);
     DNN_SAFE(dnnl_memory_destroy(m_), CRIT);
     if (is_data_owner_) {
         if (is_sycl_engine(engine_)) {
@@ -650,51 +604,56 @@ int dnn_mem_t::cleanup() {
     return OK;
 }
 
+void dnn_mem_t::set_dt(dnnl_data_type_t dt) {
+    // NOLINTNEXTLINE(readability-make-member-function-const)
+    dnnl_memory_desc_set_data_type(md_, dt);
+}
+
 // Queries from memory descriptor.
 int dnn_mem_t::ndims() const {
-    return query_md_ndims(&md_);
+    return query_md_ndims(md_);
 }
 
 // Can't merge two below because compiler doesn't like conversion from
 // pointer to reference type.
 const dnnl_dims_t &dnn_mem_t::dims() const {
-    return query_md_dims(&md_);
+    return query_md_dims(md_);
 }
 
 const dnnl_dims_t &dnn_mem_t::padded_dims() const {
-    return query_md_padded_dims(&md_);
+    return query_md_padded_dims(md_);
 }
 
 dnnl_data_type_t dnn_mem_t::dt() const {
-    return query_md_data_type(&md_);
+    return query_md_data_type(md_);
 }
 
 const dnnl_dims_t &dnn_mem_t::padded_offsets() const {
-    return query_md_padded_offsets(&md_);
+    return query_md_padded_offsets(md_);
 }
 
 dnnl_dim_t dnn_mem_t::offset0() const {
-    return query_md_submemory_offset(&md_);
+    return query_md_submemory_offset(md_);
 }
 
 dnnl_format_kind_t dnn_mem_t::format_kind() const {
-    return query_md_format_kind(&md_);
+    return query_md_format_kind(md_);
 }
 
 const dnnl_dims_t &dnn_mem_t::strides() const {
-    return query_md_strides(&md_);
+    return query_md_strides(md_);
 }
 
 int dnn_mem_t::inner_nblks() const {
-    return query_md_inner_nblks(&md_);
+    return query_md_inner_nblks(md_);
 }
 
 const dnnl_dims_t &dnn_mem_t::inner_blks() const {
-    return query_md_inner_blks(&md_);
+    return query_md_inner_blks(md_);
 }
 
 const dnnl_dims_t &dnn_mem_t::inner_idxs() const {
-    return query_md_inner_idxs(&md_);
+    return query_md_inner_idxs(md_);
 }
 
 // Returns physical offset by logical one. logical offset is represented by a
@@ -864,4 +823,11 @@ dnnl_dim_t md_off_v(
     }
 
     return phys_offset;
+}
+
+dnnl_memory_desc_t clone_md(const_dnnl_memory_desc_t md) {
+    dnnl_memory_desc_t cloned_md;
+    auto status = dnnl_memory_desc_clone(&cloned_md, md);
+    if (status != dnnl_success) return nullptr;
+    return cloned_md;
 }

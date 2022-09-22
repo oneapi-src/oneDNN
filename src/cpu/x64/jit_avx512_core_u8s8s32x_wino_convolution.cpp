@@ -973,8 +973,8 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
 
     expect_wei_md.format_kind = format_kind::wino;
     expect_wei_md.data_type = data_type::s8;
-    dnnl_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
-    wd.wino_format = dnnl_wino_wei_aaOIoi;
+    wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
+    wd.wino_format = wino_memory_format_t::wino_wei_aaOIoi;
     wd.r = jcp.r;
     wd.alpha = jcp.alpha;
     wd.ic = jcp.ic;
