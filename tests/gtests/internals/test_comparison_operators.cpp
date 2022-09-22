@@ -165,11 +165,11 @@ TEST(comparison_operators_t, TestRNNDesc) {
 
 TEST(comparison_operators_t, TestSumDesc) {
     float scales[2] = {NAN, 2.5f};
-    dnnl::impl::memory_desc_t src_mds[2] = {};
-    dnnl::impl::memory_desc_t dst_md {};
+    dnnl::impl::memory_desc_t md {};
+    dnnl_memory_desc_t mds[2] = {};
 
-    dnnl::impl::sum_desc_t sum_desc
-            = {dnnl::impl::primitive_kind::sum, &dst_md, 2, scales, src_mds};
+    dnnl::impl::sum_desc_t sum_desc(
+            dnnl::impl::primitive_kind::sum, &md, 2, scales, mds);
     TEST_SELF_COMPARISON(sum_desc);
 }
 

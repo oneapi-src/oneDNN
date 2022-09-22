@@ -398,7 +398,7 @@ inline bool operator==(const concat_desc_t &lhs, const concat_desc_t &rhs) {
     if (!ret) return ret;
 
     for (int i = 0; i < lhs.n; i++) {
-        ret = COMPARE_DESC_MEMBERS(src_mds[i]);
+        ret = *lhs.src_mds[i] == *rhs.src_mds[i];
         if (!ret) break;
     }
     return ret;
@@ -625,7 +625,7 @@ inline bool operator==(const sum_desc_t &lhs, const sum_desc_t &rhs) {
     if (!ret) return ret;
 
     for (int i = 0; i < lhs.n; i++) {
-        ret = COMPARE_DESC_MEMBERS(src_mds[i]);
+        ret = *lhs.src_mds[i] == *rhs.src_mds[i];
         if (!ret) break;
     }
     if (!ret) return ret;

@@ -114,6 +114,13 @@ inline size_t get_array_hash<float>(size_t seed, const float *v, int size) {
     return seed;
 }
 
+inline size_t get_array_hash(
+        size_t seed, const std::vector<const memory_desc_t *> &mds) {
+    for (const auto *md : mds)
+        seed = hash_combine(seed, get_md_hash(*md));
+    return seed;
+}
+
 } // namespace primitive_hashing
 } // namespace impl
 } // namespace dnnl

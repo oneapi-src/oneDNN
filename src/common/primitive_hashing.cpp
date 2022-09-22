@@ -298,7 +298,7 @@ size_t get_desc_hash(const concat_desc_t &desc) {
     // Concat dimension
     seed = hash_combine(seed, desc.concat_dimension);
     // Array of mds
-    seed = get_array_hash(seed, desc.src_mds, desc.n);
+    seed = get_array_hash(seed, desc.src_mds);
     // Combined hash for concat desc
     return seed;
 }
@@ -637,7 +637,7 @@ size_t get_desc_hash(const sum_desc_t &desc) {
     // Scales
     if (desc.scales) { seed = get_array_hash(seed, desc.scales, desc.n); }
     // Array of mds
-    seed = get_array_hash(seed, desc.src_mds, desc.n);
+    seed = get_array_hash(seed, desc.src_mds);
     // Combined hash for sum desc
     return seed;
 }

@@ -83,8 +83,8 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         dst_md = &dummy_dst_md;
     }
 
-    concat_desc_t desc
-            = {primitive_kind::concat, dst_md, n, concat_dim, src_mds};
+    auto desc = concat_desc_t(
+            primitive_kind::concat, dst_md, n, concat_dim, src_mds);
     primitive_hashing::key_t key(
             engine, reinterpret_cast<op_desc_t *>(&desc), attr, 0, {});
     pd = primitive_cache().get_pd(key);

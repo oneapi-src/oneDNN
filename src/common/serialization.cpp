@@ -234,7 +234,7 @@ void serialize_desc(
     sstream.write(&desc.concat_dimension);
     // Array of mds
     for (int i = 0; i < desc.n; i++)
-        serialize_md(sstream, desc.src_mds[i]);
+        serialize_md(sstream, *desc.src_mds[i]);
 }
 
 void serialize_desc(serialization_stream_t &sstream,
@@ -533,7 +533,7 @@ void serialize_desc(serialization_stream_t &sstream, const sum_desc_t &desc) {
     sstream.write(desc.scales, desc.n);
     // Array of mds
     for (int i = 0; i < desc.n; i++)
-        serialize_md(sstream, desc.src_mds[i]);
+        serialize_md(sstream, *desc.src_mds[i]);
 }
 
 } // namespace serialization

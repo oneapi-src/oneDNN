@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,7 +163,8 @@ private:
         desc_.dst_md = &original_dst_md_;
         desc_.n = n_;
         desc_.scales = scales_.data();
-        desc_.src_mds = src_mds_.data();
+        for (const auto &md : src_mds_)
+            desc_.src_mds.push_back(&md);
     }
 };
 

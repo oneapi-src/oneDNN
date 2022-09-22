@@ -224,7 +224,8 @@ private:
         desc_.dst_md = &original_dst_;
         desc_.n = n_;
         desc_.concat_dimension = concat_dim_;
-        desc_.src_mds = src_mds_.data();
+        for (const auto &md : src_mds_)
+            desc_.src_mds.push_back(&md);
     }
 };
 
