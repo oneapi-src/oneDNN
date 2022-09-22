@@ -48,7 +48,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     if (prb->alg == alg_t::AUTO) alg = dnnl_convolution_auto;
 
     attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
 
     const auto dw_bia_dt = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
     attr_args.prepare_dw_post_op(

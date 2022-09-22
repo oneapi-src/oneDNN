@@ -119,7 +119,7 @@ struct attr_t {
 
     static policy_t str2policy(const std::string &str);
     static const char *policy2str(policy_t policy);
-    static int get_default_mask(policy_t policy);
+    static int get_default_mask(policy_t policy, int arg = DNNL_ARG_DST);
 
     struct scale_t {
         scale_t(policy_t apolicy = COMMON, float ascale = 1.,
@@ -425,6 +425,10 @@ struct attr_args_t {
                 bool runtime = false)
             : vals(vals), count(count), mask(mask), runtime(runtime) {}
 
+        bool is_def() const {
+            return vals == NULL && count == 1 && mask == -1 && runtime == false;
+        }
+
         int64_t get_count(policy_t policy) const {
             return (policy == policy_t::COMMON || runtime) ? 1 : count;
         }
@@ -453,6 +457,9 @@ struct attr_args_t {
 
     void prepare_output_scales(
             const attr_t &attr, const void *vals, int64_t count, int mask = -1);
+
+    void prepare_scales(const attr_t &attr, int arg, const void *vals,
+            int64_t count, int mask = -1);
 
     int prepare_post_ops_mds(
             const attr_t &attr, int ndims, const dnnl_dims_t dims);
@@ -521,6 +528,8 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str);
 
 void maybe_oscale(
         const attr_t &attr, float &d, const float *scales, int64_t oc);
+void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
+        int arg, bool opposite_scale = false);
 void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
         int64_t c, int arg, bool opposite_zero_point = false);
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,

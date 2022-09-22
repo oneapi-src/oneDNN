@@ -197,10 +197,12 @@ const char *attr_t::policy2str(policy_t policy) {
     return "unknown attr_t::policy_t policy";
 }
 
-int attr_t::get_default_mask(policy_t policy) {
+int attr_t::get_default_mask(policy_t policy, int arg) {
     switch (policy) {
         case PER_DIM_0: return (1 << 0);
         case PER_OC:
+            if (arg == DNNL_ARG_WEIGHTS) return get_default_mask(PER_DIM_0);
+
         case PER_DIM_1: return (1 << 1);
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_DIM_2: return (1 << 2);
@@ -830,6 +832,11 @@ void attr_args_t::prepare_output_scales(
     insert(DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count, mask, attr.oscale.runtime);
 }
 
+void attr_args_t::prepare_scales(const attr_t &attr, int arg, const void *vals,
+        int64_t count, int mask) {
+    insert(arg, vals, count, mask, attr.scales.get(arg).runtime);
+}
+
 struct post_ops_rhs_tensor_entry_t {
     dnnl_data_type_t dt;
     policy_t policy;
@@ -914,14 +921,27 @@ dnnl_primitive_attr_t create_dnnl_attr(
             const int arg_name = arg.first;
             if (as.is_def(arg_name)) continue;
 
-            const auto &e = arg.second;
-            // Only RT scales are supported.
-            SAFE_V(e.runtime ? OK : FAIL);
-            // Only common policy is supported in the library at this point
-            int mask = attr_t::get_default_mask(e.policy);
+            if (arg_name == DNNL_ARG_WEIGHTS
+                    && arg.second.policy == policy_t::PER_OC
+                    && !attr_args.get(arg_name).is_def()) {
+                const auto &e = attr_args.get(arg_name);
+                // Only RT scales are supported.
+                SAFE_V(e.runtime ? OK : FAIL);
+                // Only common policy is supported in the library at this point
+                int mask = e.mask;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
-                    dnnl_attr, arg_name, mask));
+                DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
+                        dnnl_attr, arg_name, mask));
+            } else {
+                const auto &e = arg.second;
+                // Only RT scales are supported.
+                SAFE_V(e.runtime ? OK : FAIL);
+                // Only common policy is supported in the library at this point
+                int mask = attr_t::get_default_mask(e.policy, arg_name);
+
+                DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
+                        dnnl_attr, arg_name, mask));
+            }
         }
     }
 
@@ -1285,6 +1305,20 @@ void maybe_oscale(
     if (!attr.oscale.is_def()) {
         int64_t idx = attr.oscale.policy == policy_t::COMMON ? 0 : oc;
         d *= scales[idx];
+    }
+}
+
+void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
+        int arg, bool opposite_scale) {
+    if (attr.scales.is_def()) return;
+
+    const auto &e = attr.scales.get(arg);
+    if (!e.is_def()) {
+        int64_t idx = e.policy == policy_t::COMMON ? 0 : c;
+        if (opposite_scale)
+            d /= scales[idx];
+        else
+            d *= scales[idx];
     }
 }
 

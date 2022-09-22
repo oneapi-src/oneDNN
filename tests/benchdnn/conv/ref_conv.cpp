@@ -60,7 +60,12 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
                         float s = src_loc[src_off];
                         maybe_zero_point(prb->attr, s, prb->src_zp,
                                 g * ICG + ic, DNNL_ARG_SRC);
-                        d += s * wei_loc[wei_off];
+                        maybe_scale(prb->attr, s, prb->src_scales, g * ICG + ic,
+                                DNNL_ARG_SRC);
+                        float w = wei_loc[wei_off];
+                        maybe_scale(prb->attr, w, prb->wei_scales, g * OCG + oc,
+                                DNNL_ARG_WEIGHTS);
+                        d += s * w;
                     }
                 }
             }
@@ -82,13 +87,13 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
                     conv_res += ((float *)bia_m)[bia_off];
                 }
 
-                maybe_oscale(prb->attr, conv_res, prb->scales, g * OCG + oc);
-
                 const auto v_po_vals
                         = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
 
                 maybe_post_ops(prb->attr, conv_res, dst, v_po_vals);
 
+                maybe_scale(prb->attr, conv_res, prb->dst_scales, g * OCG + oc,
+                        DNNL_ARG_DST, true);
                 maybe_zero_point(prb->attr, conv_res, prb->dst_zp, g * OCG + oc,
                         DNNL_ARG_DST, true);
 
@@ -127,6 +132,7 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
 
         return -1;
     };
+    const auto &map_arg_to_sc_arg = map_arg_to_zp_arg;
 
     /* pre-computes arrays of oh(ow) and kh(kw) for traversing in kernel */
     auto precompute_ok
@@ -170,7 +176,13 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
                 float diff_dst_val = diff_dst_loc[diff_dst_off];
                 maybe_zero_point(prb->attr, diff_dst_val, prb->src_zp,
                         g * OCG + oc, map_arg_to_zp_arg(DNNL_ARG_DIFF_DST));
-                ds += diff_dst_val * wei_loc[wei_off];
+                maybe_scale(prb->attr, diff_dst_val, prb->src_scales,
+                        g * OCG + oc, map_arg_to_sc_arg(DNNL_ARG_DIFF_DST));
+
+                float wei_val = wei_loc[wei_off];
+                maybe_scale(prb->attr, wei_val, prb->wei_scales, g * ICG + ic,
+                        DNNL_ARG_WEIGHTS);
+                ds += diff_dst_val * wei_val;
             }
         }
     };
@@ -203,8 +215,14 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
                         maybe_zero_point(prb->attr, diff_dst_val, prb->src_zp,
                                 g * OCG + oc,
                                 map_arg_to_zp_arg(DNNL_ARG_DIFF_DST));
+                        maybe_scale(prb->attr, diff_dst_val, prb->src_scales,
+                                g * OCG + oc,
+                                map_arg_to_sc_arg(DNNL_ARG_DIFF_DST));
+                        float wei_val = wei_loc[wei_off];
+                        maybe_scale(prb->attr, wei_val, prb->wei_scales,
+                                g * ICG + ic, DNNL_ARG_WEIGHTS);
 
-                        ds += diff_dst_val * wei_loc[wei_off];
+                        ds += diff_dst_val * wei_val;
                     }
                 }
             }
@@ -227,12 +245,13 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
                     const size_t bia_off = (size_t)g * ICG + ic;
                     conv_res += ((float *)bia_m)[bia_off];
                 }
-                maybe_oscale(prb->attr, conv_res, prb->scales, g * ICG + ic);
 
                 const auto v_po_vals = prepare_po_vals(
                         diff_src_m, args, v_po_masks, src_off);
 
                 maybe_post_ops(prb->attr, conv_res, ds, v_po_vals);
+                maybe_scale(prb->attr, conv_res, prb->dst_scales, g * ICG + ic,
+                        map_arg_to_sc_arg(DNNL_ARG_DIFF_SRC), true);
                 maybe_zero_point(prb->attr, conv_res, prb->dst_zp, g * ICG + ic,
                         map_arg_to_zp_arg(DNNL_ARG_DIFF_SRC), true);
 
