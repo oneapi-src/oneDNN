@@ -163,6 +163,8 @@ private:
     void restore_A_B_matrices();
     void set_A_B_matrices();
     void advance_A_B_matrices();
+    void load_a(Vmm vmma, int m_i, int n_i, int n_blocks, bool has_n_tail);
+    void load_b(Vmm vmmb, int n_i);
     void brdgmm_microkernel(int m_blocks, int n_blocks, bool has_top_padding,
             bool has_bottom_padding, bool has_tail = false);
     void compute_loop();

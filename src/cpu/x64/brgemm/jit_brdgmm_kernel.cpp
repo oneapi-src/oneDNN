@@ -422,6 +422,50 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
 }
 
 template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::load_a(
+        Vmm vmma, int m_i, int n_i, int n_blocks, bool has_n_tail) {
+    const bool mask_flag = has_n_tail && (n_i + 1 == n_blocks);
+    const auto addr = ptr[reg_aux_A + A_offset(m_i, n_i)];
+    vmma = vmm_mask(vmma, mask_flag, false);
+    if (brg.is_f32) {
+        vmovups(vmma, addr);
+    } else if (brg.is_bf16) {
+        vpmovzxwd(vmma, addr);
+        if (brg.is_bf16_tmm) vpslld(vmma, vmma, 16);
+    } else if (brg.is_f16) {
+        vcvtph2ps(vmma, addr);
+    } else if (brg.is_int8) {
+        if (is_fast_vnni_int8()) {
+            assert(!mask_flag);
+            vbroadcasti32x4(vmma, addr);
+        } else {
+            vpmovzxbd(vmma, addr);
+        }
+    }
+}
+
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::load_b(Vmm vmmb, int n_i) {
+    const auto addr = ptr[reg_aux_B + B_offset(n_i)];
+    if (brg.is_f32) {
+        vmovups(vmmb, addr);
+    } else if (brg.is_int8) {
+        // wei is sign extend(s8), where as src is zero extended(u8).
+        if (is_fast_vnni_int8()) {
+            vbroadcasti32x4(vmmb, addr);
+            vmovdqu8(vmmb | kblend_mask | T_z, vmmb);
+        } else {
+            vpmovsxbd(vmmb, addr);
+        }
+    } else if (brg.is_f16) {
+        vcvtph2ps(vmmb, addr);
+    } else if (brg.is_bf16) {
+        vpmovzxwd(vmmb, addr);
+        if (brg.is_bf16_tmm) vpslld(vmmb, vmmb, 16);
+    }
+}
+
+template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
         int n_blocks, bool has_top_padding, bool has_bottom_padding,
         bool has_tail) {
@@ -429,47 +473,6 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
     const bool has_padding = has_top_padding || has_bottom_padding;
     const int max_bvmms
             = accm(m_blocks, n_blocks, 0, 0).getIdx() - vmm_b(0).getIdx();
-
-    auto load_a = [&](Vmm vmma, int m_i, int n_i) {
-        const bool mask_flag = has_tail && (n_i + 1 == n_blocks);
-        const auto addr = ptr[reg_aux_A + A_offset(m_i, n_i)];
-        vmma = vmm_mask(vmma, mask_flag, false);
-        if (brg.is_f32) {
-            vmovups(vmma, addr);
-        } else if (brg.is_bf16) {
-            vpmovzxwd(vmma, addr);
-            if (brg.is_bf16_tmm) vpslld(vmma, vmma, 16);
-        } else if (brg.is_f16) {
-            vcvtph2ps(vmma, addr);
-        } else if (brg.is_int8) {
-            if (is_fast_vnni_int8()) {
-                assert(!mask_flag);
-                vbroadcasti32x4(vmma, addr);
-            } else {
-                vpmovzxbd(vmma, addr);
-            }
-        }
-    };
-
-    auto load_b = [&](Vmm vmmb, int n_i) {
-        const auto addr = ptr[reg_aux_B + B_offset(n_i)];
-        if (brg.is_f32) {
-            vmovups(vmmb, addr);
-        } else if (brg.is_int8) {
-            // wei is sign extend(s8), where as src is zero extended(u8).
-            if (is_fast_vnni_int8()) {
-                vbroadcasti32x4(vmmb, addr);
-                vmovdqu8(vmmb | kblend_mask | T_z, vmmb);
-            } else {
-                vpmovsxbd(vmmb, addr);
-            }
-        } else if (brg.is_f16) {
-            vcvtph2ps(vmmb, addr);
-        } else if (brg.is_bf16) {
-            vpmovzxwd(vmmb, addr);
-            if (brg.is_bf16_tmm) vpslld(vmmb, vmmb, 16);
-        }
-    };
 
     auto dot_product = [&](Vmm vmma, Vmm vmmb, int m_i, int n_i) {
         auto vmm_acc = accm(m_blocks, n_blocks, m_i, n_i);
@@ -506,7 +509,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
             for_(int m_i = 0; m_i < m_blocks; ++m_i)
             for (int i = 0; i < n_e; ++i) {
                 const int n_i = nb_i + i;
-                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i);
+                if (!is_fma_embd())
+                    load_a(vmm_a(), m_i, n_i, n_blocks, has_tail);
                 dot_product(vmm_a(), vmm_b(i), m_i, n_i);
             }
         }
@@ -541,7 +545,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
             }
 
             for (int n_i = 0; n_i < n_blocks; ++n_i) {
-                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i);
+                if (!is_fma_embd())
+                    load_a(vmm_a(), m_i, n_i, n_blocks, has_tail);
                 if (n_i < n_e) {
                     dot_product(vmm_a(), vmm_b(n_i), m_i, n_i);
                 } else {
