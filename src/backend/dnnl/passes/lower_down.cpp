@@ -3948,6 +3948,120 @@ impl::status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg) {
+    while (true) {
+        std::vector<std::pair<impl::op_t *, impl::op_t *>> to_be_swapped;
+        for (auto &op : sg->get_ops()) {
+            bool ok = is_typecast(op.get())
+                    && op->get_input_value(0)->has_producer();
+            if (!ok) continue;
+
+            impl::op_t *producer = op->get_input_op(0);
+            ok = producer->get_kind() == op_kind::dnnl_reshape
+                    || producer->get_kind() == op_kind::dnnl_transpose;
+            if (!ok) continue;
+
+            to_be_swapped.emplace_back(
+                    std::pair<impl::op_t *, impl::op_t *> {producer, op.get()});
+        }
+
+        if (to_be_swapped.empty()) break;
+        for (auto &pair : to_be_swapped) {
+            impl::op_t *producer = pair.first;
+            impl::op_t *tc = pair.second;
+
+            swap_neighboring_si_ops(
+                    producer->shared_from_this(), tc->shared_from_this());
+        }
+    }
+    return infer_shape(sg);
+}
+
+impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
+    while (true) {
+        std::vector<std::pair<impl::op_t *, impl::op_t *>> to_be_swapped;
+        for (auto &op : sg->get_ops()) {
+            bool ok = impl::utils::one_of(op->get_kind(),
+                              op_kind::dnnl_mul_scales, op_kind::dnnl_add_zps)
+                    && op->get_input_value(0)->has_producer();
+            if (!ok) continue;
+
+            ok = op->has_attr(op_attr::qtype)
+                    && op->get_attr<std::string>(op_attr::qtype)
+                            == "per_tensor";
+            if (!ok) continue;
+
+            impl::op_t *producer = op->get_input_op(0);
+            ok = producer->get_kind() == op_kind::dnnl_reshape
+                    || producer->get_kind() == op_kind::dnnl_transpose;
+            if (!ok) continue;
+
+            to_be_swapped.emplace_back(
+                    std::pair<impl::op_t *, impl::op_t *> {producer, op.get()});
+        }
+
+        if (to_be_swapped.empty()) break;
+        for (auto &pair : to_be_swapped) {
+            impl::op_t *producer = pair.first;
+            impl::op_t *quant = pair.second;
+
+            swap_neighboring_si_ops(
+                    producer->shared_from_this(), quant->shared_from_this());
+        }
+    }
+    return infer_shape(sg);
+}
+
+impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> transpose_ops;
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() == op_kind::dnnl_transpose
+                && cur_op->get_input_value(0)->has_producer()
+                && cur_op->get_input_value(0)->get_producer().get_kind()
+                        == op_kind::dnnl_matmul
+                && !cur_op->get_output_value(0)->get_consumers().empty()
+                && cur_op->get_output_value(0)
+                                ->get_consumers()[0]
+                                .get_op()
+                                .get_kind()
+                        == op_kind::dnnl_reshape) {
+            transpose_ops.emplace_back(cur_op);
+        }
+    }
+
+    for (auto &transpose_op : transpose_ops) {
+        value_ptr in_val = transpose_op->get_input_value(0);
+        auto in_lt = in_val->get_logical_tensor();
+        value_ptr out_val = transpose_op->get_output_value(0);
+        auto out_lt = out_val->get_logical_tensor();
+        std::vector<int64_t> order
+                = transpose_op->get_attr<std::vector<int64_t>>(op_attr::order);
+        // if order < 0, convert it to postive order
+        if (!order.empty()) {
+            for (int64_t &axis : order) {
+                if (axis < 0) axis += ltw(in_lt).ndims();
+            }
+        } else {
+            return impl::status::success;
+        }
+
+        std::vector<int> axes = dnnl_impl::utils::fmap(order,
+                [](int64_t index) { return static_cast<int32_t>(index); });
+        // calculate the expected transposed layout by permuting the md
+        auto expected_stride = get_dense_strides(ltw(out_lt).vdims());
+        dnnl::memory::desc out_md {ltw(out_lt).vdims(),
+                static_cast<dnnl::memory::data_type>(ltw(out_lt).data_type()),
+                expected_stride};
+        dnnl::memory::desc expected_out_md = out_md.permute_axes(axes);
+        const auto &strides = expected_out_md.data.format_desc.blocking.strides;
+        in_val->set_strides({strides, strides + out_lt.ndims});
+        auto &matmul = transpose_op->get_input_value(0)->get_producer();
+        matmul.set_attr(op_attr::keep_dst_layout, true);
+    }
+
+    return impl::status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

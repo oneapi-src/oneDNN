@@ -101,6 +101,8 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, split_dynamic_dequant);
 
         // Fusion and canonicalization passes begin
+        BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
+        BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
         BACKEND_DNNL_ADD_PASS(pipeline, move_scalar_div_behind_matmul);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
@@ -165,6 +167,8 @@ public:
     static void setup_pipeline_stage2(pass_pipeline_t &pipeline,
             memory_planner_t &mem_planner, bool enable_constant_cache) {
         pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_transpose_to_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
         BACKEND_DNNL_ADD_PASS(pipeline, common_reorder_elimination);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_adjacent_reorders);

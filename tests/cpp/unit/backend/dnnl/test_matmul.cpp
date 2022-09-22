@@ -6031,6 +6031,923 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
                 /*atol*/ 1.f));
 }
 
+TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReshapeTransposeQuantize) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> src_shape {8, 4};
+    std::vector<int64_t> weight_shape {4, 4};
+    std::vector<int64_t> bias_shape {4};
+    std::vector<int64_t> dst_shape {8, 4};
+    std::vector<int64_t> reshape_shape {2, 4, 2, 2};
+    std::vector<int64_t> transpose_order {0, 2, 1, 3};
+    std::vector<int64_t> transpose_shape {2, 2, 4, 2};
+    // prepare fp32 data
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<float> weight_data(product(weight_shape));
+    test::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight and bias data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return f32_distribution(generator); });
+    float scale_src = 1 / 255.f; // map to 0~255
+    float scale_out = 1 / 127.f;
+    int64_t zp_src = 121;
+    int64_t zp_out = 0;
+
+    std::vector<float> scale_wei(1, 1 / 127.f);
+    std::vector<int64_t> zp_wei(1, 0);
+
+    impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
+    qweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
+
+    impl::op_t reshape_op(5, impl::op_kind::StaticReshape, "reshape_op");
+    reshape_op.set_attr(impl::op_attr::shape, reshape_shape);
+    reshape_op.set_attr(impl::op_attr::special_zero, false);
+
+    impl::op_t transpose_op(6, impl::op_kind::StaticTranspose, "transpose_op");
+    transpose_op.set_attr(impl::op_attr::order, transpose_order);
+
+    impl::op_t qout_op(7, impl::op_kind::Quantize, "qout_op");
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_u8
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+    impl::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_f32
+            = utils::logical_tensor_init(3, weight_shape, impl::data_type::f32);
+    weight_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t weight_s8
+            = utils::logical_tensor_init(4, weight_shape, impl::data_type::s8);
+    impl::logical_tensor_t weight_f32_dq
+            = utils::logical_tensor_init(5, weight_shape, impl::data_type::f32);
+    impl::logical_tensor_t bias_f32
+            = utils::logical_tensor_init(6, bias_shape, impl::data_type::f32);
+    bias_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t dst_f32
+            = utils::logical_tensor_init(7, dst_shape, impl::data_type::f32);
+    impl::logical_tensor_t reshape_f32 = utils::logical_tensor_init(
+            8, reshape_shape, impl::data_type::f32);
+    impl::logical_tensor_t transpose_f32 = utils::logical_tensor_init(
+            9, transpose_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_s8 = utils::logical_tensor_init(
+            10, transpose_shape, impl::data_type::s8, impl::layout_type::any);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    qweight_op.add_input(weight_f32);
+    qweight_op.add_output(weight_s8);
+
+    dqweight_op.add_input(weight_s8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    matmul_op.add_input(src_f32_dq);
+    matmul_op.add_input(weight_f32_dq);
+    matmul_op.add_input(bias_f32);
+    matmul_op.add_output(dst_f32);
+
+    reshape_op.add_input(dst_f32);
+    reshape_op.add_output(reshape_f32);
+
+    transpose_op.add_input(reshape_f32);
+    transpose_op.add_output(transpose_f32);
+
+    qout_op.add_input(transpose_f32);
+    qout_op.add_output(dst_s8);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&qweight_op);
+    g.add_op(&dqweight_op);
+    g.add_op(&matmul_op);
+    g.add_op(&reshape_op);
+    g.add_op(&transpose_op);
+    g.add_op(&qout_op);
+    g.build_graph();
+
+    // -------------------------case 2----------------------------------
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_matmul_transpose_optional_reshape_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src_u8, &weight_f32, &bias_f32};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    test::vector<int8_t> dst_out_data(product(dst_shape));
+    impl::tensor_t dst_s8_ts(dst_s8, &engine, dst_out_data.data());
+    for (size_t iter = 0; iter < 5; iter++) {
+        cp.execute(&strm, {src_u8_ts, weight_f32_ts, bias_f32_ts}, {dst_s8_ts});
+        strm.wait();
+    }
+}
+
+TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasTransposeReshapeQuantize) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> src_shape {2, 4, 2, 2};
+    std::vector<int64_t> weight_shape {2, 4, 2, 2};
+    std::vector<int64_t> bias_shape {2};
+    std::vector<int64_t> dst_shape {2, 4, 2, 2};
+    std::vector<int64_t> transpose_order {0, 2, 1, 3};
+    std::vector<int64_t> transpose_shape {2, 2, 4, 2};
+    std::vector<int64_t> reshape_shape {4, 8};
+
+    // prepare fp32 data
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<float> weight_data(product(weight_shape));
+    test::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight and bias data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return f32_distribution(generator); });
+    float scale_src = 1 / 255.f; // map to 0~255
+    float scale_out = 1 / 127.f;
+    int64_t zp_src = 121;
+    int64_t zp_out = 0;
+
+    std::vector<float> scale_wei(1, 1 / 127.f);
+    std::vector<int64_t> zp_wei(1, 0);
+
+    impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
+    qweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
+
+    impl::op_t transpose_op(5, impl::op_kind::StaticTranspose, "transpose_op");
+    transpose_op.set_attr(impl::op_attr::order, transpose_order);
+
+    impl::op_t reshape_op(6, impl::op_kind::StaticReshape, "reshape_op");
+    reshape_op.set_attr(impl::op_attr::shape, reshape_shape);
+    reshape_op.set_attr(impl::op_attr::special_zero, false);
+
+    impl::op_t qout_op(7, impl::op_kind::Quantize, "qout_op");
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_u8
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+    impl::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_f32
+            = utils::logical_tensor_init(3, weight_shape, impl::data_type::f32);
+    weight_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t weight_s8
+            = utils::logical_tensor_init(4, weight_shape, impl::data_type::s8);
+    impl::logical_tensor_t weight_f32_dq
+            = utils::logical_tensor_init(5, weight_shape, impl::data_type::f32);
+    impl::logical_tensor_t bias_f32
+            = utils::logical_tensor_init(6, bias_shape, impl::data_type::f32);
+    bias_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t dst_f32
+            = utils::logical_tensor_init(7, dst_shape, impl::data_type::f32);
+    impl::logical_tensor_t transpose_f32 = utils::logical_tensor_init(
+            8, transpose_shape, impl::data_type::f32);
+    impl::logical_tensor_t reshape_f32 = utils::logical_tensor_init(
+            9, reshape_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_s8 = utils::logical_tensor_init(
+            10, reshape_shape, impl::data_type::s8);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    qweight_op.add_input(weight_f32);
+    qweight_op.add_output(weight_s8);
+
+    dqweight_op.add_input(weight_s8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    matmul_op.add_input(src_f32_dq);
+    matmul_op.add_input(weight_f32_dq);
+    matmul_op.add_input(bias_f32);
+    matmul_op.add_output(dst_f32);
+
+    transpose_op.add_input(dst_f32);
+    transpose_op.add_output(transpose_f32);
+
+    reshape_op.add_input(transpose_f32);
+    reshape_op.add_output(reshape_f32);
+
+    qout_op.add_input(reshape_f32);
+    qout_op.add_output(dst_s8);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&qweight_op);
+    g.add_op(&dqweight_op);
+    g.add_op(&matmul_op);
+    g.add_op(&transpose_op);
+    g.add_op(&reshape_op);
+    g.add_op(&qout_op);
+    g.build_graph();
+
+    // -------------------------case 2----------------------------------
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_matmul_transpose_optional_reshape_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src_u8, &weight_f32, &bias_f32};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    test::vector<int8_t> dst_out_data(product(dst_shape));
+    impl::tensor_t dst_s8_ts(dst_s8, &engine, dst_out_data.data());
+    for (size_t iter = 0; iter < 5; iter++) {
+        cp.execute(&strm, {src_u8_ts, weight_f32_ts, bias_f32_ts}, {dst_s8_ts});
+        strm.wait();
+    }
+}
+
+TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulBiasReshapeTransposeQuantize) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> src_shape {8, 4};
+    std::vector<int64_t> weight_shape {4, 4};
+    std::vector<int64_t> bias_shape {4};
+    std::vector<int64_t> dst_shape {8, 4};
+    std::vector<int64_t> reshape_shape {2, 4, 2, 2};
+    std::vector<int64_t> transpose_order {0, 2, 1, 3};
+    std::vector<int64_t> transpose_shape {2, 2, 4, 2};
+    // prepare fp32 data
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<float> weight_data(product(weight_shape));
+    test::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight and bias data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return f32_distribution(generator); });
+    float scale_src = 1 / 255.f; // map to 0~255
+    float scale_out = 1 / 127.f;
+    int64_t zp_src = 121;
+    int64_t zp_out = 0;
+
+    std::vector<float> scale_wei(1, 1 / 127.f);
+    std::vector<int64_t> zp_wei(1, 0);
+
+    impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    impl::op_t tcdata_op(2, impl::op_kind::TypeCast, "tcdata_op");
+
+    impl::op_t qweight_op(3, impl::op_kind::Quantize, "qweight_op");
+    qweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t dqweight_op(4, impl::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t tcweight_op(5, impl::op_kind::TypeCast, "tcweight_op");
+
+    impl::op_t matmul_op(6, impl::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
+
+    impl::op_t tc_bias_op(7, impl::op_kind::TypeCast, "tcbias_op");
+
+    impl::op_t biasadd_op(8, impl::op_kind::BiasAdd, "biasadd_op");
+    biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+
+    impl::op_t reshape_op(9, impl::op_kind::StaticReshape, "reshape_op");
+    reshape_op.set_attr(impl::op_attr::shape, reshape_shape);
+    reshape_op.set_attr(impl::op_attr::special_zero, false);
+
+    impl::op_t transpose_op(10, impl::op_kind::StaticTranspose, "transpose_op");
+    transpose_op.set_attr(impl::op_attr::order, transpose_order);
+
+    impl::op_t tcout_op(11, impl::op_kind::TypeCast, "tcout_op");
+
+    impl::op_t qout_op(12, impl::op_kind::Quantize, "qout_op");
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_u8
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+    impl::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t src_bf16_dq
+            = utils::logical_tensor_init(3, src_shape, impl::data_type::bf16);
+    impl::logical_tensor_t weight_f32
+            = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
+    weight_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t weight_s8
+            = utils::logical_tensor_init(5, weight_shape, impl::data_type::s8);
+    impl::logical_tensor_t weight_f32_dq
+            = utils::logical_tensor_init(6, weight_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_bf16_dq = utils::logical_tensor_init(
+            7, weight_shape, impl::data_type::bf16);
+    impl::logical_tensor_t bias_f32
+            = utils::logical_tensor_init(8, bias_shape, impl::data_type::f32);
+    bias_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t bias_bf16
+            = utils::logical_tensor_init(9, bias_shape, impl::data_type::bf16);
+    impl::logical_tensor_t biasadd_bf16
+            = utils::logical_tensor_init(10, dst_shape, impl::data_type::bf16);
+    impl::logical_tensor_t dst_bf16
+            = utils::logical_tensor_init(11, dst_shape, impl::data_type::bf16);
+    impl::logical_tensor_t reshape_bf16 = utils::logical_tensor_init(
+            12, reshape_shape, impl::data_type::bf16);
+    impl::logical_tensor_t transpose_bf16 = utils::logical_tensor_init(
+            13, transpose_shape, impl::data_type::bf16);
+    impl::logical_tensor_t transpose_f32 = utils::logical_tensor_init(
+            14, transpose_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_s8 = utils::logical_tensor_init(
+            15, transpose_shape, impl::data_type::s8, impl::layout_type::any);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    tcdata_op.add_input(src_f32_dq);
+    tcdata_op.add_output(src_bf16_dq);
+
+    qweight_op.add_input(weight_f32);
+    qweight_op.add_output(weight_s8);
+
+    dqweight_op.add_input(weight_s8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    tcweight_op.add_input(weight_f32_dq);
+    tcweight_op.add_output(weight_bf16_dq);
+
+    matmul_op.add_input(src_bf16_dq);
+    matmul_op.add_input(weight_bf16_dq);
+    matmul_op.add_output(dst_bf16);
+
+    tc_bias_op.add_input(bias_f32);
+    tc_bias_op.add_output(bias_bf16);
+
+    biasadd_op.add_input(dst_bf16);
+    biasadd_op.add_input(bias_bf16);
+    biasadd_op.add_output(biasadd_bf16);
+
+    reshape_op.add_input(biasadd_bf16);
+    reshape_op.add_output(reshape_bf16);
+
+    transpose_op.add_input(reshape_bf16);
+    transpose_op.add_output(transpose_bf16);
+
+    tcout_op.add_input(transpose_bf16);
+    tcout_op.add_output(transpose_f32);
+
+    qout_op.add_input(transpose_f32);
+    qout_op.add_output(dst_s8);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&tcdata_op);
+    g.add_op(&qweight_op);
+    g.add_op(&dqweight_op);
+    g.add_op(&tcweight_op);
+    g.add_op(&matmul_op);
+    g.add_op(&tc_bias_op);
+    g.add_op(&biasadd_op);
+    g.add_op(&reshape_op);
+    g.add_op(&transpose_op);
+    g.add_op(&tcout_op);
+    g.add_op(&qout_op);
+    g.build_graph();
+
+    // -------------------------case 2----------------------------------
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_bf16_matmul_transpose_optional_reshape_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src_u8, &weight_f32, &bias_f32};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    test::vector<int8_t> dst_out_data(product(dst_shape));
+    impl::tensor_t dst_s8_ts(dst_s8, &engine, dst_out_data.data());
+    for (size_t iter = 0; iter < 5; iter++) {
+        cp.execute(&strm, {src_u8_ts, weight_f32_ts, bias_f32_ts}, {dst_s8_ts});
+        strm.wait();
+    }
+}
+
+TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> src_shape {2, 4, 2, 2};
+    std::vector<int64_t> weight_shape {2, 4, 2, 2};
+    std::vector<int64_t> bias_shape {2};
+    std::vector<int64_t> dst_shape {2, 4, 2, 2};
+    std::vector<int64_t> transpose_order {0, 2, 1, 3};
+    std::vector<int64_t> transpose_shape {2, 2, 4, 2};
+    std::vector<int64_t> reshape_shape {4, 8};
+
+    // prepare fp32 data
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<float> weight_data(product(weight_shape));
+    test::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight and bias data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return f32_distribution(generator); });
+    float scale_src = 1 / 255.f; // map to 0~255
+    float scale_out = 1 / 127.f;
+    int64_t zp_src = 121;
+    int64_t zp_out = 0;
+
+    std::vector<float> scale_wei(1, 1 / 127.f);
+    std::vector<int64_t> zp_wei(1, 0);
+
+    impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    impl::op_t tcdata_op(2, impl::op_kind::TypeCast, "tcdata_op");
+
+    impl::op_t qweight_op(3, impl::op_kind::Quantize, "qweight_op");
+    qweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t dqweight_op(4, impl::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t tcweight_op(5, impl::op_kind::TypeCast, "tcweight_op");
+
+    impl::op_t matmul_op(6, impl::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
+
+    impl::op_t tc_bias_op(7, impl::op_kind::TypeCast, "tcbias_op");
+
+    impl::op_t biasadd_op(8, impl::op_kind::BiasAdd, "biasadd_op");
+    biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+
+    impl::op_t transpose_op(9, impl::op_kind::StaticTranspose, "transpose_op");
+    transpose_op.set_attr(impl::op_attr::order, transpose_order);
+
+    impl::op_t reshape_op(10, impl::op_kind::StaticReshape, "reshape_op");
+    reshape_op.set_attr(impl::op_attr::shape, reshape_shape);
+    reshape_op.set_attr(impl::op_attr::special_zero, false);
+
+    impl::op_t tcout_op(11, impl::op_kind::TypeCast, "tcout_op");
+
+    impl::op_t qout_op(12, impl::op_kind::Quantize, "qout_op");
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_u8
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+    impl::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t src_bf16_dq
+            = utils::logical_tensor_init(3, src_shape, impl::data_type::bf16);
+    impl::logical_tensor_t weight_f32
+            = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
+    weight_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t weight_s8
+            = utils::logical_tensor_init(5, weight_shape, impl::data_type::s8);
+    impl::logical_tensor_t weight_f32_dq
+            = utils::logical_tensor_init(6, weight_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_bf16_dq = utils::logical_tensor_init(
+            7, weight_shape, impl::data_type::bf16);
+    impl::logical_tensor_t bias_f32
+            = utils::logical_tensor_init(8, bias_shape, impl::data_type::f32);
+    bias_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t bias_bf16
+            = utils::logical_tensor_init(9, bias_shape, impl::data_type::bf16);
+    impl::logical_tensor_t biasadd_bf16
+            = utils::logical_tensor_init(10, dst_shape, impl::data_type::bf16);
+    impl::logical_tensor_t dst_bf16
+            = utils::logical_tensor_init(11, dst_shape, impl::data_type::bf16);
+    impl::logical_tensor_t transpose_bf16 = utils::logical_tensor_init(
+            12, transpose_shape, impl::data_type::bf16);
+    impl::logical_tensor_t reshape_bf16 = utils::logical_tensor_init(
+            13, reshape_shape, impl::data_type::bf16);
+    impl::logical_tensor_t reshape_f32 = utils::logical_tensor_init(
+            14, reshape_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_s8 = utils::logical_tensor_init(
+            15, reshape_shape, impl::data_type::s8);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    tcdata_op.add_input(src_f32_dq);
+    tcdata_op.add_output(src_bf16_dq);
+
+    qweight_op.add_input(weight_f32);
+    qweight_op.add_output(weight_s8);
+
+    dqweight_op.add_input(weight_s8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    tcweight_op.add_input(weight_f32_dq);
+    tcweight_op.add_output(weight_bf16_dq);
+
+    matmul_op.add_input(src_bf16_dq);
+    matmul_op.add_input(weight_bf16_dq);
+    matmul_op.add_output(dst_bf16);
+
+    tc_bias_op.add_input(bias_f32);
+    tc_bias_op.add_output(bias_bf16);
+
+    biasadd_op.add_input(dst_bf16);
+    biasadd_op.add_input(bias_bf16);
+    biasadd_op.add_output(biasadd_bf16);
+
+    transpose_op.add_input(biasadd_bf16);
+    transpose_op.add_output(transpose_bf16);
+
+    reshape_op.add_input(transpose_bf16);
+    reshape_op.add_output(reshape_bf16);
+
+    tcout_op.add_input(reshape_bf16);
+    tcout_op.add_output(reshape_f32);
+
+    qout_op.add_input(reshape_f32);
+    qout_op.add_output(dst_s8);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&tcdata_op);
+    g.add_op(&qweight_op);
+    g.add_op(&dqweight_op);
+    g.add_op(&tcweight_op);
+    g.add_op(&matmul_op);
+    g.add_op(&tc_bias_op);
+    g.add_op(&biasadd_op);
+    g.add_op(&transpose_op);
+    g.add_op(&reshape_op);
+    g.add_op(&tcout_op);
+    g.add_op(&qout_op);
+    g.build_graph();
+
+    // -------------------------case 2----------------------------------
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_bf16_matmul_transpose_optional_reshape_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src_u8, &weight_f32, &bias_f32};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
+    impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    test::vector<int8_t> dst_out_data(product(dst_shape));
+    impl::tensor_t dst_s8_ts(dst_s8, &engine, dst_out_data.data());
+    for (size_t iter = 0; iter < 5; iter++) {
+        cp.execute(&strm, {src_u8_ts, weight_f32_ts, bias_f32_ts}, {dst_s8_ts});
+        strm.wait();
+    }
+}
+
+TEST(Execute, MatmulBiasReshapeTranspose) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> src_shape {8, 4};
+    std::vector<int64_t> weight_shape {4, 4};
+    std::vector<int64_t> bias_shape {4};
+    std::vector<int64_t> dst_shape {8, 4};
+    std::vector<int64_t> reshape_shape {2, 4, 2, 2};
+    std::vector<int64_t> transpose_order {0, 2, 1, 3};
+    std::vector<int64_t> transpose_shape {2, 2, 4, 2};
+    // prepare fp32 data
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<float> weight_data(product(weight_shape));
+    test::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight and bias data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return f32_distribution(generator); });
+
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
+
+    impl::op_t reshape_op(1, impl::op_kind::StaticReshape, "reshape_op");
+    reshape_op.set_attr(impl::op_attr::shape, reshape_shape);
+    reshape_op.set_attr(impl::op_attr::special_zero, false);
+
+    impl::op_t transpose_op(2, impl::op_kind::StaticTranspose, "transpose_op");
+    transpose_op.set_attr(impl::op_attr::order, transpose_order);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_f32
+            = utils::logical_tensor_init(0, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_f32
+            = utils::logical_tensor_init(1, weight_shape, impl::data_type::f32);
+    weight_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t bias_f32
+            = utils::logical_tensor_init(2, bias_shape, impl::data_type::f32);
+    bias_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t dst_f32
+            = utils::logical_tensor_init(3, dst_shape, impl::data_type::f32);
+    impl::logical_tensor_t reshape_f32 = utils::logical_tensor_init(
+            4, reshape_shape, impl::data_type::f32);
+    impl::logical_tensor_t transpose_f32 = utils::logical_tensor_init(
+            5, transpose_shape, impl::data_type::f32, impl::layout_type::any);
+
+    matmul_op.add_input(src_f32);
+    matmul_op.add_input(weight_f32);
+    matmul_op.add_input(bias_f32);
+    matmul_op.add_output(dst_f32);
+
+    reshape_op.add_input(dst_f32);
+    reshape_op.add_output(reshape_f32);
+
+    transpose_op.add_input(reshape_f32);
+    transpose_op.add_output(transpose_f32);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&matmul_op);
+    g.add_op(&reshape_op);
+    g.add_op(&transpose_op);
+    g.build_graph();
+
+    // -------------------------case 2----------------------------------
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_transpose_optional_reshape_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src_f32, &weight_f32, &bias_f32};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&transpose_f32};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_f32_ts(src_f32, &engine, src_data.data());
+    impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    test::vector<float> dst_out_data(product(dst_shape));
+    impl::tensor_t dst_f32_ts(transpose_f32, &engine, dst_out_data.data());
+    for (size_t iter = 0; iter < 5; iter++) {
+        cp.execute(
+                &strm, {src_f32_ts, weight_f32_ts, bias_f32_ts}, {dst_f32_ts});
+        strm.wait();
+    }
+}
+
+TEST(Execute, MatmulBiasTransposeReshape) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> src_shape {2, 4, 2, 2};
+    std::vector<int64_t> weight_shape {2, 4, 2, 2};
+    std::vector<int64_t> bias_shape {2};
+    std::vector<int64_t> dst_shape {2, 4, 2, 2};
+    std::vector<int64_t> transpose_order {0, 2, 1, 3};
+    std::vector<int64_t> transpose_shape {2, 2, 4, 2};
+    std::vector<int64_t> reshape_shape {4, 8};
+
+    // prepare fp32 data
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<float> weight_data(product(weight_shape));
+    test::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight and bias data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return f32_distribution(generator); });
+
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
+
+    impl::op_t transpose_op(1, impl::op_kind::StaticTranspose, "transpose_op");
+    transpose_op.set_attr(impl::op_attr::order, transpose_order);
+
+    impl::op_t reshape_op(2, impl::op_kind::StaticReshape, "reshape_op");
+    reshape_op.set_attr(impl::op_attr::shape, reshape_shape);
+    reshape_op.set_attr(impl::op_attr::special_zero, false);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_f32
+            = utils::logical_tensor_init(0, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_f32
+            = utils::logical_tensor_init(1, weight_shape, impl::data_type::f32);
+    weight_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t bias_f32
+            = utils::logical_tensor_init(2, bias_shape, impl::data_type::f32);
+    bias_f32.property = impl::property_type::constant;
+    impl::logical_tensor_t dst_f32
+            = utils::logical_tensor_init(3, dst_shape, impl::data_type::f32);
+    impl::logical_tensor_t transpose_f32 = utils::logical_tensor_init(
+            4, transpose_shape, impl::data_type::f32);
+    impl::logical_tensor_t reshape_f32 = utils::logical_tensor_init(
+            5, reshape_shape, impl::data_type::f32);
+
+    matmul_op.add_input(src_f32);
+    matmul_op.add_input(weight_f32);
+    matmul_op.add_input(bias_f32);
+    matmul_op.add_output(dst_f32);
+
+    transpose_op.add_input(dst_f32);
+    transpose_op.add_output(transpose_f32);
+
+    reshape_op.add_input(transpose_f32);
+    reshape_op.add_output(reshape_f32);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&matmul_op);
+    g.add_op(&transpose_op);
+    g.add_op(&reshape_op);
+    g.build_graph();
+
+    // -------------------------case 2----------------------------------
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_transpose_optional_reshape_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src_f32, &weight_f32, &bias_f32};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&reshape_f32};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_f32_ts(src_f32, &engine, src_data.data());
+    impl::tensor_t weight_f32_ts(weight_f32, &engine, weight_data.data());
+    impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
+    test::vector<float> dst_out_data(product(dst_shape));
+    impl::tensor_t dst_f32_ts(reshape_f32, &engine, dst_out_data.data());
+    for (size_t iter = 0; iter < 5; iter++) {
+        cp.execute(
+                &strm, {src_f32_ts, weight_f32_ts, bias_f32_ts}, {dst_f32_ts});
+        strm.wait();
+    }
+}
+
 TEST(Execute, MatmulStridedScalarOutput) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
     matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);

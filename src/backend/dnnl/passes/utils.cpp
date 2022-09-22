@@ -198,6 +198,33 @@ void insert_op_after(op_t *inserted_op, op_t *base_op, size_t output_offset,
     inserted_op->connect_input(input_offset, new_val);
 }
 
+void swap_neighboring_si_ops(const std::shared_ptr<impl::op_t> &producer,
+        const std::shared_ptr<impl::op_t> &consumer) {
+    assertm(producer->num_inputs() == 1,
+            "only support swap single input operators.");
+    assertm(consumer->num_inputs() == 1,
+            "only support swap single input operators.");
+    assertm(consumer->get_input_value(0)->has_producer()
+                    && consumer->get_input_value(0)->get_offset() == 0
+                    && consumer->get_input_op(0) == producer.get(),
+            "only support swap neighboring operators.");
+    auto producer_src = producer->get_input_value(0);
+    auto producer_dst = producer->get_output_value(0);
+
+    producer_src->remove_consumer(*producer, 0);
+    consumer->connect_input(0, producer_src);
+
+    auto consumer_dst = consumer->get_output_value(0);
+    producer->connect_output(0, consumer_dst);
+
+    impl::logical_tensor_t new_lt
+            = impl::empty_logical_tensor_with_default_id();
+    auto new_val = std::make_shared<value_t>(*consumer, 0, new_lt, true);
+    new_val->set_data_type(consumer_dst->get_logical_tensor().data_type);
+    consumer->connect_output(0, new_val);
+    producer->connect_input(0, new_val);
+}
+
 status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs) {

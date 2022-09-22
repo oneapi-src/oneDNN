@@ -1176,6 +1176,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_matmul, 1,
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
+                .set_attr(op_attr::keep_dst_layout,
+                        "if true, defined dst layout will be used to create "
+                        "primitive instead of any",
+                        false, attribute_kind::b, false)
                 // Analysis rules
                 .set_shape_inference_function(infer_matmul_output_shape))
 

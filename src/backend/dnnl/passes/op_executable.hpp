@@ -353,10 +353,13 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     if (!use_strided_wei) { wei = to_format_any(wei); }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
-    if (!((src.dims().size() == 2 || src.dims().size() == 3)
-                && p_engine.get_kind() == dnnl::engine::kind::gpu)) {
-        dst = to_format_any(dst);
-    }
+    const bool keep_dst_layout = op->has_attr(op_attr::keep_dst_layout)
+            && op->get_attr<bool>(op_attr::keep_dst_layout);
+    const bool use_strided_dst
+            = ((src.dims().size() == 2 || src.dims().size() == 3)
+                      && p_engine.get_kind() == dnnl::engine::kind::gpu)
+            || keep_dst_layout;
+    if (!use_strided_dst) { dst = to_format_any(dst); }
 
     dnnl::matmul::primitive_desc pd;
     if (op->has_attr(op_attr::with_bias)

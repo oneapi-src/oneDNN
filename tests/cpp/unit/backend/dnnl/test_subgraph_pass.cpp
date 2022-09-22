@@ -1679,13 +1679,19 @@ TEST(LayoutPropagation, Transpose) {
     ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
 
-    // the output value's layout type should be opaque, and the corresponding md
-    // shape should be equal to the out_shape
+    // the output value's layout type should be strided, and the corresponding
+    // md shape should be equal to the out_shape, the stride should be
+    // transposed one
     auto out_lt
             = subgraph->get_ops()[0]->get_output_value(0)->get_logical_tensor();
-    ASSERT_EQ(out_lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(out_lt.layout_type, impl::layout_type::strided);
     auto out_md = dnnl_impl::make_dnnl_memory_desc(out_lt);
     ASSERT_EQ(out_md.dims(), out_shape);
+    std::vector<int64_t> out_stride {393216, 64, 1, 1024};
+    const auto md_stride
+            = std::vector<int64_t>(out_md.data.format_desc.blocking.strides,
+                    out_md.data.format_desc.blocking.strides + 4);
+    ASSERT_EQ(md_stride, out_stride);
 }
 
 TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {

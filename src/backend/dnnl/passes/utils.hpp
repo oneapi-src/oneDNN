@@ -222,6 +222,19 @@ void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset);
 void insert_op_after(op_t *inserted_op, op_t *base_op, size_t output_offset,
         size_t input_offset);
 
+// Swap neighboring single input ops, can be extend to support mimo per
+// requirement
+//
+//   in_val          in_val
+//     |               |
+//  producer        consumer
+//     |      -->      |
+//  consumer        producer
+//     |               |
+//   out_val         out_val
+void swap_neighboring_si_ops(const std::shared_ptr<impl::op_t> &producer,
+        const std::shared_ptr<impl::op_t> &consumer);
+
 void fuse_op_to_successor(
         op_t *op, std::vector<std::shared_ptr<op_t>> &subgraph);
 

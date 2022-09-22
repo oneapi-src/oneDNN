@@ -97,6 +97,8 @@ public:
         if (quantized) {
             // split quant/dequant to pairs of mul_scales and add_zps
             BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+            BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
+            BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
             BACKEND_DNNL_ADD_PASS(
@@ -145,6 +147,8 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<false>);
         }
 
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_transpose_to_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_adjacent_reorders);

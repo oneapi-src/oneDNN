@@ -1862,13 +1862,15 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             if (lt.id != std::numeric_limits<size_t>::max()
                     && lt.layout_type != impl::layout_type::strided) {
                 auto ori_mem_desc = make_dnnl_memory_desc(lt);
-                auto expect_mem_desc = to_nxc_format(ori_mem_desc);
-                const auto strides
-                        = expect_mem_desc.data.format_desc.blocking.strides;
-                out_vals[i]->set_strides(
-                        {strides, strides + expect_mem_desc.data.ndims});
-                insert_reorder_after(out_op_ptr, i, ori_mem_desc, p_engine, mgr,
-                        pd_cache, reorder_ops);
+                if (!is_plain(ori_mem_desc)) {
+                    auto expect_mem_desc = to_nxc_format(ori_mem_desc);
+                    const auto strides
+                            = expect_mem_desc.data.format_desc.blocking.strides;
+                    out_vals[i]->set_strides(
+                            {strides, strides + expect_mem_desc.data.ndims});
+                    insert_reorder_after(out_op_ptr, i, ori_mem_desc, p_engine,
+                            mgr, pd_cache, reorder_ops);
+                }
             }
         }
     }

@@ -45,6 +45,7 @@ const op_attr_t with_runtime_src_zps = 0x1000b;
 const op_attr_t with_runtime_dst_zps = 0x1000c;
 const op_attr_t is_bias_add = 0x1000d;
 const op_attr_t with_sum = 0x1000e;
+const op_attr_t keep_dst_layout = 0x1000f;
 
 // int64_t
 const op_attr_t alg_kind = 0x10100;
@@ -88,6 +89,7 @@ static inline std::string internal_attr2str(impl::op_attr_t attr) {
         CASE(with_runtime_dst_zps);
         CASE(is_bias_add);
         CASE(with_sum);
+        CASE(keep_dst_layout);
         CASE(alg_kind);
         CASE(dw_groups);
         CASE(expand_to);
