@@ -481,6 +481,8 @@ public:
                     data_type::f64);
             ok &= (dst_data_type == src_data_type);
             ok &= utils::one_of(wei_data_type, src_data_type, default_acc_type);
+            // atomic qword fadds unsupported on XeHP
+            ok &= is_f64_conv() && hw() >= ngen::HW::XeHPC;
 
             if (with_bias) {
                 ok &= utils::one_of(
