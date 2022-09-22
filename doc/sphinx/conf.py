@@ -199,7 +199,8 @@ def fixFileNameRefs(app, env, docnames):
 def addTocTrees(app, env, docnames):
 
     trees2Add = {'rst/dev_guide_inference_and_training_aspects.rst':['dev_guide_inference.rst','dev_guide_inference_int8.rst','dev_guide_training_bf16.rst'],
-                 'rst/dev_guide_attributes.rst':['dev_guide_attributes_fpmath_mode.rst','dev_guide_attributes_quantization.rst','dev_guide_attributes_post_ops.rst','dev_guide_attributes_scratchpad.rst']}
+                 'rst/dev_guide_attributes.rst':['dev_guide_attributes_fpmath_mode.rst','dev_guide_attributes_quantization.rst','dev_guide_attributes_post_ops.rst','dev_guide_attributes_scratchpad.rst'],
+                 'rst/dev_guide_basic_concepts.rst':['dev_guide_graph_basic_concepts.rst']}
 
 
     for rstFile in trees2Add:
