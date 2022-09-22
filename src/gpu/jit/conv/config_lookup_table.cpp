@@ -16,6 +16,7 @@
 
 #include "gpu/jit/conv/config_lookup_table.hpp"
 
+#include <cctype>
 #include <string>
 #include <vector>
 #include <unordered_map>
