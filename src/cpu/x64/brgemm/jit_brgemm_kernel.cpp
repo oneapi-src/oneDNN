@@ -1400,9 +1400,10 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                         }
                         mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                     } else {
-                        tilestored(ptr[reg_aux_C + reg_stride_ld_block],
-                                Tmm(brg.get_C_tensor(
-                                        bdb, idx, is_bdb_tail, is_ld_tail)));
+                        auto tmm = Tmm(brg.get_C_tensor(
+                                bdb, idx, is_bdb_tail, is_ld_tail));
+                        if (skip_accumulation) tilezero(tmm);
+                        tilestored(ptr[reg_aux_C + reg_stride_ld_block], tmm);
                     }
                     add(reg_aux_C, ldb_C_offset(1));
                 }
