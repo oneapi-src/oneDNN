@@ -53,8 +53,20 @@ SET "CMAKE_OPTIONS=-B%BUILDDIR% %CMAKE_OPTIONS%"
 ECHO "CMAKE OPTS: %CMAKE_OPTIONS%"
 
 cmake ./CMakeLists.txt %CMAKE_OPTIONS%
-CD /D %BUILDDIR%
+SET err=%ERRORLEVEL%
+if NOT %err% == 0 (
+    if exist "%BUILDDIR%\CMakeFiles\CMakeOutput.log" (
+        ECHO "CMakeOutput.log:"
+        TYPE %BUILDDIR%\CMakeFiles\CMakeOutput.log
+    )
+    if exist "%BUILDDIR%\CMakeFiles\CMakeError.log" (
+        ECHO "CMakeError.log:"
+        TYPE %BUILDDIR%\CMakeFiles\CMakeError.log
+    )
+    EXIT %err%
+)
 
+CD /D %BUILDDIR%
 cmake --build . --config Release
 EXIT %ERRORLEVEL%
 
