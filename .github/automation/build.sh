@@ -87,7 +87,18 @@ fi
 
 cd "${SORUCE_DIR}"
 echo "Calling CMake with otions: ${CMAKE_OPTIONS}"
-cmake . -B${BUILD_DIR} ${CMAKE_OPTIONS} && cd ${BUILD_DIR}
-make -k ${MAKE_OP}
-
+cmake . -B${BUILD_DIR} ${CMAKE_OPTIONS}
+err=$?
+if [ "$err" != 0 ]; then
+    if [ -e "${BUILD_DIR}/CMakeFiles/CMakeOutput.log" ]; then
+        echo "CMakeOutput.log:"
+        cat ${BUILD_DIR}/CMakeFiles/CMakeOutput.log
+    fi
+    if [ -e "${BUILD_DIR}/CMakeFiles/CMakeError.log" ]; then
+        echo "CMakeError.log:"
+        cat ${BUILD_DIR}/CMakeFiles/CMakeError.log
+    fi
+    exit $err
+fi
+cd ${BUILD_DIR} && make -k ${MAKE_OP}
 exit $?
