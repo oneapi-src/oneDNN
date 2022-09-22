@@ -78,10 +78,9 @@ jit_uni_prelu_forward_kernel_t<Vmm>::jit_uni_prelu_forward_kernel_t(
                     : 3u)
     , saturation_needed_(utils::one_of(
               dst_dt_, data_type::u8, data_type::s8, data_type::s32))
+    , tail_vmm_mask_(tail_size_ && is_subset(isa, avx2) ? reserve_vmm() : 0)
     , vmm_zeros_(reserve_vmm())
     , dst_saturate_ubound_(saturation_needed_ ? reserve_vmm() : 0)
-    , tail_vmm_mask_(
-              tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm() : 0)
     , weights_const_vmm_(utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
                                  prelu::bcast::per_oc_blocked)
                       ? reserve_vmm()
@@ -89,7 +88,9 @@ jit_uni_prelu_forward_kernel_t<Vmm>::jit_uni_prelu_forward_kernel_t(
     , io_(this, isa, {src_dt_, wei_dt_, dst_dt_}, {},
               io::io_tail_conf_t {simd_w_, tail_size_, tail_opmask_,
                       tail_vmm_mask_.getIdx(), reg_tmp_},
-              io::io_emu_bf16_conf_t {}, create_saturation_vmm_map()) {}
+              io::io_emu_bf16_conf_t {}, create_saturation_vmm_map()) {
+    assert(tail_vmm_mask_.getIdx() == 0);
+}
 
 template <typename Vmm>
 jit_uni_prelu_forward_kernel_t<Vmm>::~jit_uni_prelu_forward_kernel_t()

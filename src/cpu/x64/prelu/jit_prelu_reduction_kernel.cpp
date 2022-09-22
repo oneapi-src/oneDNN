@@ -132,9 +132,8 @@ jit_uni_prelu_reduction_kernel_t<Vmm>::jit_uni_prelu_reduction_kernel_t(
     , isa_(isa)
     , saturation_needed_(utils::one_of(
               data_type_, data_type::s8, data_type::u8, data_type::s32))
+    , tail_vmm_mask_(tail_size_ && is_subset(isa, avx2) ? reserve_vmm() : 0)
     , accumulator_(reserve_vmm())
-    , tail_vmm_mask_(
-              tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm() : 0)
     , saturation_lower_bound_(saturation_needed_ ? reserve_vmm() : 0)
     , saturation_upper_bound_(saturation_needed_ ? reserve_vmm() : 0)
     , io_(this, isa_, data_type_, {},
@@ -142,7 +141,9 @@ jit_uni_prelu_reduction_kernel_t<Vmm>::jit_uni_prelu_reduction_kernel_t(
                       tail_vmm_mask_.getIdx(), reg_tmp_},
               io::io_emu_bf16_conf_t {},
               io::io_saturation_conf_t {saturation_lower_bound_.getIdx(),
-                      saturation_upper_bound_.getIdx(), reg_tmp_}) {}
+                      saturation_upper_bound_.getIdx(), reg_tmp_}) {
+    assert(tail_vmm_mask_.getIdx() == 0);
+}
 
 template <typename Vmm>
 size_t jit_uni_prelu_reduction_kernel_t<Vmm>::get_unrolling_factor(

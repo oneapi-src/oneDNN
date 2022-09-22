@@ -89,6 +89,7 @@ jit_uni_prelu_backward_kernel_t<Vmm>::jit_uni_prelu_backward_kernel_t(
               diff_src_dt_, data_type::u8, data_type::s8, data_type::s32))
     , saturation_needed_diff_weights_(utils::one_of(
               diff_wei_dt_, data_type::u8, data_type::s8, data_type::s32))
+    , tail_vmm_mask_(tail_size_ && is_subset(isa, avx2) ? reserve_vmm() : 0)
     , vmm_zeros_(reserve_vmm())
     , saturation_ubound_diff_src_(
               saturation_needed_diff_src_ ? reserve_vmm() : 0)
@@ -97,8 +98,6 @@ jit_uni_prelu_backward_kernel_t<Vmm>::jit_uni_prelu_backward_kernel_t(
                                       ? saturation_ubound_diff_src_.getIdx()
                                       : reserve_vmm())
                       : 0)
-    , tail_vmm_mask_(
-              tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm() : 0)
     , vmm_ones_(reserve_vmm())
     , weights_const_vmm_(utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
                                  prelu::bcast::per_oc_blocked)
@@ -113,7 +112,9 @@ jit_uni_prelu_backward_kernel_t<Vmm>::jit_uni_prelu_backward_kernel_t(
               {src_dt_, wei_dt_, diff_src_dt_, diff_dst_dt_, diff_wei_dt_}, {},
               io::io_tail_conf_t {simd_w_, tail_size_, tail_opmask_,
                       tail_vmm_mask_.getIdx(), reg_tmp_},
-              io::io_emu_bf16_conf_t {}, create_saturation_vmm_map()) {}
+              io::io_emu_bf16_conf_t {}, create_saturation_vmm_map()) {
+    assert(tail_vmm_mask_.getIdx() == 0);
+}
 
 template <typename Vmm>
 jit_uni_prelu_backward_kernel_t<Vmm>::~jit_uni_prelu_backward_kernel_t()

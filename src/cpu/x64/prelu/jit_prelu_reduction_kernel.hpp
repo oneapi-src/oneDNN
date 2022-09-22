@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,8 +93,8 @@ private:
 
     const cpu_isa_t isa_;
     const bool saturation_needed_;
+    const Vmm tail_vmm_mask_; // Keep it higher to preserve idx=0 tail register
     const Vmm accumulator_;
-    const Vmm tail_vmm_mask_;
     const Vmm saturation_lower_bound_;
     const Vmm saturation_upper_bound_;
 
