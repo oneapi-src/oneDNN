@@ -56,7 +56,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
-                    && compute_engine->mayiuse_sub_group(16)
+                    && compute_engine->mayiuse_sub_group(subgroup_size)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
                     && attr()->has_default_values(skip_mask_t::oscale_runtime)
                     && attr_oscale_ok()
@@ -78,17 +78,17 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
             int nelems = axis_size(true);
 
             if (nelems < subgroup_size) {
-                group_size = 1;
+                group_size = subgroup_size = 1;
             } else if (nelems <= 100) {
-                group_size = subgroup_size;
+                group_size = subgroup_size * 1;
             } else if (nelems <= 1000) {
-                group_size = 32;
+                group_size = subgroup_size * 2;
             } else if (nelems <= 2000) {
-                group_size = 64;
+                group_size = subgroup_size * 4;
             } else if (nelems <= 5000) {
-                group_size = 128;
+                group_size = subgroup_size * 8;
             } else {
-                group_size = 256;
+                group_size = subgroup_size * 16;
             }
 
             for (int i = 0, j = 0; i < src_md()->ndims; ++i) {
@@ -112,7 +112,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         size_t lws[3] = {};
         size_t block[3] = {};
         size_t group_size = 0;
-        const int subgroup_size = 16;
+        int subgroup_size = 16;
     };
 
     status_t init(engine_t *engine) override {
@@ -124,7 +124,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
         kernel_ctx.define_int("SOFTMAX_AXIS", pd()->axis_size(true));
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
-        kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
+        kernel_ctx.define_int("SUB_GROUP_SIZE", pd()->subgroup_size);
         kernel_ctx.define_int("IS_FWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
