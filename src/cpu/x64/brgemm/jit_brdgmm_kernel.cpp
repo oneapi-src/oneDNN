@@ -251,19 +251,18 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
             vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
         }
 
-        for (int m_i = 0; m_i < m_blocks; m_i++) {
-            for (int n_i = 0; n_i < n_blocks; n_i++) {
-                const auto vmm = accm(m_blocks, n_blocks, m_i, n_i);
-                const auto addr = ptr[reg_aux_D + D_offset(m_i, n_i)];
-                const auto vmm_prev_dst = vmm_tmp(1);
-                const bool mask_flag = has_n_tail && (n_i + 1 == n_blocks);
-                cvt2ps(brg.sum_dt, vmm_prev_dst, addr, mask_flag, false);
-                if (p_sum_zp_reg_set) vsubps(vmm_prev_dst, vmm_sum_zp);
-                if (!p_sum_scale_reg_set)
-                    vaddps(vmm, vmm_prev_dst);
-                else
-                    vfmadd231ps(vmm, vmm_prev_dst, zword_b[reg_ptr_sum_scale]);
-            }
+        for_(int m_i = 0; m_i < m_blocks; m_i++)
+        for (int n_i = 0; n_i < n_blocks; n_i++) {
+            const auto vmm = accm(m_blocks, n_blocks, m_i, n_i);
+            const auto addr = ptr[reg_aux_D + D_offset(m_i, n_i)];
+            const auto vmm_prev_dst = vmm_tmp(1);
+            const bool mask_flag = has_n_tail && (n_i + 1 == n_blocks);
+            cvt2ps(brg.sum_dt, vmm_prev_dst, addr, mask_flag, false);
+            if (p_sum_zp_reg_set) vsubps(vmm_prev_dst, vmm_sum_zp);
+            if (!p_sum_scale_reg_set)
+                vaddps(vmm, vmm_prev_dst);
+            else
+                vfmadd231ps(vmm, vmm_prev_dst, zword_b[reg_ptr_sum_scale]);
         }
     };
 
@@ -306,16 +305,15 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
             lea(reg_aux_scales,
                     ptr[reg_aux_scales + reg_aux_N * sizeof(float)]);
         }
-        for (int m = 0; m < m_blocks; m++) {
-            for (int n = 0; n < n_blocks; n++) {
-                const bool mask_flag = has_n_tail && n + 1 == n_blocks;
-                const Vmm vmm = vmm_mask(
-                        accm(m_blocks, n_blocks, m, n), mask_flag, false);
-                if (brg.is_oc_scale) {
-                    vmulps(vmm, vmm, ptr[reg_aux_scales + scales_offset(n)]);
-                } else {
-                    vmulps(vmm, vmm, zword_b[reg_aux_scales]);
-                }
+        for_(int m = 0; m < m_blocks; m++)
+        for (int n = 0; n < n_blocks; n++) {
+            const bool mask_flag = has_n_tail && n + 1 == n_blocks;
+            const Vmm vmm = vmm_mask(
+                    accm(m_blocks, n_blocks, m, n), mask_flag, false);
+            if (brg.is_oc_scale) {
+                vmulps(vmm, vmm, ptr[reg_aux_scales + scales_offset(n)]);
+            } else {
+                vmulps(vmm, vmm, zword_b[reg_aux_scales]);
             }
         }
     }
@@ -380,17 +378,16 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_without_post_ops(
                 vmm_lbound, vmm_ubound, reg_tmp, data_type::f32, brg.dt_d);
     }
 
-    for (int m = 0; m < m_blocks; m++) {
-        for (int n = 0; n < n_blocks; n++) {
-            const bool mask_flag = has_n_tail && n + 1 == n_blocks;
-            auto vmm_acc = accm(m_blocks, n_blocks, m, n);
-            auto vmm_acc_masked = vmm_mask(vmm_acc, mask_flag, true);
-            if (dt_requires_saturation) {
-                saturate_f32(vmm_acc, vmm_lbound, vmm_ubound, brg.dt_d);
-                vcvtps2dq(vmm_acc, vmm_acc);
-            }
-            vmovups(ptr[reg_aux_C + C_offset(m, n)], vmm_acc_masked);
+    for_(int m = 0; m < m_blocks; m++)
+    for (int n = 0; n < n_blocks; n++) {
+        const bool mask_flag = has_n_tail && n + 1 == n_blocks;
+        auto vmm_acc = accm(m_blocks, n_blocks, m, n);
+        auto vmm_acc_masked = vmm_mask(vmm_acc, mask_flag, true);
+        if (dt_requires_saturation) {
+            saturate_f32(vmm_acc, vmm_lbound, vmm_ubound, brg.dt_d);
+            vcvtps2dq(vmm_acc, vmm_acc);
         }
+        vmovups(ptr[reg_aux_C + C_offset(m, n)], vmm_acc_masked);
     }
 }
 
@@ -405,11 +402,10 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
     }
 
     if (is_fast_vnni_int8()) {
-        for (int m_i = 0; m_i < m_blocks; ++m_i) {
-            for (int n_i = 0; n_i < n_blocks; ++n_i) {
-                auto vmm_out = accm(m_blocks, n_blocks, m_i, n_i);
-                vpermd(vmm_out, vmm_permute(), vmm_out);
-            }
+        for_(int m_i = 0; m_i < m_blocks; ++m_i)
+        for (int n_i = 0; n_i < n_blocks; ++n_i) {
+            auto vmm_out = accm(m_blocks, n_blocks, m_i, n_i);
+            vpermd(vmm_out, vmm_permute(), vmm_out);
         }
     }
 
@@ -507,12 +503,11 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
                 const int n_i = nb_i + i;
                 load_b(vmm_b(i), n_i);
             }
-            for (int m_i = 0; m_i < m_blocks; ++m_i) {
-                for (int i = 0; i < n_e; ++i) {
-                    const int n_i = nb_i + i;
-                    if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i);
-                    dot_product(vmm_a(), vmm_b(i), m_i, n_i);
-                }
+            for_(int m_i = 0; m_i < m_blocks; ++m_i)
+            for (int i = 0; i < n_e; ++i) {
+                const int n_i = nb_i + i;
+                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i);
+                dot_product(vmm_a(), vmm_b(i), m_i, n_i);
             }
         }
     } else {
