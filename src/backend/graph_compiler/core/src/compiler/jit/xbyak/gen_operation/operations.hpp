@@ -44,6 +44,7 @@ void AVX_MOVPI32(Xbyak::CodeGenerator &gen, const operand &op_dst,
 // * R: x86 reg, sub-reg: 8/16/32/64
 // * X: avx reg, sub-reg: x/y/z
 // * K: avx512 mask reg, writemask: w/wz
+// * T: amx tile reg
 // * M: memory
 // * I: immediate
 //===========================================================================
@@ -444,6 +445,40 @@ void AVX_MOVPI32(Xbyak::CodeGenerator &gen, const operand &op_dst,
             COMPILE_ASSERT(false, \
                     "Invalid avx512_" #INS << ": " << OP_1 << ", " << OP_2); \
         } \
+    }
+
+#define AMX_M(GEN, INS, OP_1) \
+    { \
+        COMPILE_ASSERT(OP_1.is_addr(), "Invalid AMX_" #INS << ": " << OP_1); \
+        (GEN).INS(OP_1.get_addr()); \
+    }
+
+#define AMX_T(GEN, INS, OP_1) \
+    { \
+        COMPILE_ASSERT(OP_1.is_tmm(), "Invalid AMX_" #INS << ": " << OP_1); \
+        (GEN).INS(OP_1.get_tmm()); \
+    }
+
+#define AMX_T_T_T(GEN, INS, OP_1, OP_2, OP_3) \
+    { \
+        COMPILE_ASSERT(OP_1.is_tmm() && OP_2.is_tmm() && OP_3.is_tmm(), \
+                "Invalid AMX_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3); \
+        (GEN).INS(OP_1.get_tmm(), OP_2.get_tmm(), OP_3.get_tmm()); \
+    }
+
+#define AMX_T_M(GEN, INS, OP_1, OP_2) \
+    { \
+        COMPILE_ASSERT(OP_1.is_tmm() && OP_2.is_addr(), \
+                "Invalid AMX_" #INS << ": " << OP_1 << ", " << OP_2); \
+        (GEN).INS(OP_1.get_tmm(), OP_2.get_addr()); \
+    }
+
+#define AMX_M_T(GEN, INS, OP_1, OP_2) \
+    { \
+        COMPILE_ASSERT(OP_1.is_addr() && OP_2.is_tmm(), \
+                "Invalid AMX_" #INS << ": " << OP_1 << ", " << OP_2); \
+        (GEN).INS(OP_1.get_addr(), OP_2.get_tmm()); \
     }
 
 } // namespace sc_xbyak

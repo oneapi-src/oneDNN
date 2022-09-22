@@ -42,7 +42,7 @@ struct scflags_t {
     bool dead_write_elimination_ = true;
     int buffer_schedule_ = 3; // 0 off, 1 whole reuse, 2 size first, 3 hot first
     brgemm_t brgemm_backend_ = brgemm_t::dnnl;
-    bool kernel_optim_ = true;
+    int kernel_optim_ = 1; // 0 off, 1 runtime-oriented opt,
     bool index2var_ = true;
     bool tensor2var_ = true;
     bool print_ir_ = false;
@@ -66,7 +66,7 @@ struct context_t {
     context_t(const scflags_t &flags, runtime::target_machine_t &&machine,
             runtime::engine_t *engine = nullptr);
     context_t(const context_t &) = default;
-    uint32_t get_max_vector_lanes(sc_data_etype etype) const;
+    uint16_t get_max_vector_lanes(sc_data_etype etype) const;
 };
 using context_ptr = std::shared_ptr<context_t>;
 

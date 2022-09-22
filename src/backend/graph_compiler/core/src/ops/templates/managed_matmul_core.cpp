@@ -992,8 +992,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
         for_loop rm, rn;
         int lanes = 1;
         if (iin_block_ / 16 && iin_block_ % 16 == 0) {
-          lanes = std::min(
-            16U, ctx->get_max_vector_lanes(get_C_dtype().type_code_));
+          lanes = vectorize_step(ctx, get_C_dtype().type_code_, 16);
         }
         expr M_single_thr_num_block
           = divide_and_ceil(M_single_thr_size, iim_block_);

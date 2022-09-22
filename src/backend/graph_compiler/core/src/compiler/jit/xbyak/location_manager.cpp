@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
 #include <compiler/jit/xbyak/x86_64/type_mapping.hpp>
 #include <util/bf16.hpp>
 #include <util/utils.hpp>
@@ -1199,6 +1200,10 @@ Xbyak::Reg location_manager::allocate_free_reg(const expr_c &v) {
 Xbyak::Reg location_manager::convert_virtual_reg(const expr_c &v) {
     const auto &index = GET_VIRTUAL_REG(v).index_;
     auto reg = virtual_slots_map_->get_reg_physical(index);
+    if (v->dtype_.is_tile()) {
+        // skip get_cpu_data_type for tmm
+        return to_tmm(reg);
+    }
     switch (get_cpu_data_type(v->dtype_)) {
         // integer 8-bit/ 1-byte
         case cpu_data_type::uint_8: return to_reg8(reg);

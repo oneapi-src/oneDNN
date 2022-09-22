@@ -331,8 +331,7 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
     if (N_num_block > 1) {
       int lanes = 1;
       if (C_block / 16 && C_block % 16 == 0) {
-        lanes = std::min(
-          16U, ctx->get_max_vector_lanes(out_tensors_[0].dtype_.type_code_));
+        lanes = vectorize_step(ctx, out_tensors_[0].dtype_.type_code_, 16);
       }
       // KC(D)RSkc
       _named_for_(rlko, l_k_o, 0, K_num_block, 1, for_type::PARALLEL) {

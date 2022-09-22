@@ -110,7 +110,13 @@ std::ostream &operator<<(std::ostream &os, sc_data_etype t) {
 
 std::ostream &operator<<(std::ostream &os, sc_data_type_t dtype) {
     os << dtype.type_code_;
-    if (dtype.lanes_ > 1) os << 'x' << dtype.lanes_;
+    if (dtype.lanes_ > 1) {
+        if (dtype.rows_ == 0) {
+            os << 'x' << dtype.lanes_;
+        } else {
+            os << 'x' << dtype.rows_ << 'x' << dtype.lanes_ / dtype.rows_;
+        }
+    }
     return os;
 }
 

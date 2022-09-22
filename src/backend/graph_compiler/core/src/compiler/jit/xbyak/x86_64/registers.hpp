@@ -94,6 +94,17 @@ static const Xbyak::Opmask k4(4);
 static const Xbyak::Opmask k5(5);
 static const Xbyak::Opmask k6(6);
 static const Xbyak::Opmask k7(7);
+
+// Tile Regs for AMX
+static const Xbyak::Tmm tmm0(0);
+static const Xbyak::Tmm tmm1(1);
+static const Xbyak::Tmm tmm2(2);
+static const Xbyak::Tmm tmm3(3);
+static const Xbyak::Tmm tmm4(4);
+static const Xbyak::Tmm tmm5(5);
+static const Xbyak::Tmm tmm6(6);
+static const Xbyak::Tmm tmm7(7);
+
 } // namespace regs
 
 /// Convert gp reg to specific type
@@ -109,6 +120,9 @@ Xbyak::Zmm to_zmm(Xbyak::Reg r);
 
 /// Convert mask reg to Opmask
 Xbyak::Opmask to_mask(Xbyak::Reg r);
+
+/// Convert tile reg to AMX tile
+Xbyak::Tmm to_tmm(Xbyak::Reg r);
 
 } // namespace x86_64
 } // namespace sc_xbyak

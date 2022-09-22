@@ -544,29 +544,33 @@ void amx_buffer_t::release(engine_t *engine) {
 } // namespace runtime
 } // namespace sc
 
+void *do_get_amx_tile_buf(const char *palette, sc::runtime::stream_t *stream,
+        bool &amx_exclusive, bool &need_config_amx) {
+    void *tmp_amx_tile_buf = nullptr;
+    auto &tls = sc::runtime::get_tls(stream);
+    amx_exclusive = false;
+    if (!amx_exclusive || tls.amx_buffer_.cur_palette != palette) {
+        if (need_config_amx) {
+            amx_tile_configure(palette);
+        } else {
+            need_config_amx = true;
+        }
+    }
+
+    auto &amx_tile_buf = tls.amx_buffer_;
+    if (!amx_tile_buf.ptr_) { amx_tile_buf.reset(stream); }
+    tmp_amx_tile_buf = amx_tile_buf.ptr_;
+
+    return tmp_amx_tile_buf;
+}
+
 static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
         sc::runtime::stream_t *stream, bool &amx_exclusive) {
-    void *tmp_amx_tile_buf = nullptr;
-    if (brg_desc->is_amx_) {
-        auto &tls = sc::runtime::get_tls(stream);
-        // if using managed thread pool, we can avoid re-config/release within
-        // the kernel
-        bool managed_thread_pool = tls.in_managed_thread_pool_;
-        amx_exclusive = managed_thread_pool;
-        if (!amx_exclusive
-                || tls.amx_buffer_.cur_palette != brg_desc->palette_) {
-            amx_tile_configure(brg_desc->palette_);
-            if (managed_thread_pool) {
-                tls.amx_buffer_.cur_palette = brg_desc->palette_;
-                // tell the thread pool to release amx tile
-                tls.amx_buffer_.need_release_tile_ = true;
-            }
-        }
-        auto &amx_tile_buf = tls.amx_buffer_;
-        if (!amx_tile_buf.ptr_) { amx_tile_buf.reset(stream); }
-        tmp_amx_tile_buf = amx_tile_buf.ptr_;
-    }
-    return tmp_amx_tile_buf;
+    if (!brg_desc->is_amx_) { return nullptr; }
+
+    bool need_config_amx = true;
+    return do_get_amx_tile_buf(
+            brg_desc->palette_, stream, amx_exclusive, need_config_amx);
 }
 
 extern "C" {

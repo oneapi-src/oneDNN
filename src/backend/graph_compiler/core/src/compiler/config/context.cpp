@@ -42,9 +42,10 @@ static void check_within(
     }
 }
 
-static void parse_bool(const char *name, bool &v) {
+template <typename T>
+static void parse_value(const char *name, T &v) {
     auto strv = sc::utils::getenv_string(name);
-    if (!strv.empty()) { v = bool(std::stoi(strv)); };
+    if (!strv.empty()) { v = T(std::stoi(strv)); };
 }
 
 context_ptr get_default_context() {
@@ -114,7 +115,7 @@ context_ptr get_default_context() {
             // disable opt passes
             flags.buffer_schedule_ = 0;
             flags.dead_write_elimination_ = false;
-            flags.kernel_optim_ = false;
+            flags.kernel_optim_ = 0;
             flags.index2var_ = false;
         }
 
@@ -135,21 +136,23 @@ context_ptr get_default_context() {
                            << ", set to default = dnnl";
         }
 
-        parse_bool(env_names[SC_MICRO_KERNEL_OPTIM], flags.kernel_optim_);
-        parse_bool(env_names[SC_DEAD_WRITE_ELIMINATION],
+        parse_value(env_names[SC_DEAD_WRITE_ELIMINATION],
                 flags.dead_write_elimination_);
-        parse_bool(env_names[SC_INDEX2VAR], flags.index2var_);
-        parse_bool(env_names[SC_PRINT_IR], flags.print_ir_);
-        parse_bool(env_names[SC_MIXED_FUSION], flags.mixed_fusion_);
-        parse_bool(env_names[SC_COST_MODEL], flags.use_cost_model_);
-        parse_bool(env_names[SC_SSA_PASSES], flags.ssa_passes_);
-        parse_bool(env_names[SC_XBYAK_JIT_SAVE_OBJ], flags.xbyak_jit_save_obj_);
-        parse_bool(env_names[SC_XBYAK_JIT_ASM_LISTING],
+        parse_value(env_names[SC_INDEX2VAR], flags.index2var_);
+        parse_value(env_names[SC_PRINT_IR], flags.print_ir_);
+        parse_value(env_names[SC_MIXED_FUSION], flags.mixed_fusion_);
+        parse_value(env_names[SC_COST_MODEL], flags.use_cost_model_);
+        parse_value(env_names[SC_SSA_PASSES], flags.ssa_passes_);
+        parse_value(
+                env_names[SC_XBYAK_JIT_SAVE_OBJ], flags.xbyak_jit_save_obj_);
+        parse_value(env_names[SC_XBYAK_JIT_ASM_LISTING],
                 flags.xbyak_jit_asm_listing_);
-        parse_bool(env_names[SC_XBYAK_JIT_LOG_STACK_FRAME_MODEL],
+        parse_value(env_names[SC_XBYAK_JIT_LOG_STACK_FRAME_MODEL],
                 flags.xbyak_jit_log_stack_frame_model_);
-        parse_bool(env_names[SC_XBYAK_JIT_PAUSE_AFTER_CODEGEN],
+        parse_value(env_names[SC_XBYAK_JIT_PAUSE_AFTER_CODEGEN],
                 flags.xbyak_jit_pause_after_codegen_);
+
+        parse_value(env_names[SC_MICRO_KERNEL_OPTIM], flags.kernel_optim_);
 
         if (sc::utils::getenv_int(env_names[SC_BOUNDARY_CHECK])) {
             flags.boundary_check_ = true;
@@ -169,7 +172,7 @@ context_ptr get_default_context() {
     return v;
 }
 
-uint32_t context_t::get_max_vector_lanes(sc_data_etype etype) const {
+uint16_t context_t::get_max_vector_lanes(sc_data_etype etype) const {
     return machine_.get_device_flags().get_max_vector_lanes(etype);
 }
 

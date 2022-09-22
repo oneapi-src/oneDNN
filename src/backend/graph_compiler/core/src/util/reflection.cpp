@@ -23,7 +23,7 @@ namespace sc {
 // clang-format off
 SC_CLASS(sc_data_type_t)
   SC_FIELD(type_code_)
-  SC_FIELD(lanes_)
+  SC_FIELD(ldata_)
 SC_CLASS_END();
 
 SC_CLASS_WITH_NAME(std_any_map, std::unordered_map<std::string, any_t>)

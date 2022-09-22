@@ -50,8 +50,8 @@ int get_number_of_squeeze_dims(const sc_dims &dims);
 bool slice_full_on_axes(
         const sc_dims &dim, slice_range ranges, const std::vector<int> &axes);
 
-inline uint32_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
-    return std::min(16U, ctx->get_max_vector_lanes(detype));
+inline uint16_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
+    return std::min(uint16_t(16), ctx->get_max_vector_lanes(detype));
 }
 bool loop_can_be_fused(const for_loop &loop);
 

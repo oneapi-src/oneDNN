@@ -183,7 +183,8 @@ void xbyak_lowering_viewer::dump_code_comments(std::ostream &os) {
 //==============================================================================
 
 #define GET_OPERAND(ARG) (location_manager_->get_operand(ARG))
-#define XBYAK_GEN(INS, PATTERN, ...) SC_EXPAND(PATTERN(*gen_, INS, __VA_ARGS__))
+#define XBYAK_GEN(INS, PATTERN, ...) \
+    SC_EXPAND(PATTERN(*gen_, INS, ##__VA_ARGS__))
 // SC_EXPAND because of MSVC:
 // https://stackoverflow.com/questions/5134523/msvc-doesnt-expand-va-args-correctly
 

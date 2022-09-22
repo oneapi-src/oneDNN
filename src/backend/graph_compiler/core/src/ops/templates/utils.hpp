@@ -110,6 +110,12 @@ std::vector<T> merge_vec(const std::vector<T> &a, const std::vector<T> &b) {
 inline std::vector<int> get_dynamic_block_candidates(bool has_48 = true) {
   return has_48 ? std::vector<int> {32, 64} : std::vector<int> {32, 64};
 }
+
+inline uint16_t vectorize_step(
+  const context_ptr &ctx, sc_data_etype detype, uint16_t minv) {
+  return std::min(minv, ctx->get_max_vector_lanes(detype));
+}
+
 } // namespace ops
 } // namespace sc
 

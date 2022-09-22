@@ -52,18 +52,31 @@ inline constexpr sc_data_etype get_pointer_element(sc_data_etype type_code) {
 
 } // namespace etypes
 /// Data type specification. Can be scalar or vector
+/// The rows_ field indicates dtype is a tile, where cols = lanes / rows
+/// tile dtype is used in AMX scenarios with limited usage
 ///
-/// NOTE: The \c lanes_ field is not meaningful when \c type_code_ is
+/// NOTE: The \c lanes_ & rows_ field is not meaningful when \c type_code_ is
 /// UNDEF or VOID_T.
 struct SC_API sc_data_type_t {
     sc_data_etype type_code_;
-    uint32_t lanes_;
-    constexpr sc_data_type_t(sc_data_etype code, uint32_t lanes = 1)
-        : type_code_(code), lanes_(lanes) {}
-    constexpr sc_data_type_t() : type_code_(sc_data_etype::UNDEF), lanes_(0) {}
+    union {
+        struct {
+            uint16_t lanes_;
+            uint16_t rows_;
+        };
+        uint32_t ldata_;
+    };
+    constexpr sc_data_type_t(sc_data_etype code, uint16_t lanes = 1)
+        : type_code_(code), lanes_(lanes), rows_(0) {}
+    constexpr sc_data_type_t(sc_data_etype code, uint16_t lanes, uint16_t rows)
+        : type_code_(code), lanes_(lanes), rows_(rows) {}
+    constexpr sc_data_type_t()
+        : type_code_(sc_data_etype::UNDEF), lanes_(0), rows_(0) {}
+
+    bool is_tile() const { return rows_ > 0; }
 
     sc_data_etype as_etype() const {
-        assert(lanes_ == 1);
+        assert(lanes_ == 1 && rows_ == 0);
         return type_code_;
     }
 
@@ -86,7 +99,7 @@ struct SC_API sc_data_type_t {
     }
     // returns true if the datatype is scalar pointer type
     constexpr bool is_pointer() const {
-        return lanes_ == 1 && etypes::is_pointer(type_code_);
+        return lanes_ == 1 && rows_ == 0 && etypes::is_pointer(type_code_);
     }
 
     constexpr bool operator==(const sc_data_type_t &other) const {
@@ -98,57 +111,72 @@ struct SC_API sc_data_type_t {
     }
     // this converter enables switching on sc_data_type_t
     constexpr operator uint64_t() const {
-        return (uint64_t(lanes_) << 16) | uint64_t(type_code_);
+        return (uint64_t(lanes_) << 32) | (uint64_t(rows_) << 16)
+                | uint64_t(type_code_);
     }
     // Below are helper functions to construct a datatype with given SIMD lanes.
     // The result can be a constexpr, which can be further used as a constant,
     // for example, in the "case" label of switch-case of C++
-    inline static constexpr sc_data_type_t undef(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::UNDEF, lanes);
+    inline static constexpr sc_data_type_t undef(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::UNDEF, lanes, rows);
     }
-    inline static constexpr sc_data_type_t f16(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::F16, lanes);
+    inline static constexpr sc_data_type_t f16(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::F16, lanes, rows);
     }
-    inline static constexpr sc_data_type_t bf16(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::BF16, lanes);
+    inline static constexpr sc_data_type_t bf16(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::BF16, lanes, rows);
     }
-    inline static constexpr sc_data_type_t u16(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::U16, lanes);
+    inline static constexpr sc_data_type_t u16(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::U16, lanes, rows);
     }
-    inline static constexpr sc_data_type_t f32(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::F32, lanes);
+    inline static constexpr sc_data_type_t f32(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::F32, lanes, rows);
     }
-    inline static constexpr sc_data_type_t s32(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::S32, lanes);
+    inline static constexpr sc_data_type_t s32(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::S32, lanes, rows);
     }
-    inline static constexpr sc_data_type_t u32(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::U32, lanes);
+    inline static constexpr sc_data_type_t u32(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::U32, lanes, rows);
     }
-    inline static constexpr sc_data_type_t s8(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::S8, lanes);
+    inline static constexpr sc_data_type_t s8(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::S8, lanes, rows);
     }
-    inline static constexpr sc_data_type_t u8(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::U8, lanes);
+    inline static constexpr sc_data_type_t u8(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::U8, lanes, rows);
     }
-    inline static constexpr sc_data_type_t index(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::INDEX, lanes);
+    inline static constexpr sc_data_type_t index(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::INDEX, lanes, rows);
     }
-    inline static constexpr sc_data_type_t boolean(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::BOOLEAN, lanes);
+    inline static constexpr sc_data_type_t boolean(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::BOOLEAN, lanes, rows);
     }
-    inline static constexpr sc_data_type_t generic(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::GENERIC, lanes);
+    inline static constexpr sc_data_type_t generic(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::GENERIC, lanes, rows);
     }
     // void* type
-    inline static constexpr sc_data_type_t pointer(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::POINTER, lanes);
+    inline static constexpr sc_data_type_t pointer(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::POINTER, lanes, rows);
     }
     inline static constexpr sc_data_type_t pointerof(
-            sc_data_etype etype, uint32_t lanes = 1) {
-        return sc_data_type_t(etypes::get_pointerof(etype), lanes);
+            sc_data_etype etype, uint32_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(etypes::get_pointerof(etype), lanes, rows);
     }
-    inline static constexpr sc_data_type_t void_t(uint32_t lanes = 1) {
-        return sc_data_type_t(sc_data_etype::VOID_T, lanes);
+    inline static constexpr sc_data_type_t void_t(
+            uint16_t lanes = 1, uint16_t rows = 0) {
+        return sc_data_type_t(sc_data_etype::VOID_T, lanes, rows);
     }
 };
 

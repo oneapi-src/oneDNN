@@ -207,6 +207,8 @@ public:
         get_allocatable_regs(virt_reg_type::fp_reg, profile.alloc_xmm_regs_);
         // Allocatable mask regs to virtual indexes
         get_allocatable_regs(virt_reg_type::mask_reg, profile.alloc_mask_regs_);
+        // Allocatable tile regs to virtual indexes
+        get_allocatable_regs(virt_reg_type::tile_reg, profile.alloc_tile_regs_);
 
         // Check consitancy
         assert((size_t)virt_index == allocatable_regs_.size());

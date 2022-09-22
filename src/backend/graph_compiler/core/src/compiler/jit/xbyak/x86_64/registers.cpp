@@ -65,6 +65,11 @@ Xbyak::Opmask to_mask(Xbyak::Reg r) {
     return Xbyak::Opmask(r.getIdx());
 }
 
+Xbyak::Tmm to_tmm(Xbyak::Reg r) {
+    COMPILE_ASSERT(r.isTMM(), "Not an AMX tile reg: " << r.toString());
+    return Xbyak::Tmm(r.getIdx());
+}
+
 } // namespace x86_64
 } // namespace sc_xbyak
 } // namespace sc

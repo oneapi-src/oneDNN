@@ -140,6 +140,15 @@ void ir_copier_impl_t::view(intrin_call_c v) {
     returned_expr_->dtype_ = v->dtype_;
 }
 
+void ir_copier_impl_t::view(low_level_intrin_c v) {
+    std::vector<expr> args;
+    args.reserve(v->args_.size());
+    for (auto &i : v->args_) {
+        args.emplace_back(copy(i));
+    }
+    returned_expr_ = builder::remake_low_level_intrin(v, args);
+}
+
 void ir_copier_impl_t::view(func_addr_c v) {
     returned_expr_ = builder::make_func_addr(v->func_);
 }

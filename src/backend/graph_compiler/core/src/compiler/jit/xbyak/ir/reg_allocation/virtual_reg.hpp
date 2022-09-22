@@ -51,6 +51,7 @@ enum class virt_reg_type {
     gp_reg = 0, // x86 general purpose 64-bit registers
     fp_reg, // x86 SSE/AVX SIMD registers
     mask_reg, // x86 AVX512 mask registers
+    tile_reg, // x86 AMX tile registers
     NUM_TYPES,
 };
 
@@ -154,7 +155,7 @@ struct virtual_reg_t {
     }
 
     friend std::ostream &operator<<(std::ostream &os, const virtual_reg_t &m) {
-        static const char *type_enum_str[] = {"gp", "fp", "k"};
+        static const char *type_enum_str[] = {"gp", "fp", "k", "tmm"};
         static const char *stat_enum_str[] = {"x", "B", "D", "U", "A", "S"};
         static const char *hint_enum_str[] = {"", "h", "H"};
         os << m.live_range_ << ": " << m.spill_weight_ << ": "
@@ -176,7 +177,7 @@ struct virtual_reg_t {
 };
 
 inline bool is_simd_data(const sc_data_type_t &t) {
-    return t.type_code_ == sc_data_etype::F32 || t.lanes_ > 1;
+    return !t.is_tile() && (t.type_code_ == sc_data_etype::F32 || t.lanes_ > 1);
 }
 
 inline virt_reg_type get_virt_reg_type(const sc_data_type_t &t) {
@@ -184,9 +185,11 @@ inline virt_reg_type get_virt_reg_type(const sc_data_type_t &t) {
         return virt_reg_type::mask_reg;
     } else if (is_simd_data(t)) {
         return virt_reg_type::fp_reg;
-    } else {
-        return virt_reg_type::gp_reg;
+    } else if (t.is_tile()) {
+        return virt_reg_type::tile_reg;
     }
+
+    return virt_reg_type::gp_reg;
 }
 
 } // namespace sc_xbyak

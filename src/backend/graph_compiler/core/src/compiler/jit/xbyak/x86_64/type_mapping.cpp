@@ -26,6 +26,11 @@ namespace x86_64 {
 cpu_data_type get_cpu_data_type(sc_data_type_t t) {
     const sc_data_etype e = t.type_code_;
 
+    if (t.is_tile()) {
+        // cpu_data_type related operations for tile dtype are not supported
+        return cpu_data_type::void_t;
+    }
+
     if (t.lanes_ == 1) {
         if (etypes::is_pointer(e)) { return cpu_data_type::uint_64; }
 

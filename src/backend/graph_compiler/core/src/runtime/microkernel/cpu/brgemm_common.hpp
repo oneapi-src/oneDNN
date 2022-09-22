@@ -22,7 +22,9 @@
 #include <utility>
 #include <vector>
 #include "brgemm_alg_kind.hpp"
+#include <runtime/context.hpp>
 #include <runtime/data_type.hpp>
+
 namespace sc {
 namespace brgemm {
 
@@ -209,6 +211,10 @@ using sc_brgemm_attrs_t = std::map<brgemm::attr_key, int64_t>;
 // bd_mask_level>=0 and use_uker=true
 using sc_brgemm_bd_mask_t = std::vector<char>;
 using sc_brgemm_postops_setting_t = std::vector<brgemm::postop_setting_t>;
+
 } // namespace sc
+
+void *do_get_amx_tile_buf(const char *palette, sc::runtime::stream_t *stream,
+        bool &amx_exclusive, bool &need_config_amx);
 
 #endif

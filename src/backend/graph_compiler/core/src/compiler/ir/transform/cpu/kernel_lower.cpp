@@ -387,7 +387,7 @@ public:
     // the kernel parameters => kernel pointer mapping
     using param_cache_table = content_hash_map<std::vector<expr_c>, expr>;
     ir_module_ptr mod_;
-    bool optimize_;
+    int optimize_;
     int brg_bdmask_set_num_ = 0;
     bool brg_use_bdmask_ = false;
     // brgemm init stmts includes postops_data/c_buf
@@ -407,6 +407,7 @@ public:
             float beta, bool has_postop);
     using run_func_t = expr (*)(brgemm_mode, scflags_t::brgemm_t, const expr &,
             const std::vector<expr> &, bool has_postop);
+
     expr_c optimize_kernel_call(brgemm_mode mode, scflags_t::brgemm_t backend,
             expr_c v, const std::vector<expr> &args, const std::string &name,
             init_func_t init_func, run_func_t run_func, float beta,
@@ -633,7 +634,7 @@ public:
                 opt_args.end());
         no_opt_args[num_basic_args + 3] = cur_bd_mask;
 
-        bool optimized = optimize_;
+        bool optimized = optimize_ >= 1;
         scflags_t::brgemm_t backend = mod_->ctx_->flags_.brgemm_backend_;
         auto fpair = get_brgemm_update_funcs(mode, backend);
         func_t f = extras->cpu_.init_ ? fpair.second : fpair.first;
@@ -673,7 +674,7 @@ public:
         return v;
     }
 
-    kernel_lower_impl_t(ir_module_ptr mod, bool optimize)
+    kernel_lower_impl_t(ir_module_ptr mod, int optimize)
         : mod_(std::move(mod)), optimize_(optimize) {}
 };
 

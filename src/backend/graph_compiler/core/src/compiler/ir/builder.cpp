@@ -39,16 +39,19 @@ static void merge_attrs(std::unique_ptr<any_map_t> &mergeto,
 
 expr copy_attr(const expr_base &ths, expr &&newexpr) {
     if (ths.attr_) { merge_attrs(newexpr->attr_, ths.attr_); }
+    if (ths.temp_data_) { newexpr->temp_data() = *ths.temp_data_; }
     return std::move(newexpr);
 }
 
 stmt copy_attr(const stmt_base_t &ths, stmt &&newstmt) {
     if (ths.attr_) { merge_attrs(newstmt->attr_, ths.attr_); }
+    if (ths.temp_data_) { newstmt->temp_data() = *ths.temp_data_; }
     return std::move(newstmt);
 }
 
 func_t copy_attr(const func_base &ths, func_t &&newfunc) {
     if (ths.attr_) { merge_attrs(newfunc->attr_, ths.attr_); }
+    if (ths.temp_data_) { newfunc->temp_data() = *ths.temp_data_; }
     return std::move(newfunc);
 }
 
@@ -217,7 +220,9 @@ intrin_call remake_intrin_call(
 
 low_level_intrin remake_low_level_intrin(
         const low_level_intrin_c &v, const std::vector<expr> &newargs) {
-    return make_expr<low_level_intrin_node>(v->type_, newargs);
+    low_level_intrin new_intrin = v->remake().static_as<low_level_intrin>();
+    new_intrin->args_ = newargs;
+    return new_intrin;
 }
 
 expr make_reinterpret(const expr_c &v, sc_data_type_t dtype) {

@@ -105,6 +105,20 @@ target_profile_t get_target_profile(
         };
     }
 
+    // Allocatable AMX tile regs
+    if (target_machine.cpu_flags_.fAVX512AMXTILE) {
+        profile.alloc_tile_regs_ = {
+                regs::tmm0,
+                regs::tmm1,
+                regs::tmm2,
+                regs::tmm3,
+                regs::tmm4,
+                regs::tmm5,
+                regs::tmm6,
+                regs::tmm7,
+        };
+    }
+
     // Function call abi info
 #ifdef __linux__
     profile.call_convention_ = call_convention::system_v;

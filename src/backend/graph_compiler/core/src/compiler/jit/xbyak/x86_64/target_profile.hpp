@@ -45,6 +45,7 @@ struct target_profile_t {
     std::vector<Xbyak::Reg> alloc_gp_regs_;
     std::vector<Xbyak::Reg> alloc_xmm_regs_;
     std::vector<Xbyak::Reg> alloc_mask_regs_;
+    std::vector<Xbyak::Reg> alloc_tile_regs_;
 
     std::vector<Xbyak::Reg> caller_saved_gp_regs_;
     std::vector<Xbyak::Reg> callee_saved_gp_regs_;

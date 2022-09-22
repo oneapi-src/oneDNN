@@ -23,6 +23,7 @@ using K = Xbyak::Operand::Kind;
 #define KIND_REG (K::REG)
 #define KIND_XYZ (K::XMM | K::YMM | K::ZMM)
 #define KIND_MSK (K::OPMASK)
+#define KIND_TMM (K::TMM)
 
 // constructor
 operand::operand() : content_(0), type_(operand::type::none) {}
@@ -63,6 +64,11 @@ Xbyak::Reg operand::get_reg() const {
 Xbyak::Xmm operand::get_xyz() const {
     assert(is_xyz());
     return Xbyak::Xmm(content_.reg_.getKind(), content_.reg_.getIdx());
+}
+
+Xbyak::Tmm operand::get_tmm() const {
+    assert(is_tmm());
+    return Xbyak::Tmm(content_.reg_.getIdx());
 }
 
 Xbyak::Opmask operand::get_mask() const {
@@ -141,6 +147,11 @@ bool operand::is_xyz() const {
 
 bool operand::is_mask() const {
     if (type_ == operand::type::reg) { return content_.reg_.is(KIND_MSK); }
+    return false;
+}
+
+bool operand::is_tmm() const {
+    if (type_ == operand::type::reg) { return content_.reg_.is(KIND_TMM); }
     return false;
 }
 

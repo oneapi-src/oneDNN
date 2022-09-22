@@ -848,7 +848,7 @@ public:
                     if (in_lanes != 1) {
                         while (in_lanes < lanes) {
                             std::vector<shuffle_idx_t> array(in_lanes << 1);
-                            for (uint32_t i = 0; i < (in_lanes << 1); i++) {
+                            for (uint16_t i = 0; i < (in_lanes << 1); i++) {
                                 array[i] = i;
                             }
                             inval1 = builder_.CreateShuffleVector(

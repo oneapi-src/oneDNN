@@ -64,21 +64,21 @@ static int get_lanes(
   int lanes = 1;
   if (utils::is_one_of(dtype, datatypes::s8, datatypes::u8)) {
     if (C_block / 64 && C_block % 64 == 0) {
-      lanes = std::min(64U, ctx->get_max_vector_lanes(dtype.type_code_));
+      lanes = vectorize_step(ctx, dtype.type_code_, 64);
     } else if (C_block / 32 && C_block % 32 == 0) {
-      lanes = std::min(32U, ctx->get_max_vector_lanes(dtype.type_code_));
+      lanes = vectorize_step(ctx, dtype.type_code_, 32);
     } else if (C_block / 16 && C_block % 16 == 0) {
-      lanes = std::min(16U, ctx->get_max_vector_lanes(dtype.type_code_));
+      lanes = vectorize_step(ctx, dtype.type_code_, 16);
     }
   } else if (dtype == datatypes::bf16) {
     if (C_block / 32 && C_block % 32 == 0) {
-      lanes = std::min(32U, ctx->get_max_vector_lanes(dtype.type_code_));
+      lanes = vectorize_step(ctx, dtype.type_code_, 32);
     } else if (C_block / 16 && C_block % 16 == 0) {
-      lanes = std::min(16U, ctx->get_max_vector_lanes(dtype.type_code_));
+      lanes = vectorize_step(ctx, dtype.type_code_, 16);
     }
   } else {
     if (C_block / 16 && C_block % 16 == 0) {
-      lanes = std::min(16U, ctx->get_max_vector_lanes(dtype.type_code_));
+      lanes = vectorize_step(ctx, dtype.type_code_, 16);
     }
   }
   return lanes;

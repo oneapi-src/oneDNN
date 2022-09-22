@@ -31,7 +31,7 @@ namespace sc_xbyak {
 class operand {
 public:
     // operand type
-    enum class type {
+    enum type {
         none = 0,
         imm,
         reg,
@@ -53,6 +53,7 @@ public:
     Xbyak::Reg get_reg() const;
     Xbyak::Xmm get_xyz() const;
     Xbyak::Opmask get_mask() const;
+    Xbyak::Tmm get_tmm() const;
     Xbyak::Address get_addr() const;
 
     // get reg/addr operand
@@ -74,6 +75,7 @@ public:
     bool is_reg() const;
     bool is_xyz() const;
     bool is_mask() const;
+    bool is_tmm() const;
     bool is_addr() const;
 
     // check same operand

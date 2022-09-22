@@ -180,6 +180,7 @@ public:
     xbyak_intrin_node(const std::vector<expr> &args, xbyak_intrin_type intrin,
             xbyak_intrin_isa isa,
             xbyak_intrin_modifier modifier = xbyak_intrin_modifier());
+    expr remake() const override;
     void to_string(ostream &os) const override;
     xbyak_intrin_modifier modifier_;
     xbyak_intrin_format format_;

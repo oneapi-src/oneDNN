@@ -228,6 +228,13 @@ std::ostream &operator<<(std::ostream &os, const xbyak_condition t) {
 // xbyak_intrin_node
 //=========================================================================
 
+expr xbyak_intrin_node::remake() const {
+    expr node = make_xbyak_intrin(this->dtype_, this->args_,
+            static_cast<xbyak_intrin_type>(this->type_), this->isa_,
+            this->modifier_);
+    return copy_attr(*this, std::move(node));
+}
+
 void xbyak_intrin_node::to_string(ostream &os) const {
     auto &v = get_xbyak_intrin_handler(isa_, type_);
     if (modifier_.enabled_) {

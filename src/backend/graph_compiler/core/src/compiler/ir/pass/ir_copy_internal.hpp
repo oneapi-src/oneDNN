@@ -122,6 +122,7 @@ public:
     void view(tensor_c v) override;
     void view(tensorptr_c v) override;
     void view(intrin_call_c v) override;
+    void view(low_level_intrin_c v) override;
     void view(func_addr_c v) override;
     void view(ssa_phi_c v) override;
 
