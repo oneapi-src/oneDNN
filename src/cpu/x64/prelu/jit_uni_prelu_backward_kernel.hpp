@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,11 +94,11 @@ private:
     const bool saturation_needed_diff_src_;
     const bool saturation_needed_diff_weights_;
 
+    const Vmm tail_vmm_mask_; // Keep it higher to preserve idx=0 tail register
     const Vmm vmm_zeros_;
     const Vmm saturation_ubound_diff_src_;
     const Vmm saturation_ubound_diff_weights_;
 
-    const Vmm tail_vmm_mask_;
     const Vmm vmm_ones_;
     const Vmm weights_const_vmm_;
     const Vmm weights_diff_acc_vmm_;
