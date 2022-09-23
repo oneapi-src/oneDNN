@@ -85,7 +85,7 @@ void fill_random(std::vector<float> &out, bool is_integer) {
 
     for (size_t i = 0; i < out.size(); i += nrand) {
         size_t chunk = std::min(nrand, out.size() - i);
-        std::memcpy(&out[i], rd.data(), chunk);
+        std::memcpy(&out[i], rd.data(), chunk * sizeof(float));
     }
 }
 
