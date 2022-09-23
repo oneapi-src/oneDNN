@@ -34,6 +34,7 @@
 #include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 
+SC_MODULE(ops.managed_matmul_core)
 using namespace sc::builder;
 namespace sc {
 
@@ -546,6 +547,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   const managed_matmul_core_config_t &config, fusion_manager *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
+  if (!ctx->flags_.mixed_fusion_) {
+    SC_MODULE_WARN << "Managed matmul core has some conflicts with old fusion "
+                      "strategy, which may lead to wrong calculation.";
+  }
   // Init
   int M_split_num = config.M_split_num, N_split_num = config.N_split_num;
   int num_threads = runtime_config_t::get().get_num_threads();
