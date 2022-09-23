@@ -23,10 +23,8 @@
 ///
 /// Concepts:
 /// - Asymmetric quantization
-///   - Run-time output scales: dnnl::primitive_attr::set_output_scales() and
-///     #DNNL_RUNTIME_F32_VAL
-///   - Run-time zero points: dnnl::primitive_attr::set_zero_points() and
-///     #DNNL_RUNTIME_S32_VAL
+///   - Run-time output scales: dnnl::primitive_attr::set_output_scales()
+///   - Run-time zero points: dnnl::primitive_attr::set_zero_points()
 /// - [Operation fusion](@ref dev_guide_attributes_post_ops)
 /// - Create primitive once, use multiple times
 ///   - Run-time tensor shapes: #DNNL_RUNTIME_DIM_VAL
@@ -114,8 +112,8 @@ matmul::primitive_desc matmul_pd_create(
     // runtime parameters
     primitive_attr attr;
     attr.set_output_scales(/* mask */ 1 << 1);
-    attr.set_zero_points(DNNL_ARG_SRC, /* mask */ 0, {DNNL_RUNTIME_S32_VAL});
-    attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0, {DNNL_RUNTIME_S32_VAL});
+    attr.set_zero_points(DNNL_ARG_SRC, /* mask */ 0);
+    attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0);
     post_ops po;
     po.append_eltwise(1.f, algorithm::eltwise_relu, 0.f, 0.f);
     attr.set_post_ops(po);

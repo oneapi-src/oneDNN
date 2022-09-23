@@ -99,7 +99,7 @@
 /// runtime. This gives slightly worse performance, but that might be inevitable
 /// due to accuracy considerations.
 ///
-/// Both approaches are demonstrated in this example.
+/// Only dynamic approaches is demonstrated in this example.
 ///
 /// Other details:
 /// - For simplicity all matrices will be stored in Row-Major format.
@@ -126,8 +126,6 @@
 #include "example_utils.hpp"
 
 using namespace dnnl;
-
-enum class q10n_scheme_t { DYNAMIC, STATIC };
 
 namespace {
 
@@ -218,15 +216,13 @@ engine eng(engine::kind::cpu, 0); // We create a global engine for simplicity
 //                  how the q10n parameters are passed to reorders
 // Outputs:
 // - X_int_m -- prepared oneDNN memory that would hold quantized values
-void quantize(q10n_scheme_t q10n_scheme, const std::vector<float> &X_f32,
-        float scale_X, int32_t zp_X, memory &X_int_m) {
+void quantize(const std::vector<float> &X_f32, float scale_X, int32_t zp_X,
+        memory &X_int_m) {
     using dt = memory::data_type;
 
     // Depending on `q10n_scheme` pretend the values come at run-time (dynamic)
     // or were known at creation time (static).
     float inv_scale_X = 1.f / scale_X;
-
-    const bool is_dynamic_q10n = q10n_scheme == q10n_scheme_t::DYNAMIC;
 
     stream s(eng);
 
@@ -238,21 +234,15 @@ void quantize(q10n_scheme_t q10n_scheme, const std::vector<float> &X_f32,
 
     primitive_attr q10n_attr;
     q10n_attr.set_output_scales(/* mask */ 0);
-    q10n_attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0,
-            {is_dynamic_q10n ? DNNL_RUNTIME_S32_VAL : zp_X});
+    q10n_attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0);
 
     reorder::primitive_desc q10n_pd(eng, x_f32_md, eng, x_int_md, q10n_attr);
-    if (is_dynamic_q10n) {
-        memory scale_X_m({{1}, dt::f32, {1}}, eng, &inv_scale_X);
-        memory zp_X_m({{1}, dt::s32, {1}}, eng, &zp_X);
-        reorder(q10n_pd).execute(s,
-                {{DNNL_ARG_SRC, X_f32_m}, {DNNL_ARG_DST, X_int_m},
-                        {DNNL_ARG_ATTR_OUTPUT_SCALES, scale_X_m},
-                        {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, zp_X_m}});
-    } else {
-        reorder(q10n_pd).execute(
-                s, {{DNNL_ARG_SRC, X_f32_m}, {DNNL_ARG_DST, X_int_m}});
-    }
+    memory scale_X_m({{1}, dt::f32, {1}}, eng, &inv_scale_X);
+    memory zp_X_m({{1}, dt::s32, {1}}, eng, &zp_X);
+    reorder(q10n_pd).execute(s,
+            {{DNNL_ARG_SRC, X_f32_m}, {DNNL_ARG_DST, X_int_m},
+                    {DNNL_ARG_ATTR_OUTPUT_SCALES, scale_X_m},
+                    {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, zp_X_m}});
 
     s.wait();
 }
@@ -312,13 +302,13 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
     std::vector<uint8_t> A_u8(M * K, 0);
     memory::desc a_u8_md({M, K}, memory::data_type::u8, {K, 1});
     memory A_u8_m(a_u8_md, eng, (void *)A_u8.data());
-    quantize(q10n_scheme_t::DYNAMIC, A_f32, scale_A, zp_A, A_u8_m);
+    quantize(A_f32, scale_A, zp_A, A_u8_m);
 
     // Quantize matrix B_s8 using reorder primitive
     std::vector<uint8_t> B_s8(K * N, 0);
     memory::desc b_s8_md({K, N}, memory::data_type::s8, {N, 1});
     memory B_s8_m(b_s8_md, eng, (void *)B_s8.data());
-    quantize(q10n_scheme_t::DYNAMIC, B_f32, scale_B, 0, B_s8_m);
+    quantize(B_f32, scale_B, 0, B_s8_m);
 
     // Compute C_f32. We cannot directly compute C_u8 since we don't know the
     // appropriate quantization parameters.
@@ -341,8 +331,7 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
     {
         primitive_attr matmul_attr;
         matmul_attr.set_output_scales(/* mask */ 0);
-        matmul_attr.set_zero_points(
-                DNNL_ARG_SRC, /* mask */ 0, {DNNL_RUNTIME_S32_VAL});
+        matmul_attr.set_zero_points(DNNL_ARG_SRC, /* mask */ 0);
 
         matmul::primitive_desc matmul_pd(
                 eng, a_u8_md, b_s8_md, c_f32_md, matmul_attr);
@@ -368,57 +357,7 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
     // Finally quantize the matrix C
     memory::desc c_u8_md({M, N}, memory::data_type::u8, {N, 1});
     memory C_u8_m(c_u8_md, eng, (void *)C_u8.data());
-    quantize(q10n_scheme_t::DYNAMIC, C_f32, scale_C, zp_C, C_u8_m);
-}
-
-// Reduced precision MatMul with **static** quantization
-// Inputs:
-// - Shape: M, N, K
-// - Matrices A and B in float (would be quantized inside the function using
-//   given q10n parameters)
-// - Quantization parameters for all 3 matrices:
-//   - scale_A, zp_A
-//   - scale_B
-//   - scale_C, zp_C
-// Outputs:
-// - Matrix C in uint8_t
-void static_q10n_matmul(int64_t M, int64_t N, int64_t K,
-        const std::vector<float> &A_f32, const std::vector<float> &B_f32,
-        float scale_A, int32_t zp_A, float scale_B, float scale_C, int32_t zp_C,
-        std::vector<uint8_t> &C_u8) {
-    stream s(eng);
-
-    // Quantize matrix A_u8 using reorder primitive
-    std::vector<uint8_t> A_u8(M * K, 0);
-    memory::desc a_u8_md({M, K}, memory::data_type::u8, {K, 1});
-    memory A_u8_m(a_u8_md, eng, (void *)A_u8.data());
-    quantize(q10n_scheme_t::STATIC, A_f32, scale_A, zp_A, A_u8_m);
-
-    // Quantize matrix B_s8 using reorder primitive
-    std::vector<uint8_t> B_s8(K * N, 0);
-    memory::desc b_s8_md({K, N}, memory::data_type::s8, {N, 1});
-    memory B_s8_m(b_s8_md, eng, (void *)B_s8.data());
-    quantize(q10n_scheme_t::STATIC, B_f32, scale_B, 0, B_s8_m);
-
-    // Directly compute C_u8, since we know quantization parameters for the
-    // matrix C. This is the key difference compare to **dynamic** quantization.
-    {
-        memory::desc c_u8_md({M, N}, memory::data_type::u8, {N, 1});
-        memory C_u8_m(c_u8_md, eng, (void *)C_u8.data());
-
-        primitive_attr matmul_attr;
-        matmul_attr.set_output_scales(/* mask */ 0);
-        matmul_attr.set_zero_points(DNNL_ARG_SRC, /* mask */ 0, {zp_A});
-        matmul_attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0, {zp_C});
-
-        matmul::primitive_desc matmul_pd(
-                eng, a_u8_md, b_s8_md, c_u8_md, matmul_attr);
-        matmul matmul_p(matmul_pd);
-
-        matmul_p.execute(s,
-                {{DNNL_ARG_SRC, A_u8_m}, {DNNL_ARG_WEIGHTS, B_s8_m},
-                        {DNNL_ARG_DST, C_u8_m}});
-    }
+    quantize(C_f32, scale_C, zp_C, C_u8_m);
 }
 
 void compare_f32_and_quantized_matmuls() {
@@ -434,12 +373,7 @@ void compare_f32_and_quantized_matmuls() {
 
     // Thresholds
     //
-    // Ideally the threshold for static quantization should be a little higher
-    // than for dynamic quantization. However, we will slightly cheat on the
-    // guessed q10n parameters of matrix C (see below), so we will get pretty
-    // good accuracy as well.
     const float threshold_dynamic_q10n = 3 * 1e-2f;
-    const float threshold_static_q10n = 4 * 1e-2f;
 
     // Prepare matrices
     std::vector<float> A_f32(M * K), B_f32(K * N), C_f32(M * N, 0);
@@ -449,70 +383,18 @@ void compare_f32_and_quantized_matmuls() {
     // Compute _true_ f32 result
     f32_matmul_compute(M, N, K, A_f32, B_f32, C_f32);
 
-    // Compute quantized variant (dynamic)
-    {
-        printf("# DYNAMIC quantization\n\n");
+    std::vector<uint8_t> C_u8_dynamic_q10n(M * N, 0);
 
-        std::vector<uint8_t> C_u8_dynamic_q10n(M * N, 0);
+    float scale_C_dynamic_q10n; // Q10n parameters we don't know yet
+    int zp_C_dynamic_q10n;
 
-        float scale_C_dynamic_q10n; // Q10n parameters we don't know yet
-        int zp_C_dynamic_q10n;
+    dynamic_q10n_matmul(M, N, K, A_f32, B_f32, C_u8_dynamic_q10n,
+            scale_C_dynamic_q10n, zp_C_dynamic_q10n);
 
-        dynamic_q10n_matmul(M, N, K, A_f32, B_f32, C_u8_dynamic_q10n,
-                scale_C_dynamic_q10n, zp_C_dynamic_q10n);
-
-        // Compare _true_ f32 result with dynamic q10n
-        int rc = compare_vectors(C_f32, C_u8_dynamic_q10n, scale_C_dynamic_q10n,
-                zp_C_dynamic_q10n, threshold_dynamic_q10n);
-        if (rc) throw std::logic_error("Dynamic quantization accuracy failed.");
-    }
-
-    // Compute quantized variant (static)
-    {
-        printf("# STATIC quantization\n\n");
-
-        std::vector<uint8_t> C_u8_static_q10n(M * N, 0);
-
-        // Let's pretend we know the appropriate q10n parameters (by gathering
-        // some statistic or whatnot). For matrix C we will slightly _cheat_
-        // and get the appropriate q10n from the actual C_f32 result that we
-        // computed earlier. Of course, it is not what one would do in the
-        // **static** q10n scheme (just by the definition of the **static**
-        // q10n), but solely for the purpose of this example print "passed" in
-        // the end :)
-        const float scale_A_static_q10n
-                = (param_A_max_val - param_A_min_val) / 128;
-        const int zp_A_static_q10n
-                = (int)(128 - param_A_max_val / scale_A_static_q10n);
-        const float scale_B_static_q10n
-                = (param_B_max_val - param_B_min_val) / 256;
-
-        float scale_C_static_q10n;
-        int zp_C_static_q10n;
-        // !!! CHEATING STARTS HERE
-        const char *warn_message
-                = "C"
-                  "\n\t*******************************************************"
-                  "\n\t* NOTE: These computation do not happen in real world *"
-                  "\n\t*       applications and used here solely to simplify *"
-                  "\n\t*       the example.                                  *"
-                  "\n\t*       Please refer to the example source code for   *"
-                  "\n\t*       more information.                             *"
-                  "\n\t*******************************************************";
-
-        compute_q10n_params<uint8_t>(
-                warn_message, C_f32, scale_C_static_q10n, zp_C_static_q10n);
-        // !!! CHEATING ENDS HERE
-
-        static_q10n_matmul(M, N, K, A_f32, B_f32, scale_A_static_q10n,
-                zp_A_static_q10n, scale_B_static_q10n, scale_C_static_q10n,
-                zp_C_static_q10n, C_u8_static_q10n);
-
-        // Compare _true_ f32 result with static q10n
-        int rc = compare_vectors(C_f32, C_u8_static_q10n, scale_C_static_q10n,
-                zp_C_static_q10n, threshold_static_q10n);
-        if (rc) throw std::logic_error("Static quantization accuracy failed.");
-    }
+    // Compare _true_ f32 result with dynamic q10n
+    int rc = compare_vectors(C_f32, C_u8_dynamic_q10n, scale_C_dynamic_q10n,
+            zp_C_dynamic_q10n, threshold_dynamic_q10n);
+    if (rc) throw std::logic_error("Dynamic quantization accuracy failed.");
 }
 
 int main(int argc, char **argv) {

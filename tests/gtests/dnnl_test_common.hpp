@@ -876,7 +876,7 @@ template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_zp(const engine &eng, bool supports_zero_point,
         const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr_zp;
-    attr_zp.set_zero_points(DNNL_ARG_SRC, 0, {1});
+    attr_zp.set_zero_points(DNNL_ARG_SRC, 0);
     if (supports_zero_point)
         EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_zp));
     else
@@ -1003,7 +1003,7 @@ template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_zp(const engine &eng, const hint_pd_t &hint,
         bool supports_zero_point, const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr_zp;
-    attr_zp.set_zero_points(DNNL_ARG_SRC, 0, {1});
+    attr_zp.set_zero_points(DNNL_ARG_SRC, 0);
     if (supports_zero_point)
         EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr_zp));
     else

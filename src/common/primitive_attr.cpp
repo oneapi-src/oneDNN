@@ -478,18 +478,22 @@ status_t dnnl_primitive_attr_get_scales(
     return attr->scales_.get(arg, &count, mask, &scales);
 }
 
-status_t dnnl_primitive_attr_get_zero_points(const primitive_attr_t *attr,
-        int arg, dim_t *count, int *mask, const int **zero_points) {
+status_t dnnl_primitive_attr_get_zero_points(
+        const primitive_attr_t *attr, int arg, int *mask) {
     if (attr == nullptr) return invalid_arguments;
-    return attr->zero_points_.get(arg, count, mask, zero_points);
+
+    const int *zero_points {nullptr};
+    dim_t count {0};
+
+    return attr->zero_points_.get(arg, &count, mask, &zero_points);
 }
 
-status_t dnnl_primitive_attr_set_zero_points(primitive_attr_t *attr, int arg,
-        dim_t count, int mask, const int *zero_points) {
-    bool ok = !any_null(attr, zero_points) && count > 0 && mask >= 0
-            && IMPLICATION(is_runtime_value(*zero_points), count == 1);
+status_t dnnl_primitive_attr_set_zero_points(
+        primitive_attr_t *attr, int arg, int mask) {
+    bool ok = attr && mask >= 0;
     if (!ok) return invalid_arguments;
-    return attr->zero_points_.set(arg, count, mask, zero_points);
+    int zero_points = DNNL_RUNTIME_S32_VAL;
+    return attr->zero_points_.set(arg, 1, mask, &zero_points);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(

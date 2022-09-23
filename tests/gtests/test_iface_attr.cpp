@@ -142,36 +142,25 @@ TEST_F(attr_test_t, TestZeroPoints) {
     const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
             DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
     int zero_points_mask = INT_MAX;
-    std::vector<int> zero_points;
 
     // default zero points
     for (int arg : supported_args) {
-        attr.get_zero_points(arg, zero_points_mask, zero_points);
+        attr.get_zero_points(arg, zero_points_mask);
         ASSERT_EQ(zero_points_mask, 0);
-        ASSERT_EQ(zero_points.size(), 1U);
-        ASSERT_EQ(zero_points[0], 0);
     }
 
     for (int arg : unsupported_args) {
-        attr.get_zero_points(arg, zero_points_mask, zero_points);
+        attr.get_zero_points(arg, zero_points_mask);
         ASSERT_EQ(zero_points_mask, 0);
-        ASSERT_EQ(zero_points.size(), 1U);
-        ASSERT_EQ(zero_points[0], 0);
     }
 
     // single non-default zero_point for supported arg
-    attr.set_zero_points(supported_args[0], 0, {2});
-    attr.get_zero_points(supported_args[0], zero_points_mask, zero_points);
+    attr.set_zero_points(supported_args[0], 0);
+    attr.get_zero_points(supported_args[0], zero_points_mask);
     ASSERT_EQ(zero_points_mask, 0);
-    ASSERT_EQ(zero_points.size(), 1U);
-    ASSERT_EQ(zero_points[0], 2);
 
     // single **default** zero_point for **unsupported** arg
-    attr.set_zero_points(unsupported_args[0], 0, {0});
-    attr.get_zero_points(unsupported_args[0], zero_points_mask, zero_points);
-    ASSERT_EQ(zero_points_mask, 0);
-    ASSERT_EQ(zero_points.size(), 1U);
-    ASSERT_EQ(zero_points[0], 0);
+    EXPECT_ANY_THROW(attr.set_zero_points(unsupported_args[0], 0));
 
     // multiple zero_points not implemented yet ...
 }
@@ -179,15 +168,13 @@ TEST_F(attr_test_t, TestZeroPoints) {
 TEST_F(attr_test_t, TestZeroPointsExpectFailure) {
     dnnl::primitive_attr attr;
 
-    const int supported_arg = DNNL_ARG_SRC;
     const int unsupported_arg = DNNL_ARG_MEAN;
 
     // single non-default zero_point for unsupported arg
-    EXPECT_ANY_THROW(attr.set_zero_points(unsupported_arg, 0, {2}));
+    EXPECT_ANY_THROW(attr.set_zero_points(unsupported_arg, 0));
 
-    // multiple zero points for supported and unsupported args
-    EXPECT_ANY_THROW(attr.set_zero_points(supported_arg, 1 << 1, {1, 2, 3}));
-    EXPECT_ANY_THROW(attr.set_zero_points(unsupported_arg, 1 << 1, {1, 2, 3}));
+    // multiple zero points for unsupported args
+    EXPECT_ANY_THROW(attr.set_zero_points(unsupported_arg, 1 << 1));
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {

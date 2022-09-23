@@ -38,11 +38,9 @@ protected:
         return attr;
     }
 
-    static primitive_attr gen_attr_with_zp(
-            bool is_runtime, int arg, int mask = 0) {
+    static primitive_attr gen_attr_with_zp(int arg, int mask = 0) {
         primitive_attr attr;
-        attr.set_zero_points(
-                arg, mask, {is_runtime ? DNNL_RUNTIME_S32_VAL : 2});
+        attr.set_zero_points(arg, mask);
         return attr;
     }
 
@@ -79,10 +77,7 @@ TEST_F(runtime_attr_test_t, TestBNorm) {
                      DNNL_ARG_MEAN, DNNL_ARG_VARIANCE, DNNL_ARG_DST}) {
             CHECK_UNIMPL(batch_normalization_forward::primitive_desc(eng,
                     prop_kind::forward_inference, md, md, 0.1f, flags,
-                    gen_attr_with_zp(false, arg)));
-            CHECK_UNIMPL(batch_normalization_forward::primitive_desc(eng,
-                    prop_kind::forward_inference, md, md, 0.1f, flags,
-                    gen_attr_with_zp(true, arg)));
+                    gen_attr_with_zp(arg)));
         }
     }
 }
@@ -94,10 +89,8 @@ TEST_F(runtime_attr_test_t, TestBinary) {
             eng, algorithm::binary_add, md, md, md, gen_attr_with_oscale()));
 
     for (auto arg : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(binary::primitive_desc(eng, algorithm::binary_add, md, md,
-                md, gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(binary::primitive_desc(eng, algorithm::binary_add, md, md,
-                md, gen_attr_with_zp(true, arg)));
+        CHECK_UNIMPL(binary::primitive_desc(
+                eng, algorithm::binary_add, md, md, md, gen_attr_with_zp(arg)));
     }
 }
 
@@ -110,9 +103,7 @@ TEST_F(runtime_attr_test_t, TestConcat) {
     for (auto arg :
             {DNNL_ARG_MULTIPLE_SRC, DNNL_ARG_MULTIPLE_SRC + 1, DNNL_ARG_DST}) {
         CHECK_UNIMPL(concat::primitive_desc(
-                eng, 1, {md, md}, gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(concat::primitive_desc(
-                eng, 1, {md, md}, gen_attr_with_zp(true, arg)));
+                eng, 1, {md, md}, gen_attr_with_zp(arg)));
     }
 }
 
@@ -130,33 +121,20 @@ TEST_F(runtime_attr_test_t, TestConv) {
             algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
             {1, 1}, {1, 1}, gen_attr_with_oscale()));
 
-    for (auto arg :
-            {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
         if ((src_md.get_data_type() == data_type::s8
                     || src_md.get_data_type() == data_type::u8)
                 && (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST)) {
             CHECK_OK(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_direct, src_md,
                     wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                    gen_attr_with_zp(false, arg)));
-            CHECK_OK(convolution_forward::primitive_desc(eng,
-                    prop_kind::forward, algorithm::convolution_direct, src_md,
-                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                    gen_attr_with_zp(true, arg)));
+                    gen_attr_with_zp(arg)));
         } else {
             CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_direct, src_md,
                     wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                    gen_attr_with_zp(false, arg)));
-            CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
-                    prop_kind::forward, algorithm::convolution_direct, src_md,
-                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                    gen_attr_with_zp(true, arg)));
+                    gen_attr_with_zp(arg)));
         }
-        CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
-                prop_kind::forward, algorithm::convolution_direct, src_md,
-                wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                gen_attr_with_zp(false, arg, 1 << 1)));
     }
 }
 
@@ -171,14 +149,9 @@ TEST_F(runtime_attr_test_t, TestDeconv) {
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(
-                deconvolution_forward::primitive_desc(eng, prop_kind::forward,
-                        algorithm::deconvolution_direct, src_md, wei_md, dst_md,
-                        {1, 1}, {1, 1}, {1, 1}, gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(
-                deconvolution_forward::primitive_desc(eng, prop_kind::forward,
-                        algorithm::deconvolution_direct, src_md, wei_md, dst_md,
-                        {1, 1}, {1, 1}, {1, 1}, gen_attr_with_zp(true, arg)));
+        CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng,
+                prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}, gen_attr_with_zp(arg)));
     }
 }
 
@@ -195,10 +168,7 @@ TEST_F(runtime_attr_test_t, TestEltwise) {
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
             CHECK_UNIMPL(eltwise_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::eltwise_relu, md, md, 0.f,
-                    gen_attr_with_zp(false, arg)));
-            CHECK_UNIMPL(eltwise_forward::primitive_desc(eng,
-                    prop_kind::forward, algorithm::eltwise_relu, md, md, 0.f,
-                    gen_attr_with_zp(true, arg)));
+                    gen_attr_with_zp(arg)));
         }
     }
 }
@@ -218,10 +188,7 @@ TEST_F(runtime_attr_test_t, TestInnerProduct) {
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
         CHECK_UNIMPL(
                 inner_product_forward::primitive_desc(eng, prop_kind::forward,
-                        src_md, wei_md, dst_md, gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(
-                inner_product_forward::primitive_desc(eng, prop_kind::forward,
-                        src_md, wei_md, dst_md, gen_attr_with_zp(true, arg)));
+                        src_md, wei_md, dst_md, gen_attr_with_zp(arg)));
     }
 }
 
@@ -248,10 +215,7 @@ TEST_F(runtime_attr_test_t, TestLNorm) {
                      DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
             CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
                     prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
-                    gen_attr_with_zp(false, arg)));
-            CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
-                    prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
-                    gen_attr_with_zp(true, arg)));
+                    gen_attr_with_zp(arg)));
         }
     }
 }
@@ -269,11 +233,7 @@ TEST_F(runtime_attr_test_t, TestLRN) {
             CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
                     prop_kind::forward_inference,
                     algorithm::lrn_across_channels, md, md, 5, 1.f, 0.75f, 1.0f,
-                    gen_attr_with_zp(false, arg)));
-            CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
-                    prop_kind::forward_inference,
-                    algorithm::lrn_across_channels, md, md, 5, 1.f, 0.75f, 1.0f,
-                    gen_attr_with_zp(true, arg)));
+                    gen_attr_with_zp(arg)));
         }
     }
 }
@@ -296,14 +256,10 @@ CPU_TEST_F(runtime_attr_test_t, TestMatmul) {
             if ((a_dt != data_type::u8 && a_dt != data_type::s8)
                     || arg == DNNL_ARG_BIAS) {
                 CHECK_UNIMPL(matmul::primitive_desc(
-                        eng, a_md, b_md, c_md, gen_attr_with_zp(false, arg)));
-                CHECK_UNIMPL(matmul::primitive_desc(
-                        eng, a_md, b_md, c_md, gen_attr_with_zp(true, arg)));
+                        eng, a_md, b_md, c_md, gen_attr_with_zp(arg)));
             } else {
                 CHECK_OK(matmul::primitive_desc(
-                        eng, a_md, b_md, c_md, gen_attr_with_zp(false, arg)));
-                CHECK_OK(matmul::primitive_desc(
-                        eng, a_md, b_md, c_md, gen_attr_with_zp(true, arg)));
+                        eng, a_md, b_md, c_md, gen_attr_with_zp(arg)));
             }
         }
     }
@@ -325,11 +281,7 @@ TEST_F(runtime_attr_test_t, TestPool) {
         CHECK_UNIMPL(pooling_forward::primitive_desc(eng,
                 prop_kind::forward_inference, algorithm::pooling_max, src_md,
                 dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0},
-                gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(pooling_forward::primitive_desc(eng,
-                prop_kind::forward_inference, algorithm::pooling_max, src_md,
-                dst_md, {2, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0},
-                gen_attr_with_zp(true, arg)));
+                gen_attr_with_zp(arg)));
     }
 }
 
@@ -346,9 +298,7 @@ TEST_F(runtime_attr_test_t, TestPReLU) {
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(prelu_forward::primitive_desc(eng, prop_kind::forward,
-                data_md, weights_md, data_md, gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(prelu_forward::primitive_desc(eng, prop_kind::forward,
-                data_md, weights_md, data_md, gen_attr_with_zp(true, arg)));
+                data_md, weights_md, data_md, gen_attr_with_zp(arg)));
     }
 }
 
@@ -361,9 +311,7 @@ CPU_TEST_F(runtime_attr_test_t, TestReorder) {
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_OK(reorder::primitive_desc(
-                eng, src_md, eng, dst_md, gen_attr_with_zp(false, arg)));
-        CHECK_OK(reorder::primitive_desc(
-                eng, src_md, eng, dst_md, gen_attr_with_zp(true, arg)));
+                eng, src_md, eng, dst_md, gen_attr_with_zp(arg)));
     }
 }
 
@@ -417,14 +365,7 @@ TEST_F(runtime_attr_test_t, TestRNN) {
                         rnn_direction::unidirectional_left2right, src_layer_md,
                         src_iter_md, src_iter_c_md, wei_layer_md, wei_iter_md,
                         bia_md, dst_layer_md, dst_iter_md, dst_iter_c_md,
-                        gen_attr_with_zp(false, arg)));
-
-        CHECK_UNIMPL(
-                lstm_forward::primitive_desc(eng, prop_kind::forward_inference,
-                        rnn_direction::unidirectional_left2right, src_layer_md,
-                        src_iter_md, src_iter_c_md, wei_layer_md, wei_iter_md,
-                        bia_md, dst_layer_md, dst_iter_md, dst_iter_c_md,
-                        gen_attr_with_zp(true, arg)));
+                        gen_attr_with_zp(arg)));
     }
 }
 
@@ -438,10 +379,8 @@ TEST_F(runtime_attr_test_t, TestShuffle) {
             eng, prop_kind::forward, md, md, 1, 4, gen_attr_with_oscale()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(shuffle_forward::primitive_desc pd(eng, prop_kind::forward,
-                md, md, 1, 4, gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(shuffle_forward::primitive_desc pd(eng, prop_kind::forward,
-                md, md, 1, 4, gen_attr_with_zp(true, arg)));
+        CHECK_UNIMPL(shuffle_forward::primitive_desc pd(
+                eng, prop_kind::forward, md, md, 1, 4, gen_attr_with_zp(arg)));
     }
 }
 
@@ -458,11 +397,7 @@ TEST_F(runtime_attr_test_t, TestSoftmax) {
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(softmax_forward::primitive_desc(eng, prop_kind::forward,
-                algorithm::softmax_accurate, md, md, 1,
-                gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(softmax_forward::primitive_desc(eng, prop_kind::forward,
-                algorithm::softmax_accurate, md, md, 1,
-                gen_attr_with_zp(true, arg)));
+                algorithm::softmax_accurate, md, md, 1, gen_attr_with_zp(arg)));
     }
 }
 
@@ -474,9 +409,7 @@ TEST_F(runtime_attr_test_t, TestSum) {
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(sum::primitive_desc(
-                eng, {1.f, 1.f}, {md, md}, gen_attr_with_zp(false, arg)));
-        CHECK_UNIMPL(sum::primitive_desc(
-                eng, {1.f, 1.f}, {md, md}, gen_attr_with_zp(true, arg)));
+                eng, {1.f, 1.f}, {md, md}, gen_attr_with_zp(arg)));
     }
 }
 

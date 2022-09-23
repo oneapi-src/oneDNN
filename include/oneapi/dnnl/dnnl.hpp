@@ -3546,19 +3546,12 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     zero point is used for each index along that dimension. Set the
     ///     mask to 0 to use a common zero point for the whole output tensor.
     /// @param zero_points Output vector of zero points.
-    void get_zero_points(
-            int arg, int &mask, std::vector<int32_t> &zero_points) const {
-        dnnl_dim_t count;
+    void get_zero_points(int arg, int &mask) const {
         int c_mask;
-        const int32_t *c_zero_points;
-        error::wrap_c_api(dnnl_primitive_attr_get_zero_points(
-                                  get(), arg, &count, &c_mask, &c_zero_points),
+        error::wrap_c_api(
+                dnnl_primitive_attr_get_zero_points(get(), arg, &c_mask),
                 "could not get zero points primitive attribute");
-        zero_points.resize(count);
-
         mask = c_mask;
-        for (dnnl_dim_t c = 0; c < count; ++c)
-            zero_points[c] = c_zero_points[c];
     }
 
     /// Sets zero points for primitive operations for a given memory argument.
@@ -3573,19 +3566,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     zero_points vector. The set i-th bit indicates that a dedicated
     ///     zero point is used for each index along that dimension. Set the
     ///     mask to 0 to use a common zero point for the whole output tensor.
-    /// @param zero_points Constant vector of zero points. If the zero points
-    ///     are known at the time of this call, the following equality must
-    ///     hold: \f$zero\_points.size() = \prod\limits_{d \in mask}
-    ///     argument.dims[d].\f$ If the zero points are not known at the time
-    ///     of the call, this vector must contain a single
-    ///     #DNNL_RUNTIME_S32_VAL value and the zero points must be passed at
-    ///     execution time as an argument with index
-    ///     #DNNL_ARG_ATTR_ZERO_POINTS.
-    void set_zero_points(
-            int arg, int mask, const std::vector<int32_t> &zero_points) {
-        error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg,
-                                  (dnnl_dim_t)zero_points.size(), mask,
-                                  zero_points.data()),
+    void set_zero_points(int arg, int mask) {
+        error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg, mask),
                 "could not set zero points primitive attribute");
     }
 

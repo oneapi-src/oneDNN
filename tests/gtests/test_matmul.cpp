@@ -205,19 +205,13 @@ protected:
             int mask = zero_points_mask == P::PER_N ? 1 << (ndims - 1) : 0;
             memory::dim zero_points_size = mask ? md.dims[ndims - 1] : 1;
 
-            if (flags & P::RUNTIME) {
-                attr.set_zero_points(arg, mask, {DNNL_RUNTIME_S32_VAL});
-                zero_points_m = test::make_memory(
-                        {{zero_points_size}, memory::data_type::s32, {1}}, eng);
-                auto z = map_memory<int32_t>(zero_points_m);
-                GTEST_EXPECT_NE(z, nullptr);
-                for (memory::dim i = 0; i < zero_points_size; ++i)
-                    z[i] = (arg % 7) - 3;
-            } else {
-                std::vector<int32_t> zero_points(
-                        zero_points_size, (arg % 7) - 3);
-                attr.set_zero_points(arg, mask, zero_points);
-            }
+            attr.set_zero_points(arg, mask);
+            zero_points_m = test::make_memory(
+                    {{zero_points_size}, memory::data_type::s32, {1}}, eng);
+            auto z = map_memory<int32_t>(zero_points_m);
+            GTEST_EXPECT_NE(z, nullptr);
+            for (memory::dim i = 0; i < zero_points_size; ++i)
+                z[i] = (arg % 7) - 3;
         };
 
         handle_zero_points(DNNL_ARG_SRC, p.attr.zero_points.src, p.base.src,
@@ -649,16 +643,15 @@ static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
                      {{10, 20}, dst_dt, tag::ab}, data_type::f32},
                     {P::SCALES | P::COMMON | P::RUNTIME,
                             {P::ZERO_POINTS | P::SRC | P::COMMON, P::NONE,
-                                    P::ZERO_POINTS | P::DST | P::COMMON
-                                            | P::RUNTIME}}});
+                                    P::ZERO_POINTS | P::DST | P::COMMON}}});
 
     // per_dim_1 zero points + runtime
-    cases.push_back({{{{10, 2}, src_dt, tag::ba},
-                             {{2, 20}, data_type::s8, tag::ab},
-                             {{10, 20}, dst_dt, tag::ab}, data_type::f32},
-            {P::SCALES | P::COMMON | P::RUNTIME,
-                    {P::ZERO_POINTS | P::SRC | P::PER_N | P::RUNTIME, P::NONE,
-                            P::ZERO_POINTS | P::DST | P::PER_N | P::RUNTIME}}});
+    cases.push_back(
+            {{{{10, 2}, src_dt, tag::ba}, {{2, 20}, data_type::s8, tag::ab},
+                     {{10, 20}, dst_dt, tag::ab}, data_type::f32},
+                    {P::SCALES | P::COMMON | P::RUNTIME,
+                            {P::ZERO_POINTS | P::SRC | P::PER_N, P::NONE,
+                                    P::ZERO_POINTS | P::DST | P::PER_N}}});
     // post-ops
     cases.push_back({{{{10, 1}, src_dt, tag::ab},
                              {{1, 20}, data_type::s8, tag::ab},
@@ -675,23 +668,22 @@ static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
                                             algorithm::eltwise_relu}}}});
 
     // igemm like: output scale + post-ops(sum)
-    cases.push_back({{{{10, 1}, src_dt, tag::ab},
-                             {{1, 20}, data_type::s8, tag::ab},
-                             {{10, 20}, dst_dt, tag::ab}, data_type::s8},
-            {P::SCALES | P::COMMON,
-                    {P::ZERO_POINTS | P::SRC | P::COMMON, P::NONE,
-                            P::ZERO_POINTS | P::DST | P::COMMON | P::RUNTIME},
-                    {{primitive::kind::sum}}}});
+    cases.push_back(
+            {{{{10, 1}, src_dt, tag::ab}, {{1, 20}, data_type::s8, tag::ab},
+                     {{10, 20}, dst_dt, tag::ab}, data_type::s8},
+                    {P::SCALES | P::COMMON,
+                            {P::ZERO_POINTS | P::SRC | P::COMMON, P::NONE,
+                                    P::ZERO_POINTS | P::DST | P::COMMON},
+                            {{primitive::kind::sum}}}});
     // igemm like: output scale + post-ops(sum) + all runtime
-    cases.push_back({{{{10, 2}, src_dt, tag::ba},
-                             {{2, 20}, data_type::s8, tag::ba},
-                             {{10, 20}, dst_dt, tag::ab}, data_type::s8},
-            {P::SCALES | P::PER_N,
-                    {P::ZERO_POINTS | P::SRC | P::COMMON | P::RUNTIME,
-                            P::ZERO_POINTS | P::WEIGHTS | P::COMMON
-                                    | P::RUNTIME,
-                            P::ZERO_POINTS | P::DST | P::COMMON | P::RUNTIME},
-                    {{primitive::kind::sum}}}});
+    cases.push_back(
+            {{{{10, 2}, src_dt, tag::ba}, {{2, 20}, data_type::s8, tag::ba},
+                     {{10, 20}, dst_dt, tag::ab}, data_type::s8},
+                    {P::SCALES | P::PER_N,
+                            {P::ZERO_POINTS | P::SRC | P::COMMON,
+                                    P::ZERO_POINTS | P::WEIGHTS | P::COMMON,
+                                    P::ZERO_POINTS | P::DST | P::COMMON},
+                            {{primitive::kind::sum}}}});
 
     return ::testing::ValuesIn(cases);
 };

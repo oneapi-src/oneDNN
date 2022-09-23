@@ -437,19 +437,15 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales(
 /// @param attr Primitive attributes.
 /// @param arg Parameter argument index as passed to the
 ///     dnnl_primitive_execute() call.
-/// @param count Output length of the array of zero points @p zero_points.
 /// @param mask Output zero points correspondence mask that defines the
 ///     correspondence between the output tensor dimensions and the @p
 ///     zero_points array. The set i-th bit indicates that a dedicated output
 ///     zero point is used for each index along that dimension. The mask
 ///     value of 0 implies a common zero point for the whole output tensor.
-/// @param zero_points Output pointer to a constant array of int32_t zero
-///     points.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_get_zero_points(
-        const_dnnl_primitive_attr_t attr, int arg, dnnl_dim_t *count, int *mask,
-        const int32_t **zero_points);
+        const_dnnl_primitive_attr_t attr, int arg, int *mask);
 
 /// Sets primitive attributes zero points for primitive operations for a given
 /// memory argument.
@@ -460,25 +456,15 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_zero_points(
 /// @param attr Primitive attributes.
 /// @param arg Parameter argument index as passed to the
 ///     dnnl_primitive_execute() call.
-/// @param count Length of the array of zero points @p zero_points.
 /// @param mask Zero point correspondence mask that defines the
 ///     correspondence between the tensor dimensions and the @p
 ///     zero_points array. The set i-th bit indicates that a dedicated
 ///     zero point is used for each index along that dimension. Set the
 ///     mask to 0 to use a common zero point for the whole output tensor.
-/// @param zero_points Constant array of int32_t zero points. If the zero
-///     points are known at the time of this call, this array must contain @p
-///     count zero points and the following equality must hold:
-///     \f[count = \prod\limits_{d \in mask} output.dims[d].\f]
-///     If the zero points are not known at the time of the call, this array
-///     must contain a single #DNNL_RUNTIME_S32_VAL and the zero points must
-///     be passed at execution time as an argument with index
-///     #DNNL_ARG_ATTR_ZERO_POINTS.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
-        dnnl_primitive_attr_t attr, int arg, dnnl_dim_t count, int mask,
-        const int32_t *zero_points);
+        dnnl_primitive_attr_t attr, int arg, int mask);
 
 /// Returns primitive attributes post-ops.
 ///
