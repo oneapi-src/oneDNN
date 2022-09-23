@@ -63,11 +63,12 @@ std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&... args) {
 template <template <ngen::HW> class KernelT, typename... ArgsT>
 compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
         gpu_gen_t arch, ArgsT &&... args) {
-    compute::kernel_t kernel;
+    using namespace compute;
+    kernel_t kernel;
 
     if (primitive->cache_blob()) {
         status_t status = primitive->create_kernel(engine, &kernel, nullptr);
-        if (status != status::success) return compute::kernel_t();
+        if (status != status::success) return kernel_t();
         return kernel;
     }
 
@@ -105,11 +106,11 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
             << "Cannot emulate executing gpu_arch environment";
 #endif
 
-    if (!jit_kernel) return compute::kernel_t();
+    if (!jit_kernel) return kernel_t();
 
     status_t status
             = primitive->create_kernel(engine, &kernel, jit_kernel.get());
-    if (status != status::success) return compute::kernel_t();
+    if (status != status::success) return kernel_t();
     return kernel;
 }
 
