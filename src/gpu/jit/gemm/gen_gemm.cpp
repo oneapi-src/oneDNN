@@ -31,11 +31,13 @@ namespace jit {
 status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c,
-        const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
-        int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
-        int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
-        float beta, int16_t ao, int16_t bo, int32_t cmask, bool last_k_block,
-        bool swapab, bool disable_hilbert) const {
+        const memory_storage_t &co, int binary_count,
+        const memory_storage_t **binary, int64_t offset_a, int64_t offset_b,
+        int64_t offset_c, int32_t offset_co, int32_t *offset_binary,
+        int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
+        int32_t k0, float alpha, float beta, int16_t ao, int16_t bo,
+        int32_t cmask, bool last_k_block, bool swapab,
+        bool disable_hilbert) const {
 
     uint32_t flags = 0;
     bool k_parallel
@@ -85,6 +87,18 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
             || pd()->with_sum_ab()) {
         arg_list.set(argn++, co);
         arg_list.set(argn++, offset_co);
+        if (pd()->with_bias()) {
+            int32_t ldco = pd()->desc()->ld_bias();
+            arg_list.set(argn++, ldco);
+        }
+    }
+    for (int i = 0; i < binary_count; i++) {
+        arg_list.set(argn++, *binary[i]);
+        arg_list.set(argn++, offset_binary[i]);
+
+        auto problem = pd()->kernel_desc()->problem();
+        if (problem->binaryRow[i] && problem->binaryCol[i])
+            arg_list.set(argn++, int32_t(pd()->ld_binary(i)));
     }
     arg_list.set(argn++, flags);
     if (k_parallel) arg_list.set(argn++, k0);
@@ -93,6 +107,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         arg_list.set(argn++, stride_a0);
         arg_list.set(argn++, stride_b0);
         arg_list.set(argn++, stride_c0);
+        for (int i = 0; i < binary_count; i++)
+            arg_list.set(argn++, int32_t(pd()->stride_binary(i, 0)));
     }
 
     if (pd()->batch_dims() >= 2) {
@@ -102,6 +118,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         arg_list.set(argn++, stride_a1);
         arg_list.set(argn++, stride_b1);
         arg_list.set(argn++, stride_c1);
+        for (int i = 0; i < binary_count; i++)
+            arg_list.set(argn++, int32_t(pd()->stride_binary(i, 1)));
         arg_list.set(argn++, batchSize1);
         arg_list.set(argn++, recipBatchSize1);
     }
@@ -165,6 +183,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     const auto d = pd()->desc();
+    const auto &problem = *pd()->kernel_desc()->problem();
 
     const bool swapab = pd()->swap_ab();
 
@@ -182,6 +201,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const auto lda = pd()->eff_lda();
     const auto ldb = pd()->eff_ldb();
     auto ldc = d->ldc();
+    auto ldco = pd()->with_bias() ? d->ld_bias() : 0;
 
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
@@ -197,6 +217,17 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &sum_ab = GEMM_CTX_ARG_STORAGE(sum_ab);
     auto *co = &c_zp;
 
+    int binary_count = problem.binaryPOCount();
+
+    const memory_storage_t *binary_srcs[GEMM_MAX_BINARY_PO];
+
+    for (int i = 0; i < binary_count; i++)
+        binary_srcs[i] = ctx.args()
+                                 .exec_args
+                                 .at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(i)
+                                         | DNNL_ARG_SRC_1)
+                                 .mem->memory_storage();
+
     size_t off_a0
             = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
     size_t off_b0
@@ -204,6 +235,11 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     size_t off_c0
             = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
     size_t off_co0 = 0;
+
+    int32_t binary_offsets0[GEMM_MAX_BINARY_PO],
+            binary_offsets[GEMM_MAX_BINARY_PO];
+    for (int i = 0; i < binary_count; i++)
+        binary_offsets0[i] = binary_srcs[i]->offset() / problem.Tbinary[i];
 
     int16_t ao = 0, bo = 0;
     int cmask = 0;
@@ -271,9 +307,10 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
         if (k_parallel_global && beta != 1.0f
                 && (k > k0 * nocopy_info()->wg[2])) {
-            status = launch_nocopy(ctx, compute_stream, a, b, c, *co, off_a0,
-                    off_b0, off_c0, int32_t(off_co0), lda, ldb, ldc, m, n, 0, 1,
-                    1.0f, beta, 0, 0, 0, false, swapab, true);
+            status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
+                    binary_count, binary_srcs, off_a0, off_b0, off_c0,
+                    int32_t(off_co0), binary_offsets0, lda, ldb, ldc, m, n, 0,
+                    1, 1.0f, beta, 0, 0, 0, false, swapab, true);
             beta = 1.0f;
         }
     }
@@ -299,14 +336,37 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
                 auto off_c = off_c0 + Bm + Bn * ldc;
                 auto off_co = int32_t(off_co0);
-                if (cmask & 1) off_co += Bn;
-                if (cmask & 2) off_co += Bm;
+                switch (cmask & 3) {
+                    case 1: off_co += Bn; break;
+                    case 2: off_co += Bm; break;
+                    case 3:
+                        off_co += isColMajor(problem.CO.layout)
+                                ? (Bn * ldco + Bm)
+                                : (Bm * ldco + Bn);
+                        break;
+                }
+
+                for (int i = 0; i < binary_count; i++) {
+                    binary_offsets[i] = binary_offsets0[i];
+                    bool row = problem.binaryRow[i], col = problem.binaryCol[i];
+                    if (row && col) {
+                        auto ld = pd()->ld_binary(i);
+                        binary_offsets[i]
+                                += isColMajor(problem.binary[i].layout)
+                                ? (Bn * ld + Bm)
+                                : (Bm * ld + Bn);
+                    } else if (row)
+                        binary_offsets[i] += Bm;
+                    else if (col)
+                        binary_offsets[i] += Bn;
+                }
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
                 status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
-                        off_a_src, off_b_src, off_c, off_co, lda, ldb, ldc,
-                        size_m, size_n, size_k, k0, alpha, eff_beta, ao, bo,
-                        cmask, last_k_block, swapab, disable_hilbert);
+                        binary_count, binary_srcs, off_a_src, off_b_src, off_c,
+                        off_co, binary_offsets, lda, ldb, ldc, size_m, size_n,
+                        size_k, k0, alpha, eff_beta, ao, bo, cmask,
+                        last_k_block, swapab, disable_hilbert);
 
                 if (status) return status;
             }

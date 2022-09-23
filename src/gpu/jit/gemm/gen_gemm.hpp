@@ -31,6 +31,8 @@
 #include "gpu/jit/jit_post_op_injector.hpp"
 #include "gpu/primitive_conf.hpp"
 
+#define GEMM_MAX_BINARY_PO 16
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -139,30 +141,39 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(d->bias_type(), f32, bf16, f16)
                                     && (d->bias_desc.ndims <= 3)
-                                    && utils::one_of(
-                                            bias_cmask(), 0, 1 << 0, 1 << 1))
+                                    && utils::one_of(bias_cmask(), 0, 1, 2, 3)
+                                    && (attr()->zero_points_.has_default_values(
+                                            DNNL_ARG_DST)))
                     && IMPLICATION(utils::one_of(d->bias_type(), bf16, f16),
                             (d->bias_type() == d->c_type()))
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(bias_cmask(), 0, 1 << 0, 1 << 1)
-                                    && (attr()->zero_points_.has_default_values(
-                                            DNNL_ARG_DST)))
                     && IMPLICATION(with_sum_ab(),
                             !with_bias()
                                     && (attr()->zero_points_.has_default_values(
                                             DNNL_ARG_DST)));
 
-            // check if there is sum post op and only at first place
-            ok &= IMPLICATION(attr()->post_ops_.find(sum) != -1,
-                    attr()->post_ops_.find(sum) == 0
-                            && attr()->post_ops_.find(sum, 1) == -1);
+            // Check post-ops. Two combinations of post-ops supported currently:
+            //   binary [binary] ... [binary]
+            //   [sum] eltwise [eltwise] ...  [eltwise]
 
-            // check if post ops are supported
-            ok &= IMPLICATION(attr()->post_ops_.len() > 0,
-                    jit_post_op_injector_is_supported(attr()->post_ops_, true));
+            const auto &post_ops = attr()->post_ops_;
+            bool with_binary = false;
+            if (post_ops.find(binary) != -1) {
+                with_binary = true;
+                for (int i = 0; i < post_ops.len(); i++)
+                    ok &= (post_ops.entry_[i].kind == binary);
+                ok &= post_ops.len() <= GEMM_MAX_BINARY_PO;
+                ok &= arch_ >= arch_t::xe_hp;
+            } else {
+                ok &= IMPLICATION(post_ops.find(sum) != -1,
+                              post_ops.find(sum) == 0
+                                      && post_ops.find(sum, 1) == -1)
+                        && IMPLICATION(post_ops.len() > 0,
+                                jit_post_op_injector_is_supported(
+                                        post_ops, true));
+            }
 
             if (!ok) return status::unimplemented;
 
@@ -194,11 +205,14 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (acc_type == data_type::bf16)
                 acc_type = data_type::f32;
-            else if (arch_ == compute::gpu_arch_t::xe_hpc
+            else if (arch_ >= compute::gpu_arch_t::xe_hpc
                     && acc_type == data_type::f16)
                 acc_type = data_type::f32;
             else if (d->acc_type == data_type::f32)
                 acc_type = data_type::f32;
+
+            if (with_binary && types::data_type_size(acc_type) < 4)
+                return status::unimplemented;
 
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
 
@@ -212,12 +226,12 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             auto status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), mode, batch_dims(), eff_transa(),
-                    eff_transb(), with_ab_zero_points(), with_c_zero_points(),
-                    with_bias(), sum_ab(), alpha(), beta(), attr()->post_ops_,
-                    eff_a_type(), eff_b_type(), desc()->c_type(), co_type,
-                    acc_type, eff_align_a(), eff_align_b(), align_c(), eff_m(),
-                    eff_n(), d->k(), eff_lda(), eff_ldb(), d->ldc(),
-                    d->batch());
+                    eff_transb(), eff_trans_bias(), swap_ab(),
+                    with_ab_zero_points(), with_c_zero_points(), with_bias(),
+                    sum_ab(), alpha(), beta(), attr()->post_ops_, eff_a_type(),
+                    eff_b_type(), desc()->c_type(), co_type, acc_type,
+                    eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
+                    d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch());
 
             if (status != status::success) return status;
 
@@ -227,7 +241,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             bool with_eltwise = (attr()->post_ops_.find(eltwise) != -1);
 
             ok &= IMPLICATION(k_parallel_global,
-                    !with_bias() && !with_eltwise && d->c_type() == f32);
+                    !with_bias() && !with_eltwise && !with_binary
+                            && d->c_type() == f32);
 
             if (!ok) return status::unimplemented;
 
@@ -390,6 +405,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool eff_transb() const {
             return !swap_ab() ? (desc()->transb() == dnnl_trans) : false;
         }
+        bool eff_trans_bias() const { return swap_ab() ^ desc()->trans_bias(); }
         dim_t eff_m() const { return !swap_ab() ? desc()->m() : desc()->n(); }
         dim_t eff_n() const { return !swap_ab() ? desc()->n() : desc()->m(); }
         dim_t eff_lda() const {
@@ -406,6 +422,18 @@ struct gen_gemm_t : public gpu_gemm_t {
         }
         const gen_gemm_nocopy_kernel_desc_t *kernel_desc() const {
             return &kernel_desc_;
+        }
+
+        dim_t ld_binary(int idx) const {
+            const auto &entry = attr()->post_ops_.entry_[idx];
+            assert(entry.kind == primitive_kind::binary);
+            return gemm_desc_t::get_ld(entry.binary.src1_desc);
+        }
+
+        dim_t stride_binary(int idx, int stride = 0) const {
+            const auto &entry = attr()->post_ops_.entry_[idx];
+            assert(entry.kind == primitive_kind::binary);
+            return gemm_desc_t::get_stride(entry.binary.src1_desc, stride);
         }
 
         size_t dyn_offset_a = 0;
@@ -453,11 +481,13 @@ private:
     status_t launch_nocopy(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &a,
             const memory_storage_t &b, const memory_storage_t &c,
-            const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
-            int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
-            int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0,
-            float alpha, float beta, int16_t ao, int16_t bo, int32_t cmask,
-            bool last_k_block, bool swapab, bool disable_hilbert) const;
+            const memory_storage_t &co, int binary_count,
+            const memory_storage_t **binary, int64_t offset_a, int64_t offset_b,
+            int64_t offset_c, int32_t offset_co, int32_t *offset_binary,
+            int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n,
+            int32_t k, int32_t k0, float alpha, float beta, int16_t ao,
+            int16_t bo, int32_t cmask, bool last_k_block, bool swapab,
+            bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {

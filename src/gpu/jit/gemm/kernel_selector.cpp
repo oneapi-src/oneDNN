@@ -41,9 +41,16 @@ inline bool precisionMatch(const char *pref, const char *ppattern) {
     ok = ok || (ppattern[0] == '?');
     ok = ok || precisionMatch(pref[0], ppattern[0]);
     ok = ok || (ppattern[0] == '[' && precisionMatch(pref[0], ppattern[1]));
-    if (ok && pref[0] == '[')
+    if (ok && pref[0] == '[') {
         ok = ok && precisionMatch(pref[1], ppattern[1])
                 && precisionMatch(pref[2], ppattern[2]);
+        for (int i = 3; pref[i] != '\0'; i++) {
+            if (pref[i] != ppattern[i]) {
+                ok = false;
+                break;
+            }
+        }
+    }
     return ok;
 }
 

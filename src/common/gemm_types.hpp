@@ -78,6 +78,8 @@ struct dnnl_gemm_desc_t {
     }
     transpose_t transa() const { return get_trans(b_desc); };
     transpose_t transb() const { return get_trans(a_desc); };
+    transpose_t trans_bias() const { return get_trans(bias_desc); }
+
     dnnl_dim_t batch() const {
         // if ndims < 3, it should return 1
         int64_t batch = 1;
@@ -96,27 +98,21 @@ struct dnnl_gemm_desc_t {
     // Size of inner dimension shared between A and B.
     dnnl_dim_t k() const { return a_desc.dims[a_desc.ndims - 1]; }
 
-    // Stride between 2 matrices A in a batch.
-    dnnl_dim_t stride_a(int dim = 0) const {
-        return (dim >= b_desc.ndims - 2 || b_desc.dims[dim] == 1)
+    static dnnl_dim_t get_stride(const dnnl_memory_desc_t &md, int dim = 0) {
+        return (dim >= md.ndims - 2 || md.dims[dim] == 1)
                 ? 0
-                : b_desc.format_desc.blocking.strides[dim];
-    };
-    // Stride between 2 matrices B in a batch.
-    dnnl_dim_t stride_b(int dim = 0) const {
-        return (dim >= a_desc.ndims - 2 || a_desc.dims[dim] == 1)
-                ? 0
-                : a_desc.format_desc.blocking.strides[dim];
-    };
-    // Stride between 2 matrices C in a batch.
-    dnnl_dim_t stride_c(int dim = 0) const {
-        return (dim >= c_desc.ndims - 2)
-                ? 0
-                : c_desc.format_desc.blocking.strides[dim];
-    };
+                : md.format_desc.blocking.strides[dim];
+    }
 
-    // This assumes that one of the dimensions has strides 1.
-    dnnl_dim_t get_ld(dnnl_memory_desc_t md) const {
+    /** Stride between 2 matrices A in a batch. */
+    dnnl_dim_t stride_a(int dim = 0) const { return get_stride(b_desc, dim); };
+    /** Stride between 2 matrices B in a batch. */
+    dnnl_dim_t stride_b(int dim = 0) const { return get_stride(a_desc, dim); };
+    /** Stride between 2 matrices C in a batch. */
+    dnnl_dim_t stride_c(int dim = 0) const { return get_stride(c_desc, dim); };
+
+    // This assumes that one of the dimensions has strides 1
+    static dnnl_dim_t get_ld(const dnnl_memory_desc_t &md) {
         auto strides = md.format_desc.blocking.strides;
         assert(strides[md.ndims - 1] == 1 || strides[md.ndims - 2] == 1);
         return strides[md.ndims - 1] != 1 ? strides[md.ndims - 1]
@@ -128,6 +124,8 @@ struct dnnl_gemm_desc_t {
     dnnl_dim_t ldb() const { return get_ld(a_desc); }
     // Leading dimension of C.
     dnnl_dim_t ldc() const { return get_ld(c_desc); }
+    /** Leading dimension of bias. */
+    dnnl_dim_t ld_bias() const { return get_ld(bias_desc); }
 
     // Type of matrix A.
     dnnl_data_type_t a_type() const { return b_desc.data_type; }

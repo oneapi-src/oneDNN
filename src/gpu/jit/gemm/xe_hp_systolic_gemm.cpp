@@ -901,6 +901,10 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
     if ((pd()->with_bias() || pd()->with_c_zero_points())) {
         arg_list.set(argn++, co);
         arg_list.set(argn++, offset_co);
+        if (pd()->with_bias() && pd()->use_new_kernels()) {
+            int32_t ldco = 0;
+            arg_list.set(argn++, ldco);
+        }
     }
     if (pd()->use_new_kernels()) {
         uint32_t flags = 0;
