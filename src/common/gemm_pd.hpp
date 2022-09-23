@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,18 +83,31 @@ protected:
         : primitive_desc_t(attr, base_pkind), desc_(*adesc) {}
 
     // By default, we just resolve 'any' with blocked layout and trivial strides
-    bool set_default_formats() {
-        for (auto md : {&desc_.a_desc, &desc_.b_desc, &desc_.bias_desc,
-                     &desc_.c_desc}) {
-            memory_desc_wrapper mdw(md);
-            if (mdw.format_any()) {
-                if (mdw.has_runtime_dims_or_strides()) return false;
-                status_t status = memory_desc_init_by_strides(*md, nullptr);
-                if (status != status::success) return false;
-            }
+    bool set_default_format(memory_desc_t *md) {
+        memory_desc_wrapper mdw(md);
+        if (mdw.format_any()) {
+            if (mdw.has_runtime_dims_or_strides()) return false;
+            status_t status = memory_desc_init_by_strides(*md, nullptr);
+            if (status != status::success) return false;
         }
 
         return true;
+    }
+
+    bool set_default_formats() {
+        bool ok = true;
+
+        for (auto md : {&desc_.a_desc, &desc_.b_desc, &desc_.bias_desc,
+                     &desc_.c_desc}) {
+            ok = ok && set_default_format(md);
+        }
+
+        for (auto &po : attr_.post_ops_.entry_) {
+            if (po.is_binary())
+                ok = ok && set_default_format(&po.binary.src1_desc);
+        }
+
+        return ok;
     }
 };
 

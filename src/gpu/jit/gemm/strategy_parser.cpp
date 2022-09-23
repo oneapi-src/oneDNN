@@ -417,6 +417,14 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
 
     if (strategy.ka_pfStride == 0) strategy.ka_pfStride = strategy.ka_prefetch;
     if (strategy.kb_pfStride == 0) strategy.kb_pfStride = strategy.kb_prefetch;
+
+    int bcount = problem.binaryPOCount();
+    strategy.binary.resize(bcount);
+    for (auto &astrategy : strategy.binary) {
+        astrategy.base = (hw >= HW::XeHPC) ? AddressBase::createA64(true)
+                                           : AddressBase::createBTS(0);
+        astrategy.newDP = strategy.C.newDP;
+    }
 }
 
 void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy) {

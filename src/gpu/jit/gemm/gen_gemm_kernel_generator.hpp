@@ -57,18 +57,18 @@ class Type {
 public:
     enum _Type : uint32_t {
         invalid = 0,
-        f16 = 0x000201,
-        f32 = 0x010402,
-        u8 = 0x840100,
-        s8 = 0x850100,
-        u16 = 0x860201,
-        s16 = 0x870201,
-        u32 = 0x880402,
-        s32 = 0x890402,
-        u64 = 0x8A0803,
-        s64 = 0x8B0803,
-        bf16 = 0x0C0201,
-        tf32 = 0x0D0402,
+        f16 = 0x01000201,
+        f32 = 0x01010402,
+        u8 = 0x01840100,
+        s8 = 0x01850100,
+        u16 = 0x01860201,
+        s16 = 0x01870201,
+        u32 = 0x01880402,
+        s32 = 0x01890402,
+        u64 = 0x018A0803,
+        s64 = 0x018B0803,
+        bf16 = 0x010C0201,
+        tf32 = 0x010D0402,
     };
 
 private:
@@ -81,6 +81,8 @@ public:
 
     constexpr Type real() const { return *this; }
     constexpr bool isComplex() const { return false; }
+    constexpr int complexComponents() const { return 1; }
+    constexpr int components() const { return 1; }
     constexpr bool isInteger() const { return uint32_t(val) & 0x800000; }
     constexpr bool isFP() const { return !isInteger(); }
     constexpr bool isSigned() const {
@@ -88,12 +90,10 @@ public:
     }
     constexpr int log2Size() const { return uint32_t(val) & 0xFF; }
     constexpr int size() const { return (uint32_t(val) >> 8) & 0xFF; }
-    constexpr int components() const { return isComplex() ? 2 : 1; }
 
     constexpr Type arithmetic() const {
         return (val == tf32) ? Type(f32) : real();
     }
-
     data_type_t get_dnnl_type() const {
         switch (val) {
             case Type::f32: return data_type::f32;
@@ -104,6 +104,7 @@ public:
             default: assert(!"Unsupported type"); return data_type::undef;
         }
     }
+    constexpr Type baseType() const { return *this; }
 
     template <typename U>
     constexpr friend int operator*(U a, Type t) {
@@ -522,12 +523,14 @@ struct RegisterBlock {
     /* Register layout information. */
     uint8_t nr, nc; // Size of this block.
     uint8_t ld; // Leading dimension, in elements.
-    uint8_t offsetR, offsetC; // Row and column offset within matrix block
+    uint8_t offsetR, offsetC; // Row and column offset within matrix block.
     uint8_t colMajor : 1; // Is this block column-major? (columns stored consecutively inside each register)
-    uint8_t splitComplex : 1; // True if complex data split into successive real and imaginary parts
-    uint8_t crosspack : 6; // Crosspack for this block (1 if none).
-    uint16_t bytes; // # of bytes in this block
-    uint16_t offsetBytes; // Byte offset within register block
+    uint8_t splitComplex : 1; // True if complex data split into successive real and imaginary parts.
+    uint8_t : 6;
+    uint8_t crosspack; // Crosspack for this block (1 if none).
+    uint8_t component; // Component # for this block.
+    uint16_t bytes; // # of bytes in this block.
+    uint16_t offsetBytes; // Byte offset within register block.
 
     /* Load/store information. */
     uint8_t remainderR : 1; // Row remaindering enabled?
@@ -555,8 +558,8 @@ struct RegisterBlock {
     uint8_t addrShift; // log2(address units). e.g. 0 if byte addresses should be used, 4 if oword addresses should be used.
     uint8_t log2GRFBytes; // log2(bytes per GRF).
 
-    MaskInfo rowMask; // Row mask for this block
-    MaskInfo colMask; // Column mask for this block
+    MaskInfo rowMask; // Row mask for this block.
+    MaskInfo colMask; // Column mask for this block.
 
     void calcBytes(Type T); // Auto-calculate # of registers.
     void calcBytes(Type T, const MatrixAddressingStrategy &astrategy);
@@ -763,6 +766,9 @@ enum class COffset {
 // Batch mode.
 enum class BatchMode { None, Strided, Nonstrided, Variable };
 
+// Binary operations.
+enum class BinaryOp { Add, Sub, Mul, Div, Min, Max };
+
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
     Type Ta, Tb, Tc, Tco, Ts; // Types for A/B/C/C offsets/scalars in registers.
@@ -779,10 +785,26 @@ struct GEMMProblem : public CommonProblem {
     bool sumA = false,
          sumB
             = false; // If true, calculate A row sums/B column sums and store in CO.
-    post_ops_t post_ops; // Fused eltwise post-op to apply
+    post_ops_t post_ops; // Fused post operations to apply
     bool postOpFwd = true; // Eltwise parameters
+    std::vector<MatrixAddressing> binary; // Binary postop data
+    std::vector<Type> Tbinary; // Binary types
+    std::vector<bool> binaryRow; // Dimensionality of binary data
+    std::vector<bool>
+            binaryCol; //    (false means broadcast in the given dimension)
 
     bool hasPostOp() const { return post_ops.len() > 0; }
+    bool hasEltwisePostOp() const {
+        for (int idx = 0; idx < post_ops.len(); idx++)
+            if (post_ops.entry_[idx].is_eltwise()) return true;
+        return false;
+    }
+    int binaryPOCount() const {
+        int count = 0;
+        for (int idx = 0; idx < post_ops.len(); idx++)
+            count += int(post_ops.entry_[idx].is_binary());
+        return count;
+    }
 
     bool beta0() const {
         return (beta_real == 0) && (!Tc.isComplex() || (beta_imag == 0));
@@ -811,6 +833,7 @@ struct GEMMProblem : public CommonProblem {
     bool needsASums() const { return (abOffset == ABOffset::Calc) || sumA; }
     bool needsBSums() const { return (abOffset == ABOffset::Calc) || sumB; }
     bool usesCO() const { return (cOffset != COffset::None) || sumA || sumB; }
+    bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
 };
 
 struct GEMMState;
@@ -947,6 +970,8 @@ struct GEMMStrategy : public CommonStrategy {
     bool xParallel = false; // TRSM: parallelize in x dimension.
     bool checkBeta1
             = false; // If true, check for beta = 1 and handle specially.
+    std::vector<MatrixAddressingStrategy>
+            binary; // Strategies for binary postop data
 
     bool insideSK = false; // Inside a superkernel?
 
@@ -965,13 +990,13 @@ struct GEMMStrategy : public CommonStrategy {
     int maxKSLM(const GEMMProblem &problem, bool isA) const;
     int slmABufBlockSize(const GEMMProblem &problem) const {
         return fixedSystolic ? 1152
-                             : int(slmA) * problem.Ta * unroll[LoopM]
-                        * maxKSLM(problem, true);
+                             : int(slmA) * problem.Ta * problem.Ta.components()
+                        * unroll[LoopM] * maxKSLM(problem, true);
     }
     int slmBBufBlockSize(const GEMMProblem &problem) const {
         return fixedSystolic ? 1536
-                             : int(slmB) * problem.Tb * unroll[LoopN]
-                        * maxKSLM(problem, false);
+                             : int(slmB) * problem.Tb * problem.Tb.components()
+                        * unroll[LoopN] * maxKSLM(problem, false);
     }
     int slmABufSize(const GEMMProblem &problem) const {
         return slmABufBlockSize(problem) * wg[LoopM] * wg[LoopK] * slmBuffers;
@@ -1026,7 +1051,7 @@ struct GEMMState : public CommonState {
         ngen::Subregister ao, bo, abo; // w/w/ud
         ngen::Subregister offsetA, offsetB, offsetC[2]; // q
         ngen::Subregister offsetCO; // d
-        ngen::Subregister lda, ldb, ldc[2]; // d
+        ngen::Subregister lda, ldb, ldc[2], ldco; // d
         ngen::Subregister m, n, k, k0; // d
         ngen::Subregister alpha_real, alpha_imag; // T_real
         ngen::Subregister beta_real, beta_imag; // T_real
@@ -1054,6 +1079,11 @@ struct GEMMState : public CommonState {
                 incr_beta; // ud, used for non-strided variable batch.
         ngen::Subregister alpha_array,
                 beta_array; // q, used for non-strided variable batch.
+        std::vector<ngen::Subregister> binarySrcs; // q
+        std::vector<ngen::Subregister> binaryOffsets; // q/d
+        std::vector<ngen::Subregister> binaryLDs; // d
+        std::vector<std::array<ngen::Subregister, 2>> binaryStrides; // d
+        std::vector<uint8_t> binarySurfaces;
     } inputs;
     Type Ta_load, Tb_load; // Current type to be loaded into A/B_regs.
     Type Tacc; // Current type in accumulator registers.
@@ -1138,6 +1168,8 @@ struct GEMMState : public CommonState {
     bool repackA = false, repackB = false;
     bool slmASums = false, slmBSums = false;
     bool doLateExit = false;
+
+    std::vector<ngen::Subregister> effBinary;
 
     struct {
         bool active = false;
@@ -1798,10 +1830,10 @@ protected:
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state,
             const LDMultiples &ldMultiples = {});
-    void setupAddrRel(const ngen::GRFRange &addrDst,
+    void setupAddrRel(Type T, const ngen::GRFRange &addrDst,
             const ngen::GRFRange &addrSrc, const RegisterBlock &blockDst,
             const RegisterBlock &blockSrc,
-            const std::vector<RegisterBlock> &layout, size_t sizeofT,
+            const std::vector<RegisterBlock> &layout,
             const ngen::Subregister &ld, const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state,
@@ -1956,15 +1988,17 @@ protected:
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmBetaScale(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
-    void gemmFixedOffsetC(const ngen::Subregister &offset,
+    void binaryOp(BinaryOp op, int simd, const ngen::RegData &dst,
+            const ngen::RegData &src0, const ngen::RegData &src1);
+    void gemmScalarBinaryOpC(BinaryOp op, const ngen::Subregister &offset,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
-    void gemmVariableOffsetC(bool column, const GRFMultirange &offsets,
-            const ngen::Subregister &scale, const GEMMProblem &problem,
-            const GEMMStrategy &strategy, GEMMState &state,
-            Type Tco = Type::invalid,
-            std::vector<RegisterBlock> CO_layout
-            = std::vector<RegisterBlock>());
+    void gemmVectorBinaryOpC(BinaryOp op, bool column,
+            const GRFMultirange &offsets, const ngen::Subregister &scale,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state, Type Tco = Type::invalid,
+            std::vector<RegisterBlock> CO_layout = std::vector<RegisterBlock>(),
+            int y0 = -1, int y1 = -1);
     void gemmCalcABOffsetAddrs(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     bool gemmLoadABOffset(const GEMMProblem &problem,
@@ -1973,14 +2007,22 @@ protected:
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmUpdateSums(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
-    bool gemmApplyCOffset(bool row, bool column, const GEMMProblem &problem,
-            const GEMMStrategy &strategy, GEMMState &state);
+    bool gemmBinaryOpC(BinaryOp op, bool row, bool column, Type Tco,
+            MatrixAddressing CO, MatrixAddressingStrategy CO_strategy,
+            ngen::Subregister base, ngen::Subregister ld,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
     bool gemmApplyCOffsetDispatch(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmKReduce(const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
     void gemmPrefetchC(const GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state);
+
+    void gemmApplyBinaryOps(const GEMMProblem &problem, GEMMStrategy &strategy,
+            GEMMState &state);
+    void gemmLoadBinaryOpArgs(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
 
     void gemmAllocRegs(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
@@ -2158,7 +2200,7 @@ protected:
     void gemmOffsetABC(bool initial, ngen::Subregister i0, ngen::Subregister j0,
             ngen::Subregister h0, const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state, bool doA = true,
-            bool doB = true, bool doC = true);
+            bool doB = true, bool doC = true, bool doBinary = false);
     void gemmOffsetBatchABC(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmSetupABC(const GEMMProblem &problem, const GEMMStrategy &strategy,
@@ -2305,7 +2347,7 @@ protected:
 };
 
 inline char precisionChar(Type T) {
-    switch (T) {
+    switch (T.baseType()) {
         case Type::f16: return 'H';
         case Type::f32: return 'S';
         case Type::u8: return 'o';
