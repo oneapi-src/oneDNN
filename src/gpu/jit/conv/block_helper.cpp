@@ -517,29 +517,33 @@ void block_helper_t::init_bmnk_blocks() {
             target_tg_size = std::min(target_tg_size, 16);
         }
 
-        // Compute max thread group blocks, independently for each dimension.
-        std::vector<char> tg_bmnks = {vectorize_by_b() ? 'B' : 'N', 'M'};
-        std::vector<int> tg_dims(tg_bmnks.size(), 1);
-        bool any_pref_dim = false;
-        int *split_dim_idx;
-        for (size_t i = 0; i < tg_bmnks.size(); i++) {
-            auto &d = bmnk_dim(tg_bmnks[i]);
+        auto init_tg_dim = [&](dim_info_t &d) -> int {
             int i_max_tg_dim = min(target_tg_size, d.max_dim(tile_level_t::tg));
             int target_blk = i_max_tg_dim * d.iter_dim();
-            int tg_dim = compute_block(d.size(), target_blk, d.iter_dim())
+            int base_tg_dim = compute_block(d.size(), target_blk, d.iter_dim())
                     / d.iter_dim();
             //restrict maximum single tg dim as max_tg size is reduced
-            tg_dim = std::min(utils::rnd_down_pow2(tg_dim),
+            return std::min(utils::rnd_down_pow2(base_tg_dim),
                     hw_cfg_.max_tg_overriden() ? target_tg_size
                                     / (hw_cfg_.hw() >= ngen::HW::XeHPC ? 2 : 4)
                                                : hw_cfg_.simd_size());
+        };
+
+        // Compute max thread group blocks, independently for each dimension.
+        std::vector<char> tg_bmnks = {vectorize_by_b() ? 'B' : 'N', 'M'};
+        std::vector<int> tg_dims(tg_bmnks.size(), 1);
+        bool any_pref_dim = any_pref_tg_block();
+        int *split_dim_idx, *pref_dim_idx;
+        char split_dim_bmnk;
+        for (size_t i = 0; i < tg_bmnks.size(); i++) {
+            auto &d = bmnk_dim(tg_bmnks[i]);
+            int tg_dim = init_tg_dim(d);
             tg_dims[i] = tg_dim;
-            if (d.pref_tg_block()) {
-                //only one preferred dim allowed
-                assert(!any_pref_dim);
-                any_pref_dim = true;
-            } else {
+            if (!d.pref_tg_block()) {
                 split_dim_idx = &tg_dims.at(i);
+                split_dim_bmnk = tg_bmnks[i];
+            } else {
+                pref_dim_idx = &tg_dims.at(i);
             }
         }
 
@@ -548,7 +552,20 @@ void block_helper_t::init_bmnk_blocks() {
                     tg_dims.begin(), tg_dims.end(), 1, std::multiplies<int>());
         };
         auto max_tg_dim = [&]() -> int & {
-            if (any_pref_dim && *split_dim_idx > 1) return *split_dim_idx;
+            if (any_pref_dim) {
+                auto split_dim = bmnk_dim(split_dim_bmnk);
+                int split_rem_grid = split_dim.size() / split_dim.iter_dim();
+                // Special case preserve non-zero tg dim for non-pref bmnk
+                bool preserve_min_dim
+                        = (split_rem_grid > 1 && *split_dim_idx < 4
+                                && *pref_dim_idx > *split_dim_idx);
+                if (*split_dim_idx == 1
+                        || (preserve_min_dim
+                                && (*pref_dim_idx > *split_dim_idx)))
+                    return *pref_dim_idx;
+                else
+                    return *split_dim_idx;
+            }
             return *std::max_element(tg_dims.begin(), tg_dims.end());
         };
 
