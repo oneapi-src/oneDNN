@@ -116,7 +116,7 @@ struct array_offset_calculator {
 
     template <typename... Targs>
     array_offset_calculator(const dnn_mem_t &mem, Targs... dims)
-        : base_ptr_((Telem *)mem), dims_({dims...}) {}
+        : base_ptr_(mem ? (Telem *)mem : nullptr), dims_({dims...}) {}
 
     template <typename... Targs>
     array_offset_calculator(Telem *base_ptr, Targs... dims)
