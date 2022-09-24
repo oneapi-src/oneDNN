@@ -412,6 +412,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_fwd(
                 for (int i = 0; i < XMM_float_lanes_count; ++i)
                     h->vpextrd(gpr_idx[i].cvt32(), xmm_pol_idx, i);
             } break;
+            case avx2_vnni_2:
             case avx2:
                 // needed for gather instruction
                 h->uni_vxorps(vmm_mask, vmm_mask, vmm_mask);
@@ -442,6 +443,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_fwd(
                     h->vpinsrd(xmm_coeff, xmm_coeff, coeff_addr, idx);
                 }
             } break;
+            case avx2_vnni_2:
             case avx2: {
                 Xbyak::Address idx_addr = ptr[p_table + coeffs_off(coeff_idx)
                         + vmm_pol_idx * sizeof(float)];
@@ -909,7 +911,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
         if (is_avx512) {
             h->kmovw(k_mask, table_val(log_full_k_reg_mask));
             h->vgatherdps(vmm_dst | k_mask, table_idx);
-        } else if (isa == avx2) {
+        } else if (utils::one_of(isa, avx2, avx2_vnni_2)) {
             h->uni_vmovups(vmm_mask, table_val(sign_mask));
             h->vgatherdps(vmm_dst, table_idx, vmm_mask);
         } else if (isa == avx || isa == sse41) {
