@@ -145,7 +145,7 @@ int doit(const prb_t *prb, res_t *res) {
     std::vector<dnn_mem_t> src_fp, src_dt, scales;
     src_fp.reserve(prb->n_inputs());
     src_dt.reserve(prb->n_inputs());
-    scales.reserve(prb->n_inputs());
+    scales.resize(prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const auto &src_md
@@ -161,10 +161,9 @@ int doit(const prb_t *prb, res_t *res) {
         // scales
         const auto &sc = prb->attr.scales.get(DNNL_ARG_MULTIPLE_SRC + i_input);
         float scale_val = sc.scale;
-        dnn_mem_t scale_m;
-        maybe_prepare_runtime_scales(scale_m, sc, 1, &scale_val);
+        maybe_prepare_runtime_scales(scales[i_input], sc, 1, &scale_val);
         args.set((DNNL_ARG_MULTIPLE_SRC + i_input) | DNNL_ARG_ATTR_INPUT_SCALES,
-                scale_m);
+                scales[i_input]);
     }
 
     SAFE(execute_and_wait(prim, args, res), WARN);
