@@ -43,19 +43,19 @@
 dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
         const handle_info_t &handle_info) {
     md_ = md;
-    active_ = (initialize(engine, handle_info) == OK);
+    if (ndims() > 0) active_ = (initialize(engine, handle_info) == OK);
 }
 
 dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine) {
     md_ = dnn_mem_t::init_md(md.ndims, md.dims, dt, tag);
-    active_ = (initialize(engine) == OK);
+    if (ndims() > 0) active_ = (initialize(engine) == OK);
 }
 
 dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine) {
     md_ = dnn_mem_t::init_md(ndims, dims, dt, tag);
-    active_ = (initialize(engine) == OK);
+    if (ndims > 0) active_ = (initialize(engine) == OK);
 }
 
 dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
@@ -64,7 +64,7 @@ dnn_mem_t::dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
             = dnnl_memory_desc_init_by_strides(&md_, ndims, dims, dt, strides);
     (void)status;
     assert(status == dnnl_success);
-    active_ = (initialize(engine) == OK);
+    if (ndims > 0) active_ = (initialize(engine) == OK);
 }
 
 dnn_mem_t::dnn_mem_t(const dnn_mem_t &rhs, dnnl_data_type_t dt,
