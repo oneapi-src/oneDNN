@@ -165,9 +165,9 @@ protected:
         auto l_dst_desc
                 = create_md({ld.mb, ld.c, ld.h, ld.w}, data_type, p.format);
 
-        auto lrn_prim_desc
-                = lrn_forward::primitive_desc(eng, p.aprop_kind, p.aalgorithm,
-                        l_src_desc, ld.local_size, ld.alpha, ld.beta, ld.k);
+        auto lrn_prim_desc = lrn_forward::primitive_desc(eng, p.aprop_kind,
+                p.aalgorithm, l_src_desc, l_dst_desc, ld.local_size, ld.alpha,
+                ld.beta, ld.k);
         // test construction from a C pd
         lrn_prim_desc = lrn_forward::primitive_desc(lrn_prim_desc.get());
 

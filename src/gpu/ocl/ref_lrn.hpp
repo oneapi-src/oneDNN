@@ -49,19 +49,16 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = true
-                    && utils::one_of(desc()->prop_kind,
-                            prop_kind::forward_inference,
-                            prop_kind::forward_training)
-                    && utils::one_of(desc()->alg_kind,
-                            alg_kind::lrn_across_channels,
-                            alg_kind::lrn_within_channel)
-                    && utils::one_of(
-                            desc()->data_desc.data_type, f32, f16, bf16)
+            bool ok = is_fwd()
+                    && utils::one_of(src_md()->data_type, f32, f16, bf16)
+                    && src_md()->data_type == dst_md()->data_type
                     && attr()->has_default_values()
-                    && IMPLICATION(desc()->data_desc.data_type == f16,
+                    && IMPLICATION(src_md()->data_type == f16,
                             compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16));
+                                    compute::device_ext_t::khr_fp16))
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md());
             if (!ok) return status::unimplemented;
 
             if (desc_.prop_kind == prop_kind::forward_training) {
@@ -71,12 +68,12 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
                     ws_md_.data_type = data_type::f32;
             }
 
-            dispatch = compute_engine->create_dispatch(&data_md_);
+            dispatch = compute_engine->create_dispatch(src_md());
             dispatch.define_dim("MB", 0, MB());
             dispatch.define_dim("IC", 1, C());
-            dispatch.define_dim("ID", nstl::max(1, data_md_.ndims - 3), D());
-            dispatch.define_dim("IH", nstl::max(1, data_md_.ndims - 2), H());
-            dispatch.define_dim("IW", nstl::max(1, data_md_.ndims - 1), W());
+            dispatch.define_dim("ID", nstl::max(1, src_md()->ndims - 3), D());
+            dispatch.define_dim("IH", nstl::max(1, src_md()->ndims - 2), H());
+            dispatch.define_dim("IW", nstl::max(1, src_md()->ndims - 1), W());
             dispatch.generate();
 
             return status::success;
@@ -93,7 +90,7 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
         status_t status = status::success;
         const auto *desc = pd()->desc();
 
-        kernel_ctx.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.set_data_type(desc->src_desc.data_type);
 
         kernel_ctx.define_int("IS_FWD", 1);
 
@@ -173,23 +170,17 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_bwd_t);
 
         status_t init(engine_t *engine) {
+            using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = true
-                    && utils::one_of(
-                            desc()->prop_kind, prop_kind::backward_data)
-                    && utils::one_of(desc()->alg_kind,
-                            alg_kind::lrn_across_channels,
-                            alg_kind::lrn_within_channel)
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f32, data_type::bf16)
-                    && set_default_formats_common()
+            bool ok = !is_fwd() && utils::one_of(src_md()->data_type, f32, bf16)
+                    && utils::everyone_is(src_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type)
                     && attr()->has_default_values()
-                    && IMPLICATION(
-                            desc()->data_desc.data_type == data_type::f16,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16));
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md());
             if (!ok) return status::unimplemented;
 
             ws_md_ = *src_md();
@@ -197,12 +188,12 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
                 ws_md_.data_type = data_type::f32;
             if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
 
-            dispatch = compute_engine->create_dispatch(&diff_data_md_);
+            dispatch = compute_engine->create_dispatch(diff_src_md());
             dispatch.define_dim("MB", 0, MB());
             dispatch.define_dim("IC", 1, C());
-            dispatch.define_dim("ID", nstl::max(1, data_md_.ndims - 3), D());
-            dispatch.define_dim("IH", nstl::max(1, data_md_.ndims - 2), H());
-            dispatch.define_dim("IW", nstl::max(1, data_md_.ndims - 1), W());
+            dispatch.define_dim("ID", nstl::max(1, src_md()->ndims - 3), D());
+            dispatch.define_dim("IH", nstl::max(1, src_md()->ndims - 2), H());
+            dispatch.define_dim("IW", nstl::max(1, src_md()->ndims - 1), W());
             dispatch.generate();
 
             return status::success;
@@ -219,7 +210,7 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
         status_t status = status::success;
         const auto *desc = pd()->desc();
 
-        kernel_ctx.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.set_data_type(desc->src_desc.data_type);
 
         kernel_ctx.define_int("IS_BWD", 1);
 

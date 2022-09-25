@@ -308,7 +308,7 @@ struct primitive : public handle<dnnl_primitive_t> {
         prelu = dnnl_prelu,
         /// A softmax primitive.
         softmax = dnnl_softmax,
-        /// A layer normalization version 2 primitive.
+        /// A layer normalization primitive.
         layer_normalization = dnnl_layer_normalization,
     };
 
@@ -6414,7 +6414,8 @@ struct lrn_forward : public primitive {
         /// @param aalgorithm LRN algorithm kind: either
         ///     #dnnl::algorithm::lrn_across_channels, or
         ///     #dnnl::algorithm::lrn_within_channel.
-        /// @param data_desc Source and destination memory descriptors.
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
         /// @param local_size Regularization local size.
         /// @param alpha The alpha regularization parameter.
         /// @param beta The beta regularization parameter.
@@ -6426,16 +6427,17 @@ struct lrn_forward : public primitive {
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
         primitive_desc(const engine &aengine, prop_kind aprop_kind,
-                algorithm aalgorithm, const memory::desc &data_desc,
-                memory::dim local_size, float alpha, float beta, float k,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &dst_desc, memory::dim local_size,
+                float alpha, float beta, float k,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_lrn_forward_primitive_desc_create(&pd,
                     aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    convert_to_c(aalgorithm), data_desc.get(), local_size,
-                    alpha, beta, k, attr.get());
+                    convert_to_c(aalgorithm), src_desc.get(), dst_desc.get(),
+                    local_size, alpha, beta, k, attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -6514,9 +6516,9 @@ struct lrn_backward : public primitive {
         /// @param aalgorithm LRN algorithm kind: either
         ///     #dnnl::algorithm::lrn_across_channels, or
         ///     #dnnl::algorithm::lrn_within_channel.
-        /// @param data_desc Source and destination memory descriptors.
-        /// @param diff_data_desc Diff source and diff destination memory
-        ///     descriptor.
+        /// @param diff_src_desc Diff source memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param src_desc Source memory descriptor.
         /// @param local_size Regularization local size.
         /// @param alpha The alpha regularization parameter.
         /// @param beta The beta regularization parameter.
@@ -6531,9 +6533,9 @@ struct lrn_backward : public primitive {
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
         primitive_desc(const engine &aengine, algorithm aalgorithm,
-                const memory::desc &data_desc,
-                const memory::desc &diff_data_desc, memory::dim local_size,
-                float alpha, float beta, float k,
+                const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc, const memory::desc &src_desc,
+                memory::dim local_size, float alpha, float beta, float k,
                 const lrn_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
@@ -6541,8 +6543,8 @@ struct lrn_backward : public primitive {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_lrn_backward_primitive_desc_create(&pd,
                     aengine.get(), convert_to_c(aalgorithm),
-                    diff_data_desc.get(), data_desc.get(), local_size, alpha,
-                    beta, k, hint_fwd_pd.get(), attr.get());
+                    diff_src_desc.get(), diff_dst_desc.get(), src_desc.get(),
+                    local_size, alpha, beta, k, hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,

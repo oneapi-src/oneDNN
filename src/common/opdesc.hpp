@@ -330,10 +330,14 @@ struct lrn_desc_t {
     // LRN algorithm. Possible values: #dnnl_lrn_within_channel and
     // #dnnl_lrn_across_channels.
     alg_kind_t alg_kind;
-    // Source and destination memory descriptor.
-    memory_desc_t data_desc;
-    // Source and destination gradient memory descriptor.
-    memory_desc_t diff_data_desc;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
     // The number of channels to sum over (for cross-channel LRN) or the side
     // length of the square region to sum over (for within-channel LRN).
     dim_t local_size;

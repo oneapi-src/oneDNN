@@ -172,22 +172,25 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     using namespace prop_kind;
     using namespace alg_kind;
 
-    const memory_desc_wrapper data_d(src_md());
-    const bool ok = true && mayiuse(isa) && is_fwd()
-            && everyone_is(d_type, data_d.data_type()) && !has_zero_dim_memory()
-            && data_d.ndims() == 4 && data_d.dims()[1] % VECTOR_LENGTH == 0
-            && data_d.dims()[1] >= 2 * VECTOR_LENGTH && desc()->lrn_beta == 0.75
-            && attr()->has_default_values();
+    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper dst_d(dst_md());
+
+    const bool ok = is_fwd() && mayiuse(isa) && !has_zero_dim_memory()
+            && everyone_is(d_type, src_d.data_type(), dst_d.data_type())
+            && attr()->has_default_values() && set_default_formats_common()
+            && src_d == dst_d && src_d.ndims() == 4
+            && src_d.dims()[1] % VECTOR_LENGTH == 0
+            && src_d.dims()[1] >= 2 * VECTOR_LENGTH && desc()->lrn_beta == 0.75;
     if (!ok) return unimplemented;
 
     dat_tag_ = memory_desc_matches_one_of_tag(
             *src_md(), nChw16c, nChw8c, nchw, nhwc);
 
-    const int HW = data_d.dims()[2] * data_d.dims()[3];
+    const int HW = src_d.dims()[2] * src_d.dims()[3];
 
     const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
             && desc()->local_size == 5 && one_of(dat_tag_, nChw8c, nchw, nhwc)
-            && everyone_is(data_type::f32, data_d.data_type())
+            && everyone_is(data_type::f32, src_d.data_type())
             /* SSE41: prevent loads smaller than the size of xmm registers,
          * otherwise it will result in an illegal memory read (seg-fault)
          * due to protected memory. */
@@ -199,8 +202,8 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && desc()->local_size <= (jit_max_local_size <= MAX_LOCAL_SIZE
                                ? jit_max_local_size
                                : MAX_LOCAL_SIZE)
-            && data_d.dims()[2] >= desc()->local_size
-            && data_d.dims()[3] >= desc()->local_size
+            && src_d.dims()[2] >= desc()->local_size
+            && src_d.dims()[3] >= desc()->local_size
             && IMPLICATION(d_type == data_type::bf16, mayiuse(avx512_core))
             && IMPLICATION(d_type == data_type::f16, mayiuse(avx512_core_fp16))
             && (is_superset(isa, avx512_core) ? one_of(dat_tag_, nhwc, nChw16c)
@@ -338,13 +341,17 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     using namespace prop_kind;
     using namespace alg_kind;
 
-    const memory_desc_wrapper data_d(src_md());
-    const bool ok = true && mayiuse(isa) && !is_fwd()
-            && utils::everyone_is(d_type, data_d.data_type())
-            && set_default_formats_common() && !has_zero_dim_memory()
-            && data_d.ndims() == 4 && data_d.dims()[1] % VECTOR_LENGTH == 0
-            && data_d.dims()[1] >= 2 * VECTOR_LENGTH && desc()->lrn_beta == 0.75
-            && attr()->has_default_values();
+    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper diff_src_d(diff_src_md());
+    const memory_desc_wrapper diff_dst_d(diff_dst_md());
+
+    const bool ok = !is_fwd() && mayiuse(avx512_core) && !has_zero_dim_memory()
+            && utils::everyone_is(d_type, src_d.data_type(),
+                    diff_src_d.data_type(), diff_dst_d.data_type())
+            && src_d.ndims() == 4 && attr()->has_default_values()
+            && set_default_formats_common() && src_d == diff_dst_d
+            && diff_dst_d == diff_src_d && src_d.dims()[1] % VECTOR_LENGTH == 0
+            && src_d.dims()[1] >= 2 * VECTOR_LENGTH && desc()->lrn_beta == 0.75;
     if (!ok) return unimplemented;
 
     dat_tag_ = memory_desc_matches_one_of_tag(
@@ -357,7 +364,7 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
     const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
             && desc()->local_size == 5 && utils::one_of(dat_tag_, nChw8c)
-            && everyone_is(data_type::f32, data_d.data_type())
+            && everyone_is(data_type::f32, src_d.data_type())
             && !is_superset(isa, avx512_core);
 
     const int jit_max_local_size = 5; // bigger size triggers too big code size
@@ -365,8 +372,8 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && desc()->local_size <= (jit_max_local_size <= MAX_LOCAL_SIZE
                                ? jit_max_local_size
                                : MAX_LOCAL_SIZE)
-            && data_d.dims()[2] >= desc()->local_size
-            && data_d.dims()[3] >= desc()->local_size
+            && src_d.dims()[2] >= desc()->local_size
+            && src_d.dims()[3] >= desc()->local_size
             && IMPLICATION(d_type == data_type::bf16, mayiuse(avx512_core))
             && IMPLICATION(d_type == data_type::f16, mayiuse(avx512_core_fp16))
             && (isa == avx512_core ? one_of(dat_tag_, nhwc, nChw16c)

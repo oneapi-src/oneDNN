@@ -70,6 +70,7 @@ void lrn_example(dnnl::engine::kind engine_kind) {
 
     // Create src and dst memory descriptors and memory objects.
     auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
+    auto dst_md = memory::desc(src_dims, dt::f32, tag::nchw);
     auto src_mem = memory(src_md, engine);
     auto dst_mem = memory(src_md, engine);
 
@@ -84,7 +85,7 @@ void lrn_example(dnnl::engine::kind engine_kind) {
     // Create primitive descriptor.
     auto lrn_pd = lrn_forward::primitive_desc(engine,
             prop_kind::forward_training, algorithm::lrn_across_channels, src_md,
-            local_size, alpha, beta, k);
+            dst_md, local_size, alpha, beta, k);
 
     // Create workspace memory object using memory descriptors created by the
     // primitive descriptor.

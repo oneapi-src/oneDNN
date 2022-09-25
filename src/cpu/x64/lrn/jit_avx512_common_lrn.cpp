@@ -38,22 +38,25 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace prop_kind;
     using namespace alg_kind;
 
-    const memory_desc_wrapper data_d(src_md());
-    const bool ok = true && mayiuse(avx512_core) && is_fwd()
+    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper dst_d(dst_md());
+
+    const bool ok = is_fwd() && mayiuse(avx512_core) && !has_zero_dim_memory()
+            && everyone_is(d_type, src_d.data_type(), dst_d.data_type())
             && IMPLICATION(d_type == f16, mayiuse(avx512_core_fp16))
-            && !has_zero_dim_memory() && everyone_is(d_type, data_d.data_type())
-            && data_d.ndims() == 4 && attr()->has_default_values();
+            && src_d.ndims() == 4 && attr()->has_default_values()
+            && set_default_formats_common() && src_d == dst_d;
     if (!ok) return unimplemented;
 
     const auto fmt_tag
-            = data_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
+            = src_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
 
-    const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
+    const bool args_ok_across = desc()->alg_kind == lrn_across_channels
             && desc()->local_size >= 1 && desc()->local_size <= 16
             && (desc()->lrn_beta == 0.75 || desc()->lrn_beta == 1.0)
-            && data_d.matches_tag(fmt_tag)
+            && src_d.matches_tag(fmt_tag)
             && IMPLICATION(fmt_tag == format_tag::nChw16c,
-                    data_d.dims()[1] % vsize == 0 && desc()->local_size == 5);
+                    src_d.dims()[1] % vsize == 0 && desc()->local_size == 5);
 
     if (!args_ok_across) return unimplemented;
 
@@ -84,26 +87,31 @@ template <data_type_t d_type>
 status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
-    const memory_desc_wrapper data_d(src_md());
-    const bool ok = true && mayiuse(avx512_core) && !is_fwd()
+    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper diff_src_d(diff_src_md());
+    const memory_desc_wrapper diff_dst_d(diff_dst_md());
+
+    const bool ok = !is_fwd() && mayiuse(avx512_core) && !has_zero_dim_memory()
+            && utils::everyone_is(d_type, src_d.data_type(),
+                    diff_src_d.data_type(), diff_dst_d.data_type())
             && IMPLICATION(d_type == f16, mayiuse(avx512_core_fp16))
-            && utils::everyone_is(d_type, data_d.data_type())
-            && set_default_formats_common() && !has_zero_dim_memory()
-            && data_d.ndims() == 4 && attr()->has_default_values();
+            && src_d.ndims() == 4 && attr()->has_default_values()
+            && set_default_formats_common() && src_d == diff_dst_d
+            && diff_dst_d == diff_src_d;
     if (!ok) return unimplemented;
 
     const dims_t ws_dims = {MB(), C(), H(), 2 * W()};
     const auto fmt_tag
-            = data_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
+            = src_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
     memory_desc_init_by_tag(ws_md_, 4, ws_dims, d_type, fmt_tag);
     if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
     const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
             && desc()->local_size >= 1 && desc()->local_size <= 16
             && (desc()->lrn_beta == 0.75 || desc()->lrn_beta == 1.0)
-            && data_d.matches_tag(fmt_tag)
+            && src_d.matches_tag(fmt_tag)
             && IMPLICATION(fmt_tag == format_tag::nChw16c,
-                    data_d.dims()[1] % vsize == 0 && desc()->local_size == 5);
+                    src_d.dims()[1] % vsize == 0 && desc()->local_size == 5);
 
     return args_ok_across ? success : unimplemented;
 }

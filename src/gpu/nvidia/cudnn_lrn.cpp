@@ -29,7 +29,7 @@ namespace nvidia {
 
 status_t cudnn_lrn_fwd_t::execute(const exec_ctx_t &ctx) const {
 
-    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
+    if (memory_desc_wrapper(pd()->src_md()).has_zero_dim())
         return status::success;
 
     nvidia::sycl_cuda_stream_t *cuda_stream
@@ -59,7 +59,7 @@ status_t cudnn_lrn_fwd_t::execute(const exec_ctx_t &ctx) const {
 }
 
 status_t cudnn_lrn_bwd_t::execute(const exec_ctx_t &ctx) const {
-    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
+    if (memory_desc_wrapper(pd()->src_md()).has_zero_dim())
         return status::success;
 
     nvidia::sycl_cuda_stream_t *cuda_stream

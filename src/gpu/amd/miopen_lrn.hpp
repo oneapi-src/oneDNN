@@ -42,21 +42,17 @@ struct miopen_lrn_fwd_t : public primitive_t {
 
         status_t init(engine_t *) {
             using namespace data_type;
-            bool ok = true && is_fwd()
-                    && utils::one_of(desc()->prop_kind,
-                            prop_kind::forward_inference,
-                            prop_kind::forward_training)
-                    && utils::one_of(desc()->alg_kind,
-                            alg_kind::lrn_across_channels,
-                            alg_kind::lrn_within_channel)
+            bool ok = is_fwd()
                     // MIOpen LRN implementation within channel supports only 2D spatial.
                     && IMPLICATION(
                             desc()->alg_kind == alg_kind::lrn_within_channel,
                             ndims() == 4)
-                    && utils::one_of(desc()->data_desc.data_type, f32, f16)
+                    && utils::one_of(src_md()->data_type, f32, f16)
+                    && src_md()->data_type == dst_md()->data_type
                     && attr()->has_default_values() && desc_.local_size % 2
-                    && check_format();
-
+                    && set_default_formats_common() && check_format()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md());
             if (!ok) return status::unimplemented;
 
             if (has_zero_dim_memory()) return status::success;
@@ -107,19 +103,19 @@ struct miopen_lrn_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_lrn_bwd_t);
 
         status_t init(engine_t *) {
-            bool ok = true && !is_fwd()
-                    && utils::one_of(desc()->alg_kind,
-                            alg_kind::lrn_across_channels,
-                            alg_kind::lrn_within_channel)
+            bool ok = !is_fwd()
                     // MIOpen LRN implementation within channel supports only 2D spatial.
                     && IMPLICATION(
                             desc()->alg_kind == alg_kind::lrn_within_channel,
                             ndims() == 4)
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f16, data_type::f32)
+                    && utils::one_of(src_md()->data_type, f32, f16)
+                    && utils::everyone_is(src_md()->data_type,
+                            diff_dst_md()->data_type, diff_src_md()->data_type)
                     && set_default_formats_common()
                     && attr()->has_default_values() && desc_.local_size % 2
-                    && check_format();
+                    && check_format()
+                    && memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md());
             if (!ok) return status::unimplemented;
             if (has_zero_dim_memory()) { return status::success; };
 

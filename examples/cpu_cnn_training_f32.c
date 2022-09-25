@@ -321,18 +321,17 @@ void simple_net() {
     // create lrn src memory descriptor using dst memory descriptor
     //  from previous primitive
     const_dnnl_memory_desc_t lrn_src_md = relu_dst_md;
+    const_dnnl_memory_desc_t lrn_dst_md = lrn_src_md;
 
     // create a lrn primitive descriptor
     dnnl_primitive_desc_t lrn_pd;
     CHECK(dnnl_lrn_forward_primitive_desc_create(&lrn_pd, engine, dnnl_forward,
-            dnnl_lrn_across_channels, lrn_src_md, local_size, alpha, beta, k,
-            NULL));
+            dnnl_lrn_across_channels, lrn_src_md, lrn_dst_md, local_size, alpha,
+            beta, k, NULL));
 
     // create primitives for lrn dst and workspace memory
     dnnl_memory_t lrn_dst_memory, lrn_ws_memory;
 
-    const_dnnl_memory_desc_t lrn_dst_md
-            = dnnl_primitive_desc_query_md(lrn_pd, dnnl_query_dst_md, 0);
     CHECK(dnnl_memory_create(
             &lrn_dst_memory, lrn_dst_md, engine, DNNL_MEMORY_ALLOCATE));
 
@@ -487,17 +486,16 @@ void simple_net() {
 
     // Backward lrn
     const_dnnl_memory_desc_t lrn_diff_dst_md = pool_diff_src_md;
+    const_dnnl_memory_desc_t lrn_diff_src_md = lrn_diff_dst_md;
 
     // create backward lrn descriptor
     dnnl_primitive_desc_t lrn_bwd_pd;
     CHECK(dnnl_lrn_backward_primitive_desc_create(&lrn_bwd_pd, engine,
-            dnnl_lrn_across_channels, lrn_diff_dst_md, lrn_src_md, local_size,
-            alpha, beta, k, lrn_pd, NULL));
+            dnnl_lrn_across_channels, lrn_diff_src_md, lrn_diff_dst_md,
+            lrn_src_md, local_size, alpha, beta, k, lrn_pd, NULL));
 
     // create memory for lrn diff src
     dnnl_memory_t lrn_diff_src_memory;
-    const_dnnl_memory_desc_t lrn_diff_src_md = dnnl_primitive_desc_query_md(
-            lrn_bwd_pd, dnnl_query_diff_src_md, 0);
     CHECK(dnnl_memory_create(&lrn_diff_src_memory, lrn_diff_src_md, engine,
             DNNL_MEMORY_ALLOCATE));
 

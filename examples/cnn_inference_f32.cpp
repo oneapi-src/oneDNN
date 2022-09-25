@@ -205,7 +205,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     // create lrn primitive and add it to net
     auto lrn1_prim_desc = lrn_forward::primitive_desc(eng,
             prop_kind::forward_inference, algorithm::lrn_across_channels,
-            conv1_dst_memory.get_desc(), local1_size, alpha1, beta1, k1);
+            conv1_dst_memory.get_desc(), conv1_dst_memory.get_desc(),
+            local1_size, alpha1, beta1, k1);
     auto lrn1_dst_memory = memory(lrn1_prim_desc.dst_desc(), eng);
 
     net.push_back(lrn_forward(lrn1_prim_desc));
@@ -325,9 +326,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     const float k2 = 1.0f;
 
     // create lrn primitive and add it to net
-    auto lrn2_prim_desc = lrn_forward::primitive_desc(eng,
-            prop_kind::forward_inference, algorithm::lrn_across_channels,
-            conv2_prim_desc.dst_desc(), local2_size, alpha2, beta2, k2);
+    auto lrn2_prim_desc
+            = lrn_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::lrn_across_channels, conv2_prim_desc.dst_desc(),
+                    conv2_prim_desc.dst_desc(), local2_size, alpha2, beta2, k2);
     auto lrn2_dst_memory = memory(lrn2_prim_desc.dst_desc(), eng);
 
     net.push_back(lrn_forward(lrn2_prim_desc));

@@ -160,8 +160,8 @@ void simple_net(engine::kind engine_kind) {
 
     // create a lrn primitive descriptor
     auto lrn_pd = lrn_forward::primitive_desc(eng, prop_kind::forward,
-            algorithm::lrn_across_channels, relu_pd.dst_desc(), local_size,
-            alpha, beta, k);
+            algorithm::lrn_across_channels, relu_pd.dst_desc(),
+            relu_pd.dst_desc(), local_size, alpha, beta, k);
 
     // create lrn dst memory
     auto lrn_dst_memory = memory(lrn_pd.dst_desc(), eng);
@@ -269,11 +269,12 @@ void simple_net(engine::kind engine_kind) {
 
     // Backward lrn
     auto lrn_diff_dst_md = memory::desc({lrn_data_tz}, dt::f32, tag::any);
+    const auto &lrn_diff_src_md = lrn_diff_dst_md;
 
     // create backward lrn primitive descriptor
     auto lrn_bwd_pd = lrn_backward::primitive_desc(eng,
-            algorithm::lrn_across_channels, lrn_pd.src_desc(), lrn_diff_dst_md,
-            local_size, alpha, beta, k, lrn_pd);
+            algorithm::lrn_across_channels, lrn_diff_src_md, lrn_diff_dst_md,
+            lrn_pd.src_desc(), local_size, alpha, beta, k, lrn_pd);
 
     // create reorder primitive between pool diff src and lrn diff dst
     // if required

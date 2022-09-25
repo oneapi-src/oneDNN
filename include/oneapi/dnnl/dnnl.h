@@ -1846,7 +1846,8 @@ dnnl_status_t DNNL_API dnnl_prelu_backward_primitive_desc_create(
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind LRN algorithm kind: either #dnnl_lrn_across_channels or
 ///     #dnnl_lrn_within_channel.
-/// @param data_desc Source and destination memory descriptor.
+/// @param src_desc Source memory descriptor.
+/// @param dst_desc Destination memory descriptor.
 /// @param local_size Regularization local size.
 /// @param alpha The alpha regularization parameter.
 /// @param beta The beta regularization parameter.
@@ -1857,8 +1858,9 @@ dnnl_status_t DNNL_API dnnl_prelu_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_lrn_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const_dnnl_memory_desc_t data_desc, dnnl_dim_t local_size, float alpha,
-        float beta, float k, const_dnnl_primitive_attr_t attr);
+        const_dnnl_memory_desc_t src_desc, const_dnnl_memory_desc_t dst_desc,
+        dnnl_dim_t local_size, float alpha, float beta, float k,
+        const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for an LRN backward propagation primitive.
 ///
@@ -1866,8 +1868,9 @@ dnnl_status_t DNNL_API dnnl_lrn_forward_primitive_desc_create(
 /// @param engine Engine to use.
 /// @param alg_kind LRN algorithm kind: either #dnnl_lrn_across_channels or
 ///     #dnnl_lrn_within_channel.
-/// @param diff_data_desc Diff source and diff destination memory descriptor.
-/// @param data_desc Source memory descriptor.
+/// @param diff_src_desc Diff source memory descriptor.
+/// @param diff_dst_desc Diff destination memory descriptor.
+/// @param src_desc Source memory descriptor.
 /// @param local_size Regularization local size.
 /// @param alpha The alpha regularization parameter.
 /// @param beta The beta regularization parameter.
@@ -1879,8 +1882,9 @@ dnnl_status_t DNNL_API dnnl_lrn_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_lrn_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_data_desc,
-        const_dnnl_memory_desc_t data_desc, dnnl_dim_t local_size, float alpha,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
+        const_dnnl_memory_desc_t src_desc, dnnl_dim_t local_size, float alpha,
         float beta, float k, const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
@@ -1960,7 +1964,7 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_backward_primitive_desc_create(
 /// @param stat_desc Memory descriptor for mean and variance. If this
 ///     parameter is NULL, a zero memory descriptor, or a memory descriptor
 ///     with format_kind set to #dnnl_format_kind_undef, then the memory
-///     descriptor for stats is derived from @p data_desc by removing the last
+///     descriptor for stats is derived from @p src_desc by removing the last
 ///     dimension.
 /// @param epsilon Layer normalization epsilon parameter.
 /// @param flags Layer normalization flags (@ref dnnl_normalization_flags_t).
@@ -1991,7 +1995,7 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_forward_primitive_desc_create(
 /// @param stat_desc Memory descriptor for mean and variance. If this
 ///     parameter is NULL, a zero memory descriptor, or a memory descriptor
 ///     with format_kind set to #dnnl_format_kind_undef, then the memory
-///     descriptor for stats is derived from @p data_desc by removing the last
+///     descriptor for stats is derived from @p src_desc by removing the last
 ///     dimension.
 /// @param epsilon Layer normalization epsilon parameter.
 /// @param flags Layer normalization flags (@ref dnnl_normalization_flags_t).

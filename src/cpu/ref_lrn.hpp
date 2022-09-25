@@ -43,9 +43,15 @@ struct ref_lrn_fwd_t : public primitive_t {
             using namespace format_tag;
             using namespace data_type;
 
-            bool ok = is_fwd() && src_md()->data_type == d_type
+            const memory_desc_wrapper src_d(src_md());
+            const memory_desc_wrapper dst_d(dst_md());
+
+            bool ok = is_fwd()
+                    && utils::everyone_is(
+                            d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common() && src_d == dst_d;
             if (!ok) return status::unimplemented;
 
             dat_tag_ = memory_desc_matches_one_of_tag(
@@ -89,11 +95,15 @@ struct ref_lrn_bwd_t : public primitive_t {
             using namespace format_tag;
             using namespace data_type;
 
-            bool ok = !is_fwd() && set_default_formats_common()
+            const memory_desc_wrapper diff_src_d(diff_src_md());
+            const memory_desc_wrapper diff_dst_d(diff_dst_md());
+
+            bool ok = !is_fwd()
                     && utils::everyone_is(d_type, src_md()->data_type,
-                            diff_src_md()->data_type)
+                            diff_src_md()->data_type, diff_dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common() && diff_dst_d == diff_src_d;
             if (!ok) return status::unimplemented;
 
             dat_tag_ = memory_desc_matches_one_of_tag(

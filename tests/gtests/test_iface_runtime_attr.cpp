@@ -284,22 +284,22 @@ TEST_F(runtime_attr_test_t, TestLRN) {
     for (auto dt : {data_type::f32}) {
         memory::desc md {{1, 16, 3, 3}, dt, tag::abcd};
         CHECK_OK(lrn_forward::primitive_desc(eng, prop_kind::forward_inference,
-                algorithm::lrn_across_channels, md, 5, 1.f, 0.75f, 1.0f));
+                algorithm::lrn_across_channels, md, md, 5, 1.f, 0.75f, 1.0f));
         CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
                 prop_kind::forward_inference, algorithm::lrn_across_channels,
-                md, 5, 1.f, 0.75f, 1.0f, gen_attr_with_oscale(false)));
+                md, md, 5, 1.f, 0.75f, 1.0f, gen_attr_with_oscale(false)));
         CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
                 prop_kind::forward_inference, algorithm::lrn_across_channels,
-                md, 5, 1.f, 0.75f, 1.0f, gen_attr_with_oscale(true)));
+                md, md, 5, 1.f, 0.75f, 1.0f, gen_attr_with_oscale(true)));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
             CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
                     prop_kind::forward_inference,
-                    algorithm::lrn_across_channels, md, 5, 1.f, 0.75f, 1.0f,
+                    algorithm::lrn_across_channels, md, md, 5, 1.f, 0.75f, 1.0f,
                     gen_attr_with_zp(false, arg)));
             CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
                     prop_kind::forward_inference,
-                    algorithm::lrn_across_channels, md, 5, 1.f, 0.75f, 1.0f,
+                    algorithm::lrn_across_channels, md, md, 5, 1.f, 0.75f, 1.0f,
                     gen_attr_with_zp(true, arg)));
         }
     }

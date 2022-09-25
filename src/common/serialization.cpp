@@ -361,8 +361,10 @@ void serialize_desc(serialization_stream_t &sstream, const lrn_desc_t &desc) {
     sstream.write(&desc.prop_kind);
     sstream.write(&desc.alg_kind);
     // Memory descriptors
-    serialize_md(sstream, desc.data_desc);
-    serialize_md(sstream, desc.diff_data_desc);
+    serialize_md(sstream, desc.src_desc);
+    serialize_md(sstream, desc.dst_desc);
+    serialize_md(sstream, desc.diff_src_desc);
+    serialize_md(sstream, desc.diff_dst_desc);
     // Local size
     sstream.write(&desc.local_size);
     // Alpha, beta

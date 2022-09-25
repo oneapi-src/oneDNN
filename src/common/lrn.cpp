@@ -32,18 +32,18 @@ using namespace dnnl::impl::types;
 
 namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
-        alg_kind_t alg_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *diff_data_desc, dim_t local_size, float alpha,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, dim_t local_size, float alpha,
         float beta, float k) {
-    bool args_ok = !any_null(lrn_desc, data_desc)
+    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
+    bool args_ok = !any_null(lrn_desc, src_desc)
             && one_of(alg_kind, lrn_within_channel, lrn_across_channels)
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data)
-            && IMPLICATION(
-                    prop_kind == backward_data, diff_data_desc != nullptr)
-            && IMPLICATION(
-                    one_of(prop_kind, forward_training, forward_inference),
-                    !memory_desc_wrapper(data_desc).format_any());
+            && local_size >= 0 && IMPLICATION(is_fwd, dst_desc != nullptr)
+            && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
+            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
     auto ld = lrn_desc_t();
@@ -51,28 +51,46 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
     ld.prop_kind = prop_kind;
     ld.alg_kind = alg_kind;
 
-    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-
     bool runtime_dims_or_strides
-            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides();
-    if (!is_fwd)
+            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides();
+    if (is_fwd) {
         runtime_dims_or_strides = runtime_dims_or_strides
-                || memory_desc_wrapper(diff_data_desc)
+                || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
+    } else {
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(diff_src_desc)
+                           .has_runtime_dims_or_strides()
+                || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
+    }
     if (runtime_dims_or_strides) return unimplemented;
 
-    ld.data_desc = *data_desc;
-    if (!is_fwd) ld.diff_data_desc = *diff_data_desc;
+    ld.src_desc = *src_desc;
+    if (is_fwd) ld.dst_desc = *dst_desc;
+    if (!is_fwd) {
+        ld.diff_src_desc = *diff_src_desc;
+        ld.diff_dst_desc = *diff_dst_desc;
+    }
 
     ld.local_size = local_size;
     ld.lrn_alpha = alpha;
     ld.lrn_beta = beta;
     ld.lrn_k = k;
 
-    bool consistency = ld.data_desc.ndims >= 2;
-    if (consistency && ld.prop_kind == backward_data)
-        consistency = array_cmp(
-                ld.diff_data_desc.dims, ld.data_desc.dims, ld.data_desc.ndims);
+    bool consistency = ld.src_desc.ndims >= 2;
+    if (consistency && is_fwd) {
+        consistency = ld.dst_desc.ndims == ld.src_desc.ndims
+                && array_cmp(
+                        ld.dst_desc.dims, ld.src_desc.dims, ld.src_desc.ndims);
+    }
+    if (consistency && !is_fwd) {
+        consistency = ld.diff_dst_desc.ndims == ld.src_desc.ndims
+                && ld.diff_dst_desc.ndims == ld.diff_src_desc.ndims
+                && array_cmp(ld.diff_dst_desc.dims, ld.src_desc.dims,
+                        ld.src_desc.ndims)
+                && array_cmp(ld.diff_src_desc.dims, ld.diff_dst_desc.dims,
+                        ld.diff_dst_desc.ndims);
+    }
     if (!consistency) return invalid_arguments;
 
     *lrn_desc = ld;
@@ -83,28 +101,30 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
 status_t dnnl_lrn_forward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *data_desc, dim_t local_size, float alpha,
-        float beta, float k, const primitive_attr_t *attr) {
+        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
+        dim_t local_size, float alpha, float beta, float k,
+        const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
 
     auto lrn_desc = lrn_desc_t();
-    CHECK(lrn_desc_init(&lrn_desc, prop_kind, alg_kind, data_desc, nullptr,
-            local_size, alpha, beta, k));
+    CHECK(lrn_desc_init(&lrn_desc, prop_kind, alg_kind, src_desc, dst_desc,
+            nullptr, nullptr, local_size, alpha, beta, k));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&lrn_desc, nullptr, attr);
 }
 
 status_t dnnl_lrn_backward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        alg_kind_t alg_kind, const memory_desc_t *diff_data_desc,
-        const memory_desc_t *data_desc, dim_t local_size, float alpha,
-        float beta, float k, const primitive_desc_iface_t *hint_fwd_pd,
+        alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, const memory_desc_t *src_desc,
+        dim_t local_size, float alpha, float beta, float k,
+        const primitive_desc_iface_t *hint_fwd_pd,
         const primitive_attr_t *attr) {
 
     auto lrn_desc = lrn_desc_t();
-    CHECK(lrn_desc_init(&lrn_desc, backward_data, alg_kind, data_desc,
-            diff_data_desc, local_size, alpha, beta, k));
+    CHECK(lrn_desc_init(&lrn_desc, backward_data, alg_kind, src_desc, nullptr,
+            diff_src_desc, diff_dst_desc, local_size, alpha, beta, k));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&lrn_desc, hint_fwd_pd, attr);
 }

@@ -26,7 +26,7 @@ namespace amd {
 
 status_t miopen_lrn_fwd_t::execute(const exec_ctx_t &ctx) const {
 
-    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
+    if (memory_desc_wrapper(pd()->src_md()).has_zero_dim())
         return status::success;
 
     amd::sycl_hip_stream_t *hip_stream
@@ -54,7 +54,7 @@ status_t miopen_lrn_fwd_t::execute(const exec_ctx_t &ctx) const {
 }
 
 status_t miopen_lrn_bwd_t::execute(const exec_ctx_t &ctx) const {
-    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
+    if (memory_desc_wrapper(pd()->src_md()).has_zero_dim())
         return status::success;
 
     amd::sycl_hip_stream_t *hip_stream
