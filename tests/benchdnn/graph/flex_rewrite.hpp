@@ -122,8 +122,14 @@ struct flex_rewrite {
             dims_t &strides, dims_t &kernel, bool deconv) {
         dims_t v;
         pads.clear();
+        std::string auto_pad = "NONE";
+        if (aop.attrs_.find("auto_pad") != aop.attrs_.end()) {
+            auto_pad = aop.attrs_["auto_pad"].get_string();
+            transform(auto_pad.begin(), auto_pad.end(), auto_pad.begin(),
+                    toupper);
+        }
         if (aop.attrs_.find("auto_pad") == aop.attrs_.end()
-                || aop.attrs_["auto_pad"].get_string() == "None") {
+                || auto_pad == "NONE") {
             v = aop.attrs_["pads_begin"].get_s64_vector();
             for (size_t i = 0; i < v.size(); i++) {
                 pads.push_back(v[i]);
@@ -133,11 +139,11 @@ struct flex_rewrite {
                 pads[i] += v[i];
             }
         } else {
-            if (aop.attrs_["auto_pad"].get_string() == "VALID") {
+            if (auto_pad == "VALID") {
                 for (size_t i = 0; i < spatial_dims.size(); i++) {
                     pads.push_back(0);
                 }
-            } else {
+            } else if (auto_pad == "SAME_UPPER" || auto_pad == "SAME_LOWER") {
                 // SAME_UPPER or SAME_LOWER
                 // total padding is the same for both conditions
                 for (size_t i = 0; i < spatial_dims.size(); i++) {
@@ -146,8 +152,19 @@ struct flex_rewrite {
                     auto pad_needed = deconv ? kernel[i] - strides[i]
                                              : (legacy - 1) * strides[i]
                                     + kernel[i] - spatial_dims[i];
-                    pads.push_back(pad_needed);
+                    if (pad_needed < 0) {
+                        fprintf(stderr, "graph: auto_pad failed!\n");
+                        exit(2);
+                    }
+                    if (auto_pad == "SAME_UPPER") {
+                        pads.push_back((pad_needed - 1) / 2);
+                    } else {
+                        pads.push_back(pad_needed / 2);
+                    }
                 }
+            } else {
+                fprintf(stderr, "graph: invalid arguments!\n");
+                exit(2);
             }
         }
     }
