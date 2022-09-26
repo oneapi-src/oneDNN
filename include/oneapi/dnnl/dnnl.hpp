@@ -2567,7 +2567,7 @@ struct memory : public handle<dnnl_memory_t> {
             validate_dims(offsets, get_ndims());
             dnnl_memory_desc_t sub_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_create_submemory(
-                    &sub_md, &data, adims.data(), offsets.data());
+                    &sub_md, get(), adims.data(), offsets.data());
             if (!allow_empty)
                 error::wrap_c_api(status, "could not construct a sub-memory");
             return desc(sub_md);
@@ -2670,7 +2670,7 @@ struct memory : public handle<dnnl_memory_t> {
             validate_dims(permutation, get_ndims());
             dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_permute_axes(
-                    &out_md, &data, permutation.data());
+                    &out_md, get(), permutation.data());
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not permute axes of a memory descriptor");
@@ -2788,7 +2788,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns The number of bytes required to allocate a memory buffer
         ///     for the memory object described by this memory descriptor
         ///     including the padding area.
-        size_t get_size() const { return dnnl_memory_desc_get_size(&data); }
+        size_t get_size() const { return dnnl_memory_desc_get_size(get()); }
 
         /// Checks whether the memory descriptor is zero (empty).
         /// @returns @c true if the memory descriptor describes an empty
@@ -2863,7 +2863,7 @@ struct memory : public handle<dnnl_memory_t> {
     memory(const desc &md, const engine &aengine, void *handle) {
         dnnl_memory_t result;
         error::wrap_c_api(
-                dnnl_memory_create(&result, &md.data, aengine.get(), handle),
+                dnnl_memory_create(&result, md.get(), aengine.get(), handle),
                 "could not create a memory object");
         reset(result);
     }
