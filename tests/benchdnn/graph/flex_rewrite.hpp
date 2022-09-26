@@ -476,20 +476,26 @@ struct flex_rewrite {
                     gi[out0] = gi[in0];
                     if (aop.attrs_.find("keep_stats") == aop.attrs_.end()
                             || aop.attrs_["keep_stats"].get_bool()) {
-                        size_t out1 = aop.out_lts_[1].id_,
-                               out2 = aop.out_lts_[2].id_;
-                        gi[out1].clear();
-                        gi[out2].clear();
-
                         int64_t axis = -1;
                         if (aop.attrs_.find("begin_norm_axis")
                                 != aop.attrs_.end()) {
                             axis = aop.attrs_["begin_norm_axis"].get_s64();
                         }
                         axis = axis >= 0 ? axis : gi[in0].size() + axis;
-                        for (int64_t i = 0; i < axis; i++) {
-                            gi[out1].push_back(gi[in0][i]);
-                            gi[out2].push_back(gi[in0][i]);
+                        if (aop.out_lts_.size() == 3) {
+                            size_t out1 = aop.out_lts_[1].id_,
+                                   out2 = aop.out_lts_[2].id_;
+                            gi[out1].clear();
+                            gi[out2].clear();
+                            for (int64_t i = 0; i < axis; i++) {
+                                gi[out1].push_back(gi[in0][i]);
+                                gi[out2].push_back(gi[in0][i]);
+                            }
+                        } else {
+                            fprintf(stderr,
+                                    "graph: LayerNorm output number "
+                                    "mismatch!\n");
+                            exit(2);
                         }
                     }
                     break;
