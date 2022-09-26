@@ -431,7 +431,7 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
             pdw.reset(nullptr);
             return OK;
         } else if (status == dnnl_success) {
-            return OK;
+            continue;
         } else {
             BENCHDNN_PRINT(0, "%s\n", "Unexpected status from pd iterator.");
             return FAIL;
