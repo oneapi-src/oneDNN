@@ -410,8 +410,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (src_f && dst_hf) {
         int step = get_step();
         const auto tmp_type = dst_type;
-        const int tmp_stride = 1;
-        const int reg_size = step * src_stride_bytes;
+        const int tmp_stride = 2;
+        const int reg_size = step * tmp_stride * dst_type_size;
         const int nregs = utils::div_up(reg_size, grf_size);
         auto tmp = scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
@@ -422,12 +422,11 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
 
-            const auto align_bdy = grf_size / 2;
-            auto src_offset = s.getByteOffset();
-            auto dst_offset = d.getByteOffset();
-            if (esize > 1 && dst_offset % align_bdy != src_offset / 2) {
-                auto tmp_offset = 2 * (dst_offset % align_bdy);
-                auto t = tmp.subregister(tmp_offset, tmp_type);
+            const auto align_boundary = grf_size / 2;
+            bool aligned = d.getByteOffset() % align_boundary == 0
+                    && s.getByteOffset() == 0;
+            if (esize > 1 && dst_stride == 1 && !aligned) {
+                auto t = tmp.subregister(s.getByteOffset(), tmp_type);
                 plan(mov, esize, t(tmp_stride), s(src_stride));
                 plan(mov, esize, d.w()(dst_stride), t.w()(tmp_stride));
                 continue;
@@ -441,8 +440,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (dst_f && src_hf) {
         int step = get_step();
         const auto tmp_type = src_type;
-        const int tmp_stride = 1;
-        const int reg_size = step * src_stride_bytes;
+        const int tmp_stride = 2;
+        const int reg_size = step * tmp_stride * src_type_size;
         const int nregs = utils::div_up(reg_size, grf_size);
         auto tmp = scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
@@ -453,12 +452,11 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
 
-            const auto align_bdy = grf_size / 2;
-            auto src_offset = s.getByteOffset();
-            auto dst_offset = d.getByteOffset();
-            if (esize > 1 && src_offset % align_bdy != dst_offset / 2) {
-                auto tmp_offset = 2 * (src_offset % align_bdy);
-                auto t = tmp.subregister(tmp_offset, tmp_type);
+            const auto align_boundary = grf_size / 2;
+            bool aligned = s.getByteOffset() % align_boundary == 0
+                    && d.getByteOffset() == 0;
+            if (esize > 1 && src_stride == 1 && !aligned) {
+                auto t = tmp.subregister(d.getByteOffset(), tmp_type);
                 plan(mov, esize, t.w()(tmp_stride), s.w()(src_stride));
                 plan(mov, esize, d(dst_stride), t(tmp_stride));
                 continue;
