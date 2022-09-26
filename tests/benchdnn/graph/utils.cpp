@@ -28,6 +28,7 @@ namespace graph {
 dnnl::graph::op::kind opstr2kind(const std::string &kind) {
     const std::unordered_map<std::string, dnnl::graph::op::kind> op_map = {
             {"Abs", dnnl::graph::op::kind::Abs},
+            {"AbsBackprop", dnnl::graph::op::kind::AbsBackprop},
             {"Add", dnnl::graph::op::kind::Add},
             {"AvgPool", dnnl::graph::op::kind::AvgPool},
             {"AvgPoolBackprop", dnnl::graph::op::kind::AvgPoolBackprop},
@@ -61,6 +62,7 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"HardSwishBackprop", dnnl::graph::op::kind::HardSwishBackprop},
             {"LayerNorm", dnnl::graph::op::kind::LayerNorm},
             {"LayerNormBackprop", dnnl::graph::op::kind::LayerNormBackprop},
+            {"LeakyReLU", dnnl::graph::op::kind::LeakyReLU},
             {"Log", dnnl::graph::op::kind::Log},
             {"LogSoftmax", dnnl::graph::op::kind::LogSoftmax},
             {"LogSoftmaxBackprop", dnnl::graph::op::kind::LogSoftmaxBackprop},
@@ -69,6 +71,8 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"MaxPool", dnnl::graph::op::kind::MaxPool},
             {"MaxPoolBackprop", dnnl::graph::op::kind::MaxPoolBackprop},
             {"Minimum", dnnl::graph::op::kind::Minimum},
+            {"Mish", dnnl::graph::op::kind::Mish},
+            {"MishBackprop", dnnl::graph::op::kind::MishBackprop},
             {"Multiply", dnnl::graph::op::kind::Multiply},
             {"Pow", dnnl::graph::op::kind::Pow},
             {"PowBackprop", dnnl::graph::op::kind::PowBackprop},
