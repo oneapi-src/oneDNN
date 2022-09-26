@@ -541,9 +541,7 @@ status_t jit_uni_pooling_fwd_t<isa, d_type>::init_ncsp_trans_ctx() {
 }
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
-jit_uni_pooling_fwd_t<isa, d_type>::~jit_uni_pooling_fwd_t() {
-    delete pd()->jpp_.tmp_md;
-}
+jit_uni_pooling_fwd_t<isa, d_type>::~jit_uni_pooling_fwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
@@ -593,7 +591,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
         arg.dst_orig = dst;
         if (trans_dst) {
             arg.dst = transpose_facade.get_dst_addr(ithr, oh, jpp);
-            if (jpp.tmp_md != nullptr) {
+            if (!types::is_zero_md(&jpp.tmp_md)) {
                 const memory_desc_wrapper tmp_d
                         = memory_desc_wrapper(jpp.tmp_md);
                 // offset needs to be f32
@@ -721,7 +719,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
         arg.dst_orig = dst;
         if (trans_dst) {
             arg.dst = transpose_facade.get_dst_addr_3d(ithr, od, oh, jpp);
-            if (jpp.tmp_md != nullptr) {
+            if (!types::is_zero_md(&jpp.tmp_md)) {
                 const memory_desc_wrapper tmp_d
                         = memory_desc_wrapper(jpp.tmp_md);
                 // offset needs to be f32

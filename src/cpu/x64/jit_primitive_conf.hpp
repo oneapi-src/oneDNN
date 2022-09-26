@@ -675,7 +675,7 @@ struct jit_pool_conf_t {
     bool with_eltwise;
     bool with_binary;
     int nthr;
-    memory_desc_t *tmp_md = nullptr;
+    memory_desc_t tmp_md;
 };
 
 struct jit_pool_call_s {

@@ -68,7 +68,7 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
                 this->r15, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(jpp.tag_kind == jit_memory_tag_kind_t::ncsp
-                                ? *(jpp.tmp_md)
+                                ? jpp.tmp_md
                                 : *dst_md),
                 postop_tail, k_c_tail_mask, use_exact_tail_scalar_bcast};
 
@@ -136,6 +136,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.c_block = is_avx512 ? 16 : 8;
 
     jpp.alg = pd.alg_kind;
+    jpp.tmp_md = memory_desc_t();
 
     using namespace format_tag;
     const auto blocked_fmt_tag = is_avx512
@@ -192,7 +193,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
         // used to initialize binary post-ops
         if (ppd->is_fwd() && jpp.with_binary) {
-            CHECK(dnnl_memory_desc_init_by_tag(jpp.tmp_md, ndims,
+            CHECK(dnnl_memory_desc_init_by_tag(&jpp.tmp_md, ndims,
                     dst_d.md_->dims, data_type::f32, blocked_fmt_tag));
         }
     } else {
@@ -208,7 +209,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
     if (ppd->is_fwd() && jpp.with_binary) {
         CHECK(set_binary_postops_formats(attr.post_ops_,
-                jpp.tag_kind == jit_memory_tag_kind_t::ncsp ? jpp.tmp_md
+                jpp.tag_kind == jit_memory_tag_kind_t::ncsp ? &jpp.tmp_md
                                                             : dst_d.md_));
     }
 
