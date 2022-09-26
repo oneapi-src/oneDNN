@@ -529,7 +529,7 @@ TEST(Execute, InterpolateBackwardLinear) {
     test::vector<float> ref_diff_src {3.f, 6.f, 12.f, 15.f};
 
     graph::op_t op(graph::op_kind::InterpolateBackprop);
-    op.set_attr<std::string>(graph::op_attr::mode, "linear");
+    op.set_attr<std::string>(graph::op_attr::mode, "bilinear");
     op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
 
     graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(

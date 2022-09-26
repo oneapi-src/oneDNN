@@ -1084,7 +1084,7 @@ create_resampling_bwd_pd(std::shared_ptr<op_t> &op,
     auto algo = algorithm::undef;
     if (mode == "nearest") {
         algo = algorithm::resampling_nearest;
-    } else if (mode == "linear") {
+    } else if (mode == "linear" || mode == "bilinear" || mode == "trilinear") {
         algo = algorithm::resampling_linear;
     } else {
         BACKEND_DNNL_ENFORCE(0, "Unsupported resampling mode.");
