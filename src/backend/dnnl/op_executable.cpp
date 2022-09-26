@@ -1116,7 +1116,7 @@ resampling_bwd_executable_t::desc_t resampling_bwd_executable_t::create_desc(
     auto algo = algorithm::undef;
     if (mode == "nearest") {
         algo = algorithm::resampling_nearest;
-    } else if (mode == "linear") {
+    } else if (mode == "linear" || mode == "bilinear" || mode == "trilinear") {
         algo = algorithm::resampling_linear;
     } else {
         BACKEND_DNNL_ENFORCE(0, "Unsupported resampling mode.");
