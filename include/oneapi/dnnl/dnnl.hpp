@@ -1273,17 +1273,15 @@ struct memory : public handle<dnnl_memory_t> {
     enum class format_kind {
         /// Undefined memory format kind, used for empty memory descriptors.
         undef = dnnl_format_kind_undef,
-        /// Unspecified format kind.
-        /// The primitive selects a format automatically.
+        /// A special format kind that indicates that the actual format will be
+        /// selected by a primitive automatically.
         any = dnnl_format_kind_any,
         /// A tensor in a generic format described by the stride and blocking
         /// values in each dimension. See @ref dnnl_blocking_desc_t for more
         /// information.
         blocked = dnnl_blocked,
-        /// Weights format used in 8-bit Winograd convolution.
-        wino = dnnl_format_kind_wino,
-        /// Packed weights format used in RNN.
-        packed = dnnl_format_kind_rnn_packed,
+        /// A special format kind that indicates that tensor format is opaque.
+        unspecified = dnnl_format_kind_unspecified,
     };
 
     /// Memory format tag specification.

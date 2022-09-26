@@ -86,17 +86,19 @@ typedef enum {
 typedef enum {
     /// Undefined memory format kind, used for empty memory descriptors.
     dnnl_format_kind_undef = 0,
-    /// Unspecified format kind.
-    /// The primitive selects a format automatically.
+    /// A special format kind that indicates that the actual format will be
+    /// selected by a primitive automatically.
     dnnl_format_kind_any,
     /// A tensor in a generic format described by the stride and blocking
     /// values in each dimension. See @ref dnnl_blocking_desc_t for more
     /// information.
     dnnl_blocked,
-    /// Weights format used in 8bit Winograd convolution
-    dnnl_format_kind_wino,
-    /// Packed weights format used in RNN
-    dnnl_format_kind_rnn_packed,
+    /// A special format kind that indicates that tensor format is opaque.
+    dnnl_format_kind_unspecified,
+    /// Parameter to allow internal only format kinds without undefined
+    /// behavior. This parameter is chosen to be valid for so long as
+    /// sizeof(int) >= 2.
+    dnnl_format_kind_max = 0x7fff,
 } dnnl_format_kind_t;
 
 /// Memory format tag specification.

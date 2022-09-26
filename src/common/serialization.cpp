@@ -65,7 +65,7 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
     sstream.write(&md.offset0);
     sstream.write(&md.format_kind);
     // format desc
-    switch (md.format_kind) {
+    switch ((int)md.format_kind) {
         case format_kind::undef:
         case format_kind::any: break;
         case format_kind::blocked:

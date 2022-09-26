@@ -174,8 +174,12 @@ namespace format_kind {
 const format_kind_t undef = dnnl_format_kind_undef;
 const format_kind_t any = dnnl_format_kind_any;
 const format_kind_t blocked = dnnl_blocked;
-const format_kind_t wino = dnnl_format_kind_wino;
-const format_kind_t rnn_packed = dnnl_format_kind_rnn_packed;
+const format_kind_t unspecified = dnnl_format_kind_unspecified;
+
+// Internal only format kinds.
+const format_kind_t internal_only_start = (format_kind_t)(1 << 8);
+const format_kind_t wino = internal_only_start;
+const format_kind_t rnn_packed = (format_kind_t)(internal_only_start + 1);
 } // namespace format_kind
 
 using format_tag_t = dnnl_format_tag_t;

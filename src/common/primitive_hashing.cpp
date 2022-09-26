@@ -107,7 +107,7 @@ size_t get_md_hash(const memory_desc_t &md) {
     seed = hash_combine(seed, md.offset0);
     seed = hash_combine(seed, static_cast<size_t>(md.format_kind));
     // format desc
-    switch (md.format_kind) {
+    switch ((int)md.format_kind) {
         case format_kind::undef:
         case format_kind::any: break;
         case format_kind::blocked:

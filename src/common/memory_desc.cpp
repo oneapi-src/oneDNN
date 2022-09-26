@@ -565,6 +565,11 @@ status_t dnnl_memory_desc_query(
             *(const dims_t **)result = &md->padded_offsets;
             break;
         case query::format_kind:
+            if (one_of(md->format_kind, format_kind::rnn_packed,
+                        format_kind::wino)) {
+                *(format_kind_t *)result = format_kind::unspecified;
+                break;
+            }
             *(format_kind_t *)result = md->format_kind;
             break;
         case query::strides:
