@@ -93,11 +93,11 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    engine e = benchdnnext::get_test_engine();
+    engine eng = benchdnnext::get_test_engine();
 
     /// mark the output logical tensors of partition as ANY layout enabled
     std::unordered_set<size_t> id_to_set_any_layout;
-    std::vector<compiled_partition> c_partitions(partitions.size());
+    std::vector<compiled_partition> c_partitions;
     std::vector<std::vector<dnnl::graph::tensor>> tensors_in, tensors_out;
 
     // mapping from id to tensors
@@ -120,18 +120,23 @@ int doit(const prb_t *prb, res_t *res) {
             update_tensors_with_any_layout(outputs, id_to_set_any_layout);
 
             /// compile to generate compiled partition
-            c_partitions[i] = partitions[i].compile(inputs, outputs, e);
+            c_partitions.emplace_back(
+                    partitions[i].compile(inputs, outputs, eng));
 
             record_queried_logical_tensors(partitions[i].get_out_ports(),
-                    c_partitions[i], id_to_queried_logical_tensors);
+                    c_partitions.back(), id_to_queried_logical_tensors);
 
             // Creating tensors and allocating memory buffer
             std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(
-                    inputs, c_partitions[i], e, 128);
+                    inputs, c_partitions.back(), eng, 128);
             std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(
-                    outputs, c_partitions[i], e, 0);
+                    outputs, c_partitions.back(), eng, 0);
             tensors_in.emplace_back(input_ts);
             tensors_out.emplace_back(output_ts);
+        } else {
+            BENCHDNN_PRINT(1, "Partition %zd is unsupported!\n", i);
+            res->state = UNIMPLEMENTED;
+            return OK;
         }
     }
 
