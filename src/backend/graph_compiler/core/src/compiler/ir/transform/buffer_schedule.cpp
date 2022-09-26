@@ -18,11 +18,14 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <memory>
 #include <set>
 #include <utility>
 #include <vector>
 #include "constant_fold.hpp"
+#include "pointer_alias_info.hpp"
 #include "static_memory_planner.hpp"
+#include "tensor_inplace_info.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/visitor.hpp>
@@ -97,6 +100,15 @@ public:
     }
 };
 
+// the struct to track the call site which may have inplace reuse
+struct call_site_info_t {
+    func_c func_;
+    // the tensors passed to the function on the caller side. It has length of
+    // func->args_. If an arg is not tensor related, the element in this array
+    // will be empty.
+    std::vector<expr_c> tensors_passed_;
+};
+
 // the tensor is not thread local
 static constexpr uint64_t NOT_THREAD_LOCAL = 0;
 struct tensor_tick_info_t {
@@ -108,6 +120,24 @@ struct tensor_tick_info_t {
     bool is_arg_ = false; // if is the tensor defined in function args
     uint64_t scope_ = NOT_THREAD_LOCAL; // parallel scope id
     bool has_hint_ = false; // if the tensor has hint tick info
+    // the tensors that the current tensor can inplace reuse buffer with. Not
+    // all of the tensors in this set is valid. Only if last_access_tick of the
+    // tensor in the set == the first_access_tick of the current tensor can
+    // the tensor be reused.
+    std::vector<std::pair<expr_c, inplace_kind>> inplace_reuse_;
+    // the call site of the inplace function call. may be null. It is used to
+    // back-propagate the inplace result to the function to be called, to inform
+    // it that some of the args has pointer alias
+    std::shared_ptr<call_site_info_t> inplace_call_site_;
+
+    int64_t get_last_access() const {
+        int64_t last_access = last_read_;
+        if (!writes_.empty()) {
+            last_access = std::max(last_access, *writes_.rbegin());
+        }
+        if (last_access == TICK_NOT_EXIST) { last_access = first_access_; }
+        return last_access;
+    }
 };
 
 static bool is_parallel_for(const stmt_c &v) {
@@ -444,6 +474,12 @@ public:
 
     // if a tensor/tensorptr is passed in function args, set the r/w ticks
     expr_c visit(call_c v) override {
+        using hint_t = std::vector<
+                std::pair<int, std::vector<tensor_inplace_info_t>>>;
+        hint_t *inplace_hint = (v->func_->attr_)
+                ? (v->func_->attr_->get_or_null<hint_t>(
+                        function_attrs::inplace_hint))
+                : nullptr;
         if (v->func_ == builtin::get_mem_set_func()) { good_tensor_ = true; }
         dispatch_args(v->args_);
         if (auto ex = std::dynamic_pointer_cast<expr_base>(v->func_)) {
@@ -452,6 +488,10 @@ public:
         // now tick_ is the tick when the last parameter is calculated. set the
         // tick for referenced tensors
         auto prototype = v->get_prototype();
+        auto call_site = std::make_shared<call_site_info_t>();
+        std::vector<expr_c> &arg_tensors = call_site->tensors_passed_;
+        call_site->func_ = prototype;
+        arg_tensors.resize(v->args_.size());
         for (unsigned i = 0; i < v->args_.size(); i++) {
             auto &p = v->args_[i];
             auto &funcp = prototype->params_[i];
@@ -473,6 +513,29 @@ public:
                     // by default the buffer is r/w
                     set_both_tick(tsr, tick_);
                 }
+                if (inplace_hint) { arg_tensors[i] = tsr; }
+            }
+        }
+        if (inplace_hint) {
+            for (auto &kv : *inplace_hint) {
+                auto &ths_tsr = arg_tensors.at(kv.first);
+                auto itr = out_.find(ths_tsr);
+                if (itr == out_.end()) { continue; }
+                // if the tensor is not firstly accessed at current time, the
+                // inplace hint is meaningless for the tensor, because it is
+                // already created
+                if (tick_ != itr->second.first_access_) { continue; }
+                auto &can_inplace_tsrs = kv.second;
+                COMPILE_ASSERT(ths_tsr.defined(),
+                        "Bad inplace hint index: " << kv.first);
+                for (auto idx : can_inplace_tsrs) {
+                    auto &inplace_tsr = arg_tensors.at(idx.used_arg_idx_);
+                    COMPILE_ASSERT(inplace_tsr.defined(),
+                            "Bad inplace hint index: " << idx.used_arg_idx_);
+                    itr->second.inplace_reuse_.emplace_back(
+                            inplace_tsr, idx.kind_);
+                }
+                itr->second.inplace_call_site_ = call_site;
             }
         }
         return v;
@@ -833,7 +896,7 @@ static std::vector<size_t> schedule_tensor_memory_planner(
         std::vector<expr_c> &defined_tensors,
         // the old_tensor -> (scope id, start offset)
         std::unordered_map<expr_c, std::pair<uint64_t, size_t>> &replace_map,
-        bool hot_first, uint64_t scopes) {
+        bool hot_first, uint64_t scopes, bool inplace) {
     std::vector<size_t> total_list(scopes, 0);
     // tick->trace map, outer map for different parallel scope.
     std::vector<std::multimap<int64_t, memory_optim::memory_alloc_trace_t>>
@@ -843,6 +906,8 @@ static std::vector<size_t> schedule_tensor_memory_planner(
     for (auto &itr : ticks) {
         sorted_ticks.push_back(&itr);
     }
+
+    memory_optim::inplace_info_map inplace_map;
     // unordered ticks may cause unordered multimap
     std::sort(sorted_ticks.begin(), sorted_ticks.end(),
             [](const std::pair<const expr_c, tensor_tick_info_t> *x,
@@ -877,17 +942,24 @@ static std::vector<size_t> schedule_tensor_memory_planner(
                 std::make_pair(itr.second.first_access_ * 2,
                         memory_optim::memory_alloc_trace_t {
                                 (uintptr_t)tsr.get(), (size_t)tsr_size}));
-
-        int64_t last_access = lastread;
-        if (!itr.second.writes_.empty()) {
-            last_access = std::max(last_access, *itr.second.writes_.rbegin());
-        }
-        if (last_access == TICK_NOT_EXIST) {
-            last_access = itr.second.first_access_;
-        }
+        auto last_access = itr.second.get_last_access();
         // make sure last access > first_access_
         traces[itr.second.scope_].insert(std::make_pair(last_access * 2 + 1,
                 memory_optim::memory_alloc_trace_t {(uintptr_t)tsr.get(), 0}));
+        if (inplace) {
+            std::vector<std::pair<uintptr_t, inplace_kind>> inplace_tsrs;
+            for (auto &inp_tsr : itr.second.inplace_reuse_) {
+                // check if the tensor in the inplace hint is the last use
+                if (ticks[inp_tsr.first].get_last_access()
+                        == itr.second.first_access_) {
+                    inplace_tsrs.emplace_back(
+                            (uintptr_t)inp_tsr.first.get(), inp_tsr.second);
+                }
+            }
+            if (!inplace_tsrs.empty()) {
+                inplace_map[(uintptr_t)tsr.get()] = std::move(inplace_tsrs);
+            }
+        }
     }
 
     for (size_t i = 0; i < traces.size(); i++) {
@@ -897,14 +969,66 @@ static std::vector<size_t> schedule_tensor_memory_planner(
         for (auto &kv : trace) {
             in_trace.emplace_back(kv.second);
         }
+
         std::unordered_map<uintptr_t, size_t> out;
-        total_list[i] = memory_optim::schedule_memory_allocations(
-                in_trace, /*512-bit alignment*/ 64, hot_first, out);
+
+        std::unordered_map<uintptr_t, std::vector<uintptr_t>>
+                out_inplace_result;
+        total_list[i] = memory_optim::schedule_memory_allocations(in_trace,
+                /*512-bit alignment*/ 64, hot_first, inplace_map, out,
+                out_inplace_result);
         for (auto &kv : out) {
             auto p = reinterpret_cast<expr_base *>(kv.first)
                              ->node_ptr_from_this();
             replace_map[p] = std::make_pair(i, kv.second);
             SC_MODULE_INFO << p << " -> " << kv.second;
+        }
+        // set alias info to the callee function
+        for (auto &kv : out_inplace_result) {
+            auto p = reinterpret_cast<expr_base *>(kv.first)
+                             ->node_ptr_from_this();
+            // p is a tensor which inplace reuses others
+            if (kv.second.empty()) { continue; }
+            auto &tinfo = ticks[p];
+            const auto &callsite = tinfo.inplace_call_site_;
+            // update the alias info. If a tensor inplace reuses another one in
+            // func parameters, we need to inform the function implementation
+            // that there is pointer alias in arguments
+            if (callsite) {
+                expr arg;
+                std::shared_ptr<alias_info::tensor_alias_identity_t> aliasinfo;
+                // first step, find the first usage of tensor p in the call
+                for (size_t pidx = 0; pidx < callsite->tensors_passed_.size();
+                        pidx++) {
+                    if (callsite->tensors_passed_[pidx].ptr_same(p)) {
+                        auto cur_arg = callsite->func_->params_.at(pidx);
+                        auto cur_aliasinfo
+                                = alias_info::get_or_create_alias_info(
+                                        *cur_arg);
+                        if (!arg.defined()) {
+                            arg = cur_arg;
+                            aliasinfo = cur_aliasinfo;
+                        } else {
+                            aliasinfo->add_alias(cur_aliasinfo);
+                        }
+                    }
+                }
+                assert(arg.defined());
+                // second, find all func args that may have alias
+                for (size_t pidx = 0; pidx < callsite->tensors_passed_.size();
+                        pidx++) {
+                    for (auto inplace_id : kv.second) {
+                        auto inp = reinterpret_cast<expr_base *>(inplace_id);
+                        if (callsite->tensors_passed_[pidx].get() == inp) {
+                            auto cur_arg = callsite->func_->params_.at(pidx);
+                            auto cur_aliasinfo
+                                    = alias_info::get_or_create_alias_info(
+                                            *cur_arg);
+                            aliasinfo->add_alias(cur_aliasinfo);
+                        }
+                    }
+                }
+            }
         }
         SC_MODULE_INFO << "Scope: " << i << ",Total: " << total_list[i];
     }
@@ -957,6 +1081,7 @@ public:
 
 class buffer_replacer_memory_planner_t : public ir_visitor_t {
 public:
+    using ir_visitor_t::dispatch;
     // tsr -> (scope id, start offset)
     std::unordered_map<expr_c, std::pair<uint64_t, size_t>> &replace_map_;
     // top-level stmts -> scope id
@@ -1019,18 +1144,34 @@ public:
         }
         return ret;
     }
+
+    func_c dispatch(func_c v) override {
+        auto ret = ir_visitor_t::dispatch(v);
+        if (ret != v) {
+            std::const_pointer_cast<func_base>(ret)
+                    ->attr()[attr_keys::already_buf_sched]
+                    = true;
+        }
+        return ret;
+    }
 };
 
 template <typename T1>
-static T1 run(const context_ptr &ctx, T1 f, bool remove_dead) {
+static T1 run(const context_ptr &ctx, T1 f, bool remove_dead, bool inplace) {
     int type = ctx->flags_.buffer_schedule_;
-    if (f->attr_ && f->attr_->has_key(attr_keys::buf_sched_type)) {
-        int localtype = f->attr_->template get<int>(attr_keys::buf_sched_type);
-        if (localtype < 0 || localtype > 3) {
-            SC_MODULE_WARN
-                    << "The attr pass.buf_sched_type should be >0 and <3";
-        } else {
-            type = localtype;
+    if (f->attr_) {
+        if (f->attr_->has_key(attr_keys::buf_sched_type)) {
+            int localtype
+                    = f->attr_->template get<int>(attr_keys::buf_sched_type);
+            if (localtype < 0 || localtype > 3) {
+                SC_MODULE_WARN
+                        << "The attr pass.buf_sched_type should be >0 and <3";
+            } else {
+                type = localtype;
+            }
+        }
+        if (f->attr_->get_or_else(attr_keys::already_buf_sched, false)) {
+            return f;
         }
     }
     if (type == attr_keys::BUF_SCHED_NONE) { return f; }
@@ -1050,7 +1191,7 @@ static T1 run(const context_ptr &ctx, T1 f, bool remove_dead) {
         std::unordered_map<expr_c, std::pair<uint64_t, size_t>> replacer_list;
         auto total_list = schedule_tensor_memory_planner(tick_out, defined,
                 replacer_list, type == attr_keys::BUF_SCHED_HOT,
-                finder.scope_id_ + 1);
+                finder.scope_id_ + 1, inplace);
         if (replacer_list.size() <= 1) { return f; }
         buffer_replacer_memory_planner_t rep {
                 replacer_list, finder.stmts_to_scope_id_, total_list};
@@ -1066,11 +1207,11 @@ static T1 run(const context_ptr &ctx, T1 f, bool remove_dead) {
 }
 
 func_c buffer_scheduler_t::operator()(func_c f) {
-    return run(ctx_, f, eliminate_dead_writes_);
+    return run(ctx_, f, eliminate_dead_writes_, do_inplace_opt_);
 }
 
 stmt_c buffer_scheduler_t::operator()(stmt_c f) const {
-    return run(ctx_, std::move(f), eliminate_dead_writes_);
+    return run(ctx_, std::move(f), eliminate_dead_writes_, do_inplace_opt_);
 }
 
 } // namespace sc

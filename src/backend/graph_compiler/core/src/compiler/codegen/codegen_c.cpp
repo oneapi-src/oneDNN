@@ -27,6 +27,7 @@
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/pass/func_dependency.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
+#include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/jit/symbol_resolver.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -79,7 +80,13 @@ ostream &codegen_c_vis::print_cpp_var_def(const var &v) {
 
 ostream &codegen_c_vis::print_tensor_def(const tensor &v) {
     print_type(v->elem_dtype_);
-    *os << "* __restrict__ " << v->name_;
+    auto ali_info = alias_info::get_alias_info(*v);
+    if (ali_info && !ali_info->has_no_alias()) {
+        *os << "* ";
+    } else {
+        *os << "* __restrict__ ";
+    }
+    *os << v->name_;
     return *os;
 }
 

@@ -31,18 +31,25 @@
 namespace sc {
 
 namespace function_attrs {
-// bool, if the function in invisible externally of the module. defualt = false
+// bool, if the function in invisible externally of the module. default = false
 constexpr const char *private_ = "private";
 // bool, if the function in a pure function (observes and produces no
-// side-effects). defualt = false
+// side-effects). default = false
 constexpr const char *pure = "pure";
-// bool, if the function's return address has no alias (like malloc). defualt =
+// bool, if the function's return address has no alias (like malloc). default =
 // false
 constexpr const char *no_alias = "noalias";
-// bool, if the function cannot use parallel-for. defualt = false
+// bool, if the function cannot use parallel-for. default = false
 constexpr const char *no_parallel = "no_parallel";
-// bool, if the function cannot be traced. defualt = false
+// bool, if the function cannot be traced. default = false
 constexpr const char *skip_trace = "skip_trace";
+// std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>, the tensor
+// inplace optimization hint. It is a vector of pair<int,
+// std::vector<tensor_inplace_info_t>>. For each pair, the int is an index of
+// the output tensor of the args this function. The vector of inplace info in
+// the pair holds the indices of input tensor args of this function, which this
+// output tensor can share buffer with.
+constexpr const char *inplace_hint = "inplace_hint";
 
 } // namespace function_attrs
 

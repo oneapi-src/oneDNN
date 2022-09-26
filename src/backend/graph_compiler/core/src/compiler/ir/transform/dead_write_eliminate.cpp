@@ -16,6 +16,7 @@
 #include "dead_write_eliminate.hpp"
 #include <vector>
 #include "../visitor.hpp"
+#include "buffer_schedule.hpp"
 #include <compiler/ir/pass/dependency_analyzer.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -71,6 +72,10 @@ public:
 };
 
 func_c dead_write_eliminator_t::operator()(func_c f) {
+    if (f->attr_
+            && f->attr_->get_or_else(attr_keys::already_buf_sched, false)) {
+        return f;
+    }
     dependency_analyzer_t ana;
     f = ana(f);
     dwe_impl_t v;

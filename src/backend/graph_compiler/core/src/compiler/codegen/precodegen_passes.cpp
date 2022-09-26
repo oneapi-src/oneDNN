@@ -47,6 +47,7 @@
 #include <compiler/ir/transform/ssa_transform.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/transform/tensor_init.hpp>
+#include <compiler/ir/transform/tensor_inplace.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/transform/value_numbering.hpp>
 #include <compiler/ir/util_module_passes.hpp>
@@ -72,6 +73,9 @@ sequential_module_pass_t get_default_precodegen_passes(
     }
     ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
+    if (ctx->flags_.buffer_schedule_ > 0) {
+        ret.emplace_back(utils::make_unique<tensor_inplace_t>(ctx));
+    }
     ret.emplace_back(
             module_function_pass_t::make<nested_parallel_flattener_t>());
     ret.emplace_back(module_function_pass_t::make<func_inliner_t>());

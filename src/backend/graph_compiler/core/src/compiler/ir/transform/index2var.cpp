@@ -17,6 +17,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include "pointer_alias_info.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
@@ -67,14 +68,33 @@ struct written_tensor_analysis_result_t {
 
 struct tensor_usage_analysis_result_t {
     bool used_in_broadcast_;
+    // the cached result of alias_info::get_alias_info
+    alias_info::tensor_alias_identity_t *alias_id_ = nullptr;
+
+    tensor_usage_analysis_result_t(bool used_in_broadcast)
+        : used_in_broadcast_(used_in_broadcast) {}
+    void for_each_alias_tensor(
+            const std::unordered_map<alias_info::tensor_alias_identity_t *,
+                    expr_c> &alias_map,
+            const std::function<void(const expr_c &)> &func) const {
+        for (auto aid : alias_id_->get_alias_set()->set_) {
+            auto other_alias_id = aid.lock();
+            COMPILE_ASSERT(
+                    other_alias_id, "Bad weakptr for tensor_alias_identity_t");
+            auto itr = alias_map.find(other_alias_id.get());
+            if (itr != alias_map.end()) { func(itr->second); }
+        }
+    }
 };
 
 // the visitor to find all tensor written in all stmts. Also finds if the tensor
 // is read in "broadcast" intrinsic.
-class written_tensor_finder_t : public ir_viewer_t {
+class index2var_analysis_t : public ir_viewer_t {
 public:
     using ir_viewer_t::dispatch;
     std::unordered_set<expr_c> written_;
+    std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
+            alias_map_;
 
     stmt_c dispatch(stmt_c v) override {
         written_ = std::unordered_set<expr_c> {};
@@ -100,13 +120,34 @@ public:
         if (tsr.defined()) { written_.insert(tsr); }
     }
 
+    void view(tensor_c v) override {
+        ir_viewer_t::view(v);
+        auto alias = alias_info::get_alias_info(*v);
+        if (!alias || alias->has_no_alias()) { return; }
+        tensor_usage_analysis_result_t *result
+                = v->temp_data().get_or_null<tensor_usage_analysis_result_t>();
+        if (!result) {
+            alias_map_[alias] = v;
+            v->temp_data() = tensor_usage_analysis_result_t {false};
+            result = &v->temp_data_->get<tensor_usage_analysis_result_t>();
+        }
+        result->alias_id_ = alias;
+    }
+
     void view(intrin_call_c v) override {
         ir_viewer_t::view(v);
         if (v->type_ == intrin_type::broadcast) {
             auto &arg = v->args_.at(0);
             auto tsr = get_tensor_from_indexing(arg);
             if (tsr.defined()) {
-                tsr->temp_data() = tensor_usage_analysis_result_t {true};
+                if (auto result
+                        = tsr->temp_data()
+                                  .get_or_null<
+                                          tensor_usage_analysis_result_t>()) {
+                    result->used_in_broadcast_ = true;
+                } else {
+                    tsr->temp_data() = tensor_usage_analysis_result_t {true};
+                }
             }
         }
     }
@@ -217,6 +258,8 @@ class indexing2var_impl_t : public ir_visitor_t {
     // scope_info_.pop()
     std::vector<scope_info_t> scope_info_;
     int for_depth_ = 0;
+    std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
+            &alias_map_;
 
     // flushes the cache
     void invalidate(tensor_cache_ptr c) { // NOLINT
@@ -300,7 +343,7 @@ class indexing2var_impl_t : public ir_visitor_t {
         auto ret = ir_visitor_t::visit(std::move(v));
         for (auto &arg : ret.as<call_c>()->args_) {
             if (arg.isa<tensor>()) {
-                if (invalidate_if_exist(arg)) {
+                if (invalidate_alias_group(arg, true)) {
                     SC_MODULE_INFO << "Evict due to function call: " << ret;
                 }
             }
@@ -315,7 +358,7 @@ class indexing2var_impl_t : public ir_visitor_t {
         auto ret_base = ir_visitor_t::visit(v->base_);
         auto ret_idx = ret_base.as<indexing_c>();
         auto tsr = ret_idx->ptr_.as<tensor>();
-        if (invalidate_if_exist(tsr)) {
+        if (invalidate_alias_group(tsr, true)) {
             SC_MODULE_INFO << "Evict due to tensorptr: " << v;
         }
         if (ret_base.ptr_same(v->base_)) {
@@ -323,6 +366,25 @@ class indexing2var_impl_t : public ir_visitor_t {
         } else {
             return builder::tensor_ptr(tsr, ret_idx->idx_);
         }
+    }
+
+    bool invalidate_alias_group(const expr_c &tsr, bool invalidate_self) {
+        auto analysis_result
+                = tsr->get_temp_data()
+                          .get_or_null<tensor_usage_analysis_result_t>();
+        bool ret = false;
+        if (analysis_result && analysis_result->alias_id_) {
+            auto ths = this;
+            // if the tensor has alias
+            analysis_result->for_each_alias_tensor(
+                    alias_map_, [&tsr, ths, &ret](const expr_c &v) {
+                        if (!v.ptr_same(tsr)) {
+                            ret |= ths->invalidate_if_exist(v);
+                        }
+                    });
+        }
+        if (invalidate_self) { ret |= invalidate_if_exist(tsr); }
+        return ret;
     }
 
     expr_c visit_indexing(
@@ -334,6 +396,13 @@ class indexing2var_impl_t : public ir_visitor_t {
             // if the tensor is marked to be transformed to var, no need to
             // optimize
             return ret;
+        }
+        if (!is_read) {
+            // if it is not read, need to evict all other tensors in the alias
+            // group. no need to invalidate tsr itself
+            if (invalidate_alias_group(tsr, false)) {
+                SC_MODULE_INFO << "Alias group invalidated for " << tsr;
+            }
         }
         auto itr = cached_index_.find(tsr);
         if (itr != cached_index_.end()) {
@@ -463,17 +532,23 @@ class indexing2var_impl_t : public ir_visitor_t {
 
 public:
     using ir_visitor_t::dispatch;
+    indexing2var_impl_t(
+            std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
+                    &alias_map)
+        : alias_map_(alias_map) {}
 };
 
 func_c index2var_t::operator()(func_c f) {
-    written_tensor_finder_t().dispatch(f);
-    indexing2var_impl_t impl;
+    index2var_analysis_t pass;
+    pass.dispatch(f);
+    indexing2var_impl_t impl {pass.alias_map_};
     return impl.dispatch(f);
 }
 
 stmt_c index2var_t::operator()(const stmts_c &f) {
-    written_tensor_finder_t().dispatch(f);
-    indexing2var_impl_t impl;
+    index2var_analysis_t pass;
+    pass.dispatch(f);
+    indexing2var_impl_t impl {pass.alias_map_};
     return impl.dispatch(f);
 }
 

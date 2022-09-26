@@ -34,6 +34,9 @@ constexpr const char *buf_sched_type = "pass.buf_sched_type";
 constexpr const char *hint_first_access_tick = "pass.hint_first_access_tick";
 constexpr const char *hint_last_access_tick = "pass.hint_last_access_tick";
 constexpr const char *tsr_dont_buf_sched = "pass.tsr_dont_buf_sched";
+// applied on functions. If true, the func has already been processed by
+// buffer_scheduler_t
+constexpr const char *already_buf_sched = "pass.already_buf_sched";
 constexpr int BUF_SCHED_NONE = 0;
 constexpr int BUF_SCHED_WHOLE = 1;
 constexpr int BUF_SCHED_SIZE = 2;
@@ -92,8 +95,12 @@ class buffer_scheduler_t : public function_pass_t {
 public:
     context_ptr ctx_;
     bool eliminate_dead_writes_;
-    buffer_scheduler_t(context_ptr ctx, bool eliminate_dead_writes)
-        : ctx_(std::move(ctx)), eliminate_dead_writes_(eliminate_dead_writes) {}
+    bool do_inplace_opt_;
+    buffer_scheduler_t(context_ptr ctx, bool eliminate_dead_writes,
+            bool do_inplace_opt = false)
+        : ctx_(std::move(ctx))
+        , eliminate_dead_writes_(eliminate_dead_writes)
+        , do_inplace_opt_(do_inplace_opt) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f) const;
 };

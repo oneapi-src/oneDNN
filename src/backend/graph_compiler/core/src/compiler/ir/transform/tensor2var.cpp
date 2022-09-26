@@ -17,6 +17,7 @@
 #include <vector>
 #include "../viewer.hpp"
 #include "../visitor.hpp"
+#include "pointer_alias_info.hpp"
 #include "tensor2var.hpp"
 #include <compiler/ir/builder.hpp>
 #include <util/any_map.hpp>
@@ -77,6 +78,10 @@ public:
             bool no_tensor2var = v->var_->attr_
                     && v->var_->attr_->get_or_else(
                             attr_keys::no_tensor2var, false);
+            if (!no_tensor2var) {
+                auto alias = alias_info::get_alias_info(*(v->var_));
+                if (alias && !alias->has_no_alias()) { no_tensor2var = true; }
+            }
             v->var_->temp_data() = tensor2var_result_t {sz,
                     /*can_replace*/ sz != 0 && !no_tensor2var, is_parallel_};
         }

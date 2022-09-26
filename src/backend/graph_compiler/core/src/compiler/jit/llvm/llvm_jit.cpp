@@ -42,7 +42,16 @@
 #include <util/scoped_timer.hpp>
 #include <util/utils.hpp>
 
+SC_MODULE(jit.llvm)
+
 namespace sc {
+
+static std::string dump_module_to_string(llvm::Module *m) {
+    std::string ret;
+    llvm::raw_string_ostream os(ret);
+    os << *m;
+    return ret;
+}
 
 static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
         llvm::CodeGenOpt::Level llvm_opt) {
@@ -72,6 +81,7 @@ static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
         FPM.run(F);
     FPM.doFinalization();
     MPM.run(*module);
+    SC_MODULE_INFO << dump_module_to_string(module);
 }
 std::unique_ptr<llvm::TargetMachine> get_llvm_target_machine(
         llvm::CodeGenOpt::Level optlevel);

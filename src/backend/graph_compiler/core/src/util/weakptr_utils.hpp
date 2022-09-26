@@ -62,6 +62,10 @@ struct weakptr_hashset_t {
         return const_iterator {impl_.find(v.lock().get())};
     }
 
+    iterator find(std::weak_ptr<T> v) {
+        return iterator {impl_.find(v.lock().get())};
+    }
+
     void merge(const weakptr_hashset_t<T> &other) {
         impl_.insert(other.impl_.begin(), other.impl_.end());
     }

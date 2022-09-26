@@ -24,6 +24,7 @@
 #include "precodegen_passes.hpp"
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
+#include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/viewer.hpp>
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/STLExtras.h>
@@ -36,6 +37,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/Support/Host.h>
@@ -47,6 +49,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#include <unordered_set>
 #include <util/any_map.hpp>
 #include <util/scoped_timer.hpp>
 
@@ -93,6 +96,9 @@ public:
     Value *current_val_;
     // the **pointer** of local var in a function
     std::unordered_map<expr_c, Value *> var_ptr_in_func_;
+    // tensor to <alias scope, noalias>
+    std::unordered_map<expr_c, std::pair<MDNode *, MDNode *>>
+            tsr_to_alias_scope_;
     std::unordered_map<std::string, Function *> name_to_func_;
     bool is_lvalue_mode_ = false;
 
@@ -229,6 +235,7 @@ public:
 
     func_c dispatch(func_c v) override {
         var_ptr_in_func_.clear();
+        tsr_to_alias_scope_.clear();
         if (!v->body_.defined()) { return v; }
         auto F = get_or_create_func(v);
         BasicBlock *BB = BasicBlock::Create(context_, "entry", F);
@@ -236,11 +243,81 @@ public:
         current_func_ = F;
         F->addFnAttr("no-frame-pointer-elim", "true");
         F->addFnAttr("frame-pointer", "all");
+        bool has_alias = false;
+        MDBuilder MDB(context_);
+        MDNode *alias_domain = nullptr;
+        std::unordered_map<alias_info::alias_set_t *, MDNode *>
+                alias_set_to_scope;
         for (size_t i = 0; i < v->params_.size(); i++) {
             if (v->params_[i].isa<tensor>()) {
-                F->addParamAttr(i, llvm::Attribute::AttrKind::NoAlias);
+                auto ainfo = alias_info::get_alias_info(*v->params_[i]);
+                if (ainfo && !ainfo->has_no_alias()) {
+                    if (!alias_domain) {
+                        alias_domain
+                                = MDB.createAnonymousAliasScopeDomain(v->name_);
+                    }
+                    auto alias_set = ainfo->get_alias_set().get();
+                    auto itr = alias_set_to_scope.find(alias_set);
+                    if (itr == alias_set_to_scope.end()) {
+                        MDNode *scope = MDB.createAnonymousAliasScope(
+                                alias_domain,
+                                v->params_[i].static_as<tensor>()->name_);
+                        alias_set_to_scope.insert(
+                                std::make_pair(alias_set, scope));
+                    }
+                } else {
+                    F->addParamAttr(i, llvm::Attribute::AttrKind::NoAlias);
+                }
+
                 F->addParamAttr(i, llvm::Attribute::AttrKind::NoCapture);
                 F->addParamAttr(i, llvm::Attribute::AttrKind::NonNull);
+            }
+        }
+
+        // if has custom alias info, need to construct alias scope/noalias for
+        // LLVM each alias scope are exclusive to each other
+        if (alias_domain) {
+            for (size_t i = 0; i < v->params_.size(); i++) {
+                if (v->params_[i].isa<tensor>()) {
+                    auto ainfo = alias_info::get_alias_info(*v->params_[i]);
+                    if (ainfo && !ainfo->has_no_alias()) {
+                        tsr_to_alias_scope_[v->params_[i]].first
+                                = alias_set_to_scope[ainfo->get_alias_set()
+                                                             .get()];
+                    } else {
+                        MDNode *scope = MDB.createAnonymousAliasScope(
+                                alias_domain,
+                                v->params_[i].static_as<tensor>()->name_);
+                        tsr_to_alias_scope_[v->params_[i]].first = scope;
+                    }
+                }
+            }
+            // each alias scope is in noalias of others
+            for (auto &kv : tsr_to_alias_scope_) {
+                auto cur_scope = kv.second.first;
+                std::unordered_set<Metadata *> map_scopes;
+                for (auto &kv2 : tsr_to_alias_scope_) {
+                    auto other_scope = kv2.second.first;
+                    if (other_scope != cur_scope)
+                        map_scopes.insert(other_scope);
+                }
+                SmallVector<Metadata *, 4> vec {
+                        map_scopes.begin(), map_scopes.end()};
+                // sort the map to make it stable for unit test
+                std::sort(
+                        vec.begin(), vec.end(), [](Metadata *&a, Metadata *&b) {
+                            auto name_a = llvm::dyn_cast<MDNode>(a)
+                                                  ->getOperand(2)
+                                                  .get();
+                            auto name_b = llvm::dyn_cast<MDNode>(b)
+                                                  ->getOperand(2)
+                                                  .get();
+                            return llvm::dyn_cast<MDString>(name_a)->getString()
+                                    < llvm::dyn_cast<MDString>(name_b)
+                                              ->getString();
+                        });
+                // construct no-alias set, which is all other scopes
+                kv.second.second = MDNode::get(context_, vec);
             }
         }
         // LLVM func args are SSA values and cannot be modified. We use alloca
@@ -579,6 +656,34 @@ public:
         }
         current_val_ = builder_.CreateSelect(cond, l, r);
     }
+
+    Instruction *set_alias(Instruction *inst, const expr_c &tsr) {
+        if (tsr.isa<indexing>()) {
+            return set_alias(inst, tsr.static_as<indexing>()->ptr_);
+        }
+        auto itr = tsr_to_alias_scope_.find(tsr);
+        if (itr != tsr_to_alias_scope_.end()) {
+            SmallVector<Metadata *, 4> scope {itr->second.first};
+            // alias.scope metadata.
+            inst->setMetadata(LLVMContext::MD_alias_scope,
+                    MDNode::concatenate(
+                            inst->getMetadata(LLVMContext::MD_alias_scope),
+                            MDNode::get(inst->getContext(), scope)));
+
+            // noalias metadata.
+            inst->setMetadata(LLVMContext::MD_noalias,
+                    MDNode::concatenate(
+                            inst->getMetadata(LLVMContext::MD_noalias),
+                            itr->second.second));
+        }
+        return inst;
+    }
+
+    Value *set_alias(Value *inst, const expr_c &tsr) {
+        set_alias(static_cast<Instruction *>(inst), tsr);
+        return inst;
+    }
+
     void view(indexing_c v) override {
         bool is_lvalue_mode = is_lvalue_mode_;
         is_lvalue_mode_ = false;
@@ -600,10 +705,13 @@ public:
             current_val_ = ptr;
         } else {
             if (v->dtype_.lanes_ > 1) {
-                current_val_ = builder_.CreateAlignedLoad(
-                        get_type(v->dtype_), ptr, SC_LLVM_ALIGN(1));
+                current_val_ = set_alias(
+                        builder_.CreateAlignedLoad(
+                                get_type(v->dtype_), ptr, SC_LLVM_ALIGN(1)),
+                        v->ptr_);
             } else {
-                current_val_ = builder_.CreateLoad(get_type(v->dtype_), ptr);
+                current_val_ = set_alias(
+                        builder_.CreateLoad(get_type(v->dtype_), ptr), v->ptr_);
             }
         }
     }
@@ -1208,9 +1316,10 @@ public:
         }
         if (v->value_->dtype_.lanes_ > 1 && v->var_.isa<indexing>()) {
             // assigning to tensor
-            builder_.CreateAlignedStore(val, ptr, SC_LLVM_ALIGN(1));
+            set_alias(builder_.CreateAlignedStore(val, ptr, SC_LLVM_ALIGN(1)),
+                    v->var_);
         } else {
-            builder_.CreateStore(val, ptr);
+            set_alias(builder_.CreateStore(val, ptr), v->var_);
         }
     }
 
