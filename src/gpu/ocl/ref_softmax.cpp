@@ -36,8 +36,13 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
             : &CTX_GPU_RES_STORAGE(SCALES_);
     arg_list.set(2, *scales);
 
-    auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);
-    return parallel_for(ctx, nd_range, kernel_, arg_list);
+    if (pd()->group_size > 1) {
+        auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);
+        return parallel_for(ctx, nd_range, kernel_, arg_list);
+    } else {
+        auto nd_range = compute::nd_range_t(pd()->gws);
+        return parallel_for(ctx, nd_range, kernel_, arg_list);
+    }
 }
 
 status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
@@ -55,7 +60,6 @@ status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
     auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
-
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

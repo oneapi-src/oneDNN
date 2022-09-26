@@ -75,18 +75,12 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
             block[1] = 1;
             block[2] = 1;
 
-            for (int i = 0, j = 0; i < src_md()->ndims; ++i) {
-                if (i != desc()->softmax_axis) {
-                    auto dim = src_md()->padded_dims[i];
-                    gws[j % 3] *= dim;
-                    if (j < 3) block[j % 3] = dim;
-                    j++;
-                }
-            }
-
             int nelems = axis_size(true);
-            if (nelems <= 100) {
-                group_size = 16;
+
+            if (nelems < subgroup_size) {
+                group_size = 1;
+            } else if (nelems <= 100) {
+                group_size = subgroup_size;
             } else if (nelems <= 1000) {
                 group_size = 32;
             } else if (nelems <= 2000) {
@@ -97,8 +91,19 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                 group_size = 256;
             }
 
-            lws[0] = group_size;
-            gws[0] *= group_size;
+            for (int i = 0, j = 0; i < src_md()->ndims; ++i) {
+                if (i != desc()->softmax_axis) {
+                    auto dim = src_md()->padded_dims[i];
+                    gws[j % 3] *= dim;
+                    if (j < 3) block[j % 3] = dim;
+                    j++;
+                }
+            }
+
+            if (group_size != 1) {
+                lws[0] = group_size;
+                gws[0] *= group_size;
+            }
 
             return status::success;
         }
@@ -107,6 +112,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         size_t lws[3] = {};
         size_t block[3] = {};
         size_t group_size = 0;
+        const int subgroup_size = 16;
     };
 
     status_t init(engine_t *engine) override {

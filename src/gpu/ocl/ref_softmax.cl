@@ -81,8 +81,11 @@
 #endif
 
 #if IS_FWD
+
+#if SUB_GROUP_SIZE == 16
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+#endif
 
 __kernel void
 ref_softmax_fwd_generic(
@@ -96,7 +99,7 @@ ref_softmax_fwd_generic(
             get_global_id(1) / BLOCK_1,
             get_global_id(2) / BLOCK_2,
     };
-
+#if SUB_GROUP_SIZE == 16
     const int local_id = get_local_id(0);
 
     // SOFTMAX_AXIS is the size of axis around which softmax operation is
@@ -113,6 +116,11 @@ ref_softmax_fwd_generic(
             = SOFTMAX_AXIS - (GROUP_SIZE - 1) * (SOFTMAX_AXIS / GROUP_SIZE);
 #else
     const int buf_size = SOFTMAX_AXIS / GROUP_SIZE;
+#endif
+#else
+    const int begin = 0;
+    const int end = SOFTMAX_AXIS;
+    const int buf_size = SOFTMAX_AXIS;
 #endif
 
 #if IS_HALF(SRC_DATA_T) == 1 && IS_HALF(DST_DATA_TYPE) == 1
@@ -138,7 +146,7 @@ ref_softmax_fwd_generic(
             max_ = max(max_, d[i - begin]);
         }
     }
-
+#if SUB_GROUP_SIZE == 16
     // reduce using work_group_reduce if no. of subgroups > 1, for e.g.
     // if group_size is 32, there will be 2 sub-groups (size of each sub-group
     // is 16 which is an optimal value)
@@ -147,6 +155,8 @@ ref_softmax_fwd_generic(
 #else
     max_ = work_group_reduce_max(max_);
 #endif
+#endif
+
     // updating dst tensor and accumulating denom for last step
     if (!(NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], begin))) {
         for (int i = begin; i < end && i < DD(SOFTMAX_AXIS_IDX); ++i) {
@@ -158,11 +168,12 @@ ref_softmax_fwd_generic(
 #endif
         }
     }
-
+#if SUB_GROUP_SIZE == 16
 #if GROUP_SIZE == SUB_GROUP_SIZE
     denom_ = sub_group_reduce_add(denom_);
 #else
     denom_ = work_group_reduce_add(denom_);
+#endif
 #endif
 
 #if LOGSOFTMAX
