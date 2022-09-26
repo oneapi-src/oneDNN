@@ -792,6 +792,7 @@ enum class parti_dep : int {
  * */
 static parti_dep check_parti_dep(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+    A = A->get_root(), B = B->get_root();
     auto A_ops = A->ops, B_ops = B->ops;
     bool A_dep_B = false, B_dep_A = false;
     for (auto &op_a : A_ops) {
@@ -818,6 +819,7 @@ static parti_dep check_parti_dep(
  * Check two partition connectionship
  * */
 static bool check_parti_connectionship(mixed_parti_t *A, mixed_parti_t *B) {
+    A = A->get_root(), B = B->get_root();
     auto A_ops = A->ops, B_ops = B->ops;
     for (auto &op_a : A_ops) {
         std::unordered_set<graph_tensor_ptr> gt_set;
@@ -842,6 +844,7 @@ static bool check_parti_connectionship(mixed_parti_t *A, mixed_parti_t *B) {
  * */
 static bool check_parti_ring_risk(
         mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+    A = A->get_root(), B = B->get_root();
     auto dep = check_parti_dep(A, B, g);
     if (dep == parti_dep::inter_dep)
         return true;
@@ -852,12 +855,23 @@ static bool check_parti_ring_risk(
          target_parti = (dep == parti_dep::l_dep_r) ? B : A;
     auto append_ops = append_parti->ops;
     for (auto &op_a : append_ops) {
-        for (auto &inp : op_a->get_inputs()) {
-            // skip non-input-cut op of append parti
-            if (!append_parti->is_parti_inp(inp)) continue;
-            // check input-cut op ring risk for target parti
-            if (!target_parti->fusion_partition_t::is_ok_to_add(op_a.get(), g))
+        // check cut op of append parti whether has ring risk for target parti
+        if (std::any_of(op_a->get_inputs().begin(), op_a->get_inputs().end(),
+                    [&append_parti, &target_parti, &g](
+                            const graph_tensor_ptr &inp) {
+                        return append_parti->is_parti_inp(inp)
+                                && std::any_of(target_parti->ops.begin(),
+                                        target_parti->ops.end(),
+                                        [&inp, &g](const sc_op_ptr &op) {
+                                            return g.lookup(op.get(),
+                                                           inp->producer_owner_)
+                                                    == 1;
+                                        });
+                    })) {
+            if (!target_parti->fusion_partition_t::is_ok_to_add(
+                        op_a.get(), g)) {
                 return true;
+            }
         }
     }
     return false;

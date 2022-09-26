@@ -835,40 +835,39 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           }
         }
       }
-      if (fusion) {
-        _if_(m_idx < (uint64_t)M) {
-          if (M_block_size == M_ib_block_size) {
-            if (out_tensors_[0].get_format().is_blocking()) {
-              fusion->create_output_fusion_anchor({tensor_slice(C,
-                {{m_idx / expr(iim_block_), M_block_size / iim_block_},
-                  {0, utils::divide_and_ceil(N, iin_block_)},
-                  {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
-            } else {
-              fusion->create_output_fusion_anchor(
-                {tensor_slice(C, {{m_idx, M_block_size}, {0, N}})});
-            }
+      // give explict anchor when N_split_num==1 to enable tensor shrink
+      if (fusion && N_split_num == 1) {
+        if (M_block_size == M_ib_block_size) {
+          if (out_tensors_[0].get_format().is_blocking()) {
+            fusion->create_output_fusion_anchor({tensor_slice(C,
+              {{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                {0, utils::divide_and_ceil(N, iin_block_)},
+                {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
           } else {
-            slice_range_list mm_multi_slice;
-            if (out_tensors_[0].get_format().is_blocking()) {
-              mm_multi_slice
-                = {{{m_idx / expr(iim_block_), M_block_size / iim_block_},
-                     {0, utils::divide_and_ceil(N, iin_block_)},
-                     {0, expr(iim_block_)}, {0, expr(iin_block_)}},
-                  {{m_idx / expr(iim_block_), M_ib_block_size / iim_block_},
-                    {0, utils::divide_and_ceil(N, iin_block_)},
-                    {0, expr(iim_block_)}, {0, expr(iin_block_)}}};
-            } else {
-              mm_multi_slice = {{{m_idx, M_block_size}, {0, N}},
-                {{m_idx, M_ib_block_size}, {0, N}}};
-            }
-            _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
-            _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
-              outer_anchor_iter = UINT64_C(0);
-            }
-            _else_ { outer_anchor_iter = UINT64_C(1); }
-            fusion->create_iterated_fusion_anchor(
-              outer_anchor_iter, C, mm_multi_slice);
+            fusion->create_output_fusion_anchor(
+              {tensor_slice(C, {{m_idx, M_block_size}, {0, N}})});
           }
+        } else {
+          slice_range_list mm_multi_slice;
+          if (out_tensors_[0].get_format().is_blocking()) {
+            mm_multi_slice
+              = {{{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                   {0, utils::divide_and_ceil(N, iin_block_)},
+                   {0, expr(iim_block_)}, {0, expr(iin_block_)}},
+                {{m_idx / expr(iim_block_), M_ib_block_size / iim_block_},
+                  {0, utils::divide_and_ceil(N, iin_block_)},
+                  {0, expr(iim_block_)}, {0, expr(iin_block_)}}};
+          } else {
+            mm_multi_slice = {{{m_idx, M_block_size}, {0, N}},
+              {{m_idx, M_ib_block_size}, {0, N}}};
+          }
+          _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
+          _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
+            outer_anchor_iter = UINT64_C(0);
+          }
+          _else_ { outer_anchor_iter = UINT64_C(1); }
+          fusion->create_iterated_fusion_anchor(
+            outer_anchor_iter, C, mm_multi_slice);
         }
       }
     }
@@ -1134,47 +1133,44 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           }
         }
       }
-      if (fusion) {
-        _if_(m_idx < (uint64_t)M) {
-          if (M_block_size == M_ib_block_size) {
-            if (out_tensors_[0].get_format().is_blocking()) {
-              fusion->create_output_fusion_anchor({tensor_slice(C,
-                {{m_idx / expr(iim_block_), M_block_size / iim_block_},
-                  {0, utils::divide_and_ceil(N, iin_block_)},
-                  {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
-            } else {
-              fusion->create_output_fusion_anchor(
-                {tensor_slice(C, {{m_idx, M_block_size}, {0, N}})});
-            }
+      // give explict anchor when N_split_num==1 to enable tensor shrink
+      if (fusion && N_split_num == 1) {
+        if (M_block_size == M_ib_block_size) {
+          if (out_tensors_[0].get_format().is_blocking()) {
+            fusion->create_output_fusion_anchor({tensor_slice(C,
+              {{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                {0, utils::divide_and_ceil(N, iin_block_)},
+                {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
           } else {
-            slice_range_list mm_multi_slice;
-            if (out_tensors_[0].get_format().is_blocking()) {
-              mm_multi_slice
-                = {{{m_idx / expr(iim_block_), M_block_size / iim_block_},
-                     {0, utils::divide_and_ceil(N, iin_block_)},
-                     {0, expr(iim_block_)}, {0, expr(iin_block_)}},
-                  {{m_idx / expr(iim_block_), M_ib_block_size / iim_block_},
-                    {0, utils::divide_and_ceil(N, iin_block_)},
-                    {0, expr(iim_block_)}, {0, expr(iin_block_)}}};
-            } else {
-              mm_multi_slice = {{{m_idx, M_block_size}, {0, N}},
-                {{m_idx, M_ib_block_size}, {0, N}}};
-            }
-            _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
-            _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
-              outer_anchor_iter = UINT64_C(0);
-            }
-            _else_ { outer_anchor_iter = UINT64_C(1); }
-            fusion->create_iterated_fusion_anchor(
-              outer_anchor_iter, C, mm_multi_slice);
+            fusion->create_output_fusion_anchor(
+              {tensor_slice(C, {{m_idx, M_block_size}, {0, N}})});
           }
+        } else {
+          slice_range_list mm_multi_slice;
+          if (out_tensors_[0].get_format().is_blocking()) {
+            mm_multi_slice
+              = {{{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                   {0, utils::divide_and_ceil(N, iin_block_)},
+                   {0, expr(iim_block_)}, {0, expr(iin_block_)}},
+                {{m_idx / expr(iim_block_), M_ib_block_size / iim_block_},
+                  {0, utils::divide_and_ceil(N, iin_block_)},
+                  {0, expr(iim_block_)}, {0, expr(iin_block_)}}};
+          } else {
+            mm_multi_slice = {{{m_idx, M_block_size}, {0, N}},
+              {{m_idx, M_ib_block_size}, {0, N}}};
+          }
+          _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
+          _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
+            outer_anchor_iter = UINT64_C(0);
+          }
+          _else_ { outer_anchor_iter = UINT64_C(1); }
+          fusion->create_iterated_fusion_anchor(
+            outer_anchor_iter, C, mm_multi_slice);
         }
       }
     }
   }
-  if (M_split_num == num_threads) {
-    mloop->attr()[stmt_attr_key::parallel_merge_loop] = true;
-  }
+  mloop->attr()[stmt_attr_key::parallel_merge_loop] = true;
   loops = {};
   return true;
 }
