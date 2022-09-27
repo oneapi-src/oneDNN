@@ -13,46 +13,22 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
 #include <algorithm>
 #include <deque>
 #include <iterator>
-#include <unordered_map>
-#include <unordered_set>
-
 #include "interface/op_schema.hpp"
 #include "utils/pm/nested_matcher.hpp"
-
 namespace dnnl {
 namespace graph {
 namespace impl {
 namespace utils {
 namespace pm {
-
 namespace {
 // check if an op's inputs are commutative
 bool has_commutative_inputs(op_t *op) {
     const op_schema_t *opm
             = op_schema_registry_t::get_op_schema(op->get_kind());
     return opm->get_commutative_inputs();
-}
-
-// check if a pb_node is optional and its producers are all optional
-bool check_optional_inputs(pb_node_t *n) {
-    if (n->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
-        return false;
-    repetition_t *rep_node = dynamic_cast<repetition_t *>(n);
-    if (rep_node->get_min_rep() != 0) return false;
-
-    std::vector<std::pair<iport_t, producer_t>> node_inputs = n->get_inputs();
-    if (node_inputs.empty()) return true;
-    /* for optional input, only 1 producer is supported
-           opt_input?
-              |
-             n?
-     */
-    if (node_inputs.size() != 1) return false;
-    return check_optional_inputs(node_inputs[0].second.first);
 }
 
 // fill local context in map when optional exists
@@ -66,27 +42,6 @@ void fill_optional_in_map(match_context_t *local_ctx, pb_node_t *cur_node,
 
     pb_node_t *next_node = node_inputs[0].second.first;
     fill_optional_in_map(local_ctx, next_node, cur_op);
-}
-
-// check if a pb_node's all consumers are optional
-bool check_optional_outputs(pb_node_t *n) {
-    std::vector<std::pair<oport_t, consumers_t>> node_outputs
-            = n->get_outputs();
-    if (node_outputs.empty()) return true;
-    /* for optional output, only 1 consumer is supported
-             n
-             |
-         opt_output?
-     */
-    if (node_outputs.size() != 1) return false;
-    if (node_outputs[0].second.size() != 1) return false;
-    pb_node_t *node_output = node_outputs[0].second[0]->first;
-    if (node_output->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
-        return false;
-    repetition_t *rep_node = dynamic_cast<repetition_t *>(node_output);
-    if (rep_node->get_min_rep() != 0) return false;
-
-    return check_optional_outputs(node_output);
 }
 
 // fill local context out map when optional exists
@@ -124,169 +79,307 @@ bool match_node_attributes(op_t *op, pb_node_t *node) {
     return true;
 }
 
+node_inputs_matcher_t::node_inputs_matcher_t(op_t *op, pb_node_t *node,
+        match_context_t *ctx,
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map)
+    : op_ {op}, node_ {node}, ctx_ {ctx}, updated_op_map_ {matched_op_map} {
+
+    node_inputs_ = node_->get_inputs();
+}
+
+// check if a pb_node is optional and its producers are all optional
+bool node_inputs_matcher_t::support_optional_inputs(pb_node_t *n) {
+    if (n->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
+        return false;
+    repetition_t *rep_node = dynamic_cast<repetition_t *>(n);
+    if (rep_node->get_min_rep() != 0) return false;
+
+    std::vector<std::pair<iport_t, producer_t>> node_inputs = n->get_inputs();
+    if (node_inputs.empty()) return true;
+    /* for optional input, only 1 producer is supported
+           opt_input?
+              |
+             n?
+     */
+    if (node_inputs.size() != 1) return false;
+    return support_optional_inputs(node_inputs[0].second.first);
+}
+
+bool node_inputs_matcher_t::check_recursion_termination() {
+    // if we have touched the upper boundary of the pattern
+    // graph, it's time to terminate the recursion:
+    return node_inputs_.empty();
+}
+
+bool node_inputs_matcher_t::match_input_by_offset(
+        const size_t &op_input_offset, const size_t &node_input_offset) {
+    pb_node_t *in_node = node_inputs_[node_input_offset].second.first;
+    std::shared_ptr<value_t> op_in_value = nullptr;
+    if (op_->num_inputs() > op_input_offset) {
+        op_in_value = op_->get_input_value(op_input_offset);
+    }
+    if (!op_in_value || !op_in_value->has_producer()) {
+        // pattern node has producer while graph op
+        // doesn't have. In this case, only optional
+        // can survive
+        bool support_optional = support_optional_inputs(in_node);
+        if (support_optional) {
+            fill_optional_in_map(ctx_, in_node, op_, op_input_offset);
+        }
+        return support_optional;
+    } else {
+        op_t *in_op = op_->get_input_op(op_input_offset);
+        size_t in_op_oport = op_in_value->get_offset();
+        oport_t in_node_oport = node_inputs_[node_input_offset].second.second;
+        binding_t in_bind(BIND_OUT, in_op, in_op_oport, in_node, in_node_oport);
+        // handle the potential zero trip match case, fill context's i/o
+        // map with hint op
+        in_bind.hint_op = op_;
+        in_bind.hint_op_port = op_input_offset;
+        return match_graph_helper(in_bind, ctx_, updated_op_map_);
+    }
+
+    return true;
+};
+
+bool node_inputs_matcher_t::match_commutative_inputs() {
+    // commutative ops need to consider switching inputs
+    size_t matched_op_input_offset = op_->num_inputs(); // init with illegal
+    for (size_t node_input_offset = 0; node_input_offset < node_inputs_.size();
+            ++node_input_offset) {
+        for (size_t op_input_offset = 0; op_input_offset < op_->num_inputs();
+                ++op_input_offset) {
+            if (op_input_offset == matched_op_input_offset) {
+                matched_op_input_offset = op_->num_inputs();
+                continue;
+            }
+            if (match_input_by_offset(op_input_offset, node_input_offset)) {
+                matched_op_input_offset = op_input_offset;
+                break;
+            }
+        }
+        if (matched_op_input_offset == op_->num_inputs()) return false;
+    }
+    return true;
+}
+
+bool node_inputs_matcher_t::match_non_commutative_inputs() {
+    for (size_t i = 0; i < node_inputs_.size(); ++i) {
+        iport_t node_iport = node_inputs_[i].first;
+        if (!match_input_by_offset(node_iport, i)) return false;
+    }
+
+    return true;
+}
+
+bool node_inputs_matcher_t::match_variadic_inputs() {
+    assertm(op_->num_inputs() < VARIADIC_INPUT_NUM,
+            "variadic input num should be larger than actual op's num of "
+            "inputs");
+    for (size_t i = 0; i < node_inputs_.size(); ++i) {
+        iport_t node_iport = node_inputs_[i].first;
+        if (op_->num_inputs() < node_iport + 1) break;
+        if (!match_input_by_offset(node_iport, i)) return false;
+    }
+
+    return true;
+}
+
 bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
-    std::vector<std::pair<iport_t, producer_t>> node_inputs
-            = node->get_inputs();
-    if (node_inputs.empty()) return true;
+    node_inputs_matcher_t node_inputs_matcher(op, node, ctx, matched_op_map);
 
-    std::unordered_map<op_t *, pb_op_t *> copied_op_map = matched_op_map;
+    if (node_inputs_matcher.check_recursion_termination()) return true;
 
-    // a lambda function to match each of the inputs in op and node
-    auto match_input
-            = [&](size_t op_input_offset, size_t node_input_offset) -> bool {
-        pb_node_t *in_node = node_inputs[node_input_offset].second.first;
-        std::shared_ptr<value_t> op_in_value = nullptr;
-        if (op->num_inputs() > op_input_offset) {
-            op_in_value = op->get_input_value(op_input_offset);
+    bool matching_status = true;
+    if (node_inputs_matcher.get_node()->get_inputs().size()
+            == VARIADIC_INPUT_NUM) {
+        matching_status = node_inputs_matcher.match_variadic_inputs();
+    } else if (!has_commutative_inputs(node_inputs_matcher.get_op())) {
+        matching_status = node_inputs_matcher.match_non_commutative_inputs();
+    } else {
+        matching_status = node_inputs_matcher.match_commutative_inputs();
+    }
+    if (!matching_status) return false;
+
+    matched_op_map = node_inputs_matcher.get_updated_op_map();
+    return true;
+}
+
+node_outputs_matcher_t::node_outputs_matcher_t(op_t *op, pb_node_t *node,
+        match_context_t *ctx,
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map)
+    : op_ {op}, node_ {node}, ctx_ {ctx}, updated_op_map_ {matched_op_map} {
+
+    is_optional_case_ = false;
+    support_optional_ = support_optional_outputs(node_);
+    node_outputs_ = node_->get_outputs();
+}
+
+// check if a pb_node's all consumers are optional
+bool node_outputs_matcher_t::support_optional_outputs(pb_node_t *n) {
+    std::vector<std::pair<oport_t, consumers_t>> node_outputs
+            = n->get_outputs();
+    if (node_outputs.empty()) return true;
+    /* for optional output, only 1 consumer is supported
+             n
+             |
+         opt_output?
+     */
+    if (node_outputs.size() != 1) return false;
+    if (node_outputs[0].second.size() != 1) return false;
+    pb_node_t *node_output = node_outputs[0].second[0]->first;
+    if (node_output->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
+        return false;
+    repetition_t *rep_node = dynamic_cast<repetition_t *>(node_output);
+    if (rep_node->get_min_rep() != 0) return false;
+
+    return support_optional_outputs(node_output);
+}
+
+bool node_outputs_matcher_t::check_recursion_termination() {
+    // if we have touched the lower boundary of the pattern
+    // graph, it's time to terminate the recursion:
+    return node_outputs_.empty();
+}
+
+bool node_outputs_matcher_t::check_node_consumers(
+        std::unordered_set<size_t> &node_oport_matched_cons) {
+    if (node_oport_matched_cons.size() != current_node_output_.second.size()) {
+        if (support_optional_) {
+            is_optional_case_ = true;
+            fill_optional_out_map(ctx_, node_, op_);
+            return true;
         }
+        return false;
+    }
+    return true;
+}
 
-        if (!op_in_value || !op_in_value->has_producer()) {
-            // pattern node has producer while graph op
-            // doesn't have. In this case, only optional
-            // can survive
-            bool support_optional = check_optional_inputs(in_node);
-            if (support_optional) {
-                fill_optional_in_map(ctx, in_node, op, op_input_offset);
-            }
-            return support_optional;
-        } else {
-            op_t *in_op = op->get_input_op(op_input_offset);
-            size_t in_op_oport = op_in_value->get_offset();
-            oport_t in_node_oport
-                    = node_inputs[node_input_offset].second.second;
-            binding_t in_bind(
-                    BIND_OUT, in_op, in_op_oport, in_node, in_node_oport);
+bool node_outputs_matcher_t::check_swish(op_t *out_op) {
+    // TODO(Yixin): temporary fix sigmoid + multiply = swish
+    // After successfully matching sigmoid, multiply is also
+    // matched because multiply is sigmoid's out_op.
+    // When matching multiply, check if it is already in the
+    // matched op_map, if yes, the match is OK
+    if (current_node_output_.second.size() == 1
+            && current_node_output_.second[0]->first->get_node_kind()
+                    != pb_node_kind::PB_NODE_KIND_OP
+            && updated_op_map_.count(out_op))
+        return true;
+    return false;
+}
+
+bool node_outputs_matcher_t::check_external_output() {
+    // if it's the allow_external_output case, then it's fine
+    pb_op_t *p_op = updated_op_map_[op_];
+    const std::unordered_set<oport_t> &external_outputs
+            = p_op->get_allowed_external_outputs();
+    if (!external_outputs.empty()
+            && external_outputs.find(current_node_oport_)
+                    != external_outputs.end()) {
+        return true;
+    }
+    return false;
+}
+
+bool node_outputs_matcher_t::check_optional() {
+    // if it's the optional case, also fine
+    if (support_optional_) {
+        is_optional_case_ = true;
+        fill_optional_out_map(ctx_, node_, op_);
+    }
+    return support_optional_;
+}
+
+bool node_outputs_matcher_t::op_consumer_unmatching_checking(op_t *out_op) {
+    bool swish_case = check_swish(out_op);
+    bool external_output_case = check_external_output();
+    if (swish_case || external_output_case) return true;
+
+    return check_optional();
+}
+
+bool node_outputs_matcher_t::match_op_consumers() {
+    std::shared_ptr<value_t> op_out_value
+            = op_->get_output_value(current_node_oport_);
+
+    std::unordered_set<size_t> node_oport_matched_cons;
+
+    for (size_t j = 0; j < op_out_value->get_consumers().size(); j++) {
+        auto op_consumer = op_out_value->get_consumers()[j];
+        op_t *out_op = &(op_consumer.get_op());
+        bool consumer_matched = false;
+
+        for (size_t k = 0; k < current_node_output_.second.size(); k++) {
+            auto node_consumer = current_node_output_.second[k];
+            pb_node_t *out_node = node_consumer->first;
+            // check if the out_node has been matched by previous out_ops
+            if (node_oport_matched_cons.count(k)) continue;
+            binding_t out_bind(BIND_IN, out_op, op_consumer.get_offset(),
+                    out_node, node_consumer->second);
+
             // handle the potential zero trip match case, fill context's i/o
             // map with hint op
-            in_bind.hint_op = op;
-            in_bind.hint_op_port = op_input_offset;
-            return match_graph_helper(in_bind, ctx, copied_op_map);
-        }
-    };
-
-    if (node->get_inputs().size() == VARIADIC_INPUT_NUM) {
-        assertm(op->num_inputs() < VARIADIC_INPUT_NUM,
-                "variadic input num should be larger than actual op's num of "
-                "inputs");
-        for (size_t i = 0; i < node_inputs.size(); ++i) {
-            iport_t node_iport = node_inputs[i].first;
-            if (op->num_inputs() < node_iport + 1) break;
-            if (!match_input(node_iport, i)) return false;
-        }
-    } else if (!has_commutative_inputs(op)) {
-        for (size_t i = 0; i < node_inputs.size(); ++i) {
-            iport_t node_iport = node_inputs[i].first;
-            if (!match_input(node_iport, i)) return false;
-        }
-    } else { // commutative ops need to consider switching inputs
-        size_t matched_op_input_offset = op->num_inputs(); // init with illegal
-        for (size_t node_input_offset = 0;
-                node_input_offset < node_inputs.size(); ++node_input_offset) {
-            for (size_t op_input_offset = 0; op_input_offset < op->num_inputs();
-                    ++op_input_offset) {
-                if (op_input_offset == matched_op_input_offset) {
-                    matched_op_input_offset = op->num_inputs();
-                    continue;
-                }
-                if (match_input(op_input_offset, node_input_offset)) {
-                    matched_op_input_offset = op_input_offset;
-                    break;
-                }
+            out_bind.hint_op = op_;
+            out_bind.hint_op_port = current_node_oport_;
+            if (!match_graph_helper(out_bind, ctx_, updated_op_map_)) {
+                continue;
+            } else {
+                consumer_matched = true;
+                node_oport_matched_cons.insert(k);
+                break;
             }
-            if (matched_op_input_offset == op->num_inputs()) return false;
+        }
+        if (!consumer_matched) {
+            bool matching_status = op_consumer_unmatching_checking(out_op);
+            if (is_optional_case_) {
+                return true;
+            } else {
+                if (!matching_status) return false;
+                continue;
+            }
         }
     }
 
-    matched_op_map = copied_op_map;
+    // check if not all consumers of node output are matched
+    bool matching_status = check_node_consumers(node_oport_matched_cons);
+    return matching_status;
+}
+
+bool node_outputs_matcher_t::match_output() {
+    // match output for node and op
+    for (auto &node_output : node_outputs_) {
+        current_node_output_ = node_output;
+        current_node_oport_ = current_node_output_.first;
+
+        // match the op consumers one by one
+        bool matching_status = match_op_consumers();
+        if (!matching_status) return false;
+        if (is_optional_case_) return true;
+    }
     return true;
 }
 
 bool match_node_outputs(op_t *op, pb_node_t *node, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
-    std::vector<std::pair<oport_t, consumers_t>> node_outputs
-            = node->get_outputs();
-    if (node_outputs.empty()) return true;
-    if (op->num_outputs() < node_outputs.size()) return false;
+    node_outputs_matcher_t node_outputs_matcher(op, node, ctx, matched_op_map);
 
-    // the worst situation for matching node output is that pattern node
-    // output and graph op output cannot be matched, in this case,
-    // only optional can survive.
-    bool support_optional = check_optional_outputs(node);
+    if (node_outputs_matcher.check_recursion_termination()) return true;
 
-    std::unordered_map<op_t *, pb_op_t *> copied_op_map = matched_op_map;
+    if (node_outputs_matcher.get_op()->num_outputs()
+            < node_outputs_matcher.get_node()->get_outputs().size())
+        return false;
 
-    //match output for node and op
-    for (auto &node_output : node_outputs) {
-        size_t node_oport = node_output.first;
-        std::shared_ptr<value_t> op_out_value
-                = op->get_output_value(node_oport);
-        std::unordered_set<size_t> node_oport_matched_cons;
-        // match the op consumers one by one
-        for (size_t j = 0; j < op_out_value->get_consumers().size(); j++) {
-            auto op_consumer = op_out_value->get_consumers()[j];
-            op_t *out_op = &(op_consumer.get_op());
-            bool consumer_matched = false;
-
-            for (size_t k = 0; k < node_output.second.size(); k++) {
-                auto node_consumer = node_output.second[k];
-                pb_node_t *out_node = node_consumer->first;
-                // check if the out_node has been matched by previous out_ops
-                if (node_oport_matched_cons.count(k)) continue;
-                binding_t out_bind(BIND_IN, out_op, op_consumer.get_offset(),
-                        out_node, node_consumer->second);
-                // handle the potential zero trip match case, fill context's i/o
-                // map with hint op
-                out_bind.hint_op = op;
-                out_bind.hint_op_port = node_oport;
-                if (!match_graph_helper(out_bind, ctx, copied_op_map)) {
-                    continue;
-                } else {
-                    consumer_matched = true;
-                    node_oport_matched_cons.insert(k);
-                    break;
-                }
-            }
-
-            if (!consumer_matched) {
-                // TODO(Yixin): temporary fix sigmoid + multiply = swish
-                // After successfully matching sigmoid, multiply is also
-                // matched because multiply is sigmoid's out_op.
-                // When matching multiply, check if it is already in the
-                // matched op_map, if yes, the match is OK
-                if (node_output.second.size() == 1
-                        && node_output.second[0]->first->get_node_kind()
-                                != pb_node_kind::PB_NODE_KIND_OP
-                        && copied_op_map.count(out_op))
-                    continue;
-                //if it's the allow_external_output case, then it's fine
-                pb_op_t *p_op = copied_op_map[op];
-                const std::unordered_set<oport_t> &external_outputs
-                        = p_op->get_allowed_external_outputs();
-                if (!external_outputs.empty()
-                        && external_outputs.find(node_oport)
-                                != external_outputs.end()) {
-                    continue;
-                }
-                // if it's the optional case, also fine
-                if (support_optional) {
-                    fill_optional_out_map(ctx, node, op);
-                    return true;
-                }
-                return false;
-            }
-        }
-        // check if not all consumers of node output are matched
-        if (node_oport_matched_cons.size() != node_output.second.size()) {
-            if (support_optional) {
-                fill_optional_out_map(ctx, node, op);
-                return true;
-            }
-            return false;
-        }
+    // match output
+    bool matching_status = node_outputs_matcher.match_output();
+    if (!matching_status) return false;
+    if (node_outputs_matcher.get_optional_case_status() == true) {
+        return true;
     }
 
-    matched_op_map = copied_op_map;
+    matched_op_map = node_outputs_matcher.get_updated_op_map();
+
     return true;
 }
 
@@ -603,177 +696,224 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
     return false;
 }
 
-bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
-        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
-    repetition_t *rep_node = dynamic_cast<repetition_t *>(bind_arg.bind_node);
-    port_map pmap = rep_node->get_port_map();
-    size_t min_rep = rep_node->get_min_rep();
-    size_t max_rep = rep_node->get_max_rep() - 1;
+repetition_matcher_t::repetition_matcher_t(const binding_t &bind_arg,
+        match_context_t *parent_ctx,
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map)
+    : single_iter_bind_ {bind_arg}
+    , parent_ctx_ {parent_ctx}
+    , updated_op_map_ {matched_op_map}
+    , rep_global_ctx_ {
+              match_context_t(parent_ctx, single_iter_bind_.bind_node)} {
+    rep_node_ = dynamic_cast<repetition_t *>(bind_arg.bind_node);
+    pmap_ = rep_node_->get_port_map();
+    min_rep_ = rep_node_->get_min_rep();
+    max_rep_ = rep_node_->get_max_rep() - 1;
 
     // binding_t for first iteration.
     // all iterations have same body_graph, bind_kind and bind_port
     // but they have different bind_op.
     // First iteration has the same bind_op as the repetition node.
-    binding_t temp_bind = bind_arg;
-    temp_bind.bind_node = rep_node->get_body();
-    std::unordered_map<op_t *, pb_op_t *> temp_op_map = matched_op_map;
+    single_iter_bind_.bind_node = rep_node_->get_body();
 
     // a merge context to tag on incremental iterations.
-    match_context_t speculative_ctx {parent_ctx, temp_bind.bind_node};
-    bool forward_match = temp_bind.bind_kind != BIND_OUT;
+    rep_global_ctx_ = match_context_t(parent_ctx_, single_iter_bind_.bind_node);
+    forward_match_ = single_iter_bind_.bind_kind != BIND_OUT;
+}
 
+bool repetition_matcher_t::prepare_next_matching_round(
+        match_context_t &local_cached_ctx) {
+    // Forward matching
+    if (forward_match_) {
+        single_iter_bind_.bind_kind = BIND_IN;
+        oport_t oport = pmap_.first;
+        op_t *current_op = local_cached_ctx.out_port_map[oport].first;
+        if (oport >= current_op->num_outputs()) return true;
+        auto cons = current_op->get_output_value(oport)->get_consumers();
+        if (cons.empty()) return true;
+        if (cons.size() == 1) {
+            op_t *next_op = &(cons[0].get_op());
+            single_iter_bind_.bind_op = next_op;
+            single_iter_bind_.bind_op_port = cons[0].get_offset();
+        } else {
+            // More than 1 consumers. In this case, needs to check
+            // if the last node of previous match accepts external
+            // output. If no, break
+            pb_op_t *current_pb_op = updated_op_map_[current_op];
+            const std::unordered_set<oport_t> &external_outputs
+                    = current_pb_op->get_allowed_external_outputs();
+            if (external_outputs.empty()
+                    || external_outputs.find(oport) == external_outputs.end()) {
+                return true;
+            }
+            // If yes, decide which one of the consumers will be used
+            // for next round's match
+            iport_t iport = pmap_.second;
+            // start op for last round's match
+            op_t *start_op = local_cached_ctx.in_port_map[iport].first;
+            pb_op_t *start_pb_op = updated_op_map_[start_op];
+            op_t *next_op = nullptr;
+            size_t next_op_iport = 0;
+            for (auto &con : cons) {
+                if (match_node_attributes(&con.get_op(), start_pb_op)) {
+                    next_op = &(con.get_op());
+                    next_op_iport = con.get_offset();
+                    break;
+                }
+            }
+            if (!next_op) return true;
+            single_iter_bind_.bind_op = next_op;
+            single_iter_bind_.bind_op_port = next_op_iport;
+        }
+    } else { // backward matching
+        single_iter_bind_.bind_kind = BIND_OUT;
+        iport_t iport = pmap_.second;
+        op_t *current_op = local_cached_ctx.in_port_map[iport].first;
+        if (iport >= current_op->num_inputs()) return true;
+        auto in_value = current_op->get_input_value(iport);
+        single_iter_bind_.bind_op = &(in_value->get_producer());
+        single_iter_bind_.bind_op_port = in_value->get_offset();
+    }
+
+    return false;
+}
+
+bool repetition_matcher_t::match_current_op(const binding_t &bind_arg) {
+    if (forward_match_) {
+        // nothing needs to be matched, success
+        if (bind_arg.bind_node->get_outputs().empty()) {
+            if (bind_arg.hint_op) {
+                fill_optional_out_map(parent_ctx_, bind_arg.bind_node,
+                        bind_arg.hint_op, bind_arg.hint_op_port);
+            }
+            return true;
+        }
+        assertm(bind_arg.bind_node->get_outputs().size() == 1,
+                "repetition is restricted to have only 1 output");
+        assertm(bind_arg.bind_node->get_consumers(0)->size() == 1,
+                "repetition is restricted to have only 1 output with "
+                "only 1 consumer");
+        auto cons = bind_arg.bind_node->get_consumers(pmap_.first);
+        binding_t con_bind = bind_arg;
+        con_bind.bind_node = (*cons)[0]->first;
+        if (!match_graph_helper(con_bind, parent_ctx_, updated_op_map_))
+            return false;
+    } else {
+        if (bind_arg.bind_node->get_inputs().empty()) {
+            if (bind_arg.hint_op) {
+                fill_optional_in_map(parent_ctx_, bind_arg.bind_node,
+                        bind_arg.hint_op, bind_arg.hint_op_port);
+            }
+            return true;
+        }
+        binding_t b = bind_arg;
+        b.bind_node = b.bind_node->get_producer(pmap_.second)->first;
+        if (!match_graph_helper(b, parent_ctx_, updated_op_map_)) return false;
+    }
+    return true;
+}
+
+bool repetition_matcher_t::match_next_op(const binding_t &bind_arg) {
+    fill_parent_io_map(&rep_global_ctx_, bind_arg);
+    if (forward_match_) {
+        assertm(bind_arg.bind_node->get_outputs().size() <= 1,
+                "repetition is restricted to have only 1 output");
+
+        if (bind_arg.bind_node->get_outputs().size() == 1) {
+            assertm(bind_arg.bind_node->get_consumers(0)->size() == 1,
+                    "repetition is restricted to have only 1 output with "
+                    "only 1 consumer");
+            op_t *current_op = rep_global_ctx_.out_port_map[pmap_.first].first;
+            if (!match_node_outputs(
+                        current_op, rep_node_, parent_ctx_, updated_op_map_))
+                return false;
+        }
+
+    } else {
+        assertm(bind_arg.bind_node->get_outputs().size() <= 1,
+                "repetition is restricted to have only 1 output");
+        if (bind_arg.bind_node->get_outputs().size() == 1) {
+            op_t *current_op = rep_global_ctx_.in_port_map[pmap_.second].first;
+            if (!match_node_inputs(
+                        current_op, rep_node_, parent_ctx_, updated_op_map_))
+                return false;
+        }
+    }
+    return true;
+}
+
+bool repetition_matcher_t::post_repetition_matching(
+        int64_t num_rep, const binding_t &bind_arg) {
+    if (num_rep < min_rep_) return false;
+    bool matching_status = true;
+    if (num_rep == 0 && min_rep_ == 0) {
+        // Zero trip match
+        // need to forward binding to neighboring nodes
+        matching_status = match_current_op(bind_arg);
+    } else { // num_rep > 0
+        matching_status = match_next_op(bind_arg);
+    }
+    if (!matching_status) return false;
+
+    return true;
+}
+
+int64_t repetition_matcher_t::match_repetition_blocks() {
     // num of repetition blocks matched
-    size_t num_rep = 0;
+    int64_t num_rep = 0;
     while (true) {
-        match_context_t temp_ctx {speculative_ctx};
-        if (!match_graph(temp_bind, &temp_ctx, temp_op_map)) break;
+        match_context_t local_cached_ctx {rep_global_ctx_};
+        if (!match_graph(single_iter_bind_, &local_cached_ctx, updated_op_map_))
+            break;
         ++num_rep;
 
         // connect previous repetition's out_port_map to
         // current repetition's in_port_map
-        if (forward_match) {
+        if (forward_match_) {
             if (num_rep == 1) {
-                speculative_ctx.in_port_map.insert(temp_ctx.in_port_map.begin(),
-                        temp_ctx.in_port_map.end());
+                rep_global_ctx_.in_port_map.insert(
+                        local_cached_ctx.in_port_map.begin(),
+                        local_cached_ctx.in_port_map.end());
             }
-            speculative_ctx.out_port_map.clear();
-            speculative_ctx.out_port_map.insert(
-                    temp_ctx.out_port_map.begin(), temp_ctx.out_port_map.end());
+            rep_global_ctx_.out_port_map.clear();
+            rep_global_ctx_.out_port_map.insert(
+                    local_cached_ctx.out_port_map.begin(),
+                    local_cached_ctx.out_port_map.end());
 
         } else {
             if (num_rep == 1) {
-                speculative_ctx.out_port_map.insert(
-                        temp_ctx.out_port_map.begin(),
-                        temp_ctx.out_port_map.end());
+                rep_global_ctx_.out_port_map.insert(
+                        local_cached_ctx.out_port_map.begin(),
+                        local_cached_ctx.out_port_map.end());
             }
-            speculative_ctx.in_port_map.clear();
-            speculative_ctx.in_port_map.insert(
-                    temp_ctx.in_port_map.begin(), temp_ctx.in_port_map.end());
+            rep_global_ctx_.in_port_map.clear();
+            rep_global_ctx_.in_port_map.insert(
+                    local_cached_ctx.in_port_map.begin(),
+                    local_cached_ctx.in_port_map.end());
         }
 
-        if (num_rep == max_rep) break;
+        if (num_rep == max_rep_) break;
 
         // prepare for the next round of matching
-        // Forward matching
-        if (forward_match) {
-            temp_bind.bind_kind = BIND_IN;
-            oport_t oport = pmap.first;
-            op_t *current_op = temp_ctx.out_port_map[oport].first;
-            if (oport >= current_op->num_outputs()) break;
-            auto cons = current_op->get_output_value(oport)->get_consumers();
-            if (cons.empty()) break;
-            if (cons.size() == 1) {
-                op_t *next_op = &(cons[0].get_op());
-                temp_bind.bind_op = next_op;
-                temp_bind.bind_op_port = cons[0].get_offset();
-            } else {
-                // More than 1 consumers. In this case, needs to check
-                // if the last node of previous match accepts external
-                // output. If no, break
-                pb_op_t *current_pb_op = temp_op_map[current_op];
-                const std::unordered_set<oport_t> &external_outputs
-                        = current_pb_op->get_allowed_external_outputs();
-                if (external_outputs.empty()
-                        || external_outputs.find(oport)
-                                == external_outputs.end()) {
-                    break;
-                }
-                // If yes, decide which one of the consumers will be used
-                // for next round's match
-                iport_t iport = pmap.second;
-                // start op for last round's match
-                op_t *start_op = temp_ctx.in_port_map[iport].first;
-                pb_op_t *start_pb_op = temp_op_map[start_op];
-                op_t *next_op = nullptr;
-                size_t next_op_iport = 0;
-                for (auto &con : cons) {
-                    if (match_node_attributes(&con.get_op(), start_pb_op)) {
-                        next_op = &(con.get_op());
-                        next_op_iport = con.get_offset();
-                        break;
-                    }
-                }
-                if (!next_op) break;
-                temp_bind.bind_op = next_op;
-                temp_bind.bind_op_port = next_op_iport;
-            }
-        } else { // backward matching
-            temp_bind.bind_kind = BIND_OUT;
-            iport_t iport = pmap.second;
-            op_t *current_op = temp_ctx.in_port_map[iport].first;
-            if (iport >= current_op->num_inputs()) break;
-            auto in_value = current_op->get_input_value(iport);
-            temp_bind.bind_op = &(in_value->get_producer());
-            temp_bind.bind_op_port = in_value->get_offset();
-        }
+        bool prepare_fail = prepare_next_matching_round(local_cached_ctx);
+
+        if (prepare_fail) break;
     }
 
-    if (num_rep < min_rep) return false;
-    if (num_rep == 0 && min_rep == 0) {
-        // Zero trip match
-        // need to forward binding to neighboring nodes
-        if (forward_match) {
-            // nothing needs to be matched, success
-            if (bind_arg.bind_node->get_outputs().empty()) {
-                if (bind_arg.hint_op) {
-                    fill_optional_out_map(parent_ctx, bind_arg.bind_node,
-                            bind_arg.hint_op, bind_arg.hint_op_port);
-                }
-                return true;
-            }
-            assertm(bind_arg.bind_node->get_outputs().size() == 1,
-                    "repetition is restricted to have only 1 output");
-            assertm(bind_arg.bind_node->get_consumers(0)->size() == 1,
-                    "repetition is restricted to have only 1 output with "
-                    "only 1 consumer");
-            auto cons = bind_arg.bind_node->get_consumers(pmap.first);
-            binding_t con_bind = bind_arg;
-            con_bind.bind_node = (*cons)[0]->first;
-            if (!match_graph_helper(con_bind, parent_ctx, temp_op_map))
-                return false;
-        } else {
-            if (bind_arg.bind_node->get_inputs().empty()) {
-                if (bind_arg.hint_op) {
-                    fill_optional_in_map(parent_ctx, bind_arg.bind_node,
-                            bind_arg.hint_op, bind_arg.hint_op_port);
-                }
-                return true;
-            }
-            binding_t b = bind_arg;
-            b.bind_node = b.bind_node->get_producer(pmap.second)->first;
-            if (!match_graph_helper(b, parent_ctx, temp_op_map)) return false;
-        }
-    } else { // num_rep > 0
-        fill_parent_io_map(&speculative_ctx, bind_arg);
-        if (forward_match) {
-            assertm(bind_arg.bind_node->get_outputs().size() <= 1,
-                    "repetition is restricted to have only 1 output");
+    return num_rep;
+}
 
-            if (bind_arg.bind_node->get_outputs().size() == 1) {
-                assertm(bind_arg.bind_node->get_consumers(0)->size() == 1,
-                        "repetition is restricted to have only 1 output with "
-                        "only 1 consumer");
-                op_t *current_op
-                        = speculative_ctx.out_port_map[pmap.first].first;
-                if (!match_node_outputs(
-                            current_op, rep_node, parent_ctx, temp_op_map))
-                    return false;
-            }
+bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
+    repetition_matcher_t repetition_matcher(
+            bind_arg, parent_ctx, matched_op_map);
 
-        } else {
-            assertm(bind_arg.bind_node->get_outputs().size() <= 1,
-                    "repetition is restricted to have only 1 output");
-            if (bind_arg.bind_node->get_outputs().size() == 1) {
-                op_t *current_op
-                        = speculative_ctx.in_port_map[pmap.second].first;
-                if (!match_node_inputs(
-                            current_op, rep_node, parent_ctx, temp_op_map))
-                    return false;
-            }
-        }
-    }
+    int64_t num_rep = repetition_matcher.match_repetition_blocks();
 
-    matched_op_map = temp_op_map;
+    bool matching_status
+            = repetition_matcher.post_repetition_matching(num_rep, bind_arg);
+
+    if (!matching_status) return false;
+    matched_op_map = repetition_matcher.get_updated_op_map();
     return true;
 }
 

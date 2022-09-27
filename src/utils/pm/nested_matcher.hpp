@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "interface/op.hpp"
 #include "utils/pm/pbuilder.hpp"
@@ -207,6 +208,172 @@ inline std::vector<op_t *> reorder_matched_list(
 // to pattern match_context. Useful for nested patterns
 //
 void fill_parent_io_map(match_context_t *local_ctx);
+
+//
+// Two utils classes for matching node outputs/inputs
+//
+class node_inputs_matcher_t {
+public:
+    node_inputs_matcher_t(op_t *op, pb_node_t *node, match_context_t *ctx,
+            std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
+    std::unordered_map<op_t *, pb_op_t *> get_updated_op_map() const {
+        return updated_op_map_;
+    };
+    //
+    // If we have touched the upper boundary of the pattern
+    // graph, it's time to terminate the recursion.
+    // When in this case, the target node doesn't have inputs,
+    // so we could confirm whether the recursion should be
+    // terminated or not by checking the number of node inputs
+    //
+    bool check_recursion_termination();
+    bool match_commutative_inputs();
+    bool match_non_commutative_inputs();
+    bool match_variadic_inputs();
+    pb_node_t *get_node() const { return node_; };
+    op_t *get_op() const { return op_; };
+
+protected:
+    op_t *op_;
+    pb_node_t *node_;
+    match_context_t *ctx_;
+    std::unordered_map<op_t *, pb_op_t *> updated_op_map_;
+    std::vector<std::pair<iport_t, producer_t>> node_inputs_;
+    bool match_input_by_offset(
+            const size_t &op_input_offset, const size_t &node_input_offset);
+    bool support_optional_inputs(pb_node_t *n);
+};
+
+class node_outputs_matcher_t {
+public:
+    node_outputs_matcher_t(op_t *op, pb_node_t *node, match_context_t *ctx,
+            std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
+    std::unordered_map<op_t *, pb_op_t *> get_updated_op_map() const {
+        return updated_op_map_;
+    };
+    pb_node_t *get_node() const { return node_; };
+    op_t *get_op() const { return op_; };
+    bool get_optional_case_status() const { return is_optional_case_; }
+    //
+    // If we have touched the lower boundary of the pattern
+    // graph, it's time to terminate the recursion.
+    // When in this case, the target node doesn't have outputs,
+    // so we could confirm whether the recursion should be
+    // terminated or not by checking the number of node outputs
+    //
+    bool check_recursion_termination();
+    bool match_output();
+
+protected:
+    op_t *op_;
+    pb_node_t *node_;
+    match_context_t *ctx_;
+    std::unordered_map<op_t *, pb_op_t *> updated_op_map_;
+    std::pair<oport_t, consumers_t> current_node_output_;
+    size_t current_node_oport_;
+    std::vector<std::pair<oport_t, consumers_t>> node_outputs_;
+    //
+    // A flag variable to mark if the optional case is
+    // exist or not
+    //
+    bool support_optional_;
+    //
+    // In optional case, we need to directly return the matching
+    // result(success/fail) in advance. When in this time,
+    // the matching process should be terminated, and here
+    // the variable "is_optional_case_" is
+    // used as a flag variable to help mark that.
+    //
+    bool is_optional_case_ = false;
+    //
+    // Match the op consumers one by one
+    //
+    bool match_op_consumers();
+    //
+    // When one op consumer couldn't find any corresponding
+    // matched node consumer, there may exist three cases where
+    // the matching process should still be successful:
+    // 1. we meet swish function
+    // 2. it's the allow_external_output case
+    // 3. it's the optional case
+    // For all there three cases, we should check them before
+    // we return a "false" matching result.
+    // If the unmatching case hits any one of the three above,
+    // the variable is_unmatching_exception_ will be true, which
+    // means that the iteration of matching op consumers could
+    // still forward.
+    //
+    bool op_consumer_unmatching_checking(op_t *out_op);
+    bool support_optional_outputs(pb_node_t *n);
+    bool check_external_output();
+    bool check_swish(op_t *out_op);
+    bool check_optional();
+    //
+    // If not all the consumers of node output are matched,
+    // we should check the optional case
+    //
+    bool check_node_consumers(
+            std::unordered_set<size_t> &node_oport_matched_cons);
+};
+
+//
+// A utils class for repetition graph matching process
+//
+class repetition_matcher_t {
+public:
+    repetition_matcher_t(const binding_t &bind_arg, match_context_t *parent_ctx,
+            std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
+    //
+    // A while loop for matching each repetition block and
+    // update the global ctx of repetition graph
+    //
+    int64_t match_repetition_blocks();
+    //
+    // After matching the repetition blocks, we need to forward
+    // the matching progress by changing the value of binding
+    //
+    bool post_repetition_matching(int64_t num_rep, const binding_t &bind_arg);
+    std::unordered_map<op_t *, pb_op_t *> get_updated_op_map() const {
+        return updated_op_map_;
+    }
+
+protected:
+    binding_t single_iter_bind_;
+    match_context_t *parent_ctx_;
+    std::unordered_map<op_t *, pb_op_t *> updated_op_map_;
+    //
+    // A temporary binding_t type instance for single matching iteration
+    //
+    repetition_t *rep_node_;
+    port_map pmap_;
+    int64_t min_rep_;
+    int64_t max_rep_;
+    bool forward_match_;
+    //
+    // The matching of repetition graph is a incremental process,
+    // which means that the global context of repetition graph
+    // could also be obtained incrementally. In our implementation,
+    // the global context of repetition graph(rep_global_ctx_) is updated
+    // by the local context(local_cached_ctx), whose i/o maps will be
+    // filled when calling function match_graph() in each iteration
+    //
+    match_context_t rep_global_ctx_;
+    //
+    // After successfully matching repetition blocks, we need to
+    // forward the matching process, if no repetition block is
+    // matched, it also means that the current op is still
+    // unmatched, so we should still take it into the next
+    // matching process. Similarly, if any number of blocks are matched,
+    // it means that the current op has been matched, and
+    // what we should do is mathcing the next op.
+    //
+    bool match_current_op(const binding_t &bind_arg);
+    bool match_next_op(const binding_t &bind_arg);
+    //
+    // update single_iter_bind_ for the next matching round
+    //
+    bool prepare_next_matching_round(match_context_t &temp_ctx);
+};
 
 //
 // fill the current match_context's in/out port map
