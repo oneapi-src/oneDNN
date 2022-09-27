@@ -1952,6 +1952,9 @@ private:
                             type_t(mad.dst_type.kind(), mad.exec_size));
                     auto store = store_t::make(mad_t::arg_dst(vec[i]), 0, mul);
                     root = substitute(root, vec[i], store, 1);
+                    // Skip over sync statements used for f64 workaround.
+                } else if (is_func_call<builtin_t>(vec[i])) {
+                    continue;
                 } else if (const auto *s = vec[i].as_ptr<store_t>()) {
                     if (const auto *t = s->value.as_ptr<ternary_op_t>()) {
                         ir_assert(s->mask.is_empty());
