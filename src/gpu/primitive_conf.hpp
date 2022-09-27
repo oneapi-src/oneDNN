@@ -368,6 +368,7 @@ struct pool_conf_t {
     bool is_plain;
     bool is_training, is_backward;
     bool use_mb_c_block, use_only_c_block;
+    bool unroll_mb = false;
     int chunks_per_c_block, chunks_per_mb_block;
     int vect_dt_n;
     int nvect;

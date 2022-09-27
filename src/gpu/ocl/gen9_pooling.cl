@@ -38,7 +38,10 @@ inline void write_vect_c_block_int(int idx, __global int *ptr, int c,
 KERNEL_ATTR
 __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         __global DATA_T *dst, const int batch_id POST_OP_ARGS) {
-    const int mb = MB_BLOCK_SIZE * batch_id + GWS_GET_MB();
+    const int mb0 = MB_BLOCK_SIZE * batch_id + GWS_GET_MB();
+#if UNROLL_MB
+    const int mb1 = mb0 + MB / 2;
+#endif
     const int c = GWS_GET_C();
     const int od = GWS_GET_OD();
     const int oh = GWS_GET_OH();
@@ -63,10 +66,10 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
     const int ws_stride = dst_stride;
     const int ws_chunks_per_c_block = dst_chunks_per_c_block;
 
-    if (mb >= SRC_D0) {
+    if (mb0 >= SRC_D0) {
         VECT_DATA_T dst_zero = DATA_ZERO;
         VECT_INT_T ws_zero = 0;
-        int off = DST_OFF(mb, c, od, oh, ow);
+        int off = DST_OFF(mb0, c, od, oh, ow);
         write_vect_c_block(
                 0, &dst[off], c, dst_stride, dst_chunks_per_c_block, dst_zero);
         write_vect_c_block(
@@ -102,17 +105,30 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
             for (int kw = 0; kw < KW; ++kw) {
                 if (iw + kw < 0 || iw + kw >= IW) continue;
 
-                int src_off = SRC_OFF(mb, c, id + kd, ih + kh, iw + kw);
+                int src_off0 = SRC_OFF(mb0, c, id + kd, ih + kh, iw + kw);
+#if UNROLL_MB
+                int src_off1 = SRC_OFF(mb1, c, id + kd, ih + kh, iw + kw);
+#endif
 #if USE_FLOATS
                 VECT_FLOAT_T S0 = CONVERT_VECT_FLOAT_T(read_vect_c_block(0,
-                        &src[src_off], c, src_stride, src_chunks_per_c_block));
+                        &src[src_off0], c, src_stride, src_chunks_per_c_block));
+#if UNROLL_MB
+                VECT_FLOAT_T S1 = CONVERT_VECT_FLOAT_T(read_vect_c_block(0,
+                        &src[src_off1], c, src_stride, src_chunks_per_c_block));
+#else
                 VECT_FLOAT_T S1 = CONVERT_VECT_FLOAT_T(read_vect_c_block(1,
-                        &src[src_off], c, src_stride, src_chunks_per_c_block));
+                        &src[src_off0], c, src_stride, src_chunks_per_c_block));
+#endif
 #else // USE_FLOATS
-                VECT_DATA_T S0 = read_vect_c_block(0, &src[src_off], c,
+                VECT_DATA_T S0 = read_vect_c_block(0, &src[src_off0], c,
                         src_stride, src_chunks_per_c_block);
-                VECT_DATA_T S1 = read_vect_c_block(1, &src[src_off], c,
+#if UNROLL_MB
+                VECT_DATA_T S1 = read_vect_c_block(0, &src[src_off1], c,
                         src_stride, src_chunks_per_c_block);
+#else
+                VECT_DATA_T S1 = read_vect_c_block(1, &src[src_off0], c,
+                        src_stride, src_chunks_per_c_block);
+#endif
 #endif // USE_FLOATS
 
 #if ALG_MAX
@@ -156,20 +172,28 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
     D1 = D1 / num_summands;
 #endif // ALG_AVG_NP
 
-    int dst_off = DST_OFF(mb, c, od, oh, ow);
+    int dst_off0 = DST_OFF(mb0, c, od, oh, ow);
+#if UNROLL_MB
+    int dst_off1 = DST_OFF(mb1, c, od, oh, ow);
+#endif
     VECT_DATA_T sum0;
     VECT_DATA_T sum1;
 #if WITH_SUM
     sum0 = read_vect_c_block(
-            0, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block);
+            0, &dst[dst_off0], c, dst_stride, dst_chunks_per_c_block);
+#if UNROLL_MB
     sum1 = read_vect_c_block(
-            1, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block);
+            0, &dst[dst_off1], c, dst_stride, dst_chunks_per_c_block);
+#else
+    sum1 = read_vect_c_block(
+            1, &dst[dst_off0], c, dst_stride, dst_chunks_per_c_block);
+#endif
 #endif
 
     const int local_id = get_sub_group_local_id();
 
 #if VECT_DT_N == 1
-    const int po_mb = mb;
+    const int po_mb = mb0;
     const int po_oc = c + local_id;
     if (po_oc < C_WO_PADDING) {
         POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
@@ -191,10 +215,10 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         int c_sub_block_id = idx % CHUNKS_PER_C_BLOCK;
         int mb_sub_block_id = idx / CHUNKS_PER_C_BLOCK;
         const int po_oc = c + c_sub_block_id * SUB_GROUP_SIZE + local_id;
-        int po_mb = (mb + mb_sub_block_id) % MB;
+        int po_mb = (mb0 + mb_sub_block_id) % MB;
 #else // USE_MB_C_BLOCK
         const int po_oc = c + idx * SUB_GROUP_SIZE + local_id;
-        int po_mb = mb;
+        int po_mb = mb0;
 #endif // USE_MB_C_BLOCK
 
         if (po_mb >= MB || po_oc >= C_WO_PADDING) continue;
@@ -221,16 +245,29 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
     VECT_DATA_T res1 = D1;
 #endif
     write_vect_c_block(
-            0, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block, res0);
+            0, &dst[dst_off0], c, dst_stride, dst_chunks_per_c_block, res0);
+#if UNROLL_MB
     write_vect_c_block(
-            1, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block, res1);
+            0, &dst[dst_off1], c, dst_stride, dst_chunks_per_c_block, res1);
+#else
+    write_vect_c_block(
+            1, &dst[dst_off0], c, dst_stride, dst_chunks_per_c_block, res1);
+#endif
 
 #if ALG_MAX && IS_TRAINING
-    int ws_off = dst_off;
+    int ws_off0 = dst_off0;
+#if UNROLL_MB
+    int ws_off1 = dst_off1;
+#endif
     write_vect_c_block_int(
-            0, &ws[ws_off], c, ws_stride, ws_chunks_per_c_block, WS0);
+            0, &ws[ws_off0], c, ws_stride, ws_chunks_per_c_block, WS0);
+#if UNROLL_MB
     write_vect_c_block_int(
-            1, &ws[ws_off], c, ws_stride, ws_chunks_per_c_block, WS1);
+            0, &ws[ws_off1], c, ws_stride, ws_chunks_per_c_block, WS1);
+#else
+    write_vect_c_block_int(
+            1, &ws[ws_off0], c, ws_stride, ws_chunks_per_c_block, WS1);
+#endif
 #endif // ALG_MAX && IS_TRAINING
 }
 #endif
@@ -240,7 +277,10 @@ KERNEL_ATTR
 __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
         __global DATA_T *diff_dst) {
 
-    const int mb = GWS_GET_MB();
+    const int mb0 = GWS_GET_MB();
+#if UNROLL_MB
+    const int mb1 = mb0 + MB / 2;
+#endif
     const int c = GWS_GET_C();
     const int id = GWS_GET_ID();
     const int ih = GWS_GET_IH();
@@ -284,19 +324,33 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 ow /= SW;
                 if (ow < 0 || ow >= OW) continue;
 
-                const int dst_off = DST_OFF(mb, c, od, oh, ow);
+                const int dst_off0 = DST_OFF(mb0, c, od, oh, ow);
+#if UNROLL_MB
+                const int dst_off1 = DST_OFF(mb1, c, od, oh, ow);
+#endif
                 VECT_FLOAT_T D0 = CONVERT_VECT_FLOAT_T(
-                        read_vect_c_block(0, &diff_dst[dst_off], c, dst_stride,
+                        read_vect_c_block(0, &diff_dst[dst_off0], c, dst_stride,
                                 dst_chunks_per_c_block));
+#if UNROLL_MB
                 VECT_FLOAT_T D1 = CONVERT_VECT_FLOAT_T(
-                        read_vect_c_block(1, &diff_dst[dst_off], c, dst_stride,
+                        read_vect_c_block(0, &diff_dst[dst_off1], c, dst_stride,
                                 dst_chunks_per_c_block));
+#else
+                VECT_FLOAT_T D1 = CONVERT_VECT_FLOAT_T(
+                        read_vect_c_block(1, &diff_dst[dst_off0], c, dst_stride,
+                                dst_chunks_per_c_block));
+#endif
 
 #if ALG_MAX
                 VECT_INT_T WS0 = read_vect_c_block_int(
-                        0, &ws[dst_off], c, ws_stride, ws_chunks_per_c_block);
+                        0, &ws[dst_off0], c, ws_stride, ws_chunks_per_c_block);
+#if UNROLL_MB
                 VECT_INT_T WS1 = read_vect_c_block_int(
-                        1, &ws[dst_off], c, ws_stride, ws_chunks_per_c_block);
+                        0, &ws[dst_off1], c, ws_stride, ws_chunks_per_c_block);
+#else
+                VECT_INT_T WS1 = read_vect_c_block_int(
+                        1, &ws[dst_off0], c, ws_stride, ws_chunks_per_c_block);
+#endif
 
                 VECT_INT_T CMP0 = isnotequal(
                         AS_VECT_FLOAT_T(WS0 - kd * KH * KW - kh * KW - kw),
@@ -330,11 +384,19 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
     S1 /= KD * KH * KW;
 #endif
 
-    int src_off = SRC_OFF(mb, c, id, ih, iw);
-    write_vect_c_block(0, &diff_src[src_off], c, src_stride,
+    int src_off0 = SRC_OFF(mb0, c, id, ih, iw);
+#if UNROLL_MB
+    int src_off1 = SRC_OFF(mb1, c, id, ih, iw);
+#endif
+    write_vect_c_block(0, &diff_src[src_off0], c, src_stride,
             src_chunks_per_c_block, CONVERT_VECTOR_DATA_T(S0));
-    write_vect_c_block(1, &diff_src[src_off], c, src_stride,
+#if UNROLL_MB
+    write_vect_c_block(0, &diff_src[src_off1], c, src_stride,
             src_chunks_per_c_block, CONVERT_VECTOR_DATA_T(S1));
+#else
+    write_vect_c_block(1, &diff_src[src_off0], c, src_stride,
+            src_chunks_per_c_block, CONVERT_VECTOR_DATA_T(S1));
+#endif
 }
 #endif
 

@@ -93,6 +93,9 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         while (num_c_blocks % conf.vect_dt_n != 0) {
             conf.vect_dt_n /= 2;
         }
+        if ((conf.vect_dt_n < 8) && (conf.mb_padded % 2 == 0)) {
+            conf.unroll_mb = true;
+        }
         conf.nvect = 1;
         conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
         conf.chunks_per_mb_block = 1;
@@ -119,8 +122,9 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
                 nstl::min(conf.mb_block_size, conf.mb_padded),
                 conf.chunks_per_mb_block);
     } else {
-        conf.dispatch.define_dim(
-                "MB", 0, conf.mb_padded, conf.chunks_per_mb_block);
+        conf.dispatch.define_dim("MB", 0,
+                conf.unroll_mb ? conf.mb_padded / 2 : conf.mb_padded,
+                conf.chunks_per_mb_block);
     }
     conf.dispatch.define_dim("C", 1, c_padded, conf.chunks_per_c_block);
 
@@ -187,6 +191,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("USE_MB_C_BLOCK", conf.use_mb_c_block);
     kernel_ctx.define_int("CHUNKS_PER_C_BLOCK", conf.chunks_per_c_block);
     kernel_ctx.define_int("CHUNKS_PER_MB_BLOCK", conf.chunks_per_mb_block);
+    kernel_ctx.define_int("UNROLL_MB", conf.unroll_mb);
 
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 
