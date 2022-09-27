@@ -2824,7 +2824,7 @@ struct memory : public handle<dnnl_memory_t> {
         bool operator!=(const desc &other) const { return !operator==(other); }
 
     private:
-        memory::dim query_s32(query what) const {
+        int query_s32(query what) const {
             memory::dim res;
             dnnl_status_t status = dnnl_memory_desc_query(
                     get(), dnnl::convert_to_c(what), &res);
