@@ -30,6 +30,7 @@
 #include "gpu/nvidia/cudnn_lrn.hpp"
 #include "gpu/nvidia/cudnn_matmul.hpp"
 #include "gpu/nvidia/cudnn_pooling.hpp"
+#include "gpu/nvidia/cudnn_reduction.hpp"
 #include "gpu/nvidia/cudnn_resampling.hpp"
 #include "gpu/nvidia/cudnn_softmax.hpp"
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
@@ -231,6 +232,9 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // Resampling
         INSTANCE(cudnn_resampling_fwd_t)
         INSTANCE(cudnn_resampling_bwd_t)
+
+        // Reduction
+        INSTANCE(cudnn_reduction_t)
         nullptr,
 };
 // clang-format on

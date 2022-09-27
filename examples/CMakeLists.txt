@@ -55,7 +55,6 @@ if(DNNL_SYCL_CUDA)
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/lstm.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/layer_normalization.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/prelu.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reduction.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reorder.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/shuffle.cpp)
 endif()

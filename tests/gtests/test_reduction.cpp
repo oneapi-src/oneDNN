@@ -51,6 +51,16 @@ protected:
                 "Engine does not support this data type.");
         SKIP_IF(get_test_engine().get_kind() != engine::kind::cpu,
                 "Engine does not support this primitive.");
+        SKIP_IF_CUDA(p.aalgorithm != algorithm::reduction_max
+                        && p.aalgorithm != algorithm::reduction_min
+                        && p.aalgorithm != algorithm::reduction_sum
+                        && p.aalgorithm != algorithm::reduction_mul
+                        && p.aalgorithm != algorithm::reduction_mean
+                        && p.aalgorithm != algorithm::reduction_norm_lp_max
+                        && p.aalgorithm
+                                != algorithm::reduction_norm_lp_power_p_max
+                        && p.eps != 0.0f,
+                "Unsupported algorithm type for CUDA");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
