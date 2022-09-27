@@ -999,7 +999,9 @@ TEST(CAPI, CompileSumConv2DStridedBN) {
                            *(compiled_partition + 1), sum_output.id,
                            &opaque_sum_output),
             dnnl_graph_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
-    ASSERT_EQ(opaque_sum_output.layout_type, dnnl_graph_layout_type_strided);
+    ASSERT_EQ(opaque_sum_output.layout_type,
+            engine == dnnl_graph_gpu ? dnnl_graph_layout_type_opaque
+                                     : dnnl_graph_layout_type_strided);
 
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.

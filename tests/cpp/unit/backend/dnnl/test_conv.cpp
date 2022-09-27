@@ -86,7 +86,10 @@ TEST(Compile, ConvolutionFp32) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type,
+            engine.kind() == impl::engine_kind::gpu
+                    ? impl::layout_type::opaque
+                    : impl::layout_type::strided);
 }
 
 TEST(Compile, ConvolutionBackpropDataFp32) {

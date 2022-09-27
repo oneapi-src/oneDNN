@@ -562,7 +562,7 @@ impl::status_t fill_layout_info(
             lt->layout_type = impl::layout_type::strided;
         }
 
-        // use shape and stride to descripe plain layout
+        // use shape and stride to describe plain layout
         if (lt->id != std::numeric_limits<size_t>::max() && is_plain(md)) {
             lt->layout_type = impl::layout_type::strided;
             impl::utils::array_copy(lt->layout.strides,

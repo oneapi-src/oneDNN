@@ -101,14 +101,18 @@ TEST(APIPartition, PartitionTest) {
     auto cp = partitions[0].compile(in0, out0, eng);
     // query logical tensor from compiled partition
     auto lt4_opaque = cp.query_logical_tensor(3);
-    ASSERT_EQ(
-            lt4_opaque.get_layout_type(), logical_tensor::layout_type::strided);
+    ASSERT_EQ(lt4_opaque.get_layout_type(),
+            real_engine_kind == engine::kind::gpu
+                    ? logical_tensor::layout_type::opaque
+                    : logical_tensor::layout_type::strided);
 
     auto cp1 = partitions[0].compile(in0, out0, eng);
     // query logical tensor from compiled partition
     auto lt5_opaque = cp1.query_logical_tensor(3);
-    ASSERT_EQ(
-            lt5_opaque.get_layout_type(), logical_tensor::layout_type::strided);
+    ASSERT_EQ(lt5_opaque.get_layout_type(),
+            real_engine_kind == engine::kind::gpu
+                    ? logical_tensor::layout_type::opaque
+                    : logical_tensor::layout_type::strided);
 }
 
 TEST(APIPartition, GetInputOutputIDs) {

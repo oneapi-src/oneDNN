@@ -236,14 +236,20 @@ TEST(Execute, ConvResBlockWithNhwcLayout) {
 
     impl::logical_tensor_t queried_relu2_dst;
     cp.query_logical_tensor(relu2_dst.id, &queried_relu2_dst);
-    ASSERT_EQ(queried_relu2_dst.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(queried_relu2_dst.layout_type,
+            eng.kind() == impl::engine_kind::gpu ? impl::layout_type::opaque
+                                                 : impl::layout_type::strided);
 
     test::vector<float> conv0_src_data(8 * 8 * 32 * 32);
     test::vector<float> conv0_wei_data(8 * 8 * 1 * 1);
     test::vector<float> conv1_wei_data(8 * 8 * 1 * 1);
     test::vector<float> conv2_wei_data(8 * 8 * 1 * 1);
-    test::vector<float> relu2_dst_data(8 * 8 * 32 * 32);
-    test::vector<float> ref_dst_data(8 * 8 * 32 * 32);
+    test::vector<float> relu2_dst_data(
+            impl::logical_tensor_wrapper_t(queried_relu2_dst).size()
+            / sizeof(float));
+    test::vector<float> ref_dst_data(
+            impl::logical_tensor_wrapper_t(queried_relu2_dst).size()
+            / sizeof(float));
 
     // Initialize
     std::default_random_engine generator;

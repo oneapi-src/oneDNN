@@ -519,7 +519,9 @@ TEST(Compile, ConvtransposeFp32) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(lt.layout_type,
+            eng.kind() == impl::engine_kind::gpu ? impl::layout_type::opaque
+                                                 : impl::layout_type::strided);
 }
 
 TEST_P(Convtranspose4D5D, TestConvtranspose) {

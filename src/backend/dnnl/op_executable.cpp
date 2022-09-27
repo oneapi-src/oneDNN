@@ -72,7 +72,10 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    src = to_nxc_format(src);
+    if (p_engine.get_kind() == dnnl::engine::kind::cpu)
+        src = to_nxc_format(src);
+    else
+        src = to_format_any(src);
     // assume constant weight is for inference scenario
     const auto &wei_lt = op->get_input_value(1)->get_logical_tensor();
     auto pkind = (impl::logical_tensor_wrapper_t(wei_lt).property_type()
@@ -93,7 +96,10 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
                 = dw_conv->get_op()->get_input_value(0)->get_logical_tensor();
     }
     auto dst = make_dnnl_memory_desc(base_conv_dst_lt);
-    dst = to_nxc_format(dst);
+    if (p_engine.get_kind() == dnnl::engine::kind::cpu)
+        dst = to_nxc_format(dst);
+    else
+        dst = to_format_any(dst);
 
     dnnl::convolution_forward::primitive_desc pd;
     if (op->has_attr(op_attr::with_bias)
