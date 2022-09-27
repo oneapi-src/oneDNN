@@ -16,6 +16,7 @@
 
 #include <array>
 #include <limits>
+#include <string>
 
 #include "gtest/gtest.h"
 
@@ -27,6 +28,75 @@
 #include "interface/partition_impl.hpp"
 
 #include "cpp/unit/utils.hpp"
+
+TEST(Op, OpResetAttr) {
+    using namespace dnnl::graph::impl;
+    op_t conv {0, op_kind::Convolution, std::string("conv")};
+    conv.set_attr(impl::op_attr::auto_pad, std::string("VALID"));
+    conv.set_attr(impl::op_attr::auto_pad, std::string("NONE"));
+    ASSERT_EQ(conv.get_attr<std::string>(impl::op_attr::auto_pad), "NONE");
+}
+
+TEST(Op, Attr2str) {
+    using namespace dnnl::graph::impl::op_attr;
+#define CASE(a) ASSERT_EQ(std::string(#a), impl::op_t::attr2str(a))
+    CASE(alpha);
+    CASE(beta);
+    CASE(epsilon);
+    CASE(max);
+    CASE(min);
+    CASE(momentum);
+    CASE(scales);
+    CASE(axis);
+    CASE(begin_norm_axis);
+    CASE(groups);
+    CASE(axes);
+    CASE(dilations);
+    CASE(filter_shape);
+    CASE(input_shape);
+    CASE(kernel);
+    CASE(order);
+    CASE(output_padding);
+    CASE(output_shape);
+    CASE(pads_begin);
+    CASE(pads_end);
+    CASE(shape);
+    CASE(sizes);
+    CASE(strides);
+    CASE(zps);
+    CASE(exclude_pad);
+    CASE(keep_dims);
+    CASE(keep_stats);
+    CASE(per_channel_broadcast);
+    CASE(special_zero);
+    CASE(transpose_a);
+    CASE(transpose_b);
+    CASE(use_affine);
+    CASE(use_dst);
+    CASE(auto_broadcast);
+    CASE(auto_pad);
+    CASE(coordinate_transformation_mode);
+    CASE(data_format);
+    CASE(filter_format);
+    CASE(mode);
+    CASE(qtype);
+    CASE(rounding_type);
+    CASE(matched);
+    CASE(backend);
+    CASE(partition_id);
+#undef CASE
+}
+
+TEST(Op, AddOpIds) {
+    using namespace dnnl::graph::impl;
+    op_t wild_card {0, op_kind::Wildcard, std::string("wild_card")};
+    std::vector<size_t> ids {10001, 100023};
+    wild_card.add_op_ids(ids);
+    ASSERT_EQ(wild_card.get_op_ids().size(), ids.size());
+    for (size_t i = 0; i < ids.size(); ++i) {
+        ASSERT_EQ(ids[i], wild_card.get_op_ids()[i]);
+    }
+}
 
 TEST(Op, ValidateMatmul) {
     using namespace dnnl::graph::impl;

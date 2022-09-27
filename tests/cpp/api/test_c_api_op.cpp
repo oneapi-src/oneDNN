@@ -85,3 +85,25 @@ TEST(CAPI, OpAttr) {
     OP_ATTR_DESTROY;
 #undef OP_ATTR_DESTROY
 }
+
+TEST(CAPI, DnnlGraphOpGetKind) {
+    dnnl_graph_op_t op = NULL;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_wildcard;
+
+#define CREATE_OP_DESTROY \
+    do { \
+        dnnl_graph_op_destroy(op); \
+        op = NULL; \
+    } while (0);
+    ASSERT_EQ_SAFE(dnnl_graph_op_create(&op, 1, op_kind, "conv2d"),
+            dnnl_graph_success, CREATE_OP_DESTROY);
+
+    ASSERT_EQ(dnnl_graph_op_get_kind(NULL, &op_kind),
+            dnnl_graph_invalid_arguments);
+    ASSERT_EQ(dnnl_graph_op_get_kind(op, NULL), dnnl_graph_invalid_arguments);
+
+    ASSERT_EQ(dnnl_graph_op_get_kind(op, &op_kind), dnnl_graph_success);
+    ASSERT_EQ(op_kind, dnnl_graph_op_wildcard);
+    CREATE_OP_DESTROY;
+#undef CREATE_OP_DESTROY
+}

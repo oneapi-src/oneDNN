@@ -20,14 +20,13 @@
 
 #include "cpp/unit/unit_test_common.hpp"
 #include "cpp/unit/utils.hpp"
+
 #include "interface/backend.hpp"
 #include "interface/engine.hpp"
 #include "interface/logical_tensor.hpp"
 #include "interface/op.hpp"
 #include "interface/partition.hpp"
 #include "interface/partition_cache.hpp"
-
-#include "cpp/unit/unit_test_common.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;

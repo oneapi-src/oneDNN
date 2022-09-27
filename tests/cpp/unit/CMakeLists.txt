@@ -59,7 +59,7 @@ set(sycl_rt_pattern "(DPCPP)")
 
 # Add CPU test if CPU runtime is enabled
 if(NOT DNNL_GRAPH_CPU_RUNTIME STREQUAL "NONE")
-    add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test" "--engine=cpu")
+    add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test" "--engine=cpu" "--gtest_catch_exceptions")
     maybe_configure_windows_test("${LIB_NAME}_unit_test" TEST)
 endif()
 

@@ -34,6 +34,16 @@ void api_test_dnnl_graph_engine_create(
                               dnnl::graph::testing::sycl_malloc_wrapper,
                               dnnl::graph::testing::sycl_free_wrapper),
                     dnnl_graph_success);
+
+            ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
+                              &allocator_handle.allocator, nullptr,
+                              dnnl::graph::testing::sycl_free_wrapper),
+                    dnnl_graph_success);
+
+            ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
+                              &allocator_handle.allocator, nullptr, nullptr),
+                    dnnl_graph_success);
+
             ASSERT_EQ(dnnl_graph_sycl_interop_engine_create_with_allocator(
                               &engine_handle.engine, &dev, &ctx,
                               allocator_handle.allocator),

@@ -107,6 +107,25 @@ TEST(APITensor, ShallowCopy) {
     ASSERT_EQ(t_2.get_data_handle(), handle);
 }
 
+TEST(APITensor, SetGetMethod) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    using tensor = dnnl::graph::tensor;
+    using layout_type = logical_tensor::layout_type;
+
+    dnnl::graph::engine eng {dnnl::graph::engine::kind::cpu, 0};
+
+    const size_t id = 123;
+    logical_tensor lt_1 {
+            id, logical_tensor::data_type::f32, layout_type::strided};
+
+    int n = 0;
+    void *handle = &n;
+
+    tensor t_1 {lt_1, eng, handle};
+    ASSERT_NO_THROW({ t_1.set_data_handle(handle); });
+    ASSERT_NO_THROW({ t_1.get_engine(); });
+}
+
 TEST(APITensor, CreateWithLogicalTensorF32) {
     using namespace dnnl::graph;
     engine eng {engine::kind::cpu, 0};

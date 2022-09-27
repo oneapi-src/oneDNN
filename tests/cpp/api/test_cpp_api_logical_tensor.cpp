@@ -142,6 +142,63 @@ TEST(APILogicalTensor, CreateWithDataType) {
     ASSERT_EQ(lt_boolean.get_id(), id);
     ASSERT_EQ(lt_boolean.get_data_type(), data_type::boolean);
 }
+TEST(APILogicalTensor, CreateWith0Dims) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    using data_type = logical_tensor::data_type;
+    using layout_type = logical_tensor::layout_type;
+    const size_t id = 123;
+    ASSERT_NO_THROW(
+            { logical_tensor(id, data_type::f32, {}, layout_type::strided); });
+}
+
+TEST(APILogicalTensor, GetDimsWithError) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    dnnl_graph_logical_tensor_t c_lt;
+    c_lt.id = 0;
+    c_lt.ndims = -1;
+    logical_tensor lt(c_lt);
+    ASSERT_THROW(lt.get_dims(), dnnl::graph::error);
+}
+
+TEST(APILogicalTensor, GetLayoutIdWithError) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    dnnl_graph_logical_tensor_t c_lt;
+    c_lt.id = 0;
+    c_lt.ndims = -1;
+    c_lt.data_type = dnnl_graph_f16;
+    c_lt.property = dnnl_graph_tensor_property_undef;
+    c_lt.layout_type = dnnl_graph_layout_type_strided;
+    c_lt.layout.layout_id = 1;
+    logical_tensor lt(c_lt);
+    ASSERT_THROW(lt.get_layout_id(), dnnl::graph::error);
+}
+
+TEST(APILogicalTensor, GetStridesWithError) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    {
+        dnnl_graph_logical_tensor_t c_lt;
+        c_lt.id = 0;
+        c_lt.ndims = -1;
+        c_lt.data_type = dnnl_graph_f16;
+        c_lt.property = dnnl_graph_tensor_property_undef;
+        c_lt.layout_type = dnnl_graph_layout_type_opaque;
+        c_lt.layout.layout_id = 1;
+
+        logical_tensor lt(c_lt);
+        ASSERT_THROW(lt.get_strides(), dnnl::graph::error);
+    }
+    {
+        dnnl_graph_logical_tensor_t c_lt;
+        c_lt.id = 0;
+        c_lt.ndims = -1;
+        c_lt.data_type = dnnl_graph_f16;
+        c_lt.property = dnnl_graph_tensor_property_undef;
+        c_lt.layout_type = dnnl_graph_layout_type_strided;
+        c_lt.layout.layout_id = 1;
+        logical_tensor lt(c_lt);
+        ASSERT_THROW(lt.get_strides(), dnnl::graph::error);
+    }
+}
 
 TEST(APILogicalTensor, ShallowCopy) {
     using logical_tensor = dnnl::graph::logical_tensor;

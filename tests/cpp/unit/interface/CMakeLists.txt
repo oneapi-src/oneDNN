@@ -18,16 +18,30 @@ set(OBJ_LIB ${LIB_NAME}_interface_unit_test)
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compilation_context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_partition_hashing.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_shape_infer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_stream.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_tensor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_type_constraint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
-    )
+)
+
+target_include_directories(${OBJ_LIB}
+    PRIVATE
+    ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/
+    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/src/
+)
 
 set(sycl_rt_pattern "(DPCPP)")
 if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${sycl_rt_pattern} OR DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})

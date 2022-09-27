@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstdlib>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -230,6 +231,8 @@ TEST(Graph, GetInputOutputEdges) {
     op_t op1 {1, Add, std::string("add0")};
     op_t op2 {2, ReLU, std::string("relu0")};
     op_t op3 {3, Wildcard, std::string("wildcard0")};
+    op_t op4 {4, Wildcard, std::string("wildcard1")};
+    op_t op5 {5, Wildcard, std::string("wildcard2")};
 
     op0.set_attr<std::vector<int64_t>>(op_attr::strides, {4, 4});
     op0.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {111, 111});
@@ -249,6 +252,9 @@ TEST(Graph, GetInputOutputEdges) {
     logical_tensor_t add_dst = logical_tensor_init(5, impl::data_type::f32);
     logical_tensor_t dst = logical_tensor_init(6, impl::data_type::f32);
 
+    logical_tensor_t wild_val = logical_tensor_init(7, impl::data_type::f32);
+
+    op4.add_output(src);
     op0.add_input(src);
     op0.add_input(weight);
     op0.add_input(bias);
@@ -262,6 +268,9 @@ TEST(Graph, GetInputOutputEdges) {
     op2.add_output(dst);
 
     op3.add_input(conv_dst);
+    op3.add_output(wild_val);
+
+    op5.add_input(wild_val);
 
     ASSERT_EQ(agraph.add_op(&op0), status::success);
     ASSERT_EQ(agraph.add_op(&op1), status::success);

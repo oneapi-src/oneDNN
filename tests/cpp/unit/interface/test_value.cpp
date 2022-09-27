@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -140,4 +140,30 @@ TEST(Value, AddConsumer) {
     val.add_consumer(relu, 0);
     consumers = val.get_consumers();
     ASSERT_EQ(consumers.size(), 1);
+}
+
+TEST(Value, FindConsumer) {
+    size_t id = 0;
+    impl::logical_tensor_t lt
+            = utils::logical_tensor_init(++id, impl::data_type::f32);
+    impl::op_t matmul {++id, impl::op_kind::MatMul, std::string("matmul")};
+    impl::value_t val {matmul, 0, lt};
+
+    impl::op_t relu_op {id++, impl::op_kind::ReLU, std::string("relu")};
+    val.add_consumer(relu_op, 0);
+
+    impl::op_t abs_op {id++, impl::op_kind::Abs, std::string("abs")};
+    val.add_consumer(abs_op, 1);
+
+    auto ret1 = val.find_consumer(1, impl::op_kind::ReLU, 0);
+    ASSERT_EQ(ret1.has_value(), false);
+
+    auto ret2 = val.find_consumer(0, impl::op_kind::Abs, 0);
+    ASSERT_EQ(ret2.has_value(), false);
+
+    auto ret3 = val.find_consumer(0, impl::op_kind::Abs, 1);
+    ASSERT_EQ(ret3.has_value(), true);
+
+    auto ret4 = val.find_consumer(0, impl::op_kind::Abs, 1, true);
+    ASSERT_EQ(ret4.has_value(), true);
 }
