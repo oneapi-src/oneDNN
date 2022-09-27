@@ -586,6 +586,14 @@ public:
     static bool matches_tag(const layout_t &layout, const std::string &tag) {
         if (layout.is_empty()) return false;
         auto tag_layout = make_layout(layout.type(), layout.dims(), tag);
+        if (layout != tag_layout) return false;
+        return true;
+    }
+
+    static bool matches_tag_strict(
+            const layout_t &layout, const std::string &tag) {
+        if (layout.is_empty()) return false;
+        auto tag_layout = make_layout(layout.type(), layout.dims(), tag);
         if (!layout.is_strictly_equal(tag_layout)) return false;
         return true;
     }
@@ -873,8 +881,10 @@ private:
     }
 
     void init_data_tags(bool allow_src_reorder, bool allow_wei_reorder,
-            bool allow_dst_reorder, std::string &src_tag, std::string &wei_tag,
-            std::string &dst_tag, std::string &user_wei_tag);
+            bool allow_dst_reorder, const memory_desc_t &src_md,
+            const memory_desc_t &wei_md, const memory_desc_t &dst_md,
+            std::string &src_tag, std::string &wei_tag, std::string &dst_tag,
+            std::string &user_wei_tag);
     status_t init_data_layouts(convolution_pd_t *conv_pd);
 
     int slm_size() const {
@@ -1232,13 +1242,10 @@ private:
         return matches_tag(make_layout(md), tag);
     }
 
-    // Returns true if 1) md has nhwc layout and 2) it can't be treated as
-    // blocking layout, and false otherwise.
-    static bool is_pure_nhwc(
-            const memory_desc_t &md, const std::string &blocking_tag) {
-        if (!matches_tag(md, "axb")) return false;
-        if (make_layout(md) == make_layout(md, blocking_tag)) return false;
-        return true;
+    static bool matches_tag_strict(
+            const memory_desc_t &md, const std::string &tag) {
+        if (md.format_kind == format_kind::any) return false;
+        return matches_tag_strict(make_layout(md), tag);
     }
 
     int get_thread_groups() const {

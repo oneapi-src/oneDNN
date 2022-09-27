@@ -445,6 +445,7 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
     if (is_small_ic() && !is_dw) {
         bh->set_block_dims({"kw"});
         bh->set_max_tg_dim("kw", 1);
+        bh->set_max_iter_dim("kw", 8);
     }
 
     // Avoid 2D spatial blocking when possible (when 1D blocking can be
@@ -776,8 +777,10 @@ private:
 };
 
 void conv_config_t::init_data_tags(bool allow_src_reorder,
-        bool allow_wei_reorder, bool allow_dst_reorder, std::string &src_tag,
-        std::string &wei_tag, std::string &dst_tag, std::string &user_wei_tag) {
+        bool allow_wei_reorder, bool allow_dst_reorder,
+        const memory_desc_t &src_md, const memory_desc_t &wei_md,
+        const memory_desc_t &dst_md, std::string &src_tag, std::string &wei_tag,
+        std::string &dst_tag, std::string &user_wei_tag) {
 
     auto src_compute_type = is_bwd_d ? c_data_type : a_data_type;
     auto dst_compute_type
@@ -832,6 +835,30 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
     if (fwd_wei_tag != wei_tag && allow_wei_reorder) {
         user_wei_tag = fwd_wei_tag;
     }
+
+    // Override compute layouts when using nhwc with block 2D messages.
+    if (use_2d_send_nhwc) {
+        if (is_bwd_d && !is_small_ic()) {
+            wei_tag = "xab";
+        } else {
+            wei_tag = "xba";
+        }
+        user_wei_tag = "xba";
+    }
+
+    // Override compute layouts for nhwc case.
+    bool src_matches = matches_tag(src_md, src_tag);
+    bool dst_matches = matches_tag(dst_md, dst_tag);
+    bool src_axb = matches_tag(src_md, "axb");
+    bool dst_axb = matches_tag(dst_md, "axb");
+    if (src_axb && dst_axb && (!src_matches || !dst_matches)) {
+        if (!allow_src_reorder) src_tag = "axb";
+        if (!allow_dst_reorder) dst_tag = "axb";
+    }
+
+    // Override compute layouts for plain outputs.
+    if (is_fwd && dst_axb) dst_tag = "axb";
+    if (is_bwd_d && src_axb) src_tag = "axb";
 }
 
 status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
@@ -872,7 +899,7 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     }
 
     init_data_tags(allow_src_reorder, allow_wei_reorder, allow_dst_reorder,
-            src_tag, wei_tag, dst_tag, user_wei_tag);
+            src_md, wei_md, dst_md, src_tag, wei_tag, dst_tag, user_wei_tag);
 
     if (allow_src_reorder) {
         if (src_abx) user_src_tag = "abx";
@@ -887,44 +914,17 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
         if (!matches_tag(dst_md, dst_tag)) user_dst_tag = "axb";
     }
 
+    // Allow internal reorder from oihw/ohwi to more optimal weights layout.
+    if (allow_wei_reorder) {
+        if (matches_tag(wei_md, "abx")) user_wei_tag = "abx";
+        if (matches_tag(wei_md, "axb")) user_wei_tag = "axb";
+    }
+
     if (user_src_tag.empty()) user_src_tag = src_tag;
     if (user_wei_tag.empty()) user_wei_tag = wei_tag;
     if (user_dst_tag.empty()) user_dst_tag = dst_tag;
 
     bool wei_prepend_groups = (with_groups && !is_dw);
-
-    if (is_pure_nhwc(src_md, user_src_tag)
-            || is_pure_nhwc(dst_md, user_dst_tag)) {
-        user_src_tag = "axb";
-        user_dst_tag = "axb";
-        if (!allow_src_reorder) src_tag = user_src_tag;
-        if (!allow_dst_reorder) dst_tag = user_dst_tag;
-        bool wei_hwio = false;
-        bool user_wei_hwio = false;
-        if (hw() >= ngen::HW::XeHPC) {
-            if (use_2d_send_nhwc) {
-                wei_hwio = true;
-                user_wei_hwio = true;
-            }
-        }
-        if (wei_hwio) {
-            if (is_bwd_d && !is_small_ic()) {
-                wei_tag = "xab";
-            } else {
-                wei_tag = "xba";
-            }
-        }
-        if (user_wei_hwio) {
-            auto tag
-                    = wei_prepend_groups ? prepend_groups_to_tag("xba") : "xba";
-            set_default_format(wei_md, tag);
-            user_wei_tag = "xba";
-        }
-        // Allow internal reorder from OIHW/OHWI to more optimal weights layout.
-        if (matches_tag(wei_md, "abx")) user_wei_tag = "abx";
-        if (matches_tag(wei_md, "axb")) user_wei_tag = "axb";
-    }
-
     if (wei_prepend_groups) {
         wei_tag = prepend_groups_to_tag(wei_tag);
         user_wei_tag = prepend_groups_to_tag(user_wei_tag);
@@ -1119,7 +1119,6 @@ const std::unordered_map<std::string, int> &conv_config_t::dim_blocks() const {
 
 bool conv_config_t::can_use_2d_send(const layout_t &l, bool is_a) const {
     bool is_b = !is_a;
-    //if (!is_dp_fma()) return;
     if (hw() < ngen::HW::XeHPC) return false;
 
     const char *sp_name = nullptr;
@@ -1160,10 +1159,10 @@ bool conv_config_t::can_use_2d_send(const layout_t &l, bool is_a) const {
     if (type_t(b_data_type).size() >= 4) return false;
 
     auto is_plain_ok = [&]() {
-        if (is_a || is_bwd_w) return matches_tag(l, "axb");
+        if (is_a || is_bwd_w) return matches_tag_strict(l, "axb");
         if (is_b && l.is_empty()) return true;
-        if (is_b && is_fwd) return matches_tag(l, "xba");
-        if (is_b && is_bwd_d) return matches_tag(l, "xab");
+        if (is_b && is_fwd) return matches_tag_strict(l, "xba");
+        if (is_b && is_bwd_d) return matches_tag_strict(l, "xab");
         return false;
     };
 
