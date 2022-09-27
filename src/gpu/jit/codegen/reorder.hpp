@@ -1248,7 +1248,7 @@ public:
         if ((dim_t)b.stride != stride_) return false;
         stride_ *= b.block;
         if (!have_seen(b.dim_idx)) non_one_ndims_++;
-        return non_one_ndims_ > 2;
+        return non_one_ndims_ <= 2;
     }
 
     dense_2d_block_filter_t() = default;
