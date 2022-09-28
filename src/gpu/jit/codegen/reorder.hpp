@@ -515,7 +515,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return;
     }
 
-    // Handle mov(src.uw(x)(1), dst.uw(y)(2).
+    // Handle mov(src.uw(x)(1), dst.uw(y)(2)).
     if (src_type_size == 2 && dst_type_size == 2 && src_stride == 2
             && dst_stride == 1) {
         int step = get_step();
@@ -615,8 +615,11 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         int step = get_step();
         const int tmp_stride = 4;
         const int tmp_stride_bytes = tmp_stride * dst_type_size;
-        const int subreg_alignment_bdy = grf_size / tmp_stride_bytes;
         const int nregs = 1 + utils::div_up(step * tmp_stride_bytes, grf_size);
+        // Any byte conversion requires saturation:
+        // - ub -> b loses 1 bit of precision
+        // - b -> ub loses sign bit
+        const bool needs_saturation = src_type != dst_type;
         auto tmp = scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
@@ -626,32 +629,43 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     esize, src_stride);
             auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
                     esize, dst_stride);
-            const auto subreg_alignment = d.offset() % subreg_alignment_bdy;
-            const auto offset_bytes = subreg_alignment * tmp_stride_bytes;
-            const bool unaligned = subreg_alignment != s.offset() / src_stride;
-            if (src_type != dst_type) {
-                if (esize > 1) {
+            ngen::InstructionModifier mod = esize;
+            if (needs_saturation) mod |= host->sat;
+
+            const bool needs_raw_mov = dst_stride == 1 || esize == 1;
+            if (dst_stride <= 2 && src_stride >= 2 * dst_stride) {
+                const int rel_stride = src_stride / dst_stride;
+                const int alignment_bdy = grf_size / rel_stride;
+                const int dst_aligned_offset = d.offset() % alignment_bdy;
+                const int src_aligned_offset = s.offset() / rel_stride;
+                const bool aligned = dst_aligned_offset == src_aligned_offset;
+
+                const int tmp_rel_stride = tmp_stride / dst_stride;
+                const int tmp_alignment_bdy = grf_size / tmp_rel_stride;
+                const int tmp_aligned_offset = d.offset() % tmp_alignment_bdy;
+                const int tmp_offset = tmp_rel_stride * tmp_aligned_offset;
+
+                if (needs_saturation && needs_raw_mov) {
+                    // Workaround for scalar byte conversion:
+                    // - Broadcast to two locations with stride and conversion
+                    // - Move one copy to the destination
+                    auto wa_esize = esize == 1 ? 2 : esize;
+                    auto wa_t = tmp.format(
+                            tmp_offset, dst_type, wa_esize, tmp_stride);
                     auto t = tmp.format(
-                            offset_bytes, dst_type, esize, tmp_stride);
-                    plan(mov, esize | host->sat, t, s);
+                            tmp_offset, dst_type, esize, tmp_stride);
+                    plan(mov, wa_esize | host->sat, wa_t, s);
+                    mod = esize;
                     s = t;
-                } else {
-                    // Packed bytes must use raw move even with esize = 1
-                    // Broadcast (with any needed saturation or conversion) to
-                    // two strided locations, move one to the destination
-                    auto wa_esize = 2 * esize;
+                } else if (!aligned) {
                     auto t = tmp.format(
-                            offset_bytes, dst_type, wa_esize, tmp_stride);
-                    plan(mov, wa_esize | host->sat, t, s);
-                    s = tmp.format(0, dst_type, esize, tmp_stride);
+                            tmp_offset, dst_type, esize, tmp_stride);
+                    plan(mov, mod, t, s);
+                    mod = esize;
+                    s = t;
                 }
-            } else if (unaligned || esize == 1) {
-                // FIXME: Temporary not always necessary for esize = 1
-                auto t = tmp.format(offset_bytes, dst_type, esize, tmp_stride);
-                plan(mov, esize, t, s);
-                s = t;
             }
-            plan(mov, esize, d, s);
+            plan(mov, mod, d, s);
         }
         return;
     }
