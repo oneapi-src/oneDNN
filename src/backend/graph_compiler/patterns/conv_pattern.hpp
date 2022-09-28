@@ -505,7 +505,7 @@ pm::pb_op_t *conv_bn_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
 
     pm::pb_op_t *conv = pgraph->append_op(impl::op_kind::Convolution, in_edges);
-    conv->allow_external_output(0);
+    conv->allow_external_outputs();
     conv->append_decision_function(check_conv_attrs);
     if (is_bf16) {
         conv->append_decision_function(
@@ -516,11 +516,11 @@ pm::pb_op_t *conv_bn_relu(const std::shared_ptr<pb_graph_t> &pgraph,
 
     pm::pb_op_t *bn = pgraph->append_op(impl::op_kind::BatchNormForwardTraining,
             in_edges_t {in_edge(0, conv, 0)});
-    bn->allow_external_output(0);
+    bn->allow_external_outputs();
     pm::pb_op_t *output = bn;
     if (has_relu) {
         output = pgraph->append_op(impl::op_kind::ReLU, {in_edge(0, bn, 0)});
-        output->allow_external_output(0);
+        output->allow_external_outputs();
     }
     return output;
 }
@@ -536,16 +536,16 @@ pm::pb_op_t *conv_bn_relu_bwd(const std::shared_ptr<pb_graph_t> &pgraph,
     pm::pb_op_t *relu_bwd;
     if (has_relu) {
         relu_bwd = pgraph->append_op(impl::op_kind::ReLUBackprop, in_edges);
-        relu_bwd->allow_external_output(0);
+        relu_bwd->allow_external_outputs();
         in_edges = in_edges_t {in_edge(1, relu_bwd, 0)};
     }
     pm::pb_op_t *bn_bwd = pgraph->append_op(
             impl::op_kind::BatchNormTrainingBackprop, in_edges);
-    bn_bwd->allow_external_output(0);
+    bn_bwd->allow_external_outputs();
     pm::pb_op_t *conv_bwd_data
             = pgraph->append_op(impl::op_kind::ConvolutionBackpropData,
                     in_edges_t {in_edge(0, bn_bwd, 0)});
-    conv_bwd_data->allow_external_output(0);
+    conv_bwd_data->allow_external_outputs();
     conv_bwd_data->append_decision_function(check_conv_attrs);
     if (is_bf16) {
         conv_bwd_data->append_decision_function(
@@ -558,7 +558,7 @@ pm::pb_op_t *conv_bn_relu_bwd(const std::shared_ptr<pb_graph_t> &pgraph,
     pm::pb_op_t *conv_bwd_filter
             = pgraph->append_op(impl::op_kind::ConvolutionBackpropFilters,
                     in_edges_t {in_edge(1, bn_bwd, 0)});
-    conv_bwd_filter->allow_external_output(0);
+    conv_bwd_filter->allow_external_outputs();
     conv_bwd_filter->append_decision_function(check_conv_attrs);
     if (is_bf16) {
         conv_bwd_filter->append_decision_function(

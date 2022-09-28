@@ -135,6 +135,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
                             get_unary_binary_ops(), "postop");
+                    pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);
@@ -245,6 +246,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
                             get_unary_binary_ops(), "postop");
+                    pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);
@@ -307,6 +309,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto post_ops = std::make_shared<pb_graph_t>("post_ops");
                     auto alternation = post_ops->append_alternation(
                             get_unary_binary_ops(), "alternation");
+                    alternation->allow_internal_inputs();
                     post_ops->create_input_port(0, alternation, 0);
                     post_ops->create_output_port(0, alternation, 0);
 

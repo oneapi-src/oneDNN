@@ -225,10 +225,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             check_input_dtype<impl::data_type::f32>);
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)}, "softmax");
-                    softmax->allow_external_output(0);
+                    softmax->allow_external_outputs();
                     auto dropout = pgraph->append_op(impl::op_kind::Multiply,
                             {in_edge(0, softmax, 0)}, "dropout");
-                    dropout->allow_external_output(0);
+                    dropout->allow_external_outputs();
                     auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
                             {in_edge(0, dropout, 0)}, "matmul_v");
                     matmul_v->append_decision_function(
@@ -727,10 +727,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             check_input_dtype<impl::data_type::bf16>);
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)}, "softmax");
-                    softmax->allow_external_output(0);
+                    softmax->allow_external_outputs();
                     auto dropout = pgraph->append_op(impl::op_kind::Multiply,
                             {in_edge(0, softmax, 0)}, "dropout");
-                    dropout->allow_external_output(0);
+                    dropout->allow_external_outputs();
                     auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
                             {in_edge(0, dropout, 0)}, "matmul_v");
                     matmul_v->append_decision_function(

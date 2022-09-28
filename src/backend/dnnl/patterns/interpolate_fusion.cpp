@@ -63,6 +63,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_post_ops_fusion)
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
                             get_unary_binary_ops(), "pother_postop");
+                    pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);

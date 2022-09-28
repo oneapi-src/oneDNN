@@ -133,10 +133,6 @@ pb_op_t::pb_op_t(const decision_function &p_fn) {
     if (p_fn) { decision_functions_.emplace_back(p_fn); }
 }
 
-void pb_op_t::allow_external_output(oport_t p_port) {
-    external_outputs_.insert(p_port);
-}
-
 std::vector<std::pair<iport_t, consumers_t>> pb_graph_t::get_inner_consumers() {
     std::vector<std::pair<iport_t, consumers_t>> consumers;
     size_t s = inner_consumers_.size();

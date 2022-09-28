@@ -256,30 +256,19 @@ bool node_outputs_matcher_t::check_node_consumers(
     return true;
 }
 
-bool node_outputs_matcher_t::check_swish(op_t *out_op) {
-    // TODO(Yixin): temporary fix sigmoid + multiply = swish
-    // After successfully matching sigmoid, multiply is also
-    // matched because multiply is sigmoid's out_op.
-    // When matching multiply, check if it is already in the
-    // matched op_map, if yes, the match is OK
-    if (current_node_output_.second.size() == 1
-            && current_node_output_.second[0]->first->get_node_kind()
-                    != pb_node_kind::PB_NODE_KIND_OP
-            && updated_op_map_.count(out_op))
-        return true;
+bool node_outputs_matcher_t::check_internal_inputs(op_t *out_op) {
+    // if it's an edge between internal ops, then it's fine
+    if (updated_op_map_.count(out_op)) {
+        auto p_out_op = updated_op_map_[out_op];
+        if (p_out_op->is_allowing_internal_inputs()) return true;
+    }
     return false;
 }
 
-bool node_outputs_matcher_t::check_external_output() {
+bool node_outputs_matcher_t::check_external_outputs() {
     // if it's the allow_external_output case, then it's fine
-    pb_op_t *p_op = updated_op_map_[op_];
-    const std::unordered_set<oport_t> &external_outputs
-            = p_op->get_allowed_external_outputs();
-    if (!external_outputs.empty()
-            && external_outputs.find(current_node_oport_)
-                    != external_outputs.end()) {
-        return true;
-    }
+    auto p_op = updated_op_map_[op_];
+    if (p_op->is_allowing_external_outputs()) return true;
     return false;
 }
 
@@ -293,9 +282,9 @@ bool node_outputs_matcher_t::check_optional() {
 }
 
 bool node_outputs_matcher_t::op_consumer_unmatching_checking(op_t *out_op) {
-    bool swish_case = check_swish(out_op);
-    bool external_output_case = check_external_output();
-    if (swish_case || external_output_case) return true;
+    bool internal_input_case = check_internal_inputs(out_op);
+    bool external_output_case = check_external_outputs();
+    if (internal_input_case || external_output_case) return true;
 
     return check_optional();
 }
@@ -739,12 +728,7 @@ bool repetition_matcher_t::prepare_next_matching_round(
             // if the last node of previous match accepts external
             // output. If no, break
             pb_op_t *current_pb_op = updated_op_map_[current_op];
-            const std::unordered_set<oport_t> &external_outputs
-                    = current_pb_op->get_allowed_external_outputs();
-            if (external_outputs.empty()
-                    || external_outputs.find(oport) == external_outputs.end()) {
-                return true;
-            }
+            if (!current_pb_op->is_allowing_external_outputs()) return true;
             // If yes, decide which one of the consumers will be used
             // for next round's match
             iport_t iport = pmap_.second;

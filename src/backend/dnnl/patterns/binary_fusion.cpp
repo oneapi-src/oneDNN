@@ -72,6 +72,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, binary_post_ops_fusion)
                             = post_subgraph->append_alternation(
                                     get_unary_binary_ops(),
                                     "alternative_post_op");
+                    alternative_post_op->allow_internal_inputs();
                     post_subgraph->create_input_port(0, alternative_post_op, 0);
                     post_subgraph->create_output_port(
                             0, alternative_post_op, 0);

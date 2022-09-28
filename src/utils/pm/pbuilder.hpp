@@ -122,17 +122,88 @@ public:
     bool append_decision_function(const decision_function &p_fn);
 
     // For overriding default side output control
-    void allow_external_output(oport_t);
+    void allow_external_outputs() { accept_external_outputs_ = true; }
 
-    const std::unordered_set<oport_t> &get_allowed_external_outputs() {
-        return external_outputs_;
+    bool is_allowing_external_outputs() const {
+        return accept_external_outputs_;
+    };
+
+    void allow_internal_inputs() { accept_internal_inputs_ = true; };
+
+    bool is_allowing_internal_inputs() const {
+        return accept_internal_inputs_;
     };
 
 protected:
     friend class pb_graph_t;
     pb_op_t(const decision_function &p_fn);
-    // For overriding default side output control
-    std::unordered_set<oport_t> external_outputs_;
+
+    /* 
+        The outputs could link to ops outside the pattern.
+        Explained by the following example.
+
+        The pattern:
+
+          \   /
+          Matmul
+            |
+           Div
+            |
+           Add
+            |
+          SoftMax
+            |
+           Mul
+            |
+
+        When accept_external_outputs_ is true, 
+        the following graph could also be matched:
+
+          \   /
+          Matmul
+            |
+           Div
+            |
+           Add
+            |
+         SoftMax
+            |  \________________
+           Mul                  \  (external output)
+            |            SoftMaxBackProp
+
+    */
+    bool accept_external_outputs_ = false;
+
+    /* 
+        The inputs could come from ops within the pattern.
+        Explained by the following example.
+
+        The pattern:
+
+         \  /
+         Conv
+           |
+           |
+         Sigmoid
+           |
+            \     /
+           Multiply
+               |
+
+        When accept_internal_inputs_ is true, 
+        the following graph could also be matched:
+
+         \  /
+         Conv
+           |_______
+           |       |
+         Sigmoid   | (internal input)
+           |       |
+            \     /
+           Multiply
+               |
+    */
+    bool accept_internal_inputs_ = false;
 };
 
 //

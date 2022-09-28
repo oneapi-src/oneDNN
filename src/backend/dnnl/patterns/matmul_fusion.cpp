@@ -62,30 +62,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, matmul_post_ops_chain_fusion)
                     auto popt = pgraph->append_optional(
                             popt_graph, {in_edge(0, pmatmul, 0)}, "popt");
 
-                    // special post op handle: swish is composed
-                    // by sigmoid and multiply
-                    auto swish_graph
-                            = std::make_shared<pb_graph_t>("swish_graph");
-                    auto psigmoid = swish_graph->append_op(
-                            impl::op_kind::Sigmoid, "psigmoid");
-                    auto pmultiply
-                            = swish_graph->append_op(impl::op_kind::Multiply,
-                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
-                    swish_graph->create_input_port(0, psigmoid, 0);
-                    swish_graph->create_input_port(0, pmultiply, 1);
-                    swish_graph->create_output_port(0, pmultiply, 0);
-
-                    auto other_postop_graph = std::make_shared<pb_graph_t>(
-                            "pother_postop_graph");
-                    pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            get_unary_binary_ops(), "pother_postop");
-                    other_postop_graph->create_input_port(0, pop, 0);
-                    other_postop_graph->create_input_port(1, pop, 1);
-                    other_postop_graph->create_output_port(0, pop, 0);
-
                     auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
                     auto palt = alt_graph->append_alternation(
-                            {swish_graph, other_postop_graph}, "palt");
+                            get_unary_binary_ops(), "palt");
+                    palt->allow_internal_inputs();
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
@@ -120,30 +100,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto popt = pgraph->append_optional(
                             popt_graph, {in_edge(0, biasadd, 0)}, "popt");
 
-                    // special post op handle: swish is composed
-                    // by sigmoid and multiply
-                    auto swish_graph
-                            = std::make_shared<pb_graph_t>("swish_graph");
-                    auto psigmoid = swish_graph->append_op(
-                            impl::op_kind::Sigmoid, "psigmoid");
-                    auto pmultiply
-                            = swish_graph->append_op(impl::op_kind::Multiply,
-                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
-                    swish_graph->create_input_port(0, psigmoid, 0);
-                    swish_graph->create_input_port(0, pmultiply, 1);
-                    swish_graph->create_output_port(0, pmultiply, 0);
-
-                    auto other_postop_graph = std::make_shared<pb_graph_t>(
-                            "pother_postop_graph");
-                    pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            get_unary_binary_ops(), "pother_postop");
-                    other_postop_graph->create_input_port(0, pop, 0);
-                    other_postop_graph->create_input_port(1, pop, 1);
-                    other_postop_graph->create_output_port(0, pop, 0);
-
                     auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
                     auto palt = alt_graph->append_alternation(
-                            {swish_graph, other_postop_graph}, "palt");
+                            get_unary_binary_ops(), "palt");
+                    palt->allow_internal_inputs();
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
@@ -167,30 +127,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto popt = pgraph->append_optional(
                             popt_graph, {in_edge(0, pmatmul, 0)}, "popt");
 
-                    // special post op handle: swish is composed
-                    // by sigmoid and multiply
-                    auto swish_graph
-                            = std::make_shared<pb_graph_t>("swish_graph");
-                    auto psigmoid = swish_graph->append_op(
-                            impl::op_kind::Sigmoid, "psigmoid");
-                    auto pmultiply
-                            = swish_graph->append_op(impl::op_kind::Multiply,
-                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
-                    swish_graph->create_input_port(0, psigmoid, 0);
-                    swish_graph->create_input_port(0, pmultiply, 1);
-                    swish_graph->create_output_port(0, pmultiply, 0);
-
-                    auto other_postop_graph = std::make_shared<pb_graph_t>(
-                            "pother_postop_graph");
-                    pm::pb_op_t *pop = other_postop_graph->append_alternation(
-                            get_unary_binary_ops(), "pother_postop");
-                    other_postop_graph->create_input_port(0, pop, 0);
-                    other_postop_graph->create_input_port(1, pop, 1);
-                    other_postop_graph->create_output_port(0, pop, 0);
-
                     auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
                     auto palt = alt_graph->append_alternation(
-                            {swish_graph, other_postop_graph}, "palt");
+                            get_unary_binary_ops(), "palt");
+                    palt->allow_internal_inputs();
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
@@ -412,6 +352,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
                             get_unary_binary_ops(), "postop");
+                    pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);
@@ -515,6 +456,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
                             get_unary_binary_ops(), "postop");
+                    pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);

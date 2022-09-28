@@ -56,7 +56,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             impl::op_kind::MatMul, "matmul");
                     matmul->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
-                    matmul->allow_external_output(0);
+                    matmul->allow_external_outputs();
 
                     /* optional add/biasAdd after matmul */
                     auto add_subgraph
@@ -64,7 +64,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto add = add_subgraph->append_alternation(
                             {impl::op_kind::Add, impl::op_kind::BiasAdd},
                             "add");
-                    add->allow_external_output(0);
+                    add->allow_external_outputs();
                     add_subgraph->create_input_port(0, add, 0);
                     add_subgraph->create_output_port(0, add, 0);
                     auto optional_add = mlp_layer->append_optional(add_subgraph,
@@ -76,7 +76,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto activation = activation_subgraph->append_alternation(
                             {impl::op_kind::ReLU, impl::op_kind::Sigmoid},
                             "activation");
-                    activation->allow_external_output(0);
+                    activation->allow_external_outputs();
                     activation_subgraph->create_input_port(0, activation, 0);
                     activation_subgraph->create_output_port(0, activation, 0);
                     auto optional_activation = mlp_layer->append_optional(
@@ -320,7 +320,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             impl::op_kind::MatMul, "matmul");
                     matmul->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
-                    matmul->allow_external_output(0);
+                    matmul->allow_external_outputs();
 
                     /* optional add/biasAdd after matmul */
                     auto add_subgraph
@@ -328,7 +328,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto add = add_subgraph->append_alternation(
                             {impl::op_kind::Add, impl::op_kind::BiasAdd},
                             "add");
-                    add->allow_external_output(0);
+                    add->allow_external_outputs();
                     add_subgraph->create_input_port(0, add, 0);
                     add_subgraph->create_output_port(0, add, 0);
                     auto optional_add = mlp_layer->append_optional(add_subgraph,
@@ -340,7 +340,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto activation = activation_subgraph->append_alternation(
                             {impl::op_kind::ReLU, impl::op_kind::Sigmoid},
                             "activation");
-                    activation->allow_external_output(0);
+                    activation->allow_external_outputs();
                     activation_subgraph->create_input_port(0, activation, 0);
                     activation_subgraph->create_output_port(0, activation, 0);
                     auto optional_activation = mlp_layer->append_optional(

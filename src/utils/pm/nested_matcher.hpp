@@ -293,8 +293,8 @@ protected:
     // When one op consumer couldn't find any corresponding
     // matched node consumer, there may exist three cases where
     // the matching process should still be successful:
-    // 1. we meet swish function
-    // 2. it's the allow_external_output case
+    // 1. it's the allow_internal_inputs case
+    // 2. it's the allow_external_outputs case
     // 3. it's the optional case
     // For all there three cases, we should check them before
     // we return a "false" matching result.
@@ -305,8 +305,8 @@ protected:
     //
     bool op_consumer_unmatching_checking(op_t *out_op);
     bool support_optional_outputs(pb_node_t *n);
-    bool check_external_output();
-    bool check_swish(op_t *out_op);
+    bool check_internal_inputs(op_t *out_op);
+    bool check_external_outputs();
     bool check_optional();
     //
     // If not all the consumers of node output are matched,

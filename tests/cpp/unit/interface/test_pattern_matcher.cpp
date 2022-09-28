@@ -1399,7 +1399,7 @@ TEST(PatternMatcher, MultipleConsumerDifferentPartition) {
             = graphp->append_op(Add, {in_edge(IN0, div_node, OUT0)}, "add");
     auto softmax_node = graphp->append_op(
             SoftMax, {in_edge(IN0, add_node, OUT0)}, "softmax");
-    softmax_node->allow_external_output(OUT0);
+    softmax_node->allow_external_outputs();
     auto mul_node = graphp->append_op(
             Multiply, {in_edge(IN0, softmax_node, OUT0)}, "mul");
     UNUSED(mul_node);
@@ -1522,11 +1522,11 @@ TEST(PatternMatcher, RepetitionExternalOutput) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
     auto matmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
-    matmul->allow_external_output(0);
+    matmul->allow_external_outputs();
     auto activation = fwd_mlp_layer->append_alternation(
             {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
             {in_edge(0, matmul, 0)}, "activation");
-    activation->allow_external_output(0);
+    activation->allow_external_outputs();
     fwd_mlp_layer->create_input_port(0, matmul, 0);
     fwd_mlp_layer->create_output_port(0, activation, 0);
 
@@ -1607,11 +1607,11 @@ TEST(PatternMatcher, RepetitionExternalOutputSwapOrder) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
     auto matmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
-    matmul->allow_external_output(0);
+    matmul->allow_external_outputs();
     auto activation = fwd_mlp_layer->append_alternation(
             {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
             {in_edge(0, matmul, 0)}, "activation");
-    activation->allow_external_output(0);
+    activation->allow_external_outputs();
     fwd_mlp_layer->create_input_port(0, matmul, 0);
     fwd_mlp_layer->create_output_port(0, activation, 0);
 
@@ -1698,7 +1698,7 @@ TEST(PatternMatcher, CyclicCheck) {
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto pmatmul = graphp->append_op(impl::op_kind::MatMul, "pmatmul");
-    pmatmul->allow_external_output(0);
+    pmatmul->allow_external_outputs();
     auto prelu = graphp->append_op(
             impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
     auto padd = graphp->append_op(
@@ -1755,7 +1755,7 @@ TEST(PatternMatcher, UndirectCyclicCheck) {
     */
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto pmatmul = graphp->append_op(impl::op_kind::MatMul, "pmatmul");
-    pmatmul->allow_external_output(0);
+    pmatmul->allow_external_outputs();
     auto prelu = graphp->append_op(
             impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
     auto padd = graphp->append_op(
@@ -1825,7 +1825,7 @@ TEST(PatternMatcher, ComplexCyclicCheck) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
     auto pmatmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
-    pmatmul->allow_external_output(0);
+    pmatmul->allow_external_outputs();
     auto prelu = fwd_mlp_layer->append_op(
             impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
     auto padd = fwd_mlp_layer->append_op(
@@ -1907,7 +1907,7 @@ TEST(PatternMatcher, ComplexUndirectCyclicCheck) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
     auto pmatmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
-    pmatmul->allow_external_output(0);
+    pmatmul->allow_external_outputs();
     auto prelu = fwd_mlp_layer->append_op(
             impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
     auto padd = fwd_mlp_layer->append_op(
@@ -2276,7 +2276,7 @@ TEST(PatternMatcher, RepetitionOportExternalOutput) {
     auto pmatmul = grep->append_op(impl::op_kind::MatMul, "pmatmul");
     auto prelu = grep->append_op(
             impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
-    prelu->allow_external_output(0);
+    prelu->allow_external_outputs();
     grep->create_input_port(0, pmatmul, 0);
     grep->create_output_port(0, prelu, 0);
     auto prep = graphp->append_repetition(grep, {0, 0}, 1, 10, "prep");
