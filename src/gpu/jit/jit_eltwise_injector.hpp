@@ -46,7 +46,7 @@ inline bool jit_eltwise_injector_f32_is_supported(alg_kind_t alg) {
 template <gpu_gen_t hw>
 struct jit_eltwise_injector_f32 {
     jit_eltwise_injector_f32(jit_generator<hw> *host, alg_kind_t alg,
-            float alpha, float beta, float scale,
+            float alpha, float beta, float scale, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
         : alg_(alg)
@@ -54,6 +54,7 @@ struct jit_eltwise_injector_f32 {
         , beta_(beta)
         , scale_(scale)
         , is_fwd_(is_fwd)
+        , eu_count_(eu_count)
         , h(host)
         , scratch_(scratch) {
 
@@ -76,9 +77,18 @@ private:
     const float scale_;
     const bool is_fwd_;
 
+    const int eu_count_;
+
     jit_generator<hw> *h;
 
     ngen::GRFRange scratch_;
+
+    bool is_gpu(ngen::HW arg_hw, int arg_eu_count) const {
+        return (hw == arg_hw) && (eu_count_ == arg_eu_count);
+    }
+    bool use_tanh_compat() const {
+        return is_gpu(ngen::HW::XeHPG, 96) || is_gpu(ngen::HW::XeHPG, 128);
+    }
 
     int max_batch_size();
     int phase_count(alg_kind_t alg);
@@ -86,6 +96,8 @@ private:
     void relu_prepare_bwd();
     void abs_prepare_bwd();
     void clip_prepare_bwd();
+    void tanh_prepare_fwd();
+    void tanh_prepare_fwd_compat();
 
     void relu_zero_ns_compute_fwd(int simd, const ngen::GRF &r);
     void relu_compute_fwd(int simd, const ngen::GRF &r, int phase, int off);
@@ -112,7 +124,10 @@ private:
     void square_compute_fwd(int simd, const ngen::GRF &r);
     void round_compute_fwd(int simd, const ngen::GRF &r);
     void swish_compute_fwd(int simd, const ngen::GRF &r, int phase, int off);
-    void tanh_compute_fwd(int simd, const ngen::GRF &r, int phase, int off);
+    void tanh_compute_fwd(
+            int simd, const ngen::GRF &r, int phase, int off, int batch);
+    void tanh_compute_fwd_compat(
+            int simd, const ngen::GRF &r, int phase, int off, int batch);
     void linear_compute_fwd(int simd, const ngen::GRF &r, int phase);
     void clip_compute_fwd(
             int simd, const ngen::GRF &r, int phase, float alpha, float beta);

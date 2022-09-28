@@ -12775,8 +12775,10 @@ bool gemm_kernel_generator_t<hw>::gemmUpdateC(
     // Prepare postop injector if configured.
     GRFRange postOpScratch;
     if (problem.hasPostOp()) {
+        // No EU count information available.
+        const int eu_count = 0;
         postOpInjector.reset(new Injector(this, problem.Ts.get_dnnl_type(),
-                problem.post_ops, GRFRange(), problem.postOpFwd));
+                problem.post_ops, eu_count, GRFRange(), problem.postOpFwd));
         if (!postOpInjector) stub();
 
         postOpScratch = state.ra.try_alloc_range(

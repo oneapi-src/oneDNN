@@ -486,6 +486,9 @@ status_t xe_hp_systolic_gemm_t::init_compute_old(engine_t *engine) {
     cfg.tile_n = pd()->unroll_n();
     cfg.global_3x_buf = (cfg.tile_n == 32);
 
+    auto compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    cfg.eu_count = compute_engine->device_info()->eu_count();
+
     if (pd()->with_c_zero_points())
         cfg.co_type = cfg.c_type;
     else if (pd()->with_bias()) {
