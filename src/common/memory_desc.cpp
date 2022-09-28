@@ -567,7 +567,7 @@ status_t dnnl_memory_desc_query(
         case query::format_kind:
             if (one_of(md->format_kind, format_kind::rnn_packed,
                         format_kind::wino)) {
-                *(format_kind_t *)result = format_kind::unspecified;
+                *(format_kind_t *)result = format_kind::opaque;
                 break;
             }
             *(format_kind_t *)result = md->format_kind;

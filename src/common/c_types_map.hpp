@@ -174,7 +174,7 @@ namespace format_kind {
 const format_kind_t undef = dnnl_format_kind_undef;
 const format_kind_t any = dnnl_format_kind_any;
 const format_kind_t blocked = dnnl_blocked;
-const format_kind_t unspecified = dnnl_format_kind_unspecified;
+const format_kind_t opaque = dnnl_format_kind_opaque;
 
 // Internal only format kinds.
 const format_kind_t internal_only_start = (format_kind_t)(1 << 8);

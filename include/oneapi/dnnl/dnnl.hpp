@@ -1281,7 +1281,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// information.
         blocked = dnnl_blocked,
         /// A special format kind that indicates that tensor format is opaque.
-        unspecified = dnnl_format_kind_unspecified,
+        opaque = dnnl_format_kind_opaque,
     };
 
     /// Memory format tag specification.

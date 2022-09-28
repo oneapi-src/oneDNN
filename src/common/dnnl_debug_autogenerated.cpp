@@ -54,7 +54,7 @@ const char *dnnl_fmt_kind2str(dnnl_format_kind_t v) {
     if (v == dnnl_format_kind_undef) return "undef";
     if (v == dnnl_format_kind_any) return "any";
     if (v == dnnl_blocked) return "blocked";
-    if (v == dnnl_format_kind_unspecified) return "unspecified";
+    if (v == dnnl_format_kind_opaque) return "opaque";
     if (v == dnnl_format_kind_max) return "max";
     assert(!"unknown fmt_kind");
     return "unknown fmt_kind";

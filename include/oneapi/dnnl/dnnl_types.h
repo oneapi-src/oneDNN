@@ -94,7 +94,7 @@ typedef enum {
     /// information.
     dnnl_blocked,
     /// A special format kind that indicates that tensor format is opaque.
-    dnnl_format_kind_unspecified,
+    dnnl_format_kind_opaque,
     /// Parameter to allow internal only format kinds without undefined
     /// behavior. This parameter is chosen to be valid for so long as
     /// sizeof(int) >= 2.
