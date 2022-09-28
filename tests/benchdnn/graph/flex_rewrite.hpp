@@ -118,31 +118,24 @@ struct flex_rewrite {
         }
     }
 
-    // return the pad_begin + pad_end for each dimension
-    void cal_pads(dims_t &pads, deserialized_op &aop, dims_t &spatial_dims,
-            dims_t &strides, dims_t &kernel, bool deconv) {
-        dims_t v;
-        pads.clear();
-        std::string auto_pad = "NONE";
-        if (aop.attrs_.find("auto_pad") != aop.attrs_.end()) {
-            auto_pad = aop.attrs_["auto_pad"].get_string();
-            transform(auto_pad.begin(), auto_pad.end(), auto_pad.begin(),
-                    toupper);
-        }
-        if (aop.attrs_.find("auto_pad") == aop.attrs_.end()
-                || auto_pad == "NONE") {
-            v = aop.attrs_["pads_begin"].get_s64_vector();
-            for (size_t i = 0; i < v.size(); i++) {
-                pads.push_back(v[i]);
-            }
-            v = aop.attrs_["pads_end"].get_s64_vector();
-            for (size_t i = 0; i < v.size(); i++) {
-                pads[i] += v[i];
-            }
-        } else {
+    // return the pad_begin & pad_end for each dimension
+    void cal_pads(dims_t &pads_begin, dims_t &pads_end, deserialized_op &aop,
+            dims_t &spatial_dims, dims_t &strides, dims_t &kernel,
+            bool deconv) {
+        pads_begin.clear();
+        pads_end.clear();
+        // dims_t dilations(spatial_dims.size(), 1);
+        pads_begin = aop.attrs_["pads_begin"].get_s64_vector();
+        pads_end = aop.attrs_["pads_end"].get_s64_vector();
+        if (pads_begin.empty()) { pads_begin.assign(spatial_dims.size(), 0); }
+        if (pads_end.empty()) { pads_end.assign(spatial_dims.size(), 0); }
+        if (aop.attrs_.find("auto_pad") != aop.attrs_.end()
+                && aop.attrs_["auto_pad"].get_string() != "None") {
+            std::string auto_pad = aop.attrs_["auto_pad"].get_string();
             if (auto_pad == "VALID") {
                 for (size_t i = 0; i < spatial_dims.size(); i++) {
-                    pads.push_back(0);
+                    pads_begin[i] = 0;
+                    pads_end[i] = 0;
                 }
             } else if (auto_pad == "SAME_UPPER" || auto_pad == "SAME_LOWER") {
                 // SAME_UPPER or SAME_LOWER
@@ -153,14 +146,11 @@ struct flex_rewrite {
                     auto pad_needed = deconv ? kernel[i] - strides[i]
                                              : (legacy - 1) * strides[i]
                                     + kernel[i] - spatial_dims[i];
-                    if (pad_needed < 0) {
-                        fprintf(stderr, "graph: auto_pad failed!\n");
-                        exit(2);
-                    }
-                    if (auto_pad == "SAME_UPPER") {
-                        pads.push_back((pad_needed - 1) / 2);
-                    } else {
-                        pads.push_back(pad_needed / 2);
+                    if (pad_needed >= 0) {
+                        pads_begin[i] = auto_pad == "SAME_LOWER"
+                                ? ((pad_needed + 1) / 2)
+                                : (pad_needed / 2);
+                        pads_end[i] = pad_needed - pads_begin[i];
                     }
                 }
             } else {
@@ -176,8 +166,8 @@ struct flex_rewrite {
             auto kind = opstr2kind(aop.kind_);
             size_t in0, in1, out0;
             int64_t n, c, axis, sum, groups, in_size, out_size, use_oi = 0;
-            dims_t strides, kernel, pads, dilations, spatial_dims,
-                    output_padding;
+            dims_t strides, kernel, pads_begin, pads_end, dilations,
+                    spatial_dims, output_padding;
             dims_t dims, x, y, oi;
             std::string data_format, filter_format, auto_broadcast;
             bool floor, special_zero;
@@ -254,6 +244,17 @@ struct flex_rewrite {
                 case dnnl::graph::op::kind::TypeCast:
                 // infer_pool_bwd_output_shape
                 case dnnl::graph::op::kind::MaxPoolBackprop:
+                    in0 = aop.in_lts_[0].id_;
+                    out0 = aop.out_lts_[0].id_;
+                    gi[out0] = gi[in0];
+                    split_ncx(data_format, gi[in0], n, c, spatial_dims);
+                    strides = aop.attrs_["strides"].get_s64_vector();
+                    kernel = aop.attrs_["kernel"].get_s64_vector();
+                    cal_pads(pads_begin, pads_end, aop, spatial_dims, strides,
+                            kernel, false);
+                    aop.attrs_["pads_begin"].s64_vector_ = pads_begin;
+                    aop.attrs_["pads_end"].s64_vector_ = pads_end;
+                    break;
                 // infer_bias_add_output_shape
                 case dnnl::graph::op::kind::BiasAdd:
                     in0 = aop.in_lts_[0].id_;
@@ -315,10 +316,14 @@ struct flex_rewrite {
                             dilations[i] = 1;
                         }
                     }
-                    cal_pads(pads, aop, spatial_dims, strides, kernel, false);
+                    cal_pads(pads_begin, pads_end, aop, spatial_dims, strides,
+                            kernel, false);
+                    aop.attrs_["pads_begin"].s64_vector_ = pads_begin;
+                    aop.attrs_["pads_end"].s64_vector_ = pads_end;
                     x.clear();
                     for (size_t i = 0; i < spatial_dims.size(); i++) {
-                        auto padded = spatial_dims[i] + pads[i];
+                        auto padded
+                                = spatial_dims[i] + pads_begin[i] + pads_end[i];
                         auto dilated = dilations[i] * (kernel[i] - 1) + 1;
                         if (floor) {
                             x.push_back((padded - dilated) / strides[i] + 1);
@@ -333,6 +338,13 @@ struct flex_rewrite {
                 case dnnl::graph::op::kind::AvgPoolBackprop:
                     out0 = aop.out_lts_[0].id_;
                     gi[out0] = aop.attrs_["input_shape"].get_s64_vector();
+                    split_ncx(data_format, gi[out0], n, c, spatial_dims);
+                    strides = aop.attrs_["strides"].get_s64_vector();
+                    kernel = aop.attrs_["kernel"].get_s64_vector();
+                    cal_pads(pads_begin, pads_end, aop, spatial_dims, strides,
+                            kernel, false);
+                    aop.attrs_["pads_begin"].s64_vector_ = pads_begin;
+                    aop.attrs_["pads_end"].s64_vector_ = pads_end;
                     break;
                 // infer_bn_fwd_train_output_shape
                 case dnnl::graph::op::kind::BatchNormForwardTraining:
@@ -381,11 +393,15 @@ struct flex_rewrite {
                             filter_format, gi[aop.in_lts_[1].id_], oi, kernel);
                     strides = aop.attrs_["strides"].get_s64_vector();
                     dilations = aop.attrs_["dilations"].get_s64_vector();
-                    cal_pads(pads, aop, spatial_dims, strides, kernel, false);
+                    cal_pads(pads_begin, pads_end, aop, spatial_dims, strides,
+                            kernel, false);
+                    aop.attrs_["pads_begin"].s64_vector_ = pads_begin;
+                    aop.attrs_["pads_end"].s64_vector_ = pads_end;
 
                     x.clear();
                     for (size_t i = 0; i < spatial_dims.size(); i++) {
-                        auto padded = spatial_dims[i] + pads[i];
+                        auto padded
+                                = spatial_dims[i] + pads_begin[i] + pads_end[i];
                         auto dialated = dilations[i] * (kernel[i] - 1) + 1;
                         x.push_back((padded - dialated) / strides[i] + 1);
                     }
@@ -398,6 +414,16 @@ struct flex_rewrite {
                         gi[aop.out_lts_[0].id_]
                                 = aop.attrs_["output_shape"].get_s64_vector();
                     }
+                    split_ncx(data_format, gi[aop.in_lts_[0].id_], n, c,
+                            spatial_dims);
+                    split_oix(
+                            filter_format, gi[aop.in_lts_[1].id_], oi, kernel);
+                    strides = aop.attrs_["strides"].get_s64_vector();
+                    dilations = aop.attrs_["dilations"].get_s64_vector();
+                    cal_pads(pads_begin, pads_end, aop, spatial_dims, strides,
+                            kernel, false);
+                    aop.attrs_["pads_begin"].s64_vector_ = pads_begin;
+                    aop.attrs_["pads_end"].s64_vector_ = pads_end;
                     break;
                 // infer_convtranspose_output_shape
                 case dnnl::graph::op::kind::ConvTranspose:
@@ -407,7 +433,10 @@ struct flex_rewrite {
                             filter_format, gi[aop.in_lts_[1].id_], oi, kernel);
                     strides = aop.attrs_["strides"].get_s64_vector();
                     dilations = aop.attrs_["dilations"].get_s64_vector();
-                    cal_pads(pads, aop, spatial_dims, strides, kernel, true);
+                    cal_pads(pads_begin, pads_end, aop, spatial_dims, strides,
+                            kernel, true);
+                    aop.attrs_["pads_begin"].s64_vector_ = pads_begin;
+                    aop.attrs_["pads_end"].s64_vector_ = pads_end;
 
                     if (aop.attrs_.find("output_padding") != aop.attrs_.end()) {
                         output_padding
@@ -421,7 +450,8 @@ struct flex_rewrite {
 
                     x.clear();
                     for (size_t i = 0; i < spatial_dims.size(); i++) {
-                        auto padded = output_padding[i] - pads[i];
+                        auto padded = output_padding[i] - pads_begin[i]
+                                - pads_end[i];
                         auto dialated = dilations[i] * (kernel[i] - 1) + 1;
                         x.push_back(strides[i] * (spatial_dims[i] - 1)
                                 + dialated + padded);
@@ -437,6 +467,16 @@ struct flex_rewrite {
                         gi[aop.out_lts_[0].id_]
                                 = aop.attrs_["filter_shape"].get_s64_vector();
                     }
+                    split_ncx(data_format, gi[aop.in_lts_[0].id_], n, c,
+                            spatial_dims);
+                    split_oix(
+                            filter_format, gi[aop.out_lts_[0].id_], oi, kernel);
+                    strides = aop.attrs_["strides"].get_s64_vector();
+                    dilations = aop.attrs_["dilations"].get_s64_vector();
+                    cal_pads(pads_begin, pads_end, aop, spatial_dims, strides,
+                            kernel, false);
+                    aop.attrs_["pads_begin"].s64_vector_ = pads_begin;
+                    aop.attrs_["pads_end"].s64_vector_ = pads_end;
                     break;
                 // infer_unsupported_output_shape
                 case dnnl::graph::op::kind::DynamicReshape:
