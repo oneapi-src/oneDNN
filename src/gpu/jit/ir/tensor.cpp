@@ -527,19 +527,35 @@ layout_t view_t::create_pseudo_vlayout(const layout_t &tlayout) const {
 
         auto &tinfo = tdims_[tb.dim_idx];
         if (tb_is_outermost) {
-            bool is_first = true;
+            // Use innermost dimension with maximum remaining size for first
+            // block
+            int max_idx = tinfo.nvargs() - 1;
+            int max_vidx = tinfo.vidx(max_idx);
+            int max_vdim = rem_vdims[max_vidx];
+            for (int i = tinfo.nvargs() - 2; i >= 0; i--) {
+                int vidx = tinfo.vidx(i);
+                if (rem_vdims[vidx] > max_vdim) {
+                    max_idx = i;
+                    max_vidx = vidx;
+                    max_vdim = rem_vdims[vidx];
+                }
+            }
+
+            if (max_vdim > 1) {
+                stride_t stride = tinfo.vstride(max_idx);
+                blocks.emplace_back(
+                        max_vidx, max_vdim, stride * stride_t(tb.stride));
+                rem_vdims[max_vidx] = 1;
+            }
+
             for (int i = tinfo.nvargs() - 1; i >= 0; i--) {
                 int vidx = tinfo.vidx(i);
                 if (rem_vdims[vidx] == 1) continue;
 
-                // When expression contains 2+ variables, use unknown
-                // stride unless the view variable is the innermost.
-                stride_t stride
-                        = (is_first ? tinfo.vstride(i) : stride_t::unknown());
-                blocks.emplace_back(
-                        vidx, rem_vdims[vidx], stride * stride_t(tb.stride));
+                // When expression contains 2+ variables, use unknown stride for
+                // the remaining view variables.
+                blocks.emplace_back(vidx, rem_vdims[vidx], stride_t::unknown());
                 rem_vdims[vidx] = 1;
-                is_first = false;
             }
             continue;
         }
