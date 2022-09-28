@@ -914,45 +914,39 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_fwd(
     // differences with respect to glibc erf based GELU, in particular
     // ~1.0e-5 -- 1.0e-3 absolute error at s = -5.
 
+    constexpr unsigned sign_mask = 0x80000000;
+
+    // use vmm_aux3 to store original src.
+    h->mov(ZRegD(IDX(vmm_aux3)), ZRegD(IDX(vmm_src)));
+
     // x = s / sqrt(2)
     h->fmul(vmm_src, vmm_src,
             ZRegS(IDX(table_val(gelu_erf_one_over_sqrt_two, z_tmp))));
 
-    // IMPORTANT: we use vmm_aux3 to save `x` as exp_compute does not use it.
-    h->mov(ZRegD(IDX(vmm_aux3)), ZRegD(IDX(vmm_src)));
+    // abs(x)
+    h->fabs(vmm_aux1, p_all / T_m, vmm_src);
+
+    // t = 1 / (p*x + 1)
+    table_val(gelu_erf_approx_const, vmm_aux2);
+    h->fdup(vmm_aux4, 1.0f);
+    h->fmad(vmm_aux2, p_all / T_m, vmm_aux1, vmm_aux4);
+    h->fdiv(vmm_aux4, p_all, vmm_aux2);
 
     // -exp(-x*x)
     h->fmul(vmm_src, vmm_src, vmm_src);
-    h->eor(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_src)),
-            ZRegD(IDX(table_val(sign_mask, z_tmp))));
-
+    h->eor(vmm_src, sign_mask);
     exp_compute_vector_fwd(vmm_src);
-    h->eor(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_src)),
-            ZRegD(IDX(table_val(sign_mask, z_tmp))));
+    h->eor(vmm_src, sign_mask);
 
     // get sign
     h->mov(ZRegD(IDX(vmm_aux0)), ZRegD(IDX(vmm_aux3)));
-    h->and_(ZRegD(IDX(vmm_aux0)), ZRegD(IDX(vmm_aux0)),
-            ZRegD(IDX(table_val(sign_mask, z_tmp))));
-
-    // abs(x)
-    h->mov(ZRegD(IDX(vmm_aux1)), ZRegD(IDX(vmm_aux3)));
-    abs_compute_vector_fwd(vmm_aux1);
-
-    // t = 1 / (p*x + 1)
-    h->mov(ZRegD(IDX(vmm_aux2)),
-            ZRegD(IDX(table_val(gelu_erf_approx_const, z_tmp))));
-    h->fmad(vmm_aux2, p_all / T_m, vmm_aux1, ZRegS(IDX(table_val(one, z_tmp))));
-
-    h->mov(ZRegD(IDX(vmm_aux4)), ZRegD(IDX(table_val(one, z_tmp))));
-    h->fdiv(vmm_aux4, p_all, vmm_aux2);
+    h->and_(vmm_aux0, sign_mask);
 
     // -exp(-x*x)*t
     h->fmul(vmm_src, vmm_src, vmm_aux4);
 
     // compute polynomialial r
-    h->mov(ZRegD(IDX(vmm_aux1)), ZRegD(IDX(table_val(gelu_erf_pol, z_tmp, 4))));
-
+    table_val(gelu_erf_pol, vmm_aux1, 4);
     h->fmad(vmm_aux1, p_all / T_m, vmm_aux4,
             ZRegS(IDX(table_val(gelu_erf_pol, z_tmp, 3))));
     h->fmad(vmm_aux1, p_all / T_m, vmm_aux4,
@@ -966,9 +960,8 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_fwd(
     h->fmad(vmm_src, p_all / T_m, vmm_aux1, ZRegS(IDX(table_val(one, z_tmp))));
     h->eor(ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_src)), ZRegD(IDX(vmm_aux0)));
 
-    // S = 0.5 * s = x / sqrt^2(2)
-    h->fmul(vmm_aux3, vmm_aux3,
-            ZRegS(IDX(table_val(gelu_erf_one_over_sqrt_two, z_tmp))));
+    // S = 0.5 * s
+    h->fmul(vmm_aux3, p_all / T_m, 0.5f);
     // GELU = 0.5 * s * (1 + erf) = S + S * erf
     h->fmad(vmm_src, p_all / T_m, vmm_aux3, vmm_aux3);
 }
