@@ -296,10 +296,3 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_has_same_layout(
     if (ltw1.has_same_layout_as(ltw2)) *is_same = 1;
     return status::success;
 }
-
-int DNNL_GRAPH_API dnnl_graph_logical_tensor_equal(
-        const logical_tensor_t *lhs, const logical_tensor_t *rhs) {
-    if (lhs == rhs) return 1;
-    if (utils::any_null(lhs, rhs)) return 0;
-    return logical_tensor_wrapper_t(lhs) == logical_tensor_wrapper_t(rhs);
-}
