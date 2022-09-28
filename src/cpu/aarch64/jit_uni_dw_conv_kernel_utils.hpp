@@ -366,6 +366,9 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     bool args_ok = true && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
             && jcp.ngroups % simd_w == 0 && jcp.src_tag == dat_tag
             && jcp.wei_tag == wei_tag && jcp.dst_tag == dat_tag
+            && jcp.dilate_h == 0 && jcp.dilate_w == 0
+            && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
+            && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1
             && jcp.ic <= diff_src_d.padded_dims()[1]
             && jcp.oc <= diff_dst_d.padded_dims()[1]
             && jcp.ngroups <= weights_d.padded_dims()[0];
