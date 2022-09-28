@@ -82,6 +82,7 @@ struct benchdnn_dnnl_wrapper_t {
     }
 
     benchdnn_dnnl_wrapper_t(benchdnn_dnnl_wrapper_t &&rhs) {
+        t_ = nullptr;
         *this = std::move(rhs);
     }
 
