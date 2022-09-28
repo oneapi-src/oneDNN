@@ -86,7 +86,9 @@ static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
         const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
                 ? "per_tensor"
                 : "per_channel";
-        return quant_data_t(q_dt, scales, zps, q_type, 0, prb->wtag);
+        // apply oscale to last dimension(oc) when policy is per_channel
+        int64_t axis = q_type == "per_channel" ? prb->ndims - 1 : 0;
+        return quant_data_t(q_dt, scales, zps, q_type, axis, prb->wtag);
     } else if (arg == DST) {
         const auto q_dt = convert_dt(prb->dst_dt());
         const float scale_val = 1.f
