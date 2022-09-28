@@ -209,9 +209,35 @@ static inline bool mayiuse_atomic() {
     return cpu().isAtomicSupported();
 }
 
+static inline bool isa_has_s8s8(cpu_isa_t isa) {
+    return is_superset(isa, sve_256);
+}
+
 inline bool isa_has_bf16(cpu_isa_t isa) {
     return false;
 }
+
+static inline int isa_max_vlen(cpu_isa_t isa) {
+    if (isa == sve_512)
+        return cpu_isa_traits<sve_512>::vlen;
+    else if (isa == sve_512)
+        return cpu_isa_traits<sve_256>::vlen;
+    else if (isa == sve_512)
+        return cpu_isa_traits<sve_128>::vlen;
+    else
+        return 0;
+};
+
+static inline int isa_num_vregs(cpu_isa_t isa) {
+    if (isa == sve_512)
+        return cpu_isa_traits<sve_512>::n_vregs;
+    else if (isa == sve_512)
+        return cpu_isa_traits<sve_256>::n_vregs;
+    else if (isa == sve_512)
+        return cpu_isa_traits<sve_128>::n_vregs;
+    else
+        return 0;
+};
 
 } // namespace
 
@@ -226,6 +252,21 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == sve_512 ? prefix STRINGIFY(sve_512) : \
     prefix suffix_if_any)))))
 /* clang-format on */
+
+inline size_t data_type_vnni_granularity(data_type_t data_type) {
+    using namespace data_type;
+    switch (data_type) {
+        case f32:
+        case s32: return size_t(1);
+        case f16:
+        case bf16: return size_t(2);
+        case s8:
+        case u8: return size_t(4);
+        case data_type::undef:
+        default: assert(!"unknown data_type");
+    }
+    return size_t(0); /* should not be reachable */
+}
 
 } // namespace aarch64
 } // namespace cpu

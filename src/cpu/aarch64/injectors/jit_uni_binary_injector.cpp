@@ -793,7 +793,6 @@ void jit_uni_binary_injector_t<isa>::append_oc_offset(
         const auto strides = dst_d.blocking_desc().strides;
         const auto layout = injector_utils::get_layout_type(dst_d);
 
-        // c = X_TMP_0
         switch (layout) {
             case injector_utils::layout_t::ncsp:
                 calculate_oc_ncsp(strides, tmp_reg);
@@ -927,7 +926,6 @@ void jit_uni_binary_injector_t<isa>::append_mb_sp_offset(
         const auto strides = dst_d.blocking_desc().strides;
         const auto layout = injector_utils::get_layout_type(dst_d);
 
-        // c = X_TMP_0
         switch (layout) {
             case injector_utils::layout_t::ncsp:
                 calculate_mb_sp_ncsp(strides, tmp_reg);

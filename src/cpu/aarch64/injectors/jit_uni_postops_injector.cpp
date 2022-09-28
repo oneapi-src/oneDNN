@@ -148,6 +148,7 @@ void jit_uni_postops_injector_t<isa>::compute_vector_range(
         }
     }
 }
+
 template <cpu_isa_t isa>
 void jit_uni_postops_injector_t<isa>::compute_vector_range(
         const injector_utils::vmm_index_set_t &vmm_idxs) {

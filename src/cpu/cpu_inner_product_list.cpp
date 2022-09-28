@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2023 Intel Corporation
+* Copyright 2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,9 +28,12 @@
 using namespace dnnl::impl::cpu::x64;
 #endif
 
+#if DNNL_AARCH64
+#include "cpu/aarch64/jit_brgemm_inner_product.hpp"
+using namespace dnnl::impl::cpu::aarch64;
+#endif
 #if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
 #include "cpu/aarch64/acl_inner_product.hpp"
-using namespace dnnl::impl::cpu::aarch64;
 #endif
 
 namespace dnnl {
@@ -48,6 +52,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AVX512(brgemm_inner_product_fwd_t<avx512_core>)
             CPU_INSTANCE_AVX2(brgemm_inner_product_fwd_t<avx2>)
             CPU_INSTANCE_AARCH64_ACL(acl_inner_product_fwd_t)
+            CPU_INSTANCE_AARCH64(brgemm_inner_product_fwd_t<sve_512>)
             CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
             CPU_INSTANCE(ref_inner_product_fwd_t)
             nullptr,

@@ -174,6 +174,7 @@ private:
         }
     }
 
+    jit_uni_eltwise_injector_f32<sve_512> *eltwise_injector_;
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
