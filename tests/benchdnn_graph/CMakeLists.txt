@@ -19,6 +19,11 @@ if(NOT DNNL_GRAPH_BUILD_COMPILER_BACKEND)
     return()
 endif()
 
+# Skip benchdnn_graph build on non-UNIX platform
+if(NOT UNIX)  
+    return()
+endif()
+
 file(GLOB_RECURSE SOURCES_BENCHDNNGRAPH
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
