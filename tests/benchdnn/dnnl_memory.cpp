@@ -604,7 +604,7 @@ int dnn_mem_t::cleanup() {
     return OK;
 }
 
-void dnn_mem_t::set_dt(dnnl_data_type_t dt) {
+void dnn_mem_t::set_dt(dnnl_data_type_t dt) const {
     // NOLINTNEXTLINE(readability-make-member-function-const)
     dnnl_memory_desc_set_data_type(md_, dt);
 }

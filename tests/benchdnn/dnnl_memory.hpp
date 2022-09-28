@@ -110,7 +110,7 @@ struct dnn_mem_t {
 
     size_t sizeof_dt() const;
 
-    void set_dt(dnnl_data_type_t dt);
+    void set_dt(dnnl_data_type_t dt) const;
 
     template <typename T>
     explicit operator T *() const {
