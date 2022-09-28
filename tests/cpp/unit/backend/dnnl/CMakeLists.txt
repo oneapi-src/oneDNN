@@ -22,11 +22,17 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_bmm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_concat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_constant_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_conv.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_convtranspose.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_dequantize.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_infer_shape.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_partition_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_eltwise.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_fusion_info.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_internal_attrs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_interpolate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_large_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layer_norm.cpp
@@ -46,6 +52,7 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_subgraph_pass.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_typecast.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp
     ${GRAPH_TEST_THREAD}
     ${TEST_ALLOCATOR}
 )
