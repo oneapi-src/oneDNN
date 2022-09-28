@@ -1449,7 +1449,7 @@ void xehp_systolic_gemm_kernel_t<hw>::generate() {
 
     if (cfg.have_post_op()) {
         auto inj_ptr = new injector_t(this, data_type::f32, cfg.post_ops,
-                upost_op_scratch, cfg.post_op_is_fwd);
+                cfg.eu_count, upost_op_scratch, cfg.post_op_is_fwd);
         assert(inj_ptr);
         post_op_injector.reset(inj_ptr);
     }

@@ -3625,7 +3625,8 @@ public:
     ir_to_ngen_t(ir_kernel_t<hw> *host, const expr_binding_t &expr_binding)
         : host_(host)
         , expr_binding_(expr_binding)
-        , simd_size_(host->getSIMD()) {}
+        , simd_size_(host->getSIMD())
+        , eu_count_(host->hw_cfg_.eu_count()) {}
 
     ~ir_to_ngen_t() {
 #ifdef GEN_CONV_DEBUG
@@ -4170,8 +4171,8 @@ private:
         auto &data_op = eltwise_t::arg_data(args);
         auto data_rd = data_op.reg_buf_data();
 
-        jit_eltwise_injector_f32<hw> inj(
-                host_, func.alg_kind, func.alpha, func.beta, func.scale);
+        jit_eltwise_injector_f32<hw> inj(host_, func.alg_kind, func.alpha,
+                func.beta, func.scale, eu_count_);
         auto scratch = scope.alloc_range(inj.preferred_scratch_regs());
         inj.set_scratch(scratch);
         inj.prepare();
@@ -4233,6 +4234,7 @@ private:
     ir_kernel_t<hw> *host_;
     expr_binding_t expr_binding_;
     int simd_size_;
+    int eu_count_;
 
     std::vector<ngen::Label> loop_end_labels_;
 

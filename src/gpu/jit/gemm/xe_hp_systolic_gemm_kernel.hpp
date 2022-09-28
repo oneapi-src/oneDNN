@@ -55,6 +55,7 @@ public:
         bool c_packed = false;
         bool batch = false;
         bool emulate64 = (hw == ngen::HW::XeHPG);
+        int eu_count = 0;
 
         int tile_m = 32;
         int tile_n = 48;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ inline bool jit_post_op_injector_is_supported(
 template <gpu_gen_t hw>
 struct jit_post_op_injector {
     jit_post_op_injector(jit_generator<hw> *host, data_type_t accumulator_type,
-            const post_ops_t &post_ops,
+            const post_ops_t &post_ops, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
         : post_ops_(post_ops), is_fwd_(is_fwd), scratch_(scratch) {
@@ -57,7 +57,8 @@ struct jit_post_op_injector {
             const auto &po = post_ops.entry_[idx];
             if (po.is_eltwise())
                 workers_.emplace_back(host, po.eltwise.alg, po.eltwise.alpha,
-                        po.eltwise.beta, po.eltwise.scale, scratch, is_fwd);
+                        po.eltwise.beta, po.eltwise.scale, eu_count, scratch,
+                        is_fwd);
         }
     }
 
