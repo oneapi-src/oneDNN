@@ -18,9 +18,11 @@
 #include <set>
 #include <vector>
 
+#include <oneapi/dnnl/dnnl.h>
 #include <oneapi/dnnl/dnnl_debug.h>
 
 #include "src/cpu/platform.hpp"
+#include "tests/test_isa_common.hpp"
 #include "utils.hpp"
 
 namespace graph {
@@ -192,7 +194,9 @@ void skip_unimplemented_data_type(
     const bool has_bf16_support
             = is_gpu() || (is_cpu() && has_data_type_support(dnnl_bf16));
     const bool has_f16_support = (is_gpu() && (dir & FLAG_FWD))
-            || (is_cpu() && has_data_type_support(dnnl_f16));
+            || (is_cpu() && has_data_type_support(dnnl_f16)
+                    && !dnnl::is_superset(dnnl::get_effective_cpu_isa(),
+                            dnnl::cpu_isa::avx512_core_fp16));
 #else
     const bool has_bf16_support = is_gpu();
     const bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
