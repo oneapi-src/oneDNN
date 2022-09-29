@@ -25,6 +25,7 @@ file(GLOB COMMON_UNIT_TESTS
 
 add_subdirectory(interface)
 add_subdirectory(backend)
+add_subdirectory(utils)
 
 get_property(UNIT_TEST_DEPS GLOBAL PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS)
 get_property(LIB_DEPS GLOBAL PROPERTY ${LIB_NAME}_LIB_DEPS)

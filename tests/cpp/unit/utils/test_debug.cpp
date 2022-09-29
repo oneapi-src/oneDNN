@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,13 +13,33 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
 #include <string>
 
-#include <gtest/gtest.h>
-
-#include "interface/c_types_map.hpp"
 #include "utils/debug.hpp"
+
+#include "oneapi/dnnl/dnnl_graph_types.h"
+
+#include "gtest/gtest.h"
+
+namespace impl = dnnl::graph::impl;
+
+TEST(DebugUtilsTest, DnnlGraphRuntime2str) {
+#define CASE(runtime, s) \
+    ASSERT_EQ(std::string(impl::utils::dnnl_graph_runtime2str(runtime)), \
+            std::string(#s))
+    CASE(DNNL_GRAPH_RUNTIME_NONE, none);
+    CASE(DNNL_GRAPH_RUNTIME_SEQ, sequential);
+    CASE(DNNL_GRAPH_RUNTIME_OMP, OpenMP);
+    CASE(DNNL_GRAPH_RUNTIME_TBB, TBB);
+    CASE(DNNL_GRAPH_RUNTIME_THREADPOOL, threadpool);
+#ifdef DNNL_GRAPH_WITH_SYCL
+    CASE(DNNL_GRAPH_RUNTIME_SYCL, DPC++);
+#else
+    CASE(-1, unknown);
+#endif
+
+#undef CASE
+}
 
 TEST(DebugUtilsTest, DataType2str) {
     using namespace dnnl::graph::impl;
@@ -31,6 +51,7 @@ TEST(DebugUtilsTest, DataType2str) {
     EXPECT_STREQ("s32", data_type2str(data_type::s32));
     EXPECT_STREQ("s8", data_type2str(data_type::s8));
     EXPECT_STREQ("u8", data_type2str(data_type::u8));
+    EXPECT_STREQ("boolean", data_type2str(data_type::boolean));
 #ifndef NDEBUG
     EXPECT_DEATH(data_type2str(static_cast<data_type_t>(data_type::u8 + 1)),
             "unknown data_type");
@@ -72,6 +93,56 @@ TEST(DebugUtilsTest, LayoutType2str) {
             layout_type2str(
                     static_cast<layout_type_t>(layout_type::opaque + 1)));
 #endif
+}
+
+TEST(DebugUtilsTest, PropertyType2str) {
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
+    EXPECT_STREQ("undef", property_type2str(property_type::undef));
+    EXPECT_STREQ("variable", property_type2str(property_type::variable));
+    EXPECT_STREQ("constant", property_type2str(property_type::constant));
+#ifndef NDEBUG
+    EXPECT_DEATH(property_type2str(static_cast<property_type_t>(-1)),
+            "unknown property_type");
+#else
+    EXPECT_STREQ("unknown property_type",
+            property_type2str(static_cast<property_type_t>(-1)));
+#endif
+}
+
+TEST(DebugUtilsTest, PartitionKind2str) {
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
+    using namespace impl::partition_kind;
+#define CASE(v) ASSERT_EQ(partition_kind2str(v), std::string(#v))
+    CASE(undef);
+    CASE(convolution_post_ops);
+    CASE(convtranspose_post_ops);
+    CASE(interpolate_post_ops);
+    CASE(matmul_post_ops);
+    CASE(reduction_post_ops);
+    CASE(unary_post_ops);
+    CASE(binary_post_ops);
+    CASE(pooling_post_ops);
+    CASE(batch_norm_post_ops);
+    CASE(misc_post_ops);
+    CASE(quantized_convolution_post_ops);
+    CASE(quantized_convtranspose_post_ops);
+    CASE(quantized_matmul_post_ops);
+    CASE(quantized_unary_post_ops);
+    CASE(quantized_pooling_post_ops);
+    CASE(misc_quantized_post_ops);
+    CASE(convolution_backprop_post_ops);
+    CASE(mha);
+    CASE(mlp);
+    CASE(quantized_mha);
+    CASE(quantized_mlp);
+    CASE(residual_conv_blocks);
+    CASE(quantized_residual_conv_blocks);
+#undef CASE
+    ASSERT_EQ(partition_kind2str(static_cast<impl::partition_kind_t>(
+                      quantized_residual_conv_blocks + 1000)),
+            std::string("unknown_kind"));
 }
 
 TEST(DebugUtilsTest, FpmathMode2str) {

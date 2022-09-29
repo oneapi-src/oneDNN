@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,14 +13,17 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include <sstream>
 #include <string>
-#include <gtest/gtest.h>
+#include <thread>
+
+#include "gtest/gtest.h"
 
 #include "utils/compatible.hpp"
 #include "utils/utils.hpp"
 
 #ifndef DNNL_GRAPH_SUPPORT_CXX17
-TEST(utils_test, optional) {
+TEST(Utils, optional) {
     //init, copy constructor
     dnnl::graph::impl::utils::optional_impl_t<int64_t> o1, o2 = 2, o3 = o2;
     ASSERT_EQ(*o2, 2);
@@ -35,7 +38,7 @@ TEST(utils_test, optional) {
 }
 #endif
 
-TEST(utils_test, any) {
+TEST(Utils, any) {
     dnnl::graph::impl::utils::any_t a = 1;
     ASSERT_EQ(dnnl::graph::impl::utils::any_cast<int>(a), 1);
     int *i = dnnl::graph::impl::utils::any_cast<int>(&a);
@@ -51,7 +54,7 @@ TEST(utils_test, any) {
             dnnl::graph::impl::utils::bad_any_cast_t);
 }
 
-TEST(utils_test, sizeoftype) {
+TEST(Utils, sizeoftype) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
     EXPECT_EQ(sizeof(float), size_of(data_type::f32));
@@ -60,12 +63,29 @@ TEST(utils_test, sizeoftype) {
     EXPECT_EQ(sizeof(int8_t), size_of(data_type::s8));
     EXPECT_EQ(sizeof(int16_t), size_of(data_type::f16));
     EXPECT_EQ(sizeof(int16_t), size_of(data_type::bf16));
+    EXPECT_EQ(0, size_of(static_cast<data_type_t>(data_type::bf16 + 10)));
 }
 
-TEST(utils_test, iffy_getenv) {
+TEST(Utils, iffy_getenv) {
     namespace utils = dnnl::graph::impl::utils;
     char buffer[10] = {'\0'};
     EXPECT_EQ(INT_MIN, utils::getenv(nullptr, buffer, 10));
     EXPECT_EQ(INT_MIN, utils::getenv("foo", nullptr, 10));
     EXPECT_EQ(INT_MIN, utils::getenv("foo", buffer, -1));
+}
+
+TEST(Utils, Float2int) {
+    namespace utils = dnnl::graph::impl::utils;
+    float a = 3.0f;
+    int *b = (int *)(&a);
+    ASSERT_EQ(utils::float2int(a), *b);
+    b = nullptr;
+}
+
+TEST(Utils, ThreadIdToStr) {
+    namespace utils = dnnl::graph::impl::utils;
+    std::stringstream ss;
+    auto id = std::this_thread::get_id();
+    ss << id;
+    ASSERT_EQ(utils::thread_id_to_str(id), ss.str());
 }

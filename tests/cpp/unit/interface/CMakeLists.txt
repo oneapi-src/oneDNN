@@ -17,7 +17,6 @@ set(OBJ_LIB ${LIB_NAME}_interface_unit_test)
 
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compilation_context.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
@@ -27,7 +26,6 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_partition_hashing.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_shape_infer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_stream.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_tensor.cpp
@@ -44,6 +42,7 @@ target_include_directories(${OBJ_LIB}
 )
 
 set(sycl_rt_pattern "(DPCPP)")
+
 if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${sycl_rt_pattern} OR DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
     add_subdirectory(sycl)
 endif()
