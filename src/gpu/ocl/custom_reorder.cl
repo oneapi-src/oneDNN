@@ -87,6 +87,10 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
     // padding for uniform work groups, don't write there
     if (d0 >= LIMIT_MAX_D0) { return; }
 #endif
+
+#if SCALE_QUANT && NSCALES == 1
+    alpha = scales[0];
+#endif
     const int src_base = S0 * d0 + S1 * d1 + S2 * d2;
     const int dst_base = D0 * d0 + D1 * d1 + D2 * d2;
 
@@ -461,6 +465,9 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
         dst_buf[d0i] = tmp_buf[sgId / BLK_L][d0i * BLK_L + sgId % BLK_L];
     }
 #endif
+#if SCALE_QUANT && NSCALES == 1
+    alpha = scales[0];
+#endif
     for (int d0i = 0; d0i < d0b; ++d0i) {
         const int dst_off = DST_OFF(d0, d1, 0, 0, 0, 0) + SUB_GROUP_SIZE * d0i;
 
@@ -486,6 +493,10 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
     const int d2_block = GWS_GET_D2_BLOCK();
     const int d3_block = GWS_GET_D3_BLOCK();
     const int d4_block = GWS_GET_D4_BLOCK();
+
+#if SCALE_QUANT && NSCALES == 1
+    alpha = scales[0];
+#endif
 
     for_(int d0i = 0; d0i < d0_block; d0i++)
     for_(int d1i = 0; d1i < d1_block; d1i++)
@@ -665,6 +676,9 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #elif USE_DENSE_VECT
     const int d0_blk_start = GWS_GET_D0();
     const int d0_blk_end = d0_blk_start + (GWS_GET_D0_BLOCK() * 16);
+#if SCALE_QUANT && NSCALES == 1
+    alpha = scales[0];
+#endif
     for (int d0 = d0_blk_start; d0 < d0_blk_end; d0 += 128) {
         SRC_DATA8_T src_tmp = SRC_BLOCK_READ8(&src[d0]);
         DST_DATA8_T dst_tmp;

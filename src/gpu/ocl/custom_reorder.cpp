@@ -333,8 +333,8 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     int last = conf.ndims - 1;
     size_t last_dim = padded_dims[last];
 
-    const bool has_padding_or_scale_quant
-            = conf.has_padding || conf.scale_quant;
+    const bool has_padding_or_multi_scale_quant
+            = conf.has_padding || (conf.scale_quant && conf.scales_num > 1);
 
     const bool type_s8_u8 = utils::one_of(src_mdw.data_type(), dnnl_s8, dnnl_u8)
             || utils::one_of(dst_mdw.data_type(), dnnl_s8, dnnl_u8);
@@ -378,7 +378,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::unaligned_sizes;
     }
 
-    if (!has_padding_or_scale_quant && (conf.nelems % 256 == 0)
+    if (!has_padding_or_multi_scale_quant && (conf.nelems % 256 == 0)
             && src_mdw.similar_to(dst_mdw, true, false, 0)) {
         return reorder_kernel_t::dense_vector;
     }
@@ -446,8 +446,8 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
 
     // This kernel will be used where last dimension is not reordered.
     // It will vectorize that dimension.
-    if (!has_padding_or_scale_quant && src_mdw.is_dense() && dst_mdw.is_dense()
-            && last_dim % 8 == 0
+    if (!has_padding_or_multi_scale_quant && src_mdw.is_dense()
+            && dst_mdw.is_dense() && last_dim % 8 == 0
             && dst_mdw.md_->format_desc.blocking.strides[last] == 1
             && src_mdw.md_->format_desc.blocking.strides[last] == 1
             && conf.ndims <= MAX_NDIMS) {
@@ -456,7 +456,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
 
     // This kernel supports 2D reorders into blocked formats that
     // end in 8a4b or 8a2b, no matter how many block layers, but no padding.
-    if (!has_padding_or_scale_quant && src_mdw.matches_one_of_tag(ab)
+    if (!has_padding_or_multi_scale_quant && src_mdw.matches_one_of_tag(ab)
             && matches_ABxxxx8ayb_layout(
                     dst_mdw.md_->format_desc.blocking, conf.ndims)
             && padded_dims[last] % 16 == 0) {
@@ -468,7 +468,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
             && dst_mdw.md_->format_desc.blocking.inner_nblks == 0
             && src_mdw.offset0() == 0 && dst_mdw.offset0() == 0
             && is_alt_faster_than_ref(src_mdw, dst_mdw, dev_info)
-            && !has_padding_or_scale_quant) {
+            && !has_padding_or_multi_scale_quant) {
         return reorder_kernel_t::reorder_alt;
     }
 
