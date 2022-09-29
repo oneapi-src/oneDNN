@@ -278,7 +278,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
 
-    auto data_d = dnn_mem_t::init_md(
+    auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->data_dims().data(), prb->dt, prb->tag);
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
@@ -286,18 +286,23 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (dir & FLAG_FWD) {
+        auto dst_d = dnn_mem_t::init_md(
+                prb->ndims, prb->data_dims().data(), prb->dt, tag::any);
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_batch_normalization_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, data_d, prb->eps,
-                flags, dnnl_attr));
+                &init_pd_args.pd, init_pd_args.engine, prop, src_d, dst_d,
+                prb->eps, flags, dnnl_attr));
     } else {
-        auto diff_data_d = dnn_mem_t::init_md(
+        auto diff_src_d = dnn_mem_t::init_md(
+                prb->ndims, prb->data_dims().data(), prb->dt, tag::any);
+        auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->data_dims().data(), prb->dt, tag::any);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
         DNN_SAFE_STATUS(dnnl_batch_normalization_backward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, diff_data_d,
-                data_d, prb->eps, flags, init_pd_args.hint, dnnl_attr));
+                &init_pd_args.pd, init_pd_args.engine, prop, diff_src_d,
+                diff_dst_d, src_d, prb->eps, flags, init_pd_args.hint,
+                dnnl_attr));
     }
 
     return dnnl_success;
@@ -567,7 +572,6 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_VARIANCE, var_dt);
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_SCALE, sc_dt);
-        args.set(DNNL_ARG_SHIFT, sh_dt);
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_DIFF_SCALE, d_sc_dt);

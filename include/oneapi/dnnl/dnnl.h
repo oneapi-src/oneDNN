@@ -1907,7 +1907,8 @@ dnnl_status_t DNNL_API dnnl_lrn_backward_primitive_desc_create(
 /// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
-/// @param data_desc Source and destination memory descriptor.
+/// @param src_desc Source memory descriptor.
+/// @param dst_desc Destination memory descriptor.
 /// @param epsilon Batch normalization epsilon parameter.
 /// @param flags Batch normalization flags (@ref dnnl_normalization_flags_t).
 /// @param attr Primitive attributes (can be NULL).
@@ -1915,8 +1916,9 @@ dnnl_status_t DNNL_API dnnl_lrn_backward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_batch_normalization_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t data_desc,
-        float epsilon, unsigned flags, const_dnnl_primitive_attr_t attr);
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t dst_desc, float epsilon, unsigned flags,
+        const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a batch normalization backward
 ///     propagation primitive.
@@ -1930,8 +1932,9 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_forward_primitive_desc_create(
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_backward_data and #dnnl_backward (diffs for all parameters are
 ///     computed in this case).
-/// @param diff_data_desc Diff source and diff destination memory descriptor.
-/// @param data_desc Source memory descriptor.
+/// @param diff_src_desc Diff source memory descriptor.
+/// @param diff_dst_desc Diff destination memory descriptor.
+/// @param src_desc Source memory descriptor.
 /// @param epsilon Batch normalization epsilon parameter.
 /// @param flags Batch normalization flags (@ref dnnl_normalization_flags_t).
 /// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
@@ -1941,8 +1944,9 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_batch_normalization_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t diff_data_desc,
-        const_dnnl_memory_desc_t data_desc, float epsilon, unsigned flags,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
+        const_dnnl_memory_desc_t src_desc, float epsilon, unsigned flags,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 

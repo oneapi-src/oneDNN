@@ -7184,7 +7184,8 @@ struct batch_normalization_forward : public primitive {
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training and
         ///     #dnnl::prop_kind::forward_inference.
-        /// @param data_desc Source and destination memory descriptors.
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
         /// @param epsilon Batch normalization epsilon parameter.
         /// @param flags Batch normalization flags (@ref
         ///     dnnl::normalization_flags).
@@ -7195,16 +7196,16 @@ struct batch_normalization_forward : public primitive {
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
         primitive_desc(const engine &aengine, prop_kind aprop_kind,
-                const memory::desc &data_desc, float epsilon,
-                normalization_flags flags,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                float epsilon, normalization_flags flags,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
                     = dnnl_batch_normalization_forward_primitive_desc_create(
                             &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            data_desc.get(), epsilon, convert_to_c(flags),
-                            attr.get());
+                            src_desc.get(), dst_desc.get(), epsilon,
+                            convert_to_c(flags), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -7304,9 +7305,9 @@ struct batch_normalization_backward : public primitive {
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
         ///     (diffs for all parameters are computed in this case).
-        /// @param diff_data_desc Diff source and diff destination memory
-        ///     descriptor.
-        /// @param data_desc Source memory descriptor.
+        /// @param diff_src_desc Diff source memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param src_desc Source memory descriptor.
         /// @param epsilon Batch normalization epsilon parameter.
         /// @param flags Batch normalization flags (@ref
         ///     dnnl::normalization_flags).
@@ -7320,9 +7321,9 @@ struct batch_normalization_backward : public primitive {
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
         primitive_desc(const engine &aengine, prop_kind aprop_kind,
-                const memory::desc &diff_data_desc,
-                const memory::desc &data_desc, float epsilon,
-                normalization_flags flags,
+                const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc, const memory::desc &src_desc,
+                float epsilon, normalization_flags flags,
                 const batch_normalization_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
@@ -7330,8 +7331,9 @@ struct batch_normalization_backward : public primitive {
             dnnl_status_t status
                     = dnnl_batch_normalization_backward_primitive_desc_create(
                             &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                            diff_data_desc.get(), data_desc.get(), epsilon,
-                            convert_to_c(flags), hint_fwd_pd.get(), attr.get());
+                            diff_src_desc.get(), diff_dst_desc.get(),
+                            src_desc.get(), epsilon, convert_to_c(flags),
+                            hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,

@@ -48,21 +48,21 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            auto src_data_t = src_md()->data_type;
-            auto dst_data_t = dst_md()->data_type;
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = is_fwd()
-                    && (utils::everyone_is(f16, src_data_t, dst_data_t)
-                            || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                            || utils::everyone_is(f32, src_data_t, dst_data_t)
-                            || utils::everyone_is(s8, src_data_t, dst_data_t))
-                    && IMPLICATION(utils::one_of(src_data_t, s8),
+                    && utils::one_of(src_md()->data_type, f32, bf16, f16, s8)
+                    && src_md()->data_type == dst_md()->data_type
+                    && IMPLICATION(src_md()->data_type == s8,
                             !is_training() && stats_is_src())
+                    && check_scale_shift_data_type()
                     && attr()->has_default_values(attr_skip_mask)
                     && IMPLICATION(!attr()->has_default_values(),
                             attr()->post_ops_.len() == 1 && with_relu_post_op())
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md())
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups);
             if (!ok) return status::unimplemented;
@@ -145,13 +145,15 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = is_bwd() && set_default_formats_common()
-                    && (utils::everyone_is(f32, src_md()->data_type,
-                                diff_src_md()->data_type)
-                            || utils::everyone_is(bf16, src_md()->data_type,
-                                    diff_src_md()->data_type))
+
+            bool ok = !is_fwd() && utils::one_of(src_md()->data_type, f32, bf16)
+                    && src_md()->data_type == diff_src_md()->data_type
+                    && diff_src_md()->data_type == diff_dst_md()->data_type
                     && check_scale_shift_data_type()
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md());
             if (!ok) return status::unimplemented;
 
             if (fuse_norm_relu() || fuse_norm_add_relu()) {

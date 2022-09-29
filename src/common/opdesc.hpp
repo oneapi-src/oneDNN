@@ -269,14 +269,18 @@ struct batch_normalization_desc_t {
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind;
-    // Source and destination memory descriptor.
-    memory_desc_t data_desc;
-    // Source and destination gradient memory descriptor.
-    memory_desc_t diff_data_desc;
-    // Scale and shift data and gradient memory descriptors.
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
+    // Scale and/or shift data and gradient memory descriptor.
     // Scaleshift memory descriptor uses 1D #dnnl_x format[Channels].
-    memory_desc_t data_scaleshift_desc;
-    memory_desc_t diff_data_scaleshift_desc;
+    memory_desc_t scaleshift_desc;
+    memory_desc_t diff_scaleshift_desc;
     // Statistics memory descriptor.
     //
     // Statistics (mean or variance) descriptor use 1D #dnnl_x format[Channels].

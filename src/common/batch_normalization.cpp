@@ -32,15 +32,16 @@ using namespace dnnl::impl::types;
 
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
-        prop_kind_t prop_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *diff_data_desc, float epsilon, unsigned flags) {
-    bool args_ok = !any_null(bnrm_desc, data_desc)
+        prop_kind_t prop_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, float epsilon, unsigned flags) {
+    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
+    bool args_ok = !any_null(bnrm_desc, src_desc)
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data, backward)
-            && IMPLICATION(prop_kind & backward, diff_data_desc != nullptr)
-            && IMPLICATION(
-                    one_of(prop_kind, forward_training, forward_inference),
-                    !memory_desc_wrapper(data_desc).format_any());
+            && IMPLICATION(is_fwd, dst_desc != nullptr)
+            && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
+            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
     unsigned bnorm_flags = normalization_flags::use_global_stats
@@ -54,48 +55,56 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     bd.prop_kind = prop_kind;
 
     bool runtime_dims_or_strides
-            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides();
-    if (one_of(prop_kind, backward_data, backward))
+            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides();
+    if (is_fwd) {
         runtime_dims_or_strides = runtime_dims_or_strides
-                || memory_desc_wrapper(diff_data_desc)
+                || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
+    } else {
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(diff_src_desc)
+                           .has_runtime_dims_or_strides()
+                || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
+    }
     if (runtime_dims_or_strides) return unimplemented;
 
-    bd.data_desc = *data_desc;
-    bd.diff_data_desc = zero_md();
-    if (one_of(bd.prop_kind, backward_data, backward))
-        bd.diff_data_desc = *diff_data_desc;
-
-    bd.data_scaleshift_desc = zero_md();
-    if (flags
-            & (normalization_flags::use_scale
-                    | normalization_flags::use_shift)) {
-        dims_t scaleshift_dims = {data_desc->dims[1]};
-        memory_desc_init_by_tag(bd.data_scaleshift_desc, 1, scaleshift_dims,
-                data_type::f32, dnnl_x);
+    bd.src_desc = *src_desc;
+    if (is_fwd) bd.dst_desc = *dst_desc;
+    if (!is_fwd) {
+        bd.diff_src_desc = *diff_src_desc;
+        bd.diff_dst_desc = *diff_dst_desc;
     }
 
-    bd.diff_data_scaleshift_desc = zero_md();
-    if (bd.prop_kind == backward
-            && (flags
-                    & (normalization_flags::use_scale
-                            | normalization_flags::use_shift))) {
-        bd.diff_data_scaleshift_desc = bd.data_scaleshift_desc;
+    const bool has_scale_or_shift = flags
+            & (normalization_flags::use_scale | normalization_flags::use_shift);
+    if (has_scale_or_shift) {
+        dims_t scaleshift_dims = {src_desc->dims[1]};
+        memory_desc_init_by_tag(bd.scaleshift_desc, 1, scaleshift_dims,
+                data_type::f32, format_tag::a);
+        if (!is_fwd) bd.diff_scaleshift_desc = bd.scaleshift_desc;
     }
 
-    dims_t stats_dims = {data_desc->dims[1]};
+    dims_t stats_dims = {src_desc->dims[1]};
     memory_desc_init_by_tag(
-            bd.stat_desc, 1, stats_dims, data_type::f32, dnnl_x);
-    bd.batch_norm_epsilon = epsilon;
+            bd.stat_desc, 1, stats_dims, data_type::f32, format_tag::a);
 
+    bd.batch_norm_epsilon = epsilon;
     bd.flags = flags;
 
-    bool consistency = true && utils::one_of(bd.data_desc.ndims, 2, 3, 4, 5);
-    if (bd.prop_kind == backward_data)
-        consistency = consistency
-                && utils::one_of(bd.diff_data_desc.ndims, 2, 3, 4, 5)
-                && array_cmp(bd.diff_data_desc.dims, bd.data_desc.dims,
-                        bd.diff_data_desc.ndims);
+    bool consistency = bd.src_desc.ndims >= 2;
+    if (consistency && is_fwd) {
+        consistency = bd.dst_desc.ndims == bd.src_desc.ndims
+                && array_cmp(
+                        bd.dst_desc.dims, bd.src_desc.dims, bd.src_desc.ndims);
+    }
+    if (consistency && !is_fwd) {
+        consistency = bd.diff_dst_desc.ndims == bd.src_desc.ndims
+                && bd.diff_dst_desc.ndims == bd.diff_src_desc.ndims
+                && array_cmp(bd.diff_dst_desc.dims, bd.src_desc.dims,
+                        bd.src_desc.ndims)
+                && array_cmp(bd.diff_src_desc.dims, bd.diff_dst_desc.dims,
+                        bd.diff_dst_desc.ndims);
+    }
     if (!consistency) return invalid_arguments;
 
     *bnrm_desc = bd;
@@ -105,29 +114,31 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
 
 status_t dnnl_batch_normalization_forward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        prop_kind_t prop_kind, const memory_desc_t *data_desc, float epsilon,
-        unsigned flags, const primitive_attr_t *attr) {
+        prop_kind_t prop_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, float epsilon, unsigned flags,
+        const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
 
     auto bnrm_desc = batch_normalization_desc_t();
-    CHECK(bnrm_desc_init(
-            &bnrm_desc, prop_kind, data_desc, nullptr, epsilon, flags));
+    CHECK(bnrm_desc_init(&bnrm_desc, prop_kind, src_desc, dst_desc, nullptr,
+            nullptr, epsilon, flags));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&bnrm_desc, nullptr, attr);
 }
 
 status_t dnnl_batch_normalization_backward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        prop_kind_t prop_kind, const memory_desc_t *diff_data_desc,
-        const memory_desc_t *data_desc, float epsilon, unsigned flags,
+        prop_kind_t prop_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, const memory_desc_t *src_desc,
+        float epsilon, unsigned flags,
         const primitive_desc_iface_t *hint_fwd_pd,
         const primitive_attr_t *attr) {
     if (!one_of(prop_kind, backward, backward_data)) return invalid_arguments;
 
     auto bnrm_desc = batch_normalization_desc_t();
-    CHECK(bnrm_desc_init(
-            &bnrm_desc, prop_kind, data_desc, diff_data_desc, epsilon, flags));
+    CHECK(bnrm_desc_init(&bnrm_desc, prop_kind, src_desc, nullptr,
+            diff_src_desc, diff_dst_desc, epsilon, flags));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&bnrm_desc, hint_fwd_pd, attr);
 }

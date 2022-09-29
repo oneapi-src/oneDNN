@@ -52,13 +52,13 @@ struct batch_normalization_pd_t : public primitive_desc_t {
 
     /* common batch_normalization aux functions */
 
-    dim_t MB() const { return data_desc().dims[0]; }
-    dim_t C() const { return data_desc().dims[1]; }
-    dim_t D() const { return ndims() >= 5 ? data_desc().dims[ndims() - 3] : 1; }
-    dim_t H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
-    dim_t W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
+    dim_t MB() const { return src_md()->dims[0]; }
+    dim_t C() const { return src_md()->dims[1]; }
+    dim_t D() const { return ndims() >= 5 ? src_md()->dims[ndims() - 3] : 1; }
+    dim_t H() const { return ndims() >= 4 ? src_md()->dims[ndims() - 2] : 1; }
+    dim_t W() const { return ndims() >= 3 ? src_md()->dims[ndims() - 1] : 1; }
 
-    int ndims() const { return desc_.data_desc.ndims; }
+    int ndims() const { return src_md()->ndims; }
 
     bool stats_is_src() const {
         return desc_.flags & normalization_flags::use_global_stats;
@@ -98,20 +98,20 @@ struct batch_normalization_pd_t : public primitive_desc_t {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference);
     }
-    bool is_bwd() const { return !this->is_fwd(); }
+
     bool is_training() const {
         return desc_.prop_kind == prop_kind::forward_training;
     }
 
     bool has_zero_dim_memory() const {
-        return memory_desc_wrapper(desc_.data_desc).has_zero_dim();
+        return memory_desc_wrapper(src_md()).has_zero_dim();
     }
 
 protected:
     batch_normalization_desc_t desc_;
     const batch_normalization_fwd_pd_t *hint_fwd_pd_;
 
-    memory_desc_t data_md_;
+    memory_desc_t src_md_;
     memory_desc_t stat_md_;
     memory_desc_t scaleshift_md_;
 
@@ -123,24 +123,20 @@ protected:
         : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc)
+        , src_md_(desc_.src_desc)
         , stat_md_(desc_.stat_desc)
-        , scaleshift_md_(desc_.data_scaleshift_desc)
+        , scaleshift_md_(desc_.scaleshift_desc)
         , ws_md_() {}
 
     virtual void init_default_ws(size_t bits_per_element) {
-        const auto data_mdw = memory_desc_wrapper(data_md_);
+        const auto src_mdw = memory_desc_wrapper(src_md_);
 
-        const dim_t data_nelems = data_mdw.nelems(true);
+        const dim_t nelems = src_mdw.nelems(true);
         const dim_t bits_per_byte = 8;
-        const dims_t ws_sz = {(dim_t)utils::div_up(
-                data_nelems * bits_per_element, bits_per_byte)};
-        memory_desc_init_by_tag(
-                ws_md_, 1, ws_sz, impl::data_type::u8, format_tag::x);
+        const dims_t ws_sz = {
+                (dim_t)utils::div_up(nelems * bits_per_element, bits_per_byte)};
+        memory_desc_init_by_tag(ws_md_, 1, ws_sz, data_type::u8, format_tag::x);
     }
-
-private:
-    const memory_desc_t &data_desc() const { return desc_.data_desc; }
 };
 
 struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
@@ -183,13 +179,13 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
     }
 
     const memory_desc_t *src_md(int index = 0) const override {
-        if (index == 0) return &data_md_;
+        if (index == 0) return &src_md_;
         if (stats_is_src() && (index == 1 || index == 2)) return &stat_md_;
         return &glob_zero_md;
     }
 
     const memory_desc_t *dst_md(int index = 0) const override {
-        if (index == 0) return &data_md_;
+        if (index == 0) return &dst_md_;
         if (!stats_is_src() && is_training() && (index == 1 || index == 2))
             return &stat_md_;
         return &glob_zero_md;
@@ -217,11 +213,20 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
     }
 
 protected:
+    memory_desc_t dst_md_;
+
     batch_normalization_fwd_pd_t(const batch_normalization_desc_t *adesc,
             const primitive_attr_t *attr,
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : batch_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
+        : batch_normalization_pd_t(adesc, attr, hint_fwd_pd)
+        , dst_md_(desc_.dst_desc) {}
 
+    bool set_default_formats_common() {
+        return IMPLICATION(dst_md_.format_kind == format_kind::any,
+                memory_desc_init_by_md_and_dt(
+                        dst_md_, src_md_, dst_md_.data_type)
+                        == status::success);
+    }
     bool check_scale_shift_data_type() const {
         return IMPLICATION(use_scale() || use_shift(),
                 weights_md()->data_type == data_type::f32);
@@ -271,13 +276,13 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
     }
 
     const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &data_md_ : index <= 2 ? &stat_md_ : &glob_zero_md;
+        return index == 0 ? &src_md_ : index <= 2 ? &stat_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+        return index == 0 ? &diff_src_md_ : &glob_zero_md;
     }
 
     const memory_desc_t *weights_md(int index = 0) const override {
@@ -294,8 +299,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
     const memory_desc_t *stat_md() const { return src_md(1); }
 
     int n_inputs() const override {
-        return 4 + (!types::is_zero_md(workspace_md())) + use_scale()
-                + use_shift();
+        return 4 + (!types::is_zero_md(workspace_md())) + use_scale();
     }
     int n_outputs() const override {
         return 1 + fuse_norm_add_relu()
@@ -304,22 +308,27 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
     }
 
 protected:
-    memory_desc_t diff_data_md_;
+    memory_desc_t diff_src_md_;
+    memory_desc_t diff_dst_md_;
     memory_desc_t diff_scaleshift_md_;
 
     batch_normalization_bwd_pd_t(const batch_normalization_desc_t *adesc,
             const primitive_attr_t *attr,
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
         : batch_normalization_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_data_desc)
-        , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
+        , diff_src_md_(desc_.diff_src_desc)
+        , diff_dst_md_(desc_.diff_dst_desc)
+        , diff_scaleshift_md_(desc_.diff_scaleshift_desc) {}
 
     bool set_default_formats_common() {
-        if (diff_data_md_.format_kind != format_kind::any) return true;
-
-        return memory_desc_init_by_md_and_dt(
-                       diff_data_md_, data_md_, diff_data_md_.data_type)
-                == status::success;
+        return IMPLICATION(diff_dst_md_.format_kind == format_kind::any,
+                       memory_desc_init_by_md_and_dt(
+                               diff_dst_md_, src_md_, diff_dst_md_.data_type)
+                               == status::success)
+                && IMPLICATION(diff_src_md_.format_kind == format_kind::any,
+                        memory_desc_init_by_md_and_dt(
+                                diff_src_md_, src_md_, diff_src_md_.data_type)
+                                == status::success);
     }
 
     bool check_scale_shift_data_type() const {

@@ -44,11 +44,16 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = is_fwd() && src_md()->data_type == d_type
+            bool ok = is_fwd()
+                    && utils::everyone_is(
+                            d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
                     && check_scale_shift_data_type()
                     && (attr()->has_default_values()
-                            || with_relu_post_op(is_training()));
+                            || with_relu_post_op(is_training()))
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md());
             if (!ok) return status::unimplemented;
 
             // BN+Add+Relu fusion is not currently implemented
@@ -88,12 +93,16 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = is_bwd() && set_default_formats_common()
+
+            bool ok = !is_fwd()
                     && utils::everyone_is(d_type, src_md()->data_type,
-                            diff_src_md()->data_type)
+                            diff_dst_md()->data_type, diff_src_md()->data_type)
                     && platform::has_data_type_support(d_type)
                     && check_scale_shift_data_type()
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md());
             if (!ok) return status::unimplemented;
 
             // BN+Add+Relu fusion is not currently implemented

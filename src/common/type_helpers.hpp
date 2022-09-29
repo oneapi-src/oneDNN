@@ -373,10 +373,12 @@ inline bool operator==(const batch_normalization_desc_t &lhs,
         const batch_normalization_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
-            && COMPARE_DESC_MEMBERS(data_desc)
-            && COMPARE_DESC_MEMBERS(diff_data_desc)
-            && COMPARE_DESC_MEMBERS(data_scaleshift_desc)
-            && COMPARE_DESC_MEMBERS(diff_data_scaleshift_desc)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(diff_src_desc)
+            && COMPARE_DESC_MEMBERS(diff_dst_desc)
+            && COMPARE_DESC_MEMBERS(scaleshift_desc)
+            && COMPARE_DESC_MEMBERS(diff_scaleshift_desc)
             && COMPARE_DESC_MEMBERS(stat_desc)
             && COMPARE_FLOAT_DESC_MEMBERS(batch_norm_epsilon)
             && COMPARE_DESC_MEMBERS(flags);

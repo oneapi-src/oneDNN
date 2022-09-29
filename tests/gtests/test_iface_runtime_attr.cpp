@@ -71,21 +71,21 @@ TEST_F(runtime_attr_test_t, TestBNorm) {
         normalization_flags flags = normalization_flags::use_global_stats;
 
         CHECK_OK(batch_normalization_forward::primitive_desc(
-                eng, prop_kind::forward_inference, md, 0.1f, flags));
+                eng, prop_kind::forward_inference, md, md, 0.1f, flags));
         CHECK_UNIMPL(batch_normalization_forward::primitive_desc(eng,
-                prop_kind::forward_inference, md, 0.1f, flags,
+                prop_kind::forward_inference, md, md, 0.1f, flags,
                 gen_attr_with_oscale(false)));
         CHECK_UNIMPL(batch_normalization_forward::primitive_desc(eng,
-                prop_kind::forward_inference, md, 0.1f, flags,
+                prop_kind::forward_inference, md, md, 0.1f, flags,
                 gen_attr_with_oscale(true)));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS,
                      DNNL_ARG_MEAN, DNNL_ARG_VARIANCE, DNNL_ARG_DST}) {
             CHECK_UNIMPL(batch_normalization_forward::primitive_desc(eng,
-                    prop_kind::forward_inference, md, 0.1f, flags,
+                    prop_kind::forward_inference, md, md, 0.1f, flags,
                     gen_attr_with_zp(false, arg)));
             CHECK_UNIMPL(batch_normalization_forward::primitive_desc(eng,
-                    prop_kind::forward_inference, md, 0.1f, flags,
+                    prop_kind::forward_inference, md, md, 0.1f, flags,
                     gen_attr_with_zp(true, arg)));
         }
     }

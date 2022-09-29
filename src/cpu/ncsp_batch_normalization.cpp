@@ -83,8 +83,7 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
         return res;
     };
 
-    const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
-    const dim_t SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
+    const dim_t SP = pd()->H() * pd()->W() * pd()->D();
     const dim_t simd_w = 16;
     const dim_t SP_cl_align = utils::rnd_up(SP, simd_w);
     const dim_t N = pd()->MB();
@@ -325,8 +324,7 @@ status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
         diff_shift = &scratchpad.template get<acc_data_t>(
                 key_bnorm_tmp_diff_ss)[scratch_diff_shift_off];
 
-    const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
-    const dim_t SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
+    const dim_t SP = pd()->D() * pd()->H() * pd()->W();
     const dim_t simd_w = 16; //??
     const dim_t SP_cl_align = utils::rnd_up(SP, simd_w);
     const dim_t C = pd()->C(), N = pd()->MB();

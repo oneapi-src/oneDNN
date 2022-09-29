@@ -45,15 +45,20 @@ struct nspc_batch_normalization_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            using namespace prop_kind;
+            using namespace format_tag;
 
             bool ok = is_fwd() && !has_zero_dim_memory()
-                    && src_md()->data_type == d_type
+                    && utils::everyone_is(
+                            d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
                     && check_scale_shift_data_type()
-                    && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
                     && (attr()->has_default_values()
-                            || this->with_relu_post_op(is_training()));
+                            || with_relu_post_op(is_training()))
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md())
+                    && memory_desc_matches_one_of_tag(
+                            *src_md(), ndhwc, nhwc, nwc, nc);
             if (!ok) return status::unimplemented;
 
             // BN+Add+Relu fusion is not currently implemented
@@ -121,17 +126,21 @@ struct nspc_batch_normalization_bwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            using namespace prop_kind;
+            using namespace format_tag;
 
-            bool ok = is_bwd() && !has_zero_dim_memory()
-                    && set_default_formats_common()
+            bool ok = !is_fwd() && !has_zero_dim_memory()
                     && utils::everyone_is(d_type, src_md()->data_type,
-                            diff_src_md()->data_type)
+                            diff_dst_md()->data_type, diff_src_md()->data_type)
                     && platform::has_data_type_support(d_type)
                     && check_scale_shift_data_type()
-                    && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
-                    && memory_desc_matches_tag(*diff_src_md(), format_tag::nhwc)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md())
+                    && memory_desc_matches_one_of_tag(
+                            *src_md(), ndhwc, nhwc, nwc, nc)
+                    && memory_desc_matches_one_of_tag(
+                            *diff_src_md(), ndhwc, nhwc, nwc, nc);
             if (!ok) return status::unimplemented;
 
             // BN+Add+Relu fusion is not currently implemented

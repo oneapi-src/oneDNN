@@ -76,15 +76,20 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
             if ((~norm_flags_supported & desc()->flags) != 0)
                 return status::unimplemented;
 
-            auto src_dt = src_md()->data_type;
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = is_fwd() && utils::one_of(src_dt, f16, f32, s8)
+            bool ok = is_fwd()
+                    && utils::one_of(src_md()->data_type, f16, f32, s8)
+                    && src_md()->data_type == dst_md()->data_type
+                    && check_scale_shift_data_type()
                     && attr()->has_default_values(attr_skip_mask)
                     && IMPLICATION(!attr()->has_default_values(),
                             attr()->post_ops_.len() == 1 && with_relu_post_op())
-                    && IMPLICATION(utils::one_of(src_dt, s8, f16),
+                    && IMPLICATION(utils::one_of(src_md()->data_type, s8, f16),
                             !is_training() && stats_is_src())
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md())
                     && src_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;
 
@@ -136,14 +141,14 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
             if ((~norm_flags_supported & desc()->flags) != 0)
                 return status::unimplemented;
 
-            bool ok = is_bwd()
-                    && IMPLICATION(
-                            desc()->prop_kind == prop_kind::backward_data,
-                            !use_scale())
-                    && (utils::everyone_is(
-                            f32, src_md()->data_type, diff_src_md()->data_type))
+            bool ok = !is_fwd()
+                    && utils::everyone_is(f32, src_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type)
+                    && check_scale_shift_data_type()
                     && attr()->has_default_values()
                     && set_default_formats_common()
+                    && memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md())
                     && src_md()->format_desc.blocking.inner_nblks == 0
                     && diff_src_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;

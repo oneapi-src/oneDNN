@@ -184,7 +184,7 @@ protected:
         bool isTraining = pk == prop_kind::forward_training;
 
         bnorm_fwd_pd = batch_normalization_forward::primitive_desc(
-                eng, pk, *data_d, p.epsilon, flags);
+                eng, pk, *data_d, *data_d, p.epsilon, flags);
         bnorm_fwd_pd = batch_normalization_forward::primitive_desc(
                 bnorm_fwd_pd.get()); // test construction from a C pd
 
@@ -251,11 +251,12 @@ protected:
         SKIP_IF_CUDA(useGlobalStats, "Global stats not supported");
         SKIP_IF_CUDA(useScale || useShift, "Scale and Shift not supported");
 
-        bnorm_fwd_pd = batch_normalization_forward::primitive_desc(
-                eng, prop_kind::forward_training, *data_d, p.epsilon, flags);
+        bnorm_fwd_pd = batch_normalization_forward::primitive_desc(eng,
+                prop_kind::forward_training, *data_d, *data_d, p.epsilon,
+                flags);
 
-        bnorm_bwd_pd = batch_normalization_backward::primitive_desc(
-                eng, pk, *diff_d, *data_d, p.epsilon, flags, bnorm_fwd_pd);
+        bnorm_bwd_pd = batch_normalization_backward::primitive_desc(eng, pk,
+                *diff_d, *diff_d, *data_d, p.epsilon, flags, bnorm_fwd_pd);
         bnorm_bwd_pd = batch_normalization_backward::primitive_desc(
                 bnorm_bwd_pd.get()); // test construction from a C pd
 

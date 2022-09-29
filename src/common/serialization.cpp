@@ -243,10 +243,12 @@ void serialize_desc(serialization_stream_t &sstream,
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);
     // Memory descriptors
-    serialize_md(sstream, desc.data_desc);
-    serialize_md(sstream, desc.diff_data_desc);
-    serialize_md(sstream, desc.data_scaleshift_desc);
-    serialize_md(sstream, desc.diff_data_scaleshift_desc);
+    serialize_md(sstream, desc.src_desc);
+    serialize_md(sstream, desc.dst_desc);
+    serialize_md(sstream, desc.diff_src_desc);
+    serialize_md(sstream, desc.diff_dst_desc);
+    serialize_md(sstream, desc.scaleshift_desc);
+    serialize_md(sstream, desc.diff_scaleshift_desc);
     serialize_md(sstream, desc.stat_desc);
     // Epsilon
     sstream.write(&desc.batch_norm_epsilon);

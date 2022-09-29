@@ -214,7 +214,7 @@ struct jit_bnorm_t : public jit_generator {
 
         mov(X_DEFAULT_ADDR, reg_param);
         ldr(reg_rbuf1, pre_ptr(X_DEFAULT_ADDR, PARAM_OFF(rbuf1)));
-        if (bdesc_->is_bwd()) {
+        if (!bdesc_->is_fwd()) {
             LDR_PARAM(reg_rbuf2, rbuf2, rbuf1);
             LDR_PARAM(reg_coff_max, coff_max, rbuf2);
         } else {
@@ -1950,9 +1950,9 @@ struct jit_bnorm_t : public jit_generator {
         const int simd_w = isa == asimd
                 ? 8
                 : cpu_isa_traits<isa>::vlen / sizeof(acc_data_t);
-        is_bf16_ = bdesc_->desc()->data_desc.data_type == data_type::bf16;
+        is_bf16_ = bdesc_->desc()->src_desc.data_type == data_type::bf16;
         size_t dt_size
-                = types::data_type_size(bdesc_->desc()->data_desc.data_type);
+                = types::data_type_size(bdesc_->desc()->src_desc.data_type);
         const memory_desc_wrapper src_d(bdesc_->src_md());
         is_nspc_
                 = src_d.matches_one_of_tag(format_tag::nhwc, format_tag::ndhwc);
@@ -2002,7 +2002,7 @@ struct driver_t : public c_compatible {
         is_nspc_
                 = src_d.matches_one_of_tag(format_tag::nhwc, format_tag::ndhwc);
 
-        dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
+        dt_size_ = types::data_type_size(bdesc_->desc()->src_desc.data_type);
         size_t data_size = dt_size_ * bdesc_->MB() * C_PADDED * bdesc_->D()
                 * bdesc_->H() * bdesc_->W();
         l3_size_ = platform::get_per_core_cache_size(3) * dnnl_get_max_threads()
@@ -2173,12 +2173,12 @@ private:
     };
 
     static bool use_tmp_stats(const batch_normalization_pd_t *bdesc) {
-        return true && !bdesc->stats_is_src()
+        return !bdesc->stats_is_src()
                 && bdesc->desc()->prop_kind == prop_kind::forward_inference;
     }
 
     static bool use_tmp_diff_scale(const batch_normalization_pd_t *bdesc) {
-        return false || (bdesc->is_bwd() && !bdesc->use_scale())
+        return (!bdesc->is_fwd() && !bdesc->use_scale())
                 || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
@@ -2203,17 +2203,18 @@ using namespace utils;
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
-    bool ok = true
-            /* the algorithm requires barriers for best performance so for TBB we use
-             * jit_uni_tbb_batch_normalization instead */
-            && dnnl_thr_syncable() && mayiuse(isa) && is_fwd()
-            && !has_zero_dim_memory() && one_of(ndims(), 4, 5)
-            && one_of(src_md()->data_type, f32, bf16)
-            && IMPLICATION(src_md()->data_type == bf16, false)
+    bool ok = is_fwd() && mayiuse(isa)
+            && !has_zero_dim_memory()
+            // Algorithm requires barriers for best performance.
+            // TBB utilizes jit_uni_tbb_batch_normalization implementation.
+            && dnnl_thr_syncable() && one_of(ndims(), 4, 5)
+            && utils::everyone_is(f32, src_md()->data_type, dst_md()->data_type)
             && check_scale_shift_data_type()
-            /* separate scale and shift are not supported */
-            && !use_scale() && !use_shift()
-            && (attr()->has_default_values() || this->with_relu_post_op());
+            /* shift is not supported */
+            && !use_shift()
+            && (attr()->has_default_values() || with_relu_post_op())
+            && set_default_formats_common()
+            && memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md());
     if (!ok) return status::unimplemented;
 
     const memory_desc_wrapper src_d(src_md());
@@ -2298,22 +2299,17 @@ jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t() {
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
-    bool ok = true
-            /* the algorithm requires barriers for best performance so for TBB we use
-             * jit_uni_tbb_batch_normalization instead */
-            && dnnl_thr_syncable() && mayiuse(isa) && is_bwd()
-            && !has_zero_dim_memory() && one_of(ndims(), 4, 5)
-            && set_default_formats_common()
-            && one_of(true,
-                    everyone_is(
-                            f32, src_md()->data_type, diff_src_md()->data_type),
-                    everyone_is(bf16, src_md()->data_type,
-                            diff_src_md()->data_type))
-            && IMPLICATION(src_md()->data_type == bf16, false)
-            && check_scale_shift_data_type()
-            && attr()->has_default_values()
-            /* separate scale and shift are not supported */
-            && !use_scale() && !use_shift();
+    bool ok = !is_fwd() && mayiuse(isa)
+            && !has_zero_dim_memory()
+            // Algorithm requires barriers for best performance.
+            // TBB utilizes jit_uni_tbb_batch_normalization implementation.
+            && dnnl_thr_syncable() && one_of(ndims(), 4, 5)
+            && everyone_is(f32, src_md()->data_type, diff_src_md()->data_type,
+                    diff_dst_md()->data_type)
+            && check_scale_shift_data_type() && attr()->has_default_values()
+            && !use_shift() && set_default_formats_common()
+            && memory_desc_wrapper(diff_src_md())
+                    == memory_desc_wrapper(diff_dst_md());
     if (!ok) return status::unimplemented;
 
     const memory_desc_wrapper src_d(src_md());

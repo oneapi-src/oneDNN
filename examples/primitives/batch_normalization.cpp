@@ -92,6 +92,7 @@ void batch_normalization_example(dnnl::engine::kind engine_kind) {
 
     // Create src and scale/shift memory descriptors and memory objects.
     auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
+    auto dst_md = memory::desc(src_dims, dt::f32, tag::nchw);
     auto scaleshift_md = memory::desc(scaleshift_dims, dt::f32, tag::x);
 
     auto src_mem = memory(src_md, engine);
@@ -105,7 +106,7 @@ void batch_normalization_example(dnnl::engine::kind engine_kind) {
 
     // Create primitive descriptor.
     auto bnorm_pd = batch_normalization_forward::primitive_desc(engine,
-            prop_kind::forward_training, src_md, 1.e-10f,
+            prop_kind::forward_training, src_md, dst_md, 1.e-10f,
             normalization_flags::use_scale | normalization_flags::use_shift
                     | normalization_flags::fuse_norm_relu);
 

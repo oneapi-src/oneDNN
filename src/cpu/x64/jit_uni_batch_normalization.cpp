@@ -93,7 +93,7 @@ struct jit_bnorm_conf_t {
         const memory_desc_wrapper src_d(pd_->src_md());
         is_nspc_ = is_nspc(src_d);
 
-        dt_size_ = types::data_type_size(pd_->desc()->data_desc.data_type);
+        dt_size_ = types::data_type_size(pd_->src_md()->data_type);
         size_t data_size = dt_size_ * N * C_PADDED * SP;
         const size_t l3_size = platform::get_per_core_cache_size(3) * nthr;
         // TODO: cache balancing for nspc
@@ -389,7 +389,7 @@ struct jit_bnorm_t : public jit_generator {
     void load_common_params() {
 #define PARAM_OFF(x) offsetof(call_params_t, x)
         mov(reg_rbuf1, ptr[reg_param + PARAM_OFF(rbuf1)]);
-        if (pd_->is_bwd()) mov(reg_rbuf2, ptr[reg_param + PARAM_OFF(rbuf2)]);
+        if (!pd_->is_fwd()) mov(reg_rbuf2, ptr[reg_param + PARAM_OFF(rbuf2)]);
         mov(reg_coff_max, ptr[reg_param + PARAM_OFF(coff_max)]);
         mov(reg_soff_max, ptr[reg_param + PARAM_OFF(soff_max)]);
         mov(reg_mb_stride_Bc, ptr[reg_param + PARAM_OFF(mb_stride_Bc)]);
@@ -1925,8 +1925,8 @@ struct jit_bnorm_t : public jit_generator {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
-        is_bf16_ = pd_->desc()->data_desc.data_type == data_type::bf16;
-        is_f16_ = pd_->desc()->data_desc.data_type == data_type::f16;
+        is_bf16_ = pd_->src_md()->data_type == data_type::bf16;
+        is_f16_ = pd_->src_md()->data_type == data_type::f16;
         vlen_spat_data_ = vlen / (1 + is_xf16()); // 32B of xF16 -> 64B of FP32
 
         unroll_blocks = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
@@ -2170,12 +2170,12 @@ private:
     }
 
     static bool use_tmp_diff_scale(const batch_normalization_pd_t *pd) {
-        return (pd->is_bwd() && !pd->use_scale())
+        return (!pd->is_fwd() && !pd->use_scale())
                 || pd->desc()->prop_kind == prop_kind::backward_data;
     }
 
     static bool use_tmp_diff_shift(const batch_normalization_pd_t *pd) {
-        return (pd->is_bwd() && !pd->use_shift())
+        return (!pd->is_fwd() && !pd->use_shift())
                 || pd->desc()->prop_kind == prop_kind::backward_data;
     }
 
@@ -2193,12 +2193,13 @@ using namespace utils;
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
-    bool ok = true
-            /* the algorithm requires barriers for best performance so for TBB we use
-             * jit_uni_tbb_batch_normalization instead */
-            && dnnl_thr_syncable() && mayiuse(isa) && is_fwd()
+    bool ok = is_fwd() && mayiuse(isa)
             && !has_zero_dim_memory()
+            // Algorithm requires barriers for best performance.
+            // TBB utilizes jit_uni_tbb_batch_normalization implementation.
+            && dnnl_thr_syncable()
             && one_of(src_md()->data_type, f32, bf16, f16)
+            && src_md()->data_type == dst_md()->data_type
             && IMPLICATION(
                     src_md()->data_type == bf16, is_superset(isa, avx512_core))
             // Note: re-using avx512_core implementation for f16. This is okay
@@ -2208,7 +2209,9 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
             && check_scale_shift_data_type()
             && (attr()->has_default_values()
-                    || this->with_relu_post_op(is_training()));
+                    || with_relu_post_op(is_training()))
+            && set_default_formats_common()
+            && memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md());
     if (!ok) return status::unimplemented;
 
     // BN+Add+Relu fusion is not currently implemented
@@ -2297,25 +2300,25 @@ jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t() {
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
-    bool ok = true
-            /* the algorithm requires barriers for best performance so for TBB we use
-             * jit_uni_tbb_batch_normalization instead */
-            && dnnl_thr_syncable() && mayiuse(isa) && is_bwd()
-            && !has_zero_dim_memory() && set_default_formats_common()
-            && one_of(true,
-                    everyone_is(
-                            f32, src_md()->data_type, diff_src_md()->data_type),
-                    everyone_is(bf16, src_md()->data_type,
-                            diff_src_md()->data_type),
-                    everyone_is(
-                            f16, src_md()->data_type, diff_src_md()->data_type))
-            && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
+    bool ok = !is_fwd() && mayiuse(isa)
+            && !has_zero_dim_memory()
+            // Algorithm requires barriers for best performance.
+            // TBB utilizes jit_uni_tbb_batch_normalization implementation.
+            && dnnl_thr_syncable()
+            && one_of(src_md()->data_type, f32, bf16, f16)
+            && src_md()->data_type == diff_src_md()->data_type
+            && diff_src_md()->data_type == diff_dst_md()->data_type
+            && IMPLICATION(
+                    src_md()->data_type == bf16, is_superset(isa, avx512_core))
             // Note: re-using avx512_core implementation for f16. This is okay
             // as currently, we do not support binary post-ops for this
             // primitive.
             && IMPLICATION(src_md()->data_type == f16,
                     is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
-            && check_scale_shift_data_type() && attr()->has_default_values();
+            && check_scale_shift_data_type() && attr()->has_default_values()
+            && set_default_formats_common()
+            && memory_desc_wrapper(diff_src_md())
+                    == memory_desc_wrapper(diff_dst_md());
     if (!ok) return status::unimplemented;
 
     // BN+Add+Relu fusion is not currently implemented

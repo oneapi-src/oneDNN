@@ -104,7 +104,7 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
             using namespace format_tag;
 
             // Get memory desc to find sizes and dims
-            const memory_desc_wrapper data_d(data_md_);
+            const memory_desc_wrapper src_d(src_md_);
             const memory_desc_wrapper stat_d(stat_md_);
 
             using smask_t = primitive_attr_t::skip_mask_t;
@@ -117,17 +117,17 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
 
             ACL_CHECK_SUPPORT(!is_fwd(), "must be forward mode");
 
-            ACL_CHECK_SUPPORT(data_d.data_type() != data_type::f32,
+            ACL_CHECK_SUPPORT(src_d.data_type() != data_type::f32,
                     "data type must be f32");
 
             // Dimensions can be permuted but no blocking or padding
-            ACL_CHECK_SUPPORT((!data_d.is_plain() || !stat_d.is_plain()),
+            ACL_CHECK_SUPPORT((!src_d.is_plain() || !stat_d.is_plain()),
                     "tensors must be plain");
-            ACL_CHECK_SUPPORT((!data_d.is_dense() || !stat_d.is_dense()),
+            ACL_CHECK_SUPPORT((!src_d.is_dense() || !stat_d.is_dense()),
                     "tensors must be dense");
 
-            ACL_CHECK_SUPPORT(data_d.is_zero() || data_d.has_zero_dim(),
-                    "zero sized data tensor");
+            ACL_CHECK_SUPPORT(src_d.is_zero() || src_d.has_zero_dim(),
+                    "zero sized src tensor");
             ACL_CHECK_SUPPORT(stat_d.is_zero() || stat_d.has_zero_dim(),
                     "zero sized stats tensor");
 
@@ -138,11 +138,11 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
                     arm_compute::DataType::F32, arm_compute::DataLayout::NHWC);
 
             // We can simplify into two cases: channels are dense or not dense
-            auto channel_stride = data_d.blocking_desc().strides[1];
+            auto channel_stride = src_d.blocking_desc().strides[1];
             if (channel_stride == 1) {
                 // Channels are dense => NHWC
                 // Collapse all dims except channels into W
-                auto elems = data_d.nelems();
+                auto elems = src_d.nelems();
                 dim_t w = elems / C();
 
                 // For small problems, it is better to disable threads with ACL
@@ -201,12 +201,12 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
                 // will be for a different, unrecoverable reason
                 CHECK(validate(abp.act_info));
                 // init any additional post ops
-                CHECK(post_ops.init(engine, attr_.post_ops_, data_md_));
+                CHECK(post_ops.init(engine, attr_.post_ops_, src_md_));
             } else {
                 // init post ops, removing first eltwise for fusion
                 arm_compute::ActivationLayerInfo act_info;
                 CHECK(post_ops.init(
-                        engine, attr_.post_ops_, data_md_, act_info));
+                        engine, attr_.post_ops_, src_md_, act_info));
                 // ACL BNorm doesn't support all the same eltwise ops as the
                 // standalone ACL operator, so fall back to unfused eltwise if
                 // validate fails
@@ -216,7 +216,7 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
                 } else {
                     // validate unfused eltwise + remaining post ops
                     CHECK(validate());
-                    CHECK(post_ops.init(engine, attr_.post_ops_, data_md_));
+                    CHECK(post_ops.init(engine, attr_.post_ops_, src_md_));
                 }
             }
 

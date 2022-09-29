@@ -309,10 +309,12 @@ size_t get_desc_hash(const batch_normalization_desc_t &desc) {
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
     // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.data_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_data_desc));
-    seed = hash_combine(seed, get_md_hash(desc.data_scaleshift_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_data_scaleshift_desc));
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.scaleshift_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_scaleshift_desc));
     seed = hash_combine(seed, get_md_hash(desc.stat_desc));
     // Epsilon
     seed = hash_combine(seed, desc.batch_norm_epsilon);

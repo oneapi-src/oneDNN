@@ -44,17 +44,20 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            using namespace prop_kind;
             using namespace format_tag;
 
             bool ok = is_fwd() && !has_zero_dim_memory()
-                    && src_md()->data_type == d_type
+                    && utils::everyone_is(
+                            d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
                     && check_scale_shift_data_type()
-                    && memory_desc_matches_one_of_tag(
-                            *src_md(), ncdhw, nchw, nc)
                     && (attr()->has_default_values()
-                            || this->with_relu_post_op(is_training()));
+                            || with_relu_post_op(is_training()))
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md())
+                    && memory_desc_matches_one_of_tag(
+                            *src_md(), ncdhw, nchw, ncw);
             if (!ok) return status::unimplemented;
 
             // BN+Add+Relu fusion is not currently implemented
@@ -88,8 +91,7 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
 
             if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
                 const int simd_w = 16;
-                const bool has_spatial = utils::one_of(ndims(), 4, 5);
-                const int SP = has_spatial ? D() * H() * W() : 1;
+                const int SP = D() * H() * W();
                 const int nbufs = 2;
                 const size_t cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(SP, simd_w);
@@ -125,17 +127,19 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
             using namespace data_type;
             using namespace format_tag;
 
-            bool ok = is_bwd() && !has_zero_dim_memory()
-                    && set_default_formats_common()
+            bool ok = !is_fwd() && !has_zero_dim_memory()
                     && utils::everyone_is(d_type, src_md()->data_type,
-                            diff_src_md()->data_type)
+                            diff_dst_md()->data_type, diff_src_md()->data_type)
                     && platform::has_data_type_support(d_type)
                     && check_scale_shift_data_type()
+                    && attr()->has_default_values()
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md())
                     && memory_desc_matches_one_of_tag(
-                            *src_md(), ncdhw, nchw, nc)
+                            *src_md(), ncdhw, nchw, ncw)
                     && memory_desc_matches_one_of_tag(
-                            *diff_src_md(), ncdhw, nchw, nc)
-                    && attr()->has_default_values();
+                            *diff_src_md(), ncdhw, nchw, ncw);
             if (!ok) return status::unimplemented;
 
             // BN+Add+Relu fusion is not currently implemented
@@ -171,8 +175,7 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
 
             if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
                 const int simd_w = 16;
-                const bool has_spatial = utils::one_of(ndims(), 4, 5);
-                const int SP = has_spatial ? D() * H() * W() : 1;
+                const int SP = D() * H() * W();
                 const int nbufs = 2 + !use_global_stats();
                 const size_t cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(SP, simd_w);

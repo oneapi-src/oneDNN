@@ -212,7 +212,7 @@ struct jit_bnorm_process_relu_t {
         , with_relu_inf_only_(
                   with_relu_ && !(pd->fuse_norm_relu() && pd->is_training()))
         , bit_shift_(static_cast<int>(log2(bits_per_byte
-                  * types::data_type_size(pd->desc()->data_desc.data_type))))
+                  * types::data_type_size(pd->src_md()->data_type))))
         , alpha(with_relu_inf_only_ && pd->with_relu_post_op(pd->is_training())
                           ? pd->alpha()
                           : 0.f) {}
@@ -368,8 +368,8 @@ struct helper_vmovups_data_t {
             jit_generator *host, Zmm zmm_reserved_1, Zmm zmm_reserved_2,
             Zmm zmm_reserved_3, Zmm zmm_reserved_4, Reg64 reg_tmp)
         : h_(host), bf16_emu_(nullptr) {
-        is_bf16_ = pd->desc()->data_desc.data_type == data_type::bf16;
-        is_f16_ = pd->desc()->data_desc.data_type == data_type::f16;
+        is_bf16_ = pd->src_md()->data_type == data_type::bf16;
+        is_f16_ = pd->src_md()->data_type == data_type::f16;
         if (is_bf16_ && !mayiuse(avx512_core_bf16)) {
             bf16_emu_ = utils::make_unique<bf16_emulation_t>(h_, zmm_reserved_1,
                     zmm_reserved_2, zmm_reserved_3, reg_tmp, zmm_reserved_4,
@@ -728,8 +728,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         std::tie(stride_N_, stride_S_, stride_C_)
                 = get_data_strides<isa>(pd_, tag_kind);
 
-        data_type_size_
-                = types::data_type_size(pd->desc()->data_desc.data_type);
+        data_type_size_ = types::data_type_size(pd->src_md()->data_type);
         acc_type_size_ = sizeof(acc_data_t);
     }
 };
@@ -1003,14 +1002,13 @@ struct jit_bnorm_fwd_t : public jit_generator {
         std::tie(stride_N_, stride_S_, stride_C_)
                 = get_data_strides<isa>(pd_, tag_kind);
 
-        data_type_size_
-                = types::data_type_size(pd->desc()->data_desc.data_type);
+        data_type_size_ = types::data_type_size(pd->src_md()->data_type);
         acc_type_size_ = sizeof(acc_data_t);
     }
 
     void generate() override {
-        bool is_xf16 = utils::one_of(pd_->desc()->data_desc.data_type,
-                data_type::bf16, data_type::f16);
+        bool is_xf16 = utils::one_of(
+                pd_->src_md()->data_type, data_type::bf16, data_type::f16);
         const bool is_tail_in_nspc_format
                 = tag_kind_ == jit_memory_tag_kind_t::nspc
                 && jit_tail_.tail_ != 0;
@@ -1291,14 +1289,13 @@ struct jit_bnorm_bwd_t : public jit_generator {
         std::tie(stride_N_, stride_S_, stride_C_)
                 = get_data_strides<isa>(pd_, tag_kind);
 
-        data_type_size_
-                = types::data_type_size(pd->desc()->data_desc.data_type);
+        data_type_size_ = types::data_type_size(pd->src_md()->data_type);
         acc_type_size_ = sizeof(acc_data_t);
     }
 
     void generate() override {
-        bool is_bf16 = pd_->desc()->data_desc.data_type == data_type::bf16;
-        bool is_f16 = pd_->desc()->data_desc.data_type == data_type::f16;
+        bool is_bf16 = pd_->src_md()->data_type == data_type::bf16;
+        bool is_f16 = pd_->src_md()->data_type == data_type::f16;
         const bool is_tail_in_nspc_format
                 = tag_kind_ == jit_memory_tag_kind_t::nspc
                 && jit_tail_.tail_ != 0;
@@ -1690,8 +1687,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         std::tie(stride_N_, stride_S_, stride_C_)
                 = get_data_strides<isa>(pd_, tag_kind);
 
-        data_type_size_
-                = types::data_type_size(pd->desc()->data_desc.data_type);
+        data_type_size_ = types::data_type_size(pd->src_md()->data_type);
         acc_type_size_ = sizeof(acc_data_t);
     }
 
@@ -1730,7 +1726,7 @@ public:
 
         const size_t l3_size = platform::get_per_core_cache_size(3) * nthr_ / 2;
         int num_tensors = pd_->is_fwd() ? 1 : 2;
-        dt_size_ = types::data_type_size(pd_->desc()->data_desc.data_type);
+        dt_size_ = types::data_type_size(pd_->src_md()->data_type);
         const size_t working_set_size
                 = dt_size_ * N_ * S_ * simd_w * num_tensors;
 
@@ -2131,12 +2127,12 @@ private:
     }
 
     static bool use_tmp_diff_scale(const batch_normalization_pd_t *pd) {
-        return (pd->is_bwd() && !pd->use_scale())
+        return (!pd->is_fwd() && !pd->use_scale())
                 || pd->desc()->prop_kind == prop_kind::backward_data;
     }
 
     static bool use_tmp_diff_shift(const batch_normalization_pd_t *pd) {
-        return (pd->is_bwd() && !pd->use_shift())
+        return (!pd->is_fwd() && !pd->use_shift())
                 || pd->desc()->prop_kind == prop_kind::backward_data;
     }
 
@@ -2151,7 +2147,7 @@ private:
                     * sizeof(acc_data_t);
 
             dim_t size_src_dst = 2 * N_ * S_ * get_c_padded(pd_)
-                    * types::data_type_size(pd_->desc()->data_desc.data_type);
+                    * types::data_type_size(pd_->src_md()->data_type);
 
             dim_t total_size = size_src_dst + size_stats_ss_tensors;
 
@@ -2250,10 +2246,11 @@ using namespace utils;
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
         engine_t *engine) {
-    const bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
+    const bool ok = is_fwd() && mayiuse(isa) && !has_zero_dim_memory()
             && one_of(src_md()->data_type, f32, bf16, f16)
-            && IMPLICATION(src_md()->data_type == bf16,
-                    is_superset(isa, avx512_core) && mayiuse(avx512_core))
+            && src_md()->data_type == dst_md()->data_type
+            && IMPLICATION(
+                    src_md()->data_type == bf16, is_superset(isa, avx512_core))
             // Note: re-using avx512_core implementation for f16. This is okay
             // as currently, we do not support binary post-ops for this
             // primitive.
@@ -2261,7 +2258,9 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
                     is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
             && check_scale_shift_data_type()
             && (attr()->has_default_values()
-                    || this->with_relu_post_op(is_training()));
+                    || with_relu_post_op(is_training()))
+            && set_default_formats_common()
+            && memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md());
     if (!ok) return status::unimplemented;
 
     // BN+Add+Relu fusion is not currently implemented
@@ -2354,23 +2353,21 @@ template struct jit_uni_tbb_batch_normalization_fwd_t<avx512_core>;
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
         engine_t *engine) {
-    const bool ok = mayiuse(isa) && is_bwd() && !has_zero_dim_memory()
-            && set_default_formats_common()
-            && one_of(true,
-                    everyone_is(
-                            f32, src_md()->data_type, diff_src_md()->data_type),
-                    everyone_is(bf16, src_md()->data_type,
-                            diff_src_md()->data_type),
-                    everyone_is(
-                            f16, src_md()->data_type, diff_src_md()->data_type))
-            && IMPLICATION(src_md()->data_type == bf16,
-                    is_superset(isa, avx512_core) && mayiuse(avx512_core))
+    bool ok = !is_fwd() && mayiuse(isa) && !has_zero_dim_memory()
+            && one_of(src_md()->data_type, f32, bf16, f16)
+            && src_md()->data_type == diff_src_md()->data_type
+            && diff_src_md()->data_type == diff_dst_md()->data_type
+            && IMPLICATION(
+                    src_md()->data_type == bf16, is_superset(isa, avx512_core))
             // Note: re-using avx512_core implementation for f16. This is okay
             // as currently, we do not support binary post-ops for this
             // primitive.
             && IMPLICATION(src_md()->data_type == f16,
                     is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
-            && check_scale_shift_data_type() && attr()->has_default_values();
+            && check_scale_shift_data_type() && attr()->has_default_values()
+            && set_default_formats_common()
+            && memory_desc_wrapper(diff_src_md())
+                    == memory_desc_wrapper(diff_dst_md());
     if (!ok) return status::unimplemented;
 
     // BN+Add+Relu fusion is not currently implemented

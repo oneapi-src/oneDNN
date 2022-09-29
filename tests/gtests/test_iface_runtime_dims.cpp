@@ -59,16 +59,16 @@ TEST_F(runtime_dim_test_t, TestBNorm) {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     normalization_flags flags {};
     CHECK_UNIMPL(batch_normalization_forward::primitive_desc(
-            eng, prop_kind::forward, md, 0.1f, flags));
+            eng, prop_kind::forward, md, md, 0.1f, flags));
 
     batch_normalization_forward::primitive_desc fwd_hint;
     {
         auto valid_md = memory::desc({2, 16, 3, 3}, data_type::f32, tag::abcd);
-        CHECK_OK(fwd_hint = batch_normalization_forward::primitive_desc(
-                         eng, prop_kind::forward, valid_md, 0.1f, flags));
+        CHECK_OK(fwd_hint = batch_normalization_forward::primitive_desc(eng,
+                         prop_kind::forward, valid_md, valid_md, 0.1f, flags));
     }
     CHECK_UNIMPL(batch_normalization_backward::primitive_desc(
-            eng, prop_kind::backward_data, md, md, 0.1f, flags, fwd_hint));
+            eng, prop_kind::backward_data, md, md, md, 0.1f, flags, fwd_hint));
 }
 
 TEST_F(runtime_dim_test_t, TestBinary) {
