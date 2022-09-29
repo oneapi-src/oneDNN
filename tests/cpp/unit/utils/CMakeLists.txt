@@ -24,6 +24,7 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_verbose.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_json.cpp
 )
 
 set_property(GLOBAL APPEND PROPERTY ${LIB_NAME}_UNIT_TEST_DEPS $<TARGET_OBJECTS:${OBJ_LIB}>)
