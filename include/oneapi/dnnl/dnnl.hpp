@@ -11317,7 +11317,8 @@ struct shuffle_forward : public primitive {
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
-        /// @param data_desc Source and destination memory descriptor.
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
         /// @param axis The axis along which the data is shuffled.
         /// @param group_size Shuffle group size.
         /// @param attr Primitive attributes to use. Attributes are optional
@@ -11327,14 +11328,16 @@ struct shuffle_forward : public primitive {
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
         primitive_desc(const engine &aengine, prop_kind aprop_kind,
-                const memory::desc &data_desc, int axis, int group_size,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                int axis, int group_size,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_shuffle_forward_primitive_desc_create(
                     &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    data_desc.get(), axis, group_size, attr.get());
+                    src_desc.get(), dst_desc.get(), axis, group_size,
+                    attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -11398,8 +11401,8 @@ struct shuffle_backward : public primitive {
         /// primitive.
         ///
         /// @param aengine Engine to use.
-        /// @param diff_data_desc Diff source and diff destination memory
-        ///     descriptor.
+        /// @param diff_src_desc Diff source memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
         /// @param axis The axis along which the data is shuffled.
         /// @param group_size Shuffle group size.
         /// @param hint_fwd_pd Primitive descriptor for a shuffle forward
@@ -11411,16 +11414,17 @@ struct shuffle_backward : public primitive {
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const engine &aengine,
-                const memory::desc &diff_data_desc, int axis, int group_size,
+        primitive_desc(const engine &aengine, const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc, int axis, int group_size,
                 const shuffle_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_shuffle_backward_primitive_desc_create(
-                    &pd, aengine.get(), diff_data_desc.get(), axis, group_size,
-                    hint_fwd_pd.get(), attr.get());
+                    &pd, aengine.get(), diff_src_desc.get(),
+                    diff_dst_desc.get(), axis, group_size, hint_fwd_pd.get(),
+                    attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,

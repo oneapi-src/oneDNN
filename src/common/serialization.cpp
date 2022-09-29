@@ -502,7 +502,8 @@ void serialize_desc(
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);
     // Memory descriptors
-    serialize_md(sstream, desc.data_desc);
+    serialize_md(sstream, desc.src_desc);
+    serialize_md(sstream, desc.dst_desc);
     // Axis
     sstream.write(&desc.axis);
     // Groupe size

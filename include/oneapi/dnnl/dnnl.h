@@ -1569,7 +1569,8 @@ dnnl_deconvolution_backward_weights_primitive_desc_create(
 /// @param engine Engine to use.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
-/// @param data_desc Source and destination memory descriptor.
+/// @param src_desc Source memory descriptor.
+/// @param dst_desc Destination memory descriptor.
 /// @param axis The axis along which the data is shuffled.
 /// @param group_size Shuffle group size.
 /// @param attr Primitive attributes (can be NULL).
@@ -1577,14 +1578,16 @@ dnnl_deconvolution_backward_weights_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_shuffle_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t data_desc,
-        int axis, dnnl_dim_t group_size, const_dnnl_primitive_attr_t attr);
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t dst_desc, int axis, dnnl_dim_t group_size,
+        const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for a shuffle backward propagation primitive
 ///
 /// @param primitive_desc Output primitive descriptor.
 /// @param engine Engine to use.
-/// @param diff_data_desc Diff source and diff destination memory descriptor.
+/// @param diff_src_desc Diff source memory descriptor.
+/// @param diff_dst_desc Diff destination memory descriptor.
 /// @param axis The axis along which the data is shuffled.
 /// @param group_size Shuffle group size.
 /// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
@@ -1594,8 +1597,9 @@ dnnl_status_t DNNL_API dnnl_shuffle_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_shuffle_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        const_dnnl_memory_desc_t diff_data_desc, int axis,
-        dnnl_dim_t group_size, const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc, int axis, dnnl_dim_t group_size,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_shuffle

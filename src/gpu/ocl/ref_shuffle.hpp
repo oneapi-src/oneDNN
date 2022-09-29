@@ -44,20 +44,18 @@ struct ref_shuffle_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            bool ok = true
-                    && utils::one_of(
-                            (int)types::data_type_size(data_md()->data_type), 1,
-                            2, 4)
+            const auto &md_src = is_fwd() ? src_md() : diff_src_md();
+            const auto &md_dst = is_fwd() ? dst_md() : diff_dst_md();
+            const memory_desc_wrapper src_d(md_src);
+            const memory_desc_wrapper dst_d(md_dst);
+
+            bool ok = src_d.data_type() == dst_d.data_type()
                     && attr()->has_default_values()
-                    && IMPLICATION(
-                            is_fwd(), !memory_desc_ndims_ok(src_md(), dst_md()))
-                    && IMPLICATION(!is_fwd(),
-                            !memory_desc_ndims_ok(diff_src_md(), diff_dst_md()))
-                    && IMPLICATION(
-                            desc()->data_desc.data_type == data_type::f16,
+                    && !memory_desc_ndims_ok(src_d.md_, dst_d.md_)
+                    && set_default_formats_common() && src_d == dst_d
+                    && IMPLICATION(src_md()->data_type == data_type::f16,
                             compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && IMPLICATION(!is_fwd(), set_default_formats_common());
+                                    compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
             return init_conf(engine);

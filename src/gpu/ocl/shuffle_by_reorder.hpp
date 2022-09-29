@@ -42,21 +42,20 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
     struct pd_t : public gpu_shuffle_pd_t {
         using gpu_shuffle_pd_t::gpu_shuffle_pd_t;
 
-        pd_t(const pd_t &other) = default;
         DECLARE_COMMON_PD_T("ocl:reorder:any", shuffle_by_reorder_t);
 
         status_t init(engine_t *engine) {
-            const memory_desc_wrapper input_mdw(
-                    is_fwd() ? src_md() : diff_dst_md());
-            const memory_desc_t *md_src = is_fwd() ? src_md() : diff_dst_md();
+            const auto &md_src = is_fwd() ? src_md() : diff_src_md();
+            const auto &md_dst = is_fwd() ? dst_md() : diff_dst_md();
+            const memory_desc_wrapper src_d(md_src);
+            const memory_desc_wrapper dst_d(md_dst);
 
-            bool ok = true && attr()->has_default_values()
-                    && IMPLICATION(!is_fwd(), set_default_formats_common());
+            bool ok = src_d.data_type() == dst_d.data_type()
+                    && md_src->format_kind == format_kind::blocked
+                    && attr()->has_default_values()
+                    && set_default_formats_common() && src_d == dst_d
+                    && src_d.is_dense();
             if (!ok) return status::unimplemented;
-
-            if (md_src->format_kind != dnnl_format_kind_t::dnnl_blocked) {
-                return status::unimplemented;
-            }
 
             // Abort if there's blocking on the dimension that's going to be
             // shuffled; such shuffle cannot be reduced to simple reorder.
@@ -67,7 +66,6 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
                     return status::unimplemented;
                 }
             }
-            if (!input_mdw.is_dense()) { return status::unimplemented; }
 
             auto tensor_size
                     = utils::array_product(md_src->dims, md_src->ndims);

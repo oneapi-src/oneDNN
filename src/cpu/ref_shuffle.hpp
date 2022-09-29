@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,18 +42,23 @@ struct ref_shuffle_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace format_tag;
 
-            const data_type_t data_type = data_md()->data_type;
-            bool ok = platform::has_data_type_support(data_type)
+            const memory_desc_wrapper src_d(
+                    is_fwd() ? src_md() : diff_src_md());
+            const memory_desc_wrapper dst_d(
+                    is_fwd() ? dst_md() : diff_dst_md());
+
+            bool ok = src_d.data_type() == dst_d.data_type()
+                    && platform::has_data_type_support(src_d.data_type())
                     && attr()->has_default_values()
-                    && IMPLICATION(!is_fwd(), set_default_formats_common());
+                    && set_default_formats_common() && src_d == dst_d;
             if (!ok) return status::unimplemented;
 
             if (ndims() == 5) {
                 dat_tag_ = memory_desc_matches_one_of_tag(
-                        *data_md(), nCdhw16c, nCdhw8c, nCdhw4c, ncdhw, ndhwc);
+                        *src_d.md_, nCdhw16c, nCdhw8c, nCdhw4c, ncdhw, ndhwc);
             } else if (ndims() == 4) {
                 dat_tag_ = memory_desc_matches_one_of_tag(
-                        *data_md(), nChw16c, nChw8c, nChw4c, nchw, nhwc);
+                        *src_d.md_, nChw16c, nChw8c, nChw4c, nchw, nhwc);
             } else
                 dat_tag_ = any;
 
@@ -84,8 +89,9 @@ struct ref_shuffle_t : public primitive_t {
     ~ref_shuffle_t() { free(rev_transposed_); }
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        const data_type_t data_type = pd()->data_md()->data_type;
-        switch (types::data_type_size(data_type)) {
+        const memory_desc_wrapper src_d(
+                pd()->is_fwd() ? pd()->src_md() : pd()->diff_src_md());
+        switch (types::data_type_size(src_d.data_type())) {
             case sizeof(float): return execute_<sizeof(float)>(ctx); break;
             case sizeof(bfloat16_t):
                 return execute_<sizeof(bfloat16_t)>(ctx);

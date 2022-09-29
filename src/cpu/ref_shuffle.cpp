@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,8 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     using namespace utils;
     using data_t = typename typesize_traits<data_type_size>::type;
 
-    const memory_desc_wrapper data_d(pd()->data_md());
+    const memory_desc_wrapper src_d(
+            pd()->is_fwd() ? pd()->src_md() : pd()->diff_src_md());
 
     status_t status = status::success;
     auto i_arg = pd()->is_fwd() ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
@@ -50,7 +51,7 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     const dim_t MB = pd()->MB();
     const dim_t C = pd()->C();
     dim_t H = 1, W = 1, D = 1, HW = 1, SP = 1;
-    const bool has_spatial = utils::one_of(data_d.ndims(), 3, 4, 5);
+    const bool has_spatial = utils::one_of(src_d.ndims(), 3, 4, 5);
     if (has_spatial) {
         D = pd()->D();
         H = pd()->H();
@@ -58,8 +59,8 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
         HW = H * W;
         SP = D * HW;
     }
-    const dim_t stride_mb = data_d.blocking_desc().strides[0];
-    const dim_t blksize = data_d.blocking_desc().strides[pd()->ndims() - 1];
+    const dim_t stride_mb = src_d.blocking_desc().strides[0];
+    const dim_t blksize = src_d.blocking_desc().strides[pd()->ndims() - 1];
     const format_tag_t tag = pd()->dat_tag_;
 
     if (axis == 1
@@ -113,8 +114,8 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
             }
         });
     } else {
-        auto dims = pd()->desc()->data_desc.dims;
-        auto ndims = pd()->desc()->data_desc.ndims;
+        auto dims = pd()->desc()->src_desc.dims;
+        auto ndims = pd()->ndims();
         const dim_t outer_size = utils::array_product(dims, axis);
         const dim_t inner_size
                 = utils::array_product(dims + axis + 1, ndims - axis - 1);
@@ -123,8 +124,8 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
         parallel_nd(outer_size, axis_size, inner_size,
                 [&](dim_t ou, dim_t a, dim_t in) {
                     const dim_t off = ou * dim + in;
-                    auto &o = output[data_d.off_l(off + a * inner_size)];
-                    o = input[data_d.off_l(
+                    auto &o = output[src_d.off_l(off + a * inner_size)];
+                    o = input[src_d.off_l(
                             off + rev_transposed_[a] * inner_size)];
                 });
     }

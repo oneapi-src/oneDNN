@@ -601,7 +601,8 @@ inline bool operator==(const rnn_desc_t &lhs, const rnn_desc_t &rhs) {
 inline bool operator==(const shuffle_desc_t &lhs, const shuffle_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
-            && COMPARE_DESC_MEMBERS(data_desc)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
             && COMPARE_DESC_MEMBERS(axis)
             && COMPARE_DESC_MEMBERS(group_size);
     return ret;

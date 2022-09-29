@@ -77,6 +77,7 @@ void shuffle_example(dnnl::engine::kind engine_kind) {
 
     // Create memory descriptor and memory objects for src and dst.
     auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
+    auto dst_md = memory::desc(src_dims, dt::f32, tag::nchw);
     auto src_mem = memory(src_md, engine);
 
     auto dst_mem = memory({src_dims, dt::f32, tag::abcd}, engine);
@@ -86,7 +87,8 @@ void shuffle_example(dnnl::engine::kind engine_kind) {
 
     // Create primitive descriptor.
     auto shuffle_pd = shuffle_forward::primitive_desc(engine,
-            prop_kind::forward_training, src_md, shuffle_axis, group_size);
+            prop_kind::forward_training, src_md, dst_md, shuffle_axis,
+            group_size);
 
     // Create the primitive.
     auto shuffle_prim = shuffle_forward(shuffle_pd);

@@ -312,17 +312,17 @@ TEST_F(runtime_dim_test_t, TestRNN) {
 TEST_F(runtime_dim_test_t, TestShuffle) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
-    CHECK_UNIMPL(
-            shuffle_forward::primitive_desc(eng, prop_kind::forward, md, 1, 4));
+    CHECK_UNIMPL(shuffle_forward::primitive_desc(
+            eng, prop_kind::forward, md, md, 1, 4));
 
     shuffle_forward::primitive_desc fwd_hint;
     {
         auto valid_md = memory::desc({2, 16, 3, 3}, data_type::f32, tag::abcd);
         CHECK_OK(fwd_hint = shuffle_forward::primitive_desc(
-                         eng, prop_kind::forward, valid_md, 1, 4));
+                         eng, prop_kind::forward, valid_md, valid_md, 1, 4));
     }
 
-    CHECK_UNIMPL(shuffle_backward::primitive_desc(eng, md, 1, 4, fwd_hint));
+    CHECK_UNIMPL(shuffle_backward::primitive_desc(eng, md, md, 1, 4, fwd_hint));
 }
 
 TEST_F(runtime_dim_test_t, TestSoftmax) {

@@ -602,7 +602,8 @@ size_t get_desc_hash(const shuffle_desc_t &desc) {
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
     // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.data_desc));
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
     // Axis
     seed = hash_combine(seed, desc.axis);
     // Groupe size

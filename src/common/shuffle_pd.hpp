@@ -75,17 +75,17 @@ struct shuffle_pd_t : public primitive_desc_t {
     }
 
     const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 && is_fwd() ? &data_md_ : &glob_zero_md;
+        return index == 0 && is_fwd() ? &src_md_ : &glob_zero_md;
     }
     const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 && is_fwd() ? &data_md_ : &glob_zero_md;
+        return index == 0 && is_fwd() ? &dst_md_ : &glob_zero_md;
     }
 
     const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 && !is_fwd() ? &data_md_ : &glob_zero_md;
+        return index == 0 && !is_fwd() ? &src_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 && !is_fwd() ? &data_md_ : &glob_zero_md;
+        return index == 0 && !is_fwd() ? &dst_md_ : &glob_zero_md;
     }
 
     int n_inputs() const override { return 1; }
@@ -110,8 +110,6 @@ struct shuffle_pd_t : public primitive_desc_t {
                 prop_kind::forward_inference);
     }
 
-    const memory_desc_t *data_md() const { return &data_md_; }
-
     std::vector<memory_desc_t> hint_mds(bool is_hint) const override {
         assert(IMPLICATION(is_hint, is_fwd()));
         if (!is_hint && is_fwd()) return {};
@@ -122,33 +120,42 @@ struct shuffle_pd_t : public primitive_desc_t {
 protected:
     shuffle_desc_t desc_;
     const shuffle_pd_t *hint_fwd_pd_;
-    memory_desc_t data_md_;
+    memory_desc_t src_md_;
+    memory_desc_t dst_md_;
 
     shuffle_pd_t(const shuffle_desc_t *adesc, const primitive_attr_t *attr,
             const shuffle_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc) {
+        , src_md_(desc_.src_desc)
+        , dst_md_(desc_.dst_desc) {
         if (hint_fwd_pd_) hint_mds_.push_back(*hint_fwd_pd_->dst_md(0));
     }
 
     bool set_default_formats_common() {
-        if (data_md_.format_kind != format_kind::any) return true;
-        assert(!is_fwd() && "fwd should be fully defined");
-
-        status_t status = status::success;
-        if (hint_fwd_pd_)
-            status = memory_desc_init_by_md_and_dt(data_md_,
-                    hint_mds(false /* is_hint */)[0], data_md_.data_type);
-        else
-            status = memory_desc_init_by_strides(data_md_, nullptr);
-
-        return status == status::success;
+        // `src_md_.format_kind == format_kind::any` may be true only for
+        // backward prop kind.
+        return IMPLICATION(src_md_.format_kind == format_kind::any,
+                       hint_fwd_pd_
+                               ? memory_desc_init_by_md_and_dt(src_md_,
+                                         hint_mds(/* is_hint = */ false)[0],
+                                         src_md_.data_type)
+                                       == status::success
+                               : memory_desc_init_by_strides(src_md_, nullptr)
+                                       == status::success)
+                && IMPLICATION(dst_md_.format_kind == format_kind::any,
+                        memory_desc_init_by_md_and_dt(
+                                dst_md_, src_md_, dst_md_.data_type)
+                                == status::success);
     }
 
 private:
     std::vector<memory_desc_t> hint_mds_;
+
+    const memory_desc_t *data_md() const {
+        return is_fwd() ? src_md() : diff_src_md();
+    }
 };
 
 } // namespace impl

@@ -152,9 +152,10 @@ struct shuffle_desc_t {
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, and #dnnl_backward_data.
     prop_kind_t prop_kind;
-    // Source and destination memory descriptor,
-    // and source and destination gradient memory descriptor.
-    memory_desc_t data_desc;
+    // Source or source gradient memory descriptor.
+    memory_desc_t src_desc;
+    // Destination or destination gradient memory descriptor.
+    memory_desc_t dst_desc;
     // Axis for shuffling.
     int axis;
     // Number of groups.

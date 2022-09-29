@@ -114,9 +114,10 @@ protected:
 
     void Forward() {
         memory::desc src_desc(p.dims, data_type, p.data_format);
+        memory::desc dst_desc(p.dims, data_type, p.data_format);
 
         shuffle_fwd_prim_desc = shuffle_forward::primitive_desc(
-                eng, p.aprop_kind, src_desc, p.axis, p.group_size);
+                eng, p.aprop_kind, src_desc, dst_desc, p.axis, p.group_size);
         shuffle_fwd_prim_desc = shuffle_forward::primitive_desc(
                 shuffle_fwd_prim_desc.get()); // test construction from a C pd
 
@@ -158,7 +159,8 @@ protected:
         test_memory diff_src(diff_src_desc, eng);
 
         auto shuffle_prim_desc = shuffle_backward::primitive_desc(eng,
-                diff_dst_desc, p.axis, p.group_size, shuffle_fwd_prim_desc);
+                diff_src_desc, diff_dst_desc, p.axis, p.group_size,
+                shuffle_fwd_prim_desc);
         shuffle_prim_desc = shuffle_backward::primitive_desc(
                 shuffle_prim_desc.get()); // test construction from a C pd
 

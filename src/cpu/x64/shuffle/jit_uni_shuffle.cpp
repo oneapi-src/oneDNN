@@ -29,10 +29,10 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-static bool impl_supports_datatype(data_type_t data_type) {
+static bool impl_supports_datatype(cpu_isa_t isa, data_type_t data_type) {
     switch (data_type) {
-        case data_type::bf16: return x64::mayiuse(x64::avx512_core);
-        case data_type::f16: return x64::mayiuse(x64::avx512_core_fp16);
+        case data_type::bf16: return is_superset(isa, avx512_core);
+        case data_type::f16: return is_superset(isa, avx512_core_fp16);
         case data_type::f32:
         case data_type::s32:
         case data_type::s8:
@@ -46,13 +46,17 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
 
-    conf_.data_type = data_md()->data_type;
+    const memory_desc_wrapper src_d(is_fwd() ? src_md() : diff_src_md());
+    const memory_desc_wrapper dst_d(is_fwd() ? dst_md() : diff_dst_md());
+
+    conf_.data_type = src_d.data_type();
 
     const bool ok = mayiuse(isa)
             && utils::one_of(conf_.data_type, f32, s32, bf16)
-            && impl_supports_datatype(conf_.data_type)
+            && src_d.data_type() == dst_d.data_type()
+            && impl_supports_datatype(isa, conf_.data_type)
             && attr()->has_default_values() && axis() == 1
-            && IMPLICATION(!is_fwd(), set_default_formats_common());
+            && set_default_formats_common() && src_d == dst_d;
 
     if (!ok) return status::unimplemented;
 
@@ -62,13 +66,12 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
         conf_.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
 
     const format_tag_t blocked_format
-            = memory_desc_matches_one_of_tag(*data_md(), nCw16c, nChw16c,
+            = memory_desc_matches_one_of_tag(*src_d.md_, nCw16c, nChw16c,
                     nCdhw16c, nCw8c, nChw8c, nCdhw8c, nCw4c, nChw4c, nCdhw4c);
 
     if (blocked_format == format_tag::undef) return status::unimplemented;
 
-    const memory_desc_wrapper data_d(data_md());
-    conf_.blk_size = data_d.blocking_desc().strides[ndims() - 1];
+    conf_.blk_size = src_d.blocking_desc().strides[ndims() - 1];
     conf_.simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
 
     const bool has_spatial = utils::one_of(ndims(), 3, 4, 5);
@@ -95,7 +98,7 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
     conf_.w = W();
 
     conf_.dt_size = types::data_type_size(conf_.data_type);
-    conf_.stride_mb = data_d.blocking_desc().strides[0];
+    conf_.stride_mb = src_d.blocking_desc().strides[0];
     conf_.group_size = group_size();
     conf_.axis = axis();
     conf_.axis_size = axis_size();
