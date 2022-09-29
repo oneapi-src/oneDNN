@@ -416,8 +416,8 @@ protected:
                 p.dims, data_type, p.data_format);
 
         eltwise_prim_desc = eltwise_forward::primitive_desc(eng,
-                prop_kind::forward_training, p.alg_kind, *data_desc, p.alpha,
-                p.beta);
+                prop_kind::forward_training, p.alg_kind, *data_desc, *data_desc,
+                p.alpha, p.beta);
         eltwise_prim_desc = eltwise_forward::primitive_desc(
                 eltwise_prim_desc.get()); // test construction from a C pd
 
@@ -487,8 +487,8 @@ protected:
         check_zero_tail<data_t>(1, diff_dst);
 
         auto eltwise_bwd_prim_desc = eltwise_backward::primitive_desc(eng,
-                p.alg_kind, diff_data_desc, *data_desc, p.alpha, p.beta,
-                eltwise_prim_desc);
+                p.alg_kind, diff_data_desc, diff_data_desc, *data_desc, p.alpha,
+                p.beta, eltwise_prim_desc);
         eltwise_bwd_prim_desc
                 = eltwise_backward::primitive_desc(eltwise_bwd_prim_desc.get());
 

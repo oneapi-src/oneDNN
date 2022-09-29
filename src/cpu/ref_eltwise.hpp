@@ -44,16 +44,21 @@ struct ref_eltwise_fwd_t : public primitive_t {
             using namespace utils;
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = is_fwd() && data_type == desc()->data_desc.data_type
+            const memory_desc_wrapper src_d(src_md());
+            const memory_desc_wrapper dst_d(dst_md());
+
+            bool ok = is_fwd()
+                    && utils::everyone_is(
+                            data_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(data_type)
                     && attr()->has_default_values(sm::post_ops)
+                    && set_default_formats_common() && src_d == dst_d
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
-            auto src_d = memory_desc_wrapper(data_md());
-
-            use_dense_ = src_d.is_dense(true)
-                    && IMPLICATION(!src_d.is_dense(), is_zero_preserved());
+            use_dense_ = src_d.is_dense(true) && dst_d.is_dense(true)
+                    && IMPLICATION(!src_d.is_dense() || !dst_d.is_dense(),
+                            is_zero_preserved());
 
             use_nCspBc_padded_ = !use_dense_
                     && src_d.blocking_desc().inner_nblks == 1
@@ -108,16 +113,18 @@ struct ref_eltwise_bwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace utils;
+            using namespace data_type;
+
+            const memory_desc_wrapper diff_src_d(diff_src_md());
+            const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
             bool ok = !is_fwd()
-                    && everyone_is(data_type, desc()->data_desc.data_type,
-                            desc()->diff_data_desc.data_type)
+                    && utils::everyone_is(data_type, data_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type)
                     && platform::has_data_type_support(data_type)
-                    && set_default_formats_common()
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common() && diff_dst_d == diff_src_d;
             if (!ok) return status::unimplemented;
-
-            const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
             use_dense_ = diff_dst_d.is_dense()
                     || (diff_dst_d.is_dense(true) && is_zero_preserved());
@@ -126,8 +133,7 @@ struct ref_eltwise_bwd_t : public primitive_t {
             if (diff_dst_d != memory_desc_wrapper(data_md()))
                 use_dense_ = false;
 
-            if (utils::one_of(data_type, data_type::bf16, data_type::f16))
-                init_scratchpad();
+            if (utils::one_of(data_type, bf16, f16)) init_scratchpad();
 
             return status::success;
         }
@@ -137,10 +143,10 @@ struct ref_eltwise_bwd_t : public primitive_t {
     private:
         void init_scratchpad() {
             const memory_desc_wrapper data_d(data_md());
-            const memory_desc_wrapper diff_data_d(diff_dst_md());
+            const memory_desc_wrapper diff_dst_d(diff_dst_md());
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            const auto diff_dst_size = diff_data_d.nelems(true);
+            const auto diff_dst_size = diff_dst_d.nelems(true);
             scratchpad.template book<float>(
                     key_eltwise_src, data_d.nelems(true));
             scratchpad.template book<float>(

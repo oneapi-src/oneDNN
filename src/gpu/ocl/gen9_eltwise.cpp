@@ -23,12 +23,14 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static status_t init_conf_common(eltwise_conf_t &conf, engine_t *engine,
-        const memory_desc_wrapper data_d) {
+static status_t init_conf_common(
+        eltwise_conf_t &conf, engine_t *engine, const eltwise_pd_t *pd) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto arch = compute_engine->device_info()->gpu_arch();
     bool is_pre_xe_hp = arch < compute::gpu_arch_t::xe_hp;
 
+    const auto &data_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
+    const memory_desc_wrapper data_d(*data_md);
     // Important hw features for code generation
     const int dt_size = (int)data_d.data_type_size();
     const int max_load_size = is_pre_xe_hp ? 128 : 256;
@@ -42,6 +44,7 @@ static status_t init_conf_common(eltwise_conf_t &conf, engine_t *engine,
     // Prefer loading multiple of max load size to reduce messages
     const int load_size = load_unroll * max_load_size;
 
+    conf.alg = pd->desc()->alg_kind;
     conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
 
     // Set simd size
@@ -56,14 +59,12 @@ static status_t init_conf_common(eltwise_conf_t &conf, engine_t *engine,
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const eltwise_conf_t &conf, const offsets_t &off,
-        const eltwise_pd_t &pd) {
-    const memory_desc_wrapper data_d(pd.desc()->data_desc);
-
+        const memory_desc_wrapper &data_d) {
     kernel_ctx.set_data_type(data_d.data_type());
     def_eltwise_alg_kinds(kernel_ctx);
 
     kernel_ctx.define_int("WITH_ELTWISE", 1);
-    kernel_ctx.define_int("ELTWISE_ALG", pd.desc()->alg_kind);
+    kernel_ctx.define_int("ELTWISE_ALG", conf.alg);
 
     kernel_ctx.define_int("VECT_DT_N", conf.vector_size);
 
@@ -84,13 +85,14 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 }
 
 status_t gen9_eltwise_fwd_t::pd_t::init_conf(engine_t *engine) {
-    const memory_desc_wrapper data_d(data_md());
-    return init_conf_common(conf, engine, data_d);
+    const memory_desc_wrapper src_d(src_md());
+    return init_conf_common(conf, engine, this);
 }
 
 status_t gen9_eltwise_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, *this);
+    const memory_desc_wrapper src_d(src_md());
+    return init_kernel_ctx_common(kernel_ctx, conf, off, src_d);
 }
 
 status_t gen9_eltwise_fwd_t::execute_forward_dense(
@@ -100,8 +102,8 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
-    const int nelems = data_d.nelems(pd()->conf.with_zero_padding);
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const int nelems = src_d.nelems(pd()->conf.with_zero_padding);
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
@@ -135,12 +137,13 @@ status_t gen9_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
     // This kernel supports only matching data and diff formats
     if (data_d != diff_data_d) return status::unimplemented;
 
-    return init_conf_common(conf, engine, data_d);
+    return init_conf_common(conf, engine, this);
 }
 
 status_t gen9_eltwise_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, *this);
+    const memory_desc_wrapper data_d(data_md());
+    return init_kernel_ctx_common(kernel_ctx, conf, off, data_d);
 }
 
 status_t gen9_eltwise_bwd_t::execute_backward_dense(

@@ -84,8 +84,8 @@ void eltwise_example(dnnl::engine::kind engine_kind) {
 
     // Create primitive descriptor.
     auto eltwise_pd = eltwise_forward::primitive_desc(engine,
-            prop_kind::forward_training, algorithm::eltwise_relu, src_md, 0.f,
-            0.f);
+            prop_kind::forward_training, algorithm::eltwise_relu, src_md,
+            dst_md, 0.f, 0.f);
 
     // Create the primitive.
     auto eltwise_prim = eltwise_forward(eltwise_pd);

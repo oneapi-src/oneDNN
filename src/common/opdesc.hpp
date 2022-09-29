@@ -231,10 +231,14 @@ struct eltwise_desc_t {
     // #dnnl_eltwise_exp_use_dst_for_bwd,
     // #dnnl_eltwise_clip_v2_use_dst_for_bwd.
     alg_kind_t alg_kind;
-    // Source and destination memory descriptor.
-    memory_desc_t data_desc;
-    // Source and destination gradient memory descriptor.
-    memory_desc_t diff_data_desc;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
     // Algorithm specific parameter.
     // Accordance table:
     //  - #dnnl_eltwise_relu: @p alpha -- negative slope, @p beta ignored

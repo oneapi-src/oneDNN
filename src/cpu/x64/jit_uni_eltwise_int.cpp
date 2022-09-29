@@ -38,19 +38,19 @@ struct jit_args_int8_t {
 };
 
 struct jit_uni_eltwise_int_kernel : public jit_generator {
-    jit_uni_eltwise_int_kernel(const eltwise_desc_t &desc, const char *name)
-        : jit_generator(name), desc_(desc) {}
+    jit_uni_eltwise_int_kernel(const eltwise_pd_t *pd, const char *name)
+        : jit_generator(name), pd_(pd) {}
 
     void operator()(jit_args_int8_t *p) { jit_generator::operator()(p); }
 
 protected:
-    data_type_t data_type() const { return desc_.data_desc.data_type; }
+    data_type_t data_type() const { return pd_->src_md()->data_type; }
     int dtype_size() const { return types::data_type_size(data_type()); }
 
-    const eltwise_desc_t &desc() const { return desc_; }
+    const eltwise_desc_t &desc() const { return *pd_->desc(); }
 
 private:
-    const eltwise_desc_t &desc_;
+    const eltwise_pd_t *pd_;
 };
 
 /* jit kernels */
@@ -61,12 +61,12 @@ template <cpu_isa_t isa>
 struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_subkernel_int)
 
-    jit_uni_subkernel_int_t(const eltwise_desc_t &desc)
-        : jit_uni_eltwise_int_kernel(desc, jit_name()) {
+    jit_uni_subkernel_int_t(const eltwise_pd_t *pd)
+        : jit_uni_eltwise_int_kernel(pd, jit_name()) {
         using namespace data_type;
 
         // Relu and linear for int types: s32, s8, u8; Only forward direction
-        assert(utils::one_of(desc.alg_kind, alg_kind::eltwise_relu,
+        assert(utils::one_of(desc().alg_kind, alg_kind::eltwise_relu,
                 alg_kind::eltwise_linear));
         assert(utils::one_of(data_type(), s32, s8, u8));
         assert(utils::one_of(isa, sse41, avx2, avx512_core));
@@ -400,14 +400,16 @@ void jit_uni_subkernel_int_t<avx512_core>::store_8bit(const bool vectorize,
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
-    bool ok = mayiuse(isa)
-            && desc()->data_desc.data_type == d_type
+    bool ok = is_fwd() && mayiuse(isa)
+            && utils::everyone_is(
+                    d_type, src_md()->data_type, dst_md()->data_type)
             // only relu and linear so far
             && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
                     alg_kind::eltwise_linear)
             && !has_zero_dim_memory()
-            && memory_desc_wrapper(data_md()).is_dense(true)
-            && attr()->has_default_values();
+            && memory_desc_wrapper(src_md()).is_dense(true)
+            && attr()->has_default_values() && set_default_formats_common()
+            && memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md());
 
     return ok ? status::success : status::unimplemented;
 }
@@ -419,8 +421,7 @@ jit_uni_eltwise_int_fwd_t<isa, d_type>::jit_uni_eltwise_int_fwd_t(
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::init(engine_t *engine) {
-    const auto &desc = *pd()->desc();
-    CHECK(safe_ptr_assign(kernel_, new jit_uni_subkernel_int_t<isa>(desc)));
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_subkernel_int_t<isa>(pd())));
     return kernel_->create_kernel();
 }
 
@@ -435,14 +436,14 @@ status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::execute_forward(
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
+    const memory_desc_wrapper src_d(pd()->src_md());
 
-    const size_t nelems = data_d.nelems(true);
+    const size_t nelems = src_d.nelems(true);
 
-    src += data_d.offset0();
-    dst += data_d.offset0();
+    src += src_d.offset0();
+    dst += src_d.offset0();
 
-    const int cache_line = 64 / data_d.data_type_size();
+    const int cache_line = 64 / src_d.data_type_size();
     parallel(0, [&](const int ithr, const int nthr) {
         size_t start {0}, end {0};
 

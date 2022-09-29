@@ -52,13 +52,13 @@ struct eltwise_pd_t : public primitive_desc_t {
 
     /* common eltwise aux functions */
 
-    dim_t MB() const { return data_desc().dims[0]; }
-    dim_t C() const { return ndims() >= 2 ? data_desc().dims[1] : 1; }
-    dim_t D() const { return ndims() >= 5 ? data_desc().dims[ndims() - 3] : 1; }
-    dim_t H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
-    dim_t W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
+    dim_t MB() const { return src_md()->dims[0]; }
+    dim_t C() const { return ndims() >= 2 ? src_md()->dims[1] : 1; }
+    dim_t D() const { return ndims() >= 5 ? src_md()->dims[ndims() - 3] : 1; }
+    dim_t H() const { return ndims() >= 4 ? src_md()->dims[ndims() - 2] : 1; }
+    dim_t W() const { return ndims() >= 3 ? src_md()->dims[ndims() - 1] : 1; }
 
-    int ndims() const { return data_desc().ndims; }
+    int ndims() const { return src_md()->ndims; }
 
     bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
@@ -66,7 +66,7 @@ struct eltwise_pd_t : public primitive_desc_t {
     }
 
     bool has_zero_dim_memory() const {
-        return memory_desc_wrapper(desc_.data_desc).has_zero_dim();
+        return memory_desc_wrapper(src_md()).has_zero_dim();
     }
 
     bool use_dst() const {
@@ -85,17 +85,16 @@ protected:
     eltwise_desc_t desc_;
     const eltwise_fwd_pd_t *hint_fwd_pd_;
 
-    memory_desc_t data_md_;
+    memory_desc_t src_md_;
+    memory_desc_t dst_md_;
 
     eltwise_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
             const eltwise_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc) {}
-
-private:
-    const memory_desc_t &data_desc() const { return desc_.data_desc; }
+        , src_md_(desc_.src_desc)
+        , dst_md_(desc_.dst_desc) {}
 };
 
 struct eltwise_fwd_pd_t : public eltwise_pd_t {
@@ -118,15 +117,11 @@ struct eltwise_fwd_pd_t : public eltwise_pd_t {
         }
     }
 
-    // For compatibility with backward
-    const memory_desc_t *data_md(int index = 0) const {
-        return index == 0 ? &data_md_ : &glob_zero_md;
-    }
     const memory_desc_t *src_md(int index = 0) const override {
-        return data_md(index);
+        return index == 0 ? &src_md_ : &glob_zero_md;
     }
     const memory_desc_t *dst_md(int index = 0) const override {
-        return data_md(index);
+        return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
     int n_inputs() const override { return 1 + n_binary_po_inputs(); }
@@ -163,6 +158,13 @@ protected:
     eltwise_fwd_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
             const eltwise_fwd_pd_t *hint_fwd_pd)
         : eltwise_pd_t(adesc, attr, hint_fwd_pd) {}
+
+    bool set_default_formats_common() {
+        return IMPLICATION(dst_md_.format_kind == format_kind::any,
+                memory_desc_init_by_md_and_dt(
+                        dst_md_, src_md_, dst_md_.data_type)
+                        == status::success);
+    }
 };
 
 struct eltwise_bwd_pd_t : public eltwise_pd_t {
@@ -191,21 +193,19 @@ struct eltwise_bwd_pd_t : public eltwise_pd_t {
 
     // To avoid additional logic in implementations
     const memory_desc_t *data_md(int index = 0) const {
-        return index == 0 ? &data_md_ : &glob_zero_md;
+        return use_dst() ? dst_md(index) : src_md(index);
     }
     const memory_desc_t *src_md(int index = 0) const override {
-        if (!use_dst()) return data_md(index);
-        return &glob_zero_md;
+        return (index == 0 && !use_dst()) ? &src_md_ : &glob_zero_md;
     }
     const memory_desc_t *dst_md(int index = 0) const override {
-        if (use_dst()) return data_md(index);
-        return &glob_zero_md;
+        return (index == 0 && use_dst()) ? &dst_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
     }
     const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+        return index == 0 ? &diff_src_md_ : &glob_zero_md;
     }
 
     int n_inputs() const override { return 2; }
@@ -241,19 +241,24 @@ struct eltwise_bwd_pd_t : public eltwise_pd_t {
     }
 
 protected:
-    memory_desc_t diff_data_md_;
+    memory_desc_t diff_src_md_;
+    memory_desc_t diff_dst_md_;
 
     eltwise_bwd_pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
             const eltwise_fwd_pd_t *hint_fwd_pd)
         : eltwise_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_data_desc) {}
+        , diff_src_md_(desc_.diff_src_desc)
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     bool set_default_formats_common() {
-        if (diff_data_md_.format_kind != format_kind::any) return true;
-
-        return memory_desc_init_by_md_and_dt(
-                       diff_data_md_, data_md_, diff_data_md_.data_type)
-                == status::success;
+        return IMPLICATION(diff_dst_md_.format_kind == format_kind::any,
+                       memory_desc_init_by_md_and_dt(
+                               diff_dst_md_, *data_md(), diff_dst_md_.data_type)
+                               == status::success)
+                && IMPLICATION(diff_src_md_.format_kind == format_kind::any,
+                        memory_desc_init_by_md_and_dt(diff_src_md_, *data_md(),
+                                diff_src_md_.data_type)
+                                == status::success);
     }
 };
 

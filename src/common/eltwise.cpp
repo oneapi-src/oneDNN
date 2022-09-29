@@ -33,26 +33,27 @@ using namespace dnnl::impl::types;
 
 namespace {
 status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
-        alg_kind_t alg_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *diff_data_desc, float alpha, float beta) {
-    bool args_ok = !any_null(eltwise_desc, data_desc)
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, float alpha, float beta) {
+    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
+    bool args_ok = !any_null(eltwise_desc, src_desc, dst_desc)
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data)
-            && IMPLICATION(
-                    prop_kind == backward_data, diff_data_desc != nullptr)
-            && IMPLICATION(alg_kind == eltwise_round,
-                    one_of(prop_kind, forward_training, forward_inference))
-            && math::is_eltwise_ok(data_desc->data_type, alg_kind, alpha, beta)
-            && IMPLICATION(
-                    one_of(prop_kind, forward_training, forward_inference),
-                    !memory_desc_wrapper(data_desc).format_any());
+            && math::is_eltwise_ok(src_desc->data_type, alg_kind, alpha, beta)
+            && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
+            && IMPLICATION(alg_kind == eltwise_round, is_fwd)
+            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
     bool runtime_dims_or_strides
-            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides();
-    if (prop_kind == backward_data)
+            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
+    if (!is_fwd)
         runtime_dims_or_strides = runtime_dims_or_strides
-                || memory_desc_wrapper(diff_data_desc)
+                || memory_desc_wrapper(diff_src_desc)
+                           .has_runtime_dims_or_strides()
+                || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     if (runtime_dims_or_strides) return unimplemented;
 
@@ -61,16 +62,30 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
     ed.prop_kind = prop_kind;
     ed.alg_kind = alg_kind;
 
-    ed.data_desc = *data_desc;
-    if (ed.prop_kind == backward_data) ed.diff_data_desc = *diff_data_desc;
+    ed.src_desc = *src_desc;
+    ed.dst_desc = *dst_desc;
+    if (!is_fwd) {
+        ed.diff_src_desc = *diff_src_desc;
+        ed.diff_dst_desc = *diff_dst_desc;
+    }
 
     ed.alpha = alpha;
     ed.beta = beta;
 
-    bool consistency = true
-            && IMPLICATION(ed.prop_kind == backward_data,
-                    array_cmp(ed.diff_data_desc.dims, ed.data_desc.dims,
-                            ed.diff_data_desc.ndims));
+    bool consistency = true;
+    if (consistency && is_fwd) {
+        consistency = ed.dst_desc.ndims == ed.src_desc.ndims
+                && array_cmp(
+                        ed.dst_desc.dims, ed.src_desc.dims, ed.src_desc.ndims);
+    }
+    if (consistency && !is_fwd) {
+        consistency = ed.diff_dst_desc.ndims == ed.src_desc.ndims
+                && ed.diff_dst_desc.ndims == ed.diff_src_desc.ndims
+                && array_cmp(ed.diff_dst_desc.dims, ed.src_desc.dims,
+                        ed.src_desc.ndims)
+                && array_cmp(ed.diff_src_desc.dims, ed.diff_dst_desc.dims,
+                        ed.diff_dst_desc.ndims);
+    }
     if (!consistency) return invalid_arguments;
 
     *eltwise_desc = ed;
@@ -81,28 +96,28 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
 status_t dnnl_eltwise_forward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *data_desc, float alpha, float beta,
-        const primitive_attr_t *attr) {
+        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
+        float alpha, float beta, const primitive_attr_t *attr) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
 
     auto eltwise_desc = eltwise_desc_t();
-    CHECK(eltwise_desc_init(&eltwise_desc, prop_kind, alg_kind, data_desc,
-            nullptr, alpha, beta));
+    CHECK(eltwise_desc_init(&eltwise_desc, prop_kind, alg_kind, src_desc,
+            dst_desc, nullptr, nullptr, alpha, beta));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&eltwise_desc, nullptr, attr);
 }
 
 status_t dnnl_eltwise_backward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        alg_kind_t alg_kind, const memory_desc_t *diff_data_desc,
-        const memory_desc_t *data_desc, float alpha, float beta,
-        const primitive_desc_iface_t *hint_fwd_pd,
+        alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, const memory_desc_t *data_desc,
+        float alpha, float beta, const primitive_desc_iface_t *hint_fwd_pd,
         const primitive_attr_t *attr) {
 
     auto eltwise_desc = eltwise_desc_t();
     CHECK(eltwise_desc_init(&eltwise_desc, backward_data, alg_kind, data_desc,
-            diff_data_desc, alpha, beta));
+            data_desc, diff_src_desc, diff_dst_desc, alpha, beta));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&eltwise_desc, hint_fwd_pd, attr);
 }

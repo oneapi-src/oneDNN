@@ -30,8 +30,6 @@ namespace nvidia {
 struct cudnn_eltwise_impl_base_t {
 
 public:
-    virtual status_t init(const eltwise_pd_t *pd) = 0;
-
     virtual void execute(cudnnHandle_t handle, void **x, int size) const = 0;
 
     virtual status_t create_and_set_act_descriptor() {
@@ -85,7 +83,7 @@ protected:
 
 struct cudnn_eltwise_fwd_impl_t : public cudnn_eltwise_impl_base_t {
 public:
-    status_t init(const eltwise_pd_t *pd) override {
+    status_t init(const eltwise_fwd_pd_t *pd) {
         // If any of the dimensions are 0 we should not continue with creating
         // cudnn descriptors
         if (has_zero_dims(pd->src_md()->dims, pd->ndims())) {
@@ -102,8 +100,7 @@ public:
 
         // Get cuDNN activation mode
         alg_kind_t alg = pd->desc()->alg_kind;
-        auto alg_ok = convert_alg_kind(alg, &alg_kind);
-        if (alg_ok != status::success) { return status::unimplemented; }
+        CHECK(convert_alg_kind(alg, &alg_kind));
         coef = pd->desc()->alpha;
 
         CHECK(create_and_set_tensor_descriptor(
@@ -133,10 +130,10 @@ private:
 struct cudnn_eltwise_bwd_impl_t : public cudnn_eltwise_impl_base_t {
 
 public:
-    status_t init(const eltwise_pd_t *pd) override {
+    status_t init(const eltwise_bwd_pd_t *pd) {
         // If any of the dimensions are 0 we should not continue with creating
         // cudnn descriptors
-        if (memory_desc_wrapper(pd->desc()->data_desc).has_zero_dim())
+        if (memory_desc_wrapper(pd->data_md()).has_zero_dim())
             return status::success;
 
         if (pd->ndims() > CUDNN_DIM_MAX) { return status::invalid_arguments; }
@@ -149,8 +146,7 @@ public:
                 pd->ndims());
 
         alg_kind_t alg = pd->desc()->alg_kind;
-        auto alg_ok = convert_alg_kind(alg, &alg_kind);
-        if (alg_ok != status::success) { return status::unimplemented; }
+        CHECK(convert_alg_kind(alg, &alg_kind));
         coef = pd->desc()->alpha;
 
         // Check validity of input

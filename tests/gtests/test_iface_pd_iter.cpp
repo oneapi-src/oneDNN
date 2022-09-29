@@ -44,8 +44,8 @@ TEST_F(pd_iter_test_t, TestReLUImpls) {
 
     dnnl_primitive_desc_t pd;
     dnnl_status_t rc = dnnl_eltwise_forward_primitive_desc_create(&pd, engine,
-            dnnl_forward_inference, dnnl_eltwise_relu, dense_md, 0., 0.,
-            nullptr);
+            dnnl_forward_inference, dnnl_eltwise_relu, dense_md, dense_md, 0.f,
+            0.f, nullptr);
     ASSERT_EQ(rc, ok); /* there should be at least one impl */
 
     while ((rc = dnnl_primitive_desc_next_impl(pd)) == ok)
@@ -112,8 +112,8 @@ TEST(pd_next_impl, TestEltwiseImpl) {
     memory::desc md(
             {8, 32, 4, 4}, memory::data_type::f32, memory::format_tag::nChw8c);
 
-    eltwise_forward::primitive_desc epd(
-            eng, prop_kind::forward_training, algorithm::eltwise_relu, md, 0);
+    eltwise_forward::primitive_desc epd(eng, prop_kind::forward_training,
+            algorithm::eltwise_relu, md, md, 0.f);
 
     std::string impl0(epd.impl_info_str());
     eltwise_forward e0(epd);

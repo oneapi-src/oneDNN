@@ -183,9 +183,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     /// for convolution. Also note that ReLU is done in-place by using conv1 memory.
     /// @snippet cnn_inference_f32.cpp Create relu primitive
     //[Create relu primitive]
-    auto relu1_prim_desc = eltwise_forward::primitive_desc(eng,
-            prop_kind::forward_inference, algorithm::eltwise_relu,
-            conv1_dst_memory.get_desc(), negative1_slope);
+    auto relu1_prim_desc
+            = eltwise_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::eltwise_relu, conv1_dst_memory.get_desc(),
+                    conv1_dst_memory.get_desc(), negative1_slope);
 
     net.push_back(eltwise_forward(relu1_prim_desc));
     net_args.push_back({{DNNL_ARG_SRC, conv1_dst_memory},
@@ -307,9 +308,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     const float negative2_slope = 0.0f;
 
     // create relu primitive and add it to net
-    auto relu2_prim_desc = eltwise_forward::primitive_desc(eng,
-            prop_kind::forward_inference, algorithm::eltwise_relu,
-            conv2_dst_memory.get_desc(), negative2_slope);
+    auto relu2_prim_desc
+            = eltwise_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::eltwise_relu, conv2_dst_memory.get_desc(),
+                    conv2_dst_memory.get_desc(), negative2_slope);
 
     net.push_back(eltwise_forward(relu2_prim_desc));
     net_args.push_back({{DNNL_ARG_SRC, conv2_dst_memory},
@@ -423,9 +425,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     const float negative3_slope = 0.0f;
 
     // create relu primitive and add it to net
-    auto relu3_prim_desc = eltwise_forward::primitive_desc(eng,
-            prop_kind::forward_inference, algorithm::eltwise_relu,
-            conv3_dst_memory.get_desc(), negative3_slope);
+    auto relu3_prim_desc
+            = eltwise_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::eltwise_relu, conv3_dst_memory.get_desc(),
+                    conv3_dst_memory.get_desc(), negative3_slope);
 
     net.push_back(eltwise_forward(relu3_prim_desc));
     net_args.push_back({{DNNL_ARG_SRC, conv3_dst_memory},
@@ -495,9 +498,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     const float negative4_slope = 0.0f;
 
     // create relu primitive and add it to net
-    auto relu4_prim_desc = eltwise_forward::primitive_desc(eng,
-            prop_kind::forward_inference, algorithm::eltwise_relu,
-            conv4_dst_memory.get_desc(), negative4_slope);
+    auto relu4_prim_desc
+            = eltwise_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::eltwise_relu, conv4_dst_memory.get_desc(),
+                    conv4_dst_memory.get_desc(), negative4_slope);
 
     net.push_back(eltwise_forward(relu4_prim_desc));
     net_args.push_back({{DNNL_ARG_SRC, conv4_dst_memory},
@@ -566,9 +570,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     const float negative5_slope = 0.0f;
 
     // create relu primitive and add it to net
-    auto relu5_prim_desc = eltwise_forward::primitive_desc(eng,
-            prop_kind::forward_inference, algorithm::eltwise_relu,
-            conv5_dst_memory.get_desc(), negative5_slope);
+    auto relu5_prim_desc
+            = eltwise_forward::primitive_desc(eng, prop_kind::forward_inference,
+                    algorithm::eltwise_relu, conv5_dst_memory.get_desc(),
+                    conv5_dst_memory.get_desc(), negative5_slope);
 
     net.push_back(eltwise_forward(relu5_prim_desc));
     net_args.push_back({{DNNL_ARG_SRC, conv5_dst_memory},

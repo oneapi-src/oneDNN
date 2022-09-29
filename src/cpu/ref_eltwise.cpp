@@ -46,13 +46,13 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
     auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
     CHECK(status);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
-    const blocking_desc_t &blk = data_d.blocking_desc();
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const blocking_desc_t &blk = src_d.blocking_desc();
     const dim_t block = blk.inner_blks[0];
 
     const dim_t MB = pd()->MB();
     const dim_t C = pd()->C() / block;
-    const dim_t C_PADDED = data_d.padded_dims()[1] / block;
+    const dim_t C_PADDED = src_d.padded_dims()[1] / block;
     const dim_t tail = pd()->C() % block;
     const dim_t SP = pd()->D() * pd()->H() * pd()->W();
     const auto alg_kind = pd()->desc()->alg_kind;
@@ -89,7 +89,7 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_generic(
     auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
     CHECK(status);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
+    const memory_desc_wrapper src_d(pd()->src_md());
 
     const dim_t MB = pd()->MB();
     const dim_t C = pd()->C();
@@ -99,11 +99,11 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_generic(
     const auto alg_kind = pd()->desc()->alg_kind;
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
-    const int ndims = pd()->desc()->data_desc.ndims;
+    const int ndims = pd()->ndims();
 
     parallel_nd(
             MB, C, D, H, W, [&](dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {
-                auto data_p_off = DATA_OFF(data_d, n, c, d, h, w);
+                auto data_p_off = DATA_OFF(src_d, n, c, d, h, w);
                 float res = compute_eltwise_scalar_fwd(
                         alg_kind, src[data_p_off], alpha, beta);
                 dim_t data_l_off = (((n * C + c) * D + d) * H + h) * W + w;
@@ -127,15 +127,15 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
     CHECK(status);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
+    const memory_desc_wrapper src_d(pd()->src_md());
 
-    const auto nelems = data_d.nelems(true);
+    const auto nelems = src_d.nelems(true);
     const auto alg_kind = pd()->desc()->alg_kind;
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
-    src += data_d.offset0();
-    dst += data_d.offset0();
+    src += src_d.offset0();
+    dst += src_d.offset0();
 
     // a fast path for relu as the most popular activation
     if (alg_kind == alg_kind::eltwise_relu && alpha == 0) {
@@ -160,8 +160,8 @@ status_t ref_eltwise_bwd_t<data_type>::execute_backward_generic(
     if (pd()->has_zero_dim_memory()) return status::success;
 
     status_t status = status::success;
-    auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
-                               : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto src = CTX_IN_MEM(
+            const data_t *, pd()->use_dst() ? DNNL_ARG_DST : DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
@@ -177,7 +177,7 @@ status_t ref_eltwise_bwd_t<data_type>::execute_backward_generic(
     const auto alg_kind = pd()->desc()->alg_kind;
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
-    const int ndims = pd()->desc()->data_desc.ndims;
+    const int ndims = pd()->ndims();
 
     parallel_nd(
             MB, C, D, H, W, [&](dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {

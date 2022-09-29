@@ -55,8 +55,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(engine_test_t, TestMultithreading) {
         mem.unmap_data(ptr);
     }
 
-    auto eltwise_pd = eltwise_forward::primitive_desc(
-            eng, prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
+    auto eltwise_pd = eltwise_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::eltwise_relu, mem_d, mem_d, 0.0f);
 
     std::unique_ptr<eltwise_forward> eltwise;
     std::thread create(

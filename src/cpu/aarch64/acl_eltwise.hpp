@@ -72,14 +72,14 @@ struct acl_eltwise_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
             using namespace data_type;
-            const memory_desc_wrapper data_d(data_md());
+            const memory_desc_wrapper src_d(src_md());
 
-            bool ok = is_fwd() && one_of(data_d.data_type(), f32, s32, s8)
+            bool ok = is_fwd() && one_of(src_d.data_type(), f32, s32, s8)
                     && !has_zero_dim_memory() && attr()->has_default_values()
-                    && data_d.is_dense();
+                    && src_d.is_dense();
             if (!ok) return status::unimplemented;
 
-            auto acl_data_t = acl_utils::get_acl_data_t(data_d.data_type());
+            auto acl_data_t = acl_utils::get_acl_data_t(src_d.data_type());
 
             // Operator acts elementwise, so we only require that the product of
             // all the dimensions equals the total number of elements. We are
@@ -90,7 +90,7 @@ struct acl_eltwise_fwd_t : public primitive_t {
             // to SIMD over.
             dim_t thread_dim = std::max(W(), ndims() >= 2 ? C() : 1);
             auto shape = arm_compute::TensorShape(
-                    data_d.nelems() / thread_dim, thread_dim);
+                    src_d.nelems() / thread_dim, thread_dim);
             aep.data_info = arm_compute::TensorInfo(shape, 1, acl_data_t);
 
             CHECK(acl_utils::convert_to_acl_act(desc_, aep.act_info));

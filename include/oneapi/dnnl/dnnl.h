@@ -1614,7 +1614,8 @@ dnnl_status_t DNNL_API dnnl_shuffle_backward_primitive_desc_create(
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind Elementwise algorithm kind.
-/// @param data_desc Source and destination memory descriptor.
+/// @param src_desc Source memory descriptor.
+/// @param dst_desc Destination memory descriptor.
 /// @param alpha The alpha parameter for the elementwise operation. Specific
 ///     meaning depends on the algorithm.
 /// @param beta The beta parameter for the elementwise operation. Specific
@@ -1625,8 +1626,8 @@ dnnl_status_t DNNL_API dnnl_shuffle_backward_primitive_desc_create(
 dnnl_status_t DNNL_API dnnl_eltwise_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t alg_kind,
-        const_dnnl_memory_desc_t data_desc, float alpha, float beta,
-        const_dnnl_primitive_attr_t attr);
+        const_dnnl_memory_desc_t src_desc, const_dnnl_memory_desc_t dst_desc,
+        float alpha, float beta, const_dnnl_primitive_attr_t attr);
 
 /// Creates a primitive descriptor for an eltwise backward propagation
 ///     primitive.
@@ -1634,8 +1635,11 @@ dnnl_status_t DNNL_API dnnl_eltwise_forward_primitive_desc_create(
 /// @param primitive_desc Output primitive descriptor.
 /// @param engine Engine to use.
 /// @param alg_kind Elementwise algorithm kind.
-/// @param diff_data_desc Diff source and diff destination memory descriptors.
-/// @param data_desc Source and destination memory descriptor.
+/// @param diff_src_desc Diff source memory descriptor.
+/// @param diff_dst_desc Diff destination memory descriptor.
+/// @param data_desc Destination memory descriptor if one of the
+///     "use_dst_for_bwd" algorithms are used (such as
+///     #dnnl_eltwise_relu_use_dst_for_bwd), source memory descriptor otherwise.
 /// @param alpha The alpha parameter for the elementwise operation. Specific
 ///     meaning depends on the algorithm.
 /// @param beta The beta parameter for the elementwise operation. Specific
@@ -1647,7 +1651,8 @@ dnnl_status_t DNNL_API dnnl_eltwise_forward_primitive_desc_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_eltwise_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
-        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_data_desc,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
         const_dnnl_memory_desc_t data_desc, float alpha, float beta,
         const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);

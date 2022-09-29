@@ -434,8 +434,10 @@ inline bool operator==(const eltwise_desc_t &lhs, const eltwise_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
             && COMPARE_DESC_MEMBERS(alg_kind)
-            && COMPARE_DESC_MEMBERS(data_desc)
-            && COMPARE_DESC_MEMBERS(diff_data_desc)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(diff_src_desc)
+            && COMPARE_DESC_MEMBERS(diff_dst_desc)
             && COMPARE_FLOAT_DESC_MEMBERS(alpha)
             && COMPARE_FLOAT_DESC_MEMBERS(beta);
     return ret;

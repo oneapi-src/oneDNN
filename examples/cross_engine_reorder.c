@@ -100,7 +100,8 @@ void cross_engine_reorder() {
     /* relu gpu */
     dnnl_primitive_desc_t relu_pd;
     CHECK(dnnl_eltwise_forward_primitive_desc_create(&relu_pd, engine_gpu,
-            dnnl_forward, dnnl_eltwise_relu, m_gpu_md, 0.0f, 0.0f, NULL));
+            dnnl_forward, dnnl_eltwise_relu, m_gpu_md, m_gpu_md, 0.0f, 0.0f,
+            NULL));
 
     dnnl_primitive_t relu;
     CHECK(dnnl_primitive_create(&relu, relu_pd));

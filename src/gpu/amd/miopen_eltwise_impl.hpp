@@ -159,7 +159,7 @@ public:
     status_t init(const eltwise_pd_t *pd) override {
         // If any of the dimensions are 0 we should not continue with creating
         // MIOpen descriptors
-        if (memory_desc_wrapper(pd->desc()->data_desc).has_zero_dim())
+        if (memory_desc_wrapper(pd()->src_md()).has_zero_dim())
             return status::success;
 
         if (pd->ndims() > MIOPEN_DIM_MAX) { return status::invalid_arguments; }

@@ -334,7 +334,8 @@ void getting_started_tutorial(engine::kind engine_kind) {
     auto relu_pd = eltwise_forward::primitive_desc(
             eng, // an engine the primitive will be created for
             prop_kind::forward_inference, algorithm::eltwise_relu,
-            src_md, // the memory descriptor for an operation to work on
+            src_md, // source memory descriptor for an operation to work on
+            src_md, // destination memory descriptor for an operation to work on
             0.f, // alpha parameter means negative slope in case of ReLU
             0.f // beta parameter is ignored in case of ReLU
     );

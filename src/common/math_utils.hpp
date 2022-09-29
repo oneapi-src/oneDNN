@@ -395,7 +395,7 @@ inline U hardswish_bwd(T dd, T s, A alpha, A beta) {
 }
 
 inline bool is_eltwise_ok(
-        data_type_t dt, alg_kind_t alg, float alpha, float beta) {
+        data_type_t src_dt, alg_kind_t alg, float alpha, float beta) {
     using namespace alg_kind;
     using namespace utils;
 
@@ -409,8 +409,8 @@ inline bool is_eltwise_ok(
                       eltwise_gelu_erf, eltwise_round)
             && IMPLICATION(
                     one_of(alg, eltwise_clip, eltwise_clip_v2), beta >= alpha)
-            && IMPLICATION(alg == eltwise_round, dt == dnnl_f32)
-            && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8, dnnl_u8),
+            && IMPLICATION(alg == eltwise_round, src_dt == dnnl_f32)
+            && IMPLICATION(one_of(src_dt, dnnl_s32, dnnl_s8, dnnl_u8),
                     one_of(alg, eltwise_relu, eltwise_linear));
 
     const bool eltwise_use_dst

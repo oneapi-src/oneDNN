@@ -35,8 +35,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
 
-    auto data_d = dnn_mem_t::init_md(
+    auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt, prb->tag);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, prb->dims.data(), prb->dt, tag::any);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
@@ -50,15 +52,22 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                                         : dnnl_forward_training;
 
         DNN_SAFE_STATUS(dnnl_eltwise_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, alg, data_d,
+                &init_pd_args.pd, init_pd_args.engine, prop, alg, src_d, dst_d,
                 prb->alpha, prb->beta, dnnl_attr));
     } else {
-        auto diff_data_d = dnn_mem_t::init_md(
+        auto diff_src_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt, tag::any);
+        auto diff_dst_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, tag::any);
+        if (prb->use_dst()) // Need to create with proper tag
+            dst_d = dnn_mem_t::init_md(
+                    prb->ndims, prb->dims.data(), prb->dt, prb->tag);
+        auto &data_d = prb->use_dst() ? dst_d : src_d;
 
         DNN_SAFE_STATUS(dnnl_eltwise_backward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, alg, diff_data_d, data_d,
-                prb->alpha, prb->beta, init_pd_args.hint, dnnl_attr));
+                &init_pd_args.pd, init_pd_args.engine, alg, diff_src_d,
+                diff_dst_d, data_d, prb->alpha, prb->beta, init_pd_args.hint,
+                dnnl_attr));
     }
 
     return dnnl_success;

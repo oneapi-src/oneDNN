@@ -190,14 +190,17 @@ template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
-    const memory_desc_wrapper data_d(src_md());
+    const memory_desc_wrapper src_d(src_md());
 
-    bool ok = mayiuse(isa) && is_fwd() && src_md()->data_type == d_type
+    bool ok = mayiuse(isa) && is_fwd()
+            && utils::everyone_is(
+                    d_type, src_md()->data_type, dst_md()->data_type)
             && !has_zero_dim_memory()
-            && data_d.is_dense(true)
+            && src_d.is_dense(true)
             // refer to a comment in jit_uni_kernel why this is needed
-            && IMPLICATION(!data_d.is_dense(), is_zero_preserved())
-            && attr()->has_default_values();
+            && IMPLICATION(!src_d.is_dense(), is_zero_preserved())
+            && attr()->has_default_values() && set_default_formats_common()
+            && src_d == memory_desc_wrapper(dst_md());
 
     ok &= utils::one_of(desc_.alg_kind, eltwise_relu_use_dst_for_bwd,
             eltwise_relu, eltwise_elu_use_dst_for_bwd, eltwise_elu,
@@ -262,16 +265,18 @@ template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
-    const memory_desc_wrapper data_d(src_md());
+    const memory_desc_wrapper data_d(data_md());
 
     bool ok = mayiuse(isa) && !is_fwd()
-            && utils::everyone_is(
-                    d_type, src_md()->data_type, diff_src_md()->data_type)
+            && utils::everyone_is(d_type, data_md()->data_type,
+                    diff_src_md()->data_type, diff_dst_md()->data_type)
             && !has_zero_dim_memory() && set_default_formats_common()
             && data_d.is_dense(true)
             // refer to a comment in jit_uni_kernel why this is needed
             && IMPLICATION(!data_d.is_dense(), is_zero_preserved())
             && data_d == memory_desc_wrapper(diff_dst_md())
+            && memory_desc_wrapper(diff_src_md())
+                    == memory_desc_wrapper(diff_dst_md())
             && attr()->has_default_values();
 
     ok &= utils::one_of(desc_.alg_kind, eltwise_relu_use_dst_for_bwd,

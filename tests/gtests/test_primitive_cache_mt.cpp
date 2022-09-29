@@ -34,9 +34,10 @@ TEST(primitive_cache_mt_test, TestGeneralCase) {
     memory::dim n_primitives = 12;
 
     dnnl::impl::parallel_nd(n_primitives, [&](memory::dim np) {
+        auto md = memory::desc({{np, 1, 1, 1}, dt::f32, tag::nchw});
         auto relu_pd = eltwise_forward::primitive_desc(eng,
-                prop_kind::forward_inference, algorithm::eltwise_relu,
-                {{np, 1, 1, 1}, dt::f32, tag::nchw}, 0.f);
+                prop_kind::forward_inference, algorithm::eltwise_relu, md, md,
+                0.f);
         auto relu = eltwise_forward(relu_pd);
     });
 
@@ -81,9 +82,10 @@ TEST(primitive_cache_mt_test, TestMTCacheHit) {
     int n_primitives = 10;
 
     auto create_eltwise_primitive = [&](int np) {
+        auto md = memory::desc({{np, 1, 1, 1}, dt::f32, tag::nchw});
         auto relu_pd = eltwise_forward::primitive_desc(eng,
-                prop_kind::forward_inference, algorithm::eltwise_relu,
-                {{np, 1, 1, 1}, dt::f32, tag::nchw}, 0.f);
+                prop_kind::forward_inference, algorithm::eltwise_relu, md, md,
+                0.f);
         auto relu = eltwise_forward(relu_pd);
     };
 

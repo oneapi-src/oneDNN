@@ -372,8 +372,10 @@ size_t get_desc_hash(const eltwise_desc_t &desc) {
     seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.alg_kind));
     // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.data_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_data_desc));
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
     // Alpha, beta
     seed = hash_combine(seed, desc.alpha);
     seed = hash_combine(seed, desc.beta);

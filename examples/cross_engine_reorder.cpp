@@ -153,9 +153,9 @@ void cross_engine_reorder_tutorial() {
     // ReLU primitive descriptor, which corresponds to a particular
     // implementation in the library. Specify engine type for the ReLU
     // primitive. Use a GPU engine here.
-    auto relu_pd
-            = eltwise_forward::primitive_desc(gpu_engine, prop_kind::forward,
-                    algorithm::eltwise_relu, m_gpu.get_desc(), 0.0f);
+    auto relu_pd = eltwise_forward::primitive_desc(gpu_engine,
+            prop_kind::forward, algorithm::eltwise_relu, m_gpu.get_desc(),
+            m_gpu.get_desc(), 0.0f);
     // ReLU primitive
     auto relu = eltwise_forward(relu_pd);
     // [Create a ReLU primitive]

@@ -147,18 +147,18 @@ TEST_F(runtime_dim_test_t, TestEltwise) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     CHECK_UNIMPL(eltwise_forward::primitive_desc(
-            eng, prop_kind::forward, algorithm::eltwise_relu, md, 0.1f));
+            eng, prop_kind::forward, algorithm::eltwise_relu, md, md, 0.1f));
 
     eltwise_forward::primitive_desc fwd_hint;
     {
         auto valid_md = memory::desc({2, 16, 3, 3}, data_type::f32, tag::abcd);
         CHECK_OK(fwd_hint
                 = eltwise_forward::primitive_desc(eng, prop_kind::forward,
-                        algorithm::eltwise_relu, valid_md, 0.1f));
+                        algorithm::eltwise_relu, valid_md, valid_md, 0.1f));
     }
 
     CHECK_UNIMPL(eltwise_backward::primitive_desc(
-            eng, algorithm::eltwise_relu, md, md, 0.1f, fwd_hint));
+            eng, algorithm::eltwise_relu, md, md, md, 0.1f, fwd_hint));
 }
 
 TEST_F(runtime_dim_test_t, TestInnerProduct) {

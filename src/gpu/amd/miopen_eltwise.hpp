@@ -38,10 +38,7 @@ struct miopen_eltwise_fwd_t : public primitive_t {
 
         status_t init(engine_t *) {
             using namespace alg_kind;
-            bool ok = true
-                    && utils::one_of(desc()->prop_kind,
-                            prop_kind::forward_training,
-                            prop_kind::forward_inference)
+            bool ok = is_fwd()
                     // Supported algorithms
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
                             eltwise_tanh, eltwise_elu, eltwise_soft_relu,
@@ -49,11 +46,15 @@ struct miopen_eltwise_fwd_t : public primitive_t {
                     && IMPLICATION(desc()->alg_kind == eltwise_soft_relu,
                             desc()->alpha == 1.f)
                     // Supported data types
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f32, data_type::f16)
+                    && utils::one_of(
+                            src_md()->data_type, data_type::f32, data_type::f16)
+                    && src_md()->data_type == dst_md()->data_type
+                    && attr()->has_default_values()
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md())
                     // Eltwise does not support blocking
-                    && src_md()->format_desc.blocking.inner_nblks == 0
-                    && attr()->has_default_values();
+                    && src_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;
 
             eltwise_fwd_impl_.reset(new miopen_eltwise_fwd_impl_t());
@@ -78,20 +79,22 @@ struct miopen_eltwise_bwd_t : public primitive_t {
 
         status_t init(engine_t *) {
             using namespace alg_kind;
-            bool ok = true
-                    && desc()->prop_kind == prop_kind::backward_data
+            bool ok = !is_fwd()
                     // Supported algorithms
                     && utils::one_of(
                             desc()->alg_kind, eltwise_relu, eltwise_soft_relu)
                     && IMPLICATION(desc()->alg_kind == eltwise_soft_relu,
                             desc()->alpha == 1.f)
                     // Supported data types
-                    && desc()->data_desc.data_type == data_type::f32
+                    && utils::everyone_is(data_type::f32, data_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type)
+                    && attr()->has_default_values()
                     && set_default_formats_common()
+                    && memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md())
                     // Eltwise does not support blocking
                     && src_md()->format_desc.blocking.inner_nblks == 0
-                    && diff_dst_md()->format_desc.blocking.inner_nblks == 0
-                    && attr()->has_default_values();
+                    && diff_dst_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;
 
             eltwise_bwd_impl_.reset(new miopen_eltwise_bwd_impl_t());

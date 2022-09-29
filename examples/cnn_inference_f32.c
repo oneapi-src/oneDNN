@@ -285,16 +285,15 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     // from previous primitive
     const_dnnl_memory_desc_t relu_src_md
             = dnnl_primitive_desc_query_md(conv_pd, dnnl_query_dst_md, 0);
+    const_dnnl_memory_desc_t relu_dst_md = relu_src_md;
 
     // create a relu
     dnnl_primitive_desc_t relu_pd;
     CHECK(dnnl_eltwise_forward_primitive_desc_create(&relu_pd, engine,
-            dnnl_forward, dnnl_eltwise_relu, relu_src_md, negative_slope, 0,
-            NULL));
+            dnnl_forward, dnnl_eltwise_relu, relu_src_md, relu_dst_md,
+            negative_slope, 0, NULL));
 
     dnnl_memory_t relu_dst_memory;
-    const_dnnl_memory_desc_t relu_dst_md
-            = dnnl_primitive_desc_query_md(relu_pd, dnnl_query_dst_md, 0);
     CHECK(dnnl_memory_create(
             &relu_dst_memory, relu_dst_md, engine, DNNL_MEMORY_ALLOCATE));
 

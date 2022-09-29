@@ -44,7 +44,7 @@ struct jit_uni_eltwise_int_kernel : public jit_generator {
     void operator()(jit_args_t *p) { jit_generator::operator()(p); }
 
 protected:
-    data_type_t data_type() const { return desc_.data_desc.data_type; }
+    data_type_t data_type() const { return desc_.src_desc.data_type; }
     int dtype_size() const { return types::data_type_size(data_type()); }
 
     const eltwise_desc_t &desc() const { return desc_; }
@@ -347,14 +347,16 @@ void jit_uni_subkernel_int_t<sve_512>::store_8bit(const bool vectorize,
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
-    bool ok = mayiuse(isa)
-            && desc()->data_desc.data_type == d_type
+    bool ok = is_fwd() && mayiuse(isa)
+            && utils::everyone_is(
+                    d_type, src_md()->data_type, dst_md()->data_type)
             // only relu and linear so far
             && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
                     alg_kind::eltwise_linear)
             && !has_zero_dim_memory()
             && memory_desc_wrapper(src_md()).is_dense(true)
-            && attr()->has_default_values();
+            && attr()->has_default_values() && set_default_formats_common()
+            && memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md());
 
     return ok ? status::success : status::unimplemented;
 }
@@ -384,14 +386,14 @@ status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::execute_forward(
     auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
     CHECK(status);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
+    const memory_desc_wrapper src_d(pd()->src_md());
 
-    const size_t nelems = data_d.nelems(true);
+    const size_t nelems = src_d.nelems(true);
 
-    src += data_d.offset0();
-    dst += data_d.offset0();
+    src += src_d.offset0();
+    dst += src_d.offset0();
 
-    const int cache_line = 64 / data_d.data_type_size();
+    const int cache_line = 64 / src_d.data_type_size();
     parallel(0, [&](const int ithr, const int nthr) {
         size_t start {0}, end {0};
 

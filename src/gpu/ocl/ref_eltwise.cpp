@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,36 +24,36 @@ namespace ocl {
 static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
         const eltwise_pd_t *pd, engine_t *engine) {
     alg_kind_t alg = pd->desc()->alg_kind;
-    bool is_forward = utils::one_of(pd->desc()->prop_kind,
-            prop_kind::forward_training, prop_kind::forward_inference);
-    const memory_desc_wrapper data_d(pd->desc()->data_desc);
+    const bool is_forward = pd->is_fwd();
+    const auto &src_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
+    const memory_desc_wrapper src_d(src_md);
     const memory_desc_wrapper diff_data_d(
             is_forward ? &glob_zero_md : pd->diff_src_md());
 
-    conf.data_md_info = memory_desc_info_t::create(data_d);
+    conf.data_md_info = memory_desc_info_t::create(src_d);
     if (!is_forward)
         conf.data_diff_md_info = memory_desc_info_t::create(diff_data_d);
 
-    const int ndims = data_d.ndims();
+    const int ndims = src_d.ndims();
     conf.ndims = ndims;
 
-    conf.data_type = data_d.data_type();
+    conf.data_type = src_d.data_type();
     conf.alg = alg;
     conf.is_forward = is_forward;
     conf.attr_info = attr_info_t::create(pd->attr());
     conf.sub_group_size = 32;
 
-    set_offsets(data_d, off.src_off);
+    set_offsets(src_d, off.src_off);
     set_offsets(diff_data_d, off.dst_off);
 
-    const auto &dims = data_d.padded_dims();
+    const auto &dims = src_d.padded_dims();
 
-    conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
+    conf.with_zero_padding = src_d.nelems(false) != src_d.nelems(true);
 
     int max_ndims = 6;
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(
-            is_forward ? data_d.md_ : diff_data_d.md_);
+            is_forward ? src_d.md_ : diff_data_d.md_);
     for (int i = 0; i < max_ndims; ++i) {
         if (i < ndims)
             conf.dispatch.define_dim(utils::format("D%d", i), i, dims[i]);

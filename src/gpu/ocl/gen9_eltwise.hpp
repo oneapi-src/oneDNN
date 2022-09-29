@@ -44,31 +44,12 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
             using namespace alg_kind;
-            bool ok = true
-                    && utils::one_of(desc()->prop_kind,
-                            prop_kind::forward_training,
-                            prop_kind::forward_inference)
-                    && utils::one_of(desc()->alg_kind, eltwise_relu,
-                            eltwise_linear, eltwise_abs, eltwise_tanh,
-                            eltwise_elu, eltwise_square, eltwise_sqrt,
-                            eltwise_soft_relu, eltwise_logistic, eltwise_mish,
-                            eltwise_exp, eltwise_gelu_tanh, eltwise_hardswish,
-                            eltwise_swish, eltwise_log, eltwise_clip,
-                            eltwise_clip_v2, eltwise_pow, eltwise_gelu_erf,
-                            eltwise_round, eltwise_hardsigmoid,
-                            eltwise_relu_use_dst_for_bwd,
-                            eltwise_logistic_use_dst_for_bwd,
-                            eltwise_tanh_use_dst_for_bwd,
-                            eltwise_elu_use_dst_for_bwd,
-                            eltwise_sqrt_use_dst_for_bwd,
-                            eltwise_exp_use_dst_for_bwd,
-                            eltwise_clip_v2_use_dst_for_bwd)
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f32, data_type::f16, data_type::bf16,
-                            data_type::s32, data_type::s8, data_type::u8)
+            bool ok = is_fwd() && src_md()->data_type == dst_md()->data_type
                     && attr()->has_default_values()
-                    && IMPLICATION(
-                            desc()->data_desc.data_type == data_type::f16,
+                    && set_default_formats_common()
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md())
+                    && IMPLICATION(src_md()->data_type == data_type::f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
                     && compute_engine->mayiuse_sub_group(16);
@@ -121,25 +102,15 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
 
             using namespace alg_kind;
-            bool ok = desc()->prop_kind == backward_data
-                    && utils::one_of(desc()->alg_kind, eltwise_relu,
-                            eltwise_linear, eltwise_abs, eltwise_tanh,
-                            eltwise_elu, eltwise_square, eltwise_sqrt,
-                            eltwise_soft_relu, eltwise_mish, eltwise_logistic,
-                            eltwise_exp, eltwise_hardswish, eltwise_gelu_tanh,
-                            eltwise_swish, eltwise_log, eltwise_clip,
-                            eltwise_clip_v2, eltwise_pow, eltwise_gelu_erf,
-                            eltwise_hardsigmoid, eltwise_relu_use_dst_for_bwd,
-                            eltwise_logistic_use_dst_for_bwd,
-                            eltwise_tanh_use_dst_for_bwd,
-                            eltwise_elu_use_dst_for_bwd,
-                            eltwise_sqrt_use_dst_for_bwd,
-                            eltwise_exp_use_dst_for_bwd,
-                            eltwise_clip_v2_use_dst_for_bwd)
-                    && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f32, data_type::bf16)
+            bool ok = !is_fwd()
+                    && utils::one_of(data_md()->data_type, data_type::f32,
+                            data_type::bf16)
+                    && utils::everyone_is(data_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type)
                     && set_default_formats_common()
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && memory_desc_wrapper(diff_dst_md())
+                            == memory_desc_wrapper(diff_src_md());
             if (!ok) return status::unimplemented;
 
             return init_conf(engine);

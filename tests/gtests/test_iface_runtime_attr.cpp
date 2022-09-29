@@ -201,19 +201,21 @@ TEST_F(runtime_attr_test_t, TestEltwise) {
         memory::desc md {{1, 16, 3, 3}, dt, tag::abcd};
 
         CHECK_OK(eltwise_forward::primitive_desc(
-                eng, prop_kind::forward, algorithm::eltwise_relu, md, 0.f));
+                eng, prop_kind::forward, algorithm::eltwise_relu, md, md, 0.f));
 
         CHECK_UNIMPL(eltwise_forward::primitive_desc(eng, prop_kind::forward,
-                algorithm::eltwise_relu, md, 0.f, gen_attr_with_oscale(false)));
+                algorithm::eltwise_relu, md, md, 0.f,
+                gen_attr_with_oscale(false)));
         CHECK_UNIMPL(eltwise_forward::primitive_desc(eng, prop_kind::forward,
-                algorithm::eltwise_relu, md, 0.f, gen_attr_with_oscale(true)));
+                algorithm::eltwise_relu, md, md, 0.f,
+                gen_attr_with_oscale(true)));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
             CHECK_UNIMPL(eltwise_forward::primitive_desc(eng,
-                    prop_kind::forward, algorithm::eltwise_relu, md, 0.f,
+                    prop_kind::forward, algorithm::eltwise_relu, md, md, 0.f,
                     gen_attr_with_zp(false, arg)));
             CHECK_UNIMPL(eltwise_forward::primitive_desc(eng,
-                    prop_kind::forward, algorithm::eltwise_relu, md, 0.f,
+                    prop_kind::forward, algorithm::eltwise_relu, md, md, 0.f,
                     gen_attr_with_zp(true, arg)));
         }
     }
