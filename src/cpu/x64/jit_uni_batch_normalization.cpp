@@ -46,8 +46,8 @@ namespace barrier = simple_barrier;
 using acc_data_t = float;
 
 namespace {
-dim_t get_c_padded(const batch_normalization_pd_t *bdesc) {
-    return bdesc->src_md()->padded_dims[1];
+dim_t get_c_padded(const batch_normalization_pd_t *pd) {
+    return pd->src_md()->padded_dims[1];
 }
 
 bool is_nspc(const memory_desc_wrapper &d) {
@@ -60,7 +60,7 @@ bool is_nspc(const memory_desc_wrapper &d) {
 struct jit_bnorm_conf_t {
     // TODO: put all needed info here to avoid duplicate work and potentially
     // diverging definitions of derived parameters
-    const batch_normalization_pd_t *bdesc_;
+    const batch_normalization_pd_t *pd_;
 
     int simd_w_ {0};
     size_t dt_size_ {0};
@@ -80,21 +80,20 @@ struct jit_bnorm_conf_t {
     int N_nthr_last_iter_ {0};
     int S_nthr_last_iter_ {0};
 
-    jit_bnorm_conf_t(
-            const batch_normalization_pd_t *bdesc, int nthr, int simd_w)
-        : bdesc_(bdesc), simd_w_(simd_w) {
+    jit_bnorm_conf_t(const batch_normalization_pd_t *pd, int nthr, int simd_w)
+        : pd_(pd), simd_w_(simd_w) {
 
-        const dim_t N = bdesc_->MB();
-        const dim_t C_PADDED = get_c_padded(bdesc_);
-        const dim_t D = bdesc_->D();
-        const dim_t H = bdesc_->H();
-        const dim_t W = bdesc_->W();
+        const dim_t N = pd_->MB();
+        const dim_t C_PADDED = get_c_padded(pd_);
+        const dim_t D = pd_->D();
+        const dim_t H = pd_->H();
+        const dim_t W = pd_->W();
         const dim_t SP = D * H * W;
 
-        const memory_desc_wrapper src_d(bdesc_->src_md());
+        const memory_desc_wrapper src_d(pd_->src_md());
         is_nspc_ = is_nspc(src_d);
 
-        dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
+        dt_size_ = types::data_type_size(pd_->desc()->data_desc.data_type);
         size_t data_size = dt_size_ * N * C_PADDED * SP;
         const size_t l3_size = platform::get_per_core_cache_size(3) * nthr;
         // TODO: cache balancing for nspc
@@ -106,7 +105,7 @@ struct jit_bnorm_conf_t {
         const dim_t C_blks = C_PADDED / simd_w_;
 
         if (do_blocking_) {
-            const int num_tensors = bdesc_->is_fwd() ? 1 : 2;
+            const int num_tensors = pd_->is_fwd() ? 1 : 2;
             const size_t working_set_size
                     = dt_size_ * (N * SP * simd_w_) * num_tensors;
             bnorm_utils::cache_balance(working_set_size, C_blks, N, nthr,
@@ -155,7 +154,7 @@ struct jit_bnorm_conf_t {
                 N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
                 // heuristic for training on avx512_core_amx
                 // TODO: test heuristic when global stats flag is set
-                if (!bdesc_->use_global_stats() && 0 < dt_size_ && 0 < simd_w_
+                if (!pd_->use_global_stats() && 0 < dt_size_ && 0 < simd_w_
                         && 1 < C_nthr && nthr <= N
                         && mayiuse(avx512_core_amx)) {
                     const size_t data_size
@@ -174,7 +173,7 @@ struct jit_bnorm_conf_t {
                     const bool condition1
                             = cache_size_per_core < C_split_data_size;
                     // if split by N is also too big for cache, bwd is better off as it was
-                    const bool condition2 = bdesc_->is_fwd()
+                    const bool condition2 = pd_->is_fwd()
                             || cache_size_per_core >= N_split_data_size;
                     if (condition1 && condition2) {
                         C_nthr = 1;
@@ -247,7 +246,7 @@ struct jit_bnorm_t : public jit_generator {
     int vlen_spat_data_
             = 0; // set by ctor depending on data type (xF16 or FP32);
 
-    const batch_normalization_pd_t *bdesc_ = nullptr;
+    const batch_normalization_pd_t *pd_ = nullptr;
     const jit_bnorm_conf_t *jbp_ = nullptr;
     bool is_bf16_ = false;
     bool is_f16_ = false;
@@ -364,9 +363,9 @@ struct jit_bnorm_t : public jit_generator {
         const size_t l2_size_per_core = platform::get_per_core_cache_size(2);
         const size_t l3_size_per_core = platform::get_per_core_cache_size(3);
         const size_t cache_size_per_core = l2_size_per_core + l3_size_per_core;
-        const size_t buffer_count = bdesc_->is_fwd() ? 2 : 3;
-        const size_t data_size = buffer_count * jbp_->dt_size_ * bdesc_->MB()
-                * bdesc_->C() * bdesc_->D() * bdesc_->H() * bdesc_->W();
+        const size_t buffer_count = pd_->is_fwd() ? 2 : 3;
+        const size_t data_size = buffer_count * jbp_->dt_size_ * pd_->MB()
+                * pd_->C() * pd_->D() * pd_->H() * pd_->W();
         // do not divide by C_nthr for nspc layout
         const size_t data_size_per_core
                 = data_size / (jbp_->N_nthr_ * jbp_->S_nthr_);
@@ -374,13 +373,13 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     bool is_c_padded() const {
-        const memory_desc_wrapper data_d(bdesc_->src_md());
-        return bdesc_->C() != data_d.padded_dims()[1];
+        const memory_desc_wrapper data_d(pd_->src_md());
+        return pd_->C() != data_d.padded_dims()[1];
     }
 
     void compute_static_strides() {
-        spat_size = bdesc_->D() * bdesc_->W() * bdesc_->H();
-        chan_data_offt = bdesc_->C() * sizeof(acc_data_t);
+        spat_size = pd_->D() * pd_->W() * pd_->H();
+        chan_data_offt = pd_->C() * sizeof(acc_data_t);
         spat_step = jbp_->is_nspc_ ? chan_data_offt / (1 + is_xf16())
                                    : vlen_spat_data_;
         mb_offt = spat_step * spat_size;
@@ -390,7 +389,7 @@ struct jit_bnorm_t : public jit_generator {
     void load_common_params() {
 #define PARAM_OFF(x) offsetof(call_params_t, x)
         mov(reg_rbuf1, ptr[reg_param + PARAM_OFF(rbuf1)]);
-        if (bdesc_->is_bwd()) mov(reg_rbuf2, ptr[reg_param + PARAM_OFF(rbuf2)]);
+        if (pd_->is_bwd()) mov(reg_rbuf2, ptr[reg_param + PARAM_OFF(rbuf2)]);
         mov(reg_coff_max, ptr[reg_param + PARAM_OFF(coff_max)]);
         mov(reg_soff_max, ptr[reg_param + PARAM_OFF(soff_max)]);
         mov(reg_mb_stride_Bc, ptr[reg_param + PARAM_OFF(mb_stride_Bc)]);
@@ -432,7 +431,7 @@ struct jit_bnorm_t : public jit_generator {
             mov(ptr[rsp + stack_off_is_cblk_tail], reg_tmp);
         }
 
-        if (bdesc_->is_fwd()) {
+        if (pd_->is_fwd()) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(shift)]);
             mov(ptr[rsp + stack_off_shift], reg_tmp);
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(var)]);
@@ -447,8 +446,8 @@ struct jit_bnorm_t : public jit_generator {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(var)]);
             mov(reg_var, reg_tmp);
         }
-        if (with_relu_inf_only && bdesc_->alpha() != 0.f) {
-            mov(reg_tmp, float2int(bdesc_->alpha()));
+        if (with_relu_inf_only && pd_->alpha() != 0.f) {
+            mov(reg_tmp, float2int(pd_->alpha()));
             mov(ptr[rsp + stack_off_relu_alpha], reg_tmp);
         }
 #undef PARAM_OFF
@@ -457,7 +456,7 @@ struct jit_bnorm_t : public jit_generator {
     void prepare_tail_mask_avx512_common() {
         if (!is_c_padded()) return;
 
-        const int tail = bdesc_->C() % (int)(vlen / sizeof(float));
+        const int tail = pd_->C() % (int)(vlen / sizeof(float));
         const int mask = (1 << tail) - 1;
 
         Reg32 regw_tmp = reg_tmp.cvt32();
@@ -468,7 +467,7 @@ struct jit_bnorm_t : public jit_generator {
     void prepare_tail_mask_avx2_common() {
         if (!is_c_padded()) return;
 
-        const int tail = bdesc_->C() % (int)(vlen / sizeof(float));
+        const int tail = pd_->C() % (int)(vlen / sizeof(float));
         static const uint32_t mask[16] = {0xffffffff, 0xffffffff, 0xffffffff,
                 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0,
                 0, 0, 0, 0, 0, 0, 0};
@@ -478,17 +477,16 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void prepare_relu() {
-        with_relu = bdesc_->is_fwd()
-                ? bdesc_->with_relu_post_op(bdesc_->is_training())
-                        || bdesc_->fuse_norm_relu()
-                : bdesc_->fuse_norm_relu();
-        with_relu_inf_only = with_relu && bdesc_->is_fwd()
-                && !(bdesc_->fuse_norm_relu() && bdesc_->is_training());
+        with_relu = pd_->is_fwd() ? pd_->with_relu_post_op(pd_->is_training())
+                        || pd_->fuse_norm_relu()
+                                  : pd_->fuse_norm_relu();
+        with_relu_inf_only = with_relu && pd_->is_fwd()
+                && !(pd_->fuse_norm_relu() && pd_->is_training());
 
-        vzero = bdesc_->is_fwd() ? vdiff_beta : vbeta;
+        vzero = pd_->is_fwd() ? vdiff_beta : vbeta;
         if (with_relu) {
             uni_vpxor(vzero, vzero, vzero);
-            if (!bdesc_->is_fwd() && isa == avx2) prepare_l_relu_mask_avx2();
+            if (!pd_->is_fwd() && isa == avx2) prepare_l_relu_mask_avx2();
         }
     }
 
@@ -872,7 +870,7 @@ struct jit_bnorm_t : public jit_generator {
                 uni_vaddps(vsqrtvar, vsqrtvar, veps);
                 uni_vsqrtps(vsqrtvar, vsqrtvar);
 
-                if (bdesc_->use_scale()) {
+                if (pd_->use_scale()) {
                     uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
                     uni_vdivps(vscale, vgamma, vsqrtvar, vtmp);
                 } else {
@@ -890,7 +888,7 @@ struct jit_bnorm_t : public jit_generator {
                     const Vmm vscale = Vmm(idx + num_ch_blks);
                     uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
 
-                    if (bdesc_->use_shift()) {
+                    if (pd_->use_shift()) {
                         uni_vmovups_maybe_tail(vbeta, beta_ptr(coff));
                     }
 
@@ -899,7 +897,7 @@ struct jit_bnorm_t : public jit_generator {
 
                     uni_vsubps(vdata, vdata, vmean);
 
-                    if (bdesc_->use_shift()) {
+                    if (pd_->use_shift()) {
                         // --flags=S,CH,H
                         uni_vfmadd213ps(vdata, vscale, vbeta);
                     } else {
@@ -908,7 +906,7 @@ struct jit_bnorm_t : public jit_generator {
                     }
 
                     if (with_relu_inf_only) { // --attr=post_ops='relu'
-                        if (bdesc_->alpha() != 0.f)
+                        if (pd_->alpha() != 0.f)
                             fwd_process_relu_alpha(vdata);
                         else
                             uni_vmaxps(vdata, vdata, vzero);
@@ -1180,15 +1178,13 @@ struct jit_bnorm_t : public jit_generator {
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
             uni_vsqrtps(vsqrtvar, vsqrtvar);
 
-            if (bdesc_->use_scale()) {
+            if (pd_->use_scale()) {
                 uni_vmovups_maybe_tail(vgamma, gamma_ptr());
             }
-            if (bdesc_->use_shift()) {
-                uni_vmovups_maybe_tail(vbeta, beta_ptr());
-            }
+            if (pd_->use_shift()) { uni_vmovups_maybe_tail(vbeta, beta_ptr()); }
 
-            Vmm vscale = (bdesc_->use_scale()) ? vgamma : vone;
-            Vmm vdiv = (bdesc_->use_scale()) ? vgamma : vsqrtvar;
+            Vmm vscale = (pd_->use_scale()) ? vgamma : vone;
+            Vmm vdiv = (pd_->use_scale()) ? vgamma : vsqrtvar;
 
             if (isa == sse41) {
                 movups(vtmp, vscale);
@@ -1207,20 +1203,20 @@ struct jit_bnorm_t : public jit_generator {
                 const size_t offt = i * vlen_spat_data_;
                 uni_vmovups_spat_data(v, vmmword[reg_src + reg_soff + offt]);
                 uni_vsubps(v, v, vmean);
-                if ((bdesc_->use_scale() && bdesc_->use_shift())) {
+                if ((pd_->use_scale() && pd_->use_shift())) {
                     // --flags=CH
                     uni_vfmadd213ps(v, vgamma, vbeta);
-                } else if (bdesc_->use_scale()) {
+                } else if (pd_->use_scale()) {
                     // --flags=C
                     uni_vmulps(v, v, vgamma);
-                } else if (bdesc_->use_shift()) {
+                } else if (pd_->use_shift()) {
                     // --flags=H
                     uni_vfmadd213ps(v, vsqrtvar, vbeta);
                 } else {
                     uni_vmulps(v, v, vsqrtvar);
                 }
                 if (with_relu_inf_only) { // --attr=post_ops='relu'
-                    if (bdesc_->alpha() != 0.f) {
+                    if (pd_->alpha() != 0.f) {
                         fwd_process_relu_alpha(v);
                     } else
                         uni_vmaxps(v, v, vzero);
@@ -1544,8 +1540,7 @@ struct jit_bnorm_t : public jit_generator {
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
             uni_vsqrtps(vsqrtvar, vsqrtvar);
             uni_vdivps(vsqrtvar, vone, vsqrtvar, vtmp);
-            if (bdesc_->use_scale())
-                uni_vmovups_maybe_tail(vgamma, gamma_ptr());
+            if (pd_->use_scale()) uni_vmovups_maybe_tail(vgamma, gamma_ptr());
             uni_vmovups_maybe_tail(vdiff_gamma, diff_gamma_ptr());
             uni_vmovups_maybe_tail(vdiff_beta, diff_beta_ptr());
             uni_vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
@@ -1570,7 +1565,7 @@ struct jit_bnorm_t : public jit_generator {
                     else
                         assert(false);
                 }
-                if (!bdesc_->use_global_stats()) {
+                if (!pd_->use_global_stats()) {
                     uni_vsubps(v, v, vdiff_beta);
                     uni_vmovups_spat_data(
                             t, vmmword[reg_src + reg_soff + offt]);
@@ -1579,7 +1574,7 @@ struct jit_bnorm_t : public jit_generator {
                     uni_vaddps(v, v, t);
                 }
                 uni_vmulps(v, v, vsqrtvar);
-                if (bdesc_->use_scale()) { uni_vmulps(v, v, vgamma); }
+                if (pd_->use_scale()) { uni_vmulps(v, v, vgamma); }
                 if (stream_store_allowed) {
                     uni_vmovntps(vmmword[reg_diff_src + reg_soff + offt], v);
                 } else {
@@ -1629,7 +1624,7 @@ struct jit_bnorm_t : public jit_generator {
             const int num_spat_pts = 1;
 
             // pre-compute scale for each channel to avoid costly div and sqrt
-            if (!bdesc_->use_global_stats()) {
+            if (!pd_->use_global_stats()) {
                 mov(ptr[rsp + stack_off_ws_off_copy], reg_ws);
                 mov(reg_ws, ptr[rsp + stack_off_diff_scale]);
             }
@@ -1640,7 +1635,7 @@ struct jit_bnorm_t : public jit_generator {
                 uni_vaddps(vsqrtvar_ch, vsqrtvar_ch, veps);
                 uni_vsqrtps(vsqrtvar_ch, vsqrtvar_ch);
                 uni_vdivps(vsqrtvar_ch, vone, vsqrtvar_ch, vtmp);
-                if (!bdesc_->use_global_stats()) {
+                if (!pd_->use_global_stats()) {
                     const Vmm vdiff_beta_ch = Vmm(idx + num_ch_blks);
                     const Vmm vdiff_gamma_ch = Vmm(idx + 2 * num_ch_blks);
                     uni_vmovups_maybe_tail(vdiff_beta_ch,
@@ -1652,7 +1647,7 @@ struct jit_bnorm_t : public jit_generator {
                     uni_vdivps(vdiff_gamma_ch, vdiff_gamma_ch, vchan_size);
                 }
             }
-            if (!bdesc_->use_global_stats()) {
+            if (!pd_->use_global_stats()) {
                 mov(reg_ws, ptr[rsp + stack_off_ws_off_copy]);
             }
 
@@ -1668,7 +1663,7 @@ struct jit_bnorm_t : public jit_generator {
                     const Vmm vsqrtvar_ch = Vmm(idx);
                     uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
 
-                    if (bdesc_->use_scale())
+                    if (pd_->use_scale())
                         uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
 
                     uni_vmovups_spat_data(vdiff_data,
@@ -1681,7 +1676,7 @@ struct jit_bnorm_t : public jit_generator {
                             assert(false);
                     }
 
-                    if (!bdesc_->use_global_stats()) {
+                    if (!pd_->use_global_stats()) {
                         const Vmm vdiff_beta_ch = Vmm(idx + num_ch_blks);
                         const Vmm vdiff_gamma_ch = Vmm(idx + 2 * num_ch_blks);
                         uni_vsubps(vdiff_data, vdiff_data, vdiff_beta_ch);
@@ -1694,7 +1689,7 @@ struct jit_bnorm_t : public jit_generator {
 
                     uni_vmulps(vdiff_data, vdiff_data, vsqrtvar_ch);
 
-                    if (bdesc_->use_scale()) {
+                    if (pd_->use_scale()) {
                         uni_vmulps(vdiff_data, vdiff_data, vgamma);
                     }
 
@@ -1741,7 +1736,7 @@ struct jit_bnorm_t : public jit_generator {
                 backward_diff_channels_nspc_compute(ch_blk_size);
 
                 add(reg_diff_dst, vlen_spat_data_ * ch_blk_size);
-                if (!bdesc_->use_global_stats())
+                if (!pd_->use_global_stats())
                     add(reg_src, vlen_spat_data_ * ch_blk_size);
                 add(reg_diff_src, vlen_spat_data_ * ch_blk_size);
 
@@ -1762,7 +1757,7 @@ struct jit_bnorm_t : public jit_generator {
 
         if (is_xf16()) shr(reg_coff_max, 1);
         sub(reg_diff_dst, reg_coff_max);
-        if (!bdesc_->use_global_stats()) sub(reg_src, reg_coff_max);
+        if (!pd_->use_global_stats()) sub(reg_src, reg_coff_max);
         sub(reg_diff_src, reg_coff_max);
         if (is_xf16()) shl(reg_coff_max, 1);
 
@@ -1901,7 +1896,7 @@ struct jit_bnorm_t : public jit_generator {
             // Process next image
             if (jbp_->is_nspc_) {
                 // Can use static offset since we comeback after spatial loop
-                if (!bdesc_->use_global_stats()) add(reg_src, mb_offt);
+                if (!pd_->use_global_stats()) add(reg_src, mb_offt);
                 add(reg_diff_dst, mb_offt);
                 add(reg_diff_src, mb_offt);
                 add(reg_soff, mb_offt);
@@ -1917,7 +1912,7 @@ struct jit_bnorm_t : public jit_generator {
         }
         if (jbp_->is_nspc_) {
             // comeback
-            if (!bdesc_->use_global_stats())
+            if (!pd_->use_global_stats())
                 mov(reg_src, ptr[rsp + stack_off_src]);
             mov(reg_diff_dst, ptr[rsp + stack_off_diff_dst]);
             mov(reg_diff_src, ptr[rsp + stack_off_diff_src]);
@@ -1925,14 +1920,13 @@ struct jit_bnorm_t : public jit_generator {
         }
     }
 
-    jit_bnorm_t(
-            const batch_normalization_pd_t *bdesc, const jit_bnorm_conf_t *jbp)
-        : jit_generator(jit_name()), bdesc_(bdesc), jbp_(jbp) {
+    jit_bnorm_t(const batch_normalization_pd_t *pd, const jit_bnorm_conf_t *jbp)
+        : jit_generator(jit_name()), pd_(pd), jbp_(jbp) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
-        is_bf16_ = bdesc_->desc()->data_desc.data_type == data_type::bf16;
-        is_f16_ = bdesc_->desc()->data_desc.data_type == data_type::f16;
+        is_bf16_ = pd_->desc()->data_desc.data_type == data_type::bf16;
+        is_f16_ = pd_->desc()->data_desc.data_type == data_type::f16;
         vlen_spat_data_ = vlen / (1 + is_xf16()); // 32B of xF16 -> 64B of FP32
 
         unroll_blocks = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
@@ -1964,8 +1958,8 @@ struct jit_bnorm_t : public jit_generator {
         sub(rsp, stack_size_required);
         load_common_params();
 
-        if (bdesc_->is_fwd()) {
-            if (!bdesc_->stats_is_src()) { compute_mean_variance(); }
+        if (pd_->is_fwd()) {
+            if (!pd_->stats_is_src()) { compute_mean_variance(); }
             forward();
         } else {
             backward();
@@ -1983,19 +1977,19 @@ namespace bnorm_impl {
 
 template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
-    driver_t(const batch_normalization_pd_t *bdesc, int nthr)
-        : bdesc_(bdesc), jbp_(bdesc_, nthr, simd_w), ker_(bdesc_, &jbp_) {}
+    driver_t(const batch_normalization_pd_t *pd, int nthr)
+        : pd_(pd), jbp_(pd_, nthr, simd_w), ker_(pd_, &jbp_) {}
 
     ~driver_t() = default;
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-            const batch_normalization_pd_t *bdesc, int nthr) {
-        dim_t C_PADDED = get_c_padded(bdesc);
+            const batch_normalization_pd_t *pd, int nthr) {
+        dim_t C_PADDED = get_c_padded(pd);
 
-        auto sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
-        auto pbuf_sz = (use_tmp_diff_scale(bdesc) + use_tmp_diff_shift(bdesc))
-                * C_PADDED;
-        auto rbuf_sz = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * nthr;
+        auto sbuf_sz = use_tmp_stats(pd) * 2 * C_PADDED;
+        auto pbuf_sz
+                = (use_tmp_diff_scale(pd) + use_tmp_diff_shift(pd)) * C_PADDED;
+        auto rbuf_sz = (pd->is_fwd() ? 1 : 2) * C_PADDED * nthr;
 
         scratchpad.book<acc_data_t>(key_bnorm_tmp_stats, sbuf_sz);
         scratchpad.book<acc_data_t>(key_bnorm_tmp_diff_ss, pbuf_sz);
@@ -2036,19 +2030,19 @@ struct driver_t : public c_compatible {
         auto rbuf = scratchpad.get<acc_data_t>(key_bnorm_reduction);
         auto barriers = scratchpad.get<barrier::ctx_64_t>(key_barrier);
 
-        dim_t N = bdesc_->MB();
-        dim_t C = bdesc_->C();
-        dim_t C_PADDED = get_c_padded(bdesc_);
-        dim_t D = bdesc_->D();
-        dim_t H = bdesc_->H();
-        dim_t W = bdesc_->W();
+        dim_t N = pd_->MB();
+        dim_t C = pd_->C();
+        dim_t C_PADDED = get_c_padded(pd_);
+        dim_t D = pd_->D();
+        dim_t H = pd_->H();
+        dim_t W = pd_->W();
         dim_t SP = D * H * W;
         dim_t img_size = C_PADDED * SP;
         const int vlen_spat_data = ker_.spat_step;
 
         typename jit_bnorm_t<isa>::call_params_t p;
 
-        p.eps = bdesc_->desc()->batch_norm_epsilon;
+        p.eps = pd_->desc()->batch_norm_epsilon;
         p.one = 1.0f;
         p.spat_size = SP;
         p.chan_size = 1.0f * N * p.spat_size;
@@ -2097,25 +2091,24 @@ struct driver_t : public c_compatible {
             size_t soff_base = jbp_.is_nspc_
                     ? coff_base + N_s * img_size
                     : global_C_blk_s * p.spat_size * simd_w + N_s * img_size;
-            size_t shift_off = use_tmp_diff_scale(bdesc_) ? bdesc_->C() : 0;
+            size_t shift_off = use_tmp_diff_scale(pd_) ? pd_->C() : 0;
 
             p.spat_size_loc = S_e - S_s;
             p.S_s = S_s * vlen_spat_data;
             p.S_tail = (p.spat_size - S_e) * vlen_spat_data;
             p.coff_max = C_blks_thr * simd_w;
-            const auto tmp_mean = use_tmp_stats(bdesc_) ? sbuf : mean;
+            const auto tmp_mean = use_tmp_stats(pd_) ? sbuf : mean;
             if (tmp_mean != nullptr) p.mean = tmp_mean + coff_base;
-            const auto tmp_var = use_tmp_stats(bdesc_) ? sbuf + C_PADDED : var;
+            const auto tmp_var = use_tmp_stats(pd_) ? sbuf + C_PADDED : var;
             if (tmp_var != nullptr) p.var = tmp_var + coff_base;
             if (scale != nullptr) p.scale = scale + coff_base;
             if (shift != nullptr) p.shift = shift + coff_base;
             const auto tmp_diff_scale
-                    = use_tmp_diff_scale(bdesc_) ? pbuf : diff_scale;
+                    = use_tmp_diff_scale(pd_) ? pbuf : diff_scale;
             if (tmp_diff_scale != nullptr)
                 p.diff_scale = tmp_diff_scale + coff_base;
-            const auto tmp_diff_shift = use_tmp_diff_shift(bdesc_)
-                    ? &pbuf[shift_off]
-                    : diff_shift;
+            const auto tmp_diff_shift
+                    = use_tmp_diff_shift(pd_) ? &pbuf[shift_off] : diff_shift;
             if (tmp_diff_shift != nullptr)
                 p.diff_shift = tmp_diff_shift + coff_base;
 
@@ -2156,7 +2149,7 @@ struct driver_t : public c_compatible {
     void init_barriers(const memory_tracking::grantor_t &scratchpad) {
         auto barriers = scratchpad.get<barrier::ctx_64_t>(key_barrier);
         if (barriers) {
-            const int n_barriers = get_c_padded(bdesc_) / simd_w;
+            const int n_barriers = get_c_padded(pd_) / simd_w;
             for (int i = 0; i < n_barriers; ++i)
                 barrier::ctx_init(&barriers[i]);
         }
@@ -2171,22 +2164,22 @@ private:
                         / sizeof(acc_data_t) // BF16 will expand to FP32
     };
 
-    static bool use_tmp_stats(const batch_normalization_pd_t *bdesc) {
-        return !bdesc->stats_is_src()
-                && bdesc->desc()->prop_kind == prop_kind::forward_inference;
+    static bool use_tmp_stats(const batch_normalization_pd_t *pd) {
+        return !pd->stats_is_src()
+                && pd->desc()->prop_kind == prop_kind::forward_inference;
     }
 
-    static bool use_tmp_diff_scale(const batch_normalization_pd_t *bdesc) {
-        return (bdesc->is_bwd() && !bdesc->use_scale())
-                || bdesc->desc()->prop_kind == prop_kind::backward_data;
+    static bool use_tmp_diff_scale(const batch_normalization_pd_t *pd) {
+        return (pd->is_bwd() && !pd->use_scale())
+                || pd->desc()->prop_kind == prop_kind::backward_data;
     }
 
-    static bool use_tmp_diff_shift(const batch_normalization_pd_t *bdesc) {
-        return (bdesc->is_bwd() && !bdesc->use_shift())
-                || bdesc->desc()->prop_kind == prop_kind::backward_data;
+    static bool use_tmp_diff_shift(const batch_normalization_pd_t *pd) {
+        return (pd->is_bwd() && !pd->use_shift())
+                || pd->desc()->prop_kind == prop_kind::backward_data;
     }
 
-    const batch_normalization_pd_t *bdesc_;
+    const batch_normalization_pd_t *pd_;
     jit_bnorm_conf_t jbp_;
     jit_bnorm_t<isa> ker_;
 };
