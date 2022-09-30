@@ -1125,7 +1125,7 @@ static scratchpad_mm_mgr s_mm_mgr;
 
 void *sycl_malloc_wrapper(
         size_t size, size_t alignment, const void *dev, const void *ctx) {
-    void *ptr = is_bench_mode(CORR)
+    void *ptr = is_bench_mode(CORR) || is_cpu()
             ? dnnl::graph::testing::sycl_malloc_wrapper(
                     size, alignment, dev, ctx)
             : s_mm_mgr.sycl_alloc_mm(size, alignment, dev, ctx);
@@ -1137,7 +1137,7 @@ void *sycl_malloc_wrapper(
 // test finished.
 void sycl_free_wrapper(
         void *ptr, const void *device, const void *context, void *event) {
-    if (is_bench_mode(CORR)) {
+    if (is_bench_mode(CORR) || is_cpu()) {
         dnnl::graph::testing::sycl_free_wrapper(ptr, device, context, event);
     } else {
         s_mm_mgr.sycl_free_mm(ptr, device, context, event);
