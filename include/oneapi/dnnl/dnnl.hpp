@@ -8398,7 +8398,9 @@ protected:
             float beta, const primitive_attr &attr, bool allow_empty) {
 
         dnnl_status_t status = dnnl_success;
-        const char *msg = "";
+        const char *msg
+                = "could not create a primitive descriptor for a requested "
+                  "cell kind";
 
         dnnl_primitive_desc_t pd = nullptr;
         switch (cell_kind) {
@@ -8415,7 +8417,7 @@ protected:
                       "RNN forward propagation primitive";
                 break;
             case algorithm::vanilla_lstm:
-                status = dnnl_lstm_forward_primitive_desc_create_v3(&pd,
+                status = dnnl_lstm_forward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
                         dnnl::convert_to_c(direction), src_layer_desc.get(),
                         src_iter_desc.get(), optional_arg(src_iter_c_desc),
@@ -8532,7 +8534,7 @@ protected:
                       "RNN backward propagation primitive";
                 break;
             case algorithm::vanilla_lstm:
-                status = dnnl_lstm_backward_primitive_desc_create_v3(&pd,
+                status = dnnl_lstm_backward_primitive_desc_create(&pd,
                         aengine.get(), dnnl::convert_to_c(aprop_kind),
                         dnnl::convert_to_c(direction), src_layer_desc.get(),
                         src_iter_desc.get(), optional_arg(src_iter_c_desc),

@@ -511,7 +511,7 @@ status_t dnnl_vanilla_rnn_forward_primitive_desc_create(
             (const op_desc_t *)&rnn_desc, nullptr, attr);
 }
 
-status_t dnnl_lstm_forward_primitive_desc_create_v3(
+status_t dnnl_lstm_forward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const memory_desc_t *src_layer_desc, const memory_desc_t *src_iter_desc,
@@ -640,7 +640,7 @@ status_t dnnl_vanilla_rnn_backward_primitive_desc_create(
             (const op_desc_t *)&rnn_desc, hint_fwd_pd, attr);
 }
 
-status_t dnnl_lstm_backward_primitive_desc_create_v3(
+status_t dnnl_lstm_backward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const memory_desc_t *src_layer_desc, const memory_desc_t *src_iter_desc,

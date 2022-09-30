@@ -2448,7 +2448,7 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_primitive_desc_create(
 /// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v3(
+dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const_dnnl_memory_desc_t src_layer_desc,
@@ -2539,7 +2539,7 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v3(
 /// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create_v3(
+dnnl_status_t DNNL_API dnnl_lstm_backward_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
         const_dnnl_memory_desc_t src_layer_desc,

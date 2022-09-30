@@ -289,7 +289,7 @@ dnnl_status_t init_rnn_fwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,
                     dst_iter_d, prb.flags, prb.alpha, prb.beta, attr);
             break;
         case dnnl_vanilla_lstm:
-            status = dnnl_lstm_forward_primitive_desc_create_v3(pd, engine,
+            status = dnnl_lstm_forward_primitive_desc_create(pd, engine,
                     prop_kind, prb.direction, src_layer_d, src_iter_d,
                     src_iter_c_d, weights_layer_d, weights_iter_d,
                     weights_peephole_d, weights_projection_d, bias_d,
@@ -365,7 +365,7 @@ dnnl_status_t init_rnn_bwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,
                     prb.beta, hint, attr);
             break;
         case dnnl_vanilla_lstm:
-            status = dnnl_lstm_backward_primitive_desc_create_v3(pd, engine,
+            status = dnnl_lstm_backward_primitive_desc_create(pd, engine,
                     prop_kind, prb.direction, src_layer_d, src_iter_d,
                     src_iter_c_d, weights_layer_d, weights_iter_d,
                     weights_peephole_d, weights_projection_d, bias_d,
