@@ -165,8 +165,6 @@ public:
             signal(obj.attr);
         } else if (func.is_equal(funcs::slm_fence_func())) {
             slm_fence(obj.attr);
-        } else if (func.is_equal(funcs::swsb_long_sync_func())) {
-            swsb_long_sync();
         } else {
             ir_error_not_expected() << object_t(obj);
         }
@@ -353,10 +351,6 @@ private:
         host_->barriermsg(mod, host_->signal_header_);
     }
 
-    void swsb_long_sync() {
-        host_->sync(ngen::SyncFunction::nop, ngen::SWSB<uint64_t>(1));
-    }
-
     void barrier_wait() { host_->barrierwait(); }
 
     void slm_fence(const func_call_attr_t &attr) {
@@ -477,7 +471,14 @@ private:
             auto _src1 = src1;
             auto _src2 = src2;
             align_src_dst_offset(host_, scope, mod, dst, _src1, _src2);
-            host_->mad(mod, dst, src0, _src1, _src2);
+            // Workaround for sporadic f64 mad errors with broadcast src1 on XeHPC.
+            if (mad_func.dst_type == type_t::f64()
+                    && _src1.reg_data().getHS() == 0
+                    && _src1.reg_data().getVS() == 0) {
+                host_->mad(mod, dst, src0, _src2, _src1);
+            } else {
+                host_->mad(mod, dst, src0, _src1, _src2);
+            }
         }
     }
 

@@ -792,15 +792,6 @@ inline stmt_t _continue() {
     return continue_func().call();
 }
 
-inline func_t swsb_long_sync_func() {
-    static thread_local auto f = builtin_t::make("swsb_long_sync");
-    return f;
-}
-
-inline stmt_t swsb_long_sync() {
-    return swsb_long_sync_func().call();
-}
-
 } // namespace funcs
 
 } // namespace jit

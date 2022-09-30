@@ -499,8 +499,6 @@ private:
             int c_off = c_layout_(c_idx) * c_type.size();
             stmt_ = stmt_.append(mad(c_buf_[c_off], c_buf_[c_off],
                     a_buf_[a_off], b_buf_[b_off]));
-            // XXX: Workaround for fp64 correctness issues with mad.
-            if (c_type.is_f64()) stmt_ = stmt_.append(funcs::swsb_long_sync());
         });
     }
 
