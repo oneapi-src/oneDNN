@@ -28,7 +28,7 @@
 namespace ngen {
 using bfloat16 = dnnl::impl::bfloat16_t;
 using half = dnnl::impl::float16_t;
-}
+} // namespace ngen
 
 #define NGEN_BFLOAT16_TYPE
 #define NGEN_HALF_TYPE
