@@ -79,10 +79,8 @@ status_t compiler_backend_t::get_partitions(
             = impl::utils::getenv_int_internal("DISABLE_COMPILER_BACKEND", 0)
             > 0;
     if (disable_compiler_bkd) return status::success;
-    if (policy == partition_policy::fusion) {
-        impl::pass::pass_manager_t pm(get_pass_registry());
-        pm.run_passes(agraph, "", policy);
-    }
+    impl::pass::pass_manager_t pm(get_pass_registry());
+    pm.run_passes(agraph, "", policy);
     return status::success;
 }
 
