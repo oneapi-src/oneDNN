@@ -114,7 +114,8 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
             = src_mdw.nelems() * src_mdw.data_type_size() / 1024 / 1024;
     // heuristics: use batching on ATS-M for certain shapes for better perf.
     if (!conf.is_backward && pd->attr()->post_ops_.has_default_values()
-            && is_pre_xe_hpc && ((float)input_sz_mb / conf.mb > 0.5)) {
+            && !conf.unroll_mb && is_pre_xe_hpc
+            && (2 * input_sz_mb > conf.mb)) {
         conf.num_batches = utils::div_up(conf.mb_padded, conf.mb_block_size);
     }
     if (conf.num_batches > 1) {
