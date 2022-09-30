@@ -424,15 +424,19 @@ struct prelu_desc_t {
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward
     prop_kind_t prop_kind;
-    // Source and destination memory descriptor.
-    memory_desc_t data_desc;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
     // Learnable parameter alpha memory descriptor.
     // Alpha describes negative slope.
     memory_desc_t weights_desc;
-    // Source and destination gradient memory descriptor.
-    memory_desc_t diff_data_desc;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
     // Learnable parameter alpha gradient memory descriptor.
     memory_desc_t diff_weights_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
 };
 
 // A descriptor of a pooling operation.

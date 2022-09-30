@@ -502,10 +502,12 @@ size_t get_desc_hash(const prelu_desc_t &desc) {
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
     // Memory descriptors
-    seed = hash_combine(seed, get_md_hash(desc.data_desc));
-    seed = hash_combine(seed, get_md_hash(desc.diff_data_desc));
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
     seed = hash_combine(seed, get_md_hash(desc.weights_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_src_desc));
     seed = hash_combine(seed, get_md_hash(desc.diff_weights_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
     // Combined hash for prelu desc
     return seed;
 }

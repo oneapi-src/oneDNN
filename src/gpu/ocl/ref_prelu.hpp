@@ -42,10 +42,12 @@ struct ref_prelu_fwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
 
-            bool ok = is_fwd() && set_default_formats()
-                    && attr()->has_default_values()
+            bool ok = is_fwd() && src_md()->data_type == dst_md()->data_type
+                    && set_default_formats() && attr()->has_default_values()
                     && !memory_desc_ndims_ok(
-                            src_md(0), dst_md(0), weights_md(0));
+                            src_md(0), dst_md(0), weights_md(0))
+                    && memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md());
 
             if (!ok) return status::unimplemented;
 
@@ -98,10 +100,13 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
 
-            bool ok = !is_fwd() && set_default_formats()
-                    && attr()->has_default_values()
+            bool ok = !is_fwd()
+                    && diff_dst_md()->data_type == diff_src_md()->data_type
+                    && set_default_formats() && attr()->has_default_values()
                     && !memory_desc_ndims_ok(
-                            diff_src_md(0), diff_dst_md(0), diff_weights_md(0));
+                            diff_src_md(0), diff_dst_md(0), diff_weights_md(0))
+                    && memory_desc_wrapper(diff_dst_md())
+                            == memory_desc_wrapper(diff_src_md());
 
             if (!ok) return status::unimplemented;
 

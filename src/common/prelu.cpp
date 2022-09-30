@@ -33,50 +33,63 @@ using namespace dnnl::impl::types;
 
 namespace {
 status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
-        const memory_desc_t *data_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *diff_data_desc,
-        const memory_desc_t *diff_weights_desc) {
-    static constexpr int max_supported_ndims = 5;
-    bool args_ok = !any_null(prelu_desc, data_desc, weights_desc)
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_weights_desc,
+        const memory_desc_t *diff_dst_desc) {
+    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
+    bool args_ok = !any_null(prelu_desc, src_desc, weights_desc)
             && one_of(prop_kind, forward_training, forward_inference, backward)
-            && data_desc->ndims <= max_supported_ndims
-            && data_desc->ndims == weights_desc->ndims
-            && IMPLICATION(prop_kind == backward,
-                    !any_null(diff_data_desc, diff_weights_desc)
-                            && diff_data_desc->ndims == data_desc->ndims
-                            && diff_weights_desc->ndims == weights_desc->ndims)
-            && IMPLICATION(
-                    one_of(prop_kind, forward_training, forward_inference),
-                    !memory_desc_wrapper(data_desc).format_any());
-
+            && IMPLICATION(is_fwd, dst_desc != nullptr)
+            && IMPLICATION(!is_fwd,
+                    !any_null(diff_src_desc, diff_weights_desc, diff_dst_desc))
+            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
     if (!args_ok) return invalid_arguments;
 
-    if (memory_desc_wrapper(data_desc).has_runtime_dims_or_strides()
+    if (memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
             || memory_desc_wrapper(weights_desc).has_runtime_dims_or_strides())
         return unimplemented;
-
     if (prop_kind == backward
-            && (memory_desc_wrapper(diff_data_desc)
-                            .has_runtime_dims_or_strides()
+            && (memory_desc_wrapper(diff_src_desc).has_runtime_dims_or_strides()
                     || memory_desc_wrapper(diff_weights_desc)
                                .has_runtime_dims_or_strides()))
         return unimplemented;
 
     auto pd = prelu_desc_t();
-
     pd.primitive_kind = primitive_kind::prelu;
     pd.prop_kind = prop_kind;
-    pd.data_desc = *data_desc;
+    pd.src_desc = *src_desc;
     pd.weights_desc = *weights_desc;
-    if (pd.prop_kind == backward) {
-        pd.diff_data_desc = *diff_data_desc;
+    if (is_fwd) {
+        pd.dst_desc = *dst_desc;
+    } else {
+        pd.diff_src_desc = *diff_src_desc;
         pd.diff_weights_desc = *diff_weights_desc;
+        pd.diff_dst_desc = *diff_dst_desc;
     }
 
-    memory_desc_wrapper data_md(*data_desc);
-    if (get_rhs_arg_broadcasting_strategy(pd.weights_desc, data_md)
+    const memory_desc_wrapper src_mdw(*src_desc);
+    if (get_rhs_arg_broadcasting_strategy(pd.weights_desc, src_mdw)
             == broadcasting_strategy_t::unsupported)
         return invalid_arguments;
+
+    static constexpr int max_supported_ndims = 5;
+    bool consistency = src_desc->ndims <= max_supported_ndims
+            && src_desc->ndims == weights_desc->ndims;
+    if (consistency && is_fwd) {
+        consistency = pd.dst_desc.ndims == pd.src_desc.ndims
+                && array_cmp(
+                        pd.dst_desc.dims, pd.src_desc.dims, pd.src_desc.ndims);
+    }
+    if (consistency && !is_fwd) {
+        consistency = pd.diff_dst_desc.ndims == pd.src_desc.ndims
+                && pd.diff_dst_desc.ndims == pd.diff_src_desc.ndims
+                && array_cmp(pd.diff_dst_desc.dims, pd.src_desc.dims,
+                        pd.src_desc.ndims)
+                && array_cmp(pd.diff_src_desc.dims, pd.diff_dst_desc.dims,
+                        pd.diff_dst_desc.ndims);
+    }
+    if (!consistency) return invalid_arguments;
 
     *prelu_desc = pd;
     return success;
@@ -85,15 +98,16 @@ status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
 
 status_t dnnl_prelu_forward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        prop_kind_t prop_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *weights_desc, const primitive_attr_t *attr) {
+        prop_kind_t prop_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *weights_desc, const memory_desc_t *dst_desc,
+        const primitive_attr_t *attr) {
 
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
 
     auto prelu_desc = prelu_desc_t();
-    CHECK(prelu_desc_init(
-            &prelu_desc, prop_kind, data_desc, weights_desc, nullptr, nullptr));
+    CHECK(prelu_desc_init(&prelu_desc, prop_kind, src_desc, weights_desc,
+            dst_desc, nullptr, nullptr, nullptr));
 
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&prelu_desc, nullptr, attr);
@@ -101,15 +115,16 @@ status_t dnnl_prelu_forward_primitive_desc_create(
 
 status_t dnnl_prelu_backward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        const memory_desc_t *data_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *diff_data_desc,
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_weights_desc,
+        const memory_desc_t *diff_dst_desc,
         const primitive_desc_iface_t *hint_fwd_pd,
         const primitive_attr_t *attr) {
 
     auto prelu_desc = prelu_desc_t();
-    CHECK(prelu_desc_init(&prelu_desc, backward, data_desc, weights_desc,
-            diff_data_desc, diff_weights_desc));
+    CHECK(prelu_desc_init(&prelu_desc, backward, src_desc, weights_desc,
+            nullptr, diff_src_desc, diff_weights_desc, diff_dst_desc));
 
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&prelu_desc, hint_fwd_pd, attr);

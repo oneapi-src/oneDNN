@@ -35,6 +35,8 @@ namespace cpu {
 using namespace math;
 using namespace data_type;
 
+static constexpr int max_supported_ndims = 5;
+
 static dim_t offset(const memory_desc_wrapper &mem, dims_t dims) {
     const int ndims = mem.ndims();
     switch (ndims) {

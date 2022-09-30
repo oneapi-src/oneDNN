@@ -42,7 +42,8 @@ status_t jit_prelu_fwd_t::pd_t::init(engine_t *engine) {
             && !has_zero_dim_memory() && src_d.is_dense(true)
             && weights_d.is_dense(true) && attr()->has_default_values()
             && utils::one_of(prelu::get_supported_isa(), avx512_core_fp16,
-                    avx512_core_bf16, avx512_core, avx2, avx, sse41);
+                    avx512_core_bf16, avx512_core, avx2, avx, sse41)
+            && dst_d == src_d;
 
     return ok ? status::success : status::unimplemented;
 }
@@ -111,12 +112,11 @@ status_t jit_prelu_fwd_t::execute(const exec_ctx_t &ctx) const {
     const auto kernel = kernel_.get();
     const auto bcast = kernel->get_bcast();
     const auto ndims = src_d.ndims();
-    const auto &dims = src_d.dims();
-    const dim_t MB = dims[0];
-    const dim_t C = ndims >= 2 ? dims[1] : 1;
-    const dim_t D = ndims >= 5 ? dims[ndims - 3] : 1;
-    const dim_t H = ndims >= 4 ? dims[ndims - 2] : 1;
-    const dim_t W = ndims >= 3 ? dims[ndims - 1] : 1;
+    const dim_t MB = pd()->N();
+    const dim_t C = pd()->C();
+    const dim_t D = pd()->D();
+    const dim_t H = pd()->H();
+    const dim_t W = pd()->W();
     const dim_t SP = D * H * W;
 
     if (bcast == prelu::bcast::full) {

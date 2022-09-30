@@ -12274,8 +12274,9 @@ struct prelu_forward : public primitive {
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
-        /// @param data_desc Source and destination memory descriptors.
+        /// @param src_desc Source memory descriptor.
         /// @param weight_desc Alpha parameters memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -12283,14 +12284,16 @@ struct prelu_forward : public primitive {
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
         primitive_desc(const engine &aengine, prop_kind aprop_kind,
-                const memory::desc &data_desc, const memory::desc &weight_desc,
+                const memory::desc &src_desc, const memory::desc &weight_desc,
+                const memory::desc &dst_desc,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_prelu_forward_primitive_desc_create(&pd,
                     aengine.get(), dnnl::convert_to_c(aprop_kind),
-                    data_desc.get(), weight_desc.get(), attr.get());
+                    src_desc.get(), weight_desc.get(), dst_desc.get(),
+                    attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -12348,11 +12351,11 @@ struct prelu_backward : public primitive {
         /// primitive.
         ///
         /// @param aengine Engine to use.
-        /// @param data_desc Source and destination memory descriptors.
+        /// @param src_desc Source memory descriptor.
         /// @param weight_desc Alpha parameters memory descriptor.
-        /// @param diff_data_desc Diff source and destination memory
-        ///     descriptors.
+        /// @param diff_src_desc Diff source memory descriptor.
         /// @param diff_weights_desc Diff alpha parameters memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
         /// @param hint_fwd_pd Primitive descriptor for a PReLU
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -12362,19 +12365,20 @@ struct prelu_backward : public primitive {
         ///     allowed to fail without throwing an exception. In this case an
         ///     empty object will be produced. This flag is optional and
         ///     defaults to false.
-        primitive_desc(const engine &aengine, const memory::desc &data_desc,
+        primitive_desc(const engine &aengine, const memory::desc &src_desc,
                 const memory::desc &weight_desc,
-                const memory::desc &diff_data_desc,
+                const memory::desc &diff_src_desc,
                 const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc,
                 const prelu_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false) {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status = dnnl_prelu_backward_primitive_desc_create(
-                    &pd, aengine.get(), data_desc.get(), weight_desc.get(),
-                    diff_data_desc.get(), diff_weights_desc.get(),
-                    hint_fwd_pd.get(), attr.get());
+                    &pd, aengine.get(), src_desc.get(), weight_desc.get(),
+                    diff_src_desc.get(), diff_weights_desc.get(),
+                    diff_dst_desc.get(), hint_fwd_pd.get(), attr.get());
 
             if (!allow_empty)
                 error::wrap_c_api(status,
@@ -12391,7 +12395,7 @@ struct prelu_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::prelu,
-                    dnnl::prop_kind::backward_data) {}
+                    dnnl::prop_kind::backward) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }

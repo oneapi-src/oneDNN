@@ -89,6 +89,7 @@ void prelu_example(dnnl::engine::kind engine_kind) {
     // provided by the user.
     auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
     auto weights_md = memory::desc(weights_dims, dt::f32, tag::any);
+    auto dst_md = memory::desc(src_dims, dt::f32, tag::any);
 
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), user_src_mem);
@@ -96,7 +97,7 @@ void prelu_example(dnnl::engine::kind engine_kind) {
 
     // Create primitive descriptor.
     auto prelu_pd = prelu_forward::primitive_desc(
-            engine, prop_kind::forward_training, src_md, weights_md);
+            engine, prop_kind::forward_training, src_md, weights_md, dst_md);
 
     // For now, assume that the weights memory layout generated
     // by the primitive and the one provided by the user are identical.

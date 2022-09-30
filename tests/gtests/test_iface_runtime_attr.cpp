@@ -372,18 +372,18 @@ TEST_F(runtime_attr_test_t, TestPReLU) {
     memory::desc weights_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
 
     CHECK_OK(prelu_forward::primitive_desc(
-            eng, prop_kind::forward, data_md, weights_md));
+            eng, prop_kind::forward, data_md, weights_md, data_md));
 
     CHECK_UNIMPL(prelu_forward::primitive_desc(eng, prop_kind::forward, data_md,
-            weights_md, gen_attr_with_oscale(false)));
+            weights_md, data_md, gen_attr_with_oscale(false)));
     CHECK_UNIMPL(prelu_forward::primitive_desc(eng, prop_kind::forward, data_md,
-            weights_md, gen_attr_with_oscale(true)));
+            weights_md, data_md, gen_attr_with_oscale(true)));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(prelu_forward::primitive_desc(eng, prop_kind::forward,
-                data_md, weights_md, gen_attr_with_zp(false, arg)));
+                data_md, weights_md, data_md, gen_attr_with_zp(false, arg)));
         CHECK_UNIMPL(prelu_forward::primitive_desc(eng, prop_kind::forward,
-                data_md, weights_md, gen_attr_with_zp(true, arg)));
+                data_md, weights_md, data_md, gen_attr_with_zp(true, arg)));
     }
 }
 

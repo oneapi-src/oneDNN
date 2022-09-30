@@ -413,10 +413,12 @@ void serialize_desc(serialization_stream_t &sstream, const prelu_desc_t &desc) {
     sstream.write(&desc.primitive_kind);
     sstream.write(&desc.prop_kind);
     // Memory descriptors
-    serialize_md(sstream, desc.data_desc);
-    serialize_md(sstream, desc.diff_data_desc);
+    serialize_md(sstream, desc.src_desc);
     serialize_md(sstream, desc.weights_desc);
+    serialize_md(sstream, desc.dst_desc);
+    serialize_md(sstream, desc.diff_src_desc);
     serialize_md(sstream, desc.diff_weights_desc);
+    serialize_md(sstream, desc.diff_dst_desc);
 }
 
 void serialize_desc(

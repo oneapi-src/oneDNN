@@ -47,9 +47,11 @@ status_t jit_prelu_bwd_t::pd_t::init(engine_t *engine) {
             && set_default_formats() && src_d.is_dense(true)
             && weights_d.is_dense(true) && src_diff_d.is_dense(true)
             && weights_diff_d.is_dense(true) && dst_diff_d.is_dense(true)
-            && !has_zero_dim_memory()
+            && attr()->has_default_values()
             && utils::one_of(prelu::get_supported_isa(), avx512_core_fp16,
-                    avx512_core_bf16, avx512_core, avx2, avx, sse41);
+                    avx512_core_bf16, avx512_core, avx2, avx, sse41)
+            && dst_diff_d == src_diff_d;
+    if (!ok) return status::unimplemented;
 
     const auto bcast = prelu::get_bcast_type(src_diff_d, weights_diff_d);
 

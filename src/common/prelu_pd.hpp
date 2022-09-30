@@ -46,16 +46,16 @@ struct prelu_pd_t : public primitive_desc_t {
         return status::success;
     }
 
-    dim_t N() const { return data_desc().dims[0]; }
-    dim_t C() const { return data_desc().dims[1]; }
-    dim_t D() const { return ndims() >= 5 ? data_desc().dims[ndims() - 3] : 1; }
-    dim_t H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
-    dim_t W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
+    dim_t N() const { return src_md()->dims[0]; }
+    dim_t C() const { return src_md()->dims[1]; }
+    dim_t D() const { return ndims() >= 5 ? src_md()->dims[ndims() - 3] : 1; }
+    dim_t H() const { return ndims() >= 4 ? src_md()->dims[ndims() - 2] : 1; }
+    dim_t W() const { return ndims() >= 3 ? src_md()->dims[ndims() - 1] : 1; }
 
-    int ndims() const { return data_desc().ndims; }
+    int ndims() const { return src_md()->ndims; }
 
     bool has_zero_dim_memory() const {
-        return memory_desc_wrapper(desc_.data_desc).has_zero_dim();
+        return memory_desc_wrapper(src_md()).has_zero_dim();
     }
 
     bool is_fwd() const {
@@ -63,26 +63,10 @@ struct prelu_pd_t : public primitive_desc_t {
                 prop_kind::forward_inference);
     }
 
-    const memory_desc_t *weights_md(int index) const override {
-        return index == 0 ? &weights_md_ : &glob_zero_md;
-    }
-
-    const memory_desc_t *src_md(int index) const override {
-        return index == 0 ? &data_md_ : &glob_zero_md;
-    }
-
-    const memory_desc_t *dst_md(int index) const override {
-        return index == 0 ? &data_md_ : &glob_zero_md;
-    }
-
-    size_t dtype_size() const {
-        return types::data_type_size(data_md_.data_type);
-    }
-
 protected:
     prelu_desc_t desc_;
     const prelu_fwd_pd_t *hint_fwd_pd_;
-    memory_desc_t data_md_;
+    memory_desc_t src_md_;
     memory_desc_t weights_md_;
 
     prelu_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
@@ -90,11 +74,8 @@ protected:
         : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc)
+        , src_md_(desc_.src_desc)
         , weights_md_(desc_.weights_desc) {}
-
-private:
-    const memory_desc_t &data_desc() const { return desc_.data_desc; }
 };
 
 struct prelu_fwd_pd_t : public prelu_pd_t {
@@ -117,21 +98,37 @@ struct prelu_fwd_pd_t : public prelu_pd_t {
         }
     }
 
+    const memory_desc_t *src_md(int index = 0) const override {
+        return index == 0 ? &src_md_ : &glob_zero_md;
+    }
+
+    const memory_desc_t *weights_md(int index = 0) const override {
+        return index == 0 ? &weights_md_ : &glob_zero_md;
+    }
+
+    const memory_desc_t *dst_md(int index = 0) const override {
+        return index == 0 ? &dst_md_ : &glob_zero_md;
+    }
+
     int n_inputs() const override { return 2; }
     int n_outputs() const override { return 1; }
 
 protected:
+    memory_desc_t dst_md_;
+
     prelu_fwd_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
             const prelu_fwd_pd_t *hint_fwd_pd)
-        : prelu_pd_t(adesc, attr, hint_fwd_pd) {}
+        : prelu_pd_t(adesc, attr, hint_fwd_pd), dst_md_(desc_.dst_desc) {}
 
     bool set_default_formats() {
-        if (weights_md_.format_kind == format_kind::any)
-            if (memory_desc_init_by_blocking_desc(
-                        weights_md_, data_md_.format_desc.blocking)
-                    != status::success)
-                return false;
-        return true;
+        return IMPLICATION(weights_md_.format_kind == format_kind::any,
+                       memory_desc_init_by_blocking_desc(
+                               weights_md_, src_md_.format_desc.blocking)
+                               == status::success)
+                && IMPLICATION(dst_md_.format_kind == format_kind::any,
+                        memory_desc_init_by_md_and_dt(
+                                dst_md_, src_md_, dst_md_.data_type)
+                                == status::success);
     }
 };
 
@@ -159,15 +156,23 @@ struct prelu_bwd_pd_t : public prelu_pd_t {
         }
     }
 
-    const memory_desc_t *diff_src_md(int index) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+    const memory_desc_t *src_md(int index = 0) const override {
+        return index == 0 ? &src_md_ : &glob_zero_md;
     }
 
-    const memory_desc_t *diff_dst_md(int index) const override {
-        return index == 0 ? &diff_data_md_ : &glob_zero_md;
+    const memory_desc_t *weights_md(int index = 0) const override {
+        return index == 0 ? &weights_md_ : &glob_zero_md;
     }
 
-    const memory_desc_t *diff_weights_md(int index) const override {
+    const memory_desc_t *diff_src_md(int index = 0) const override {
+        return index == 0 ? &diff_src_md_ : &glob_zero_md;
+    }
+
+    const memory_desc_t *diff_dst_md(int index = 0) const override {
+        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
+    }
+
+    const memory_desc_t *diff_weights_md(int index = 0) const override {
         return index == 0 ? &diff_weights_md_ : &glob_zero_md;
     }
 
@@ -175,27 +180,34 @@ struct prelu_bwd_pd_t : public prelu_pd_t {
     int n_outputs() const override { return 2; }
 
 protected:
-    memory_desc_t diff_data_md_;
+    memory_desc_t diff_src_md_;
     memory_desc_t diff_weights_md_;
+    memory_desc_t diff_dst_md_;
 
     prelu_bwd_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
             const prelu_fwd_pd_t *hint_fwd_pd)
         : prelu_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_data_md_(desc_.diff_data_desc)
-        , diff_weights_md_(desc_.diff_weights_desc) {}
+        , diff_src_md_(desc_.diff_src_desc)
+        , diff_weights_md_(desc_.diff_weights_desc)
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     bool set_default_formats() {
-        if (weights_md_.format_kind == format_kind::any)
-            if (memory_desc_init_by_blocking_desc(
-                        weights_md_, data_md_.format_desc.blocking)
-                    != status::success)
-                return false;
-        if (diff_weights_md_.format_kind == format_kind::any)
-            if (memory_desc_init_by_blocking_desc(
-                        diff_weights_md_, data_md_.format_desc.blocking)
-                    != status::success)
-                return false;
-        return true;
+        return IMPLICATION(diff_dst_md_.format_kind == format_kind::any,
+                       memory_desc_init_by_md_and_dt(
+                               diff_dst_md_, src_md_, diff_dst_md_.data_type)
+                               == status::success)
+                && IMPLICATION(diff_src_md_.format_kind == format_kind::any,
+                        memory_desc_init_by_md_and_dt(diff_src_md_,
+                                diff_dst_md_, diff_src_md_.data_type)
+                                == status::success)
+                && IMPLICATION(weights_md_.format_kind == format_kind::any,
+                        memory_desc_init_by_blocking_desc(
+                                weights_md_, src_md_.format_desc.blocking)
+                                == status::success)
+                && IMPLICATION(diff_weights_md_.format_kind == format_kind::any,
+                        memory_desc_init_by_md_and_dt(diff_weights_md_,
+                                weights_md_, diff_weights_md_.data_type)
+                                == status::success);
     }
 };
 
