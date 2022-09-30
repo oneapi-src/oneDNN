@@ -511,44 +511,6 @@ status_t dnnl_vanilla_rnn_forward_primitive_desc_create(
             (const op_desc_t *)&rnn_desc, nullptr, attr);
 }
 
-status_t dnnl_lstm_forward_primitive_desc_create(
-        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const memory_desc_t *src_layer_desc, const memory_desc_t *src_iter_desc,
-        const memory_desc_t *src_iter_c_desc,
-        const memory_desc_t *weights_layer_desc,
-        const memory_desc_t *weights_iter_desc, const memory_desc_t *bias_desc,
-        const memory_desc_t *dst_layer_desc, const memory_desc_t *dst_iter_desc,
-        const memory_desc_t *dst_iter_c_desc, unsigned flags,
-        const primitive_attr_t *attr) {
-
-    return dnnl_lstm_forward_primitive_desc_create_v3(primitive_desc_iface,
-            engine, prop_kind, direction, src_layer_desc, src_iter_desc,
-            src_iter_c_desc, weights_layer_desc, weights_iter_desc, nullptr,
-            nullptr, bias_desc, dst_layer_desc, dst_iter_desc, dst_iter_c_desc,
-            flags, attr);
-}
-
-status_t dnnl_lstm_forward_primitive_desc_create_v2(
-        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const memory_desc_t *src_layer_desc, const memory_desc_t *src_iter_desc,
-        const memory_desc_t *src_iter_c_desc,
-        const memory_desc_t *weights_layer_desc,
-        const memory_desc_t *weights_iter_desc,
-        const memory_desc_t *weights_peephole_desc,
-        const memory_desc_t *bias_desc, const memory_desc_t *dst_layer_desc,
-        const memory_desc_t *dst_iter_desc,
-        const memory_desc_t *dst_iter_c_desc, unsigned flags,
-        const primitive_attr_t *attr) {
-
-    return dnnl_lstm_forward_primitive_desc_create_v3(primitive_desc_iface,
-            engine, prop_kind, direction, src_layer_desc, src_iter_desc,
-            src_iter_c_desc, weights_layer_desc, weights_iter_desc,
-            weights_peephole_desc, nullptr, bias_desc, dst_layer_desc,
-            dst_iter_desc, dst_iter_c_desc, flags, attr);
-}
-
 status_t dnnl_lstm_forward_primitive_desc_create_v3(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
@@ -676,72 +638,6 @@ status_t dnnl_vanilla_rnn_backward_primitive_desc_create(
             alpha, beta));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, hint_fwd_pd, attr);
-}
-
-status_t dnnl_lstm_backward_primitive_desc_create(
-        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const memory_desc_t *src_layer_desc, const memory_desc_t *src_iter_desc,
-        const memory_desc_t *src_iter_c_desc,
-        const memory_desc_t *weights_layer_desc,
-        const memory_desc_t *weights_iter_desc, const memory_desc_t *bias_desc,
-        const memory_desc_t *dst_layer_desc, const memory_desc_t *dst_iter_desc,
-        const memory_desc_t *dst_iter_c_desc,
-        const memory_desc_t *diff_src_layer_desc,
-        const memory_desc_t *diff_src_iter_desc,
-        const memory_desc_t *diff_src_iter_c_desc,
-        const memory_desc_t *diff_weights_layer_desc,
-        const memory_desc_t *diff_weights_iter_desc,
-        const memory_desc_t *diff_bias_desc,
-        const memory_desc_t *diff_dst_layer_desc,
-        const memory_desc_t *diff_dst_iter_desc,
-        const memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
-        const primitive_desc_iface_t *hint_fwd_pd,
-        const primitive_attr_t *attr) {
-
-    return dnnl_lstm_backward_primitive_desc_create_v3(primitive_desc_iface,
-            engine, prop_kind, direction, src_layer_desc, src_iter_desc,
-            src_iter_c_desc, weights_layer_desc, weights_iter_desc, nullptr,
-            nullptr, bias_desc, dst_layer_desc, dst_iter_desc, dst_iter_c_desc,
-            diff_src_layer_desc, diff_src_iter_desc, diff_src_iter_c_desc,
-            diff_weights_layer_desc, diff_weights_iter_desc, nullptr, nullptr,
-            diff_bias_desc, diff_dst_layer_desc, diff_dst_iter_desc,
-            diff_dst_iter_c_desc, flags, hint_fwd_pd, attr);
-}
-
-status_t dnnl_lstm_backward_primitive_desc_create_v2(
-        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
-        const memory_desc_t *src_layer_desc, const memory_desc_t *src_iter_desc,
-        const memory_desc_t *src_iter_c_desc,
-        const memory_desc_t *weights_layer_desc,
-        const memory_desc_t *weights_iter_desc,
-        const memory_desc_t *weights_peephole_desc,
-        const memory_desc_t *bias_desc, const memory_desc_t *dst_layer_desc,
-        const memory_desc_t *dst_iter_desc,
-        const memory_desc_t *dst_iter_c_desc,
-        const memory_desc_t *diff_src_layer_desc,
-        const memory_desc_t *diff_src_iter_desc,
-        const memory_desc_t *diff_src_iter_c_desc,
-        const memory_desc_t *diff_weights_layer_desc,
-        const memory_desc_t *diff_weights_iter_desc,
-        const memory_desc_t *diff_weights_peephole_desc,
-        const memory_desc_t *diff_bias_desc,
-        const memory_desc_t *diff_dst_layer_desc,
-        const memory_desc_t *diff_dst_iter_desc,
-        const memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
-        const primitive_desc_iface_t *hint_fwd_pd,
-        const primitive_attr_t *attr) {
-
-    return dnnl_lstm_backward_primitive_desc_create_v3(primitive_desc_iface,
-            engine, prop_kind, direction, src_layer_desc, src_iter_desc,
-            src_iter_c_desc, weights_layer_desc, weights_iter_desc,
-            weights_peephole_desc, nullptr, bias_desc, dst_layer_desc,
-            dst_iter_desc, dst_iter_c_desc, diff_src_layer_desc,
-            diff_src_iter_desc, diff_src_iter_c_desc, diff_weights_layer_desc,
-            diff_weights_iter_desc, diff_weights_peephole_desc, nullptr,
-            diff_bias_desc, diff_dst_layer_desc, diff_dst_iter_desc,
-            diff_dst_iter_c_desc, flags, hint_fwd_pd, attr);
 }
 
 status_t dnnl_lstm_backward_primitive_desc_create_v3(
