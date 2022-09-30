@@ -71,8 +71,8 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "")
 endif()
 
 set(PROJECT_NAME "oneDNN")
-set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
-set(PROJECT_VERSION "0.9.0")
+set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN) Graph API")
+set(PROJECT_VERSION "0.6.0")
 
 if (CMAKE_VERSION VERSION_LESS 3.0)
     project(${PROJECT_NAME} C CXX)
