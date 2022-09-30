@@ -652,17 +652,13 @@ struct flex_rewrite {
 
             for (auto &lt : aop.in_lts_) {
                 lt.shape_ = gi[lt.id_];
-                bool is_nxc = std::find(dgraph.nxc_lt.begin(),
-                                      dgraph.nxc_lt.end(), lt.id_)
-                        != dgraph.nxc_lt.end();
-                lt.stride_ = shape_to_stride(gi[lt.id_], is_nxc);
+                lt.stride_
+                        = shape_to_stride(gi[lt.id_], dgraph.lt_2_mtag[lt.id_]);
             }
             for (auto &lt : aop.out_lts_) {
                 lt.shape_ = gi[lt.id_];
-                bool is_nxc = std::find(dgraph.nxc_lt.begin(),
-                                      dgraph.nxc_lt.end(), lt.id_)
-                        != dgraph.nxc_lt.end();
-                lt.stride_ = shape_to_stride(gi[lt.id_], is_nxc);
+                lt.stride_
+                        = shape_to_stride(gi[lt.id_], dgraph.lt_2_mtag[lt.id_]);
             }
         }
     }
@@ -687,10 +683,8 @@ struct flex_rewrite {
                         if (temp_shape.size() == ndims) {
                             lt.shape_ = temp_shape;
                             dgraph.graph_inputs[lt.id_] = temp_shape;
-                            bool is_nxc = std::find(dgraph.nxc_lt.begin(),
-                                                  dgraph.nxc_lt.end(), lt.id_)
-                                    != dgraph.nxc_lt.end();
-                            lt.stride_ = shape_to_stride(lt.shape_, is_nxc);
+                            lt.stride_ = shape_to_stride(
+                                    lt.shape_, dgraph.lt_2_mtag[lt.id_]);
                         } else {
                             BENCHDNN_PRINT(0,
                                     "Wrong shape dims for tensor: %zd!\n",
@@ -860,28 +854,35 @@ struct flex_rewrite {
     }
 
     logical_tensor::dims_t shape_to_stride(
-            logical_tensor::dims_t shape, bool is_nxc) {
+            logical_tensor::dims_t shape, std::string tag) {
+        std::string template_tag = "abcdefghijk";
+        // map of {a:0, b:1, c:2, d:3, etc}
+        std::unordered_map<char, size_t> char2dim;
+        for (size_t i = 0; i < tag.length(); ++i) {
+            char2dim[template_tag[i]] = i;
+        }
+
         const size_t ndims = shape.size();
         logical_tensor::dims_t strides(ndims);
-        if (is_nxc) {
-            dnnl_dim_t c_dim = shape[1];
-            for (size_t i = 2; i < ndims; ++i) {
-                shape[i - 1] = shape[i];
-            }
-            shape[ndims - 1] = c_dim;
+        // start from tag's last char, find corresponding dim
+        // and set stride
+        // example:
+        // shape = 1x3x4x4, tag = acdb
+        // char2dim[b] = 1, stride[1] = 1
+        // char2dim[d] = 3, stride[3] = stride[1] * shape[1] = 3
+        // char2dim[c] = 2, stride[2] = stride[3] * shape[3] = 12
+        // char2dim[a] = 0, stride[0] = stride[2] * shape[2] = 48
+        dnnl_dim_t s = 1;
+        for (size_t i = 0; i < ndims; ++i) {
+            size_t dim = char2dim[tag[ndims - 1 - i]];
+            strides[dim] = s;
+            // handle the 0-D tensor case
+            if (shape[dim] == 0)
+                s = s * 1;
+            else
+                s = s * shape[dim];
         }
-        for (auto it = shape.begin(); it < shape.end(); ++it) {
-            const auto val = std::accumulate(std::next(it), shape.end(), 1,
-                    std::multiplies<dnnl_dim_t>());
-            const auto dist = std::distance(shape.begin(), it);
-            strides[static_cast<size_t>(dist)] = val;
-        }
-        if (is_nxc) {
-            for (size_t i = ndims - 1; i > 1; --i) {
-                strides[i] = strides[i - 1];
-            }
-            strides[1] = 1;
-        }
+
         return strides;
     }
 };

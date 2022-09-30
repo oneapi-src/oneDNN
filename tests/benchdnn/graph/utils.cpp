@@ -131,6 +131,47 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
     }
 }
 
+std::string strides2memory_tag(
+        const dnnl::graph::logical_tensor::dims_t &strides, bool use_x_tag) {
+    std::string template_tag = "abcdefghijk";
+    std::vector<std::pair<dnnl_graph_dim_t, char>> vp;
+
+    // Inserting element in pair vector
+    // to keep track of indexes
+    for (size_t i = 0; i < strides.size(); ++i) {
+        vp.push_back(std::make_pair(strides[i], template_tag.at(i)));
+    }
+    // Sort the strides to descending order
+    std::sort(vp.begin(), vp.end(),
+            [](const std::pair<dnnl_graph_dim_t, char> &x,
+                    const std::pair<dnnl_graph_dim_t, char> &y) {
+                return x.first > y.first;
+            });
+
+    std::string memory_tag;
+    for (size_t i = 0; i < strides.size(); ++i) {
+        memory_tag += vp[i].second;
+    }
+
+    // translate a, ab, abc, abcd, etc. to abx
+    // translate acb, acdb, etc. to axb
+    // this is to handle to different memory tag
+    // required for partition and primitive.
+    // For example, for group conv, partition tensor
+    // has abcd memory tag, primitive weight has
+    // abcde memory tag, in order to copy primitive
+    // memory to partition, using abx is a easy way
+    if (!use_x_tag) return memory_tag;
+
+    if (memory_tag == "a" || memory_tag == "ab" || memory_tag == "abc"
+            || memory_tag == "abcd" || memory_tag == "abcde")
+        return "abx";
+    if (memory_tag == "acb" || memory_tag == "acdb" || memory_tag == "acdeb")
+        return "axb";
+
+    return memory_tag;
+}
+
 void skip_unimplemented_data_type(
         const std::vector<dnnl::graph::logical_tensor> &in_out_lts,
         res_t *res) {

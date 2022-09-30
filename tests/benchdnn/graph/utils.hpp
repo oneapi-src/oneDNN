@@ -93,6 +93,10 @@ struct sycl_deletor {
 
 dnnl::graph::op::kind opstr2kind(const std::string &kind);
 
+std::string strides2memory_tag(
+        const dnnl::graph::logical_tensor::dims_t &strides,
+        bool use_x_tag = true);
+
 void skip_unimplemented_data_type(
         const std::vector<dnnl::graph::logical_tensor> &in_out_lts, res_t *res);
 

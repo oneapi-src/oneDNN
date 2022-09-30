@@ -225,7 +225,9 @@ struct deserialized_graph {
     std::map<size_t, std::vector<deserialized_op>> in_lt_2_ops;
     std::map<size_t, deserialized_op> out_lt_2_op;
     std::map<size_t, logical_tensor::dims_t> graph_inputs;
-    std::vector<size_t> nxc_lt;
+    // reorder logical tensor id to memory tag.
+    // memory tag can be abx, axb, or other special tag
+    std::map<size_t, std::string> lt_2_mtag;
     std::vector<size_t> graph_inputs_with_mb;
     std::vector<std::string> op_kind_with_mb {"Abs", "AbsBackprop", "AvgPool",
             "AvgPoolBackprop", "BatchNormForwardTraining", "BatchNormInference",
@@ -268,7 +270,6 @@ struct deserialized_graph {
 
         std::map<size_t, size_t> deg; // record indegree for each op
         std::map<size_t, deserialized_op> ops; // op_id -> op
-        nxc_lt.clear();
         for (auto aop : ops_) {
             ops[aop.id_] = aop;
             deg[aop.id_] = 0;
@@ -278,10 +279,8 @@ struct deserialized_graph {
             for (auto lt : aop.out_lts_) {
                 out_lt_2_op[lt.id_] = aop;
                 // collect graph internal and output tensors memory layout
-                if (lt.stride_.size() > 2 && lt.stride_[1] == 1
-                        && lt.stride_[lt.stride_.size() - 1] != 1) {
-                    nxc_lt.emplace_back(lt.id_);
-                }
+                std::string mtag = strides2memory_tag(lt.stride_, false);
+                lt_2_mtag[lt.id_] = mtag;
             }
         }
 
@@ -322,12 +321,11 @@ struct deserialized_graph {
                 auto aop = in_lt_2_ops[in_lt.first][0];
                 for (auto lt : aop.in_lts_) {
                     if (lt.id_ == in_lt.first) {
-                        // collect graph input tensors memory layout
-                        if (lt.stride_.size() > 2 && lt.stride_[1] == 1
-                                && lt.stride_[lt.stride_.size() - 1] != 1) {
-                            nxc_lt.emplace_back(lt.id_);
-                        }
                         graph_inputs.emplace(in_lt.first, lt.shape_);
+                        // collect graph input tensors memory layout
+                        std::string mtag
+                                = strides2memory_tag(lt.stride_, false);
+                        lt_2_mtag[lt.id_] = mtag;
                     }
                 }
             }
