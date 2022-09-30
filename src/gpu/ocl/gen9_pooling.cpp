@@ -115,7 +115,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     // heuristics: use batching on ATS-M for certain shapes for better perf.
     if (!conf.is_backward && pd->attr()->post_ops_.has_default_values()
             && !conf.unroll_mb && is_pre_xe_hpc
-            && (2 * input_sz_mb > conf.mb)) {
+            && (2 * input_sz_mb > (size_t)conf.mb)) {
         conf.num_batches = utils::div_up(conf.mb_padded, conf.mb_block_size);
     }
     if (conf.num_batches > 1) {
