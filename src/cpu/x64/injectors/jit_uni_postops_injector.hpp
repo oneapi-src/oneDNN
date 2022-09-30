@@ -161,7 +161,7 @@ public:
 private:
     post_ops_t post_ops_;
     jit_generator *host_;
-    std::map<dnnl::impl::alg_kind_t, jit_uni_eltwise_injector_f32<isa, Vmm>>
+    std::map<int, jit_uni_eltwise_injector_f32<isa, Vmm>>
             alg_to_eltwise_injector_;
     std::unique_ptr<binary_injector::jit_uni_binary_injector_t<isa, Vmm>>
             binary_injector_;
