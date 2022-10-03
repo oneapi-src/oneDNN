@@ -25,6 +25,7 @@
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 
 #include "cpu/binary_injector_utils.hpp"
+#include "cpu/cpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -71,7 +72,8 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
             &beta_, acc, &M);
     if (st != status::success) return st;
 
-    const float *scales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(scales);
+
     if (postops_in_ip_) {
         const bool force_sequential = pp_kernel_->sequential_kernel();
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {

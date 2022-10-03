@@ -19,7 +19,9 @@
 #include "common/type_helpers.hpp"
 
 #include "cpu/binary_injector_utils.hpp"
+#include "cpu/cpu_primitive.hpp"
 #include "cpu/gemm_inner_product.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -52,7 +54,7 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
     // check if MB is the leading dimension
     bool src_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
-    const float *scales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(scales);
 
     float alpha = 1.;
     status_t st = extended_sgemm(wei_tr ? "T" : "N", src_tr ? "T" : "N", &OC,
