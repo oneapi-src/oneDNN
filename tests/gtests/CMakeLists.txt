@@ -68,8 +68,6 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_cross_engine_reorder.cpp
                               test_concat.cpp
                               test_eltwise.cpp
-                              test_lrn_forward.cpp
-                              test_lrn_backward.cpp
                               test_pooling_forward.cpp
                               test_pooling_backward.cpp
                               test_batch_normalization_f32.cpp
@@ -94,6 +92,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_softmax.cpp
                               test_concurrency.cpp
                               test_layer_normalization.cpp
+                              test_lrn.cpp
                               )
 
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")
